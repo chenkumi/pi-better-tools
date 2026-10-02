@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "provider": "openai",
+  "enabled": true,
+  "numResults": 5,
+  "searchTimeoutMs": 60000,
+  "providers": {
+    "openai": {
+      "experimentalCodex": false,
+      "captureSources": false
+    },
+    "brave": {
+      "apiKeyEnv": "BRAVE_API_KEY"
+    },
+    "exa": {
+      "apiKeyEnv": "EXA_API_KEY"
+    }
+  },
+  "fetch": {
+    "channel": "chromium",
+    "timeoutMs": 30000,
+    "maxConcurrency": 2,
+    "idleTimeoutMs": 60000
+  }
+}

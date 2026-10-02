@@ -1,0 +1,404 @@
+{
+  "schemaVersion": 1,
+  "entryLayoutChanges": [
+    {
+      "date": "2026-10-02",
+      "reason": "User requested direct Scheduler TS loading, then uniform public entries at ./modules/<name>/src/index.ts for all nine modules. Thin re-exports preserve implementation-relative resources and behavior; root manifest/files, available module manifests, typecheck includes, loader/package probes, documentation and contributor guidance updated. No source-project synchronization or global settings migration.",
+      "schedulerCli": "Compiled dist/runner.js retained in the same root package; recreate missing Scheduler metadata with root-owned build/Vitest commands, and guard missing module scripts before npm root fallback.",
+      "integrationFiles": [
+        "package.json",
+        "scripts/run-checks.mjs",
+        "scripts/package-smoke.mjs",
+        "tests/fixtures/smoke.mjs",
+        "tests/fixtures/goal-runtime.mjs",
+        "tests/integration/package.test.mjs",
+        "README.md",
+        "docs/architecture.md",
+        "docs/migration.md",
+        "AGENTS.md"
+      ],
+      "scope": "Only explicitly changed files and newly tracked entry files; unrelated pre-existing provenance mismatches and missing snapshot files remain unresolved."
+    }
+  ],
+  "runtimeDependencyUpdates": [
+    {
+      "date": "2026-10-02",
+      "scope": "Root package.json and package-lock.json only; source project dependencies and host peers unchanged.",
+      "packages": {
+        "diff": {
+          "from": "8.0.4",
+          "to": "9.0.0"
+        },
+        "jsdom": {
+          "from": "27.4.0",
+          "to": "30.1.1"
+        }
+      },
+      "nodeEngines": "^22.22.2 || ^24.15.0 || >=26.0.0",
+      "reason": "User requested latest stable runtime dependencies. npm latest queries found only these two updates; Node engine range follows jsdom 30.1.1. Full regression is blocked by missing nested manifests; browser checks passed on Node 24.15.0."
+    },
+    {
+      "date": "2026-10-02",
+      "scope": "Root package.json and package-lock.json only; no source project dependency changed.",
+      "packages": {
+        "ulid": {
+          "from": null,
+          "to": "3.0.2"
+        }
+      },
+      "reason": "User requested replacing UUID identifiers with ULID (26 vs 36 characters) to reduce agent-visible token cost. Pi --session-id accepts arbitrary IDs (verified in Pi docs/cli.md and args.test.ts). New IDs are lowercase ULIDs; persisted/validated IDs (subagent session, scheduler marker/log names, goal marker) accept both ULID and legacy UUID so existing data needs no migration."
+    },
+    {
+      "date": "2026-10-02",
+      "scope": "Root package.json and package-lock.json only.",
+      "packages": {
+        "ajv": {
+          "from": "8.20.0",
+          "to": null
+        },
+        "zod": {
+          "from": null,
+          "to": "4.6.5"
+        }
+      },
+      "reason": "User-requested native rewrite of modules/json-schema using zod 4 (z.fromJSONSchema) for validation; Ajv was only used by that module. Unsupported or silently-ignored JSON Schema constructs are rejected at startup."
+    }
+  ],
+  "scope": "Explicit reviewed local adaptations to the immutable docs/sources.json import snapshot. Includes user-authorized Subagent persistence, Shell/File license metadata, and Pi 1.0.0 test contracts. Records do not certify or re-sign unrelated pre-existing snapshot mismatches.",
+  "files": [
+    {
+      "path": "modules/scheduler/package.json",
+      "originalSha256": "249527d506f98f77444a437c9aa3f735c9cd4c27992fca861aef7ae77b037330",
+      "sha256": "01063221cd6850ac90c02f4ff28f4a463fc2b08f37a035ea151122642c73311c",
+      "reason": "Recreate missing integration metadata rather than claiming an unchanged source copy: preserve pi-scheduler 0.1.0 identity, direct TS src/index.ts entry, and root-owned TypeScript/Vitest commands; no independent dependencies/install/lockfile."
+    },
+    {
+      "path": "modules/scheduler/README.md",
+      "originalSha256": "995ce250828d718d2a076ac60279b7278ff815ce919dfa6ca40eede3d15b60c2",
+      "sha256": "826d291fa81450855782ba11d93cae31fc161a8ec14cda29fc2b9a17560a6aa9",
+      "preChangeSha256": "4bea6dcddd19beea013e99db64b0ba84ac6469ab8308dfe7aff2347fb05a98a7",
+      "reason": "Add direct TS public-entry and compiled standalone CLI guidance to the pre-existing local README; source baseline is immutable and this does not certify pre-existing README changes."
+    },
+    {
+      "path": "modules/shell-tools/tsconfig.json",
+      "originalSha256": "c3a9a35f3d84e13ea01ff479ed43b49215662d3410ccdaab729bd161e442fd66",
+      "sha256": "6e610d5c3353cf344199a70617141c9c16f494a40248dce34caa8c9e822e1b9b",
+      "reason": "Include the new src/index.ts forwarding entry in the existing noEmit typecheck."
+    },
+    {
+      "path": "modules/subagents/extensions/subagent/child-args.ts",
+      "originalSha256": "fe2053d8a831f3fe1ac017d7f1c10f76453c558289641a0f12b2e62ce5ecd38d",
+      "sha256": "64d4beb867b803da3eed5c2ddd0c921e7fc25420db6c1d0c74c170b3b0c9ab14",
+      "reason": "User-authorized resumable-only change: require managed new/resume persistence and remove --no-session fallback; retain recursion exclusion and argument precedence."
+    },
+    {
+      "path": "modules/subagents/extensions/subagent/index.ts",
+      "originalSha256": "4bba69600d0ea3da3d29bb7b7d6e092a15422fb8b6dc8fb3b9ad390dbc92e4f1",
+      "sha256": "b6615b24cb18394d3829a2964646c4388f421af08c7faf56a2b67fdf32a10f08",
+      "reason": "User-authorized resumable-only change: always allocate managed sessions, require guard/log/native checkpoint, remove opt-in and ephemeral metadata branch, retain bounded diagnostics in managed runs; consolidate bounded tool-result identities without changing output limits. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted."
+    },
+    {
+      "path": "modules/subagents/tests/child-args.test.ts",
+      "originalSha256": "d8acdc2ffeef714abb91e37b0f7eeb73ab7cb32bcde8af4f641015efa73cd4aa",
+      "sha256": "8b3f99616737fe737d8413ce7c50ebe08c007f0765fdc06a60a4dc4cc63ff5c2",
+      "reason": "Require managed creation for all dispatch shapes and retain recursion, model/thinking, tools and @file contract assertions. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted."
+    },
+    {
+      "path": "modules/subagents/tests/compatibility.test.ts",
+      "originalSha256": "5e12127e81fef28c6d36452a958030ddb1f317915fa9c7adcbf78f0d05643a70",
+      "sha256": "b3f0814157189291e48c353b24e0c9ad45519a3b5f1abe3190a47d18d45aecfb",
+      "reason": "Use explicit managed-storage substitutes for existing stream/usage faults; logging failure now refuses execution, not ephemeral fallback."
+    },
+    {
+      "path": "modules/subagents/tests/pi-cli.integration.test.ts",
+      "originalSha256": "b6b7e255d9c180293d0f0db4486a6f11025d4fa920cc9f43ca32ecbf28e4bea0",
+      "sha256": "5b9b88a47d3a7e386e39bf10e9081328bff6b2db98faebadb4b8ed63a8265a2b",
+      "reason": "Assert default actual-CLI dispatch persists verified native sessions, releases locks, and never creates ephemeral logs; retain existing retry/usage/large-output/exclusion checks. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted."
+    },
+    {
+      "path": "modules/subagents/tests/pi-session.integration.test.ts",
+      "originalSha256": "8272722d87cb70d0d8ba57baa969e4df4008da983f3a291fb034e294b0bcbbd3",
+      "sha256": "ad1b92a29952cc547dd49639a5d9e4d07fe85662d1df7772e544cf6c981c7e52",
+      "reason": "Fingerprint repository/module inputs and the root lockfile without inspecting real user settings/auth/trust. Pi 1.0.0 upgrade: derive the expected CLI version from the fixed root baseline or explicit PI_SUBAGENTS_TEST_EXPECTED_VERSION; retain native session, output and evidence assertions. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted."
+    },
+    {
+      "path": "modules/subagents/tests/runner-io.test.ts",
+      "originalSha256": "a480c1b802d3317859d221e2a4187638976a214b79f4fe65bf7fc79a2e3dc593",
+      "sha256": "b5d4e09eef9cbf5fe51c4695ffb2fe695675528afda1148cc4eb5ca657267957",
+      "reason": "Preserve existing bounded-I/O, abort, retention and fault assertions under mandatory managed allocation; forward native child arguments in mocked spawn."
+    },
+    {
+      "path": "modules/subagents/tests/runner-stress.test.ts",
+      "originalSha256": "1263defcc2b31ac65a206864610d68084caca2f92527ae4ffa03535e968ea4e3",
+      "sha256": "17392702c3f5e8b6c875259120d13a1f798185479de1727d9a03269ba6f64363",
+      "reason": "Preserve 100 MiB immediate/delayed/missing-canonical assertions with explicit managed-storage substitutes, not claims of native checkpoint correctness."
+    },
+    {
+      "path": "modules/subagents/tests/runner.test.ts",
+      "originalSha256": "de6458f70321b5ab76c2f042a4d7b91bed32b38c75a9506a9b4a0553679af74b",
+      "sha256": "8656845a28e5c8565f1648d460de56126f9fd0cb33fba4e2428018e7421e8a4c",
+      "reason": "Run existing protocol/timing/cancellation/progress cases through managed allocation with explicit storage substitutes; metadata now resides in managed run.json. Stalled debugLog write test: ioTimeoutMs 50→1000 so the shared managed-I/O timeout cannot fire on real disk begin-run before the injected stalled debug writer; assertions unchanged."
+    },
+    {
+      "path": "modules/subagents/tests/session-store.test.ts",
+      "originalSha256": "9986e3459223936ffc624802c27743dd7563157f1df55e674317aa279760fb6d",
+      "sha256": "92cbaa17c7cfd2a138811700d6a9c7f0bab40e04fc7cd9627384a0ca3e8511b8",
+      "reason": "Replace opt-in/ephemeral argument expectations with mandatory managed new/resume; retain real checkpoint, identity, trust, lock and commit fault tests. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted."
+    },
+    {
+      "path": "modules/subagents/tests/fixtures/child.mjs",
+      "originalSha256": "56d785e53499c5bd843db6570544cc96ca48516da96b7c72da7460c51008840d",
+      "sha256": "8fbea14ea6ebd2b2f9d8cb5343ca69e66d072a140f37ffd7dae2631d12e83e94",
+      "reason": "Emit matching managed native session wire header for existing offline protocol/stream fixture; real native validation is tested separately."
+    },
+    {
+      "path": "modules/subagents/tests/fixtures/pi-resume-provider.ts",
+      "originalSha256": "9b38afc3a7433c6d9e3e0e9e0530fada12508f309bb5fb8a87dfdb5006e74f53",
+      "sha256": "1e6c0a40c30f51b876847748995a02eb5a6face541c9de8b5fb55981f68ec971",
+      "reason": "Remove resumable:true from actual-CLI initial dispatches so production resume tests verify automatic persistence. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted."
+    },
+    {
+      "path": "modules/subagents/prompts/implement-and-review.md",
+      "originalSha256": "5a9260ec6035f997a0f384bc303d71f5575c23c352d667b23d9362b64edabe3d",
+      "sha256": "2d8045f334d8e219d0e6968d4a732d9ad5c7c2ff3bfe0611f3a8cee38737b487",
+      "reason": "Remove obsolete resumable opt-in instructions; every chain step now automatically owns its own managed native session."
+    },
+    {
+      "path": "modules/subagents/README.md",
+      "originalSha256": "279147070b436c428835ab950c632deea983a13d5e940c3205ea7b7c7f9bf4cf",
+      "sha256": "7a88d322a221d605f9bd88a187f9d01d9d3f11ff91959005eeb82ba1292d7185",
+      "reason": "Document mandatory managed persistence, removed parameter, storage paths, unchanged resume guard and explicit mock/native/CLI test boundaries. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted."
+    },
+    {
+      "path": "modules/file-tools/package.json",
+      "originalSha256": "5ac4d162dd21b29a6535d50210ae9955b3bc65ad1861ce913b101dce1e1583f6",
+      "sha256": "f1125bda59344ca2625de50b9cddd0632f88be7b78fd55e8c321e37dfeba4816",
+      "reason": "Project owner confirmed MIT licensing; user later requested uniform src/index.ts public entries. Update local manifest entry only; preserve source identity, test runner and original import hash."
+    },
+    {
+      "path": "modules/file-tools/tests/packaged-runtime.test.mjs",
+      "originalSha256": "aa96c409bd82795d03cc5903ec63c76b84fbb1cb5850a2a03355d3a32d40c6cc",
+      "sha256": "244a8be0ae98bd5f1cf8ddefad04694f7fd5afb64b180f59ee3f097f03b6cae1",
+      "reason": "Resolve the development regression dependency link against the integration root; production smoke independently installs real dependencies without links. Pi 1.0.0 upgrade: require advanced annotation, nested pipeline, codemode and renderer probes on 0.99.1/0.99.2/1.0.0 instead of skipping the new host."
+    },
+    {
+      "path": "modules/web-tools/tests/unit/pi-citation-compat.test.ts",
+      "originalSha256": "92b40b0f8b65ed23c665335425a737d1ff868956c7f613faf15bed4597606b16",
+      "sha256": "3a4ec56539e784f39710ddcded871790e2642405f7821a92087be69f5ed77b09",
+      "reason": "Resolve the root Pi decoder probe and explicitly audit 0.99.1/0.99.2/1.0.0 through the modern stream-hook contract. Retain callback count, response identity, allowlisted sources/citations, SECRET_QUERY privacy and normalized annotation-only URL-loss assertions."
+    },
+    {
+      "path": "modules/scheduler/tests/integration/session-pi-runtime.test.ts",
+      "originalSha256": "a16ed504881257f74c345159780ffad1d25f8d63a171b751be06d27ac478eb4a",
+      "sha256": "253597eee6e1c7f5de893e403d78004679da2be7eacf0395d587a53f90dbae48",
+      "reason": "Pi 1.0.0 upgrade: derive the exact expected session host version from the fixed root manifest, not the SDK under test. Preserve isolated real-session lifecycle, scheduler status, cancellation, reload and lock-cleanup assertions."
+    },
+    {
+      "path": "modules/scheduler/tests/integration/pi-cli-runtime.test.ts",
+      "originalSha256": "448df0ee55ee4d99dc027cf7196d8f855c80104e7befe944737c998094f611a9",
+      "sha256": "79139dfd745da85a74d967ca1701457e95a778e3f021a5a13196e038de15ed0d",
+      "reason": "Pi 1.0.0 upgrade: resolve installed CLI metadata and assert its version against the fixed root baseline. Preserve offline isolated CLI execution, session/argument contract checks and cleanup; no durable scheduler or Subagent hostContract migration."
+    },
+    {
+      "path": "modules/file-tools/src/file-operations.ts",
+      "originalSha256": "5a72dadef94d35902898dad72864e1589e2c46edd2cb71f26f1957a30371d7a4",
+      "sha256": "94e6fe7b7471ab80a9532622304f85b91baee179cd58b83857520612dc6cca36",
+      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change."
+    },
+    {
+      "path": "modules/scheduler/src/registry-store.ts",
+      "originalSha256": "bca1f648bad4286193b2e8f83b33d10568ed1f8954dff165ea39bdbbb62eb796",
+      "sha256": "6cba093d6be01f3a45a12ff37ae952a054f3a38f67a83ab2bfcb81aa57c33bd1",
+      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change."
+    },
+    {
+      "path": "modules/scheduler/src/runner.ts",
+      "originalSha256": "0638a4dbc3d8d039e8216dbc44b2ea40ff1d0165fc25277332b639c58f4af715",
+      "sha256": "f80da9754ce7040390b4aaebf0f04a99f74da8368b82d54d35e63ff077a3d490",
+      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change."
+    },
+    {
+      "path": "modules/scheduler/src/session-scheduler.ts",
+      "originalSha256": "991778138074a1be84ce3724f383954728114460c945637fecff5fbe97fcbb58",
+      "sha256": "405369b71d1bb724fdabb2b6e27ef77971dcc619b870cb0498a1841ea67ee409",
+      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change."
+    },
+    {
+      "path": "modules/scheduler/src/tool-debug-log.ts",
+      "originalSha256": "677c419df14a25c48b024e4340a65631230b865e0e2f6ff993ef6d23e5241a67",
+      "sha256": "b792a973fb6928dc7bb566dba2913ef4a098bbfab796bffd12c11d58bab94ccf",
+      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change."
+    },
+    {
+      "path": "modules/scheduler/src/run-store.ts",
+      "originalSha256": "ef2ce37898bce6aecb84b15ab294c2e0a208204f870ad626ad058ef03008d9dc",
+      "sha256": "dc8d3d8baf65ac3993016e2549abef2a7ae8e35f4551d34c486ae97b4575e1c3",
+      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change."
+    },
+    {
+      "path": "modules/scheduler/tests/unit/run-store.test.ts",
+      "originalSha256": "9618a46cb7b862f0d035c29b1e618d1cbe4e26c7d12dd1cc9149cc966fd075c9",
+      "sha256": "ffbd64d2dc99cf9f63dfacd8eac33df37e69bd1de6d1d7fad2e7650e3894ab26",
+      "reason": "User-requested UUID→ULID: test fixtures/assertions generate and match ULIDs; legacy UUID acceptance unchanged."
+    },
+    {
+      "path": "modules/scheduler/tests/unit/tool-debug-log.test.ts",
+      "originalSha256": "95c2e0bee7477fcad87caf597035b1a241ea59e3d2783f3a9d573bfe9ff46368",
+      "sha256": "4ed2d3220f2f534fd1665040418d64b913f17780b421da85a519ad9d5a918dfb",
+      "reason": "User-requested UUID→ULID: test fixtures/assertions generate and match ULIDs; legacy UUID acceptance unchanged."
+    },
+    {
+      "path": "modules/shell-tools/src/debug-log.mjs",
+      "originalSha256": "8134dcfb92f3fd61561b95c1b11a40e5f54e799615fc871799b8fceb201e4f43",
+      "sha256": "d379ae0481d8dcd130391044959432dadd5e0fe286bae5cef55fb513f032ed67",
+      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change."
+    },
+    {
+      "path": "modules/shell-tools/tests/debug-log.test.mjs",
+      "originalSha256": "a4f8feb542aad709839d11ae953a7496df643709eb5702b7725df231ecbea1bb",
+      "sha256": "d2aa250b2af853b374fa6227d833dcd67c69f213b755f0b95c71ecbfeefbb92e",
+      "reason": "User-requested UUID→ULID: test fixtures/assertions generate and match ULIDs; legacy UUID acceptance unchanged."
+    },
+    {
+      "path": "modules/subagents/extensions/subagent/debug-log.ts",
+      "originalSha256": "8049dfe98c80e2e3785d406bc2f4573b0b08d0b796d803d0b911141926cef421",
+      "sha256": "53860b75ea4ffa8d37c60bfc8d3f079f2d4f2b247f4529a9d36255a1055aceb5",
+      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change."
+    },
+    {
+      "path": "modules/subagents/extensions/subagent/session-store.ts",
+      "originalSha256": "dd6a36be674fd8dfe71a57df557d9e6f2a7563f11229b63232df5ac0cfbcece4",
+      "sha256": "48949801db8ef14fd5c4ef84279e84117c2b69b1de34a8dd72ac6009e07b77bf",
+      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change."
+    },
+    {
+      "path": "modules/subagents/extensions/subagent/subsession-log.ts",
+      "originalSha256": "455f519d013bf2c7c6697f602672b6afef5f1f987e3d66b8dc04b0f6e3481600",
+      "sha256": "e16cc26c7eba1b0524d7fb8227e473685cb6de23c755f9ecb5bae2091f4e7ff5",
+      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change."
+    },
+    {
+      "path": "modules/subagents/extensions/subagent/tool-result-spool.ts",
+      "originalSha256": "1e32c1ff25e92379e747121aedac4015a400e2a701dc932eb5d93c2b3121d5b6",
+      "sha256": "b4ea67b0b4d21f65680788569a8893d17a99df88ff2c35e50ef8d134520f133b",
+      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change."
+    },
+    {
+      "path": "modules/subagents/tests/pi-resume.integration.test.ts",
+      "originalSha256": "d6345d2746fa24b3d0e4c608f4c8267a4fb76c5e0b781987d97a4818932ff1ac",
+      "sha256": "07ea20e8f2ae9f036f4562d48fc4628518a8471572af3d2c7933e52a7a2fa4c0",
+      "reason": "User-requested UUID→ULID: test fixtures/assertions generate and match ULIDs; legacy UUID acceptance unchanged."
+    },
+    {
+      "path": "modules/shell-tools/README.md",
+      "originalSha256": "8f9a194e5960d5a4f01ea3fe8fe92ec6d74a60301b3b8f4926f547a6c6bd3956",
+      "sha256": "918b13a8cee634401156cee07599d0159f868ee908cfd9bd79d83a08a01b81ba",
+      "reason": "User-requested UUID→ULID: documentation updated for ULID identifiers (legacy UUID noted where still accepted)."
+    },
+    {
+      "path": "modules/subagents/tests/debug-log.test.ts",
+      "originalSha256": "a37d52baf52ca262ca82f3decb3c81b9cc36c63817fbeaf566c072262b6997bf",
+      "sha256": "5b78a83063072272b4e55d544358944e230cc3fdd7e99861463b39da1b8e85d7",
+      "reason": "Modules no longer carry a manifest: drop the read of modules/subagents/package.json; the persisted settings namespace is asserted as the literal \"pi-subagents\" (SUBAGENTS_PROJECT_NAME, log dir and legacy-key rejection assertions unchanged)."
+    }
+  ],
+  "addedFiles": [
+    {
+      "path": "modules/subagents/src/index.ts",
+      "sha256": "6e2f3901bf07d3054afe01ae261dec4156c25bb64da3f59761c60ae0652ccec1",
+      "reason": "Uniform public entry forwarding to existing implementation without moving guard or agent paths."
+    },
+    {
+      "path": "modules/shell-tools/src/index.ts",
+      "sha256": "49a4d6ba019dd49c5f5fae6249946d4f4c591c58d854f63f760527ed6c25aa3b",
+      "reason": "Uniform public entry forwarding to existing shell overrides."
+    },
+    {
+      "path": "modules/file-tools/src/index.ts",
+      "sha256": "b7d1b2c8f5d6ddd27b933501a5a97f3e5d76ec5173b7e037a8478dd41cacfed7",
+      "reason": "Uniform public entry forwarding without moving the diff worker."
+    },
+    {
+      "path": "modules/scheduler/src/index.ts",
+      "sha256": "8359562979ca7b6e18af8507a55a029fd9caf30c049651f91399e9192d15ab95",
+      "reason": "Uniform direct TypeScript Pi entry; no dist dependency for extension loading."
+    },
+    {
+      "path": "tests/integration/scheduler-source.test.mjs",
+      "sha256": "ab3e552eb3cb761b9a7694de3f9797fa53d8c72ed7415a7419c374938a0474cb",
+      "reason": "Stage all nine modules without dist artifacts; actual Pi full/child lifecycle smoke and Scheduler tool assertions. Development-dependency test, not a production-install claim."
+    },
+    {
+      "path": "tests/fixtures/json-schema-provider.ts",
+      "sha256": "1d94b1185cca0c212a672ab6c1fdabf9d653a1356a4d0844c4c7637952edf151",
+      "reason": "Synthetic offline provider and fault injection; no real model calls. Updated for the native json-schema rewrite: only --json-schema/--json-output, fixed best-effort extraction, no force mode."
+    },
+    {
+      "path": "tests/fixtures/json-schema-runtime.mjs",
+      "sha256": "2d36d3eba38c6106b945238c13ecad84ce4abdec901d4cf0d18d3e313e7eca6e",
+      "reason": "Complete stdout JSON.parse and exit/file contract probes, reused against actual production tarballs on all matrix hosts. Updated for the native json-schema rewrite: only --json-schema/--json-output, fixed best-effort extraction, no force mode."
+    }
+  ],
+  "removedFiles": [
+    {
+      "path": "modules/web-tools/tests/integration/package.test.ts",
+      "originalSha256": "e1db5b3b10ab520a305998a82d5f59c65e743fd21a50bd7b32d4afa21a84f7ad",
+      "reason": "Obsolete: loaded modules/web-tools as a standalone Pi package, but modules no longer carry manifests. Provider modes (openai/brave/exa) and web_fetch/web_search tool sets are covered by tests/integration/package.test.mjs through the root manifest."
+    },
+    {
+      "path": "modules/web-tools/tests/fixtures/load-package.ts",
+      "originalSha256": "7823022a9b91ef90c32dda992fc1a180a7cc016b24a0903472271960115fa55e",
+      "reason": "Removed with its only consumers (the standalone web-tools package test and production-smoke.mjs); root loader coverage lives in tests/fixtures/smoke.mjs and sdk-hooks.mjs."
+    },
+    {
+      "path": "modules/web-tools/tests/fixtures/production-smoke.mjs",
+      "originalSha256": "b5e226ea5ba373dff807da2217019b6859c298a932f74998f98caa9be766151e",
+      "reason": "Removed: unreferenced standalone web-tools production smoke that depended on load-package.ts and a per-module manifest; superseded by npm run test:package."
+    },
+    {
+      "path": "modules/subagents/package.json",
+      "originalSha256": "443daee74f94ec4705ea062c1a333926dc09d88706c9c7b09a050dbb78f6c724",
+      "reason": "Owner-directed: modules are no longer standalone packages; dependencies, lockfile, scripts and Pi manifest live only in the root package.json."
+    },
+    {
+      "path": "modules/shell-tools/package.json",
+      "originalSha256": "240935fe940b671c4987afc48286b295142270a0918d609e66bd5259023e26da",
+      "reason": "Owner-directed: modules are no longer standalone packages; dependencies, lockfile, scripts and Pi manifest live only in the root package.json."
+    },
+    {
+      "path": "modules/web-tools/package.json",
+      "originalSha256": "4633c8b5d42e067f00c35add81738c8240f6d3b58ce7e19fffb96cd905fdaf74",
+      "reason": "Owner-directed: modules are no longer standalone packages; dependencies, lockfile, scripts and Pi manifest live only in the root package.json."
+    },
+    {
+      "path": "modules/subagents/AGENTS.md",
+      "originalSha256": "28c88ffbbbfb5a0e2c83a433b8ec359890425f700949fc83d6447071d63ee9e3",
+      "reason": "Owner-directed: standalone-project contributor guide left over from separate development; the root AGENTS.md is the single contributor guide."
+    },
+    {
+      "path": "modules/shell-tools/AGENTS.md",
+      "originalSha256": "7ad73855d2975f9fe6bfee0063a6ba2a0ae28bb4fe00e0b34b75be8a1d8b3990",
+      "reason": "Owner-directed: standalone-project contributor guide left over from separate development; the root AGENTS.md is the single contributor guide."
+    },
+    {
+      "path": "modules/file-tools/AGENTS.md",
+      "originalSha256": "8dba69c716304d25ec1886605dcaa601f16ebd4866cd07379aab0c4f023c4ce5",
+      "reason": "Owner-directed: standalone-project contributor guide left over from separate development; the root AGENTS.md is the single contributor guide."
+    },
+    {
+      "path": "modules/web-tools/AGENTS.md",
+      "originalSha256": "0f125f2d0bd7b1956e721971820ea52fe891abc9791a6aca5ac374a62926d8a3",
+      "reason": "Owner-directed: standalone-project contributor guide left over from separate development; the root AGENTS.md is the single contributor guide."
+    },
+    {
+      "path": "modules/scheduler/AGENTS.md",
+      "originalSha256": "d0a891d799f6da24293bced85793749b45239e0f64b16043885c75281e24ea4a",
+      "reason": "Owner-directed: standalone-project contributor guide left over from separate development; the root AGENTS.md is the single contributor guide."
+    },
+    {
+      "path": "modules/scheduler/LICENSE",
+      "originalSha256": "1126322e2cc8d165adc4c792eeb195717de2bcc7b39be1ce77959d78e87ef685",
+      "reason": "Owner-directed: the root LICENSE covers the integrated project, so per-module LICENSE files are not kept (see THIRD_PARTY_NOTICES.md)."
+    }
+  ]
+}

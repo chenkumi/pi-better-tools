@@ -1,0 +1,740 @@
+{
+  "modules": [
+    {
+      "sourcePath": "D:/projects/pi-subagents",
+      "files": [
+        {
+          "sha256": "2ed5107e92fc0513474b89f910ca0bd6bd8461bfca3290793221f4707d559f3a",
+          "path": "extensions/subagent/agents.ts"
+        },
+        {
+          "sha256": "fe2053d8a831f3fe1ac017d7f1c10f76453c558289641a0f12b2e62ce5ecd38d",
+          "path": "extensions/subagent/child-args.ts"
+        },
+        {
+          "sha256": "d8be6b207709405c33c11f2c5d3ad4ce291296658bb0432d0cf993ec4f5693e6",
+          "path": "extensions/subagent/child-guard.ts"
+        },
+        {
+          "sha256": "8049dfe98c80e2e3785d406bc2f4573b0b08d0b796d803d0b911141926cef421",
+          "path": "extensions/subagent/debug-log.ts"
+        },
+        {
+          "sha256": "4bba69600d0ea3da3d29bb7b7d6e092a15422fb8b6dc8fb3b9ad390dbc92e4f1",
+          "path": "extensions/subagent/index.ts"
+        },
+        {
+          "sha256": "b9c2c163ab96b9a6ed564cc51626192cd5082560bbf0fde31d885e80e94d3d20",
+          "path": "extensions/subagent/io-gate.ts"
+        },
+        {
+          "sha256": "18f489d731ddca9ee135d3e02f4f3d1aa4f8c3970a7def9c8598f7a7610e7688",
+          "path": "extensions/subagent/progress.ts"
+        },
+        {
+          "sha256": "5bb2110eefdcc919122a5e356aab9065221b5b25e8d41d6fae2e8ba46e35db84",
+          "path": "extensions/subagent/protocol.ts"
+        },
+        {
+          "sha256": "08041e76f3d739c17653554a88b5d76af4ddaf291249aeb64c439935dc5987df",
+          "path": "extensions/subagent/result.ts"
+        },
+        {
+          "sha256": "dd6a36be674fd8dfe71a57df557d9e6f2a7563f11229b63232df5ac0cfbcece4",
+          "path": "extensions/subagent/session-store.ts"
+        },
+        {
+          "sha256": "455f519d013bf2c7c6697f602672b6afef5f1f987e3d66b8dc04b0f6e3481600",
+          "path": "extensions/subagent/subsession-log.ts"
+        },
+        {
+          "sha256": "1e32c1ff25e92379e747121aedac4015a400e2a701dc932eb5d93c2b3121d5b6",
+          "path": "extensions/subagent/tool-result-spool.ts"
+        },
+        {
+          "sha256": "d8acdc2ffeef714abb91e37b0f7eeb73ab7cb32bcde8af4f641015efa73cd4aa",
+          "path": "tests/child-args.test.ts"
+        },
+        {
+          "sha256": "5e12127e81fef28c6d36452a958030ddb1f317915fa9c7adcbf78f0d05643a70",
+          "path": "tests/compatibility.test.ts"
+        },
+        {
+          "sha256": "a37d52baf52ca262ca82f3decb3c81b9cc36c63817fbeaf566c072262b6997bf",
+          "path": "tests/debug-log.test.ts"
+        },
+        {
+          "sha256": "b6b7e255d9c180293d0f0db4486a6f11025d4fa920cc9f43ca32ecbf28e4bea0",
+          "path": "tests/pi-cli.integration.test.ts"
+        },
+        {
+          "sha256": "d6345d2746fa24b3d0e4c608f4c8267a4fb76c5e0b781987d97a4818932ff1ac",
+          "path": "tests/pi-resume.integration.test.ts"
+        },
+        {
+          "sha256": "8272722d87cb70d0d8ba57baa969e4df4008da983f3a291fb034e294b0bcbbd3",
+          "path": "tests/pi-session.integration.test.ts"
+        },
+        {
+          "sha256": "65cecc5e2e2a172949d9e0406fc35304e1867232aa45d805c28bdab8704aad6c",
+          "path": "tests/progress.test.ts"
+        },
+        {
+          "sha256": "6bdb01f34c4788196efe6156c53a008b891d1f7bf94f85bcd1a2359d3d2c6944",
+          "path": "tests/protocol.test.ts"
+        },
+        {
+          "sha256": "e610a76d0784af39fedddee14069e539c21edd0fd7edeec1253e319291c77713",
+          "path": "tests/result.test.ts"
+        },
+        {
+          "sha256": "a480c1b802d3317859d221e2a4187638976a214b79f4fe65bf7fc79a2e3dc593",
+          "path": "tests/runner-io.test.ts"
+        },
+        {
+          "sha256": "1263defcc2b31ac65a206864610d68084caca2f92527ae4ffa03535e968ea4e3",
+          "path": "tests/runner-stress.test.ts"
+        },
+        {
+          "sha256": "de6458f70321b5ab76c2f042a4d7b91bed32b38c75a9506a9b4a0553679af74b",
+          "path": "tests/runner.test.ts"
+        },
+        {
+          "sha256": "9986e3459223936ffc624802c27743dd7563157f1df55e674317aa279760fb6d",
+          "path": "tests/session-store.test.ts"
+        },
+        {
+          "sha256": "f6682df0a0638954aaa10e3d421865dd3d99a17158e1cac71d096ea3400d60de",
+          "path": "tests/subsession-log.test.ts"
+        },
+        {
+          "sha256": "d467c12fa66e657db4bf15c136488c7bb5d6589486463d8d3c77652e2b56d544",
+          "path": "tests/tool-result-spool.test.ts"
+        },
+        {
+          "sha256": "56d785e53499c5bd843db6570544cc96ca48516da96b7c72da7460c51008840d",
+          "path": "tests/fixtures/child.mjs"
+        },
+        {
+          "sha256": "477a989a27f5c09a624b1ee10ad8b101dedbd448eb51c494a32e971f5073bd21",
+          "path": "tests/fixtures/pi-cli-harness.ts"
+        },
+        {
+          "sha256": "83492531c735037b48304ee1e7a9e42fc00e5e738848163ccdfc18be0d11e95f",
+          "path": "tests/fixtures/pi-provider.ts"
+        },
+        {
+          "sha256": "9b38afc3a7433c6d9e3e0e9e0530fada12508f309bb5fb8a87dfdb5006e74f53",
+          "path": "tests/fixtures/pi-resume-provider.ts"
+        },
+        {
+          "sha256": "ab2f97589e277f347ad157bd46641b2cd9f39f59de37a63aee103aeb7cb868fd",
+          "path": "tests/fixtures/pi-session-provider.ts"
+        },
+        {
+          "sha256": "d9f97d6812dbfa9a8c2d11ee5d988cb9af33fe2c06d548dc3d2ad92bbbb4fb66",
+          "path": "agents/planner.md"
+        },
+        {
+          "sha256": "bcf9d560205f33eebc69f5d4d32dd9bbf0bdcf7e3ed39b601db43558e1af7515",
+          "path": "agents/reviewer.md"
+        },
+        {
+          "sha256": "36070d67a870ee051b32fe35db4d4ed173b86c2c0204a54d74e283979626215e",
+          "path": "agents/scout.md"
+        },
+        {
+          "sha256": "ddc0a845139966dd23d003f45fb8d639ee4a96607e96b074f0f4d10e08930907",
+          "path": "agents/worker.md"
+        },
+        {
+          "sha256": "5a9260ec6035f997a0f384bc303d71f5575c23c352d667b23d9362b64edabe3d",
+          "path": "prompts/implement-and-review.md"
+        },
+        {
+          "sha256": "65462de33c97ac1372cfed270dad9af164605b05028c069dd4c013ff9792675b",
+          "path": "prompts/implement.md"
+        },
+        {
+          "sha256": "9506399391e0d2c71826c45f26cc332175dd964465f99a8bb880e109f8ed89f4",
+          "path": "prompts/scout-and-plan.md"
+        },
+        {
+          "sha256": "443daee74f94ec4705ea062c1a333926dc09d88706c9c7b09a050dbb78f6c724",
+          "path": "package.json"
+        },
+        {
+          "sha256": "279147070b436c428835ab950c632deea983a13d5e940c3205ea7b7c7f9bf4cf",
+          "path": "README.md"
+        },
+        {
+          "sha256": "28c88ffbbbfb5a0e2c83a433b8ec359890425f700949fc83d6447071d63ee9e3",
+          "path": "AGENTS.md"
+        },
+        {
+          "sha256": "1126322e2cc8d165adc4c792eeb195717de2bcc7b39be1ce77959d78e87ef685",
+          "path": "LICENSE"
+        }
+      ],
+      "version": "0.1.0",
+      "sourceManifestSha256": "443daee74f94ec4705ea062c1a333926dc09d88706c9c7b09a050dbb78f6c724",
+      "packageName": "pi-subagents",
+      "module": "subagents",
+      "adaptations": [],
+      "licenseStatus": "source LICENSE preserved",
+      "sourceLockSha256": "a9315c2708375936d42dada5fc8156770174645c2ae5d6212de0f9687e3512ed"
+    },
+    {
+      "sourcePath": "D:/projects/pi-shell-tools",
+      "files": [
+        {
+          "sha256": "ea332aa731a69d182bb1e4f6361ba82455beda04a880019cf663a6d1cf97727f",
+          "path": "extensions/timeout-ms.ts"
+        },
+        {
+          "sha256": "3d384eb0fd39ba1c9bc16d62379f630d90ede6bf4e5b7666f17c620030384d49",
+          "path": "src/debug-log.d.mts"
+        },
+        {
+          "sha256": "8134dcfb92f3fd61561b95c1b11a40e5f54e799615fc871799b8fceb201e4f43",
+          "path": "src/debug-log.mjs"
+        },
+        {
+          "sha256": "ce260ef0f4fcf640a85cef4f758208d0f4297758e29d3b95e1c3f3bc943aad24",
+          "path": "src/timeout-ms.d.mts"
+        },
+        {
+          "sha256": "86fc726eecebd98b352699047b905df98bdb95ea763d60bd9572c798c9a1387c",
+          "path": "src/timeout-ms.mjs"
+        },
+        {
+          "sha256": "1f0ff7bf6e8018bbe4a02e99d1e9bd1a9e8197d295b5dbc423e1d24a48b8f98c",
+          "path": "tests/debug-log.integration.test.mjs"
+        },
+        {
+          "sha256": "a4f8feb542aad709839d11ae953a7496df643709eb5702b7725df231ecbea1bb",
+          "path": "tests/debug-log.test.mjs"
+        },
+        {
+          "sha256": "9dda3c2edd15f299a8437b15b83c018424bc13a16fe4dfc285fafbe6c10d07f5",
+          "path": "tests/extension.integration.test.mjs"
+        },
+        {
+          "sha256": "c25428e459ee62597784bcfd88bbc310f04c6102fadae7f50279a36c0911c394",
+          "path": "tests/timeout-ms.test.mjs"
+        },
+        {
+          "sha256": "04fc1d5fc8535b9b2e23cc212b1574396f3a97962fd94267b1503c2356982510",
+          "path": "tests/helpers/debug-log-deadline.mjs"
+        },
+        {
+          "sha256": "0b013ff87e5788762446291ba411de35ec27e2aadcfef5f7952bb3736fa70f6b",
+          "path": "tests/helpers/pi-fixture.mjs"
+        },
+        {
+          "sha256": "240935fe940b671c4987afc48286b295142270a0918d609e66bd5259023e26da",
+          "path": "package.json"
+        },
+        {
+          "sha256": "8f9a194e5960d5a4f01ea3fe8fe92ec6d74a60301b3b8f4926f547a6c6bd3956",
+          "path": "README.md"
+        },
+        {
+          "sha256": "7ad73855d2975f9fe6bfee0063a6ba2a0ae28bb4fe00e0b34b75be8a1d8b3990",
+          "path": "AGENTS.md"
+        },
+        {
+          "sha256": "c3a9a35f3d84e13ea01ff479ed43b49215662d3410ccdaab729bd161e442fd66",
+          "path": "tsconfig.json"
+        }
+      ],
+      "version": "0.1.0",
+      "sourceManifestSha256": "240935fe940b671c4987afc48286b295142270a0918d609e66bd5259023e26da",
+      "packageName": "pi-shell-timeout-ms",
+      "module": "shell-tools",
+      "adaptations": [],
+      "licenseStatus": "not declared; redistribution requires confirmation",
+      "sourceLockSha256": "38eca8cd188cfd1910f6b752df0bed2bc61eee5ee45dc6f1251a7d6d2c2dfbe7"
+    },
+    {
+      "sourcePath": "D:/projects/pi-file-tools",
+      "files": [
+        {
+          "sha256": "3a55b1b953cb2406b8326684d701826e907fca0324d179afea7ecc4cd01d739f",
+          "path": "extensions/file-tools.ts"
+        },
+        {
+          "sha256": "76ed6b03435532e31b47511f032d3c30f60a64e0385f123483bcf576b5c80560",
+          "path": "src/debug-logging.ts"
+        },
+        {
+          "sha256": "446d3f6d2fc3573becac047bc61eff0d20455b8da369034ea80ab745a62caad1",
+          "path": "src/diff-runner.ts"
+        },
+        {
+          "sha256": "92c342c75c936dce9a5b789db120d7c83d4c2b818ed73a5e48458b04c806dbb7",
+          "path": "src/diff-worker.mjs"
+        },
+        {
+          "sha256": "8e76d4b78ac5c82e95ce6a8fb44469a51117ae7cf786a4f05c08e5489bd24063",
+          "path": "src/errors.ts"
+        },
+        {
+          "sha256": "5a72dadef94d35902898dad72864e1589e2c46edd2cb71f26f1957a30371d7a4",
+          "path": "src/file-operations.ts"
+        },
+        {
+          "sha256": "1977da15b78cefc88609eda7aca077384a1d7225d63c624d1697d9227e9f8448",
+          "path": "src/path-utils.ts"
+        },
+        {
+          "sha256": "8846d2970d6c5b326c000ae79838b6e38c715a1959f6eac568a0817d4a51c946",
+          "path": "src/skill-paths.ts"
+        },
+        {
+          "sha256": "dc0efe6f94bdd814ef5b25e24fe517093fca951f9e331486db6b4208e82b97be",
+          "path": "tests/debug-logging.test.ts"
+        },
+        {
+          "sha256": "4c33eb643991ec8a9dd0654164ae0894e014743f0068214e513d8beeac00bcd7",
+          "path": "tests/diff-runner.test.ts"
+        },
+        {
+          "sha256": "987e205300c3163f9a022eb1ded786745d1ba7258755167ce69c3a16f582acd4",
+          "path": "tests/error-display.test.ts"
+        },
+        {
+          "sha256": "0b5cc95d9d5dd0a9572f94857513358f2619a5f726afd0b64564ae98a147058a",
+          "path": "tests/file-operations.test.ts"
+        },
+        {
+          "sha256": "10c5c56b0b7bb1e8e0e4ca0d03d6255b77ad0bc80bc3883b1cb8648df4d8e885",
+          "path": "tests/optional-null-arguments.test.ts"
+        },
+        {
+          "sha256": "aa96c409bd82795d03cc5903ec63c76b84fbb1cb5850a2a03355d3a32d40c6cc",
+          "path": "tests/packaged-runtime.test.mjs"
+        },
+        {
+          "sha256": "133ca940994db8223c3222beef086c60777b77e3924405dec3087177cf1c8bca",
+          "path": "tests/path-image-regressions.test.ts"
+        },
+        {
+          "sha256": "894e959a3fe49dde96b59e80cb75526b49debfe0950cadc8772dda5a26dcc6ec",
+          "path": "tests/test-tooling.test.mjs"
+        },
+        {
+          "sha256": "fbff30029a24e501e9af24d21848db5e545c4a120969509254bd2366ace8d0f0",
+          "path": "tests/fixtures/diff-behavior-worker.mjs"
+        },
+        {
+          "sha256": "772ae1993a8914f92d7af833b3dc7e668c0cc201e63d278e866542709abd074b",
+          "path": "tests/fixtures/diff-watchdog-child.ts"
+        },
+        {
+          "sha256": "dee0771f6575ea2191c7662e4ee1609bd0ab8b93851bbf0aaea571c7d0d57e16",
+          "path": "scripts/check-pi-matrix.mjs"
+        },
+        {
+          "sha256": "25dfb76e85f11a507bc8967278fe7b1956fe197e31457e9475dc5c548b9798f4",
+          "path": "scripts/test-cleanup.mjs"
+        },
+        {
+          "sha256": "21d6c39d2a97d40b81f5ed4952e07a6a2281b2b3799d143ac879c8626c0d150c",
+          "path": "scripts/test-process.mjs"
+        },
+        {
+          "sha256": "5ac4d162dd21b29a6535d50210ae9955b3bc65ad1861ce913b101dce1e1583f6",
+          "path": "package.json"
+        },
+        {
+          "sha256": "eb24c5848998f3383cd7eed92ab8c6adf2ceb8fdf895ea280bc7af71777e7f8a",
+          "path": "README.md"
+        },
+        {
+          "sha256": "8dba69c716304d25ec1886605dcaa601f16ebd4866cd07379aab0c4f023c4ce5",
+          "path": "AGENTS.md"
+        },
+        {
+          "sha256": "0a7e09214301f87a460a5c90c04e5a90c2373df380992cf5c86c5f3e972111c0",
+          "path": "tsconfig.json"
+        }
+      ],
+      "version": "0.1.0",
+      "sourceManifestSha256": "5ac4d162dd21b29a6535d50210ae9955b3bc65ad1861ce913b101dce1e1583f6",
+      "packageName": "pi-precise-file-tools",
+      "module": "file-tools",
+      "adaptations": [],
+      "licenseStatus": "not declared; redistribution requires confirmation",
+      "sourceLockSha256": "35ce13fa404d721e314ed9550e0819a6bfcd1bb763a2e2ee58db8fab30c3ff7b"
+    },
+    {
+      "sourcePath": "D:/projects/pi-web-tools",
+      "files": [
+        {
+          "sha256": "b63108ebf0167857921bc043b27b1f32a1af4b8329a4b2a10d5a3e94a9e6a0f4",
+          "path": "src/config.ts"
+        },
+        {
+          "sha256": "fbb4df42250e8cb0a615fb1c9d2d1b06fc10181a45be2a9c6a99b04713d83000",
+          "path": "src/debug-log.ts"
+        },
+        {
+          "sha256": "e8dd3537ad78f72e548eb6a4677cbd5b6324c6cb762ffb3d828dd5cc2a5b5bb0",
+          "path": "src/index.ts"
+        },
+        {
+          "sha256": "ffb49e02685bc9f8c6d16cf299826061ebbc5b3a5d0248c8c0e96ab1eb156bda",
+          "path": "src/native-openai.ts"
+        },
+        {
+          "sha256": "e16949476c648e08b0e106adabd32c8438fd054b39793e11aa6aed65e3aea446",
+          "path": "src/native-sources.ts"
+        },
+        {
+          "sha256": "6aaac4bb47827f9d597ec398876a8573325fcbfa436866d18d5f95f02f0ac03b",
+          "path": "src/output.ts"
+        },
+        {
+          "sha256": "b2cead3c20ae104d60cb2d51c97a3eb5a3f6baea03b405f1e33b0cb5caddbc3a",
+          "path": "src/search.ts"
+        },
+        {
+          "sha256": "9ce94920dfb1322dea0e99676d3a73b6ac36a0e7e6eb30b2764d442741967460",
+          "path": "src/tool-schemas.ts"
+        },
+        {
+          "sha256": "cec14cd0c53b06db278f6010a583906a7286e07c274adc6db9ba2ddf973ddb0d",
+          "path": "src/vendor.d.ts"
+        },
+        {
+          "sha256": "eaf1629c4fc773ec1313db65b692c1fef9b6fbe02df25b258f421b2a0ffb41ae",
+          "path": "src/fetch/extract.ts"
+        },
+        {
+          "sha256": "2c751719a61db3247aa5620f71d3a6985f0db0c82c88e02e60365bd1816a1ee7",
+          "path": "src/fetch/index.ts"
+        },
+        {
+          "sha256": "d25504f5c2c8097835cb6ed8608105a1029657afd119418ea0387ae183f8aa14",
+          "path": "src/fetch/network.ts"
+        },
+        {
+          "sha256": "01e07d61773f5fda26af275106ab757efa967ec14d17e74b22a91ad5955d21ba",
+          "path": "src/fetch/playwright-tls-compat.ts"
+        },
+        {
+          "sha256": "ed6bba32451c52c97e63e8f6dc917ec2b1e6366ca2e994e6b4aebeeede9fb013",
+          "path": "src/fetch/service.ts"
+        },
+        {
+          "sha256": "7823022a9b91ef90c32dda992fc1a180a7cc016b24a0903472271960115fa55e",
+          "path": "tests/fixtures/load-package.ts"
+        },
+        {
+          "sha256": "b5e226ea5ba373dff807da2217019b6859c298a932f74998f98caa9be766151e",
+          "path": "tests/fixtures/production-smoke.mjs"
+        },
+        {
+          "sha256": "fa6ab74c3d399cbcdb1311f0d580c6ba97a1e8eae0dbb7c4b2c688f273bb1c8d",
+          "path": "tests/fixtures/timeout-tree.mjs"
+        },
+        {
+          "sha256": "feb6d83952f27573f14e0cca04cb7655f34ae0f5cc53d86e75a23c0562b364b8",
+          "path": "tests/integration/fetch.test.ts"
+        },
+        {
+          "sha256": "e1db5b3b10ab520a305998a82d5f59c65e743fd21a50bd7b32d4afa21a84f7ad",
+          "path": "tests/integration/package.test.ts"
+        },
+        {
+          "sha256": "17902563d83b82f3686cfc00065a34eeef80c9cbbf37cd35081aabd1213c2eab",
+          "path": "tests/unit/config.test.ts"
+        },
+        {
+          "sha256": "3b9e14565f8f47f58424d7372e32d05d4e0fd5285370ed00e59b019f146bef78",
+          "path": "tests/unit/debug-log.test.ts"
+        },
+        {
+          "sha256": "a3030e8ce09b0ba10e1032eceb0885ee91fc5ff309cdd8b770593351c62301a2",
+          "path": "tests/unit/extension.test.ts"
+        },
+        {
+          "sha256": "586066237f9d9b6f10aa6d6b34d451616aa4dea588da2e8fab9db70942f218b9",
+          "path": "tests/unit/fetch.test.ts"
+        },
+        {
+          "sha256": "3abc65f8faf2ee72a84763740b2d3656d2fc5f1ca89053f1df75184a384bef5f",
+          "path": "tests/unit/native-openai.test.ts"
+        },
+        {
+          "sha256": "48865ea0d124f823a89fb56aa7ea122a6062843ec46ab7ab595d22df5032017d",
+          "path": "tests/unit/native-sources.test.ts"
+        },
+        {
+          "sha256": "e0b87ea8af137208a49419d5c98e492792336eb07c1bc4a6b2032088441d864e",
+          "path": "tests/unit/output.test.ts"
+        },
+        {
+          "sha256": "92b40b0f8b65ed23c665335425a737d1ff868956c7f613faf15bed4597606b16",
+          "path": "tests/unit/pi-citation-compat.test.ts"
+        },
+        {
+          "sha256": "113bf6cfcef749cc50647eaf73aeee624f2ed3a4d7d399ab9b41ad7a97070aac",
+          "path": "tests/unit/process.test.ts"
+        },
+        {
+          "sha256": "d3cc6f1ab68e87e848d758a9f014c1e911d63cd3c11f039521cafdc64a1fee51",
+          "path": "tests/unit/search.test.ts"
+        },
+        {
+          "sha256": "4db0b551e2cd32404d0d974f0d2d0eda1878fa05222986faee1470d174deff8e",
+          "path": "scripts/compat.mjs"
+        },
+        {
+          "sha256": "677f49b149ca1a60ecbc1aaa91accf9e79660d3471f71193da871c47413b575c",
+          "path": "scripts/process.ts"
+        },
+        {
+          "sha256": "395514f1cda8ff10442ed27fdc59e8eae5d7571f51f9543293bb712a34e0e251",
+          "path": "schemas/web_search.schema.json"
+        },
+        {
+          "sha256": "339c74ed18917c345fa8bdcb0e5025236633400b3b77973229eb694f85f85678",
+          "path": "examples/web-search.json"
+        },
+        {
+          "sha256": "4633c8b5d42e067f00c35add81738c8240f6d3b58ce7e19fffb96cd905fdaf74",
+          "path": "package.json"
+        },
+        {
+          "sha256": "39be626cf45a2409a02bf8caeea9585188413776a1b6c8d456664fa909ebf71c",
+          "path": "README.md"
+        },
+        {
+          "sha256": "0f125f2d0bd7b1956e721971820ea52fe891abc9791a6aca5ac374a62926d8a3",
+          "path": "AGENTS.md"
+        },
+        {
+          "sha256": "858cb8d14e077e0ddfa0b4bff2c644266e74a1c220dc8d5227cc17ab9394c201",
+          "path": "LICENSE"
+        },
+        {
+          "sha256": "6fb58b62d8452e0958b77c617c99983b56737e30f8cbca98312dcf71ab563467",
+          "path": "tsconfig.json"
+        }
+      ],
+      "version": "0.1.0",
+      "sourceManifestSha256": "4633c8b5d42e067f00c35add81738c8240f6d3b58ce7e19fffb96cd905fdaf74",
+      "packageName": "pi-web-tools",
+      "module": "web-tools",
+      "adaptations": [],
+      "licenseStatus": "source LICENSE preserved",
+      "sourceLockSha256": "d53d5b32621656fbbcca6746b7c67bb978c7dcbeb3cad5ff8c7c696943b686db"
+    },
+    {
+      "sourcePath": "D:/projects/pi-schedular",
+      "files": [
+        {
+          "sha256": "b48db36fe7cf2aeda2d50fcd29cdb9646ca3868683d5cc397f48a39146f7a1ba",
+          "path": "src/app-scheduler.ts"
+        },
+        {
+          "sha256": "eb21c65be1e3b7a195d9df5860d0b7befff8cba86fb58e56848d5fde8b511b0b",
+          "path": "src/commands.ts"
+        },
+        {
+          "sha256": "9b5e8d0b55f6bdd47b0d0737902e25ab11945a2a3b145ca404b31cd40a05eab6",
+          "path": "src/cron-engine.ts"
+        },
+        {
+          "sha256": "f1da00533d7ae985496dbeded45d4284747cc9803d135e4c72f1012b2213b98c",
+          "path": "src/domain.ts"
+        },
+        {
+          "sha256": "07972cb8b518dcf4a9330d57ff6c3866b3fbea660af5563d8f26979ae42be21c",
+          "path": "src/execution-profile.ts"
+        },
+        {
+          "sha256": "534b0523e1396a3f73907910595b7dea0710e297cc49d4dacde3ee4a0b31a60d",
+          "path": "src/extension.ts"
+        },
+        {
+          "sha256": "1d1aef01d00e816eed459d4c07dc85975e5dfdce83981b684308468abf1eb815",
+          "path": "src/locking.ts"
+        },
+        {
+          "sha256": "ab01cdee1c4e8b20f6810c763249cd433847ce69773d0796c55c372ed3ff4dc1",
+          "path": "src/paths.ts"
+        },
+        {
+          "sha256": "8f8b9e2ee033f4008c4520bebbe61c4babed45eae8e7ea37eeb3c8488d81c395",
+          "path": "src/pi-output.ts"
+        },
+        {
+          "sha256": "d15a541fff5fe4b21bf873b783e27dc2084db088972bd8d25f201335bc32b29f",
+          "path": "src/pi-process-executor.ts"
+        },
+        {
+          "sha256": "abc47ba8ef87a16aa7dea4caef708ec205014b52996491abc542fbc746448e1f",
+          "path": "src/process-supervisor.ts"
+        },
+        {
+          "sha256": "bca1f648bad4286193b2e8f83b33d10568ed1f8954dff165ea39bdbbb62eb796",
+          "path": "src/registry-store.ts"
+        },
+        {
+          "sha256": "ef2ce37898bce6aecb84b15ab294c2e0a208204f870ad626ad058ef03008d9dc",
+          "path": "src/run-store.ts"
+        },
+        {
+          "sha256": "0638a4dbc3d8d039e8216dbc44b2ea40ff1d0165fc25277332b639c58f4af715",
+          "path": "src/runner.ts"
+        },
+        {
+          "sha256": "4efcea7b838b73c3f47335c301f482387b8dac39418ac28864da266926fa32fa",
+          "path": "src/runtime-deps.ts"
+        },
+        {
+          "sha256": "e6087343e595d76c44abf00ccc0e8cb06606e105f729a2a35b87e9e75abb0845",
+          "path": "src/scheduler-service.ts"
+        },
+        {
+          "sha256": "991778138074a1be84ce3724f383954728114460c945637fecff5fbe97fcbb58",
+          "path": "src/session-scheduler.ts"
+        },
+        {
+          "sha256": "677c419df14a25c48b024e4340a65631230b865e0e2f6ff993ef6d23e5241a67",
+          "path": "src/tool-debug-log.ts"
+        },
+        {
+          "sha256": "d7f83aa7e956c0c1b6610c78c58f7b5138d817e33f9a877d125e2b52c62fd36c",
+          "path": "src/tools.ts"
+        },
+        {
+          "sha256": "89f5a180f71efe2c0dd53153da64283933835a2e3b6110ee7c4a04f44b847f32",
+          "path": "src/ui.ts"
+        },
+        {
+          "sha256": "c01d2d057c3d1a09549a835a00ef2035b9cdba7eb70b19e8a867a2a90a56a2d4",
+          "path": "src/windows-process-inspector.ts"
+        },
+        {
+          "sha256": "e02a3d28a94de39b048590640f961f18b545cc03cf72cb212394d0d12423cbd4",
+          "path": "tests/fixtures/offline-provider.ts"
+        },
+        {
+          "sha256": "6c1aeca085eca6353f384cca0f722e6552a97d9d69fccc11aa893868ec63ecb5",
+          "path": "tests/fixtures/smoke-extension.ts"
+        },
+        {
+          "sha256": "b745d3efb89e9ffdcfc50a0deb8efc2fb987648e522e3ac3a2a5142a0330d347",
+          "path": "tests/integration/app-scheduler.test.ts"
+        },
+        {
+          "sha256": "448df0ee55ee4d99dc027cf7196d8f855c80104e7befe944737c998094f611a9",
+          "path": "tests/integration/pi-cli-runtime.test.ts"
+        },
+        {
+          "sha256": "66df9e5a96cb3b2e5dbe5f85cdda8a9c9a0e0fa3f907317604a24198cbfc0e71",
+          "path": "tests/integration/pi-process-executor.test.ts"
+        },
+        {
+          "sha256": "2dc1986dff6ac37c99904afa514052314540b4a1f370c7313c494f5bd9196d31",
+          "path": "tests/integration/process-supervisor.test.ts"
+        },
+        {
+          "sha256": "c8294d2e71c45f433e48f976b278c46055170cfc199cd33f8b4cf9c6aa8736f5",
+          "path": "tests/integration/scheduler-tools.test.ts"
+        },
+        {
+          "sha256": "a16ed504881257f74c345159780ffad1d25f8d63a171b751be06d27ac478eb4a",
+          "path": "tests/integration/session-pi-runtime.test.ts"
+        },
+        {
+          "sha256": "84bc7b4190197a840b04a2a23d5b9cd282d9db10632abb07c8256abd50f79f78",
+          "path": "tests/integration/session-scheduler.test.ts"
+        },
+        {
+          "sha256": "48f31dd57a0bd3498b15509fa83053feda4c3283185d2950c5c53b386c9b6737",
+          "path": "tests/unit/commands.test.ts"
+        },
+        {
+          "sha256": "a0b2da363d96e4b7801e6a1019df36720bb8a0401a74e2acae1576bc5bcfa07d",
+          "path": "tests/unit/cron-engine.test.ts"
+        },
+        {
+          "sha256": "1a3ed7ce2e2f04dc8bd54f67c5eaf6d7ee695c12f74998dec31b8c462d676f46",
+          "path": "tests/unit/domain.test.ts"
+        },
+        {
+          "sha256": "72e245be3136d8bd1b5e1b12e0b760c58263a0c4b33361156f9f717b9e323162",
+          "path": "tests/unit/execution-profile.test.ts"
+        },
+        {
+          "sha256": "735679ac5364b100a2edf1a2cc6f9d76652ac7e820e4f13673a40871ddd1d0e9",
+          "path": "tests/unit/paths.test.ts"
+        },
+        {
+          "sha256": "d23f7619f191c737eeadb8ef83ec9003b9aaf3e141bdeb11d03e8327043910da",
+          "path": "tests/unit/pi-output.test.ts"
+        },
+        {
+          "sha256": "be6f337ff175c835a68090b34c8ce52a2de1937408b7e0a059395c0da8a1620a",
+          "path": "tests/unit/registry-store.test.ts"
+        },
+        {
+          "sha256": "9618a46cb7b862f0d035c29b1e618d1cbe4e26c7d12dd1cc9149cc966fd075c9",
+          "path": "tests/unit/run-store.test.ts"
+        },
+        {
+          "sha256": "95c2e0bee7477fcad87caf597035b1a241ea59e3d2783f3a9d573bfe9ff46368",
+          "path": "tests/unit/tool-debug-log.test.ts"
+        },
+        {
+          "sha256": "249527d506f98f77444a437c9aa3f735c9cd4c27992fca861aef7ae77b037330",
+          "path": "package.json"
+        },
+        {
+          "sha256": "995ce250828d718d2a076ac60279b7278ff815ce919dfa6ca40eede3d15b60c2",
+          "path": "README.md"
+        },
+        {
+          "sha256": "d0a891d799f6da24293bced85793749b45239e0f64b16043885c75281e24ea4a",
+          "path": "AGENTS.md"
+        },
+        {
+          "sha256": "1126322e2cc8d165adc4c792eeb195717de2bcc7b39be1ce77959d78e87ef685",
+          "path": "LICENSE"
+        },
+        {
+          "sha256": "cca6d5c6facbf3cee815bd1cb6b99b92ce1e985a141eaa5101a3b4e20f178b79",
+          "path": "tsconfig.json"
+        },
+        {
+          "sha256": "d3abdb0a5b9a4cc1782ba858de976e896ceb259a6180565a5746673f07eb24a9",
+          "path": "vitest.config.ts"
+        }
+      ],
+      "version": "0.1.0",
+      "sourceManifestSha256": "249527d506f98f77444a437c9aa3f735c9cd4c27992fca861aef7ae77b037330",
+      "packageName": "pi-scheduler",
+      "module": "scheduler",
+      "adaptations": [],
+      "licenseStatus": "source LICENSE preserved",
+      "sourceLockSha256": "640ff3c605dd49e823947a9b9cb6a5160e60f15f4fa11bc959aadfe9e284b79c"
+    }
+  ],
+  "schemaVersion": 1,
+  "importedAt": "2026-10-01T09:44:03.7753009+08:00",
+  "strategy": "source snapshot; root dependencies only",
+  "retiredImports": [
+    {
+      "module": "json-schema",
+      "packageName": "@nqbao/pi-json-schema",
+      "version": "0.1.1",
+      "sourcePath": "D:/projects/pi-json-schema",
+      "reason": "2026-10-02: the original source is no longer available. modules/json-schema was rewritten as a project-native module (zod 4 validation, fixed best-effort fallback, --json-schema/--json-output only); none of the imported files remain. See docs/native-modules.json."
+    }
+  ]
+}

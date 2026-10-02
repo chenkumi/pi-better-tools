@@ -1,0 +1,112 @@
+{
+    "name": "pi-better-tools",
+    "version": "0.1.0",
+    "private": true,
+    "license": "MIT",
+    "description": "A single Pi package integrating subagents, shell, precise file, web, scheduler, note, GPT speed, goal-first and JSON Schema delivery extensions.",
+    "type": "module",
+    "keywords": [
+        "pi-package",
+        "pi-extension",
+        "tools"
+    ],
+    "engines": {
+        "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+    },
+    "files": [
+        "modules/subagents/extensions",
+        "modules/subagents/src",
+        "modules/subagents/agents",
+        "modules/subagents/prompts",
+        "modules/shell-tools/extensions",
+        "modules/shell-tools/src",
+        "modules/file-tools/extensions",
+        "modules/file-tools/src",
+        "modules/web-tools/src",
+        "modules/web-tools/schemas",
+        "modules/web-tools/examples",
+        "modules/scheduler/src",
+        "modules/scheduler/dist",
+        "modules/scheduler/package.json",
+        "modules/note-tools/extensions",
+        "modules/note-tools/src",
+        "modules/gpt-speed/extensions",
+        "modules/gpt-speed/src",
+        "modules/goal/extensions",
+        "modules/goal/src",
+        "modules/json-schema/extensions",
+        "modules/json-schema/src",
+        "README.md",
+        "LICENSE",
+        "THIRD_PARTY_NOTICES.md",
+        "docs/architecture.md",
+        "docs/configuration.md",
+        "docs/migration.md"
+    ],
+    "pi": {
+        "extensions": [
+            "./modules/shell-tools/src/index.ts",
+            "./modules/file-tools/src/index.ts",
+            "./modules/subagents/src/index.ts",
+            "./modules/web-tools/src/index.ts",
+            "./modules/scheduler/src/index.ts",
+            "./modules/note-tools/src/index.ts",
+            "./modules/gpt-speed/src/index.ts",
+            "./modules/goal/src/index.ts",
+            "./modules/json-schema/src/index.ts"
+        ],
+        "prompts": [
+            "./modules/subagents/prompts"
+        ]
+    },
+    "bin": {
+        "pi-scheduler": "./modules/scheduler/dist/runner.js"
+    },
+    "scripts": {
+        "build": "node scripts/run-checks.mjs build",
+        "typecheck": "node scripts/run-checks.mjs typecheck",
+        "test": "node scripts/run-checks.mjs unit",
+        "test:integration": "node scripts/run-checks.mjs integration",
+        "test:browser": "node scripts/run-checks.mjs browser",
+        "test:package": "node scripts/package-smoke.mjs",
+        "test:matrix": "node scripts/package-smoke.mjs --host 0.99.1 --host 0.99.2 --host 1.0.0",
+        "check": "npm run build && npm run typecheck && npm test && npm run test:integration && npm run test:package",
+        "browser:install": "playwright install chromium --no-shell",
+        "sources:verify": "node scripts/verify-sources.mjs",
+        "prepack": "npm run build"
+    },
+    "dependencies": {
+        "@mozilla/readability": "0.6.0",
+        "croner": "10.0.1",
+        "diff": "9.0.0",
+        "ipaddr.js": "2.5.0",
+        "jsdom": "30.1.1",
+        "playwright": "1.63.0",
+        "proper-lockfile": "4.1.2",
+        "turndown": "7.2.4",
+        "turndown-plugin-gfm": "1.0.2",
+        "ulid": "3.0.2",
+        "zod": "4.6.5"
+    },
+    "peerDependencies": {
+        "@earendil-works/pi-agent-core": "*",
+        "@earendil-works/pi-ai": "*",
+        "@earendil-works/pi-coding-agent": "*",
+        "@earendil-works/pi-tui": "*",
+        "typebox": "*"
+    },
+    "devDependencies": {
+        "@earendil-works/pi-agent-core": "1.0.0",
+        "@earendil-works/pi-ai": "1.0.0",
+        "@earendil-works/pi-coding-agent": "1.0.0",
+        "@earendil-works/pi-tui": "1.0.0",
+        "@types/jsdom": "^27.0.0",
+        "@types/node": "22.19.19",
+        "@types/proper-lockfile": "^4.1.4",
+        "@types/turndown": "^5.0.5",
+        "tsx": "^4.20.6",
+        "typebox": "1.3.27",
+        "typescript": "5.9.3",
+        "vitest": "^4.1.9"
+    }
+}

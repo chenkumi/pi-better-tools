@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "scope": "Project-native modules requested after the five-source integration. Not imported snapshots or changes to any original source project.",
+  "modules": [
+    {
+      "module": "note-tools",
+      "origin": "User-requested native note extension: args {type, content}; five categories; automatically name and create Markdown files, return saved paths; subsequent operations use file tools.",
+      "license": "MIT (root LICENSE)",
+      "entry": "modules/note-tools/src/index.ts",
+      "files": [
+        {
+          "path": "modules/note-tools/src/index.ts",
+          "sha256": "fba8082ef267d629e6b0c8e5950bc4df940298219e9454670e83dea90c0fd922",
+          "reason": "User-requested uniform public entry; forward to existing implementation."
+        },
+        {
+          "path": "modules/note-tools/extensions/note.ts",
+          "sha256": "b753ab14a2ffe217509ed09555fb73553f8da694f70acf928785e57492562ea3"
+        },
+        {
+          "path": "modules/note-tools/tests/note.test.ts",
+          "sha256": "9bd4047820aa9d7c6d01a266e49746f9f323851fc0c71af1a05463e19949b3d9"
+        },
+        {
+          "path": "modules/note-tools/tsconfig.json",
+          "sha256": "6875b763e37eeccb41b46349688b55d56abfcf8d9a6791bf42b011f22d02b2e6",
+          "reason": "Include the new public source entry in typecheck."
+        },
+        {
+          "path": "modules/note-tools/README.md",
+          "sha256": "ab18ee3335437ce91af7fcdd1e8dbdc6198ab2c9989c0de37adf967b41e92bb9"
+        }
+      ]
+    },
+    {
+      "module": "gpt-speed",
+      "origin": "User-requested native speed extension: /fast, /ultrafast, /normal; strict GPT >= 5.6 name pattern, luna/terra Ultrafast downgrade, actual speed in TUI. pi-codex-fast is a conceptual request-hook reference only; no source snapshot copied or original project modified.",
+      "license": "MIT (root LICENSE)",
+      "entry": "modules/gpt-speed/src/index.ts",
+      "files": [
+        {
+          "path": "modules/gpt-speed/src/index.ts",
+          "sha256": "3c19f36cf2f449f0ee4b0fa193faeb8e23b0dab77fe8a74fd779f0a7387ee213",
+          "reason": "User-requested uniform public entry; forward to existing implementation."
+        },
+        {
+          "path": "modules/gpt-speed/extensions/gpt-speed.ts",
+          "sha256": "277e4123572a9795d863122eb11784860cbcba6e3f21128070fb929fb0e27219"
+        },
+        {
+          "path": "modules/gpt-speed/tests/gpt-speed.test.ts",
+          "sha256": "615ee69769b76f6bd6a539ef4529537cb920e236e4263df34b3e08409b6d00fa"
+        },
+        {
+          "path": "modules/gpt-speed/tsconfig.json",
+          "sha256": "6875b763e37eeccb41b46349688b55d56abfcf8d9a6791bf42b011f22d02b2e6",
+          "reason": "Include the new public source entry in typecheck."
+        },
+        {
+          "path": "modules/gpt-speed/README.md",
+          "sha256": "770e36fd3ec7a872da87ad776f37a2b396ae2d38d42b1852169f0a0002aacbe4"
+        }
+      ]
+    },
+    {
+      "module": "goal",
+      "origin": "User-authorized native goal-first extension per plan/GOAL-DESIGN.md v2: preserve acceptance objective verbatim; user-owned lifecycle; bounded main-agent continuation and structured outcome evidence; optional plan remains independent. pi-goal-x and Codex are conceptual references only; no source snapshot copied or original project modified.",
+      "license": "MIT (root LICENSE)",
+      "entry": "modules/goal/src/index.ts",
+      "files": [
+        {
+          "path": "modules/goal/src/index.ts",
+          "sha256": "5452014e9dbe0f15700822c7712afb6f4311fdfbe832cc3ffa54e6909b941208",
+          "reason": "User-requested uniform public entry; forward without changing lifecycle or child gates."
+        },
+        {
+          "path": "modules/goal/extensions/goal.ts",
+          "sha256": "835c8277236ad08f67f61d7a3c3a5b4e880bd76e617cae2b93ab509b785411db"
+        },
+        {
+          "path": "modules/goal/src/state.ts",
+          "sha256": "932c371595af962421e67d27e3507730c9dbe36614dc21aa4559a34e23fccec0"
+        },
+        {
+          "path": "modules/goal/src/controller.ts",
+          "sha256": "b1687eda27d8ba10d3380a71a053123b1a19a06d66da0f66a565615c5357a346"
+        },
+        {
+          "path": "modules/goal/src/prompts.ts",
+          "sha256": "c872e18f4f03beaf8c18d48289a66e2de8cfaac328e8b6e65d8a808fcab678c5"
+        },
+        {
+          "path": "modules/goal/tests/goal.test.ts",
+          "sha256": "cdf86335693c37c325e8d446b88e1f23ebec00440f500c1acc9465cbe2b0340b"
+        },
+        {
+          "path": "modules/goal/tests/runtime.test.mjs",
+          "sha256": "ff221d45012a4f98e89792f9e6c494053582baa2f1176ab4660ca3748a2c22ac"
+        },
+        {
+          "path": "modules/goal/tsconfig.json",
+          "sha256": "e57bfa3c781251d198025d5a97cf4894b6b1804000ab11e6e63635d653322db3"
+        },
+        {
+          "path": "modules/goal/README.md",
+          "sha256": "23e2a0a245d26264ae24fd0a5ae0013d18f1e8f421005229a5432ecfc59d9294"
+        }
+      ]
+    },
+    {
+      "module": "json-schema",
+      "origin": "Project-native rewrite (2026-10-02) of structured print-mode output, written from the documented behavior only; replaces the former @nqbao/pi-json-schema import, whose source is no longer available. zod 4 validates; flags are --json-schema and --json-output; extraction fallback is always best-effort.",
+      "license": "MIT (root LICENSE)",
+      "entry": "modules/json-schema/src/index.ts",
+      "files": [
+        {
+          "path": "modules/json-schema/src/index.ts",
+          "sha256": "8909f73091f3997045822b0312f227d1a10fbbb6a1e61ed0cb071b08a96a9d88"
+        },
+        {
+          "path": "modules/json-schema/extensions/json-schema.ts",
+          "sha256": "161717f5e8e650a7c87f1f4f4b147b846038ecd078f8c589f76bbcb93f196746"
+        },
+        {
+          "path": "modules/json-schema/src/schema.ts",
+          "sha256": "0d708a69503f035ec17a9b2f4d88a90c82bd321f4b10753648bbd331e8660371"
+        },
+        {
+          "path": "modules/json-schema/src/extract.ts",
+          "sha256": "1e5011bd477a71d297b6c5f6ff2505bc657d5efb755d4cdf75197658866d88eb"
+        },
+        {
+          "path": "modules/json-schema/src/delivery.ts",
+          "sha256": "0cb224e72947698a0db18ab37d1d8755221549809ee190de13b32a348845e1fc"
+        },
+        {
+          "path": "modules/json-schema/tests/schema.test.ts",
+          "sha256": "7e403bede75ff19b6e1bec339604f6cba36d2feef5fe0412650c771a5e014e6c"
+        },
+        {
+          "path": "modules/json-schema/tests/extract.test.ts",
+          "sha256": "063eeea28b051177c0be6ad180364aee0a4da5166d28efc150f063af1bf86aa4"
+        },
+        {
+          "path": "modules/json-schema/tests/delivery.test.ts",
+          "sha256": "9a2c3e786a98c437ad5163447eb5a8ad64892056517972a2172fc95615aac75d"
+        },
+        {
+          "path": "modules/json-schema/tests/runtime.test.mjs",
+          "sha256": "c50525774ef99fdb76ec3876bc08efe945a8cf4fb05ec4df267111e8c04c9644"
+        },
+        {
+          "path": "modules/json-schema/tsconfig.json",
+          "sha256": "e57bfa3c781251d198025d5a97cf4894b6b1804000ab11e6e63635d653322db3"
+        },
+        {
+          "path": "modules/json-schema/README.md",
+          "sha256": "2b75674aab4cb82fc0137c325cf243ac0937f4ad28d0584b2b843bc21818938a"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "name": "pi-precise-file-tools",
+  "version": "0.1.0",
+  "description": "Reliable read, write, and precise text/regex edit overrides for Pi",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "files": [
+    "extensions",
+    "src",
+    "README.md"
+  ],
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "file-tools"
+  ],
+  "scripts": {
+    "test": "tsx --test tests/file-operations.test.ts tests/diff-runner.test.ts tests/error-display.test.ts tests/optional-null-arguments.test.ts tests/debug-logging.test.ts tests/path-image-regressions.test.ts",
+    "test:integration": "node --test tests/packaged-runtime.test.mjs",
+    "test:tooling": "node --test tests/test-tooling.test.mjs",
+    "test:matrix": "node scripts/check-pi-matrix.mjs",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm test && npm run test:tooling && npm run test:integration"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "dependencies": {
+    "diff": "8.0.4"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.99.1",
+    "@earendil-works/pi-tui": "0.99.1",
+    "@types/node": "^22.19.19",
+    "tsx": "^4.20.6",
+    "typebox": "1.3.27",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "pi-web-tools configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": { "const": 1, "default": 1 },
+    "provider": { "enum": ["openai", "brave", "exa"], "default": "openai" },
+    "enabled": { "type": "boolean", "default": true },
+    "numResults": { "type": "integer", "minimum": 1, "maximum": 10, "default": 5 },
+    "searchTimeoutMs": { "type": "integer", "minimum": 1000, "maximum": 120000, "default": 60000 },
+    "providers": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "openai": { "type": "object", "additionalProperties": false, "properties": { "experimentalCodex": { "type": "boolean", "default": false }, "captureSources": { "type": "boolean", "default": false } } },
+        "brave": { "$ref": "#/$defs/credential" },
+        "exa": { "$ref": "#/$defs/credential" }
+      }
+    },
+    "fetch": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "channel": { "enum": ["chromium", "chrome"], "default": "chromium" },
+        "timeoutMs": { "type": "integer", "minimum": 1000, "maximum": 120000, "default": 30000 },
+        "maxConcurrency": { "type": "integer", "minimum": 1, "maximum": 4, "default": 2 },
+        "idleTimeoutMs": { "type": "integer", "minimum": 1000, "maximum": 300000, "default": 60000 }
+      }
+    }
+  },
+  "$defs": {
+    "credential": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "apiKey": { "type": "string", "minLength": 1, "pattern": "\\S" },
+        "apiKeyEnv": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" }
+      },
+      "not": { "required": ["apiKey", "apiKeyEnv"] }
+    }
+  }
+}

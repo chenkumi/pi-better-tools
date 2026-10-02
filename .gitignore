@@ -1,0 +1,26 @@
+# Dependencies and generated artifacts
+node_modules/
+modules/scheduler/dist/
+*.tgz
+coverage/
+*.tsbuildinfo
+
+# Temporary files and caches
+.tmp/
+.cache/
+*.log
+
+# Existing project-local artifacts
+plan/evidence/
+modules/**/issues/
+
+# Local environment files (keep example templates)
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Operating system files
+.DS_Store
+Thumbs.db
+Desktop.ini

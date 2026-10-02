@@ -1,0 +1,49 @@
+# JSON Schema
+
+讓非互動（print）執行產出經 JSON Schema 驗證的結構化結果，寫入檔案或 stdout。原生實作，以 zod 4 驗證；不再使用 Ajv。
+
+## CLI 旗標
+
+| 旗標 | 說明 |
+| --- | --- |
+| `--json-schema` | JSON Schema 字串，根必須為 `type: "object"`；給了就啟用 |
+| `--json-output` | 輸出檔路徑（相對於 cwd）。有給＝寫入檔案；沒給＝結果以單行 JSON 輸出到 stdout |
+
+```bash
+# stdout：整個 stdout 就是一行 JSON
+pi -p --json-schema '{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}' "回答問題"
+
+# 檔案
+pi -p --json-schema "$schema" --json-output result.json "回答問題"
+```
+
+設定無效、需要 print 模式（`-p`；不支援 `--mode json`）或 schema 不被支援時，錯誤寫到 stderr（前綴 `pi-json-schema:`）、exit code 為 1，且**不發出任何模型請求**。
+
+## 運作
+
+啟用後註冊 `json_output` 工具（僅模型可用，參數即所給 schema），指示模型在最後一步呼叫；驗證通過即結束這次執行，不再多一輪模型請求。
+
+- file：原子寫入（暫存檔後 rename），2 格縮排 JSON 並結尾換行；失敗時保留舊檔。
+- stdout：單行 JSON 加換行。結構化輸出的執行不會把助理的說明文字印到 stdout；每次執行只接受一個 prompt（要多個請用 `--json-output`）。
+- 只接受一個結果；內容不同的第二個結果視為衝突並失敗。
+- 交付的是模型給的原始資料，不套用 schema 的 `default`，也不做型別轉換。
+
+## 沒有呼叫 `json_output` 時（固定 best-effort）
+
+1. 先從最後一則助理訊息解析 JSON（整段、```json 區塊，或第一個平衡的 `{…}`／`[…]`），通過驗證就採用。
+2. 否則以一次額外的模型呼叫（60 秒期限、不重試）要求抽取，接受 `json_output` 工具呼叫或回應中的 JSON；呼叫其他工具視為失敗。
+3. `json_output` 被工具選取排除（`--no-tools`、`--exclude-tools`）時不做抽取呼叫並失敗；步驟 1 仍可用。
+4. 使用虛擬路由模型時，抽取呼叫使用實際回答的模型。
+
+## 失敗處理
+
+上游請求出錯／中止、收到 SIGTERM（非 Windows 另含 SIGHUP）、`json_output` 驗證失敗、結果衝突或無法取得有效結果時，不交付任何內容、錯誤寫入 stderr 並設 exit code 1。
+
+## 支援的 schema 範圍
+
+以 zod 4 的 `z.fromJSONSchema` 驗證，涵蓋常見關鍵字：`type`、`properties`／`required`／`additionalProperties`、`enum`／`const`、`anyOf`／`oneOf`／`allOf`、字串／數值／陣列／物件約束、`format`、本地 `$ref`（含遞迴 `#`）、draft-07。
+
+zod 無法忠實驗證的內容會**在啟動時被拒絕**，避免悄悄放行錯誤資料：
+
+- `if`／`then`／`else`、`not`、`dependentRequired`／`dependentSchemas`／`dependencies`、`unevaluatedProperties`／`unevaluatedItems`、`$dynamicRef`／`$anchor`、外部 `$ref`。
+- 沒有 `type`（也沒有 `$ref`／`enum`／`const`）卻帶型別專屬約束的子 schema，例如 `allOf: [{type:"string"}, {minLength:3}]` 的第二項；zod 會忽略這類約束，請補上 `type`。
