@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { invokeCli, isolatedEnv } from "./fixtures/pi-cli-harness.ts";
 import { callAlias } from "../extensions/subagent/subsession-log.ts";
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,6 +12,7 @@ const cli = process.env.PI_SUBAGENTS_TEST_CLI;
 const project = fileURLToPath(new URL("../", import.meta.url));
 const fixture = fileURLToPath(new URL("./fixtures/pi-provider.ts", import.meta.url));
 const evidence = process.env.PI_SUBAGENTS_TEST_EVIDENCE;
+const shellTool = process.platform === "win32" ? "powershell" : "bash";
 
 async function invoke(root: string, scenario: string, mode: string) {
 	return invokeCli(resolve(cli!), ["--mode", "json", "-p", "--no-session", "--offline",
@@ -30,12 +31,12 @@ for (const [scenario, mode, debugLog = true] of cases) {
 	const caseName = `${scenario}-${mode}${debugLog ? "" : "-debug-off"}`;
 	test(`real Pi CLI production dispatch: ${scenario}/${mode}${debugLog ? "" : " (debug off)"}`, { skip: !cli && "Set PI_SUBAGENTS_TEST_CLI to a verified installed CLI", timeout: 60000 }, async () => {
 		console.log(`[progress] Verifying real CLI contract: ${scenario}/${mode}`);
-		const root = await mkdtemp(join(tmpdir(), "pi-cli-contract-"));
+		const root = await realpath(await mkdtemp(join(tmpdir(), "pi-cli-contract-")));
 		try {
 			await mkdir(join(root, "config"));
 			await writeFile(join(root, "config/settings.json"), JSON.stringify({ extensions: [fixture], packages: [project],
 				retry: { enabled: true, maxRetries: 1, baseDelayMs: 1 }, compaction: { enabled: false }, cacheWarming: "off",
-				defaultProjectTrust: "never", defaultTools: ["powershell", "metered", "metered_nested", "probe"],
+				defaultProjectTrust: "never", defaultTools: [shellTool, "metered", "metered_nested", "probe"],
 				"pi-subagents": { debugLog }, piSubagents: { debugLog: true } }));
 			const actual = await invoke(root, scenario, mode);
 			if (evidence) {
@@ -94,13 +95,15 @@ for (const [scenario, mode, debugLog = true] of cases) {
 					const probe = JSON.parse(result.output);
 					for (const key of ["active", "registered", "callable"]) assert.equal(probe[key].includes("subagent"), false);
 				}
-				assert.ok(result.logPath && result.logPath.startsWith(root));
+				const directory = join(root, "config", "subagent-sessions", result.subagentSessionId);
+				// Failed runs retain their per-run evidence without publishing a ready transcript.
+				const expectedLog = isFailure ? join(directory, "runs", result.taskId, "transcript.jsonl") : join(directory, "transcript.jsonl");
+				assert.equal(result.logPath, await realpath(expectedLog));
 				const logText = await readFile(result.logPath, "utf8");
 				const log = logText.trim().split("\n").map((line) => JSON.parse(line));
 				assert.ok(log.every(entry => ["user", "assistant", "tool_call", "tool_result"].includes(entry.type)));
 				assert.match(result.subagentSessionId, /^[0-9a-z]{26}$/);
 				assert.equal(result.canResume, !isFailure);
-				const directory = join(root, "config", "subagent-sessions", result.subagentSessionId);
 				const manifest = JSON.parse(await readFile(join(directory, "manifest.json"), "utf8"));
 				assert.equal(manifest.state, isFailure ? "blocked" : "ready");
 				assert.ok((await readdir(join(directory, "pi"))).some(file => file.endsWith(".jsonl")));
@@ -115,11 +118,25 @@ for (const [scenario, mode, debugLog = true] of cases) {
 					assert.equal(canonical[0].usage, undefined); // accounting belongs to metadata, not dialogue
 				}
 				if (scenario === "large-shell") {
-					const call = log.find(entry => entry.type === "tool_call" && entry.name === "powershell");
+					const call = log.find(entry => entry.type === "tool_call" && entry.name === shellTool);
+					assert.ok(call, "must execute the platform's real shell tool");
 					const shell = log.find(entry => entry.type === "tool_result" && entry.callId === call?.callId);
 					assert.ok(shell);
 					assert.equal(shell.isError, false);
 					assert.ok(logText.length < 10000, "structured shell payload must not inflate the child transcript");
+					const native = (await readFile(join(directory, manifest.nativeFile), "utf8")).trim().split("\n").map(line => JSON.parse(line));
+					const nativeShell = native.map(entry => entry.message).find(message => message?.role === "toolResult" && message.toolName === shellTool);
+					assert.ok(nativeShell, "native session must retain the actual shell result");
+					assert.equal(nativeShell.isError, false);
+					assert.equal(nativeShell.details.truncation.truncated, true);
+					const outputPath = nativeShell.details.fullOutputPath;
+					try {
+						const fullOutput = await readFile(outputPath, "utf8");
+						assert.equal(fullOutput.slice(0, 614400), "x".repeat(614400));
+						assert.ok(Buffer.byteLength(fullOutput) > 614400, "fixture must actually produce >600 KiB");
+						assert.equal(fullOutput.slice(614400).replace(/\r\n/g, "\n"), "\n" + ".\n".repeat(2000));
+						assert.ok(!logText.includes("x".repeat(10000)), "full structured payload must not leak into transcript");
+					} finally { await rm(outputPath, { force: true }); }
 				}
 			}
 		} finally { await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }); }

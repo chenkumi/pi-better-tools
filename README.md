@@ -2,7 +2,7 @@
 
 單一 Pi extensions package，整合 Subagents、Shell Tools、Precise File Tools、Web Tools 與 Scheduler，加上 JSON Schema structured delivery，並提供本專案原生 Note Tools、GPT Speed 與 Goal extensions。必要程式碼與資源已納入 `modules/`，不依賴來源專案的本機路徑。
 
-> 本專案採用 [MIT License](LICENSE)。使用者已確認五個來源專案均為其所有，並授權本整合專案採 MIT；原有模組授權聲明保留，來源與相依套件說明見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。`private: true` 僅用於避免誤發布 npm，不限制未來公開至 GitHub；目前未執行任何遠端發布。
+> 本專案採用 [MIT License](LICENSE)。使用者已確認五個來源專案均為其所有，並授權本整合專案採 MIT；封裝測試以根目錄 `LICENSE` 為必要授權檔，不要求重複模組 LICENSE；原有模組授權聲明仍保留，來源與相依套件說明見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。`private: true` 僅用於避免誤發布 npm，不限制未來公開至 GitHub；目前未執行任何遠端發布。
 
 ## 本機安裝
 
@@ -21,6 +21,26 @@ pi install D:/projects/pi-better-tools
 **若原五個 packages 已啟用，請先停用其 extensions**，避免與整合包重複註冊相同工具。這些設定不會自動修改。完整步驟與回退見 [docs/migration.md](docs/migration.md)。
 
 Pi-managed npm／git package 安裝會處理 runtime dependencies；本機路徑不會自動替你執行 npm install。Chromium 不在 tarball 裡，extension 載入時也不下載／啟動瀏覽器。解壓 tarball 後可在安裝目錄執行 `npm run browser:install`；勿在 runtime-only tarball 執行 repository 的 build／test scripts。
+
+### macOS 安裝（Apple Silicon／Intel）
+
+請先安裝符合上述版本要求的 Node.js 與 `@earendil-works/pi-coding-agent`，並以 `command -v node npm pi` 確認命令位置。Apple Silicon 建議使用原生 ARM64 Node.js，避免混用 Rosetta／Intel 與 ARM64 安裝；可用 `node -p 'process.platform + " " + process.arch'` 確認目前 Node.js 的平台／架構。
+
+```bash
+cd ~/GitHub/pi-better-tools    # 改成實際 checkout 路徑
+npm ci --ignore-scripts
+npm run build                 # 僅獨立 pi-scheduler CLI 需要
+npm run browser:install       # 選用：web_fetch 需要 Playwright Chromium
+pi install -l "$PWD"          # 僅安裝到目前專案的 Pi 設定
+```
+
+`browser:install` 使用本專案的 Playwright 版本執行 `playwright install chromium --no-shell`，下載配套 Chromium；不需要另外全域安裝 Playwright。macOS 通常不需像 Linux 一樣安裝系統函式庫，使用此指令即可，不必執行 Linux 用的 `browser:install-deps` 或 `setup:browser`，也不要以 sudo 執行 `npm ci` 或瀏覽器安裝。支援的 macOS 版本請依目前 [Playwright 系統需求](https://playwright.dev/docs/intro#system-requirements) 確認，不能僅以 Node.js 能執行就判定 Chromium 相容。
+
+- **快取與使用者**：預設瀏覽器下載至 `~/Library/Caches/ms-playwright`，請以執行 Pi 的同一位使用者安裝。若自訂 `PLAYWRIGHT_BROWSERS_PATH`，安裝與啟動 Pi 時必須使用相同值；Chromium 不包含在本專案 tarball 中。
+- **找不到瀏覽器**：出現 `Executable doesn't exist` 時，請在本專案／套件安裝目錄重新執行 `npm run browser:install`。更新 Playwright、清理快取或更換 Node.js 架構後，也應重新執行；安裝時可能清理舊瀏覽器版本。
+- **下載或啟動失敗**：確認網路／代理設定、快取目錄權限及 macOS 版本是否受支援。請勿以停用 TLS 驗證或移除系統安全保護作為安裝步驟。僅下載成功不代表 Chromium 能啟動。
+
+Repository 開發環境可用 `npm run test:browser` 驗證真實 Chromium 與清理行為；runtime-only tarball 不包含 repository 測試。只使用非瀏覽器功能時可省略 Chromium 安裝；Pi package 安裝與 extension 載入均不會自動下載或啟動瀏覽器。需要先試用且不修改 Pi 設定，可用 `pi --no-extensions -e "$PWD"`。macOS 支援 Bash；本專案的 PowerShell backend 僅支援原生 Windows。
 
 ### Linux／WSL2 安裝
 
@@ -153,5 +173,7 @@ npm run test:matrix       # tarball smoke + Goal／SDK hooks／JSON delivery：P
 npm run sources:verify    # 匯入來源／本地適配雜湊
 npm pack                 # prepack 會重建 Scheduler
 ```
+
+跨平台測試沿用宿主語意：Subagent transcript 位置以 `realpath` 驗證（包括 macOS `/var`／`/private/var` alias）；大型 shell 輸出在 Windows 使用 PowerShell、macOS／Linux 使用 Bash，實際產生超過 600 KiB，驗證完整輸出及精簡 transcript，不以 skip 代替。Web debug-log 專案名稱依本機 cwd basename 正規化，不把 POSIX 檔名中的反斜線當成 Windows 分隔符。Windows-only 平台測試仍另行標示 skip，不能算通過。
 
 所有長時間腳本定期輸出英文進度；測試不用真實憑證／付費模型／生產排程。`test:matrix` 是封裝／runtime smoke，不等同各版的全部 source regression；Goal 實作與驗證另見 [plan/GOAL-PROGRESS.md](plan/GOAL-PROGRESS.md)。Skip 不算通過。Pi 1.0.0 hooks 查核與本輪驗證見 [plan/PI-1.0.0-UPGRADE.md](plan/PI-1.0.0-UPGRADE.md)；人工 fullscreen TUI／真實 provider 不在離線驗證範圍。JSON Schema 實際交付／回歸證據见 [plan/JSON-SCHEMA.md](plan/JSON-SCHEMA.md)。更多結構見 [docs/architecture.md](docs/architecture.md)。

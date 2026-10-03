@@ -47,8 +47,9 @@ const required = [
   'modules/gpt-speed/extensions/gpt-speed.ts', 'modules/gpt-speed/README.md',
   'modules/goal/extensions/goal.ts', 'modules/goal/src/state.ts', 'modules/goal/src/controller.ts', 'modules/goal/src/prompts.ts', 'modules/goal/README.md',
   'modules/json-schema/extensions/json-schema.ts', 'modules/json-schema/src/index.ts', 'modules/json-schema/src/schema.ts', 'modules/json-schema/src/extract.ts', 'modules/json-schema/src/delivery.ts', 'modules/json-schema/README.md',
-  'LICENSE', 'modules/subagents/LICENSE', 'modules/shell-tools/LICENSE', 'modules/file-tools/LICENSE',
-  'modules/web-tools/LICENSE', 'THIRD_PARTY_NOTICES.md', 'docs/configuration.md',
+  // The integrated package is licensed by the root LICENSE. Original module
+  // notices remain preserved, but duplicate module LICENSE files are not required.
+  'LICENSE', 'THIRD_PARTY_NOTICES.md', 'docs/configuration.md',
 ];
 function checkContents(pack) {
   const paths = pack.files.map(f => f.path);
@@ -68,7 +69,7 @@ try {
   const tarball = join(evidence, packed.filename);
   report.tarball = { filename: packed.filename, sha256: createHash('sha256').update(await readFile(tarball)).digest('hex'), files: packed.files.length, bytes: packed.size };
   for (const version of hosts) {
-    const temp = await mkdtemp(join(tmpdir(), 'pi-better-tools-production-'));
+    const temp = await realpath(await mkdtemp(join(tmpdir(), 'pi-better-tools-production-')));
     try {
       const bootstrapHome = join(temp, 'bootstrap'); await mkdir(bootstrapHome);
       const env = isolatedEnv(bootstrapHome);

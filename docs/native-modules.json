@@ -15,7 +15,9 @@
         },
         {
           "path": "modules/note-tools/extensions/note.ts",
-          "sha256": "b753ab14a2ffe217509ed09555fb73553f8da694f70acf928785e57492562ea3"
+          "sha256": "55f162a834e4a6096222ffcb5014b9f44de0f834656e2209642a724c0ac43c34",
+          "previousRecordedSha256": "b753ab14a2ffe217509ed09555fb73553f8da694f70acf928785e57492562ea3",
+          "reason": "2026-10-03 current-contract review of pre-existing native code, unchanged in this fix: required note-for-documents guidance, strict five-category schema, Unicode validation, ctx.cwd directory, exclusive-create collision retry and mutation queue. Unit/loader tests cover actual behavior; previous recorded implementation is unavailable, not a claimed reconstructed diff."
         },
         {
           "path": "modules/note-tools/tests/note.test.ts",
@@ -28,7 +30,9 @@
         },
         {
           "path": "modules/note-tools/README.md",
-          "sha256": "ab18ee3335437ce91af7fcdd1e8dbdc6198ab2c9989c0de37adf967b41e92bb9"
+          "sha256": "ed929109b39aa1e86db362e8109b54bfef1bae45a7ccef4f7f48c468522fba41",
+          "previousRecordedSha256": "ab18ee3335437ce91af7fcdd1e8dbdc6198ab2c9989c0de37adf967b41e92bb9",
+          "reason": "2026-10-03 reviewed existing Chinese documentation against current note code/tests: categories, exclusive creation, Unicode, returned paths, cancellation and activation. No document change in this fix; not a claim of exact previous-version diff."
         }
       ]
     },
@@ -58,7 +62,9 @@
         },
         {
           "path": "modules/gpt-speed/README.md",
-          "sha256": "770e36fd3ec7a872da87ad776f37a2b396ae2d38d42b1852169f0a0002aacbe4"
+          "sha256": "1ed85d5fc1923c082847e763160a25c1c2b3ff7a97018805a9a4b1ca5faefa3d",
+          "previousRecordedSha256": "770e36fd3ec7a872da87ad776f37a2b396ae2d38d42b1852169f0a0002aacbe4",
+          "reason": "2026-10-03 reviewed existing Chinese speed documentation against the hash-verified implementation/tests: commands, strict GPT provider/name gates, downgrade and trust-aware settings. No change in this fix; previous-version diff unavailable."
         }
       ]
     },
@@ -103,7 +109,9 @@
         },
         {
           "path": "modules/goal/README.md",
-          "sha256": "23e2a0a245d26264ae24fd0a5ae0013d18f1e8f421005229a5432ecfc59d9294"
+          "sha256": "773daeeab9f8b74f883ad48845d6ff0a439b504109bb5301c5db81481d853eb6",
+          "previousRecordedSha256": "23e2a0a245d26264ae24fd0a5ae0013d18f1e8f421005229a5432ecfc59d9294",
+          "reason": "2026-10-03 reviewed existing Chinese Goal documentation against hash-verified implementation and unit/real-Pi fixtures: user-owned lifecycle, structured evidence, continuation bounds, branch recovery and child gates. No change in this fix; previous-version diff unavailable."
         }
       ]
     },

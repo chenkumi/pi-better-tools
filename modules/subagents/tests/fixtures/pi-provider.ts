@@ -57,7 +57,15 @@ export default function (pi: ExtensionAPI) {
 					let call: any;
 					if (!parent && nth === 1) {
 						if (["usage", "nested-usage"].includes(scenario)) call = { id: "fixture-call", name: "metered", arguments: {} };
-						if (scenario === "large-shell") call = { id: "fixture-call", name: "powershell", arguments: { command: "Write-Output ('x' * 614400)", timeout: 10 } };
+						if (scenario === "large-shell") {
+							// Exercise the real host shell on every platform, not a stub or skip.
+							const windows = process.platform === "win32";
+							// A 600 KiB prefix plus a small 2000-line tail separates structured
+							// payload retention from Pi's model-facing line truncation.
+							const command = windows ? "Write-Output ('x' * 614400); 1..2000 | ForEach-Object { Write-Output '.' }"
+								: `'${process.execPath.replace(/'/g, `'"'"'`)}' -e 'process.stdout.write("x".repeat(614400) + "\\n" + ".\\n".repeat(2000))'`;
+							call = { id: "fixture-call", name: windows ? "powershell" : "bash", arguments: { command, timeout: 10 } };
+						}
 						if (scenario === "exclusion") call = { id: "fixture-call", name: "probe", arguments: {} };
 					}
 					if (parent && nth === 1) {

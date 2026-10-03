@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, realpath, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -40,7 +40,8 @@ for (const mode of ["single", "parallel", "chain"] as const) {
 				assert.equal(result.status, "completed"); assert.equal(result.canResume, true);
 				const manifest = await h.manifest(result.subagentSessionId);
 				assert.equal(manifest.state, "ready"); assert.ok(manifest.checkpoint.nativeSha256);
-				assert.equal(result.logPath, join(h.root, "managed", result.subagentSessionId, "transcript.jsonl"));
+				// Storage returns canonical paths, including macOS /var → /private/var.
+				assert.equal(result.logPath, await realpath(join(h.root, "managed", result.subagentSessionId, "transcript.jsonl")));
 				assert.equal(JSON.parse(result.output).previousUsers, 0);
 				await stat(join(h.root, "managed", result.subagentSessionId, manifest.nativeFile));
 				await assert.rejects(stat(join(h.root, "managed", result.subagentSessionId, "writer.lock")), { code: "ENOENT" });

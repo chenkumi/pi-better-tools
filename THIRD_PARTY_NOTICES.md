@@ -1,13 +1,13 @@
 # Source and dependency notices
 
 Pi Better Tools is licensed under the MIT License in the root `LICENSE`.
-On 2026-10-01, the project owner confirmed ownership of all five source projects and explicitly requested MIT licensing for this integration. Shell/File license files and metadata were added to the local module snapshots with that authorization; the original five source directories were not modified.
+On 2026-10-01, the project owner confirmed ownership of all five source projects and explicitly requested MIT licensing for this integration. On 2026-10-03, the owner requested that packaging rely on the root `LICENSE`, without requiring duplicate module LICENSE files. Original Subagents/Web copyright and permission notices remain preserved; the redundant integration-added File LICENSE is removed. The original five source directories were not modified.
 
 | Module | Original package | License in this integration |
 | --- | --- | --- |
 | subagents | pi-subagents 0.1.0 | MIT; original `modules/subagents/LICENSE` preserved |
-| shell-tools | pi-shell-timeout-ms 0.1.0 | MIT; `modules/shell-tools/LICENSE` added at the owner's request |
-| file-tools | pi-precise-file-tools 0.1.0 | MIT; `modules/file-tools/LICENSE` added at the owner's request |
+| shell-tools | pi-shell-timeout-ms 0.1.0 | MIT; covered by the root `LICENSE`, no duplicate module LICENSE required |
+| file-tools | pi-precise-file-tools 0.1.0 | MIT; covered by the root `LICENSE`, redundant integration-added module LICENSE removed |
 | web-tools | pi-web-tools 0.1.0 | MIT; original `modules/web-tools/LICENSE` preserved |
 | scheduler | pi-scheduler 0.1.0 | MIT; the module `LICENSE` was removed at the owner's request, covered by the root `LICENSE` |
 | json-schema | project-native rewrite (2026-10-02) | MIT (root `LICENSE`); written from documented behavior only and contains no code from the former @nqbao/pi-json-schema import, whose source is no longer available |

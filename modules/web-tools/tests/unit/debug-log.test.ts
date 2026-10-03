@@ -2,16 +2,24 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import { executeWithDebugLog, logToolExecutionFailure, logToolFailure, projectNameFromCwd } from '../../src/debug-log.ts';
 
 const date = (day: number) => new Date(Date.UTC(2026, 8, day, 12));
 
-test('project log directory name is a safe normalized cwd basename', () => {
-  assert.equal(projectNameFromCwd('C:\\work\\my-project'), 'my-project');
-  assert.equal(projectNameFromCwd('C:\\work\\my project'), 'my_project');
-  assert.equal(projectNameFromCwd('C:\\work\\CON'), '_CON');
-  assert.match(projectNameFromCwd('C:\\work\\CON')!, /^[A-Za-z0-9._-]+$/);
+test('project log directory name is a safe normalized host-native cwd basename', () => {
+  const parent = resolve('work');
+  assert.equal(projectNameFromCwd(join(parent, 'my-project')), 'my-project');
+  assert.equal(projectNameFromCwd(join(parent, 'my project')), 'my_project');
+  assert.equal(projectNameFromCwd(join(parent, 'CON')), '_CON');
+  assert.match(projectNameFromCwd(join(parent, 'CON'))!, /^[A-Za-z0-9._-]+$/);
+  assert.equal(projectNameFromCwd(join(parent, 'my-project') + sep), 'my-project');
+  assert.equal(projectNameFromCwd(join(parent, 'Ｍｙ project')), 'My_project');
+  // A backslash is a valid filename character on POSIX, not a foreign separator.
+  if (process.platform !== 'win32') {
+    assert.equal(projectNameFromCwd(join(parent, 'my\\project')), 'my_project');
+    assert.equal(projectNameFromCwd('C:\\work\\my-project'), 'C__work_my-project');
+  }
 });
 
 test('only exact settings.<project_name>.debugLog true enables a bounded redacted error record', async () => {

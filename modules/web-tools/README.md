@@ -8,7 +8,7 @@
   - `brave`／`exa`：註冊自訂 `web_search` 工具，回傳來源與供應商 snippets，不呼叫摘要模型。
 - **`/web-tools`** 指令：`status`、`sources`。
 
-需要 Node.js 22.19+。Chromium 不會在載入 extension 時下載或啟動，需以 `npm run browser:install` 明確安裝；`fetch.channel: "chrome"` 可改用本機 Google Chrome（不使用個人 profile）。瀏覽器在第一次 `web_fetch` 時才啟動。
+整合包需要 Node.js `^22.22.2 || ^24.15.0 || >=26.0.0`（依根 manifest／jsdom 30）。安裝與跨平台驗證命令以[根 README](../../README.md)為準，請勿在模組目錄獨立安裝依賴。Chromium 不會在載入 extension 時下載或啟動，需以 `npm run browser:install` 明確安裝；`fetch.channel: "chrome"` 可改用本機 Google Chrome（不使用個人 profile）。瀏覽器在第一次 `web_fetch` 時才啟動。
 
 ## 設定
 
@@ -69,7 +69,9 @@ Brave 使用 Web Search endpoint；Exa 使用 Search endpoint（`type: "auto"`�
 
 ### 診斷 log（選用）
 
-在 `~/.pi/agent/settings.json` 以目前工作目錄最後一層資料夾名稱為頂層 key，設定 `"debugLog": true`（必須為布林值 `true`）：
+專案名稱依宿主原生 cwd basename 正規化（NFKC、非安全字元換成 `_`、保留字加前綴）；POSIX 檔名中的反斜線不是 Windows 路徑分隔符。此契約不解析其他平台的路徑字串。
+
+在 `~/.pi/agent/settings.json` 以目前工作目錄最後一層資料夾名稱正規化後為頂層 key，設定 `"debugLog": true`（必須為布林值 `true`）：
 
 ```json
 { "my-project": { "debugLog": true } }
