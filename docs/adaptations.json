@@ -121,7 +121,17 @@
       }
     }
   ],
+  "webNativeSearchChanges": [{ "scope": "Web config, native injection/source gates, schema/example, tests and documentation.", "reason": "User requested removal of experimentalCodex and its startup warning. Codex native search now uses the existing enabled/provider gates without an extra opt-in. Strict provider/API allowlist, tool conflicts, unsupported-model/configuration diagnostics and source-capture opt-in remain. Removed fields are rejected under existing unknown-field validation; the user's explicit global web-search.json was simplified separately, with no settings.json/auth changes. Offline verification does not certify backend acceptance." }],
   "files": [
+    { "path": "modules/web-tools/examples/web-search.json", "originalSha256": "339c74ed18917c345fa8bdcb0e5025236633400b3b77973229eb694f85f85678", "sha256": "e4dc120f76bc54093410e05c6e86682436a7472a49f9aab7b416428de5419d48", "reason": "Remove user-deprecated Codex experimental flag from example." },
+    { "path": "modules/web-tools/schemas/web_search.schema.json", "originalSha256": "395514f1cda8ff10442ed27fdc59e8eae5d7571f51f9543293bb712a34e0e251", "sha256": "402649f6ddc98fdae0ab63f919122c355ff73c0e689c34266b94ac8462b1573c", "reason": "Remove Codex experimental field; retain strict unknown-field rejection." },
+    { "path": "modules/web-tools/src/config.ts", "originalSha256": "b63108ebf0167857921bc043b27b1f32a1af4b8329a4b2a10d5a3e94a9e6a0f4", "sha256": "9286b52bbcd8cef660d5f25123e48dd1feb7ec313e20f8f0b2a9744e24857805", "reason": "Remove Codex experimental option from type, defaults and parser; strict unknown-field validation retained." },
+    { "path": "modules/web-tools/src/native-openai.ts", "originalSha256": "ffb49e02685bc9f8c6d16cf299826061ebbc5b3a5d0248c8c0e96ab1eb156bda", "sha256": "ade0d644684dbc964e77362a862f66aab184b0595043aac4797d9ea64c6e90f5", "reason": "Enable exact Codex provider/API pair without extra opt-in; preserve additive immutable injection and conflicts." },
+    { "path": "modules/web-tools/src/native-sources.ts", "originalSha256": "e16949476c648e08b0e106adabd32c8438fd054b39793e11aa6aed65e3aea446", "sha256": "85e8fe1ea1ce6a41708a30f2798b3a7562ec3d86ad66e572636007c0e79bbce4", "reason": "Align source capture with default Codex gate; privacy, bounds and capture opt-in unchanged." },
+    { "path": "modules/web-tools/tests/unit/config.test.ts", "originalSha256": "17902563d83b82f3686cfc00065a34eeef80c9cbbf37cd35081aabd1213c2eab", "sha256": "28e04bd7e00ee6e8c024a479d00aee3f1dc414af7368fef0ae7f560ae8905de8", "reason": "Assert absent experimental default and strict rejection of removed true/false field." },
+    { "path": "modules/web-tools/tests/unit/extension.test.ts", "originalSha256": "a3030e8ce09b0ba10e1032eceb0885ee91fc5ff309cdd8b770593351c62301a2", "sha256": "853182fdf8ab8b606edb02ddb3769ecded682c96fc7e20c008a5fe4423f99b02", "reason": "Add default Codex request/prompt injection, TUI/headless silence, mode/disabled gates and successful opt-in capture tests; no live backend." },
+    { "path": "modules/web-tools/tests/unit/native-openai.test.ts", "originalSha256": "3abc65f8faf2ee72a84763740b2d3656d2fc5f1ca89053f1df75184a384bef5f", "sha256": "c037c993d3e1837fa27f8d6a8d2ff0d4540acfc7bd111c3f151d31b97294789d", "reason": "Require default Codex enablement and reject mismatched provider/API identities." },
+    { "path": "modules/web-tools/tests/unit/native-sources.test.ts", "originalSha256": "48865ea0d124f823a89fb56aa7ea122a6062843ec46ab7ab595d22df5032017d", "sha256": "2b8d128a255e9fc83b7f0679c357cab59d211caa2451f9b610be2d1a9f4ec547", "reason": "Require default Codex capture eligibility and reject custom proxy identity." },
     { "path": "modules/subagents/extensions/subagent/result.ts", "originalSha256": "08041e76f3d739c17653554a88b5d76af4ddaf291249aeb64c439935dc5987df", "sha256": "0ff0a23410b4e505bbddcea9d631734f5322fd184d66a9ba2ca25859b8284b81", "reason": "User-requested optional parent display title retained by compact-result allowlist. Existing output/task formatting, child configuration and identity/usage limits unchanged." },
     { "path": "modules/pty-terminal/src/escape.ts", "originalSha256": "feec759ca5337acacc42e6de6aacfd3a5bd938974a6d98aaecd430fb5ff652ec", "sha256": "9c9f5032598c9f39c91a0c5de01840cb24c20d2a0b3426b81fab72eb191809b3", "reason": "Git LF normalization only: fetched blob reconstructs immutable CRLF import hash exactly; source text unchanged, immutable import not re-signed." },
     { "path": "modules/pty-terminal/src/output.ts", "originalSha256": "62106be495a05b7c7987b4eed11b05cf82f549b2235e1ac350859e47f4d0b853", "sha256": "17754e8b028ddcfc62726aa7c80311d15e694833a8163f8726a8d97749ab04c0", "reason": "Git LF normalization only: fetched blob reconstructs immutable CRLF import hash exactly; source text unchanged, immutable import not re-signed." },
@@ -161,8 +171,8 @@
     {
       "path": "modules/web-tools/src/index.ts",
       "originalSha256": "e8dd3537ad78f72e548eb6a4677cbd5b6324c6cb762ffb3d828dd5cc2a5b5bb0",
-      "sha256": "9183d47f21e0f491f6c71e39a900d37bdac61b009e3dc8e4310d16283be13a87",
-      "reason": "Attach pure Fetch/REST Search renderers; provider/native mode gates, content/details/structuredContent, browser and network behavior unchanged."
+      "sha256": "cada093edf98d49630ab89c18372808ce75aa46690770a09da8c145cd0f71057",
+      "reason": "Attach pure Fetch/REST Search renderers. User-requested removal of Codex experimental gate and startup warning; native mode and source capture share exact provider/API eligibility, while enabled/provider gates, unsupported-model diagnostics, conflicts, browser/network behavior and output contracts remain."
     },
     {
       "path": "modules/file-tools/scripts/test-process.mjs",
@@ -206,11 +216,11 @@
     {
       "path": "modules/web-tools/README.md",
       "originalSha256": "39be626cf45a2409a02bf8caeea9585188413776a1b6c8d456664fa909ebf71c",
-      "sha256": "670e646f290e977c2fdb8f96a1214dcd9ffdaf9c3d87dce55154e92ee0744f25",
+      "sha256": "493b3f9daf3a83fd5b4c967ee702cc2ccfb8a9f0e24d49f72513e7a2f23e643b",
       "preChangeSha256": "5f5f1d8c15836abe56ea10966bf83517d9e780adb620765c4bc5c53aa758fdc8",
       "historicalDeltaAudit": "unavailable",
       "localSnapshotReview": "2026-10-03: complete pre-change README inspected against local Web config/provider/network/browser contracts; pre-change bytes match initial commit f14b837.",
-      "reason": "Update root Node requirements, explicit Linux browser setup, cwd basename contract and presentation-only Fetch/REST Search renderers. Pre-existing baseline-to-preChange delta remains unaudited because original contents are unavailable; this record does not certify original-diff or behavior equivalence."
+      "reason": "Update root Node requirements, explicit Linux browser setup, cwd basename contract and presentation-only Fetch/REST Search renderers. Document user-requested default Codex native search, removed experimental setting/warning and manual field removal before reload. Pre-existing baseline-to-preChange delta remains unaudited because original contents are unavailable; this record does not certify original-diff or behavior equivalence."
     },
     {
       "path": "modules/scheduler/src/app-scheduler.ts",

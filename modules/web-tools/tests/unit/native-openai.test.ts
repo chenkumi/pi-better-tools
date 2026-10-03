@@ -25,11 +25,12 @@ test('local search conflicts are never silently removed', () => {
     assert.deepEqual(payload.tools, [tool]);
   }
 });
-test('only known OpenAI Responses providers enabled, Codex explicitly experimental', () => {
+test('only known OpenAI Responses providers enabled, including Codex by default', () => {
   assert.equal(supportsNativeSearch({ api: 'openai-responses', provider: 'openai' }), true);
   assert.equal(supportsNativeSearch({ api: 'azure-openai-responses', provider: 'azure-openai-responses' }), true);
   const codex = { api: 'openai-codex-responses', provider: 'openai-codex' };
-  assert.equal(supportsNativeSearch(codex), false);
-  assert.equal(supportsNativeSearch(codex, true), true);
-  for (const model of [undefined, { api: 'openai-completions', provider: 'openai' }, { api: 'openai-responses', provider: 'local' }, { api: 'anthropic-messages', provider: 'anthropic' }]) assert.equal(supportsNativeSearch(model, true), false);
+  assert.equal(supportsNativeSearch(codex), true);
+  assert.equal(supportsNativeSearch({ ...codex, provider: 'local' }), false);
+  assert.equal(supportsNativeSearch({ ...codex, api: 'openai-responses' }), false);
+  for (const model of [undefined, { api: 'openai-completions', provider: 'openai' }, { api: 'openai-responses', provider: 'local' }, { api: 'anthropic-messages', provider: 'anthropic' }]) assert.equal(supportsNativeSearch(model), false);
 });

@@ -38,13 +38,12 @@ export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig
     return servicePromise;
   }
   const native = (model: ModelIdentity | undefined) =>
-    !configError && config.enabled && config.provider === 'openai' && supportsNativeSearch(model, config.providers.openai.experimentalCodex);
+    !configError && config.enabled && config.provider === 'openai' && supportsNativeSearch(model);
   const inactiveReason = (model: ModelIdentity | undefined): string => {
     if (configError) return 'invalid configuration';
     if (!config.enabled) return 'search disabled';
     if (config.provider !== 'openai') return 'REST search selected';
     if (model?.api === 'pi-virtual') return 'virtual routing is unsupported: actual request provider metadata is unavailable; no injection or automatic fallback';
-    if (model?.api === 'openai-codex-responses' && !config.providers.openai.experimentalCodex) return 'legacy Codex requires experimentalCodex opt-in';
     return 'model/API is unsupported';
   };
   const notices = new Set<string>();
@@ -147,7 +146,7 @@ export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig
     const onStream = pi.on as unknown as (name: 'provider_stream_event', fn: (event: ParsedProviderEvent, ctx: ExtensionContext) => void) => void;
     onStream('provider_stream_event', (event, ctx) => {
       if (stopped || !native(ctx.model)) return;
-      const sources = captureNativeSources(event, config.providers.openai.experimentalCodex);
+      const sources = captureNativeSources(event);
       if (!sources) return;
       if (pending.size >= 4) pending.delete(pending.keys().next().value!);
       pending.set(sourceKey(sources), sources);
@@ -176,7 +175,6 @@ export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig
     pending.clear(); notices.clear();
     if (configError) notify(ctx, `${configError}. Fix ${CONFIG_PATH} and /reload. web_fetch uses defaults.`, 'warning');
     else warnInactive(ctx);
-    if (config.providers.openai.experimentalCodex && config.provider === 'openai') notify(ctx, 'Legacy Codex native web search is experimental: backend acceptance and citation display are not live-verified.', 'warning');
   });
   pi.on('model_select', (_event, ctx) => { warnInactive(ctx); });
   pi.on('session_shutdown', async () => {

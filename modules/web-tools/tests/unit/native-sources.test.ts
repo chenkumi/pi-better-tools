@@ -47,14 +47,14 @@ test('source capture is bounded by entry count and serialized bytes, including U
   }
 });
 
-test('capture gates actual provider/API; Azure allowed, legacy Codex requires opt-in', () => {
+test('capture gates actual provider/API; Azure and Codex allowed without extra opt-in', () => {
   const event = sourceEvent();
   assert.ok(captureNativeSources({ ...event, provider: 'azure-openai-responses', api: 'azure-openai-responses' }));
   assert.equal(captureNativeSources({ ...event, provider: 'router', api: 'pi-virtual' }), undefined);
   assert.equal(captureNativeSources({ ...event, provider: 'custom-proxy' }), undefined);
   const codex = { ...event, provider: 'openai-codex', api: 'openai-codex-responses' };
-  assert.equal(captureNativeSources(codex), undefined);
-  assert.ok(captureNativeSources(codex, true));
+  assert.ok(captureNativeSources(codex));
+  assert.equal(captureNativeSources({ ...codex, provider: 'custom-proxy' }), undefined);
 });
 
 test('nonterminal/failed/malformed responses and mismatched terminal status are ignored', () => {
