@@ -141,7 +141,7 @@
     { "path": "modules/pty-terminal/tsconfig.json", "originalSha256": "d2d714dd82aff8c0b95986403c00fdea9dc823a87ac000aa9cf48eff25398515", "sha256": "3bb8b20ee541e796542d72d99995236c673e435e8066ca54930d57895f36a8f7", "reason": "Git LF normalization only: fetched blob reconstructs immutable CRLF import hash exactly; source text unchanged, immutable import not re-signed." },
     { "path": "modules/shell-tools/extensions/timeout-ms.ts", "originalSha256": "ea332aa731a69d182bb1e4f6361ba82455beda04a880019cf663a6d1cf97727f", "sha256": "404d10dda33b578c06aec46451cada14758413e44b5c466a44dbff2c65381c5b", "reason": "Git LF normalization only: fetched blob reconstructs immutable CRLF import hash exactly; source text unchanged, immutable import not re-signed." },
     { "path": "modules/file-tools/tests/file-operations.test.ts", "originalSha256": "0b5cc95d9d5dd0a9572f94857513358f2619a5f726afd0b64564ae98a147058a", "sha256": "75e3c4915deb21a34827a7b5dbf9cb5aa22e0c93681a692b9554516b83c8a717", "reason": "User-requested duplicate removal: outside-range duplicate retained in stronger search-window test; identical plain failure fallback retained in error-display.test.ts. No unique argument/rendering or mutation assertions removed." },
-    { "path": "modules/file-tools/tests/diff-runner.test.ts", "originalSha256": "4c33eb643991ec8a9dd0654164ae0894e014743f0068214e513d8beeac00bcd7", "sha256": "4f737fd75770e4fc10fe3b057c5260427aec851b31933a21a6563608edddcff0", "reason": "User-requested stress removal: randomized 150-iteration, 30 MiB and 15000-line regressions removed; ordinary diff, lifecycle, cwd and exact output-limit cases retained." },
+    { "path": "modules/file-tools/tests/diff-runner.test.ts", "originalSha256": "4c33eb643991ec8a9dd0654164ae0894e014743f0068214e513d8beeac00bcd7", "sha256": "3f75fff7c07c095616166bf8ce0c321303e0a37d9f07b9753aee32f3d0b22a76", "reason": "User-requested stress removal: randomized 150-iteration, 30 MiB and 15000-line regressions removed; ordinary diff, lifecycle, cwd and exact output-limit cases retained. Test-speed policy: remove the 5.7s busy-worker watchdog lifecycle test (idle/watchdog timing); the different-cwd worker test is kept." },
     { "path": "modules/file-tools/tests/fixtures/diff-watchdog-child.ts", "originalSha256": "772ae1993a8914f92d7af833b3dc7e668c0cc201e63d278e866542709abd074b", "sha256": "d0cf4b252ac77231809f2c4677db39e02af665cf589d85d8e4a64ab389da1b40", "reason": "Remove unused giant-diff regression and abort stress scenarios; retain lifecycle fixtures." },
     { "path": "modules/subagents/tests/tool-result-spool.test.ts", "originalSha256": "d467c12fa66e657db4bf15c136488c7bb5d6589486463d8d3c77652e2b56d544", "sha256": "84926ea44156cbfa8773d9a61848b80d937609baf546141e0c0b65d806d67be0", "reason": "User-requested removal of multi-MiB spool stress case; ordinary order, deletion, limits and handle cleanup retained." },
     { "path": "modules/subagents/tests/fixtures/pi-session-provider.ts", "originalSha256": "ab2f97589e277f347ad157bd46641b2cd9f39f59de37a63aee103aeb7cb868fd", "sha256": "cde9bad33bc150b4c6012b4ff58a6184274f1e4a963f72644ae86e0ccaf57c87", "reason": "Remove unused large-task phase after user-requested stress test removal." },
@@ -183,8 +183,8 @@
     {
       "path": "modules/file-tools/tests/test-tooling.test.mjs",
       "originalSha256": "894e959a3fe49dde96b59e80cb75526b49debfe0950cadc8772dda5a26dcc6ec",
-      "sha256": "631211d5d76beed8a905287392ede1b95f50549203060baedf3cc6638ed60bc3",
-      "reason": "Add native npm resolution, legacy/keyed pack metadata and malformed/unsafe manifest regressions. Preserve original 10-second npm watchdog and process termination/output/cleanup assertions."
+      "sha256": "9b6f255de56eec81edc874d36292b24e4099d76e927bbd5254e78a30a504f1d4",
+      "reason": "Add native npm resolution, legacy/keyed pack metadata and malformed/unsafe manifest regressions. Preserve original 10-second npm watchdog and process termination/output/cleanup assertions. Test-speed policy: remove the 11s exited-root watchdog test (idle/watchdog timing); other runner-tooling tests are kept."
     },
     {
       "path": "modules/subagents/tests/fixtures/pi-provider.ts",
@@ -249,10 +249,10 @@
     {
       "path": "modules/scheduler/tests/integration/app-scheduler.test.ts",
       "originalSha256": "b745d3efb89e9ffdcfc50a0deb8efc2fb987648e522e3ac3a2a5142a0330d347",
-      "sha256": "291a9f203a8d468ae0996c3e350bb30fc9afdb40e354937499a2f7ff74c97587",
+      "sha256": "354dde7940cebd64953400cae98b9203d09766d4b668e9fe83f3b7ac147c7086",
       "historicalDeltaAudit": "unavailable",
       "localSnapshotReview": "2026-10-03: complete local test inspected; isolated fixture exercises orphan barriers, revision, host takeover, child disable and cancellation; same bytes as initial commit f14b837.",
-      "reason": "Pre-existing historical delta, not changed this round. Original assertions unavailable; full baseline-to-local diff unaudited. Record does not claim historical assertions were unchanged or source-equivalent."
+      "reason": "Pre-existing historical delta, not changed this round. Original assertions unavailable; full baseline-to-local diff unaudited. Record does not claim historical assertions were unchanged or source-equivalent. Retry temp-directory cleanup (maxRetries/retryDelay) for Windows EBUSY; no assertion changed."
     },
     {
       "path": "modules/scheduler/package.json",
@@ -374,8 +374,8 @@
     {
       "path": "modules/scheduler/tests/integration/session-pi-runtime.test.ts",
       "originalSha256": "a16ed504881257f74c345159780ffad1d25f8d63a171b751be06d27ac478eb4a",
-      "sha256": "253597eee6e1c7f5de893e403d78004679da2be7eacf0395d587a53f90dbae48",
-      "reason": "Pi 1.0.0 upgrade: derive the exact expected session host version from the fixed root manifest, not the SDK under test. Preserve isolated real-session lifecycle, scheduler status, cancellation, reload and lock-cleanup assertions."
+      "sha256": "838861acc0f5a72b0d1356826858f6a2f5d7ace6ebd851596b4fee79a88e0a1b",
+      "reason": "Pi 1.0.0 upgrade: derive the exact expected session host version from the fixed root manifest, not the SDK under test. Preserve isolated real-session lifecycle, scheduler status, cancellation, reload and lock-cleanup assertions. Fixture admissionTimeoutMs default 1500->10000 and waitFor 3000->10000 for loaded hosts; the 80ms admission-timeout cases and all assertions are unchanged."
     },
     {
       "path": "modules/scheduler/tests/integration/pi-cli-runtime.test.ts",
@@ -392,8 +392,8 @@
     {
       "path": "modules/scheduler/src/registry-store.ts",
       "originalSha256": "bca1f648bad4286193b2e8f83b33d10568ed1f8954dff165ea39bdbbb62eb796",
-      "sha256": "6cba093d6be01f3a45a12ff37ae952a054f3a38f67a83ab2bfcb81aa57c33bd1",
-      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change."
+      "sha256": "6cef12e7995448a16d4cc8fdf496a5bb24aedbb8ece0136ae5ce86b5c36ff63c",
+      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change. Atomic replace uses renameWithRetry (Windows-only bounded retry of transient EPERM/EBUSY/EACCES; still an atomic rename, last error rethrown); no schema, key or directory change."
     },
     {
       "path": "modules/scheduler/src/runner.ts",
@@ -416,8 +416,8 @@
     {
       "path": "modules/scheduler/src/run-store.ts",
       "originalSha256": "ef2ce37898bce6aecb84b15ab294c2e0a208204f870ad626ad058ef03008d9dc",
-      "sha256": "dc8d3d8baf65ac3993016e2549abef2a7ae8e35f4551d34c486ae97b4575e1c3",
-      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change."
+      "sha256": "a7df4c4800771a3a5565e48f5b411c6465187e14ad72ae61417766e00df33263",
+      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change. Atomic replace uses renameWithRetry (Windows-only bounded retry of transient EPERM/EBUSY/EACCES; still an atomic rename, last error rethrown); no schema, key or directory change."
     },
     {
       "path": "modules/scheduler/tests/unit/run-store.test.ts",
@@ -581,8 +581,8 @@
     },
     {
       "path": "tests/fixtures/json-schema-runtime.mjs",
-      "sha256": "fdbba1d9073ec0fa63299b0a8c3d39bbdced0775d82aaa79a16107a6d2585e70",
-      "reason": "Complete stdout JSON.parse and exit/file contract probes, reused against actual production tarballs on all matrix hosts. Updated for the native json-schema rewrite: only --json-schema/--json-output, fixed best-effort extraction, no force mode."
+      "sha256": "6ce01c7788cfbf67a830a1d267847408216edc089950c326032cfcde61eb6faa",
+      "reason": "Complete stdout JSON.parse and exit/file contract probes, reused against actual production tarballs on all matrix hosts. Updated for the native json-schema rewrite: only --json-schema/--json-output, fixed best-effort extraction, no force mode. Run the independent isolated-home CLI cases through a pool of 4 (PI_JSON_SCHEMA_CASE_CONCURRENCY); same cases and assertions."
     }
   ],
   "removedFiles": [
