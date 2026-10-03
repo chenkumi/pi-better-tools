@@ -225,10 +225,11 @@ for (const scenario of ["malformed", "missing-content", "invalid-content", "over
 	});
 }
 
-test("captured assistant content remains memory bounded independently of traffic", async () => {
+test("captured assistant content remains memory bounded and oversized output is truncated, not failed", async () => {
 	const { result } = await run("large-retained-output");
-	assert.equal(result.status, "failed");
-	assert.match(result.errorMessage!, /retained message memory/);
+	assert.equal(result.status, "completed");
+	assert.equal(result.exitCode, 0);
+	assert.match(result.output, /\[Output truncated/);
 	assert.ok(Buffer.byteLength(result.output, "utf8") <= 2 * 1024 * 1024);
 });
 
@@ -277,11 +278,12 @@ test("inactivity timeout is measured from the last output byte", async () => {
 	assert.ok(Date.now() - started >= 400);
 });
 
-test("agent_settled gets one final close deadline", async () => {
-	const { result } = await run("terminal-hang", "test", undefined, undefined, 250);
+test("a child that lingers after agent_settled is terminated after a short grace and the completed result is kept", { timeout: 20000 }, async () => {
+	const { result } = await run("terminal-hang", "test", undefined, undefined, 60_000, false, { settledExitGraceMs: 150, forceKillDelayMs: 2000 });
 	assert.equal(result.output, "done");
-	assert.equal(result.status, "failed");
-	assert.match(result.errorMessage!, /no stdout or stderr for 250 ms/);
+	assert.equal(result.status, "completed");
+	assert.equal(result.exitCode, 0);
+	assert.equal(result.errorMessage, undefined);
 });
 
 test("parent abort wins when it precedes inactivity timeout", async () => {

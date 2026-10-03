@@ -202,6 +202,13 @@ export function classifyFsError(error: unknown, path: string, operation: "read" 
       : undefined;
   const causeMessage = error instanceof Error ? error.message : String(error);
 
+  if (error instanceof Error && error.name === "AbortError") {
+    return new FileToolError("OPERATION_ABORTED", "The file operation was aborted.", {
+      path,
+      recovery: "Retry after confirming the current file contents.",
+    });
+  }
+
   if (causeCode === "ENOENT" || causeCode === "ENOTDIR") {
     return new FileToolError("FILE_NOT_FOUND", `Cannot ${operation} because the target file does not exist.`, {
       path,

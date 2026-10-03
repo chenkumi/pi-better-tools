@@ -159,7 +159,7 @@ async function setup(t: TestContext, mode: Mode) {
 		[{ name: "worker", description: "test", source: "bundled", filePath: agentPath, systemPrompt: "test" }],
 		"worker", "I/O test", undefined, undefined, controller.signal, undefined,
 		(results, progress) => ({ mode: "single", agentScope: "user", projectAgentsDir: null, results, progress }),
-		"parent", "call", { sessionRootDir: join(root, "managed"), invocation: (args) => ({ command: "mock", args }), inactivityTimeoutMs: 100, ioTimeoutMs: ["slow", "terminal-trailing", "writer-create-failure"].includes(mode) ? 2000 : 300, forceKillDelayMs: 15 });
+		"parent", "call", { sessionRootDir: join(root, "managed"), invocation: (args) => ({ command: "mock", args }), inactivityTimeoutMs: 100, ...(mode === "terminal-trailing" ? { settledExitGraceMs: 100 } : {}), ioTimeoutMs: ["slow", "terminal-trailing", "writer-create-failure"].includes(mode) ? 2000 : 300, forceKillDelayMs: 15 });
 	return {
 		root, result, controller, release: blocked.resolve, signals,
 		entered: () => Promise.race([entered.promise, result.then(settled => { throw new Error(`Runner settled before injected ${mode} I/O; ${JSON.stringify(settled)}`); })]),
@@ -321,13 +321,13 @@ test("writer creation failure cleans up without waiting for a nonexistent transc
 	await assert.rejects(fs.promises.stat(h.root), { code: "ENOENT" });
 });
 
-test("trailing stderr writes cannot renew the settled process-close deadline", { timeout: 10000 }, async (t) => {
+test("trailing stderr writes cannot renew the settled process-close grace; the completed result is kept", { timeout: 10000 }, async (t) => {
 	const h = await setup(t, "terminal-trailing");
 	try {
 		const result = await h.result;
 		assert.equal(result.output, "done");
-		assert.equal(result.status, "failed");
-		assert.match(result.errorMessage!, /no stdout or stderr for 100 ms/);
+		assert.equal(result.status, "completed");
+		assert.equal(result.errorMessage, undefined);
 		assert.deepEqual(h.signals, ["SIGTERM", "SIGKILL"]);
 	} finally { await h.dispose(); }
 });

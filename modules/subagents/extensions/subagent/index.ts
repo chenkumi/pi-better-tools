@@ -23,6 +23,7 @@ import { type Component, Container, Markdown, Spacer, Text, truncateToWidth, vis
 import { Type } from "typebox";
 import { type AgentConfig, type AgentScope, discoverAgents } from "./agents.ts";
 import { buildSubagentPiArgs } from "./child-args.ts";
+import { Semaphore, killProcessTree } from "./concurrency.ts";
 import { selectDispatchDefaults } from "./model-selection.ts";
 import { displayTitle, isValidTitle, MAX_TITLE_LENGTH } from "./title.ts";
 import { ManagedSession, SessionError, ConversationDigest, canonicalCwd, snapshotConfig, validateConfig } from "./session-store.ts";
@@ -70,6 +71,12 @@ import {
 
 const MAX_PARALLEL_TASKS = 32;
 const MAX_CONCURRENCY = 8;
+const MAX_CHAIN_STEPS = 32;
+// Shared by every subagent tool call in this process: total active children never exceed MAX_CONCURRENCY.
+const activeChildren = new Semaphore(MAX_CONCURRENCY);
+const SETTLED_EXIT_GRACE_MS = 5000;
+// stderr alone may renew the inactivity deadline only this many deadlines after the last stdout byte.
+const STDERR_ONLY_RENEWAL_FACTOR = 4;
 const PROGRESS_UPDATE_INTERVAL_MS = 80;
 export const SUBAGENT_INACTIVITY_TIMEOUT_MS = 300_000;
 const FORCE_KILL_DELAY_MS = 5000;
@@ -254,7 +261,32 @@ async function writePromptToTempFile(agentName: string, prompt: string): Promise
 	}
 }
 
-function getPiInvocation(args: string[]): { command: string; args: string[] } {
+function resolvePiCliFromPackage(): string | undefined {
+	try {
+		const entry = fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent"));
+		let dir = path.dirname(entry);
+		for (let depth = 0; depth < 6; depth++, dir = path.dirname(dir)) {
+			const manifest = path.join(dir, "package.json");
+			if (!fs.existsSync(manifest)) continue;
+			const parsed = JSON.parse(fs.readFileSync(manifest, "utf8")) as { name?: string; bin?: string | Record<string, string> };
+			if (parsed.name !== "@earendil-works/pi-coding-agent") continue;
+			const bin = typeof parsed.bin === "string" ? parsed.bin : parsed.bin?.pi;
+			const cli = bin ? path.resolve(dir, bin) : undefined;
+			return cli && fs.existsSync(cli) ? cli : undefined;
+		}
+	} catch { /* not resolvable (compiled binary, bundled host): use the fallbacks */ }
+	return undefined;
+}
+
+/** Order: PI_SUBAGENTS_PI_CLI override, the host-provided pi-coding-agent bin, process.argv[1], then `pi` on PATH. */
+export function getPiInvocation(args: string[], env: NodeJS.ProcessEnv = process.env): { command: string; args: string[] } {
+	const override = env.PI_SUBAGENTS_PI_CLI?.trim();
+	if (override) {
+		if (/\.(?:[cm]?js|ts)$/i.test(override)) return { command: process.execPath, args: [override, ...args] };
+		return { command: override, args };
+	}
+	const packaged = resolvePiCliFromPackage();
+	if (packaged) return { command: process.execPath, args: [packaged, ...args] };
 	const currentScript = process.argv[1];
 	const isBunVirtualScript = currentScript?.startsWith("/$bunfs/root/");
 	if (currentScript && !isBunVirtualScript && fs.existsSync(currentScript)) {
@@ -287,6 +319,8 @@ export interface RunnerRuntime {
 	invocation?: typeof getPiInvocation;
 	inactivityTimeoutMs?: number;
 	forceKillDelayMs?: number;
+	/** How long a child may stay alive after agent_settled before it is terminated (the completed result is kept). */
+	settledExitGraceMs?: number;
 	ioTimeoutMs?: number;
 	onResourceStats?: (stats: { retainedMessageBytes: number; maxStdoutRecordBytes: number; maxStdoutChunkBytes: number; maxStderrChunkBytes: number }) => void;
 	/** Test seam; production reads `settings["pi-subagents"].debugLog` from global settings.json. */
@@ -306,7 +340,14 @@ export function expandChainTask(task: string, previousOutput: string): string {
 	return task.replace(/\{previous\}/g, () => previousOutput);
 }
 
-export async function runSingleAgent(
+/** Public entry: holds one process-wide active-child permit for the whole run (aborted waiters skip the queue and fail fast). */
+export async function runSingleAgent(...input: Parameters<typeof runSingleAgentUnlimited>): Promise<SingleResult> {
+	const release = await activeChildren.acquire(input[7]);
+	try { return await runSingleAgentUnlimited(...input); }
+	finally { release?.(); }
+}
+
+async function runSingleAgentUnlimited(
 	defaultCwd: string, dispatchDefaults: DispatchDefaults, agents: AgentConfig[], agentName: string,
 	task: string, cwd: string | undefined, step: number | undefined, signal: AbortSignal | undefined,
 	onUpdate: OnUpdateCallback | undefined,
@@ -345,6 +386,9 @@ export async function runSingleAgent(
 	let stderrDiagnostic = "";
 	let internalDiagnostic = "";
 	let capturedMessageBytes = 0;
+	let outputTruncated = false;
+	let childGone = true;
+	let commitAttempted = false;
 	let maxStdoutRecordBytes = 0;
 	let maxStdoutChunkBytes = 0;
 	let maxStderrChunkBytes = 0;
@@ -479,11 +523,12 @@ export async function runSingleAgent(
 		const args = buildSubagentPiArgs({ persistence: managed.persistence, guardPath: fileURLToPath(new URL("./child-guard.ts", import.meta.url)), model, thinkingLevel: runtime.resumeSession?.manifest.config.thinkingLevel ?? (shouldPassThinking ? dispatchDefaults.thinkingLevel : undefined), tools: agent.tools, promptPath: agent.systemPrompt.trim() ? tmp.filePath : undefined, taskPath });
 		signal?.removeEventListener("abort", startupAbort);
 		const invocation = (runtime.invocation ?? getPiInvocation)(args);
+		childGone = false;
 		currentResult.exitCode = await new Promise<number>((resolve) => {
 			let proc: ReturnType<typeof spawn>;
 			try { proc = spawn(invocation.command, invocation.args, { cwd: cwd ?? defaultCwd, shell: false, stdio: ["ignore", "pipe", "pipe"],
 				env: { ...process.env, PI_SUBAGENTS_GUARD: JSON.stringify({ id: managed!.id, cwd: managed!.manifest.config.cwd, model, thinkingLevel: managed!.manifest.config.thinkingLevel, childTrusted: managed!.manifest.config.childTrusted, startupPath: managed!.startupPath }) } }); }
-			catch (error) { currentResult.errorMessage = `Subagent process failed to start: ${errorToString(error)}`; resolve(1); return; }
+			catch (error) { currentResult.errorMessage = `Subagent process failed to start: ${errorToString(error)}`; childGone = true; resolve(1); return; }
 			// Count activity before decoding, including incomplete UTF-8 code points.
 			const stdoutDecoder = new StringDecoder("utf8");
 			const stderrDecoder = new StringDecoder("utf8");
@@ -493,17 +538,32 @@ export async function runSingleAgent(
 			let childClosed = false;
 			let inactivityTimer: ReturnType<typeof setTimeout> | undefined;
 			let forceKillTimer: ReturnType<typeof setTimeout> | undefined;
+			let graceTimer: ReturnType<typeof setTimeout> | undefined;
+			let abandonTimer: ReturnType<typeof setTimeout> | undefined;
+			let graceKilled = false;
+			let stderrOnlyExpired = false;
+			let lastStdoutAt = performance.now();
 			const inactivityMs = Number.isFinite(runtime.inactivityTimeoutMs) ? Math.max(1, runtime.inactivityTimeoutMs!) : SUBAGENT_INACTIVITY_TIMEOUT_MS;
 			const forceKillMs = Number.isFinite(runtime.forceKillDelayMs) ? Math.max(1, runtime.forceKillDelayMs!) : FORCE_KILL_DELAY_MS;
 			let remaining = inactivityMs;
 			let deadline = 0;
 			let ioPaused = false;
 			const clearInactivity = () => { if (inactivityTimer) clearTimeout(inactivityTimer); inactivityTimer = undefined; };
+			// Best effort only: on Windows this adds `taskkill /T /F`; a stopped tree is never claimed.
+			const killTree = (signalName: NodeJS.Signals) => killProcessTree(proc, signalName, { spawn: (command, args, options) => spawn(command, args, options) });
 			const terminate = () => {
-				try { proc.kill("SIGTERM"); } catch { /* already gone */ }
+				killTree("SIGTERM");
 				if (!forceKillTimer && !childClosed) {
 					forceKillTimer = setTimeout(() => {
-						if (proc.exitCode === null && proc.signalCode === null) { try { proc.kill("SIGKILL"); } catch { /* gone */ } }
+						if (proc.exitCode === null && proc.signalCode === null) killTree("SIGKILL");
+						// Never wait forever for a child that cannot be killed; report it honestly instead.
+						abandonTimer = setTimeout(() => {
+							if (childClosed || settled) return;
+							currentResult.stopReason = "error";
+							currentResult.errorMessage = `${currentResult.errorMessage ? `${currentResult.errorMessage} ` : ""}The child process did not exit after termination was requested; it may still be running.`;
+							settle(1);
+						}, forceKillMs);
+						abandonTimer.unref();
 					}, forceKillMs);
 					forceKillTimer.unref();
 				}
@@ -530,7 +590,7 @@ export async function runSingleAgent(
 				deadline = performance.now() + remaining;
 				inactivityTimer = setTimeout(() => {
 					const duration = inactivityMs % 1000 === 0 ? `${inactivityMs / 1000} seconds` : `${inactivityMs} ms`;
-					fail("timeout", `Subagent produced no stdout or stderr for ${duration} and was terminated.`);
+					fail("timeout", stderrOnlyExpired ? `Subagent produced no stdout for ${STDERR_ONLY_RENEWAL_FACTOR}x the ${duration} deadline (stderr output alone stopped renewing it) and was terminated.` : `Subagent produced no stdout or stderr for ${duration} and was terminated.`);
 				}, remaining);
 				inactivityTimer.unref();
 			};
@@ -552,6 +612,8 @@ export async function runSingleAgent(
 				progressTimer = undefined;
 				clearInactivity();
 				if (forceKillTimer) clearTimeout(forceKillTimer);
+				if (abandonTimer) clearTimeout(abandonTimer);
+				if (graceTimer) clearTimeout(graceTimer);
 				signal?.removeEventListener("abort", abortListener);
 				io.onWaitingChange = () => {};
 				resolve(code);
@@ -584,7 +646,18 @@ export async function runSingleAgent(
 				if (event.type === "agent_settled") {
 					// A completed assistant response may be followed by retry/recovery or
 					// queued work. Only session settlement closes this one-prompt protocol.
-					stdoutState.finished = true; ioPaused = false; remaining = inactivityMs; armInactivity(); return;
+					stdoutState.finished = true; ioPaused = false; clearInactivity();
+					// The turn is over: a child that lingers is terminated after a short grace and the completed result is kept.
+					const graceMs = Number.isFinite(runtime.settledExitGraceMs) ? Math.max(1, runtime.settledExitGraceMs!) : SETTLED_EXIT_GRACE_MS;
+					graceTimer = setTimeout(() => {
+						if (settled || childClosed || cause) return;
+						if (!terminalAssistantReceived) { fail("timeout", `Subagent settled without a terminal assistant message and did not exit within ${graceMs} ms.`); return; }
+						graceKilled = true;
+						recordInternalError(`Child did not exit ${graceMs} ms after agent_settled; terminated (completed result kept).`);
+						terminate();
+					}, graceMs);
+					graceTimer.unref();
+					return;
 				}
 				if (event.type === "agent_start") { terminalAssistantReceived = false; return; }
 				if (event.type === "message_start" && isRecord(event.message) && event.message.role === "assistant") { terminalAssistantReceived = false; resetAssistantProgress(liveProgress); requestProgressUpdate(); return; }
@@ -628,9 +701,21 @@ export async function runSingleAgent(
 					else await writeCall(part.id ?? `anonymous:${loggedCalls.size}`, part.name, part.arguments, message.timestamp);
 				}
 				if (cause) return;
-				const nextOutput = appendAssistantOutput(currentResult.output, message);
-				reserveCapturedBytes(Buffer.byteLength(nextOutput, "utf8") - Buffer.byteLength(currentResult.output, "utf8"));
-				currentResult.output = nextOutput;
+				if (!outputTruncated) {
+					let nextOutput = appendAssistantOutput(currentResult.output, message);
+					const currentBytes = Buffer.byteLength(currentResult.output, "utf8");
+					const delta = Buffer.byteLength(nextOutput, "utf8") - currentBytes;
+					if (capturedMessageBytes + delta > MAX_CAPTURED_MESSAGE_BYTES) {
+						// Oversized but otherwise successful output is truncated, not turned into a failure.
+						const marker = "\n[Output truncated: retained output limit reached; see the sub-session log.]";
+						const room = Math.max(0, MAX_CAPTURED_MESSAGE_BYTES - capturedMessageBytes - Buffer.byteLength(marker, "utf8"));
+						nextOutput = `${appendBoundedText("", nextOutput, currentBytes + room)}${marker}`;
+						outputTruncated = true;
+						recordInternalError("Assistant output truncated at the retained-memory limit");
+					}
+					capturedMessageBytes = Math.min(MAX_CAPTURED_MESSAGE_BYTES, capturedMessageBytes + Buffer.byteLength(nextOutput, "utf8") - currentBytes);
+					currentResult.output = nextOutput;
+				}
 				currentResult.usage.turns++;
 				if (isRecord(message.usage)) {
 					addUsage(currentResult.usage, message.usage);
@@ -647,6 +732,7 @@ export async function runSingleAgent(
 				try {
 					for await (const chunk of proc.stdout) {
 						maxStdoutChunkBytes = Math.max(maxStdoutChunkBytes, Buffer.byteLength(chunk, "utf8"));
+						lastStdoutAt = performance.now();
 						activity();
 						if (await consumeStdoutChunkAsync(stdoutState, stdoutDecoder.write(chunk), SUBAGENT_MAX_STDOUT_RECORD_BYTES, processLine)) throw new Error("Subagent stdout record exceeded the safety limit; inspect the sub-session log for diagnostics.");
 					}
@@ -658,7 +744,8 @@ export async function runSingleAgent(
 				try {
 					for await (const chunk of proc.stderr) {
 						maxStderrChunkBytes = Math.max(maxStderrChunkBytes, Buffer.byteLength(chunk, "utf8"));
-						activity();
+						// A stderr-only chatty child must still time out: renewal stops after a bounded stdout-silent window.
+						if (performance.now() - lastStdoutAt < inactivityMs * STDERR_ONLY_RENEWAL_FACTOR) activity(); else stderrOnlyExpired = true;
 						const text = stderrDecoder.write(chunk);
 						stderrDiagnostic = appendBoundedText(stderrDiagnostic, text, MAX_STDERR_BYTES);
 
@@ -670,22 +757,39 @@ export async function runSingleAgent(
 			// Start at most two bounded consumers; no data-event promise queues.
 			const pumps = [pumpStdout(), pumpStderr()];
 			proc.on("close", (code, signalCode) => {
-				childClosed = true;
+				childClosed = true; childGone = true;
 				clearInactivity();
 				if (forceKillTimer) clearTimeout(forceKillTimer);
+				if (abandonTimer) clearTimeout(abandonTimer);
+				if (graceTimer) clearTimeout(graceTimer);
 				void Promise.all(pumps).then(() => {
 					if (!terminalAssistantReceived && !cause) { currentResult.stopReason = "error"; currentResult.errorMessage ??= "Subagent exited without a terminal assistant message (incomplete JSON protocol)."; }
-					if (signalCode && !wasAborted && currentResult.stopReason !== "aborted") { currentResult.stopReason = "error"; currentResult.errorMessage ??= `Subagent process terminated by ${signalCode}.`; }
-					flushProgress(); settle(code ?? (signalCode ? 1 : 0));
+					if (signalCode && !wasAborted && !graceKilled && currentResult.stopReason !== "aborted") { currentResult.stopReason = "error"; currentResult.errorMessage ??= `Subagent process terminated by ${signalCode}.`; }
+					flushProgress(); settle(graceKilled && terminalAssistantReceived && !cause ? 0 : code ?? (signalCode ? 1 : 0));
 				}).catch((error) => { recordInternalError(errorToString(error)); settle(1); });
 			});
-			proc.on("error", (error) => { fail("protocol", `Subagent process failed to start: ${errorToString(error)}`); settle(1); });
+			proc.on("error", (error) => {
+				if (typeof proc.pid === "number") {
+					// Spawned process (e.g. kill EPERM): it may still be alive, so wait for "close" instead of settling.
+					recordInternalError(`Subagent process error: ${errorToString(error)}`);
+					return;
+				}
+				fail("protocol", `Subagent process failed to start: ${errorToString(error)}`); childGone = true; settle(1);
+			});
 			if (signal?.aborted) abortListener(); else signal?.addEventListener("abort", abortListener, { once: true });
 			armInactivity();
 		});
-		if (!wasAborted && !cause) await io.run(() => managed!.acceptStartup(), "verify child startup handshake");
+		if (!wasAborted && !cause) {
+			// A failed child that never wrote startup.json must surface its real stderr, not a bare ENOENT.
+			const startupWritten = currentResult.exitCode === 0 || await fs.promises.access(managed.startupPath).then(() => true, () => false);
+			if (startupWritten) await io.run(() => managed!.acceptStartup(), "verify child startup handshake");
+		}
 		if (wasAborted) currentResult.stopReason = "aborted";
-		if (currentResult.exitCode !== 0 && !currentResult.errorMessage) currentResult.errorMessage = `Subagent process exited with code ${currentResult.exitCode}; inspect the sub-session log for diagnostics.`;
+		if (currentResult.exitCode !== 0) {
+			const tail = stderrDiagnostic.trim().slice(-2048);
+			if (!currentResult.errorMessage) currentResult.errorMessage = `Subagent process exited with code ${currentResult.exitCode}; inspect the sub-session log for diagnostics.`;
+			if (tail && !currentResult.errorMessage.includes(tail)) currentResult.errorMessage += `\nstderr (tail): ${tail}`;
+		}
 	} catch (error) {
 		cause ??= wasAborted ? "abort" : "protocol";
 		currentResult.exitCode = 1;
@@ -735,6 +839,7 @@ export async function runSingleAgent(
 			}
 			if (spool) await finalIo.run(() => spool!.cleanup(), "cleanup tool spool");
 			if (managed && runStarted && currentResult.status === "completed") {
+				commitAttempted = true;
 				if (!nativeHeaderReceived) throw new SessionError("CHECKPOINT_MISMATCH", "Missing stdout native session header");
 				if (!writer || !currentResult.logPath) throw new SessionError("COMMIT_FAILED", "No complete readable segment");
 				await finalIo.run(() => managed!.commit(writer!.finalPath, digest, { ...invocationMetadata(currentResult), stderr: appendBoundedText("", stderrDiagnostic, 32 * 1024), diagnostic: internalDiagnostic }, () => !finalIo.stopped && !io.stopped), "commit managed run");
@@ -753,10 +858,16 @@ export async function runSingleAgent(
 			if ((!currentResult.logPath || managed) && currentResult.stopReason !== "aborted") { currentResult.stopReason = "error"; currentResult.errorMessage ??= diagnostic; }
 			currentResult.canResume = false;
 		}
+		// Rollback is limited to run-level failures (cancel/timeout/crash/non-zero exit) of a previously ready session.
+		const rollbackEligible = Boolean(runtime.resumeSession) && childGone && !commitAttempted && !integrityFailure && !["CHECKPOINT_MISMATCH", "METADATA_UNSUPPORTED", "SESSION_BLOCKED", "COMMIT_FAILED", "MODEL_UNAVAILABLE", "TRUST_REQUIRED", "CONFIG_CHANGED", "SESSION_BUSY", "DUPLICATE_DISPATCH", "INVALID_DISPATCH"].includes(currentResult.errorCode ?? "");
 		if (managed && !currentResult.canResume && runStarted) currentResult.errorCode ??= "COMMIT_FAILED";
 		if (managed && lockHeld && io.pendingOperations === 0 && finalIo.pendingOperations === 0 && cleanupIo.pendingOperations === 0 && !cleanupIo.stopped) {
 			try {
-				if (!currentResult.canResume && (runStarted || integrityFailure)) await cleanupIo.run(() => managed!.blocked(currentResult.errorCode ?? "COMMIT_FAILED", { ...invocationMetadata(currentResult), stderr: appendBoundedText("", stderrDiagnostic, 32 * 1024), diagnostic: internalDiagnostic }, () => !cleanupIo.stopped), "block managed run");
+				if (!currentResult.canResume && (runStarted || integrityFailure)) {
+					const restored = await cleanupIo.run(() => managed!.blocked(currentResult.errorCode ?? "COMMIT_FAILED", { ...invocationMetadata(currentResult), stderr: appendBoundedText("", stderrDiagnostic, 32 * 1024), diagnostic: internalDiagnostic }, () => !cleanupIo.stopped, rollbackEligible), "block managed run");
+					// The failed run left no durable trace in the native/readable files: the prior verified session stays resumable.
+					if (restored) currentResult.canResume = true;
+				}
 				if (!cleanupIo.stopped && cleanupIo.pendingOperations === 0) await cleanupIo.run(() => managed!.release(), "release managed writer");
 			} catch (error) { currentResult.canResume = false; currentResult.stopReason = "error"; currentResult.errorMessage ??= errorToString(error); currentResult.logError ??= errorToString(error); }
 		}
@@ -866,7 +977,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 			"Delegate tasks to specialized agents with isolated context.",
 			"Provide exactly one mode: single (agent + task), parallel (tasks array), chain (steps with {previous}), or resume (complete subagentSessionId + new task).",
 			"Every initial task automatically saves a managed native session; there is no non-persistent mode or resumable parameter. Resume accepts an optional display title but no configuration overrides and belongs to the same parent session/cwd; only verified ready sessions can continue.",
-			`Dispatch limits: parallel mode accepts at most ${MAX_PARALLEL_TASKS} tasks and runs at most ${MAX_CONCURRENCY} at once.`,
+			`Dispatch limits: parallel mode accepts at most ${MAX_PARALLEL_TASKS} tasks and chain mode at most ${MAX_CHAIN_STEPS} steps; at most ${MAX_CONCURRENCY} children run at once across all subagent calls in this process.`,
 			"Chain steps run in order, pass each complete assistant-text output into {previous}, and stop at the first failed step.",
 			"Each task records its non-reasoning child transcript in a sub-session JSONL log; parent results contain only assistant output, status, usage, and the log path.",
 			"Omit provider, model, and thinkingLevel by default; pass overrides only when explicitly requested by the user or a skill. Resolve the model first, then check its supported thinking levels before spawning each child. Unknown or ambiguous models and unknown or unsupported thinking levels are ignored in favor of defaults. provider requires a bare model ID; alternatively pass provider/model as model.",
@@ -929,10 +1040,16 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 
 			const discovery = discoverAgents(ctx.cwd, agentScope);
 			const agents = discovery.agents;
-			const dispatchDefaultsFor = (agentName: string): DispatchDefaults => selectDispatchDefaults(
-				ctx, { provider, model: requestedModel, thinkingLevel: params.thinkingLevel },
-				agents.find(agent => agent.name === agentName)?.model,
-			);
+			// Must never throw: it runs between sibling children, and a throw would reject Promise.all while they keep running.
+			// An unusable selection falls back to defaults, the same policy as unknown/ambiguous model overrides.
+			const dispatchDefaultsFor = (agentName: string): DispatchDefaults => {
+				try {
+					return selectDispatchDefaults(
+						ctx, { provider, model: requestedModel, thinkingLevel: params.thinkingLevel },
+						agents.find(agent => agent.name === agentName)?.model,
+					);
+				} catch { return { modelWasExplicit: false, thinkingLevelWasExplicit: false }; }
+			};
 			const parentSessionId = ctx.sessionManager.getSessionId();
 			const hasChain = (params.chain?.length ?? 0) > 0;
 			const hasTasks = (params.tasks?.length ?? 0) > 0;
@@ -948,6 +1065,9 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 				});
 			if (params.tasks && params.tasks.length > MAX_PARALLEL_TASKS) {
 				return { content: [{ type: "text", text: `Too many parallel tasks (${params.tasks.length}). Max is ${MAX_PARALLEL_TASKS}.` }], details: makeDetails("parallel")([]), isError: true };
+			}
+			if (params.chain && params.chain.length > MAX_CHAIN_STEPS) {
+				return { content: [{ type: "text", text: `Too many chain steps (${params.chain.length}). Max is ${MAX_CHAIN_STEPS}.` }], details: makeDetails("chain")([]), isError: true };
 			}
 
 			const confirmProjectAgents = params.confirmProjectAgents ?? true;
@@ -1012,12 +1132,21 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 						onUpdate({ content: [{ type: "text", text: `Parallel: ${done}/${allResults.length} done, ${running} running...` }], details: makeDetails("parallel")([...allResults], liveProgress.filter((entry): entry is LiveProgress => Boolean(entry))) });
 					} catch { /* progress delivery is contained */ }
 				};
+				// An unexpected throw in one task aborts its siblings and is reported as that task's failure; every child is awaited.
+				const siblings = new AbortController();
+				const siblingSignal = signal ? AbortSignal.any([signal, siblings.signal]) : siblings.signal;
 				const results = await mapWithConcurrencyLimit(params.tasks, MAX_CONCURRENCY, async (task, index) => {
-					const result = await runSingleAgent(ctx.cwd, dispatchDefaultsFor(task.agent), agents, task.agent, task.task, task.cwd, undefined, signal, (partial) => {
-						if (partial.details?.results[0]) allResults[index] = partial.details.results[0];
-						liveProgress[index] = partial.details?.progress?.[0];
-						emitParallelUpdate();
-					}, makeDetails("parallel"), parentSessionId, toolCallId, taskRuntime, task.title ?? params.title);
+					let result: SingleResult;
+					try {
+						result = await runSingleAgent(ctx.cwd, dispatchDefaultsFor(task.agent), agents, task.agent, task.task, task.cwd, undefined, siblingSignal, (partial) => {
+							if (partial.details?.results[0]) allResults[index] = partial.details.results[0];
+							liveProgress[index] = partial.details?.progress?.[0];
+							emitParallelUpdate();
+						}, makeDetails("parallel"), parentSessionId, toolCallId, taskRuntime, task.title ?? params.title);
+					} catch (error) {
+						siblings.abort();
+						result = compactResult({ ...allResults[index], status: "failed", exitCode: 1, stopReason: "error", errorMessage: `Subagent dispatch failed unexpectedly: ${errorToString(error)}` });
+					}
 					allResults[index] = result;
 					liveProgress[index] = undefined;
 					emitParallelUpdate();

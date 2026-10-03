@@ -159,6 +159,15 @@ function registerTimeoutMsOverride(
         return result;
       } catch (error) {
         await logFailure({ kind: "exception", error });
+        // The host formats `timeout:<s>` as an absolute-timeout message, but
+        // here it means an output stall. Make the message accurate.
+        if (input.timeoutMs !== undefined && error instanceof Error) {
+          const stalled = error.message.replace(
+            /Command timed out after (\S+) seconds/,
+            "Command stopped: no output for $1 seconds (timeoutMs idle timeout)",
+          );
+          if (stalled !== error.message) throw new Error(stalled, { cause: error });
+        }
         throw error;
       }
     },
@@ -176,6 +185,8 @@ export default function (pi: ExtensionAPI) {
     pi,
     "powershell",
     createPowerShellToolDefinition,
+    // Pi's PowerShell tool options accept no shellPath/commandPrefix, so
+    // Bash-only shell settings intentionally do not apply here.
     (ctx) => createPowerShellToolDefinition(ctx.cwd, {
       operations: withIdleTimeout(createLocalPowerShellOperations()),
     }),

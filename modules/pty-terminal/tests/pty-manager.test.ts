@@ -23,7 +23,7 @@ test("writes terminal input, resizes and releases killed session", async t => {
 	await until(manager, sessionId, /READY/);
 	manager.resize(sessionId, 80, 24); manager.write(sessionId, "hello\r");
 	await until(manager, sessionId, /received:hello/);
-	manager.kill(sessionId); assert.deepEqual(manager.list(), []);
+	const killed = await manager.kill(sessionId); assert.equal(killed.released, true); assert.deepEqual(manager.list(), []);
 });
 test("buffered output does not prematurely settle waitForExit; abort and shutdown release waiters", async t => {
 	const manager = new PtySessionManager(); t.after(() => manager.shutdown());
@@ -36,4 +36,48 @@ test("buffered output does not prematurely settle waitForExit; abort and shutdow
 	const read = manager.read(sessionId, 10000); const exit = manager.waitForExit(sessionId, 10000);
 	manager.shutdown(); await read; await exit; assert.deepEqual(manager.list(), []);
 	manager.shutdown();
+});
+test("output ring buffer drops oldest data and reports it once", async t => {
+	const manager = new PtySessionManager({ maxBufferChars: 100 }); t.after(() => manager.shutdown());
+	const { sessionId } = manager.spawn(process.execPath, ["-e", "process.stdout.write('A'.repeat(500)+'END')"], {}, process.cwd());
+	await manager.waitForExit(sessionId, 10000);
+	const summary = manager.list()[0];
+	assert.ok(summary.bufferedBytes <= 100); assert.ok(summary.droppedChars > 0);
+	const output = await manager.read(sessionId, 0);
+	assert.match(output, /earlier characters were dropped/); assert.match(output, /END/);
+	assert.doesNotMatch(await manager.read(sessionId, 0), /dropped/);
+});
+test("session count and terminal size are capped; exited sessions are reclaimed", async t => {
+	let clock = 0;
+	const manager = new PtySessionManager({ maxSessions: 1, exitedRetentionMs: 1000, now: () => clock }); t.after(() => manager.shutdown());
+	const exitNow = ["-e", "process.exit(0)"];
+	assert.throws(() => manager.spawn(process.execPath, exitNow, { cols: 100000 }, process.cwd()), /cols/);
+	assert.throws(() => manager.spawn(process.execPath, exitNow, { rows: 0 }, process.cwd()), /rows/);
+	const first = manager.spawn(process.execPath, ["-e", "setInterval(()=>{},1000)"], {}, process.cwd());
+	assert.throws(() => manager.spawn(process.execPath, exitNow, {}, process.cwd()), /session limit/);
+	assert.throws(() => manager.resize(first.sessionId, 1, 100000), /rows/);
+	assert.equal((await manager.kill(first.sessionId, "SIGKILL")).released, true);
+	const second = manager.spawn(process.execPath, exitNow, {}, process.cwd());
+	await manager.waitForExit(second.sessionId, 10000);
+	assert.equal(manager.list().length, 1);
+	clock = 5000; assert.deepEqual(manager.list(), []);
+	// An exited session also yields its slot to a new spawn.
+	const third = manager.spawn(process.execPath, exitNow, {}, process.cwd()); await manager.waitForExit(third.sessionId, 10000);
+	const fourth = manager.spawn(process.execPath, exitNow, {}, process.cwd());
+	assert.notEqual(fourth.sessionId, third.sessionId);
+});
+test("kill validates signals and keeps the session when it cannot be confirmed dead", async t => {
+	const manager = new PtySessionManager({ killWaitMs: 5 }); t.after(() => manager.shutdown());
+	const { sessionId } = manager.spawn(process.execPath, ["-e", "setInterval(()=>{},1000)"], {}, process.cwd());
+	await assert.rejects(manager.kill(sessionId, "SIGUSR1"), /Unsupported signal/);
+	assert.equal(manager.list().length, 1);
+	const internal = (manager as any).sessions.get(sessionId);
+	internal.pty.kill = () => { throw new Error("boom"); };
+	await assert.rejects(manager.kill(sessionId), /retained/);
+	assert.equal(manager.list().length, 1);
+	// A transport that stays running after a successful signal is reported honestly as not released.
+	internal.pty.kill = () => {};
+	const result = await manager.kill(sessionId);
+	assert.equal(result.released, false); assert.equal(result.exited, false); assert.equal(manager.list().length, 1);
+	delete internal.pty.kill;
 });

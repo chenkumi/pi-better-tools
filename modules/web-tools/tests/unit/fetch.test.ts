@@ -5,7 +5,7 @@ import test from 'node:test';
 import { extractHtml, MAX_EXTRACTED_BYTES, MAX_HTML_BYTES } from '../../src/fetch/extract.js';
 import { isPublicAddress, NetworkPolicy, parseWebUrl } from '../../src/fetch/network.js';
 import { certificateOrEmpty, installPlaywrightTlsCompatibility } from '../../src/fetch/playwright-tls-compat.js';
-import { FetchQueue, FetchService } from '../../src/fetch/service.js';
+import { exceedsResponseLimit, FetchQueue, FetchService, MAX_RESPONSE_BYTES } from '../../src/fetch/service.js';
 
 const article = `<!doctype html><title>Fixture article</title><nav>Discard navigation</nav><main>
 <h1>Useful heading</h1><p>A real paragraph about testing rendered documents and extracting useful readable information.</p>
@@ -78,7 +78,20 @@ test('challenge and login detection warn without claiming authenticated content'
 test('empty and byte-oversized documents are errors rather than successful empty output', () => {
   assert.throws(() => extractHtml('<script>secret()</script><nav>Only navigation</nav>', 'https://example.org/'), /EMPTY_CONTENT:/);
   assert.throws(() => extractHtml('x'.repeat(MAX_HTML_BYTES + 1), 'https://example.org/'), /TOO_LARGE:/);
-  assert.throws(() => extractHtml(`<main>${'é'.repeat(MAX_EXTRACTED_BYTES / 2 + 1)}</main>`, 'https://example.org/', 'text', 'main'), /TOO_LARGE:/);
+});
+
+test('oversized extracted content is truncated with a warning, not rejected', () => {
+  const result = extractHtml(`<main>${'é'.repeat(MAX_EXTRACTED_BYTES / 2 + 1)}</main>`, 'https://example.org/', 'text', 'main');
+  assert.ok(Buffer.byteLength(result.content, 'utf8') <= MAX_EXTRACTED_BYTES);
+  assert.ok(result.content.length > 1000);
+  assert.ok(result.warnings.some((warning) => /truncated/.test(warning)));
+});
+
+test('response size limit checks declared length and actual body size', () => {
+  assert.equal(exceedsResponseLimit({ 'content-length': String(MAX_RESPONSE_BYTES + 1) }), true);
+  assert.equal(exceedsResponseLimit({}, MAX_RESPONSE_BYTES + 1), true);
+  assert.equal(exceedsResponseLimit({ 'content-length': '10' }, 10), false);
+  assert.equal(exceedsResponseLimit({}), false);
 });
 
 test('public-address policy rejects special IPv4, IPv6 and mapped IPv4 ranges', () => {

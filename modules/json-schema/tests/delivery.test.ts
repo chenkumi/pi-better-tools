@@ -29,3 +29,22 @@ test("a failed write keeps the previous file and leaves no temporary file", asyn
     assert.deepEqual((await readdir(dir)).filter((name) => name.endsWith(".tmp")), []);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+test("repeated session_start keeps one signal listener and registers the tool once", async () => {
+  const { default: extension } = await import("../extensions/json-schema.ts");
+  const dir = await mkdtemp(join(tmpdir(), "pi-json-schema-listeners-"));
+  const hooks = new Map<string, (event: unknown, ctx: unknown) => unknown>(); const tools: Array<{ execute(id: string, params: unknown): Promise<unknown> }> = [];
+  extension({ registerFlag: () => {}, registerTool: (tool: never) => { tools.push(tool); }, on: (name: string, handler: (event: unknown, ctx: unknown) => unknown) => { hooks.set(name, handler); },
+    getFlag: (name: string) => name === "json-schema" ? '{"type":"object"}' : name === "json-output" ? "out.json" : undefined } as never);
+  const before = process.listenerCount("SIGTERM");
+  const ctx = { mode: "print", cwd: dir };
+  try {
+    hooks.get("session_start")!({}, ctx); hooks.get("session_start")!({}, ctx);
+    assert.equal(process.listenerCount("SIGTERM"), before + 1);
+    assert.equal(tools.length, 1);
+    await tools[0].execute("id", {});
+    await hooks.get("session_shutdown")!({}, ctx);
+    assert.equal(process.listenerCount("SIGTERM"), before);
+    assert.equal(await readFile(join(dir, "out.json"), "utf8"), "{}\n");
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});

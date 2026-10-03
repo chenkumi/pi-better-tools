@@ -28,6 +28,8 @@
 
 工具的 TUI renderer 顯示 action、目標狀態／原文摘要、阻塞原因及建議下一步；展開可看 ID、cwd、時間與驗收證據。完成證據明示由模型回報、非獨立審核。只改顯示，模型可見 JSON、工具 lifecycle 與持久化格式保持不變。
 
+還原時以正規化後的路徑比對 goal 的 cwd 與目前 cwd（優先 `realpath.native`，失敗則 `resolve`；Windows 另做大小寫摺疊），因此磁碟代號大小寫、symlink／junction 或 8.3 短名不再造成誤判的 `GOAL_WORKSPACE_MISMATCH`。
+
 ## 自動推進與限制
 
 - 每次 Agent 回合結束但目標仍為 `active` 時，自動注入提醒並續跑；每個 run 最多 20 次自動續跑。

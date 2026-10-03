@@ -1,6 +1,6 @@
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { renameWithRetry } from "./atomic-rename.js";
-import { dirname, join } from "node:path";
+import { appendFile, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { atomicWriteFile } from "./atomic-rename.js";
+import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 
 import { appendRunEvent, isTerminalRunStatus, transitionRun, type ProcessIdentity, type Run, type RunEvent, type RunStatus } from "./domain.js";
@@ -14,14 +14,21 @@ export interface RunStoreOptions {
   maxOutputBytes?: number;
 }
 
-function parseRuns(text: string): Run[] {
-  return text.split(/\r?\n/).filter(Boolean).map((line, index) => {
+/** Lines that are not valid run objects are returned separately so one bad line cannot take the scheduler down. */
+function parseRuns(text: string): { runs: Run[]; bad: string[] } {
+  const runs: Run[] = [];
+  const bad: string[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    if (!line) continue;
     try {
-      return JSON.parse(line) as Run;
+      const value: unknown = JSON.parse(line);
+      if (!value || typeof value !== "object" || typeof (value as Run).runId !== "string" || typeof (value as Run).scheduleId !== "string" || typeof (value as Run).status !== "string") throw new Error("not a run");
+      runs.push(value as Run);
     } catch {
-      throw new Error(`Malformed run history entry at line ${index + 1}`);
+      bad.push(line);
     }
-  });
+  }
+  return { runs, bad };
 }
 
 export function truncateOutput(value: string, maxBytes: number): string {
@@ -34,8 +41,9 @@ export class RunStore {
   private readonly maxHistory: number;
   private readonly maxOutputBytes: number;
   private logCleanupError?: string;
+  private readonly quarantined = new Set<string>();
 
-  diagnostics() { return { maxHistory: this.maxHistory, maxOutputBytes: this.maxOutputBytes, logCleanupError: this.logCleanupError }; }
+  diagnostics() { return { maxHistory: this.maxHistory, maxOutputBytes: this.maxOutputBytes, logCleanupError: this.logCleanupError, quarantinedLines: this.quarantined.size }; }
 
   constructor(private readonly options: RunStoreOptions) {
     this.maxHistory = options.maxHistory ?? 500;
@@ -44,12 +52,37 @@ export class RunStore {
 
   async list(scheduleId?: string): Promise<Run[]> {
     try {
-      const runs = parseRuns(await readFile(this.options.runsPath, "utf8"));
+      const { runs, bad } = parseRuns(await readFile(this.options.runsPath, "utf8"));
+      await this.quarantine(bad);
       return scheduleId ? runs.filter((run) => run.scheduleId === scheduleId) : runs;
     } catch (error: unknown) {
       if (typeof error === "object" && error !== null && "code" in error && (error as { code?: string }).code === "ENOENT") return [];
       throw error;
     }
+  }
+
+  /** Back up each distinct bad line once (the next rewrite drops it from runs.jsonl) and keep going without it. */
+  private async quarantine(bad: readonly string[]): Promise<void> {
+    const fresh = bad.filter((line) => !this.quarantined.has(line));
+    if (!fresh.length) return;
+    for (const line of fresh) this.quarantined.add(line);
+    try { await appendFile(`${this.options.runsPath}.corrupt`, fresh.map((line) => `${line}
+`).join(""), "utf8"); }
+    catch { /* best effort; the line is still skipped */ }
+  }
+
+  /**
+   * Atomically (under the history lock) appends `run`, or `whenBusy` instead if the schedule already has
+   * active or orphaned work. Returns the record that was written.
+   */
+  async appendUnlessBusy(run: Run, whenBusy: (run: Run) => Run): Promise<Run> {
+    return withAdvisoryLock(this.options.lockPath, async () => {
+      const runs = await this.list();
+      const busy = runs.some((item) => item.scheduleId === run.scheduleId && (!isTerminalRunStatus(item.status) || item.status === "orphaned"));
+      const record = busy ? whenBusy(run) : run;
+      await this.writeAll(this.retain([...runs, record]));
+      return record;
+    });
   }
 
   async append(run: Run): Promise<void> {
@@ -192,10 +225,7 @@ export class RunStore {
   }
 
   private async writeAll(runs: readonly Run[]): Promise<void> {
-    await mkdir(dirname(this.options.runsPath), { recursive: true });
-    const temporary = `${this.options.runsPath}.tmp-${process.pid}-${Date.now()}`;
-    await writeFile(temporary, runs.map((run) => JSON.stringify(run)).join("\n") + (runs.length ? "\n" : ""), "utf8");
-    await renameWithRetry(temporary, this.options.runsPath);
+    await atomicWriteFile(this.options.runsPath, runs.map((run) => JSON.stringify(run)).join("\n") + (runs.length ? "\n" : ""));
     // History commits first. Only canonical scheduler ULID (or legacy UUID) log names are owned;
     // never recurse, follow symlinks, or remove unrecognized files.
     try {

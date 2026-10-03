@@ -60,7 +60,7 @@ export function ptyRenderers(action: Action): Pick<ToolDefinition, "renderCall" 
         lines.push(`${name}: result details unavailable`);
         if (expanded) lines.push(clean(text, 2000));
       } else if (action === "kill") {
-        lines.push(`PTY session released · ${session}`, "Transport termination requested; remote process-tree termination not confirmed.");
+        lines.push(data.released === false ? `PTY session retained (transport still running) · ${session}` : `PTY session released · ${session}`, "Local transport only; remote process-tree termination not confirmed.");
       } else if (action === "resize") {
         lines.push(`PTY resized · ${session} · ${oneLine(data.cols ?? input.cols) || "?"}×${oneLine(data.rows ?? input.rows) || "?"}`);
       } else {

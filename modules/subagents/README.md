@@ -68,10 +68,15 @@ Task 以權限受限的 UTF-8 暫存檔（Pi `@file` 參數）傳給 child，不
 
 ### 上限
 
-- parallel 最多提交 32 個 task、同時執行 8 個；超量請求在確認提示與 log 建立前即回傳錯誤。
-- Child 連續 300 秒沒有任何 stdout／stderr 輸出即因 inactivity timeout 失敗（每次輸出重置）。
-- 取消或 timeout 對 direct child 送 SIGTERM，五秒後仍未結束則 SIGKILL；不保證清除完整 process tree，不自動重試。`Ctrl+C` 會中止 child。
-- stdout 單筆 JSON record 上限 8 MiB；stderr diagnostics 上限 512 KiB；retained message 記憶體預算 2 MiB。
+- parallel 最多提交 32 個 task、chain 最多 32 個 step；超量請求在確認提示與 log 建立前即回傳錯誤。
+- 同時執行的 child 上限 8 個，為整個 Pi process 共用（同一 turn 的多個並行 `subagent` 呼叫合計不超過 8 個，多的排隊；排隊中被取消者不會啟動 child）。
+- Child 連續 300 秒沒有 stdout 輸出即因 inactivity timeout 失敗（stdout 每次輸出重置）。stderr 輸出也會重置，但只在最後一次 stdout 後 4 倍期限內有效，避免只吐 stderr 的 child 永遠不逾時。
+- `agent_settled` 後 child 若五秒內未結束，會被終止並保留已完成的結果（不再等 300 秒後標為錯誤）。
+- 取消或 timeout 對 direct child 送 SIGTERM，五秒後仍未結束則 SIGKILL；Windows 另以 best-effort `taskkill /T /F /PID` 嘗試終止子行程樹。以上皆不保證清除完整 process tree（終止要求不等於 process tree 已停止），不自動重試。若 SIGKILL 後 child 仍未結束，結果會誠實標註它可能仍在執行。`Ctrl+C` 會中止 child。
+- Child 非零結束且未產生 startup handshake 時，錯誤訊息附上 stderr 尾端，不再只顯示 ENOENT。
+- Child 以 `PI_SUBAGENTS_GUARD` 接收啟動 handshake，guard 讀取後即從環境刪除，孫行程不會繼承。
+- Pi CLI 解析順序：環境變數 `PI_SUBAGENTS_PI_CLI`（指向 `cli.js` 或可執行檔）、宿主提供的 `@earendil-works/pi-coding-agent` bin、`process.argv[1]`、PATH 上的 `pi`。以 SDK 內嵌時不會再重跑宿主應用程式。
+- stdout 單筆 JSON record 上限 8 MiB；stderr diagnostics 上限 512 KiB；retained message 記憶體預算 2 MiB。累積 assistant 輸出超過預算時截斷並附註，不會讓成功的 run 失敗。
 - Log 寫入 I/O 另有 300 秒停滯期限。
 
 ## 續接
@@ -88,6 +93,8 @@ Task 以權限受限的 UTF-8 暫存檔（Pi `@file` 參數）傳給 child，不
 - 限相同 parent session 與 canonical parent cwd。
 - 保存 agent 定義、cwd、model、thinking 與 trust；agent 被修改／移除、cwd 或 model 不可用、信任改變時拒絕。
 - 只有 ready 的 session 可續接；busy、blocked 的不會被接管。
+- 先前 ready 的 session 續接時若 run 失敗、取消或逾時（child 已確實結束，且非 checkpoint／commit／startup 驗證類失敗），會在 checkpoint 的 native hash 前綴仍相符時，把 native 檔與 readable transcript 截回 checkpoint 位元組並還原為 ready；前綴不符則維持 blocked。首次 run 失敗仍為 blocked。
+- Parent crash 遺留的 `writer.lock`：僅當 owner.json 記錄的 pid 已不存在（且不是本 process）、並有已驗證的 checkpoint 時，才會接管並依上述規則回復；pid 仍存活或無法驗證時維持 SESSION_BUSY／SESSION_BLOCKED，不自動接管。pid 可能被作業系統重用，此為 best-effort 判斷。
 - 錯誤碼：`INVALID_DISPATCH`、`SESSION_NOT_FOUND`、`OWNER_MISMATCH`、`SESSION_BUSY`、`SESSION_BLOCKED`、`DUPLICATE_DISPATCH`、`METADATA_UNSUPPORTED`、`CHECKPOINT_MISMATCH`、`CONFIG_CHANGED`、`CWD_UNAVAILABLE`、`MODEL_UNAVAILABLE`、`TRUST_REQUIRED`、`COMMIT_FAILED`。
 - 不保證副作用 exactly-once。
 

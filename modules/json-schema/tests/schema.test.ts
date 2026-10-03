@@ -70,3 +70,8 @@ test("rejects type-specific constraints without a type (they would be ignored)",
   // The same constraints are fine once the type is declared.
   assert.doesNotThrow(() => compileSchema(obj({ v: { allOf: [{ type: "string" }, { type: "string", minLength: 3 }] } })));
 });
+
+test("tuple-form items are audited element by element", () => {
+  assert.throws(() => compileSchema(obj({ t: { type: "array", items: [{ type: "string" }, { not: { type: "string" } }] } })), /not/);
+  assert.throws(() => compileSchema(obj({ t: { type: "array", items: [{ minLength: 1 }] } })), /minLength/);
+});

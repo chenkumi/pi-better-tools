@@ -60,7 +60,11 @@ function audit(node: unknown, path: string): void {
   if (constrains && !anchored) throw new Error(`"${constrains}" at ${path} needs an explicit "type" (it would be ignored otherwise)`);
 
   for (const [keyword, value] of Object.entries(node)) {
-    if (SUBSCHEMA.has(keyword)) audit(value, `${path}/${keyword}`);
+    // draft-07 tuple form: `items` may be an array of subschemas.
+    if (SUBSCHEMA.has(keyword)) {
+      if (Array.isArray(value)) value.forEach((child, index) => audit(child, `${path}/${keyword}/${index}`));
+      else audit(value, `${path}/${keyword}`);
+    }
     else if (SUBSCHEMA_LIST.has(keyword) && Array.isArray(value)) value.forEach((child, index) => audit(child, `${path}/${keyword}/${index}`));
     else if (SUBSCHEMA_MAP.has(keyword) && isRecord(value)) for (const [name, child] of Object.entries(value)) audit(child, `${path}/${keyword}/${name}`);
   }

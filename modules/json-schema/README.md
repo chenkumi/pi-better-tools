@@ -41,9 +41,12 @@ pi -p --json-schema "$schema" --json-output result.json "回答問題"
 
 ## 支援的 schema 範圍
 
+從文字回收 JSON 時，花括號／方括號掃描有上限（最多 64 次候選、每次最多 1,000,000 字元），超過即視為找不到。
+
 以 zod 4 的 `z.fromJSONSchema` 驗證，涵蓋常見關鍵字：`type`、`properties`／`required`／`additionalProperties`、`enum`／`const`、`anyOf`／`oneOf`／`allOf`、字串／數值／陣列／物件約束、`format`、本地 `$ref`（含遞迴 `#`）、draft-07。
 
 zod 無法忠實驗證的內容會**在啟動時被拒絕**，避免悄悄放行錯誤資料：
 
 - `if`／`then`／`else`、`not`、`dependentRequired`／`dependentSchemas`／`dependencies`、`unevaluatedProperties`／`unevaluatedItems`、`$dynamicRef`／`$anchor`、外部 `$ref`。
+- 陣列形式的 `items`（draft-07 tuple）會逐元素稽核，同樣套用以上規則。
 - 沒有 `type`（也沒有 `$ref`／`enum`／`const`）卻帶型別專屬約束的子 schema，例如 `allOf: [{type:"string"}, {minLength:3}]` 的第二項；zod 會忽略這類約束，請補上 `type`。

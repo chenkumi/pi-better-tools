@@ -42,6 +42,7 @@ export interface SessionSchedulerOptions {
   /** Only bounds submission acknowledgement, not an already-started agent. */
   admissionTimeoutMs?: number;
 }
+const FINISH_ATTEMPTS = 3;
 function modelRef(model: unknown): ModelReference | undefined {
   if (!model || typeof model !== "object") return undefined;
   const value = model as { provider?: unknown; id?: unknown };
@@ -97,8 +98,13 @@ export class SessionScheduler {
     if (!this.sessionId || this.closing) return;
     if (!this.releaseSession) {
       const sessionId = this.sessionId;
-      let release: () => Promise<void>;
-      try { release = await acquireAdvisoryLock(this.options.registry.sessionLockPath(sessionId), { staleMs: 60_000, retries: 0 }); }
+      let release: (() => Promise<void>) | undefined;
+      try {
+        release = await acquireAdvisoryLock(this.options.registry.sessionLockPath(sessionId), {
+          staleMs: 60_000, retries: 0,
+          onCompromised: (error) => { if (this.releaseSession === release) this.demote(error); },
+        });
+      }
       catch (error) { if ((error as NodeJS.ErrnoException).code === "ELOCKED") return; throw error; }
       if (this.closing || this.sessionId !== sessionId) { await release(); return; }
       this.releaseSession = release;
@@ -129,14 +135,31 @@ export class SessionScheduler {
       if (this.closing) return;
       if (this.timers.has(schedule.id)) continue;
       if (schedule.timing.kind === "once" && new Date(schedule.timing.expression).getTime() <= this.clock.now().getTime()) {
-        const runId = ulid().toLowerCase();
-        if (await this.options.registry.claim(schedule.id, schedule.revision, runId, now(this.clock))) {
-          await this.options.runs.append({ runId, scheduleId: schedule.id, targetSessionId: this.sessionId, mode: "session", status: "skipped_busy", plannedAt: now(this.clock), endedAt: now(this.clock), events: [{ type: "diagnostic", at: now(this.clock), detail: "missed_no_backfill" }], error: "Session was not open at the one-shot due time; no backfill." });
-        }
+        await this.recordMissed(schedule, undefined, "Session was not open at the one-shot due time; no backfill.");
         continue;
       }
       this.timers.set(schedule.id, { revision: schedule.revision, timer: scheduleTiming(schedule.timing,
-        () => this.dispatch(schedule).then(() => undefined).catch((error) => this.report(error)), this.options.cronClock) });
+        ({ slot, late }) => (late
+          ? this.recordMissed(schedule, slot, "Scheduled time was missed (host asleep or stalled); no backfill.")
+          : this.dispatch(schedule, slot).then(() => undefined)).catch((error) => this.report(error)), this.options.cronClock) });
+    }
+  }
+  /**
+   * The session lock was lost (stale mtime after sleep/stall). Never throw from the lock timer: stop new
+   * dispatches and fall back to standby; the next refresh may re-acquire the lock. An in-flight run keeps
+   * settling through the normal event path.
+   */
+  private demote(error: unknown): void {
+    this.releaseSession = undefined;
+    this.stopTimers();
+    this.report(new Error(`Session scheduler lock was compromised; standing by: ${errorText(error)}`));
+  }
+  /** Missed-no-backfill: claim the occurrence and record one skipped run; never start it. */
+  private async recordMissed(schedule: Schedule, slot: Date | undefined, error: string): Promise<void> {
+    const runId = ulid().toLowerCase();
+    const at = now(this.clock);
+    if (await this.options.registry.claim(schedule.id, schedule.revision, runId, at, slot?.toISOString())) {
+      await this.options.runs.append({ runId, scheduleId: schedule.id, targetSessionId: this.sessionId, mode: "session", status: "skipped_busy", plannedAt: at, endedAt: at, events: [{ type: "diagnostic", at, detail: "missed_no_backfill" }], error });
     }
   }
   async shutdown(): Promise<void> {
@@ -166,13 +189,13 @@ export class SessionScheduler {
       if (failure) throw failure;
     });
   }
-  async dispatch(schedule: Schedule): Promise<Run> { return this.serial(() => this.dispatchClaimed(schedule)); }
-  private async dispatchClaimed(schedule: Schedule): Promise<Run> {
+  async dispatch(schedule: Schedule, slot?: Date): Promise<Run> { return this.serial(() => this.dispatchClaimed(schedule, slot)); }
+  private async dispatchClaimed(schedule: Schedule, slot?: Date): Promise<Run> {
     const ctx = this.context;
     if (this.closing || !this.releaseSession) throw new Error("Session scheduler is not the active owner");
     const run: Run = { runId: ulid().toLowerCase(), scheduleId: schedule.id, targetSessionId: schedule.targetSessionId, mode: "session", status: "planned",
       plannedAt: now(this.clock), requestedProfile: schedule.execution, events: [] };
-    const claimed = await this.options.registry.claim(schedule.id, schedule.revision, run.runId, run.plannedAt);
+    const claimed = await this.options.registry.claim(schedule.id, schedule.revision, run.runId, run.plannedAt, slot?.toISOString());
     if (!claimed) throw new Error("Schedule changed, cancelled, or already consumed before dispatch");
     const blocked = (await this.options.runs.list(schedule.id)).some((item) => !isTerminalRunStatus(item.status) || item.status === "orphaned");
     if (!ctx || this.closing || this.context !== ctx || this.sessionId !== schedule.targetSessionId || schedule.state !== "active" || !idle(ctx) || this.active || this.profileFault || blocked) {
@@ -320,8 +343,21 @@ export class SessionScheduler {
       try { await this.options.runs.appendEvent(active.run.runId, { type: "diagnostic", at: now(this.clock), detail: `restore_failed: ${restoreError}` }); }
       catch (error) { this.report(error); }
     }
-    // Ownership is released only after history actually reaches a terminal state.
-    active.run = await this.options.runs.finish(active.run.runId, outcome, now(this.clock), { ...details, effectiveProfile: active.run.effectiveProfile, restoreError });
+    // Ownership is normally released only once history reaches a terminal state. If persistence keeps
+    // failing, bounded retries end in profileFault + orphaned so user input is never swallowed forever.
+    const runId = active.run.runId;
+    let failure: unknown;
+    for (let attempt = 0; attempt < FINISH_ATTEMPTS; attempt++) {
+      try {
+        active.run = await this.options.runs.finish(runId, outcome, now(this.clock), { ...details, effectiveProfile: active.run.effectiveProfile, restoreError });
+        this.active = undefined;
+        return active.run;
+      } catch (error) { failure = error; this.report(error); }
+    }
+    this.profileFault = true;
+    const error = `Run history could not be finalized after ${FINISH_ATTEMPTS} attempts: ${errorText(failure)}. Ownership released; run is treated as orphaned.`;
+    try { active.run = await this.options.runs.finish(runId, "orphaned", now(this.clock), { error, effectiveProfile: active.run.effectiveProfile, restoreError }); }
+    catch { active.run = { ...active.run, status: "orphaned", error }; }
     this.active = undefined;
     return active.run;
   }

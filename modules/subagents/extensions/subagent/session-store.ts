@@ -110,7 +110,23 @@ async function atomicJson(file: string, value: unknown, active: () => boolean = 
 	const handle = await fs.promises.open(temp, "wx", 0o600);
 	try { await handle.writeFile(text); await handle.sync(); } finally { await handle.close(); }
 	if (!active()) fail("COMMIT_FAILED", "I/O deadline elapsed before metadata publish");
-	await fs.promises.rename(temp, file);
+	await renameWithRetry(temp, file);
+}
+/** Windows can transiently deny rename (AV scanners, indexers, concurrent readers) with EPERM/EBUSY/EACCES. */
+export async function renameWithRetry(from: string, to: string, attempts = 6, platform: NodeJS.Platform = process.platform, rename: (from: string, to: string) => Promise<void> = fs.promises.rename): Promise<void> {
+	for (let attempt = 0; ; attempt++) {
+		try { await rename(from, to); return; }
+		catch (error) {
+			const code = (error as NodeJS.ErrnoException).code;
+			// The partial file is deliberately kept as failure evidence.
+			if (platform !== "win32" || !["EPERM", "EBUSY", "EACCES"].includes(code ?? "") || attempt + 1 >= attempts) throw error;
+			await new Promise((resolve) => setTimeout(resolve, 10 * 2 ** attempt));
+		}
+	}
+}
+function pidAlive(pid: number): boolean {
+	try { process.kill(pid, 0); return true; }
+	catch (error) { return (error as NodeJS.ErrnoException).code === "EPERM"; }
 }
 /** Existing managed paths may not contain symlinks/junctions, even if they point inside. */
 async function contained(root: string, target: string): Promise<void> {
@@ -246,11 +262,25 @@ export class ManagedSession {
 		if (m.owner.parentSessionId !== owner.parentSessionId || m.owner.parentCwd !== owner.parentCwd) fail("OWNER_MISMATCH", "Continuation belongs to a different parent session/cwd");
 		return new ManagedSession(root, directory, m);
 	}
+	/** A lock is stale only when its recorded owner pid (another process) is provably gone. */
+	private async lockIsStale(): Promise<boolean> {
+		try {
+			const file = path.join(this.directory, "writer.lock", "owner.json");
+			await contained(this.root, file);
+			const owner = await readJson(file);
+			return record(owner) && Number.isSafeInteger(owner.pid) && owner.pid > 0 && owner.pid !== process.pid && !pidAlive(owner.pid);
+		} catch { return false; }
+	}
 	async assertResumable(): Promise<void> {
 		try { await fs.promises.lstat(path.join(this.directory, "writer.lock")); }
 		catch (error) {
 			if ((error as any).code !== "ENOENT") throw error;
 			if (this.manifest.state !== "ready") fail("SESSION_BLOCKED", `Session state is ${this.manifest.state}; manual inspection required`);
+			return;
+		}
+		if (await this.lockIsStale()) {
+			// acquire() takes over and rolls back to the verified checkpoint, or refuses.
+			if (!this.manifest.checkpoint) fail("SESSION_BLOCKED", "Stale writer lock without a verified checkpoint; manual inspection required");
 			return;
 		}
 		fail("SESSION_BUSY", "Writer lock exists; no automatic takeover");
@@ -259,10 +289,56 @@ export class ManagedSession {
 		if (!SESSION_ID.test(taskId)) fail("INVALID_DISPATCH", "Invalid internal task ID");
 		await contained(this.root, this.directory);
 		const lockDir = path.join(this.directory, "writer.lock");
-		try { await fs.promises.mkdir(lockDir, { mode: 0o700 }); }
-		catch (e) { if ((e as any).code === "EEXIST") return fail("SESSION_BUSY", "Writer lock exists; no automatic takeover"); throw e; }
+		let recovered = false;
+		for (let attempt = 0; ; attempt++) {
+			try { await fs.promises.mkdir(lockDir, { mode: 0o700 }); break; }
+			catch (e) {
+				if ((e as any).code !== "EEXIST") throw e;
+				if (attempt > 0 || !(await this.lockIsStale())) return fail("SESSION_BUSY", "Writer lock exists; no automatic takeover");
+				// Atomic rename elects a single winner when several processes find the same dead owner.
+				const stale = `${lockDir}.stale-${ulid().toLowerCase()}`;
+				try { await fs.promises.rename(lockDir, stale); await fs.promises.rm(stale, { recursive: true, force: true }); recovered = true; }
+				catch (renameError) { if ((renameError as any).code !== "ENOENT") throw renameError; }
+			}
+		}
 		this.lock = { nonce: ulid().toLowerCase(), taskId, pid: process.pid, createdAt: new Date().toISOString() };
 		await atomicJson(path.join(lockDir, "owner.json"), this.lock);
+		if (recovered && !(await this.rollbackToCheckpoint(() => true))) {
+			await this.release().catch(() => undefined);
+			fail("SESSION_BLOCKED", "Stale writer lock from a dead process and the checkpoint could not be verified; manual inspection required");
+		}
+	}
+	/**
+	 * Restore the last verified checkpoint after an unsuccessful run: truncate native/readable files to the recorded
+	 * sizes only if the recorded prefix hash still matches, then republish state=ready. Never guesses; false = stay blocked.
+	 * Caller must be sure no child process can still write the files.
+	 */
+	async rollbackToCheckpoint(active: () => boolean): Promise<boolean> {
+		try {
+			await this.assertLock();
+			const disk = await readJson(path.join(this.directory, "manifest.json"));
+			if (!record(disk) || disk.id !== this.id) return false;
+			const candidate = { ...disk, state: "ready" } as SessionManifest;
+			delete candidate.errorCode;
+			validateManifest(candidate, this.id);
+			const cp = candidate.checkpoint!;
+			const file = path.join(this.directory, candidate.nativeFile!);
+			await contained(this.root, file); await contained(this.root, this.logPath);
+			const size = (await fs.promises.stat(file)).size;
+			if (size < cp.nativeBytes || (await fs.promises.stat(this.logPath)).size < cp.readableCommittedBytes) return false;
+			const prefix = createHash("sha256");
+			if (cp.nativeBytes > 0) for await (const chunk of fs.createReadStream(file, { start: 0, end: cp.nativeBytes - 1 })) prefix.update(chunk);
+			if (prefix.digest("hex") !== cp.nativeSha256) return false;
+			if (size > cp.nativeBytes) await fs.promises.truncate(file, cp.nativeBytes);
+			await fs.promises.truncate(this.logPath, cp.readableCommittedBytes);
+			const native = await inspectNative(file, this.id, candidate.config.cwd, cp.nativeBytes);
+			if (native.hash !== cp.nativeSha256 || native.bytes !== cp.nativeBytes || native.leafId !== cp.leafId) return false;
+			candidate.updatedAt = new Date().toISOString();
+			await this.assertLock();
+			await atomicJson(path.join(this.directory, "manifest.json"), candidate, active);
+			this.manifest = candidate;
+			return true;
+		} catch { return false; }
 	}
 	private async assertLock(): Promise<void> {
 		if (!this.lock) fail("SESSION_BUSY", "Missing writer ownership");
@@ -314,11 +390,14 @@ export class ManagedSession {
 		await atomicJson(path.join(this.runDir, "run.json"), this.run, active);
 		await this.publish("running", active);
 	}
-	async blocked(code: string, details: unknown, active: () => boolean): Promise<void> {
-		if (!this.lock || (!this.run && code !== "CHECKPOINT_MISMATCH")) return;
+	/** Returns true when `restore` rolled a previously ready session back to its verified checkpoint instead of blocking it. */
+	async blocked(code: string, details: unknown, active: () => boolean, restore = false): Promise<boolean> {
+		if (!this.lock || (!this.run && code !== "CHECKPOINT_MISMATCH")) return false;
 		await this.assertLock();
 		if (this.run) { this.run.state = "blocked"; this.run.result = details; await atomicJson(path.join(this.runDir, "run.json"), this.run, active); }
+		if (restore && await this.rollbackToCheckpoint(active)) return true;
 		this.manifest.errorCode = code; await this.publish("blocked", active);
+		return false;
 	}
 	async commit(segment: string, digest: ConversationDigest, result: unknown, active: () => boolean): Promise<void> {
 		if (!this.run || !this.lock) fail("COMMIT_FAILED", "No active transaction");

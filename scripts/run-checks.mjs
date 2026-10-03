@@ -26,10 +26,9 @@ const groups = {
     { label: 'gpt-speed:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/gpt-speed/tsconfig.json'] },
     { label: 'goal:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/goal/tsconfig.json'] },
     { label: 'json-schema:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/json-schema/tsconfig.json'] }],
-  unit: [...sourceTests, { label: 'note-tools:test', args: ['--import', import.meta.resolve('tsx'), '--test', 'modules/note-tools/tests/note.test.ts'] },
-    { label: 'gpt-speed:test', args: ['--import', import.meta.resolve('tsx'), '--test', 'modules/gpt-speed/tests/gpt-speed.test.ts'] },
-    { label: 'goal:test', args: ['--import', import.meta.resolve('tsx'), '--test', 'modules/goal/tests/goal.test.ts'] },
-    { label: 'json-schema:test', args: ['--import', import.meta.resolve('tsx'), '--test', 'modules/json-schema/tests/schema.test.ts', 'modules/json-schema/tests/extract.test.ts', 'modules/json-schema/tests/delivery.test.ts'] }],
+  // Scan test directories (not hard-coded lists) so a new *.test.ts is never silently skipped; *.test.mjs there are real-host integration tests.
+  unit: [...sourceTests, ...[['note-tools', 'modules/note-tools/tests'], ['gpt-speed', 'modules/gpt-speed/tests'], ['goal', 'modules/goal/tests'], ['json-schema', 'modules/json-schema/tests']]
+    .map(([module, dir]) => directTests(`${module}:test`, dir, name => name.endsWith('.test.ts')))],
   integration: [directTests('shell-tools:test:integration', 'modules/shell-tools/tests', isIntegration), moduleTask('file-tools', 'test:integration'), moduleTask('scheduler', 'test:integration'),
     directTests('subagents:test:integration', 'modules/subagents/tests', isIntegration, { concurrency: 3 }),
     { label: 'goal:real-pi-runtime', args: ['--test', 'modules/goal/tests/runtime.test.mjs'] },

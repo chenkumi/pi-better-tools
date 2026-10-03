@@ -22,6 +22,8 @@
 - 以 exclusive-create 建立，不覆寫既有檔案；檔名碰撞時時間戳加 1 毫秒重試，最多 1000 次，超過則回報 `NOTE_FILENAME_COLLISION`。
 - 回傳文字 `Saved note: <相對路徑>` 與絕對路徑；`structuredContent` 為 `{ type, path, relativePath }`（`path` 為絕對路徑，`relativePath` 使用 `/`）。
 - 寫入開始前會檢查取消；開始寫入後會完成該次寫入。
+- 若 `<cwd>/<type>` 是指向工作目錄外的 symlink／junction，回報 `NOTE_DIRECTORY_ESCAPE` 並拒絕寫入（以 realpath 驗證）。
+- 內容上限 8 MiB（UTF-8 位元組），超過回報 `NOTE_TOO_LARGE`；寫入中途失敗（例如磁碟已滿）時，會盡力刪除本次建立的殘缺檔案後再回報錯誤。
 - 本工具僅負責新增；後續讀取或修改請用檔案工具（read／edit／write）操作回傳的路徑。
 
 ## TUI 顯示

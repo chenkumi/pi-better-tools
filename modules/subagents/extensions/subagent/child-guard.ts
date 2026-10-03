@@ -5,9 +5,13 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
  * This is a configuration guard, not a boundary against hostile installed extensions.
  */
 export default function (pi: ExtensionAPI) {
+	const slot = globalThis as { __piSubagentsGuardExpected?: any };
 	const encoded = process.env.PI_SUBAGENTS_GUARD;
-	if (!encoded) return;
-	const expected = JSON.parse(encoded);
+	// Consume the handshake so grandchildren (tools, nested pi) cannot inherit it and run the guard themselves.
+	// The parsed copy survives an extension reload inside this same child process.
+	if (encoded) { slot.__piSubagentsGuardExpected = JSON.parse(encoded); delete process.env.PI_SUBAGENTS_GUARD; }
+	const expected = slot.__piSubagentsGuardExpected;
+	if (!expected) return;
 	pi.on("session_start", (_event, ctx) => {
 		let errorCode: string | undefined;
 		const selected = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined;

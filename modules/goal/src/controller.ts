@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ExtensionAPI, ExtensionContext, ExtensionCommandContext, AgentBeforeSettleEvent, MessageEndEvent,
   InputEvent, ToolCallEvent, ToolExecutionStartEvent, ToolExecutionEndEvent } from "@earendil-works/pi-coding-agent";
@@ -7,6 +8,14 @@ import { controlEntry, filterControls, launchPrompt, launchIdentity } from "./pr
 
 // appendCustomEntry mutates Pi's manager before disk I/O. A failed tentative outcome
 // must not become authoritative on reload. Symbol.for survives TS loader reloads.
+/** Canonical workspace identity: real path when resolvable, else resolved path; case-folded on Windows. */
+export function normalizeWorkspace(path: string, platform: NodeJS.Platform = process.platform): string {
+  let normalized: string;
+  try { normalized = realpathSync.native(path); } catch { normalized = resolve(path); }
+  return platform === "win32" ? normalized.toLowerCase() : normalized;
+}
+export const sameWorkspace = (a: string, b: string, platform: NodeJS.Platform = process.platform) => normalizeWorkspace(a, platform) === normalizeWorkspace(b, platform);
+
 interface ManagerSafety { epoch: number; fault?: string }
 const safetyKey = Symbol.for("pi-better-tools.goal.manager-safety.v1");
 const globals = globalThis as typeof globalThis & { [safetyKey]?: WeakMap<object, ManagerSafety> };
@@ -44,7 +53,7 @@ export class GoalController {
     if (!this.diagnostic) {
       try {
         this.goal = latestSnapshot(ctx.sessionManager.getBranch());
-        if (this.goal && resolve(this.goal.cwd) !== resolve(ctx.cwd)) {
+        if (this.goal && !sameWorkspace(this.goal.cwd, ctx.cwd)) {
           this.diagnostic = "GOAL_WORKSPACE_MISMATCH: Goal belongs to another workspace; clear it before starting a new goal.";
           if (this.goal.status === "active") this.goal = { ...this.goal, status: "paused", stopReason: this.diagnostic };
         } else if (this.goal?.status === "active") {

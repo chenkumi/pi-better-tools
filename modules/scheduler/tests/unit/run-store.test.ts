@@ -89,4 +89,28 @@ describe("run store", () => {
     expect(await readFile(path, "utf8")).toContain("[truncated]");
     expect(truncateOutput("short", 8)).toBe("short");
   });
+
+  it("quarantines corrupt history lines instead of failing the scheduler", async () => {
+    const store = await makeStore(10);
+    await store.append({ ...run("good-1"), status: "succeeded" });
+    const path = join(directories.at(-1)!, "runs.jsonl");
+    await writeFile(path, (await readFile(path, "utf8")) + "{not json\n" + JSON.stringify({ unrelated: true }) + "\n");
+    expect((await store.list()).map((item) => item.runId)).toEqual(["good-1"]);
+    expect((await store.list()).map((item) => item.runId)).toEqual(["good-1"]);
+    const backup = await readFile(path + ".corrupt", "utf8");
+    expect(backup).toContain("{not json"); expect(backup.match(/not json/g)).toHaveLength(1);
+    expect(store.diagnostics().quarantinedLines).toBe(2);
+    await store.append({ ...run("good-2"), status: "succeeded" });
+    expect((await readFile(path, "utf8")).includes("not json")).toBe(false);
+    expect((await store.list()).map((item) => item.runId)).toEqual(["good-1", "good-2"]);
+  });
+
+  it("appendUnlessBusy decides busy and append inside one critical section", async () => {
+    const store = await makeStore(10);
+    const skip = (item: Run): Run => ({ ...item, status: "skipped_busy" });
+    const [a, b] = await Promise.all([store.appendUnlessBusy(run("a"), skip), store.appendUnlessBusy(run("b"), skip)]);
+    expect([a.status, b.status].sort()).toEqual(["planned", "skipped_busy"]);
+    await store.append({ ...run("orphan"), scheduleId: "other", status: "orphaned" });
+    expect((await store.appendUnlessBusy({ ...run("c"), scheduleId: "other" }, skip)).status).toBe("skipped_busy");
+  });
 });

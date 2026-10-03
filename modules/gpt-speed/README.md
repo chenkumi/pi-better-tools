@@ -31,5 +31,5 @@
 ```
 
 - 全域：`<agentDir>/settings.json`；`/normal`、`/fast`、`/ultrafast` 會寫入此檔（保留其他設定，使用與 Pi 共用的檔案鎖與原子替換）。
-- 專案：`<cwd>/.pi/settings.json`；僅在專案受信任時讀取，並覆蓋全域值。專案檔不會被指令寫入。
+- 專案：`<cwd>/.pi/settings.json`；僅在專案受信任時讀取，並覆蓋全域值。專案檔不會被指令寫入。因此若受信任專案的 `.pi/settings.json` 已設定 `pi-gpt-speed.mode`，指令寫入的全域值會在下次 session 啟動時被專案值覆蓋；指令在這種情況下會警告一次（每個 session），請直接改專案檔或移除其 `pi-gpt-speed`。
 - 工作階段開始時載入；未設定或值無效時為 `normal`。

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { ulid } from "ulid";
 import { constants as fsConstants } from "node:fs";
-import { access, chmod, link, lstat, mkdir, open, readFile, rename, stat, unlink } from "node:fs/promises";
+import { access, link, lstat, mkdir, open, readFile, rename, rmdir, stat, unlink } from "node:fs/promises";
 import { dirname } from "node:path";
 import { Worker } from "node:worker_threads";
 import { createDiffFeedback } from "./diff-runner.js";
@@ -19,6 +19,7 @@ export const MAX_INPUT_BYTES = 50 * 1024 * 1024;
 export const MAX_EDIT_OPERATIONS = 100;
 export const MAX_EDIT_DURATION_MS = 10_000;
 export const REGEX_TIMEOUT_MS = 1000;
+const REGEX_STARTUP_GRACE_MS = 2000;
 export const MAX_CANDIDATE_RANGES = 20;
 export const SHA256_TOKEN_LENGTH = 32;
 
@@ -300,6 +301,7 @@ function collectLiteralMatches(
         recovery: "Narrow lineRange, use a more specific oldText, or split the operation.",
       });
     }
+    // Intentionally step by one so overlapping occurrences count as ambiguous / OVERLAPPING_EDITS.
     from = index + 1;
   }
   return matches;
@@ -308,6 +310,7 @@ function collectLiteralMatches(
 const REGEX_WORKER_SOURCE = String.raw`
 const { parentPort, workerData } = require("node:worker_threads");
 try {
+  parentPort.postMessage({ type: "started" });
   const expression = new RegExp(workerData.pattern, workerData.flags + "g");
   const matches = [];
   let payloadBytes = 0;
@@ -410,6 +413,7 @@ async function collectRegexMatches(
       },
     });
     let settled = false;
+    let timer: ReturnType<typeof setTimeout>;
     const finish = (action: () => void) => {
       if (settled) return;
       settled = true;
@@ -422,19 +426,27 @@ async function collectRegexMatches(
       editIndex,
       recovery: "Read the file again before retrying the edit.",
     })));
-    const timer = setTimeout(() => finish(() => reject(new FileToolError("REGEX_TIMEOUT", `edits[${editIndex}].regex exceeded the execution time limit.`, {
+    const onTimeout = () => finish(() => reject(new FileToolError("REGEX_TIMEOUT", `edits[${editIndex}].regex exceeded the execution time limit.`, {
       path: displayPath,
       editIndex,
       recovery: "Use a simpler regex, narrow lineRange, or use literal oldText.",
-    }))), timeoutMs);
+    })));
+    // Worker start-up and the structured clone of a large text are not regex time: the
+    // execution budget restarts when the worker reports it began, bounded by a start-up grace.
+    timer = setTimeout(onTimeout, timeoutMs + REGEX_STARTUP_GRACE_MS);
 
     signal?.addEventListener("abort", onAbort, { once: true });
     if (signal?.aborted) {
       onAbort();
       return;
     }
-    worker.once("message", (message: { type?: string; matches?: RegexMatch[]; count?: number; message?: string }) => {
-      if (message.type === "matches" && Array.isArray(message.matches)) {
+    worker.on("message", (message: { type?: string; matches?: RegexMatch[]; count?: number; message?: string }) => {
+      if (message.type === "started") {
+        if (!settled) {
+          clearTimeout(timer);
+          timer = setTimeout(onTimeout, timeoutMs);
+        }
+      } else if (message.type === "matches" && Array.isArray(message.matches)) {
         finish(() => resolve(message.matches!));
       } else if (message.type === "too_many") {
         finish(() => reject(new FileToolError("TOO_MANY_MATCHES", `edits[${editIndex}] exceeded the match limit.`, {
@@ -714,6 +726,16 @@ export function readTextBuffer(
   };
 }
 
+/** Reject FIFOs, devices and directories before any unbounded read can block. */
+export function assertRegularReadableFile(fileStat: { isFile(): boolean }, displayPath: string): void {
+  if (!fileStat.isFile()) {
+    throw new FileToolError("FILE_NOT_READABLE", "The target is not a regular file.", {
+      path: displayPath,
+      recovery: "Target a regular file rather than a directory, FIFO, device, or other special path.",
+    });
+  }
+}
+
 export async function readTextFile(
   absolutePath: string,
   displayPath: string,
@@ -724,8 +746,9 @@ export async function readTextFile(
   abortIfRequested(signal);
   try {
     const fileStat = await stat(absolutePath);
+    assertRegularReadableFile(fileStat, displayPath);
     assertInputSize(fileStat.size, displayPath);
-    const buffer = await readFile(absolutePath);
+    const buffer = await readFile(absolutePath, { signal });
     abortIfRequested(signal);
     return readTextBuffer(buffer, displayPath, offset, limit);
   } catch (error) {
@@ -848,15 +871,59 @@ async function cleanupTemporaryFile(temporaryPath: string): Promise<void> {
   }
 }
 
-async function applyCommittedMode(path: string, mode: number): Promise<void> {
+async function applyHandleMode(handle: Awaited<ReturnType<typeof open>>, mode: number, path: string): Promise<void> {
   try {
-    await chmod(path, mode);
+    await handle.chmod(mode & 0o7777);
   } catch (error) {
     process.emitWarning(`Could not preserve file mode for ${path}: ${error instanceof Error ? error.message : String(error)}`, {
       code: "PI_FILE_TOOLS_MODE_PRESERVATION",
     });
   }
 }
+
+async function syncHandle(handle: Awaited<ReturnType<typeof open>>): Promise<void> {
+  try {
+    await handle.sync();
+  } catch (error) {
+    const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+    // Some filesystems cannot fsync; durability is best-effort there.
+    if (code !== "EINVAL" && code !== "ENOTSUP" && code !== "ENOSYS" && code !== "EPERM") throw error;
+  }
+}
+
+async function renameWithRetry(from: string, to: string, signal?: AbortSignal): Promise<void> {
+  const attempts = process.platform === "win32" ? 5 : 1;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await rename(from, to);
+      return;
+    } catch (error) {
+      const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+      // Windows reports transient sharing violations (antivirus/indexer) as EPERM/EBUSY.
+      if (attempt >= attempts || (code !== "EPERM" && code !== "EBUSY")) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 20 * attempt));
+      abortIfRequested(signal);
+    }
+  }
+}
+
+async function removeCreatedDirectories(leaf: string, createdRoot: string | undefined): Promise<void> {
+  if (createdRoot === undefined) return;
+  let current = leaf;
+  while (true) {
+    try {
+      await rmdir(current);
+    } catch {
+      return; // Best effort: stop at the first non-empty or unremovable directory.
+    }
+    if (current === createdRoot) return;
+    const parent = dirname(current);
+    if (parent === current) return;
+    current = parent;
+  }
+}
+
+const LINK_FALLBACK_CODES = new Set(["EPERM", "ENOSYS", "EACCES", "ENOTSUP", "EOPNOTSUPP", "EXDEV", "EMLINK", "EINVAL"]);
 
 async function atomicWrite(
   absolutePath: string,
@@ -866,43 +933,66 @@ async function atomicWrite(
   signal?: AbortSignal,
 ): Promise<void> {
   abortIfRequested(signal);
-  await mkdir(dirname(absolutePath), { recursive: true });
+  const directory = dirname(absolutePath);
+  const createdRoot = await mkdir(directory, { recursive: true });
   const temporaryPath = `${absolutePath}.pi-file-tools-${process.pid}-${ulid().toLowerCase()}.tmp`;
   let temporaryHandle: Awaited<ReturnType<typeof open>> | undefined;
   let temporaryCreated = false;
+  let committed = false;
+  const targetMode = snapshot.exists ? snapshot.mode : 0o666 & ~process.umask();
   try {
-    // Keep the temporary file owner-only from creation through the write. The target mode is
-    // applied only after the content is safely on disk, so a crash cannot expose the payload
-    // through a default 0o666 temporary file.
+    // Keep the temporary file owner-only until the payload is written; the target mode is then
+    // applied to the temporary handle, before the commit, so no committed file is left with 0o600.
     temporaryHandle = await open(temporaryPath, "wx", 0o600);
     temporaryCreated = true;
     await temporaryHandle.writeFile(content, "utf8");
+    if (targetMode !== undefined) await applyHandleMode(temporaryHandle, targetMode, absolutePath);
+    await syncHandle(temporaryHandle);
     await temporaryHandle.close();
     temporaryHandle = undefined;
     abortIfRequested(signal);
     await verifySnapshotUnchanged(absolutePath, displayPath, snapshot);
     abortIfRequested(signal);
     if (snapshot.exists) {
-      await rename(temporaryPath, absolutePath);
-      if (snapshot.mode !== undefined) await applyCommittedMode(absolutePath, snapshot.mode);
+      await renameWithRetry(temporaryPath, absolutePath, signal);
+      committed = true;
     } else {
+      const staleError = () => new FileToolError("STALE_FILE", "The target path appeared during file creation; refusing to replace it.", {
+        path: displayPath,
+        expectedHash: "missing",
+        recovery: "Read the newly created path and retry only if overwrite is intended.",
+      });
       try {
         // Hard-link creation is atomic and fails instead of replacing a path created after our snapshot.
         await link(temporaryPath, absolutePath);
+        committed = true;
       } catch (error) {
         const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
-        if (code === "EEXIST") {
-          throw new FileToolError("STALE_FILE", "The target path appeared during file creation; refusing to replace it.", {
-            path: displayPath,
-            expectedHash: "missing",
-            recovery: "Read the newly created path and retry only if overwrite is intended.",
-          });
+        if (code === "EEXIST") throw staleError();
+        if (typeof code !== "string" || !LINK_FALLBACK_CODES.has(code)) throw error;
+        // Filesystems without hard links (FAT, some network shares): exclusive create instead.
+        let targetHandle: Awaited<ReturnType<typeof open>> | undefined;
+        let targetCreated = false;
+        try {
+          try {
+            targetHandle = await open(absolutePath, "wx", targetMode);
+          } catch (openError) {
+            const openCode = typeof openError === "object" && openError !== null && "code" in openError ? openError.code : undefined;
+            if (openCode === "EEXIST") throw staleError();
+            throw openError;
+          }
+          targetCreated = true;
+          await targetHandle.writeFile(content, "utf8");
+          await syncHandle(targetHandle);
+          await targetHandle.close();
+          targetHandle = undefined;
+          committed = true;
+        } catch (fallbackError) {
+          if (targetHandle !== undefined) await targetHandle.close().catch(() => undefined);
+          if (targetCreated && !committed) await cleanupTemporaryFile(absolutePath);
+          throw fallbackError;
         }
-        throw error;
       }
-      await cleanupTemporaryFile(temporaryPath);
-      temporaryCreated = false;
-      await applyCommittedMode(absolutePath, 0o666 & ~process.umask());
     }
     // rename/link is the commit point. Cancellation after this point must not turn a committed write into an error.
   } catch (error) {
@@ -910,8 +1000,10 @@ async function atomicWrite(
       await temporaryHandle.close().catch(() => undefined);
     }
     if (temporaryCreated) await cleanupTemporaryFile(temporaryPath);
+    if (!committed) await removeCreatedDirectories(directory, createdRoot);
     throw error;
   }
+  if (temporaryCreated) await cleanupTemporaryFile(temporaryPath);
 }
 
 export async function writeTextFile(
@@ -1079,7 +1171,7 @@ async function validateEdits(
 
     if (operationMatches.length === 0) {
       let candidates: RegexMatch[] = [];
-      if (lineRange) {
+      if (lineRange && rangeContent.length !== view.text.length) {
         const candidateRegexDeadline = Math.min(deadline, Date.now() + REGEX_TIMEOUT_MS);
         candidates = await collectOperationMatches(view.text, edit, displayPath, editIndex, candidateRegexDeadline, signal);
       }

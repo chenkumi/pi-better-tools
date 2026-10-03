@@ -55,13 +55,13 @@
 
 ## 執行語意
 
-- 多個 Pi 以 advisory lock 選出一個 independent host，其餘為 `standby`，約每秒重試。另有每 session 的 lock 避免重複派送。
+- 多個 Pi 以 advisory lock 選出一個 independent host，其餘為 `standby`，約每秒重試。另有每 session 的 lock 避免重複派送。若 lock 因睡眠或事件迴圈停滯而失效（compromised），該 host 會停止計時器、降為 standby 並記錄錯誤，不會丟出例外；仍在監督中的子程序會繼續等待結束，之後可重新取得 lock。每個排程時段（slot）的 claim 會去重，同一或更早的 slot 不會被第二個 host 再派送。
 - 本機工具變更立即重排計時器；外部變更由輪詢發現。
-- 錯過的時間**不補跑**：已過期的一次性排程記錄一筆 `missed_no_backfill`；cron 從下一次開始。一次性排程派送前先持久化 claim，claim 與啟動之間當機可能略過而非重播（at-most-once，非 exactly-once）。
+- 錯過的時間**不補跑**：已過期的一次性排程記錄一筆 `missed_no_backfill`；cron 從下一次開始。cron 觸發若晚於預定時間超過 60 秒（例如睡眠喚醒），視為錯過：只記一筆 `missed_no_backfill`，不執行。cron 兩次觸發的間隔須至少 1 分鐘（建立／更新時驗證），避免 `skipped_busy` 記錄洗掉真實歷史。一次性排程時間須在未來（工具層驗證）。一次性排程派送前先持久化 claim，claim 與啟動之間當機可能略過而非重播（at-most-once，非 exactly-once）。
 - 每個 independent host 同時最多 4 個子程序；可用 `PI_SCHEDULER_MAX_CHILDREN`（整數 1–32）調整。超出容量記為 `skipped_busy`，不累積。
 - 子程序環境帶有 `PI_SCHEDULER_CHILD=1`，不啟動巢狀 scheduler host；其 scheduler 工具中 status 可用，create／update／cancel 需開啟中的 host。這是工具層政策，不是 OS sandbox。
 - 正常關閉、`/reload`、session 替換時，停止本機計時器、請求取消自己擁有的工作、還原 profile 並釋放 lock。
-- 取消只是請求；最終結果以 run 歷史為準。host 異常結束或關閉未能確認時，未完成工作標為 `orphaned`，該排程不再自動派送新工作，且此 barrier 不會被歷史修剪移除。排程器不會依持久化 PID 強制終止程序，也無法回復已發生的副作用。子程序結束後 1500 ms 管線仍未關閉時，記為擁有者不明的 `orphaned`。
+- 取消只是請求；最終結果以 run 歷史為準。host 異常結束或關閉未能確認時，未完成工作標為 `orphaned`，該排程不再自動派送新工作，且此 barrier 不會被歷史修剪移除。run 歷史若有無法解析的行，會備份到 `runs.jsonl.corrupt` 並略過（registry 損毀仍會明確報錯）；registry／歷史寫入先 fsync 暫存檔再 rename，registry 另保留 `registry.json.bak`。session 結案寫入連續失敗（3 次）時，會釋放輸入攔截、標記 profile fault 並視為 orphaned。`run-once` 對暫停／取消的排程會回報明確錯誤。排程器不會依持久化 PID 強制終止程序，也無法回復已發生的副作用。Windows 上 shutdown 逾時的強制終止（SIGKILL）只作用於直接子程序，不代表整個行程樹已停止。子程序結束後 1500 ms 管線仍未關閉時，記為擁有者不明的 `orphaned`。
 - `succeeded` 需最終 assistant 回應為 `stop`／`length`，independent 另需 exit code 0；不代表業務結果正確。
 
 ### Run 狀態

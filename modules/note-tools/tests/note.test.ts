@@ -6,7 +6,7 @@ import { test, type TestContext } from "node:test";
 import type { ExtensionAPI, ExtensionToolContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { Static } from "typebox";
 import { Check } from "typebox/value";
-import noteExtension, { noteTool } from "../extensions/note.ts";
+import noteExtension, { MAX_NOTE_BYTES, noteTool } from "../extensions/note.ts";
 
 const timestamp = Date.UTC(2026, 0, 2, 3, 4, 5, 6);
 const firstName = "PLAN-20260102T030405006Z.md";
@@ -160,4 +160,18 @@ test("filesystem failure is reported, not a success path", async t => {
   await assert.rejects(execute(cwd, { type: "plan", content: "x" }));
   assert.equal(await readFile(join(cwd, "plan"), "utf8"), "existing regular file");
   assert.deepEqual(await readdir(cwd), ["plan"]);
+});
+
+test("directory symlink/junction escaping the workspace is refused", async t => {
+  const cwd = await workspace(t), outside = await workspace(t);
+  const { symlink } = await import("node:fs/promises");
+  try { await symlink(outside, join(cwd, "plan"), "junction"); } catch { t.skip("cannot create symlink/junction here"); return; }
+  await assert.rejects(execute(cwd, { type: "plan", content: "x" }), /NOTE_DIRECTORY_ESCAPE/);
+  assert.deepEqual(await readdir(outside), []);
+});
+
+test("content over the size cap is rejected before any directory is created", async t => {
+  const cwd = await workspace(t);
+  await assert.rejects(execute(cwd, { type: "plan", content: "x".repeat(MAX_NOTE_BYTES + 1) }), /NOTE_TOO_LARGE/);
+  assert.deepEqual(await readdir(cwd), []);
 });

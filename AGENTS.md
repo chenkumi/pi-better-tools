@@ -30,7 +30,7 @@
 
 ## 驗證與交付
 
-- 先讀取欲修改模組的 `AGENTS.md`／README；其舊版依賴、獨立 lockfile 與 scripts 宣告是匯入時的歷史資訊，整合版本／命令以根 manifest 為準。未匯入的來源報告位置見 `docs/source-references.md`；改動 Subagent lifecycle 前，讀來源要求的 reliability 報告。
+- 先讀取欲修改模組的 `AGENTS.md`／README；其舊版依賴、獨立 lockfile 與 scripts 宣告是匯入時的歷史資訊，整合版本／命令以根 manifest 為準。未匯入的來源報告位置見 `docs/source-references.md`。
 - 根開發基準固定 Pi 1.0.0；production smoke matrix 保留 0.99.1／0.99.2／1.0.0。模組匯入時的版本不是目前基準；不以 wildcard peers 宣稱所有版本相容。
 - 整合 scripts 建立後，執行 `npm run build`、`npm run typecheck`、`npm test`、`npm run test:integration` 與 `npm run test:package`；涉及 Web 實際瀏覽器時另執行 `npm run browser:install`、`npm run test:browser`。
 - 測試依變更範圍分組，不要每次都跑全部：

@@ -26,7 +26,8 @@
 | 省略 | 不逾時 |
 
 - 計時於 shell 開始執行時啟動，每收到一個 stdout／stderr 資料區塊即重新計時；只有輸出停滯達該時間才會逾時。持續有輸出的指令可執行超過 `timeoutMs`。
-- Pi 內建的絕對計時器對此覆寫停用。逾時錯誤訊息為 `timeout:<秒數>`。
+- Pi 內建的絕對計時器對此覆寫停用。內部以 `timeout:<秒數>` 丟出，宿主會格式化為 `Command timed out after N seconds`；本擴充改寫為 `Command stopped: no output for N seconds (timeoutMs idle timeout)`，以符合「輸出停滯」語意。
+- PowerShell 工具的宿主選項不支援 `shellPath`／`shellCommandPrefix`，這兩項設定僅套用於 Bash。
 - 非正數、小數、非安全整數、超過上限的值會被拒絕。
 - 新的呼叫若帶舊版 `timeout`（秒）欄位會直接報錯，請改用 `timeoutMs`；舊 session 紀錄中的 `timeout` 仍可正常顯示。
 - TUI 以秒顯示（例如 `timeout 20s`）。

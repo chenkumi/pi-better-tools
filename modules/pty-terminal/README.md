@@ -6,10 +6,10 @@
 
 - `pty_spawn`：`{ command, args?, target?, cwd?, env?, cols?, rows? }`；`target` 預設 `local`，回傳 sessionId、本機 transport pid、target、transport。
 - `pty_write`：`{ sessionId, data }`，支援 `\\x03`、`\\r`、`\\t` 等控制字元。
-- `pty_read`：drain pending output，預設等待 1000ms；每次輸出最多 2000 行／50KiB，超量 drain 部分會截斷，不保留完整檔案。
+- `pty_read`：drain pending output，預設等待 1000ms（上限 60000ms，`pty_wait_exit` 同）；每次輸出最多 2000 行／50KiB，超量 drain 部分會截斷，不保留完整檔案。
 - `pty_resize`：調整 terminal cols/rows。
 - `pty_wait_exit`：回傳 transport exitCode，等待逾時為 -1；SSH 連線錯誤可能為 255，並非遠端測試成功。
-- `pty_kill`：關閉本機 transport 並釋放 session；POSIX 預設 SIGHUP，Windows 使用 backend 無 signal 的終止操作（signal 參數不適用）。
+- `pty_kill`：終止本機 transport；POSIX 預設 SIGHUP，僅接受 SIGHUP／SIGINT／SIGQUIT／SIGTERM／SIGKILL，逾時（2 秒）未結束會升級為 SIGKILL；Windows 使用 backend 無 signal 的終止操作（signal 參數不適用）。只有 transport 確認已結束才釋放 session（結果 `released: true`）；kill 失敗或仍在執行時保留 session（可重試，shutdown 仍可清理），不再吞掉錯誤。
 - `pty_list`：列出本 session 保留的 active/exited PTY 與 target。
 
 只有 spawn 指定 target；後續使用 sessionId。不改其他 shell/file 工具的執行位置。PTY 合併終端輸出並可能有 ANSI 控制碼，不提供逐指令結構化 stdout/stderr/exit code；互動 shell 的 exitCode 是 shell 結束碼。
@@ -51,7 +51,7 @@
 { "target": "macos", "command": "zsh", "args": ["-l"] }
 ```
 
-`cwd`／`env` 指目標程式；cwd 可覆寫 target 預設路徑，不把 Windows cwd 自動映射。遠端 env 僅傳明確指定的值，名稱須符合 POSIX；本機 SSH client 仍繼承本機環境。WSL 使用 `wsl.exe --distribution … --cd … --exec env -- …`，僅 Windows host 支援，需 WSL 支援 `--cd`。SSH 使用本機 `ssh -tt`，遠端須有 POSIX 相容 login shell、`sh` 與 `env`；參數逐一 POSIX quote。金鑰／SSH agent 認證、`BatchMode=yes`、ConnectTimeout=15，不停用 host key 驗證；請先自行驗證主機並建立 known_hosts。SSH config 的 ForwardAgent/SendEnv 等仍由使用者負責。
+`cwd`／`env` 指目標程式；cwd 可覆寫 target 預設路徑，不把 Windows cwd 自動映射。遠端 env 僅傳明確指定的值，名稱須符合 POSIX；本機 SSH client 仍繼承本機環境。WSL 使用 `wsl.exe --distribution … --cd … --exec env -- …`，僅 Windows host 支援，需 WSL 支援 `--cd`。SSH 使用本機 `ssh -tt`，遠端須有 POSIX 相容 login shell、`sh` 與 `env`；參數逐一 POSIX quote。金鑰／SSH agent 認證、`BatchMode=yes`、ConnectTimeout=15，不停用 host key 驗證，也不另外覆寫 `StrictHostKeyChecking`（沿用使用者 ssh config／known_hosts，避免破壞 accept-new 設定）；另設 ServerAliveInterval=15、ServerAliveCountMax=3 偵測斷線。請先自行驗證主機並建立 known_hosts。遠端 command 不可為空，也不可形如 `KEY=value`（`env` 會當成環境變數賦值；請改用 `env` 參數）。SSH config 的 ForwardAgent/SendEnv 等仍由使用者負責。
 
 ## 安裝及驗證
 
@@ -67,4 +67,4 @@
 
 任意指令以 target 使用者權限執行；不是 OS sandbox。WSL 可存取 Windows 掛載檔案，SSH 可改遠端專案。GitHub 同步、commit/push/pull 不自動執行；跨平台測試前自行確認同一 commit 及乾淨 working tree，各平台自行安裝 dependencies。
 
-`session_shutdown`（含 reload）清理本機 PTY，關閉 transport 不保證遠端 descendants/背景程序停止；不呼叫 `wsl --shutdown`。建立 session 不等於 SSH/WSL 握手或命令成功，必須 read 輸出及 wait_exit。操作取消不自動關閉持續 session；需要時明確 kill。輸出 buffer 沿用來源的記憶體累積方式，長期未 drain 可能佔用大量記憶體。
+`session_shutdown`（含 reload）清理本機 PTY，關閉 transport 不保證遠端 descendants/背景程序停止；不呼叫 `wsl --shutdown`。建立 session 不等於 SSH/WSL 握手或命令成功，必須 read 輸出及 wait_exit。操作取消不自動關閉持續 session；需要時明確 kill。每個 session 輸出為 ring buffer（2 Mi 字元），超過時丟棄最舊內容，下次 `pty_read` 開頭會標示被丟棄的字元數；同時最多 16 個 session（超過 spawn 失敗；已 exited 的 session 會讓位），cols 最大 500、rows 最大 200；已 exited 且未釋放的 session 於結束 10 分鐘後自動回收。

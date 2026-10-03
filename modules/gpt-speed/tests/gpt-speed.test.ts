@@ -176,3 +176,18 @@ test("headless and RPC requests work without footer UI operations", async t => {
 	await h.command("ultrafast"); assert.equal(h.statuses.size, 0);
 	assert.ok(h.notices.some(n => n.text === "Speed: Ultrafast"));
 });
+
+test("a command warns once when a trusted project setting will override the saved global mode", async t => {
+	const h = await harness(t); await h.emit("session_start");
+	await h.command("fast");
+	assert.equal(h.notices.some(n => n.type === "warning"), false);
+	await h.save(h.projectPath, { "pi-gpt-speed": { mode: "normal" } });
+	await h.command("ultrafast"); await h.command("fast");
+	const warnings = h.notices.filter(n => n.type === "warning");
+	assert.equal(warnings.length, 1);
+	assert.match(warnings[0].text, /project.*overrides/);
+	assert.equal(JSON.parse(await readFile(h.globalPath, "utf8"))["pi-gpt-speed"].mode, "fast");
+	h.ctx.isProjectTrusted = () => false; h.notices.length = 0;
+	await h.emit("session_start"); await h.command("normal");
+	assert.equal(h.notices.some(n => n.type === "warning"), false);
+});

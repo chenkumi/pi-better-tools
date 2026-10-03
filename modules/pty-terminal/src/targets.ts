@@ -34,7 +34,10 @@ export function resolveTarget(command: string, args: string[], options: SpawnOpt
 	const cwd = text(options.cwd ?? config.cwd, "target cwd (required)");
 	if (!cwd.startsWith("/")) throw new Error("Target cwd must be an absolute POSIX path");
 	text(command, "command");
+	if (!command.trim()) throw new Error("Remote command cannot be empty");
 	if (command.startsWith("-")) throw new Error("Remote command cannot start with '-'");
+	// env treats KEY=value as an assignment even after "--"; pass variables through the env option instead.
+	if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(command)) throw new Error("Remote command cannot look like a KEY=value assignment; use the env option");
 	for (const arg of args) if (arg.includes("\0")) throw new Error("NUL is not allowed in remote arguments");
 	const env = Object.entries(options.env ?? {}).map(([key, value]) => {
 		if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) throw new Error(`Invalid remote environment name: ${key}`);
@@ -52,6 +55,7 @@ export function resolveTarget(command: string, args: string[], options: SpawnOpt
 	const host = text(config.host, "SSH host alias");
 	if (!/^[A-Za-z0-9_][A-Za-z0-9_.@-]*$/.test(host)) throw new Error("Invalid SSH host alias");
 	const script = `cd ${quotePosix(cwd)} && exec env -- ${[...env, command, ...args].map(quotePosix).join(" ")}`;
-	// Host key checking is not disabled. Authentication is non-interactive via keys/agent.
-	return { command: "ssh", args: ["-tt", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", host, `sh -c ${quotePosix(script)}`], options: clientOptions, target, transport: "ssh" };
+	// Host key checking is not disabled and not overridden: the user's ssh config/known_hosts decide
+	// (an explicit StrictHostKeyChecking=yes would break accept-new users). Authentication is non-interactive via keys/agent.
+	return { command: "ssh", args: ["-tt", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3", host, `sh -c ${quotePosix(script)}`], options: clientOptions, target, transport: "ssh" };
 }

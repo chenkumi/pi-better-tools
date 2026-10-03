@@ -7,8 +7,6 @@ For this integration, root manifest/scripts/version matrix override source metad
 When making relevant changes, inspect the original reports in their immutable local source projects:
 
 - File: `D:/projects/pi-file-tools/issues/SCAN-20260930-080901/FIX-REPORT.md`
-- Subagents compatibility: `D:/projects/pi-subagents/issues/FIX-20260930-083537-pi-compatibility/REPORT.md`
-- Subagents lifecycle reliability: `D:/projects/pi-subagents/issues/SCAN-20260917-subagent-reliability/REPORT.md`
 - Web compatibility: `D:/projects/pi-web-tools/issues/SCAN-20260930-081037/REPORT.md` and `FIXES.md`
 
 If originals are unavailable, obtain the required reference material before changing covered lifecycle/security contracts. These absolute paths identify documentation inputs only; shipped extensions must not use them.

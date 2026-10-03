@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { test } from "node:test";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI, ExtensionContext, ExtensionCommandContext, AgentBeforeSettleEvent, ToolCallEvent } from "@earendil-works/pi-coding-agent";
@@ -221,4 +221,20 @@ test("child markers register only context filter (no tool/command/automatic hook
     try { const hooks: string[] = []; extension({ on: (event: string) => { hooks.push(event); }, registerTool: () => { throw new Error("child registered tool"); }, registerCommand: () => { throw new Error("child registered command"); } } as unknown as ExtensionAPI); assert.deepEqual(hooks, ["context"]); }
     finally { if (previous === undefined) delete process.env[key]; else process.env[key] = previous; }
   }
+});
+
+test("workspace identity is case-folded on win32 and symlink/relative-segment tolerant", async () => {
+  const { sameWorkspace, normalizeWorkspace } = await import("../src/controller.ts");
+  assert.equal(sameWorkspace("C:\Work\Proj", "c:\work\proj", "win32"), true);
+  assert.equal(sameWorkspace(cwd, join(cwd, "sub", ".."), "linux"), true);
+  assert.equal(sameWorkspace(cwd, join(cwd, "other"), "linux"), false);
+  const { mkdtemp, mkdir, symlink, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const root = await mkdtemp(join(tmpdir(), "pi-goal-ws-"));
+  try {
+    const real = join(root, "real"); await mkdir(real);
+    let linked = true;
+    try { await symlink(real, join(root, "link"), "junction"); } catch { linked = false; }
+    if (linked) assert.equal(normalizeWorkspace(join(root, "link")), normalizeWorkspace(real));
+  } finally { await rm(root, { recursive: true, force: true }); }
 });

@@ -33,6 +33,11 @@ export interface RunnerServiceOptions {
   clock?: Clock;
   cronClock?: CronEngineClock;
   pollMs?: number;
+  /**
+   * Run the internal poll loop (default true, needed by the standalone daemon). The in-app host
+   * (AppScheduler) already drives poll() on its own cadence and sets this false to avoid duplicate polling.
+   */
+  internalPoll?: boolean;
   maxChildren?: number;
 }
 
@@ -68,22 +73,42 @@ export class IndependentRunner {
   async start(): Promise<void> {
     return this.serial(async () => {
       if (this.running) return;
-      const release = await acquireAdvisoryLock(join(this.options.paths.rootDir, "runner.lock"), { staleMs: 60_000, retries: 0 });
+      let release: (() => Promise<void>) | undefined;
+      release = await acquireAdvisoryLock(join(this.options.paths.rootDir, "runner.lock"), {
+        staleMs: 60_000, retries: 0,
+        onCompromised: (error) => { if (this.releaseSingleton === release) this.demote(error); },
+      });
       this.releaseSingleton = release;
       this.stopping = false;
       try {
         await this.reconcile();
         await this.refreshSchedules();
-        this.poller = setInterval(() => void this.poll().catch((error) => this.report(error)), this.options.pollMs ?? 1000);
-        this.poller.unref();
+        if (this.options.internalPoll !== false) {
+          this.poller = setInterval(() => void this.poll().catch((error) => this.report(error)), this.options.pollMs ?? 1000);
+          this.poller.unref();
+        }
       } catch (error) {
         this.stopping = true;
         this.clearTimers();
         this.releaseSingleton = undefined;
-        await release();
+        await release?.().catch(() => undefined);
         throw error;
       }
     });
+  }
+
+  /**
+   * The singleton lock was lost (stale mtime after sleep/stall). Never throw: stop dispatching and fall back
+   * to standby. The lock is not ours anymore, so it is not released. Already-owned children keep being
+   * supervised until they settle; a later start() may re-acquire the lock.
+   */
+  private demote(error: unknown): void {
+    this.stopping = true;
+    if (this.poller) clearInterval(this.poller);
+    this.poller = undefined;
+    this.clearTimers();
+    this.releaseSingleton = undefined;
+    this.report(new Error(`Scheduler singleton lock was compromised; demoted to standby: ${error instanceof Error ? error.message : String(error)}`));
   }
 
   async stop(): Promise<void> {
@@ -104,6 +129,7 @@ export class IndependentRunner {
           this.options.executor.terminate(child);
         }
         await this.waitForChildren(3000);
+        // Windows: this only kills the direct child, not its process tree; leftovers are reported as orphaned.
         for (const child of this.children.values()) child.process.child.kill("SIGKILL");
         await this.waitForChildren(1000);
         if (this.children.size) this.report(new Error("Some owned children did not settle during shutdown; recovery will mark them orphaned."));
@@ -159,7 +185,10 @@ export class IndependentRunner {
     return this.serial(async () => {
       const schedule = (await this.options.registry.list()).find((item) => item.id === scheduleId && item.mode === "independent");
       if (!schedule) throw new Error(`Unknown independent schedule: ${scheduleId}`);
-      return this.launch(schedule);
+      if (schedule.state !== "active") throw new Error(`Schedule ${scheduleId} is ${schedule.state}; run-once requires an active schedule.`);
+      const run = await this.launch(schedule);
+      if (!run) throw new Error(`Schedule ${scheduleId} was not dispatched (one-shot already consumed, schedule changed, or runner stopped).`);
+      return run;
     });
   }
 
@@ -197,32 +226,38 @@ export class IndependentRunner {
         await this.launch(schedule, true);
         continue;
       }
-      const timer = scheduleTiming(schedule.timing, () => this.serial(async () => {
+      const timer = scheduleTiming(schedule.timing, ({ slot, late }) => this.serial(async () => {
         if (!this.running) return;
-        await this.launch(schedule);
+        await this.launch(schedule, late, slot);
       }).catch((error) => this.report(error)), this.options.cronClock);
       this.timers.set(schedule.id, { revision: schedule.revision, timer });
     }
   }
 
-  private async launch(snapshot: Schedule, missed = false): Promise<Run | undefined> {
+  private async launch(snapshot: Schedule, missed = false, slot?: Date): Promise<Run | undefined> {
     if (!this.running) return undefined;
     const at = this.clock.now().toISOString();
     const runId = ulid().toLowerCase();
-    const schedule = await this.options.registry.claim(snapshot.id, snapshot.revision, runId, at);
+    const schedule = await this.options.registry.claim(snapshot.id, snapshot.revision, runId, at, slot?.toISOString());
     if (!schedule) return undefined;
     let run: Run = { runId, scheduleId: schedule.id, mode: "independent", status: "planned", plannedAt: at, requestedProfile: schedule.execution, events: [] };
-    const busy = (await this.options.runs.list(schedule.id)).some((item) => !isTerminalRunStatus(item.status) || item.status === "orphaned");
     const atCapacity = this.children.size >= (this.options.maxChildren ?? 4);
-    if (missed || busy || atCapacity) {
-      run = { ...run, status: "skipped_busy", endedAt: at,
-        error: missed ? "One-shot due time was missed while the app was closed; no backfill." : busy ? "Schedule has active or orphaned work; dispatch suppressed." : "Host child concurrency limit reached; no backlog is queued." };
+    if (missed) {
+      run = { ...run, status: "skipped_busy", endedAt: at, error: "Scheduled time was missed (app closed, host asleep or stalled); no backfill.",
+        events: [{ type: "diagnostic", at, detail: "missed_no_backfill" }] };
       if (atCapacity) run.events.push({ type: "diagnostic", at, detail: "host_capacity_skipped" });
-      if (missed) run.events.push({ type: "diagnostic", at, detail: "missed_no_backfill" });
       await this.options.runs.append(run);
       return run;
     }
-    await this.options.runs.append(run);
+    if (atCapacity) {
+      run = { ...run, status: "skipped_busy", endedAt: at, error: "Host child concurrency limit reached; no backlog is queued.", events: [{ type: "diagnostic", at, detail: "host_capacity_skipped" }] };
+    }
+    // The busy check and the append share one history-lock critical section, so a second (e.g. demoted)
+    // host can never both observe "idle" and start the same schedule.
+    const written = await this.options.runs.appendUnlessBusy(run, (item) => ({ ...item, status: "skipped_busy", endedAt: at,
+      error: "Schedule has active or orphaned work; dispatch suppressed.", events: [] }));
+    if (written.status === "skipped_busy") return written;
+    run = written;
     run = await this.options.runs.transition(runId, "queued", at);
     // Cancellation or edits may race the claim. Re-check before spawning.
     const current = (await this.options.registry.list()).find((item) => item.id === schedule.id);
@@ -276,7 +311,8 @@ export class IndependentRunner {
 
   private async reconcile(): Promise<void> {
     for (const run of await this.options.runs.list()) {
-      if (run.mode !== "independent" || isTerminalRunStatus(run.status)) continue;
+      // Children this instance still supervises (after a lock demotion) are not orphans.
+      if (run.mode !== "independent" || isTerminalRunStatus(run.status) || this.children.has(run.runId)) continue;
       await this.options.runs.transition(run.runId, "orphaned", this.clock.now().toISOString(), {
         error: "Previous host ended without settling this run. Process ownership is unknown; no PID was killed and this schedule will not launch again automatically.",
       });
@@ -284,13 +320,14 @@ export class IndependentRunner {
   }
 }
 
-export function createProductionRunner(agentDir?: string): IndependentRunner {
+export function createProductionRunner(agentDir?: string, options: { internalPoll?: boolean } = {}): IndependentRunner {
   const paths = resolveSchedulerPaths(agentDir);
   return new IndependentRunner({
     paths,
     registry: new RegistryStore({ registryPath: paths.registryPath, lockPath: paths.lockPath }),
     runs: new RunStore({ runsPath: paths.runsPath, lockPath: paths.lockPath, logsDir: paths.logsDir }),
     executor: new PiProcessExecutor(environmentPiCommandResolver, nodeChildSpawner, undefined, paths.agentDir),
+    ...(options.internalPoll === undefined ? {} : { internalPoll: options.internalPoll }),
     maxChildren: process.env.PI_SCHEDULER_MAX_CHILDREN === undefined ? undefined : Number(process.env.PI_SCHEDULER_MAX_CHILDREN),
     supervisor: new ProcessSupervisor(new WindowsProcessInspector(nodeCommandRunner), new WindowsProcessInspector(nodeCommandRunner)),
   });

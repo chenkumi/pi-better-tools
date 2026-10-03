@@ -5,6 +5,13 @@ import lockfile from "proper-lockfile";
 export interface LockOptions {
   staleMs?: number;
   retries?: number;
+  /**
+   * Called when the lock was lost (its mtime went stale after a sleep or event-loop stall, or the lock
+   * directory vanished). proper-lockfile's default handler throws from a timer, which would crash the host,
+   * so this callback is always installed and exceptions from it are swallowed. Owners must stop work and
+   * demote themselves; the lock must be treated as released (do not call the release function).
+   */
+  onCompromised?: (error: Error) => void;
 }
 
 export async function acquireAdvisoryLock(path: string, options: LockOptions = {}): Promise<() => Promise<void>> {
@@ -15,6 +22,9 @@ export async function acquireAdvisoryLock(path: string, options: LockOptions = {
     realpath: false,
     stale: options.staleMs ?? 10_000,
     retries: options.retries ?? 3,
+    onCompromised: (error: Error) => {
+      try { options.onCompromised?.(error); } catch { /* never throw into the lock timer */ }
+    },
   });
 }
 

@@ -16,6 +16,15 @@ export type FetchResult = {
   content: string; extraction: string; warnings: string[];
 };
 
+/** Cap for every proxied response (document or subresource). Playwright buffers the whole body in
+ * Node before exposing it, so this bounds what is handed to the browser, not peak transfer memory. */
+export const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
+const CLOSE_CONTEXT_TIMEOUT_MS = 5000;
+export function exceedsResponseLimit(headers: Record<string, string>, bodyBytes?: number, limit = MAX_RESPONSE_BYTES): boolean {
+  const declared = Number(headers['content-length']);
+  return (Number.isFinite(declared) && declared > limit) || (bodyBytes !== undefined && bodyBytes > limit);
+}
+
 function abortError(signal: AbortSignal): Error {
   return signal.reason instanceof Error ? signal.reason : new Error('CANCELLED: Fetch was cancelled.');
 }
@@ -194,6 +203,11 @@ export class FetchService {
         let response: Awaited<ReturnType<Route['fetch']>> | undefined;
         try {
           checkAbort(localSignal);
+          // Media and fonts are never needed for text extraction; do not fetch them at all.
+          if (!mainNavigation && ['media', 'font'].includes(request.resourceType())) {
+            await route.abort('blockedbyclient').catch(() => {});
+            return;
+          }
           await abortable(this.policy.validate(request.url()), localSignal);
           // Chromium/Playwright skips user routes on redirect hops, even after
           // fulfill(). Never give the browser a redirect response. Main redirects
@@ -236,6 +250,7 @@ export class FetchService {
           if (/\battachment\b/i.test(headers['content-disposition'] ?? '')) {
             throw new Error('UNSUPPORTED_CONTENT: Downloads are not supported.');
           }
+          if (exceedsResponseLimit(headers)) throw new Error('TOO_LARGE: Response exceeds the 10 MiB limit.');
           if (mainNavigation && response.status() >= 400) throw new Error(`HTTP_ERROR: Server returned HTTP ${response.status()}.`);
           if (mainNavigation && !(response.status() >= 300 && response.status() < 400)) {
             const type = (headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase();
@@ -245,6 +260,9 @@ export class FetchService {
             if (Number(headers['content-length']) > MAX_HTML_BYTES) throw new Error('TOO_LARGE: HTML response exceeds the 5 MiB limit.');
             const body = await response.body();
             if (body.byteLength > MAX_HTML_BYTES) throw new Error('TOO_LARGE: HTML response exceeds the 5 MiB limit.');
+          } else if (!mainNavigation) {
+            const body = await response.body();
+            if (exceedsResponseLimit(headers, body.byteLength)) throw new Error('TOO_LARGE: Response exceeds the 10 MiB limit.');
           }
           checkAbort(localSignal);
           await route.fulfill({ response });
@@ -304,8 +322,14 @@ export class FetchService {
       clearTimeout(timer);
       signal?.removeEventListener('abort', onAbort);
       localSignal.removeEventListener('abort', onLocalAbort);
-      await closeContext();
-      release?.();
+      try {
+        // A hung close must not hold the queue slot forever; the browser is reaped on idle/close().
+        let closeTimer: ReturnType<typeof setTimeout> | undefined;
+        await Promise.race([closeContext(), new Promise<void>((resolve) => { closeTimer = setTimeout(resolve, CLOSE_CONTEXT_TIMEOUT_MS); closeTimer.unref?.(); })])
+          .finally(() => clearTimeout(closeTimer));
+      } finally {
+        release?.();
+      }
       this.operations.delete(controller);
       this.scheduleIdle();
     }

@@ -1,6 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { renameWithRetry } from "./atomic-rename.js";
-import { dirname } from "node:path";
+import { copyFile, readFile } from "node:fs/promises";
+import { atomicWriteFile } from "./atomic-rename.js";
 import { createHash } from "node:crypto";
 import { ulid } from "ulid";
 
@@ -58,10 +57,9 @@ async function readRegistry(path: string): Promise<SchedulerRegistry> {
 }
 
 async function atomicWrite(path: string, data: SchedulerRegistry): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.tmp-${process.pid}-${Date.now()}`;
-  await writeFile(temporary, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-  await renameWithRetry(temporary, path);
+  // Keep the last good registry so a corrupt or lost write is recoverable by hand.
+  await copyFile(path, `${path}.bak`).catch(() => undefined);
+  await atomicWriteFile(path, `${JSON.stringify(data, null, 2)}\n`);
 }
 
 export class RegistryStore {
@@ -125,7 +123,7 @@ export class RegistryStore {
     });
   }
 
-  async update(id: string, expectedRevision: number, patch: Partial<Pick<Schedule, "title" | "prompt" | "cwd" | "timing" | "execution" | "projectTrust" | "targetSessionId" | "state">>): Promise<Schedule> {
+  async update(id: string, expectedRevision: number, patch: Partial<Pick<Schedule, "title" | "prompt" | "cwd" | "timing" | "execution" | "projectTrust" | "targetSessionId">> & { state?: "active" | "paused" }): Promise<Schedule> {
     return this.mutate(undefined, (registry) => {
       const schedule = registry.schedules[id];
       if (!schedule || schedule.state === "deleted") throw new Error(`Unknown schedule: ${id}`);
@@ -133,9 +131,18 @@ export class RegistryStore {
       if (patch.prompt !== undefined && !patch.prompt.trim()) throw new Error("Schedule prompt cannot be blank");
       if (patch.execution !== undefined) validateExecutionProfile(patch.execution);
       if (patch.timing !== undefined) validateTiming(patch.timing);
+      if (patch.state !== undefined) {
+        if (patch.state !== "active" && patch.state !== "paused") throw new Error("update() can only set state to active or paused");
+        if (schedule.state === "cancelled") throw new Error("Cancelled schedules cannot be resumed; create a new schedule.");
+      }
+      // Whitelist: a patch must never carry arbitrary fields (id, revision, lastPlannedAt, createdAt, ...).
+      const allowed: Partial<Schedule> = {};
+      for (const key of ["title", "prompt", "cwd", "timing", "projectTrust", "targetSessionId", "state"] as const) {
+        if (patch[key] !== undefined) Object.assign(allowed, { [key]: patch[key] });
+      }
       const updated: Schedule = {
         ...schedule,
-        ...patch,
+        ...allowed,
         ...(patch.timing && JSON.stringify(patch.timing) !== JSON.stringify(schedule.timing) ? { lastPlannedAt: undefined, lastRunId: undefined } : {}),
         ...(patch.execution !== undefined ? { execution: validateExecutionProfile(patch.execution) } : {}),
         revision: schedule.revision + 1,
@@ -147,12 +154,15 @@ export class RegistryStore {
   }
 
   /** At-most-once claim. Persist BEFORE launching; a crash may skip, never replay, this occurrence. */
-  async claim(id: string, revision: number, runId: string, at: string): Promise<Schedule | undefined> {
+  async claim(id: string, revision: number, runId: string, at: string, slot: string = at): Promise<Schedule | undefined> {
     return this.mutate(undefined, (registry) => {
       const schedule = registry.schedules[id];
       if (!schedule || schedule.state !== "active" || schedule.revision !== revision) return undefined;
       if (schedule.timing.kind === "once" && schedule.lastPlannedAt) return undefined;
-      schedule.lastPlannedAt = at;
+      // Per-occurrence dedupe: a second claimant (e.g. a demoted host racing a new one) for the same or an
+      // older slot is rejected. lastPlannedAt records the claimed slot.
+      if (schedule.lastPlannedAt && Date.parse(schedule.lastPlannedAt) >= Date.parse(slot)) return undefined;
+      schedule.lastPlannedAt = slot;
       schedule.lastRunId = runId;
       return { ...schedule };
     });
@@ -166,6 +176,7 @@ export class RegistryStore {
     return this.mutate(undefined, (registry) => {
       const schedule = registry.schedules[id];
       if (!schedule) throw new Error(`Unknown schedule: ${id}`);
+      if (schedule.state === "deleted") throw new Error(`Schedule is deleted and cannot change state: ${id}`);
       if (schedule.revision !== expectedRevision) throw new RevisionConflictError(expectedRevision, schedule.revision);
       const updated: Schedule = { ...schedule, state, revision: schedule.revision + 1, updatedAt: this.now() };
       registry.schedules[id] = updated;

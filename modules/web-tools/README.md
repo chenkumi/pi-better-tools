@@ -130,7 +130,7 @@ Brave 使用 Web Search endpoint；Exa 使用 Search endpoint（`type: "auto"`�
 
 ## 輸出限制
 
-- 工具 content 上限 24 KiB／1000 行（含截斷提示）；頁面抽取內容上限 1 MiB，格式化結果 2 MiB，原始／渲染 HTML 5 MiB。
+- 工具 content 上限 24 KiB／1000 行（含截斷提示）；頁面抽取內容超過 1 MiB 時截斷並加上警告（不再失敗），格式化結果 2 MiB，原始／渲染 HTML 5 MiB；每個代理回應（含子資源）以 content-length 與實際 body 大小限制 10 MiB，超過即阻擋；media／font 子資源不抓取。Playwright 會先在 Node 緩衝完整 body，此上限限制交給瀏覽器的內容，不是傳輸期間的記憶體峰值。
 - 超長結果存於 OS temp 的 `pi-web-tools-*` 目錄並回傳絕對路徑，可用 `read` 分頁讀取；POSIX 檔案為 `0600`，Windows 依賴使用者 profile／temp 的 ACL。暫存檔不會在 shutdown 時刪除，亦可能被 OS 清理。
 - 兩個工具宣告 `outputSchema`：`{ text, data?, dataOmitted, truncated, fullOutputPath? }`；structuredContent 超過 64 KiB 時省略 `data` 並設 `dataOmitted`。
 - Playwright 會先緩衝網路回應再檢查大小，這些限制不是總流量或峰值記憶體上限。
@@ -138,7 +138,10 @@ Brave 使用 Web Search endpoint；Exa 使用 Search endpoint（`type: "auto"`�
 ## 安全行為與限制
 
 - 只存取公開 HTTP(S)；預設阻擋私有、loopback、link-local 與 metadata 位址。初始 URL、redirect 與子資源皆檢查；拒絕內嵌帳密的 URL。此限制無法由設定關閉。
+- `web_search` 的 `provider` 參數為相容保留；只接受與設定相同的 provider，不同則回傳 PROVIDER_UNSUPPORTED，不能繞過已設定的單一 provider。
+- 主頁面 redirect 以 abort 後重新 goto 處理，redirect 回應上的 Set-Cookie 不會寫入 browser cookie jar（已知限制）；子資源 redirect 同樣由 Node 端手動追蹤。
+- context 關閉設有 5 秒上限，逾時仍會釋放佇列名額，瀏覽器由 idle／shutdown 清理。
 - 為逐跳驗證 redirect，網路請求經 Playwright context request 取回後交給 browser；部分重新導向子資源的相對 URL 語意可能與一般瀏覽不同。
-- 不是完整安全沙箱：DNS 檢查與實際連線之間仍可能有競態，且 Chromium 會執行遠端 JavaScript；高敏感環境需以 OS／container 控制 egress。不適合作為公開或多租戶抓取服務。
+- 不是完整安全沙箱：DNS 檢查與實際連線之間仍有 DNS rebinding 競態（Playwright `route.fetch` 不提供固定已驗證 IP 的連線選項，因此未實作 IP pinning），且 Chromium 會執行遠端 JavaScript；高敏感環境需以 OS／container 控制 egress。不適合作為公開或多租戶抓取服務。
 - 頁面與搜尋內容是不可信的外部資料，清理 HTML 不能消除 prompt injection；網頁與搜尋結果會進入 Pi 對話並傳送給模型供應商。
 - Pi 的 offline 設定不等於阻擋本模組的網路；如需阻擋請使用 OS／container 網路政策。

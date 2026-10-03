@@ -15,7 +15,7 @@
         },
         {
           "path": "modules/note-tools/extensions/note.ts",
-          "sha256": "186fa6f64234d431e90a53098b4ac7a3bf53b20af82972d93a04d9be7411834f",
+          "sha256": "b224c95b00c707d879e886507aa21d9be8258a6a4693b2523e12d7708175f2a4",
           "preChangeSha256": "55f162a834e4a6096222ffcb5014b9f44de0f834656e2209642a724c0ac43c34",
           "previousRecordedSha256": "b753ab14a2ffe217509ed09555fb73553f8da694f70acf928785e57492562ea3",
           "historicalDeltaAudit": "unavailable",
@@ -24,7 +24,7 @@
         },
         {
           "path": "modules/note-tools/tests/note.test.ts",
-          "sha256": "ccc5cc396a0ff4d41b10f3b85d3d635240f352f5cfafad1a3be6f6a2eadbff55",
+          "sha256": "b5d6895104641e88ae2fd06d2fb41b9f955df86c1b7fb8732b0a26e0ae4bb603",
           "reason": "Update compact timestamp assertions; add UTC rollover, lexical sorting, legacy-file retention and 1000-collision exhaustion regressions without removing existing assertions."
         },
         {
@@ -34,7 +34,7 @@
         },
         {
           "path": "modules/note-tools/README.md",
-          "sha256": "3e94b4e04e40e3e3fa73df619213bdc4aa508f183dbb2259f288322046a18c48",
+          "sha256": "d48131a0ac81493e67c45b929ec37227d720ce122566362a40ab850638154171",
           "preChangeSha256": "ed929109b39aa1e86db362e8109b54bfef1bae45a7ccef4f7f48c468522fba41",
           "previousRecordedSha256": "ab18ee3335437ce91af7fcdd1e8dbdc6198ab2c9989c0de37adf967b41e92bb9",
           "historicalDeltaAudit": "unavailable",
@@ -56,11 +56,11 @@
         },
         {
           "path": "modules/gpt-speed/extensions/gpt-speed.ts",
-          "sha256": "277e4123572a9795d863122eb11784860cbcba6e3f21128070fb929fb0e27219"
+          "sha256": "566852a410666e7bb252333536cd378a1279c019d1604197e837b627730f0bb5"
         },
         {
           "path": "modules/gpt-speed/tests/gpt-speed.test.ts",
-          "sha256": "615ee69769b76f6bd6a539ef4529537cb920e236e4263df34b3e08409b6d00fa"
+          "sha256": "bc3e042d832456c917db5995ca71c68f591230ae1a7090cd6b2b916099e46651"
         },
         {
           "path": "modules/gpt-speed/tsconfig.json",
@@ -69,7 +69,7 @@
         },
         {
           "path": "modules/gpt-speed/README.md",
-          "sha256": "1ed85d5fc1923c082847e763160a25c1c2b3ff7a97018805a9a4b1ca5faefa3d",
+          "sha256": "d6c128f31aefb2873612b6cd2c9982a98252672e061ee533d264dc0e2140075e",
           "previousRecordedSha256": "770e36fd3ec7a872da87ad776f37a2b396ae2d38d42b1852169f0a0002aacbe4",
           "historicalDeltaAudit": "unavailable",
           "localSnapshotReview": "2026-10-03: complete README inspected against root documented pattern/tiers/settings policy and existing local tests; current bytes match initial commit f14b837, earlier recorded bytes unavailable.",
@@ -104,7 +104,7 @@
         },
         {
           "path": "modules/goal/src/controller.ts",
-          "sha256": "b1687eda27d8ba10d3380a71a053123b1a19a06d66da0f66a565615c5357a346"
+          "sha256": "3460d04e5747cf2e7d3855a5ae7f764065781a14a6e9a6647b3186e94827eca2"
         },
         {
           "path": "modules/goal/src/prompts.ts",
@@ -112,7 +112,7 @@
         },
         {
           "path": "modules/goal/tests/goal.test.ts",
-          "sha256": "cdf86335693c37c325e8d446b88e1f23ebec00440f500c1acc9465cbe2b0340b"
+          "sha256": "a3c80db9e41f3a17d27255c53c7e396c6c5bc6e606bf8597a04f63bb1f656c0d"
         },
         {
           "path": "modules/goal/tests/runtime.test.mjs",
@@ -124,7 +124,7 @@
         },
         {
           "path": "modules/goal/README.md",
-          "sha256": "8ecaba5aad628f6e25d8e7642bba244474a6504e035ffb61593ac8356027781d",
+          "sha256": "8be86e14297a14c146c32ad7688b7cae138b45dc9b4a3b3e015fafb5c25c7640",
           "preChangeSha256": "773daeeab9f8b74f883ad48845d6ff0a439b504109bb5301c5db81481d853eb6",
           "previousRecordedSha256": "23e2a0a245d26264ae24fd0a5ae0013d18f1e8f421005229a5432ecfc59d9294",
           "historicalDeltaAudit": "unavailable",
@@ -145,15 +145,15 @@
         },
         {
           "path": "modules/json-schema/extensions/json-schema.ts",
-          "sha256": "161717f5e8e650a7c87f1f4f4b147b846038ecd078f8c589f76bbcb93f196746"
+          "sha256": "54b24fcdd98e16d99f5d7a6f1e1719d78ef95833540d14bdbf578a352c2e235a"
         },
         {
           "path": "modules/json-schema/src/schema.ts",
-          "sha256": "0d708a69503f035ec17a9b2f4d88a90c82bd321f4b10753648bbd331e8660371"
+          "sha256": "114103d2ef62559dec361a31e806c08b82141752d9987f4b1c2abe6f78359d75"
         },
         {
           "path": "modules/json-schema/src/extract.ts",
-          "sha256": "1e5011bd477a71d297b6c5f6ff2505bc657d5efb755d4cdf75197658866d88eb"
+          "sha256": "cb9741b13dd2cde51ce1d693e2d500a3cb91c9da983d2f2185162ab279c2a715"
         },
         {
           "path": "modules/json-schema/src/delivery.ts",
@@ -161,15 +161,15 @@
         },
         {
           "path": "modules/json-schema/tests/schema.test.ts",
-          "sha256": "7e403bede75ff19b6e1bec339604f6cba36d2feef5fe0412650c771a5e014e6c"
+          "sha256": "8fa306053c2e778aefa91ea1eca37adc95416976523b903792b1335791121ca9"
         },
         {
           "path": "modules/json-schema/tests/extract.test.ts",
-          "sha256": "063eeea28b051177c0be6ad180364aee0a4da5166d28efc150f063af1bf86aa4"
+          "sha256": "4d019cedb0a3b5321f99cd8cbf94d74a37b02c1319ed947b6ac7f16542b0334b"
         },
         {
           "path": "modules/json-schema/tests/delivery.test.ts",
-          "sha256": "9a2c3e786a98c437ad5163447eb5a8ad64892056517972a2172fc95615aac75d"
+          "sha256": "ea4dcc931c692a84c30254ae7f4a03bc92cbf8c15d3b32e22e6b2038140ea549"
         },
         {
           "path": "modules/json-schema/tests/runtime.test.mjs",
@@ -181,7 +181,7 @@
         },
         {
           "path": "modules/json-schema/README.md",
-          "sha256": "2b75674aab4cb82fc0137c325cf243ac0937f4ad28d0584b2b843bc21818938a"
+          "sha256": "d958f41be3768e319f816e1707dbbff41bb4c25e591152392796a5088c52bde6"
         }
       ]
     }

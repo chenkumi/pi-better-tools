@@ -71,6 +71,10 @@
 
 行為：
 
+- regex 搭配 `lineRange` 時，視窗文字以獨立字串比對：`^`、`$`、lookbehind／lookahead 看不到視窗外的內容；需要整檔語意時請省略 `lineRange`。
+- `read`／`edit`／`write` 只接受一般檔案；FIFO、裝置與目錄回報 `FILE_NOT_READABLE`／`FILE_NOT_WRITABLE`，不會阻塞。
+- 新檔建立優先用 hard link 保證不覆蓋；檔案系統不支援時改用 exclusive create（`wx`）。寫入會 fsync、在 rename 前套用目標權限；Windows 上 rename 遇 EPERM／EBUSY 會短暫重試；失敗時盡力移除本次建立的空目錄。
+- regex 的 1 秒預算從 worker 實際開始比對起算（不含 worker 啟動與大字串複製）。
 - 未指定 `lineRange` 時為整檔比對，文字須唯一（除非 `replaceAll: true`）。
 - `lineRange` 只是初始搜尋視窗，不是整行取代邊界。literal `oldText` 在視窗內找不到、但整檔恰有一處時，自動採用該處；整檔多處則 `AMBIGUOUS_MATCH` 並回報候選範圍。regex 沒有此回退。
 - 所有 `edits` 皆對原始快照比對，不得重疊，全部驗證通過後才一次原子提交。

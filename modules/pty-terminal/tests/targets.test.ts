@@ -20,7 +20,7 @@ test("SSH quotes every remote value including nested shell, preserves host key d
 	const cwd = "/Users/me/a'b;$(touch BAD)";
 	const plan = resolveTarget("node", ["a'b", "$(touch BAD)", "", "line\nnext"], { target: "macos", cwd, env: { X: "a'b $HOME" } }, "C:/repo", settings);
 	const script = `cd ${quotePosix(cwd)} && exec env -- ${["X=a'b $HOME", "node", "a'b", "$(touch BAD)", "", "line\nnext"].map(quotePosix).join(" ")}`;
-	assert.deepEqual(plan.args, ["-tt", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", "mac-dev", `sh -c ${quotePosix(script)}`]);
+	assert.deepEqual(plan.args, ["-tt", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3", "mac-dev", `sh -c ${quotePosix(script)}`]);
 	assert.equal(plan.options.env, undefined); assert.equal(plan.transport, "ssh");
 });
 test("invalid targets/config/paths/env fail closed without fallback", () => {
@@ -30,6 +30,18 @@ test("invalid targets/config/paths/env fail closed without fallback", () => {
 	}
 	assert.throws(() => resolveTarget("bash", [], { target: "macos", env: { "X;bad": "v" } }, "local", settings), /environment/);
 	assert.throws(() => resolveTarget("bash", ["\0"], { target: "macos" }, "local", settings), /NUL/);
+});
+test("remote command that looks like an env assignment or is empty/blank is rejected", () => {
+	for (const target of ["macos", "linux"]) {
+		assert.throws(() => resolveTarget("FOO=bar", ["x"], { target }, "C:/repo", settings, "win32"), /assignment/);
+		assert.throws(() => resolveTarget("", [], { target }, "C:/repo", settings, "win32"), /command/);
+		assert.throws(() => resolveTarget("  ", [], { target }, "C:/repo", settings, "win32"), /empty/);
+	}
+	assert.doesNotThrow(() => resolveTarget("./FOO=bar", [], { target: "macos" }, "C:/repo", settings));
+});
+test("SSH never disables or overrides host-key verification", () => {
+	const plan = resolveTarget("node", [], { target: "macos" }, "C:/repo", settings);
+	assert.ok(!plan.args.some(arg => /StrictHostKeyChecking|UserKnownHostsFile/i.test(arg)));
 });
 test("extension reads effective settings only for remote and rejects pre-aborted spawn", async () => {
 	const tools = new Map<string, any>(); let reads = 0;

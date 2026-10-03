@@ -126,6 +126,18 @@ describe("session-affine scheduler", () => {
     await vi.waitFor(() => expect(f.pi.sendUserMessage).toHaveBeenCalledWith(expect.stringContaining("\nscheduled work"), { expandPromptTemplates: false }));
     expect((await f.runs.list())[0]?.status).toBe("queued"); expect((await f.runs.list())[0]?.startedAt).toBeUndefined();
   });
+  it("releases input interception and marks the run orphaned when history finalization keeps failing", async () => {
+    const f = await setup(); await f.scheduler.dispatch(f.schedule); await begin(f);
+    const finishSpy = vi.spyOn(f.runs, "finish").mockRejectedValue(new Error("injected persistent EIO"));
+    await finish(f);
+    expect(finishSpy).toHaveBeenCalledTimes(4); // 3 bounded attempts + one orphaned attempt
+    expect(f.scheduler.profileOwnershipActive).toBe(false);
+    expect(f.scheduler.handleInput({ source: "interactive", text: "normal" } as never, f.ctx as never)).toBeUndefined();
+    expect(f.scheduler.lastError).toContain("persistent EIO");
+    finishSpy.mockRestore();
+    // The persisted run stays non-terminal, so it remains a dispatch barrier until recovery orphans it.
+    expect((await f.runs.list())[0].status).toBe("running");
+  });
   it("skips busy sessions instead of queueing a prompt", async () => {
     const f = await setup(false); expect((await f.scheduler.dispatch(f.schedule)).status).toBe("skipped_busy"); expect(f.pi.sendUserMessage).not.toHaveBeenCalled();
   });

@@ -32,6 +32,7 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
   let failure: string | undefined;
   let cancelled = false;
   let finalized = false;
+  let toolRegistered = false;
   const cancel = () => { cancelled = true; };
 
   const fail = (message: string) => {
@@ -57,8 +58,13 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
       fail(error instanceof Error ? error.message : String(error));
       return;
     }
+    // Repeated session_start (reload/new session) must not stack listeners or re-register the tool.
+    process.off("SIGTERM", cancel);
+    process.off("SIGHUP", cancel);
     process.prependListener("SIGTERM", cancel);
     if (process.platform !== "win32") process.prependListener("SIGHUP", cancel);
+    if (toolRegistered) return;
+    toolRegistered = true;
     pi.registerTool({
       name: TOOL,
       label: "JSON output",

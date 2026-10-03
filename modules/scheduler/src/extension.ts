@@ -16,7 +16,7 @@ export default function registerPiScheduler(pi: ExtensionAPI): void {
   const registry = new RegistryStore({ registryPath: paths.registryPath, lockPath: paths.lockPath });
   const runs = new RunStore({ runsPath: paths.runsPath, lockPath: paths.lockPath, logsDir: paths.logsDir });
   const session = new SessionScheduler({ registry, runs, pi });
-  const app = new AppScheduler(createProductionRunner(paths.agentDir), session);
+  const app = new AppScheduler(createProductionRunner(paths.agentDir, { internalPoll: false }), session);
   const service = new SchedulerService(registry, runs, app);
 
   registerScheduleTools(pi, service);

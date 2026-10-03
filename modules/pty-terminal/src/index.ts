@@ -2,19 +2,19 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { decodeControlEscapes } from "./escape.ts";
 import { truncatePtyOutput } from "./output.ts";
-import { PtySessionManager } from "./pty-manager.ts";
+import { KILL_SIGNALS, MAX_COLS, MAX_ROWS, MAX_WAIT_MS, PtySessionManager } from "./pty-manager.ts";
 import { resolveTarget } from "./targets.ts";
 import { ptyRenderers } from "./renderers.ts";
 
-const positiveInteger = (description: string) => Type.Integer({ minimum: 1, description });
+const positiveInteger = (description: string, maximum?: number) => Type.Integer({ minimum: 1, ...(maximum ? { maximum } : {}), description });
 
 const spawnParameters = Type.Object({
 	target: Type.Optional(Type.String({ description: "Named PTY target from pi-pty-terminal.targets. Defaults to local; unknown targets fail." })),
 	command: Type.String({ description: "Executable path or command name to run." }),
 	args: Type.Optional(Type.Array(Type.String({ description: "One command argument." }), { description: "Arguments passed to the command." })),
 	cwd: Type.Optional(Type.String({ description: "Working directory on the target. Local defaults to Pi cwd; remote uses configured absolute POSIX cwd." })),
-	cols: Type.Optional(positiveInteger("Terminal columns. Defaults to 100.")),
-	rows: Type.Optional(positiveInteger("Terminal rows. Defaults to 30.")),
+	cols: Type.Optional(positiveInteger(`Terminal columns (max ${MAX_COLS}). Defaults to 100.`, MAX_COLS)),
+	rows: Type.Optional(positiveInteger(`Terminal rows (max ${MAX_ROWS}). Defaults to 30.`, MAX_ROWS)),
 	env: Type.Optional(Type.Record(Type.String(), Type.String(), { description: "Additional environment variables." })),
 });
 
@@ -64,7 +64,7 @@ export default function (pi: ExtensionAPI) {
 		promptSnippet: "pty_read: collect pending output from a PTY session",
 		parameters: Type.Object({
 			sessionId: Type.String({ description: "PTY session id." }),
-			timeoutMs: Type.Optional(Type.Integer({ minimum: 0, description: "Maximum wait for output in milliseconds. Defaults to 1000." })),
+			timeoutMs: Type.Optional(Type.Integer({ minimum: 0, maximum: MAX_WAIT_MS, description: `Maximum wait for output in milliseconds (max ${MAX_WAIT_MS}). Defaults to 1000.` })),
 		}),
 		executionMode: "sequential",
 		async execute(_toolCallId, params, signal) {
@@ -84,8 +84,8 @@ export default function (pi: ExtensionAPI) {
 		description: "Resize a PTY session's terminal dimensions.",
 		parameters: Type.Object({
 			sessionId: Type.String({ description: "PTY session id." }),
-			cols: positiveInteger("Terminal columns."),
-			rows: positiveInteger("Terminal rows."),
+			cols: positiveInteger("Terminal columns.", MAX_COLS),
+			rows: positiveInteger("Terminal rows.", MAX_ROWS),
 		}),
 		executionMode: "sequential",
 		async execute(_toolCallId, params) {
@@ -101,7 +101,7 @@ export default function (pi: ExtensionAPI) {
 		description: "Wait for a PTY process to exit and return its exit code. Returns exitCode -1 if the timeout expires.",
 		parameters: Type.Object({
 			sessionId: Type.String({ description: "PTY session id." }),
-			timeoutMs: Type.Optional(positiveInteger("Maximum wait in milliseconds. Defaults to 5000.")),
+			timeoutMs: Type.Optional(positiveInteger(`Maximum wait in milliseconds (max ${MAX_WAIT_MS}). Defaults to 5000.`, MAX_WAIT_MS)),
 		}),
 		executionMode: "sequential",
 		async execute(_toolCallId, params, signal) {
@@ -114,15 +114,15 @@ export default function (pi: ExtensionAPI) {
 		name: "pty_kill",
 		...ptyRenderers("kill"),
 		label: "PTY kill",
-		description: "Terminate the local PTY transport and release its session. POSIX defaults to SIGHUP; Windows ignores the signal argument. Remote background-process termination is not guaranteed.",
+		description: "Terminate the local PTY transport; escalates to SIGKILL on POSIX if it does not exit. The session is released only once the transport exited (check released); otherwise it is retained. POSIX defaults to SIGHUP; Windows ignores the signal argument. Remote/WSL background-process termination is not guaranteed.",
 		parameters: Type.Object({
 			sessionId: Type.String({ description: "PTY session id." }),
-			signal: Type.Optional(Type.String({ description: "POSIX signal to send. Defaults to SIGHUP; ignored on Windows." })),
+			signal: Type.Optional(Type.String({ description: `POSIX signal: one of ${KILL_SIGNALS.join(", ")}. Defaults to SIGHUP; ignored on Windows.` })),
 		}),
 		executionMode: "sequential",
 		async execute(_toolCallId, params) {
-			sessions.kill(params.sessionId, params.signal);
-			return { content: [{ type: "text", text: "ok" }], details: { sessionId: params.sessionId } };
+			const result = await sessions.kill(params.sessionId, params.signal);
+			return { content: [{ type: "text", text: JSON.stringify(result) }], details: result };
 		},
 	});
 

@@ -8,6 +8,7 @@ import { FileToolError, classifyFsError, formatFileToolErrorForDisplay } from ".
 import { executeWithFailureLogging, loadFileToolsGlobalConfig, prepareWithFailureLogging } from "../src/debug-logging.js";
 import {
   assertInputSize,
+  assertRegularReadableFile,
   editTextFile,
   MAX_EDIT_OPERATIONS,
   MAX_REGEX_PATTERN_LENGTH,
@@ -58,7 +59,7 @@ const writeSchema = Type.Object(
 const lineRangeSchema = Type.Object(
   {
     start: Type.Integer({ minimum: 1, description: "First line of the inclusive search window (1-based). This scopes matching; it is not a whole-line replacement boundary." }),
-    end: Type.Integer({ minimum: 1, description: "Last line of the inclusive search window (1-based). The match must fit entirely inside this window." }),
+    end: Type.Integer({ minimum: 1, description: "Last line of the inclusive search window (1-based). The match must fit entirely inside this window. For regex, the window text is matched as a standalone string, so ^, $, lookbehind and lookahead cannot see text outside it." }),
   },
   strictObject,
 );
@@ -414,12 +415,13 @@ export function detectImageMime(buffer: Buffer): string | undefined {
   return undefined;
 }
 
-async function readBufferAtPath(absolutePath: string, displayPath: string): Promise<Buffer> {
+async function readBufferAtPath(absolutePath: string, displayPath: string, signal?: AbortSignal): Promise<Buffer> {
   return withFileMutationQueue(absolutePath, async () => {
     try {
       const fileStat = await stat(absolutePath);
+      assertRegularReadableFile(fileStat, displayPath);
       assertInputSize(fileStat.size, displayPath);
-      const buffer = await readFile(absolutePath);
+      const buffer = await readFile(absolutePath, { signal });
       assertInputSize(buffer.length, displayPath);
       return buffer;
     } catch (error) {
@@ -467,7 +469,7 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
         let actualPath = absolutePath;
         let autoCorrected = false;
         try {
-          buffer = await readBufferAtPath(absolutePath, params.path);
+          buffer = await readBufferAtPath(absolutePath, params.path, signal);
         } catch (error) {
           const originalError = classifyFsError(error, params.path, "read");
           if (originalError.payload.code !== "FILE_NOT_FOUND") throw originalError;
@@ -475,7 +477,7 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
           const fallbackPath = findUniqueSkillFallbackPath(absolutePath, loadedSkillPaths);
           if (!fallbackPath) throw originalError;
           try {
-            buffer = await readBufferAtPath(fallbackPath, fallbackPath);
+            buffer = await readBufferAtPath(fallbackPath, fallbackPath, signal);
           } catch (fallbackError) {
             const classified = classifyFsError(fallbackError, fallbackPath, "read");
             throw new FileToolError(classified.payload.code, `The uniquely matched skill file could not be read after path correction. ${classified.payload.message}`, {

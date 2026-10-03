@@ -63,7 +63,15 @@ function persistMode(path: string, mode: SpeedMode): void {
 
 export default function gptSpeedExtension(pi: ExtensionAPI): void {
 	let mode: SpeedMode = "normal";
+	let projectOverrideNoticed = false;
 	const globalPath = () => join(getAgentDir(), "settings.json");
+
+	/** Trusted project-level mode, if any; unreadable settings count as absent here (session_start already warns). */
+	function projectMode(ctx: ExtensionContext): SpeedMode | undefined {
+		if (!ctx.isProjectTrusted()) return undefined;
+		try { return storedMode(readSettings(join(ctx.cwd, ".pi", "settings.json"))); }
+		catch { return undefined; }
+	}
 
 	function statusLabel(model: SpeedModel | undefined): string {
 		const effective = effectiveSpeedMode(mode, model);
@@ -94,12 +102,19 @@ export default function gptSpeedExtension(pi: ExtensionAPI): void {
 				if (ctx.hasUI) ctx.ui.notify(statusLabel(ctx.model), "info");
 				try { persistMode(globalPath(), selected); }
 				catch (error) { warn(ctx, "save speed settings (current mode remains active)", error); }
+				if (!projectOverrideNoticed && projectMode(ctx) !== undefined) {
+					projectOverrideNoticed = true;
+					const message = `pi-gpt-speed: this project's .pi/settings.json sets ${SETTINGS_KEY}.mode, which overrides the global setting saved by /${selected} the next time a session starts.`;
+					if (ctx.hasUI) ctx.ui.notify(message, "warning");
+					else console.error(message);
+				}
 			},
 		});
 	}
 
 	pi.on("session_start", (_event, ctx) => {
 		mode = "normal";
+		projectOverrideNoticed = false;
 		try { mode = storedMode(readSettings(globalPath())) ?? "normal"; }
 		catch (error) { warn(ctx, "load global speed settings", error); }
 		if (ctx.isProjectTrusted()) {

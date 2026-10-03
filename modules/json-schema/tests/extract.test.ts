@@ -26,3 +26,8 @@ test("valid scalar documents are parsed as-is", () => {
   assert.deepEqual(extractJson("null"), { value: null });
   assert.deepEqual(extractJson("7"), { value: 7 });
 });
+
+test("huge unbalanced text is bounded and still finds nothing quickly", () => {
+  assert.equal(extractJson("{".repeat(200_000)), undefined);
+  assert.equal(extractJson("[1,".repeat(100_000)), undefined);
+});

@@ -1,5 +1,41 @@
 import { spawn, type IPty } from "node-pty";
 
+/** Output buffer cap per session (UTF-16 code units, ~2 MiB of ASCII). Oldest output is dropped first. */
+export const MAX_BUFFER_CHARS = 2 * 1024 * 1024;
+export const MAX_SESSIONS = 16;
+export const MAX_COLS = 500;
+export const MAX_ROWS = 200;
+export const MAX_WAIT_MS = 60_000;
+/** Exited sessions are reclaimed this long after exit, even if never released. */
+export const EXITED_RETENTION_MS = 10 * 60_000;
+export const KILL_SIGNALS = ["SIGHUP", "SIGINT", "SIGQUIT", "SIGTERM", "SIGKILL"] as const;
+export type KillSignal = (typeof KILL_SIGNALS)[number];
+
+export interface KillResult {
+	sessionId: string;
+	/** True only when the local transport has exited and the session was released. */
+	released: boolean;
+	exited: boolean;
+	signal: string;
+	escalatedToSigkill: boolean;
+	/** Local transport only; a remote process tree is never confirmed stopped. */
+	note: string;
+}
+
+export interface ManagerOptions {
+	maxSessions?: number;
+	maxBufferChars?: number;
+	exitedRetentionMs?: number;
+	/** Wait after each kill attempt (initial signal, then SIGKILL escalation). */
+	killWaitMs?: number;
+	now?: () => number;
+}
+
+function checkSize(value: number | undefined, max: number, label: string): void {
+	if (value === undefined) return;
+	if (!Number.isInteger(value) || value < 1 || value > max) throw new Error(`${label} must be an integer between 1 and ${max}`);
+}
+
 export type SessionState = "running" | "exited";
 
 export interface ExitInfo {
@@ -15,6 +51,8 @@ export interface PtySessionSummary {
 	transport: "local" | "wsl" | "ssh";
 	state: SessionState;
 	bufferedBytes: number;
+	/** Characters dropped from the ring buffer and not yet reported by pty_read. */
+	droppedChars: number;
 }
 
 interface PtySession {
@@ -26,6 +64,8 @@ interface PtySession {
 	pty: IPty;
 	state: SessionState;
 	outputBuffer: string;
+	droppedChars: number;
+	exitedAt?: number;
 	exitInfo?: ExitInfo;
 	dataWaiters: Set<() => void>;
 	exitWaiters: Set<() => void>;
@@ -51,8 +91,46 @@ function abortError(signal: AbortSignal): Error {
 export class PtySessionManager {
 	private readonly sessions = new Map<string, PtySession>();
 	private nextId = 0;
+	private readonly maxSessions: number;
+	private readonly maxBufferChars: number;
+	private readonly retentionMs: number;
+	private readonly killWaitMs: number;
+	private readonly now: () => number;
+
+	constructor(options: ManagerOptions = {}) {
+		this.maxSessions = options.maxSessions ?? MAX_SESSIONS;
+		this.maxBufferChars = options.maxBufferChars ?? MAX_BUFFER_CHARS;
+		this.retentionMs = options.exitedRetentionMs ?? EXITED_RETENTION_MS;
+		this.killWaitMs = options.killWaitMs ?? 2_000;
+		this.now = options.now ?? Date.now;
+	}
+
+	/** Drop exited sessions past retention; if still at capacity, drop the oldest exited ones. */
+	/** Free native handles of an exited session being forgotten (node-pty keeps them until kill()). */
+	private dispose(id: string): void {
+		const session = this.sessions.get(id);
+		this.sessions.delete(id);
+		try { session?.pty.kill(process.platform === "win32" ? undefined : "SIGHUP"); } catch { /* already gone */ }
+	}
+
+	private reclaim(needSlot = false): void {
+		const now = this.now();
+		for (const [id, session] of this.sessions) {
+			if (session.state === "exited" && session.exitedAt !== undefined && now - session.exitedAt >= this.retentionMs) this.dispose(id);
+		}
+		if (needSlot) {
+			for (const [id, session] of this.sessions) {
+				if (this.sessions.size < this.maxSessions) break;
+				if (session.state === "exited") this.dispose(id);
+			}
+		}
+	}
 
 	spawn(command: string, args: string[], options: SpawnOptions, defaultCwd: string): { sessionId: string; pid: number; target: string; transport: "local" | "wsl" | "ssh" } {
+		checkSize(options.cols, MAX_COLS, "cols");
+		checkSize(options.rows, MAX_ROWS, "rows");
+		this.reclaim(true);
+		if (this.sessions.size >= this.maxSessions) throw new Error(`PTY session limit reached (${this.maxSessions}); kill an existing session first`);
 		const pty = spawn(command, args, {
 			name: "xterm-256color",
 			cols: options.cols ?? 100,
@@ -74,16 +152,23 @@ export class PtySessionManager {
 			pty,
 			state: "running",
 			outputBuffer: "",
+			droppedChars: 0,
 			dataWaiters: new Set(),
 			exitWaiters: new Set(),
 		};
 
 		pty.onData((data) => {
 			session.outputBuffer += data;
+			if (session.outputBuffer.length > this.maxBufferChars) {
+				const overflow = session.outputBuffer.length - this.maxBufferChars;
+				session.droppedChars += overflow;
+				session.outputBuffer = session.outputBuffer.slice(overflow).replace(/^[\uDC00-\uDFFF]/, "");
+			}
 			this.notify(session.dataWaiters);
 		});
 		pty.onExit(({ exitCode, signal }) => {
 			session.state = "exited";
+			session.exitedAt = this.now();
 			session.exitInfo = { exitCode, signal };
 			this.notify(session.exitWaiters);
 			this.notify(session.dataWaiters);
@@ -100,12 +185,14 @@ export class PtySessionManager {
 	async read(sessionId: string, timeoutMs: number, signal?: AbortSignal): Promise<string> {
 		const session = this.requireSession(sessionId);
 		if (session.outputBuffer.length === 0 && session.state === "running") {
-			await this.waitForOutputOrExit(session, timeoutMs, signal);
+			await this.waitForOutputOrExit(session, Math.min(timeoutMs, MAX_WAIT_MS), signal);
 		}
 		return this.drainOutput(session);
 	}
 
 	resize(sessionId: string, cols: number, rows: number): void {
+		checkSize(cols, MAX_COLS, "cols");
+		checkSize(rows, MAX_ROWS, "rows");
 		this.requireSession(sessionId).pty.resize(cols, rows);
 	}
 
@@ -113,25 +200,43 @@ export class PtySessionManager {
 		const session = this.requireSession(sessionId);
 		if (session.exitInfo) return session.exitInfo;
 
-		const exited = await this.waitForExitOrTimeout(session, timeoutMs, signal);
+		const exited = await this.waitForExitOrTimeout(session, Math.min(timeoutMs, MAX_WAIT_MS), signal);
 		return exited ? (session.exitInfo ?? { exitCode: -1 }) : { exitCode: -1 };
 	}
 
-	kill(sessionId: string, signal = "SIGHUP"): void {
+	/**
+	 * Sends a whitelisted signal (ignored on Windows, where node-pty has no POSIX signals), waits briefly,
+	 * escalates to SIGKILL on POSIX, and releases the session only once the local transport has exited.
+	 * A failed or unconfirmed kill keeps the session so it can be retried and reached by shutdown.
+	 * Exit of the local transport does not prove a remote/WSL process tree stopped.
+	 */
+	async kill(sessionId: string, signal: string = "SIGHUP"): Promise<KillResult> {
+		if (!(KILL_SIGNALS as readonly string[]).includes(signal)) throw new Error(`Unsupported signal ${signal}; allowed: ${KILL_SIGNALS.join(", ")}`);
 		const session = this.requireSession(sessionId);
-		try {
-			session.pty.kill(process.platform === "win32" ? undefined : signal);
-		} catch {
-			// A process which has already exited has nothing left to terminate.
+		const windows = process.platform === "win32";
+		const note = "Only the local PTY transport is tracked; remote/WSL process-tree termination is not confirmed.";
+		let escalated = false;
+		const result = (released: boolean): KillResult => ({ sessionId, released, exited: session.state === "exited", signal: windows ? "n/a (Windows)" : signal, escalatedToSigkill: escalated, note });
+		if (session.state === "running") {
+			try {
+				session.pty.kill(windows ? undefined : signal);
+			} catch (error) {
+				if (session.state === "running") throw new Error(`PTY kill failed; session ${sessionId} retained: ${error instanceof Error ? error.message : String(error)}`);
+			}
+			await this.waitForExitOrTimeout(session, this.killWaitMs);
+			if (session.state === "running" && !windows && signal !== "SIGKILL") {
+				escalated = true;
+				try { session.pty.kill("SIGKILL"); } catch { /* reported below if still running */ }
+				await this.waitForExitOrTimeout(session, this.killWaitMs);
+			}
 		}
-		session.state = "exited";
-		session.exitInfo ??= { exitCode: -1 };
-		this.notify(session.dataWaiters);
-		this.notify(session.exitWaiters);
-		this.sessions.delete(sessionId);
+		if (session.state !== "exited") return result(false);
+		this.dispose(sessionId); // also frees node-pty native handles, which keep the host alive on Windows
+		return result(true);
 	}
 
 	list(): PtySessionSummary[] {
+		this.reclaim();
 		return [...this.sessions.values()].map((session) => ({
 			sessionId: session.id,
 			pid: session.pid,
@@ -139,6 +244,7 @@ export class PtySessionManager {
 			transport: session.transport,
 			state: session.state,
 			bufferedBytes: Buffer.byteLength(session.outputBuffer),
+			droppedChars: session.droppedChars,
 		}));
 	}
 
@@ -150,6 +256,7 @@ export class PtySessionManager {
 				// The OS has already reaped this child.
 			}
 			session.state = "exited";
+			session.exitedAt ??= this.now();
 			session.exitInfo ??= { exitCode: -1 };
 			this.notify(session.dataWaiters);
 			this.notify(session.exitWaiters);
@@ -164,8 +271,10 @@ export class PtySessionManager {
 	}
 
 	private drainOutput(session: PtySession): string {
-		const output = session.outputBuffer;
+		const notice = session.droppedChars > 0 ? `[pty-terminal: ${session.droppedChars} earlier characters were dropped because output was not read fast enough]\n` : "";
+		const output = notice + session.outputBuffer;
 		session.outputBuffer = "";
+		session.droppedChars = 0;
 		return output;
 	}
 

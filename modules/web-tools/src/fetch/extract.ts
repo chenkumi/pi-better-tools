@@ -84,7 +84,11 @@ export function extractHtml(html: string, url: string, format: ContentFormat = '
       content = turndown.turndown(selected.innerHTML).trim();
     }
     if (!content.trim()) throw new Error('EMPTY_CONTENT: The page has no extractable content.');
-    if (Buffer.byteLength(content, 'utf8') > MAX_EXTRACTED_BYTES) throw new Error('TOO_LARGE: Extracted content exceeds the 1 MiB limit.');
+    if (Buffer.byteLength(content, 'utf8') > MAX_EXTRACTED_BYTES) {
+      // Tool output is clipped far below this limit; truncate instead of failing.
+      content = Buffer.from(content, 'utf8').subarray(0, MAX_EXTRACTED_BYTES).toString('utf8').replace(/�+$/u, '');
+      warnings.push('Extracted content exceeded 1 MiB and was truncated.');
+    }
     return { title: extractedTitle, content, extraction, warnings };
   } finally {
     dom.window.close();
