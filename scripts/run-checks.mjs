@@ -12,19 +12,15 @@ const moduleTask = (module, script) => ({ label: `${module}:${script}`, module, 
 const tsx = import.meta.resolve('tsx');
 const testFiles = (dir, keep) => readdirSync(join(root, dir)).filter(name => /\.test\.(ts|mjs)$/.test(name) && keep(name)).sort().map(name => `${dir}/${name}`);
 const isIntegration = name => name.includes('.integration.');
-const directTests = (label, dir, keep, { testConcurrency, ...extra } = {}) => ({ label,
-  args: ['--import', tsx, '--test', ...(testConcurrency ? [`--test-concurrency=${testConcurrency}`] : []), ...testFiles(dir, keep)], ...extra });
-// Keep disk-heavy 100 MiB stress files from starving the 300 ms fault-injection
-// startup gates. This changes file scheduling only: parallel dispatch tests,
-// watchdogs, failure assertions and production concurrency remain intact.
-const sourceTests = [directTests('subagents:test', 'modules/subagents/tests', name => !isIntegration(name), { testConcurrency: 1 }),
+const directTests = (label, dir, keep, extra = {}) => ({ label, args: ['--import', tsx, '--test', '--test-concurrency=1', ...testFiles(dir, keep)], ...extra });
+const sourceTests = [directTests('pty-terminal:test', 'modules/pty-terminal/tests', () => true), directTests('subagents:test', 'modules/subagents/tests', name => !isIntegration(name)),
   directTests('shell-tools:test:unit', 'modules/shell-tools/tests', name => !isIntegration(name)),
   moduleTask('file-tools', 'test'), moduleTask('file-tools', 'test:tooling'),
   directTests('web-tools:test', 'modules/web-tools/tests/unit', () => true), moduleTask('scheduler', 'test:unit')];
 const groups = {
   build: [moduleTask('scheduler', 'build')],
   typecheck: [...['file-tools', 'scheduler'].map(m => moduleTask(m, 'typecheck')),
-    ...['shell-tools', 'web-tools'].map(m => ({ label: `${m}:typecheck`, args: ['node_modules/typescript/bin/tsc', '-p', `modules/${m}/tsconfig.json`] })),
+    ...['shell-tools', 'web-tools', 'pty-terminal'].map(m => ({ label: `${m}:typecheck`, args: ['node_modules/typescript/bin/tsc', '-p', `modules/${m}/tsconfig.json`] })),
     { label: 'note-tools:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/note-tools/tsconfig.json'] },
     { label: 'gpt-speed:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/gpt-speed/tsconfig.json'] },
     { label: 'goal:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/goal/tsconfig.json'] },

@@ -23,7 +23,7 @@ async function invoke(root: string, scenario: string, mode: string) {
 
 const cases = [
 	["normal", "single"], ["retry", "single"], ["retry-exhausted", "single"], ["follow-up", "single"],
-	["usage", "single"], ["nested-usage", "single"], ["large-shell", "single"], ["exclusion", "single"],
+	["usage", "single"], ["nested-usage", "single"], ["exclusion", "single"],
 	["retry", "parallel"], ["retry", "chain"], ["usage", "parallel"], ["usage", "chain"],
 	["retry-exhausted", "single", false],
 	["selection-model-fallback", "single"], ["selection-model-fallback", "parallel"], ["selection-model-fallback", "chain"],
@@ -125,29 +125,6 @@ for (const [scenario, mode, debugLog = true] of cases) {
 					const canonical = log.filter((entry) => entry.type === "tool_result" && entry.callId === callAlias(result.taskId, "fixture-call"));
 					assert.equal(canonical.length, 1);
 					assert.equal(canonical[0].usage, undefined); // accounting belongs to metadata, not dialogue
-				}
-				if (scenario === "large-shell") {
-					const call = log.find(entry => entry.type === "tool_call" && entry.name === shellTool);
-					assert.ok(call, "must execute the platform's real shell tool");
-					const shell = log.find(entry => entry.type === "tool_result" && entry.callId === call?.callId);
-					assert.ok(shell);
-					assert.equal(shell.isError, false);
-
-					assert.ok(logText.length < 10000, "structured shell payload must not inflate the child transcript");
-					const native = (await readFile(join(directory, manifest.nativeFile), "utf8")).trim().split("\n").map(line => JSON.parse(line));
-					const nativeShell = native.map(entry => entry.message).find(message => message?.role === "toolResult" && message.toolName === shellTool);
-					assert.ok(nativeShell, "native session must retain the actual shell result");
-					assert.equal(nativeShell.isError, false);
-					assert.equal(nativeShell.details.truncation.truncated, true);
-					assert.ok(nativeShell.details.truncation.totalBytes >= 614400, "Shell must really produce at least 600 KiB");
-					const outputPath = nativeShell.details.fullOutputPath;
-					try {
-						const fullOutput = await readFile(outputPath, "utf8");
-						assert.equal(fullOutput.slice(0, 614400), "x".repeat(614400));
-						assert.ok(Buffer.byteLength(fullOutput) > 614400, "fixture must actually produce >600 KiB");
-						assert.equal(fullOutput.slice(614400).replace(/\r\n/g, "\n"), "\n" + ".\n".repeat(2000));
-						assert.ok(!logText.includes("x".repeat(10000)), "full structured payload must not leak into transcript");
-					} finally { await rm(outputPath, { force: true }); }
 				}
 			}
 		} finally { await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }); }

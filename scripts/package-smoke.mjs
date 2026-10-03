@@ -39,7 +39,7 @@ async function record(label, action) {
   }
 }
 const required = [
-  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'scheduler', 'note-tools', 'gpt-speed', 'goal', 'json-schema'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
+  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'scheduler', 'note-tools', 'gpt-speed', 'goal', 'json-schema', 'pty-terminal'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
   'modules/subagents/extensions/subagent/index.ts', 'modules/subagents/extensions/subagent/child-guard.ts',
   'modules/subagents/agents/planner.md', 'modules/subagents/agents/reviewer.md', 'modules/subagents/agents/scout.md', 'modules/subagents/agents/worker.md',
   'modules/subagents/prompts/implement.md', 'modules/subagents/prompts/implement-and-review.md', 'modules/subagents/prompts/scout-and-plan.md',
@@ -52,6 +52,7 @@ const required = [
   'modules/json-schema/extensions/json-schema.ts', 'modules/json-schema/src/index.ts', 'modules/json-schema/src/schema.ts', 'modules/json-schema/src/extract.ts', 'modules/json-schema/src/delivery.ts', 'modules/json-schema/README.md',
   // The integrated package is licensed by the root LICENSE. Original module
   // notices remain preserved, but duplicate module LICENSE files are not required.
+  'modules/pty-terminal/src/targets.ts', 'modules/pty-terminal/src/pty-manager.ts', 'modules/pty-terminal/src/renderers.ts', 'modules/pty-terminal/src/install.mjs', 'modules/pty-terminal/README.md', 'modules/pty-terminal/LICENSE',
   'LICENSE', 'THIRD_PARTY_NOTICES.md', 'docs/configuration.md',
 ];
 function checkContents(pack) {
@@ -82,9 +83,11 @@ try {
     try {
       const bootstrapHome = join(temp, 'bootstrap'); await mkdir(bootstrapHome);
       const env = isolatedEnv(bootstrapHome);
-      await writeFile(join(temp, 'package.json'), JSON.stringify({ name: 'pi-better-tools-production-probe', version: '1.0.0', private: true, type: 'module' }));
+      // Isolated HOME/config and a pinned native-script policy; never grant all scripts.
+      await writeFile(join(temp, 'package.json'), JSON.stringify({ name: 'pi-better-tools-production-probe', version: '1.0.0', private: true, type: 'module', allowScripts: { 'node-pty@1.2.0-beta.14': true } }));
       const hostPackages = ['pi-coding-agent', 'pi-ai', 'pi-agent-core', 'pi-tui'].map(name => `@earendil-works/${name}@${version}`);
       await record(`${version}:production-install`, () => runNpm(`production dependency install Pi ${version}`, ['install', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund', tarball, ...hostPackages, 'typebox@1.3.27'], { cwd: temp, env, timeoutMs: 600000 }));
+      await record(`${version}:pty-native-setup`, () => runNpm(`native PTY setup Pi ${version}`, ['rebuild', 'node-pty'], { cwd: temp, env, timeoutMs: 180000 }));
       const packageRoot = join(temp, 'node_modules/pi-better-tools');
       const host = join(temp, 'node_modules/@earendil-works/pi-coding-agent');
       await record(`${version}:production-tree`, async () => {

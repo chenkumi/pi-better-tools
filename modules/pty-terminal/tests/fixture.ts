@@ -1,0 +1,1 @@
+export const interactive = `process.stdout.write('READY\\n'); process.stdin.setEncoding('utf8'); process.stdin.once('data', s => { process.stdout.write('received:' + s.trim() + '\\n'); process.exit(0); });`;

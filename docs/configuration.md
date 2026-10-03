@@ -42,7 +42,7 @@ Chromium must be installed explicitly with `npm run browser:install`; this downl
 
 ## Tool TUI rendering
 
-All 14 interactive function tools have call/result renderers, including delegated host renderers. File errors show operation/code/message/recovery; successful read and image handling remain host-provided. Write success shows bytes with path/hash on expansion. Note previews category/first line instead of the full document. Scheduler summarizes revision, exact next time/timezone, host warnings and history; cancellation stays a request, not confirmed termination. Goal summarizes state/objective and labels completion evidence model-reported. Web summarizes sources, warnings and truncated-output paths; expansion shows external/untrusted text. Renderers do not change model-visible content/details/structuredContent, activation, trust or tool execution. No new settings are required; reload the extension to load local changes. Print-only `json_output` deliberately has no TUI renderer; OpenAI native search is not a Pi function tool.
+All 21 interactive function tools have call/result renderers, including delegated host renderers. File errors show operation/code/message/recovery; successful read and image handling remain host-provided. Write success shows bytes with path/hash on expansion. Note previews category/first line instead of the full document. Scheduler summarizes revision, exact next time/timezone, host warnings and history; cancellation stays a request, not confirmed termination. Goal summarizes state/objective and labels completion evidence model-reported. Web summarizes sources, warnings and truncated-output paths; expansion shows external/untrusted text. The seven PTY tools summarize session/target/local transport PID, bounded terminal text and transport exit/timeout/release; ANSI/control sequences are stripped only for display, write input and spawn args/env are not previewed, and remote process-tree termination is never inferred. Renderers do not change model-visible content/details/structuredContent, activation, trust or tool execution. No new settings are required; reload the extension to load local changes. Print-only `json_output` deliberately has no TUI renderer; OpenAI native search is not a Pi function tool.
 
 ## Note Tools
 
@@ -73,6 +73,25 @@ Opt-in entry `modules/json-schema/src/index.ts`; CLI-only flags, no global setti
 stdout delivery supports print mode with exactly one ordinary prompt: one compact UTF-8 JSON line after the run, diagnostics on stderr (prefix `pi-json-schema:`), nonzero exit on failure. TUI/RPC/`--mode json` are rejected before any model request. Assistant text blocks of final messages are removed in this automation mode so stdout carries only the result. Separate stdout from stderr and inspect the exit code before parsing.
 
 Fallback is always best-effort: parse the last assistant message's JSON and validate; otherwise one extra model extraction request (60 seconds, no retries) using the model that actually answered. A disabled `json_output` tool blocks the extraction request, not validation of direct text JSON. Invalid results, no result, error/aborted runs, SIGTERM and conflicting repeated results fail without delivering anything. The extension never calls `process.exit()`. Extraction usage is not added to session totals. Supported schema scope and caveats: `modules/json-schema/README.md`.
+
+## PTY targets
+
+入口 `modules/pty-terminal/src/index.ts`。`pty_spawn.target` 預設 `local`，WSL／SSH target 讀取 Pi 的有效 `pi-pty-terminal.targets` settings；專案覆寫受 host trust 控制，修改設定後 `/reload`。不直接讀取或寫入真實 SSH/auth/settings。
+
+```json
+{
+  "pi-pty-terminal": {
+    "targets": {
+      "linux": { "transport": "wsl", "distribution": "Ubuntu", "cwd": "/home/user/projects/pi-better-tools" },
+      "macos": { "transport": "ssh", "host": "mac-dev", "cwd": "/Users/user/projects/pi-better-tools" }
+    }
+  }
+}
+```
+
+`local` 為內建保留值。遠端 cwd 必須是絕對 POSIX 路徑；工具 cwd 覆寫設定 cwd，env 只轉送明確指定的值。WSL 僅 Windows，SSH 使用既有 host alias／key／agent、`BatchMode=yes`、15s ConnectTimeout，保留 host-key policy；先由使用者確認 known_hosts。需要遠端 POSIX login shell、sh、env；host/target 欄位不接受自由 options 或密碼。未配置 target／錯誤設定 fail closed，不退回 local。
+
+`npm ci --ignore-scripts` 後執行 `npm run pty:install`，只 rebuild node-pty 原生依賴，無 prebuild 時需編譯工具。根與隔離 production manifest 的 npm 12 allowScripts 僅核可固定 node-pty@1.2.0-beta.14；npm-run adapter 僅移除 inherited allow-scripts env key，以 active npm CLI／Node subprocess 執行，不修改全域 npm 設定或核可任意 scripts。一般 consumer parent project 仍須自行核可 native setup。PTY spawn 不證明連線成功；用 read/wait_exit 檢查輸出與 transport 結束碼。sessionId 綁定 target，其他 file/shell 工具仍是本機。session shutdown 清理 transport（Windows 無 signal，POSIX SIGHUP），不保證遠端背景程序停止。無自動 Git 同步；完整契約及 buffer 限制見 `modules/pty-terminal/README.md`。
 
 ## Persistent state
 

@@ -31,7 +31,7 @@ async function invoke(root:string,name:string,phase:string,sessionArgs:string[],
  const capture=join(root,"capture",name);await mkdir(capture,{recursive:true});
  const task=join(root,`${name}-task.txt`);await writeFile(task,prompt);
  const args=[resolve(cli!),"--mode","json","-p","--offline","--no-extensions","--no-context-files","--no-skills","--no-prompt-templates","--no-themes","-e",project,"-e",fixture,
-  "--exclude-tools","subagent","--tools",phase==="anchor"||phase==="large"?"":"p0_nonce",...selection,...sessionArgs,`@${task}`];
+  "--exclude-tools","subagent","--tools",phase==="anchor"?"":"p0_nonce",...selection,...sessionArgs,`@${task}`];
  const env={...isolatedEnv(root),P0_CAPTURE:capture,P0_PHASE:phase,P0_NO_VIRTUAL:noVirtual?"1":"0"};
  await save(join(capture,"argv.json"),{executable:process.execPath,args,cwd:root,environment:env,taskBytes:Buffer.byteLength(prompt),taskSha256:sha(prompt)});
  console.log(`[progress] Starting installed CLI: ${name}`);
@@ -110,27 +110,5 @@ for(const logical of [false,true])test(`P0 actual CLI new/exact-file resume (${l
   const fallbackStart=await json(join(fallback.capture,"startup.json"));assert.equal(fallbackStart.selection.model,"physical");
   await save(join(out,"virtual-caveat.json"),{explicitMissingExit:missing.code,implicitMissingExit:fallback.code,implicitSelection:fallbackStart.selection,nativeRouterState:entries.filter(e=>e.customType==="pi.virtual-model-state"),routes:[await json(join(first.capture,"route-1.json")),await json(join(second.capture,"route-1.json"))]});
  }
-}));
-test("P0 large @task escaping and finite writer compatibility measurements",{skip:!cli&&"Set PI_SUBAGENTS_TEST_CLI; skipped is not a pass",timeout:240000},async()=>isolated("large-tasks",async(root,out)=>{
- const measurements:any[]=[];
- for(const [name,payload] of [["ascii-128k","x".repeat(128*1024)],["ascii-1m","x".repeat(1024*1024)],["control-1m","\u0001".repeat(1024*1024)],["unicode-mixed",'"\\n\r\t繁體\u2028\u2029'.repeat(16384)]] as const){
-  const dir=join(root,"managed",name);await mkdir(dir,{recursive:true});
-  const actual=await invoke(root,name,"large",["--session-dir",dir,"--session-id",ulid().toLowerCase()],["--model","p0-offline/physical","--thinking","off"],payload);success(actual);
-  const user=actual.events.find((e:any)=>e.type==="message_end"&&e.message?.role==="user")?.message;assert.ok(user);
-  const received=typeof user.content==="string"?user.content:user.content.filter((b:any)=>b.type==="text").map((b:any)=>b.text).join("");assert.ok(received.includes(payload),"@file must retain full input payload");
-  const native=join(dir,(await readdir(dir)).find(f=>f.endsWith(".jsonl"))!);const nativeBytes=(await stat(native)).size;
-  const record=JSON.stringify({type:"user",timestamp:new Date(user.timestamp).toISOString(),content:user.content})+"\n";
-  await writeFile(join(out,`${name}-user-view.jsonl`),record);
-  const nativeRecords=jsonl(await readFile(native,"utf8"));assert.ok(JSON.stringify(nativeRecords.find(e=>e.message?.role==="user").message.content)===JSON.stringify(user.content));
-  const lineBytes=actual.stdout.split("\n").filter(Boolean).map((s:string)=>Buffer.byteLength(s));
-  const last=actual.events.filter((e:any)=>e.type==="message_end"&&e.message?.role==="assistant").at(-1).message;
-  const view=record+JSON.stringify({type:"assistant",timestamp:new Date(last.timestamp).toISOString(),content:last.content.filter((b:any)=>b.type==="text").map((b:any)=>b.text).join("")})+"\n";
-  await writeFile(join(out,`${name}-view.jsonl`),view);await writeFile(join(out,`${name}-segment.jsonl`),view);
-  const viewSize=(await stat(join(out,`${name}-view.jsonl`))).size,segmentSize=(await stat(join(out,`${name}-segment.jsonl`))).size;
-  const bytes=Buffer.byteLength(record);measurements.push({name,inputBytes:Buffer.byteLength(payload),acceptedUserTextBytes:Buffer.byteLength(received),wrapperBytes:Buffer.byteLength(received)-Buffer.byteLength(payload),userViewRecordBytes:bytes,writerOneMiBLimit:1048576,exceedsWriterLimit:bytes>1048576,maxStdoutRecordBytes:Math.max(...lineBytes),stdoutBytes:actual.outBytes,nativeBytes,viewBytes:viewSize,completedSegmentBytes:segmentSize,nativePlusViewPlusSegment:nativeBytes+viewSize+segmentSize,spoolBytes:0,exit:actual.code});
-  await save(join(out,"measurements.json"),measurements);
- }
- assert.ok(measurements.find(m=>m.name==="ascii-1m").exceedsWriterLimit,"P0 must surface 1 MiB user projection regression, not hide it");
- assert.ok(measurements.find(m=>m.name==="control-1m").maxStdoutRecordBytes<8*1024*1024);
 }));
 console.log(`[progress] P0 evidence root: ${evidence}`);

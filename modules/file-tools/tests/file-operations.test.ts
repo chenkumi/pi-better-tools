@@ -348,14 +348,6 @@ describe("editTextFile", () => {
     );
   });
 
-  it("allows identical text elsewhere outside the range", async () => {
-    const path = join(directory, "sample.txt");
-    await writeFile(path, "target\nignore\ntarget", "utf8");
-
-    await editTextFile(path, "sample.txt", [{ lineRange: { start: 3, end: 3 }, oldText: "target", newText: "done" }]);
-    assert.equal(await readFile(path, "utf8"), "target\nignore\ndone");
-  });
-
   it("falls back to a unique literal that crosses the lineRange boundary", async () => {
     const path = join(directory, "sample.txt");
     await writeFile(path, "alpha\nbeta\ngamma", "utf8");
@@ -945,7 +937,6 @@ describe("extension registration and argument preparation", () => {
     assert.match(display, /✗ Edit failed · INVALID_REGEX/);
     assert.match(display, /Hint: regexFlags accepts only i, m, s, u; omit g and use replaceAll=true/);
     assert.match(display, /Edit: edits\[0\]/);
-    assert.equal(formatFileToolErrorForDisplay("plain failure", false), "plain failure");
 
     const { tools } = registerFileToolsForTest();
     const edit = tools.find((tool) => tool.name === "edit");

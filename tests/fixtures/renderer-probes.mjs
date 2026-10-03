@@ -16,7 +16,7 @@ export function assertToolRenderers(definitions, cwd) {
     let text = '';
     for (const width of [12, 24, 80]) {
       const lines = component.render(width);
-      if (['note', 'goal', 'web_fetch', 'web_search', 'schedule_create', 'schedule_update', 'schedule_status', 'schedule_cancel'].includes(definition.name)) {
+      if (definition.name.startsWith('pty_') || ['note', 'goal', 'web_fetch', 'web_search', 'schedule_create', 'schedule_update', 'schedule_status', 'schedule_cancel'].includes(definition.name)) {
         assert.doesNotMatch(lines.join('\n'), /\x1b\[2J|\x1b\]|[\x07\x80-\x9f\u202a-\u202e\u2066-\u2069]/, `${definition.name}: unsafe display controls`);
       }
       for (const line of lines) assert.ok(visibleWidth(line) <= width, `${definition.name}: line exceeds width ${width}: ${line}`);
@@ -117,5 +117,23 @@ export function assertToolRenderers(definitions, cwd) {
     assert.match(render(byName('web_search'), result), /Query: test query/);
     assert.match(render(byName('web_search'), result, true), /Snippet text/);
   }
+  const pty = { sessionId: 'pty-test', pid: 123, target: 'macos', transport: 'ssh' };
+  assert.match(render(byName('pty_spawn'), textResult(JSON.stringify(pty), pty)), /PTY session created/);
+  assert.match(render(byName('pty_spawn'), textResult(JSON.stringify(pty), pty)), /Local transport PID: 123/);
+  assert.match(render(byName('pty_spawn'), textResult(JSON.stringify(pty), undefined)), /does not confirm remote handshake/);
+  assert.match(render(byName('pty_wait_exit'), textResult('{"exitCode":-1}', { exitCode: -1 })), /timed out or exit unconfirmed/);
+  assert.match(render(byName('pty_wait_exit'), textResult('{"exitCode":255}', { exitCode: 255 })), /transport exit code: 255/);
+  assert.match(render(byName('pty_kill'), textResult('ok', { sessionId: pty.sessionId })), /remote process-tree termination not confirmed/);
+  assert.match(render(byName('pty_list'), textResult('[]', [])), /PTY sessions: 0/);
+  const list = [{ ...pty, state: 'exited', bufferedBytes: 0 }];
+  assert.match(render(byName('pty_list'), textResult(JSON.stringify(list), list), true), /macos\/ssh/);
+  assert.match(render(byName('pty_resize'), textResult('ok', { sessionId: pty.sessionId, cols: 80, rows: 24 })), /80×24/);
+  assert.match(render(byName('pty_write'), textResult('ok', { sessionId: pty.sessionId })), /PTY input sent/);
+  const terminal = textResult('\u001b[2J\u001b]0;UNSAFE\u0007hello\r\n' + Array.from({ length: 20 }, (_, i) => `line ${i}`).join('\n'), { sessionId: pty.sessionId, truncated: true });
+  assert.match(render(byName('pty_read'), terminal), /expand to view/);
+  assert.match(render(byName('pty_read'), terminal, true), /line 19/);
+  assert.match(render(byName('pty_read'), terminal), /drained overflow is not retained/);
+  const ptyCall = byName('pty_write').renderCall({ sessionId: pty.sessionId, data: 'SECRET_INPUT' }, theme, contexts({})).render(80).join('\n');
+  assert.ok(!ptyCall.includes('SECRET_INPUT'));
   console.log(`[renderers] ${definitions.length} loader definitions verified: calls/results, partial/error/legacy, widths 12/24/80, output unchanged.`);
 }

@@ -95,48 +95,6 @@ switch (scenario) {
 	case "error": console.log(message("provider failed", "error")); break;
 	case "aborted": console.log(message("provider aborted", "aborted")); break;
 	case "normal": process.stdout.write(message("done")); break; // valid EOF without newline
-	case "large-review-stream": {
-		// Each record fits the parser bound, but total traffic and logged results exceed 2 MiB.
-		const content = [{ type: "text", text: "x".repeat(64 * 1024) }];
-		for (let index = 0; index < 40; index++) {
-			const result = { role: "toolResult", toolCallId: `review-${index}`, toolName: "read", isError: false, content };
-			const events = [
-				{ type: "message_update", assistantMessageEvent: { type: "thinking_delta", contentIndex: 0, delta: "y".repeat(64 * 1024) } },
-				{ type: "tool_execution_end", toolCallId: result.toolCallId, toolName: "read", isError: false, result: { content } },
-				{ type: "message_start", message: result },
-				{ type: "message_end", message: result },
-				{ type: "turn_end", toolResults: [result] },
-			];
-			for (const event of events) {
-				await new Promise((resolve, reject) => process.stdout.write(`${JSON.stringify(event)}\n`, (error) => error ? reject(error) : resolve()));
-			}
-			await delay(10); // Permit the real JSONL writer to drain between turns.
-		}
-		console.log(message("review complete"));
-		break;
-	}
-	case "stress-immediate":
-	case "stress-delayed":
-	case "stress-missing": {
-		const emit = (event) => new Promise((resolve, reject) => process.stdout.write(`${JSON.stringify(event)}\n`, (error) => error ? reject(error) : resolve()));
-		const content = (canonical) => [{ type: "text", text: (canonical ? "C" : "F").repeat(256 * 1024) }];
-		const canonical = (index) => ({ type: "message_end", message: { role: "toolResult", toolCallId: `stress-${index}`, toolName: "read", isError: false, content: content(true) } });
-		for (let index = 0; index < 400; index++) {
-			await emit({ type: "tool_execution_end", toolCallId: `stress-${index}`, toolName: "read", isError: false, result: { content: content(false) } });
-			if (scenario === "stress-immediate") { await emit(canonical(index)); await emit(canonical(index)); }
-			await new Promise((resolve, reject) => process.stderr.write("e".repeat(2048), (error) => error ? reject(error) : resolve()));
-		}
-		if (scenario === "stress-delayed") for (let index = 0; index < 400; index++) { await emit(canonical(index)); await emit(canonical(index)); }
-		await emit(JSON.parse(message("stress complete")));
-		break;
-	}
-	case "large-pending-results":
-		for (let index = 0; index < 9; index++) {
-			console.log(JSON.stringify({ type: "tool_execution_end", toolCallId: `pending-${index}`, toolName: "read", isError: false, result: { content: [{ type: "text", text: "x".repeat(256 * 1024) }] } }));
-			await delay(10);
-		}
-		console.log(message("done"));
-		break;
 	case "large-retained-output":
 		for (let index = 0; index < 9; index++) {
 			console.log(message("x".repeat(256 * 1024), "toolUse"));

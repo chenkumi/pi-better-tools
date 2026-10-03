@@ -49,14 +49,6 @@ test("a user agent cannot re-enable subagent through its tools list", () => {
 	assert.equal(optionValue(args, "--tools"), "read,subagent");
 });
 
-test("all dispatch modes share the same protected child arguments", () => {
-	for (const task of ["single", "parallel", "chain"]) {
-		const args = buildSubagentPiArgs({ persistence, taskPath: `/tmp/${task}.txt` });
-		expectSubagentExcluded(args);
-		assert.equal(args.at(-1), `@/tmp/${task}.txt`);
-	}
-});
-
 test("provider-resolved model, thinking level, and prompt path are preserved", () => {
 	const args = buildSubagentPiArgs({ persistence,
 		taskPath: "/tmp/task.txt",

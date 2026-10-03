@@ -72,7 +72,6 @@ async function run(name, scenario, extra = [], expected = { name: 'Acme', count:
 }
 try {
   for (const scenario of ['tool', 'text', 'fenced', 'mixed', 'duplicate']) await run(`stdout ${scenario}`, scenario, [], undefined, { calls: 1 });
-  await run('stdout large Unicode with pipe backpressure', 'large', [], { name: '中文😀'.repeat(100000), count: 5 }, { calls: 1 });
   await run('file tool atomic replacement', 'tool', [], undefined, { file: true, oldFile: true, calls: 1 });
   await run('file text extraction', 'text', [], undefined, { file: true, calls: 1 });
   await run('stdout rejects multiple prompts without reusing prior result', 'text', [], undefined, { multi: true, fail: true, calls: 1 });

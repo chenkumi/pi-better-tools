@@ -49,7 +49,8 @@ test(`packaged extension with real Pi ${hostVersion} loader`, { timeout: 120000 
     const manifest = parsePackManifest(await runNpm("npm pack", ["pack", "--json", "--ignore-scripts", "--pack-destination", root], { cwd: project, quiet: true, timeoutMs: 60000 }), expectedPackage);
     assert.ok(manifest.files.some(file => file.path === "src/diff-worker.mjs"));
     assert.ok(!manifest.files.some(file => /^(tests|scripts|issues|node_modules)\//.test(file.path)));
-    await runCommand("extract package", "tar", ["-xzf", join(root, manifest.filename), "-C", extracted], { timeoutMs: 30000 });
+    // A drive-letter archive path is interpreted as a remote host by GNU tar.
+    await runCommand("extract package", "tar", ["-xzf", manifest.filename, "-C", extracted], { cwd: root, timeoutMs: 30000 });
     // Source-module regression uses the shared development tree; the root production smoke installs real dependencies.
     await symlink(fileURLToPath(new URL("../../../node_modules", import.meta.url)), join(packageRoot, "node_modules"), process.platform === "win32" ? "junction" : "dir");
     linked = true;

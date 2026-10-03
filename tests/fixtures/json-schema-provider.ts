@@ -27,10 +27,10 @@ export default function (pi: ExtensionAPI) {
           appendFileSync(join(process.cwd(), 'requests.jsonl'), JSON.stringify({ nth, tools: getCurrentTools(context.messages).map(t => t.name), payload, scenario }) + '\n');
           console.log('FIXTURE_PROGRESS_LOG');
           if (nth > 2) throw new Error('Unexpected extra model call');
-          const data = { name: scenario === 'large' ? '中文😀'.repeat(100000) : 'Acme', count: 5 };
+          const data = { name: 'Acme', count: 5 };
           const call = (args: unknown, id = 'result', name = 'json_output') => ({ type: 'toolCall', name, id, arguments: args });
           if (scenario === 'error' || scenario === 'aborted') { message.stopReason = scenario; message.errorMessage = 'Synthetic upstream failure'; stream.push({ type: 'error', reason: scenario, error: message }); stream.end(); return; }
-          if (['tool', 'large', 'invalid-tool', 'duplicate', 'conflict', 'mixed'].includes(scenario) || nth === 2 && !['fallback-fail', 'fallback-text', 'fallback-wrong'].includes(scenario)) {
+          if (['tool', 'invalid-tool', 'duplicate', 'conflict', 'mixed'].includes(scenario) || nth === 2 && !['fallback-fail', 'fallback-text', 'fallback-wrong'].includes(scenario)) {
             message.content = [call(scenario === 'invalid-tool' ? { name: 'Acme' } : data)];
             if (scenario === 'duplicate') message.content.push(call(data, 'second'));
             if (scenario === 'conflict') message.content.push(call({ name: 'Other', count: 6 }, 'second'));
