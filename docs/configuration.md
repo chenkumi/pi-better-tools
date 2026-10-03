@@ -60,6 +60,25 @@ stdout delivery supports print mode with exactly one ordinary prompt: one compac
 
 Fallback is always best-effort: parse the last assistant message's JSON and validate; otherwise one extra model extraction request (60 seconds, no retries) using the model that actually answered. A disabled `json_output` tool blocks the extraction request, not validation of direct text JSON. Invalid results, no result, error/aborted runs, SIGTERM and conflicting repeated results fail without delivering anything. The extension never calls `process.exit()`. Extraction usage is not added to session totals. Supported schema scope and caveats: `modules/json-schema/README.md`.
 
+## PTY targets
+
+入口 `modules/pty-terminal/src/index.ts`。`pty_spawn.target` 預設 `local`，WSL／SSH target 讀取 Pi 的有效 `pi-pty-terminal.targets` settings；專案覆寫受 host trust 控制，修改設定後 `/reload`。不直接讀取或寫入真實 SSH/auth/settings。
+
+```json
+{
+  "pi-pty-terminal": {
+    "targets": {
+      "linux": { "transport": "wsl", "distribution": "Ubuntu", "cwd": "/home/user/projects/pi-better-tools" },
+      "macos": { "transport": "ssh", "host": "mac-dev", "cwd": "/Users/user/projects/pi-better-tools" }
+    }
+  }
+}
+```
+
+`local` 為內建保留值。遠端 cwd 必須是絕對 POSIX 路徑；工具 cwd 覆寫設定 cwd，env 只轉送明確指定的值。WSL 僅 Windows，SSH 使用既有 host alias／key／agent、`BatchMode=yes`、15s ConnectTimeout，保留 host-key policy；先由使用者確認 known_hosts。需要遠端 POSIX login shell、sh、env；host/target 欄位不接受自由 options 或密碼。未配置 target／錯誤設定 fail closed，不退回 local。
+
+`npm ci --ignore-scripts` 後執行 `npm run pty:install`，只 rebuild node-pty 原生依賴，無 prebuild 時需編譯工具。PTY spawn 不證明連線成功；用 read/wait_exit 檢查輸出與 transport 結束碼。sessionId 綁定 target，其他 file/shell 工具仍是本機。session shutdown 清理 transport（Windows 無 signal，POSIX SIGHUP），不保證遠端背景程序停止。無自動 Git 同步；完整契約及 buffer 限制見 `modules/pty-terminal/README.md`。
+
 ## Persistent state
 
 Every new Subagent task automatically persists under `<agentDir>/subagent-sessions/<ULID>/` (manifest, native `pi/`, readable transcript and `runs/`). The `resumable` tool parameter and non-persistent dispatch mode were removed; only verified ready sessions can resume. Old `sub-sessions/v2` logs are preserved as historical data, not migrated into native sessions. Subagent logs/native sessions use Pi's agentDir. Scheduler uses `PI_AGENT_DIR` when set, otherwise `PI_CODING_AGENT_DIR`, otherwise `~/.pi/agent`; state remains under `pi-scheduler/`. Set both overrides consistently for legacy isolated hosts. Its debug logs intentionally still use the fixed home path.

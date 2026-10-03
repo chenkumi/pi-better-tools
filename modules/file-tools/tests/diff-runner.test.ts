@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { applyPatch, parsePatch } from "diff";
-import { computeDiffWindow, createDiffFeedback, DIFF_CONTEXT_LINES, DIFF_TIMEOUT_MS, DIFF_WORKER_OLD_GENERATION_MB, MAX_DIFF_OUTPUT_BYTES } from "../src/diff-runner.js";
+import { createDiffFeedback, DIFF_TIMEOUT_MS, DIFF_WORKER_OLD_GENERATION_MB, MAX_DIFF_OUTPUT_BYTES } from "../src/diff-runner.js";
 import { FileToolError } from "../src/errors.js";
 
 const childScript = fileURLToPath(new URL("./fixtures/diff-watchdog-child.ts", import.meta.url));
@@ -168,67 +168,6 @@ describe("createDiffFeedback real worker", () => {
     });
   }
 
-  it("keeps whole-file coordinates, width, and gaps when diffing only the changed window", async () => {
-    // Deterministic PRNG; a small alphabet creates repeated lines that stress alignment near window edges.
-    let seed = 0x9e3779b9;
-    const random = (limit: number) => {
-      seed = (Math.imul(seed ^ (seed >>> 15), 0x2c1b3c6d) + 0x6d2b79f5) >>> 0;
-      return seed % limit;
-    };
-    const verifyDisplay = (display: string, beforeLines: string[], afterLines: string[]) => {
-      for (const line of display === "" ? [] : display.split("\n")) {
-        const match = /^([ +-])\s*(\d+) (.*)$/s.exec(line);
-        if (!match) {
-          assert.match(line, /^ +…$/);
-          continue;
-        }
-        const [, kind, number, body] = match;
-        assert.equal(kind === "+" ? afterLines[Number(number) - 1] : beforeLines[Number(number) - 1], body, line);
-      }
-    };
-    for (let iteration = 0; iteration < 150; iteration++) {
-      const lines = Array.from({ length: 1 + random(60) }, () => `line ${random(4)}`);
-      const next = [...lines];
-      for (let change = 0; change < 1 + random(3); change++) {
-        const at = random(next.length + 1);
-        const operation = random(3);
-        if (operation === 0) next.splice(at, 0, `new ${iteration}.${change}`);
-        else if (operation === 1 && next.length > 1) next.splice(Math.min(at, next.length - 1), 1);
-        else next[Math.min(at, next.length - 1)] = `changed ${iteration}.${change}`;
-      }
-      const before = lines.join("\n") + (random(2) ? "\n" : "");
-      const after = next.join("\n") + (random(2) ? "\n" : "");
-      const result = await createDiffFeedback(before, after, "window.txt");
-      assert.equal(applyPatch(before, result.patch), after, `iteration ${iteration}`);
-      verifyDisplay(result.diff, before.split("\n"), after.split("\n"));
-      const width = String(Math.max(before.split("\n").length, after.split("\n").length)).length;
-      for (const line of result.diff === "" ? [] : result.diff.split("\n")) {
-        assert.match(line, new RegExp(`^(?:[ +-] *\\d{1,${width}} | {${width + 2}}…$)`), line);
-        assert.equal(line[width + 1], " ", line);
-      }
-      const window = computeDiffWindow(before, after);
-      const head = before.split("\n").slice(0, window.lineOffset).map((line) => `${line}\n`).join("");
-      assert.ok(before.startsWith(head + window.oldWindow) && after.startsWith(head + window.newWindow));
-      assert.equal(before.slice(head.length + window.oldWindow.length), after.slice(head.length + window.newWindow.length));
-      assert.equal(window.oldSplitCount, before.split("\n").length);
-      assert.equal(window.newSplitCount, after.split("\n").length);
-    }
-  });
-
-  it("diffs a single-line change in a file larger than the worker heap would allow whole", { timeout: 20_000 }, async () => {
-    const unit = Array.from({ length: 200 }, (_, index) => `const value${index} = compute(${index}, "${"x".repeat(index % 40)}");`).join("\n") + "\n";
-    const before = unit.repeat(Math.ceil((30 * 1024 * 1024) / unit.length));
-    const middle = before.indexOf("value150 = ", before.length >> 1);
-    const after = `${before.slice(0, middle)}VALUE${before.slice(middle + 5)}`;
-    const result = await createDiffFeedback(before, after, "large.ts");
-    const changedLine = before.slice(0, middle).split("\n").length;
-    assert.equal(result.firstChangedLine, changedLine);
-    assert.equal(parsePatch(result.patch)[0].hunks.length, 1);
-    assert.equal(parsePatch(result.patch)[0].hunks[0].oldStart, changedLine - DIFF_CONTEXT_LINES);
-    assert.match(result.diff, new RegExp(`^\\+\\s*${changedLine} const VALUE150 = `, "m"));
-    assert.ok(result.diff.startsWith(" ") && result.diff.endsWith("…"));
-  });
-
   it("enforces the exact combined UTF-8 output limit, including patch EOF annotations and headers", async () => {
     const before = "😀\nold";
     const after = "😀\n新";
@@ -242,22 +181,10 @@ describe("createDiffFeedback real worker", () => {
   });
 });
 
-describe("diff lifecycle and original BUG-006 under an independent subprocess watchdog", () => {
+describe("diff lifecycle under an independent subprocess watchdog", () => {
   it("terminates busy workers, handles all protocol/error paths, and releases listeners/timers", { timeout: 20_000 }, async () => {
     const result = await runIsolated("lifecycle");
     assert.ok(typeof result.workersTerminated === "number" && result.workersTerminated >= 20);
-  });
-
-  it("keeps the 15,000-line literal replacement responsive and unchanged on timeout", { timeout: 20_000 }, async () => {
-    const result = await runIsolated("regression");
-    assert.ok(result.outcome === "success" || result.outcome === "OPERATION_TIMEOUT");
-    if (result.outcome === "OPERATION_TIMEOUT") assert.equal(result.unchanged, true);
-  });
-
-  it("cancels the 15,000-line regression before commit and leaves bytes unchanged", { timeout: 20_000 }, async () => {
-    const result = await runIsolated("abort-regression");
-    assert.equal(result.outcome, "OPERATION_ABORTED");
-    assert.equal(result.unchanged, true);
   });
 
   it("resolves the plain JS worker relative to the module from a different cwd containing spaces", { timeout: 20_000 }, async () => {

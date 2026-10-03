@@ -1,6 +1,6 @@
 # Pi Better Tools
 
-單一 Pi extensions package，整合 Subagents、Shell Tools、Precise File Tools、Web Tools 與 Scheduler，加上 JSON Schema structured delivery，並提供本專案原生 Note Tools、GPT Speed 與 Goal extensions。必要程式碼與資源已納入 `modules/`，不依賴來源專案的本機路徑。
+單一 Pi extensions package，整合 Subagents、Shell Tools、Precise File Tools、Web Tools、Scheduler 與 PTY Terminal，加上 JSON Schema structured delivery，並提供本專案原生 Note Tools、GPT Speed 與 Goal extensions。必要程式碼與資源已納入 `modules/`，不依賴來源專案的本機路徑。
 
 > 本專案採用 [MIT License](LICENSE)。使用者已確認五個來源專案均為其所有，並授權本整合專案採 MIT；封裝測試以根目錄 `LICENSE` 為必要授權檔，不要求重複模組 LICENSE；原有模組授權聲明仍保留，來源與相依套件說明見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。`private: true` 僅用於避免誤發布 npm，不限制未來公開至 GitHub；目前未執行任何遠端發布。
 
@@ -11,6 +11,7 @@
 ```powershell
 cd D:\projects\pi-better-tools
 npm ci --ignore-scripts
+npm run pty:install       # 明確執行 node-pty native setup；無 prebuild 時需編譯工具
 npm run build             # 僅獨立 pi-scheduler CLI 需要編譯；Pi extensions 直接載入 TS
 npm run browser:install   # 若需要 web_fetch 的 Chromium
 pi install D:/projects/pi-better-tools
@@ -18,7 +19,7 @@ pi install D:/projects/pi-better-tools
 
 只在目前使用中的專案安裝：`pi install -l D:/projects/pi-better-tools`。先試用、不改設定：`pi --no-extensions -e D:/projects/pi-better-tools`。所有 Pi extensions 都直接載入 `modules/<name>/src/index.ts`；修改本機程式碼後 `/reload` 或重新啟動 Pi 即可，不必先 build。只有使用獨立 `pi-scheduler` CLI 時才需重新 `npm run build`。
 
-**若原五個 packages 已啟用，請先停用其 extensions**，避免與整合包重複註冊相同工具。這些設定不會自動修改。完整步驟與回退見 [docs/migration.md](docs/migration.md)。
+**若原五個 packages 或獨立 `pi-pty-terminal` 已啟用，請先停用其 extensions**，避免與整合包重複註冊相同工具。這些設定不會自動修改。完整步驟與回退見 [docs/migration.md](docs/migration.md)。
 
 Pi-managed npm／git package 安裝會處理 runtime dependencies；本機路徑不會自動替你執行 npm install。Chromium 不在 tarball 裡，extension 載入時也不下載／啟動瀏覽器。解壓 tarball 後可在安裝目錄執行 `npm run browser:install`；勿在 runtime-only tarball 執行 repository 的 build／test scripts。
 
@@ -29,6 +30,7 @@ Pi-managed npm／git package 安裝會處理 runtime dependencies；本機路徑
 ```bash
 cd ~/GitHub/pi-better-tools    # 改成實際 checkout 路徑
 npm ci --ignore-scripts
+npm run pty:install       # 明確執行 node-pty native setup；無 prebuild 時需編譯工具
 npm run build                 # 僅獨立 pi-scheduler CLI 需要
 npm run browser:install       # 選用：web_fetch 需要 Playwright Chromium
 pi install -l "$PWD"          # 僅安裝到目前專案的 Pi 設定
@@ -49,6 +51,7 @@ Repository 開發環境可用 `npm run test:browser` 驗證真實 Chromium 與�
 ```bash
 cd ~/GitHub/pi-better-tools    # 改成實際 checkout 路徑
 npm ci --ignore-scripts
+npm run pty:install       # 明確執行 node-pty native setup；無 prebuild 時需編譯工具
 npm run build                 # 僅獨立 pi-scheduler CLI 需要
 npm run setup:browser         # 選用：web_fetch 需要 Chromium 及 Linux 系統依賴
 pi install -l "$PWD"          # 僅安裝到目前專案的 Pi 設定
@@ -72,6 +75,7 @@ Repository 開發環境可用 `npm run test:browser` 驗證實際 Chromium；run
 | 模組 | 工具／命令 | 注意事項 |
 | --- | --- | --- |
 | Subagents | `subagent`；`/implement`、`/scout-and-plan`、`/implement-and-review` | 四個內建 agents；single／parallel／chain 全自動保存，ready 後用 resume 續接；child 排除遞迴 subagent |
+| PTY Terminal | `pty_spawn/write/read/resize/wait_exit/kill/list` | `target` 預設 local；named WSL／SSH targets；session 綁定 target，關閉 transport 不保證遠端背景程序停止 |
 | Shell Tools | 覆寫 `bash`、`powershell` | `timeoutMs` 為毫秒 inactivity timeout；不自動啟用未選的 shell；PowerShell backend 僅原生 Windows |
 | File Tools | 覆寫 `read`、`write`、`edit` | 絕對行號、32 字元 hash、精準 literal／regex、原子寫入、diff worker |
 | Web Tools | `web_fetch`；條件式 REST `web_search`；`/web-tools status`、`/web-tools sources` | OpenAI 原生模式不註冊同名 function tool；Brave／Exa 要明確設定；無登入／CAPTCHA bypass／PDF |
@@ -86,6 +90,38 @@ Subagents **只保留 managed／可續接持久化**：首次呼叫照常提供 
 工具 activation 仍由 Pi 的工具選取與 extension `defaultActive` 決定。`defaultTools` 不是全域 allowlist：部分 extension tools 會在註冊時啟用；需要嚴格唯讀請使用 `--tools read`，需要全部停用請用 `--no-tools`，排除工具用 `--exclude-tools`。整合包不增加另一層權限或 OS sandbox。
 
 Pi **1.0.0** 預設 fullscreen TUI；本專案不自動修改 UI 設定，需要舊模式可自行用 `--tui-mode regular`。新版 `/reload` 會啟用新加入 `defaultTools` 的工具，但不會因刪除 defaults 而撤權；explicit tools／no-tools／exclusions 仍優先。
+
+### 跨平台 PTY
+
+`pty_spawn` 新增選填 `target`，未提供時仍在本機執行。named targets 設於 Pi settings 的 `pi-pty-terminal.targets`，例如 Linux 使用 `transport: "wsl"`、macOS 使用 `transport: "ssh"`；完整範例見 [PTY README](modules/pty-terminal/README.md) 與 [設定](docs/configuration.md#pty-targets)。
+
+```json
+{ "target": "macos", "command": "zsh", "args": ["-l"] }
+```
+
+後續操作只需 `sessionId`。遠端 cwd/env 是目標環境的值，不沿用 Windows 路徑。SSH 使用既有 host alias／金鑰／agent 與 known_hosts，不儲存密碼、不停用 host key 驗證；GitHub 同步需明確操作，不在連線時自動 pull。local PTY 可在 Windows/macOS/Linux 使用；WSL transport 僅限 Windows。實際遠端連線需另外驗證。
+
+#### macOS SSH 登入與密碼
+
+**不要把 Mac 帳號密碼、SSH 私鑰或金鑰密語貼到對話、寫進 Pi settings 或提交到 repository。** 目前 SSH target 使用 `BatchMode=yes`，不支援互動輸入帳號密碼；請使用 SSH 金鑰與既有 `ssh-agent`。
+
+1. 在 Windows 的終端機執行 `ssh-keygen -t ed25519` 建立金鑰；若已有適用金鑰可沿用，不要覆寫。建議設定金鑰密語。
+2. 在 Mac 開啟「系統設定 → 一般 → 共享 → 遠端登入」，只允許需要登入的使用者。
+3. 將 Windows 的**公鑰**（例如 `%USERPROFILE%\.ssh\id_ed25519.pub`）內容加入 Mac 使用者的 `~/.ssh/authorized_keys`；不是沒有 `.pub` 副檔名的私鑰。Mac 上 `~/.ssh` 權限設為 `700`，`authorized_keys` 設為 `600`。可在 Mac 本機操作；若需用帳號密碼初次 SSH 登入，請由你在自己的終端機手動輸入，不經過模型或工具。
+4. 在 Windows 的 `%USERPROFILE%\.ssh\config` 設定 host alias，例如以下範例；請替換使用者與位址：
+
+   ```sshconfig
+   Host macos
+       HostName 192.168.1.100
+       User your-mac-user
+       IdentityFile ~/.ssh/id_ed25519
+       IdentitiesOnly yes
+   ```
+
+5. 在自己的終端機執行 `ssh macos`，先透過可信管道核對 Mac 的 host key 指紋，再接受並保存至 `known_hosts`；不要停用 host-key verification。若金鑰有密語，先啟用 Windows OpenSSH Authentication Agent，再自行執行 `ssh-add "$env:USERPROFILE\.ssh\id_ed25519"`（PowerShell）輸入密語。
+6. 執行 `ssh -o BatchMode=yes macos` 確認無需互動即可登入；成功後依 [PTY README](modules/pty-terminal/README.md) 設定 `transport: "ssh"`、`host: "macos"` 與 Mac 上的絕對 `cwd`。
+
+需要協助實際連線時，只需提供 **SSH host alias** 與 **Mac 上的專案絕對路徑**，並明確授權實連；不需要提供密碼。若一定要使用帳號密碼，需另行實作讓使用者直接在終端機輸入、不經過模型的互動登入介面；目前 extension 未提供此功能。
 
 ### 新增分類筆記
 
@@ -146,7 +182,7 @@ pi -p "Extract company name: Acme" --json-schema $schema --json-output result.js
 }
 ```
 
-九個模組（subagents、shell-tools、file-tools、web-tools、scheduler、note-tools、gpt-speed、goal、json-schema）的公開入口均為 `modules/<name>/src/index.ts`。薄入口轉接既有實作，內部資源位置不變。
+十個模組（subagents、shell-tools、file-tools、web-tools、scheduler、note-tools、gpt-speed、goal、json-schema、pty-terminal）的公開入口均為 `modules/<name>/src/index.ts`。薄入口轉接既有實作，內部資源位置不變。
 
 Filters 以整合包 root 為基準；與 tool allowlist 不同，它們控制 extension 是否執行／是否啟動生命週期資源。既有 filters 若使用舊入口路徑，請手動更新為新路徑，見 [入口遷移](docs/migration.md#unified-typescript-entry-points)。
 

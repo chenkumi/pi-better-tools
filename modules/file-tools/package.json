@@ -16,7 +16,7 @@
     "file-tools"
   ],
   "scripts": {
-    "test": "tsx --test tests/file-operations.test.ts tests/diff-runner.test.ts tests/error-display.test.ts tests/optional-null-arguments.test.ts tests/debug-logging.test.ts tests/path-image-regressions.test.ts",
+    "test": "tsx --test --test-concurrency=1 tests/file-operations.test.ts tests/diff-runner.test.ts tests/error-display.test.ts tests/optional-null-arguments.test.ts tests/debug-logging.test.ts tests/path-image-regressions.test.ts",
     "test:integration": "node --test tests/packaged-runtime.test.mjs",
     "test:tooling": "node --test tests/test-tooling.test.mjs",
     "test:matrix": "node scripts/check-pi-matrix.mjs",

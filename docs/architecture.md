@@ -1,8 +1,8 @@
 # Architecture
 
-## One deployment unit, six imported modules plus native Note Tools, GPT Speed and Goal
+## One deployment unit, ten modules
 
-The root `package.json` declares nine explicit TypeScript `pi.extensions` entries, all at `./modules/<name>/src/index.ts`: the six imported modules and the native Note Tools, GPT Speed and Goal extensions. Thin default-export entries forward to existing implementations without moving guards, agents, prompts or workers. Web already uses this layout. There is no aggregator factory or plugin-manager abstraction. Pi controls discovery, ordering, resource filters, tool selection and lifecycle dispatch.
+The root `package.json` declares ten explicit TypeScript `pi.extensions` entries, all at `./modules/<name>/src/index.ts`: six current source snapshots (including PTY Terminal) and four native modules (Note Tools, GPT Speed, Goal and the rewritten JSON Schema). Thin default-export entries forward to existing implementations without moving guards, agents, prompts or workers. Web already uses this layout. There is no aggregator factory or plugin-manager abstraction. Pi controls discovery, ordering, resource filters, tool selection and lifecycle dispatch.
 
 - `modules/subagents/extensions/subagent/` retains the `../../agents` relationship and `child-guard.ts`; bundled agents/prompts ship with the package.
 - `modules/shell-tools/extensions/timeout-ms.ts` imports its adjacent MJS adapters and preserves host shell definitions.
@@ -21,6 +21,10 @@ Root dependencies/lockfile are authoritative: the four Pi development packages a
 
 Runtime dependency refresh: `diff` is pinned to 9.0.0 and `jsdom` to 30.1.1. The root Node.js engine range is `^22.22.2 || ^24.15.0 || >=26.0.0`, matching jsdom 30; older module README engine claims are historical source metadata, not the integrated package requirement. Source snapshots and the Pi 1.0.0 development baseline remain unchanged.
 
+## PTY target routing
+
+`modules/pty-terminal/src/index.ts` retains the seven source tools. Pure `targets.ts` resolves optional target (local default) using effective trust-aware Pi settings; it creates WSL argv or a POSIX-quoted SSH command without spawning resources during factory initialization. `pty-manager.ts` owns local native PTY transports/session metadata and shutdown. All follow-up operations use the original sessionId, not mutable global target state. Remote cwd/env are separate from local client cwd/env; unknown targets fail closed. Windows native cleanup does not pass POSIX signals. A local transport PID/exit does not establish remote process-tree termination. Root node-pty dependency is pinned to the source beta version; native setup is explicit after ignore-scripts. Source hashes and adaptations document the import; no source-path dependency, Git synchronization or remote credential storage.
+
 ## Source maintenance
 
 `docs/sources.json` records initial hashes; `docs/adaptations.json` records reviewed local changes and current hashes. Source projects are immutable inputs. A future import must compare source changes and re-run module, integration and package checks; importing a source snapshot does not create automatic synchronization.
@@ -35,13 +39,15 @@ Native digest and readable-log acknowledgement now share one bounded identity ma
 
 ## Test boundaries
 
+At the owner's request (2026-10-03), stress-only high-volume payloads, giant-file/repeated diff loads, concurrent log load and thread-pool saturation probes were removed with their unused fixtures. Ordinary functionality, cancellation, resource cleanup and exact safety-limit tests remain; removed coverage is not part of current verification.
+
 Note Tools uses Node/tsx tests for all five categories, exact content, schema, invocation cwd, empty files, collisions, parallel creation, pre-start cancellation and filesystem errors. Root loader and production tarball probes also create notes and read/edit their returned paths with File Tools, and ensure read-only/no-tools/exclusion keep note inactive.
 
 GPT Speed uses Node/tsx tests for version/pattern boundaries, provider gates, command idempotence, downgrade/model transitions, TUI/headless/RPC, global/project precedence and trust, persistence preservation and corrupt/locked settings. Real Pi loader/session and production-tarball fixtures exercise commands and request-hook composition in full/read-only/no-tools/exclude/search/child modes without network calls. TUI status strings are tested at the API boundary, not by a human visual terminal inspection.
 
-The source-only loader regression stages all modules without any `dist/` artifacts and exercises full/child lifecycle smoke via the nine uniform TS entries. Manifest tests compare entries against every module directory and actual loader paths, not only a dynamic count. Missing module metadata/scripts fail before npm can walk up and recursively execute the root runner.
+The source-only loader regression stages all modules without any `dist/` artifacts and exercises full/child lifecycle smoke via the ten uniform TS entries. Manifest tests compare entries against every module directory and actual loader paths, not only a dynamic count. Missing module metadata/scripts fail before npm can walk up and recursively execute the root runner.
 
-Source tests retain their Node/tsx/Vitest runners. Existing protocol/I/O/stress units use an explicit managed-storage boundary substitute; they do not establish native checkpoint/guard correctness. Separate real store/native fixture tests and offline actual-Pi CLI creation/resume tests cover those contracts. Root integration uses isolated subprocesses because module-level configuration constants and Pi registries are process-local. Real Pi loader/session probes check activation, prompts, file mutations/worker, search mode registration, Scheduler policy and reload/shutdown.
+Source tests retain their Node/tsx/Vitest runners. Root direct Node suites and File Tools run test files sequentially (`--test-concurrency=1`) to avoid CPU-count parallel imports/workers distorting real resource deadlines; concurrency inside individual parallel/chain/cleanup tests is unchanged, as are assertions and production budgets. Existing protocol/I/O units use an explicit managed-storage boundary substitute; they do not establish native checkpoint/guard correctness. Separate real store/native fixture tests and offline actual-Pi CLI creation/resume tests cover those contracts. Root integration uses isolated subprocesses because module-level configuration constants and Pi registries are process-local. Real Pi loader/session probes check activation, prompts, file mutations/worker, search mode registration, Scheduler policy and reload/shutdown.
 
 The root tarball smoke installs actual production dependencies with no development-tree junctions. Source File Tools' historical packaged regression still uses a development dependency link; it is not substituted for the production smoke. A test-only fixture is copied outside this repository and imports the explicitly installed host SDK.
 
@@ -51,7 +57,7 @@ Goal 的純單元測試覆蓋 objective 原文、非 plan completion、run owner
 
 Pi 1.0.0 回歸另有 `tests/fixtures/sdk-hooks.mjs`：使用八個實際入口、file-backed 隔離 settings 與離線 provider，檢查 defaultTools reload、explicit／no-tools／exclusion、延後註冊工具的 restore／reload／放棄，以及 hidden declaration 的 prompt snippets 和既有 catalog／Web section 合成。真實 read tool pipeline 檢查 hook 次序與 awaited stream delivery；這不是真實 OpenAI backend 或完整 MCP server E2E。三版 production matrix 重跑相同 fixture，舊版以其明確歷史契約驗證。
 
-JSON Schema uses isolated actual-CLI probes with the entire stdout parsed as JSON, synthetic authenticated provider, no fetch and all nine manifest entries. Cases cover tools/text/fallback, large Unicode, missing/invalid flags and schema, numeric overflow, errors/empty/aborts, duplicate/conflicting data, disabled tools, virtual best-effort routing, legacy file delivery and signal-event cancellation. Pure/extension-boundary tests add queue/pre-rename cancellation and activation fencing. Production tarball reruns the CLI suite under each matrix host; this is not paid-backend tool-choice verification. See `plan/JSON-SCHEMA.md` for actual checks and limitations.
+JSON Schema uses isolated actual-CLI probes with the entire stdout parsed as JSON, synthetic authenticated provider, no fetch and all ten manifest entries. Cases cover tools/text/fallback, missing/invalid flags and schema, numeric overflow, errors/empty/aborts, duplicate/conflicting data, disabled tools, virtual best-effort routing, legacy file delivery and signal-event cancellation. Pure/extension-boundary tests add queue/pre-rename cancellation and activation fencing. Production tarball reruns the CLI suite under each matrix host; this is not paid-backend tool-choice verification. See `plan/JSON-SCHEMA.md` for actual checks and limitations.
 
 ## Lifecycle and compatibility limits
 

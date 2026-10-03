@@ -3,8 +3,8 @@
 ## Before enabling the integration
 
 1. Back up the relevant Pi settings file. Review `pi list` and `pi config` in both personal/project scopes.
-2. Disable the extension resources of the old five standalone packages. Preserve their folders, credentials and persistent state. Different package identities do not deduplicate same-named tools.
-3. In this repository run `npm ci --ignore-scripts` and `npm run build`; install Chromium explicitly if Fetch is needed.
+2. Disable the extension resources of the old five standalone packages and pi-pty-terminal. Preserve their folders, credentials and persistent state. Different package identities do not deduplicate same-named tools.
+3. In this repository run `npm ci --ignore-scripts`, `npm run pty:install` and `npm run build`; install Chromium explicitly if Fetch is needed.
 4. Run `pi install D:/projects/pi-better-tools`, or use `-l` for the intended project. Project packages require the existing trust policy; do not enable automatic approve just to avoid errors.
 5. Reload/restart Pi. Check the loaded tools, `/web-tools status` and `schedule_status`. Do not create a real job just to test installation.
 
@@ -24,7 +24,7 @@ Use `pi config` or a package entry's `extensions`/`prompts` filters. Paths are r
 
 ## Unified TypeScript entry points
 
-All nine public Pi entries now use `modules/<name>/src/index.ts`. If package resource filters or explicit `-e` paths referenced `extensions/...`, Scheduler `dist/extension.js` / `src/extension.ts`, or JSON Schema's root `index.ts`, update them manually to the matching new path. This repository does not rewrite personal/project settings. Exclusion filters referencing an old path no longer exclude the new entry; review filters before reload, especially Scheduler host activation. Do not load both an old implementation entry and its new forwarding entry, as that registers tools/hooks twice.
+All ten public Pi entries now use `modules/<name>/src/index.ts`. If package resource filters or explicit `-e` paths referenced `extensions/...`, Scheduler `dist/extension.js` / `src/extension.ts`, or JSON Schema's root `index.ts`, update them manually to the matching new path. This repository does not rewrite personal/project settings. Exclusion filters referencing an old path no longer exclude the new entry; review filters before reload, especially Scheduler host activation. Do not load both an old implementation entry and its new forwarding entry, as that registers tools/hooks twice.
 
 Scheduler's extension no longer needs a build; `/reload` or restart loads the TS sources. The standalone `pi-scheduler` CLI still uses `dist/runner.js` and requires root `npm run build` when developing from source. Sources and CLI artifacts ship in the same package; no second installation unit is added. No persistent data or bundled-agent paths are moved.
 
@@ -45,6 +45,12 @@ Existing managed sessions retain their format and guards, but old ephemeral logs
 Disable the standalone `@nqbao/pi-json-schema` before loading `modules/json-schema/src/index.ts`; the same tool and flag names are not safe to load twice. No source-project, settings or auth files are edited automatically.
 
 The module is now a project-native rewrite (zod 4 replaces Ajv), not a snapshot of 0.1.1. Differences a script author will notice: only `--json-schema` and `--json-output` exist (`--json-output` selects file delivery, otherwise stdout); `--json-delivery` and `--json-fallback` were removed and the fallback is always best-effort (the `force` mode is gone); schemas using `if/then/else`, `not`, `dependent*`, external `$ref` or typeless type-specific constraints are rejected at startup. Explicit tool allowlists must include `json_output`; exclusions and no-tools stay authoritative. Full contract: `modules/json-schema/README.md`.
+
+## PTY integration
+
+停用獨立 `pi-pty-terminal`，只載入整合入口 `modules/pty-terminal/src/index.ts`。原七個工具保留，spawn target 預設 local；新增 `pi-pty-terminal.targets` named WSL/SSH settings，不自動寫設定或搬移 session。原生 dependency setup 在 ignore-scripts 安裝後需明確 `npm run pty:install`；此步驟只執行 node-pty lifecycle，不啟動遠端連線或下載 Chromium。跨平台不可共用 node_modules。
+
+現有 PTY session 無法跨 extension reload/移轉恢復；先完成工作或明確關閉。Windows kill/shutdown 不傳 POSIX signal；WSL/SSH kill 是 transport 關閉，不保證遠端背景程序停止。完整 target 路徑、env、SSH prerequisites 見 `modules/pty-terminal/README.md`。
 
 ## Existing data
 

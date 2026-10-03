@@ -28,7 +28,8 @@ try {
   const sdk = await import(host ? pathToFileURL(join(host, 'dist/index.js')).href : '@earendil-works/pi-coding-agent');
   sdk.initTheme('dark', false);
   const readOnly = mode === 'read-only', noTools = mode === 'no-tools';
-  const selection = readOnly ? ['read'] : ['read', 'write', 'edit', 'bash', ...(process.platform === 'win32' ? ['powershell'] : []), 'subagent', 'note', 'goal', 'web_fetch', 'schedule_create', 'schedule_update', 'schedule_status', 'schedule_cancel', ...(['brave', 'exa'].includes(mode) ? ['web_search'] : [])];
+  const ptyNames = ['pty_spawn', 'pty_read', 'pty_write', 'pty_resize', 'pty_wait_exit', 'pty_kill', 'pty_list'];
+  const selection = readOnly ? ['read'] : ['read', 'write', 'edit', 'bash', ...(process.platform === 'win32' ? ['powershell'] : []), 'subagent', 'note', 'goal', ...ptyNames, 'web_fetch', 'schedule_create', 'schedule_update', 'schedule_status', 'schedule_cancel', ...(['brave', 'exa'].includes(mode) ? ['web_search'] : [])];
   const settings = sdk.SettingsManager.inMemory({ defaultTools: selection, retry: { enabled: false }, compaction: { enabled: false }, cacheWarming: 'off', enableInstallTelemetry: false });
   loader = new sdk.DefaultResourceLoader({ cwd, agentDir, settingsManager: settings,
     additionalExtensionPaths: [packageRoot], noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true });
@@ -41,6 +42,8 @@ try {
   assert.equal(new Set(names).size, names.length, 'no duplicate tool registration');
   assert.equal(names.includes('goal'), mode !== 'child');
   assert.equal(loaded.extensions.some(e => e.commands.has('goal')), mode !== 'child');
+  for (const name of ptyNames) assert.ok(names.includes(name));
+  assert.ok(definitions.find(d => d.name === 'pty_spawn').parameters.properties.target);
   const note = definitions.find(d => d.name === 'note');
   assert.ok(note);
   assert.deepEqual(Object.keys(note.parameters.properties).sort(), ['content', 'type']);
@@ -62,7 +65,7 @@ try {
   const model = { ...modelRuntime.getModels()[0], id: 'offline-fixture', provider: 'offline-fixture', api: 'openai-responses' };
   ({ session } = await sdk.createAgentSession({ cwd, agentDir, settingsManager: settings, resourceLoader: loader, modelRuntime, model,
     sessionManager: sdk.SessionManager.inMemory(cwd), ...(noTools ? { noTools: 'all' } : { tools: selection }),
-    ...(mode === 'exclude' ? { excludeTools: ['subagent', 'bash', 'powershell', 'note', 'goal'] } : {}) }));
+    ...(mode === 'exclude' ? { excludeTools: ['subagent', 'bash', 'powershell', 'note', 'goal', ...ptyNames] } : {}) }));
   await session.bindExtensions({ mode: 'json', onError: e => errors.push(e.error) });
   // Real command contexts + request-hook composition, even with no-tools/read-only.
   const speedCommand = async name => {
@@ -88,7 +91,7 @@ try {
   if (readOnly || noTools) {
     assert.deepEqual(active, noTools ? [] : ['read']); assert.deepEqual(callable, noTools ? [] : ['read']);
   }
-  if (mode === 'exclude') for (const name of ['subagent', 'bash', 'powershell', 'note', 'goal']) { assert.ok(!active.includes(name)); assert.ok(!callable.includes(name)); }
+  if (mode === 'exclude') for (const name of ['subagent', 'bash', 'powershell', 'note', 'goal', ...ptyNames]) { assert.ok(!active.includes(name)); assert.ok(!callable.includes(name)); }
   const text = result => result.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
   const execute = async (name, args, signal) => {
     const tool = session.agent.state.tools.find(t => t.name === name); assert.ok(tool, `active tool ${name}`);
@@ -97,6 +100,20 @@ try {
     const prepared = definition.prepareArguments ? await definition.prepareArguments(args) : args;
     return tool.execute(`smoke-${name}`, prepared, signal ?? AbortSignal.timeout(20000), undefined);
   };
+  if (active.includes('pty_spawn')) {
+    await assert.rejects(execute('pty_spawn', { target: 'missing', command: 'node' }), /Unknown PTY target/);
+    const spawned = await execute('pty_spawn', { command: process.execPath, args: ['-e', "process.stdout.write('PTY_OK');process.exit(7)"] });
+    assert.equal(spawned.details.target, 'local'); assert.equal(spawned.details.transport, 'local');
+    const { sessionId } = spawned.details;
+    let output = '';
+    for (let i = 0; i < 15 && !output.includes('PTY_OK'); i++) output += text(await execute('pty_read', { sessionId, timeoutMs: 1000 }));
+    assert.match(output, /PTY_OK/);
+    assert.equal((await execute('pty_wait_exit', { sessionId, timeoutMs: 10000 })).details.exitCode, 7);
+    const listed = (await execute('pty_list', {})).details;
+    assert.ok(listed.some(s => s.sessionId === sessionId && s.target === 'local'));
+    await execute('pty_kill', { sessionId });
+    assert.deepEqual((await execute('pty_list', {})).details, []);
+  }
   if (active.includes('goal')) {
     const goal = await execute('goal', { action: 'get' });
     assert.equal(goal.details.goal, null); assert.equal(goal.details.diagnostic, null);

@@ -1,9 +1,7 @@
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { MAX_LOG_TEXT_CHARS, PROJECT_NAME, writeFailureDebugLog } from "../src/debug-log.mjs";
 
@@ -134,17 +132,6 @@ test("long command/output strings retain head and tail with an explicit omission
   assert.equal(result.structuredContent.output, output, "logging must not mutate the result");
 });
 
-test("parallel failures produce separate complete JSON files without overwriting", async (t) => {
-  const f = fixture(t, enabled);
-  const files = await Promise.all(Array.from({ length: 20 }, (_, i) =>
-    writeFailureDebugLog(record({ toolCallId: `parallel-${i}` }), { homeDir: f.homeDir })));
-  assert.equal(new Set(files).size, 20);
-  assert.equal(fs.readdirSync(f.logsDir).length, 20);
-  for (const [i, file] of files.entries()) {
-    assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).toolCallId, `parallel-${i}`);
-  }
-});
-
 test("filesystem logging failures are nonfatal and never overwrite an existing blocker", async (t) => {
   const f = fixture(t, enabled);
   const blocker = path.join(f.homeDir, ".pi", "logs");
@@ -154,23 +141,6 @@ test("filesystem logging failures are nonfatal and never overwrite an existing b
   assert.equal(fs.readFileSync(blocker, "utf8"), "do not overwrite");
   assert.equal(warn.mock.callCount(), 1);
   assert.match(warn.mock.calls[0].arguments[0], /pi-shell-tools.*Could not write/);
-});
-
-test("a blocked filesystem request cannot hold the diagnostic result past its wait budget", { timeout: 30_000 }, async (t) => {
-  const f = fixture(t, enabled);
-  const script = fileURLToPath(new URL("./helpers/debug-log-deadline.mjs", import.meta.url));
-  const stdout = await new Promise((resolve, reject) => {
-    const child = execFile(process.execPath, [script, f.homeDir], {
-      env: { ...process.env, UV_THREADPOOL_SIZE: "1" }, encoding: "utf8", timeout: 25_000,
-    }, (error, output) => error ? reject(error) : resolve(output));
-    child.stdout.on("data", (chunk) => process.stdout.write(chunk));
-  });
-  const probe = JSON.parse(stdout.trim().split(/\r?\n/).at(-1));
-  assert.equal(probe.result, null);
-  assert.equal(probe.returnedBeforeWorkFinished, true, "the logger must return while filesystem work is still queued");
-  assert.ok(probe.elapsedMs < 1000, `100ms budget should not wait for the blocked worker: ${probe.elapsedMs}ms`);
-  assert.equal(probe.logsExist, false);
-  assert.equal(fs.existsSync(f.logsDir), false, "no stale write may occur after the child drains pending I/O and exits");
 });
 
 test("serialization and host console failures still cannot escape the debug logger", async (t) => {

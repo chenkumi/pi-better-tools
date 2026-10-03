@@ -41,7 +41,6 @@ export default function (pi: ExtensionAPI) {
 							const task = { agent: "worker", task: "P6_INITIAL_USER: work until a decision is needed.", ...(process.env.P6_CHILD_CWD ? { cwd: process.env.P6_CHILD_CWD } : {}) };
 							const mode = process.env.P6_MODE ?? "single";
 							const args = mode === "parallel" ? { tasks: [task, task] } : mode === "chain" ? { chain: [task, { ...task, task: "P6_INITIAL_USER: next isolated step {previous}" }] } : { ...task, model: "resume-offline/selected", thinkingLevel: "high" };
-							if (process.env.P6_LARGE === "1") (args as any).task = "P6_INITIAL_USER: " + "\u0001".repeat(1024 * 1024);
 							call = { name: "subagent", id: "parent-first", arguments: args };
 						}
 					} else if (!isParent) {

@@ -1,6 +1,32 @@
 {
   "modules": [
     {
+      "module": "pty-terminal",
+      "packageName": "pi-pty-terminal",
+      "version": "0.1.0",
+      "sourcePath": "C:/GitHub/pi-pty-terminal",
+      "sourceCommit": "2bdb1f286fbef16d8473bb2b91a1e9a15c5322dd",
+      "importedAt": "2026-10-03",
+      "sourceManifestSha256": "0af7ebdeae6b825255c0345828131eee357b854384f51951ba6ccb2785979057",
+      "sourceLockSha256": "b26509bbfe60ed0a57a609730e2319ee1682ee273e7fde4d48c0d63ad565afa9",
+      "files": [
+        { "path": "src/escape.ts", "sha256": "feec759ca5337acacc42e6de6aacfd3a5bd938974a6d98aaecd430fb5ff652ec" },
+        { "path": "src/index.ts", "sha256": "0f5c5096cfe08026d756ddb62ecfa8fb68cbf8867284c9a8bbd885e2ee1b3304" },
+        { "path": "src/output.ts", "sha256": "62106be495a05b7c7987b4eed11b05cf82f549b2235e1ac350859e47f4d0b853" },
+        { "path": "src/pty-manager.ts", "sha256": "3ffd62eaf69145ed1974702e29371f059a1004e19ea740ac6d5862dc0bd13287" },
+        { "path": "tests/escape.test.ts", "sha256": "f88aee2c68ad1b9ca90ba99658ad904ef66e9e0563052cb0ec600aeda5f499f4" },
+        { "path": "tests/extension.test.ts", "sha256": "8396214cd72c35343d2d25402a585ac09b3672680c36ef0a18d2eb44d318e339" },
+        { "path": "tests/output.test.ts", "sha256": "9ca0fcc1d09a0569517aa8dfdcb1ed6674b71460b2e015216571c59d964974de" },
+        { "path": "tests/pty-manager.test.ts", "sha256": "4e55dd232346d27d3aed9614cf0047fa0d2e67a058443361de974d5c1aaca196" },
+        { "path": "README.md", "sha256": "376b39ee2aaed1b440a186ab4fdb1012f783449536d66b31eca3841f2baf835d" },
+        { "path": "LICENSE", "sha256": "8d3bf43a868ead5ec2c2df42eb6b5a00fed2f25d43b0f8928ac9641f93fb6359" },
+        { "path": "tsconfig.json", "sha256": "d2d714dd82aff8c0b95986403c00fdea9dc823a87ac000aa9cf48eff25398515" }
+      ],
+      "adaptations": [],
+      "licenseStatus": "source MIT LICENSE preserved",
+      "sourceMetadata": "Source package manifest/lock hashes recorded only; no nested manifest, lockfile, publishing workflow or node_modules imported. Source uses node-pty 1.2.0-beta.14, Pi dev 0.85.1 and Node strip-types test runner; integrated root uses Pi 1.0.0 and Node/tsx test runner."
+    },
+    {
       "sourcePath": "D:/projects/pi-subagents",
       "files": [
         {

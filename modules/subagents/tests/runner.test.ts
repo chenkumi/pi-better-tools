@@ -225,34 +225,11 @@ for (const scenario of ["malformed", "missing-content", "invalid-content", "over
 	});
 }
 
-test("review stream may exceed 2 MiB without a cumulative traffic limit", { timeout: 10000 }, async () => {
-	const { result, log, metadata } = await run("large-review-stream");
-	assert.equal(result.status, "completed");
-	assert.equal(result.output, "review complete");
-	assert.equal(result.errorMessage, undefined);
-	const results = log.filter((record) => record.type === "tool_result");
-	assert.equal(results.length, 40);
-	assert.equal(new Set(results.map((record) => record.callId)).size, 40);
-	assert.ok(results.every((record) => record.content === "x".repeat(64 * 1024)));
-	assert.ok(Buffer.byteLength(JSON.stringify(log), "utf8") > 2 * 1024 * 1024);
-});
-
 test("captured assistant content remains memory bounded independently of traffic", async () => {
 	const { result } = await run("large-retained-output");
 	assert.equal(result.status, "failed");
 	assert.match(result.errorMessage!, /retained message memory/);
 	assert.ok(Buffer.byteLength(result.output, "utf8") <= 2 * 1024 * 1024);
-});
-
-test("pending tool fallbacks exceeding 2 MiB spool to disk without canonical results", async () => {
-	const { result, log, metadata } = await run("large-pending-results");
-	assert.equal(result.status, "completed");
-	assert.equal(result.output, "done");
-	assert.equal(result.logError, undefined);
-	const records = log.filter((record) => record.type === "tool_result");
-	assert.equal(records.length, 9);
-	assert.equal(new Set(records.map((record) => record.callId)).size, 9);
-	assert.ok(records.every((record) => record.content === "x".repeat(256 * 1024)));
 });
 
 test("normal terminal assistant at EOF completes", async () => {

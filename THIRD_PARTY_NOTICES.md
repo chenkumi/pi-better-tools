@@ -10,6 +10,7 @@ On 2026-10-01, the project owner confirmed ownership of all five source projects
 | file-tools | pi-precise-file-tools 0.1.0 | MIT; covered by the root `LICENSE`, redundant integration-added module LICENSE removed |
 | web-tools | pi-web-tools 0.1.0 | MIT; original `modules/web-tools/LICENSE` preserved |
 | scheduler | pi-scheduler 0.1.0 | MIT; the module `LICENSE` was removed at the owner's request, covered by the root `LICENSE` |
+| pty-terminal | pi-pty-terminal 0.1.0 | MIT; owner confirmed ownership and requested integration; original `modules/pty-terminal/LICENSE` preserved |
 | json-schema | project-native rewrite (2026-10-02) | MIT (root `LICENSE`); written from documented behavior only and contains no code from the former @nqbao/pi-json-schema import, whose source is no longer available |
 
 The Shell/File import snapshots originally had no root LICENSE or package license field. That historical observation remains in import provenance; it is no longer an unresolved permission blocker for this integration after the owner's confirmation and MIT request.
@@ -21,6 +22,10 @@ Keep the root and module copyright/permission notices with redistributed copies.
 `private: true` remains an npm publication safeguard, not a restriction on making this repository public on GitHub. No GitHub upload or npm publication was performed as part of adding the license.
 
 Repository import provenance is recorded in `docs/sources.json`; reviewed local persistence and license-metadata adaptations are recorded in `docs/adaptations.json`. Original module README/package identity and independent development/version claims are historical; the integrated manifest and validation records define this package's current behavior. Contributor notes/tests/reports are not runtime package resources.
+
+## PTY dependencies
+
+2026-10-03: imported the owner's `C:/GitHub/pi-pty-terminal` snapshot without modifying its repository. Source README describes a port from `opencode-pty-mcp`; the source MIT notice is preserved. Root runtime dependency `node-pty` 1.2.0-beta.14 (MIT, Microsoft Corporation) and its `node-addon-api` dependency keep their own package licenses and third-party notices (including native backend resources); they are not relicensed by this integration. Native dependency setup is explicitly rebuildable with `npm run pty:install`; no host Pi code is bundled.
 
 ## ulid
 

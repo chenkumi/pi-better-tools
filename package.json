@@ -3,7 +3,7 @@
     "version": "0.1.0",
     "private": true,
     "license": "MIT",
-    "description": "A single Pi package integrating subagents, shell, precise file, web, scheduler, note, GPT speed, goal-first and JSON Schema delivery extensions.",
+    "description": "A single Pi package integrating subagents, shell, precise file, web, scheduler, note, GPT speed, goal-first, JSON Schema delivery and cross-platform PTY extensions.",
     "type": "module",
     "keywords": [
         "pi-package",
@@ -36,6 +36,9 @@
         "modules/goal/src",
         "modules/json-schema/extensions",
         "modules/json-schema/src",
+        "modules/pty-terminal/src",
+        "modules/pty-terminal/README.md",
+        "modules/pty-terminal/LICENSE",
         "README.md",
         "LICENSE",
         "THIRD_PARTY_NOTICES.md",
@@ -53,7 +56,8 @@
             "./modules/note-tools/src/index.ts",
             "./modules/gpt-speed/src/index.ts",
             "./modules/goal/src/index.ts",
-            "./modules/json-schema/src/index.ts"
+            "./modules/json-schema/src/index.ts",
+            "./modules/pty-terminal/src/index.ts"
         ],
         "prompts": [
             "./modules/subagents/prompts"
@@ -71,6 +75,7 @@
         "test:package": "node scripts/package-smoke.mjs",
         "test:matrix": "node scripts/package-smoke.mjs --host 0.99.1 --host 0.99.2 --host 1.0.0",
         "check": "npm run build && npm run typecheck && npm test && npm run test:integration && npm run test:package",
+        "pty:install": "npm rebuild node-pty",
         "browser:install": "playwright install chromium --no-shell",
         "browser:install-deps": "playwright install-deps chromium",
         "setup:browser": "playwright install --with-deps chromium --no-shell",
@@ -83,6 +88,7 @@
         "diff": "9.0.0",
         "ipaddr.js": "2.5.0",
         "jsdom": "30.1.1",
+        "node-pty": "1.2.0-beta.14",
         "playwright": "1.63.0",
         "proper-lockfile": "4.1.2",
         "turndown": "7.2.4",

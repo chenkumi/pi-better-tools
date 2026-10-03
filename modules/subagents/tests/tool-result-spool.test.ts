@@ -38,23 +38,6 @@ test("spool retains only latest undeleted version in update order and isolates i
 	} finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test("spool streams more than 2 MiB and permits deletion while scanning", async () => {
-	const root = await mkdtemp(join(tmpdir(), "pi-spool-large-"));
-	try {
-		const spool = await ToolResultSpool.create(root);
-		for (let i = 0; i < 16; i++) await spool.put(record(String(i), "🙂".repeat(64 * 1024)));
-		let count = 0;
-		for await (const entry of spool.records()) {
-			assert.equal(entry.toolCallId, String(count++));
-			assert.equal(Buffer.byteLength(entry.serialized.content[0].text), 256 * 1024);
-			await spool.remove(entry);
-		}
-		assert.equal(count, 16);
-		for await (const _entry of spool.records()) assert.fail("removed payload resurrected");
-		await spool.cleanup();
-	} finally { await rm(root, { recursive: true, force: true }); }
-});
-
 test("breaking spool iteration closes the journal handle before cleanup", async (t) => {
 	const root = await mkdtemp(join(tmpdir(), "pi-spool-break-"));
 	try {

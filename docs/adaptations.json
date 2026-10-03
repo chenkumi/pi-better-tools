@@ -1,5 +1,6 @@
 {
   "schemaVersion": 1,
+  "ptyIntegration": { "date": "2026-10-03", "reason": "Owner requested pi-pty-terminal snapshot integration and local-default target support. Root manifest/dependency/lockfile, runners, real loader/production PTY probes, notices and docs adapted; no source repository/global settings/auth changed.", "dependency": "node-pty 1.2.0-beta.14 retained from source; explicit pty:install after ignore-scripts; isolated production smoke rebuilds only node-pty", "sourceTests": "Node test runner retained via root tsx loader (instead of source strip-types); no nested install or package manifest", "remoteScope": "Configured WSL on Windows and SSH with POSIX target shell; argv/config tests do not claim live WSL/macOS verification; Git sync remains explicit." },
   "installationChanges": [
     {
       "scope": "README.md and docs/configuration.md only; no scripts, imported module source or dependency versions changed.",
@@ -76,6 +77,14 @@
   ],
   "scope": "Explicit reviewed local adaptations to the immutable docs/sources.json import snapshot. Includes user-authorized Subagent persistence, Shell/File license metadata, and Pi 1.0.0 test contracts. Records do not certify or re-sign unrelated pre-existing snapshot mismatches.",
   "verificationChanges": [
+    { "date": "2026-10-03", "scope": "Subagent resume fixtures and File packaged-runtime test; production logic unchanged.", "reason": "Canonicalize isolated P6 root like the existing CLI fixture to avoid Windows short/long startup path mismatch; preserve native guard/trust/model/history assertions. Remove remaining P6 1 MiB control-character load and its provider env branch per earlier stress-removal request. Give GNU tar a relative archive filename plus cwd so Windows drive letters are not interpreted as remote archive hosts. Dedicated P6 6/6 and packaged-runtime 8/8 passed after fixes; unrelated Scheduler integration still fails on Windows filesystem/cleanup timing." },
+    { "date": "2026-10-03", "scope": "Root direct Node test runner and File test script serialize test files; same source runners, assertions and deadlines. PTY kill tool text clarifies Windows ignores POSIX signals.", "reason": "Avoid default CPU-count test-file concurrency competing with real worker/PTY/child deadlines; internal parallel/chain and lifecycle concurrency tests remain intact. Review stale provenance: Shell timeout-ms bytes exactly match immutable import, remove stale adaptation; reviewed current Web README (140 lines) and debug-log tests (91 lines) match documented host-native path, Node engine and safety contracts, record their actual hashes without source edits or re-signing immutable imports." },
+    { "date": "2026-10-03", "scope": "File/Subagent redundant unit cases only; no runtime or runner changes.", "reason": "User requested duplicate-test removal. Remove the range-outside duplicate covered by the stronger search-window case, the child-args pseudo-mode loop covered by ARG-01 and actual dispatch mode tests, and the identical plain-error fallback assertion covered by error-display's malformed table. Keep distinct fault, platform and production-vs-development layers." },
+    {
+      "date": "2026-10-03",
+      "scope": "Stress-only tests and unused fixtures in File/Subagent/Shell/JSON Schema; no runtime changes.",
+      "reason": "User explicitly requested removal of stress tests: remove 100 MiB runners, high-volume streams/spool, giant diff files/random iterations, large CLI/task payload probes, parallel log load and worker-pool saturation. Retain ordinary protocol, cancellation, cleanup and exact safety-limit assertions; removed coverage is not claimed as verified."
+    },
     {
       "date": "2026-10-03",
       "scope": "Package smoke, Subagent/Web tests, notices and provenance; no runtime lifecycle or dependency changes.",
@@ -84,12 +93,16 @@
     }
   ],
   "files": [
-    {
-      "path": "modules/shell-tools/extensions/timeout-ms.ts",
-      "originalSha256": "ea332aa731a69d182bb1e4f6361ba82455beda04a880019cf663a6d1cf97727f",
-      "sha256": "404d10dda33b578c06aec46451cada14758413e44b5c466a44dbff2c65381c5b",
-      "reason": "Reviewed pre-existing integrated implementation, unchanged in this fix: pi.getSettings reads effective trust-aware settings; in-memory SettingsManager normalizes shellPath, idle timing wraps host operations, and activation/cancellation/renderers remain host-owned. Verified by shell unit/integration and SDK hooks; original-source diff unavailable."
-    },
+    { "path": "modules/file-tools/tests/file-operations.test.ts", "originalSha256": "0b5cc95d9d5dd0a9572f94857513358f2619a5f726afd0b64564ae98a147058a", "sha256": "75e3c4915deb21a34827a7b5dbf9cb5aa22e0c93681a692b9554516b83c8a717", "reason": "User-requested duplicate removal: outside-range duplicate retained in stronger search-window test; identical plain failure fallback retained in error-display.test.ts. No unique argument/rendering or mutation assertions removed." },
+    { "path": "modules/file-tools/tests/diff-runner.test.ts", "originalSha256": "4c33eb643991ec8a9dd0654164ae0894e014743f0068214e513d8beeac00bcd7", "sha256": "4f737fd75770e4fc10fe3b057c5260427aec851b31933a21a6563608edddcff0", "reason": "User-requested stress removal: randomized 150-iteration, 30 MiB and 15000-line regressions removed; ordinary diff, lifecycle, cwd and exact output-limit cases retained." },
+    { "path": "modules/file-tools/tests/fixtures/diff-watchdog-child.ts", "originalSha256": "772ae1993a8914f92d7af833b3dc7e668c0cc201e63d278e866542709abd074b", "sha256": "d0cf4b252ac77231809f2c4677db39e02af665cf589d85d8e4a64ab389da1b40", "reason": "Remove unused giant-diff regression and abort stress scenarios; retain lifecycle fixtures." },
+    { "path": "modules/subagents/tests/tool-result-spool.test.ts", "originalSha256": "d467c12fa66e657db4bf15c136488c7bb5d6589486463d8d3c77652e2b56d544", "sha256": "84926ea44156cbfa8773d9a61848b80d937609baf546141e0c0b65d806d67be0", "reason": "User-requested removal of multi-MiB spool stress case; ordinary order, deletion, limits and handle cleanup retained." },
+    { "path": "modules/subagents/tests/fixtures/pi-session-provider.ts", "originalSha256": "ab2f97589e277f347ad157bd46641b2cd9f39f59de37a63aee103aeb7cb868fd", "sha256": "cde9bad33bc150b4c6012b4ff58a6184274f1e4a963f72644ae86e0ccaf57c87", "reason": "Remove unused large-task phase after user-requested stress test removal." },
+    { "path": "modules/pty-terminal/src/index.ts", "originalSha256": "0f5c5096cfe08026d756ddb62ecfa8fb68cbf8867284c9a8bbd885e2ee1b3304", "sha256": "d775b8a2ba803316f86ff7ab5bb9a0a5c9657b6083e8f44918e91ef374d71b88", "reason": "Owner-requested integration: optional local-default named target, trust-aware effective settings, pre-spawn abort, transport caveats; preserve seven source tool names and host selection." },
+    { "path": "modules/pty-terminal/src/pty-manager.ts", "originalSha256": "3ffd62eaf69145ed1974702e29371f059a1004e19ea740ac6d5862dc0bd13287", "sha256": "3cc4f0ab9b8c580a043a65bbf737398a9711d0cda06ffdb1a26e9b3f5885822c", "reason": "Attach target/transport metadata and local PID semantics; Windows node-pty cannot take POSIX signals, use signal-free kill; settle cleanup waiters and prevent buffered output from prematurely finishing exit wait." },
+    { "path": "modules/pty-terminal/tests/extension.test.ts", "originalSha256": "8396214cd72c35343d2d25402a585ac09b3672680c36ef0a18d2eb44d318e339", "sha256": "9704df993b62ac774e79d75e7b82ef670fbf0515cfbebab4787ca44fb05ed32e", "reason": "Real platform-native Node PTY fixture replaces POSIX-only shell; retain seven registrations, shutdown and received-input assertions; ready handshake and cleanup on failure." },
+    { "path": "modules/pty-terminal/tests/pty-manager.test.ts", "originalSha256": "4e55dd232346d27d3aed9614cf0047fa0d2e67a058443361de974d5c1aaca196", "sha256": "bdbdd3b8e5198a21a757161e4d34418730664a2db5706fdf7306f8e5dfae353b", "reason": "Cross-platform real Node PTY keeps output-once, exit 7, input and released-session assertions; OS signal field is backend-specific, not universally 0. Add resize, abort, timeout and shutdown waiter coverage." },
+    { "path": "modules/pty-terminal/README.md", "originalSha256": "376b39ee2aaed1b440a186ab4fdb1012f783449536d66b31eca3841f2baf835d", "sha256": "fc89adfb0f8457ab83b5e43d17dbb0be09ddcb689f26108539ec8c9a1a418cf0", "reason": "Replace standalone install/publishing guidance with root integration, target schema, SSH/WSL prerequisites, native dependency setup, security and actual test boundaries; preserve source identity/port attribution." },
     {
       "path": "modules/file-tools/README.md",
       "originalSha256": "eb24c5848998f3383cd7eed92ab8c6adf2ceb8fdf895ea280bc7af71777e7f8a",
@@ -99,7 +112,7 @@
     {
       "path": "modules/web-tools/README.md",
       "originalSha256": "39be626cf45a2409a02bf8caeea9585188413776a1b6c8d456664fa909ebf71c",
-      "sha256": "547527b06cb358b53b5d3db79cbeaadf4a33088f11c2de4d3c3f532e0934a08f",
+      "sha256": "86d9e6da9104d82e25dcce5573cb0aef09f1930f52b2180bb946037c6dd1cb57",
       "preChangeSha256": "5f5f1d8c15836abe56ea10966bf83517d9e780adb620765c4bc5c53aa758fdc8",
       "reason": "Reviewed existing integrated Chinese fetch/search/safety contracts; update stale Node requirement to the root jsdom 30 engine range and document host-native cwd basename normalization. Preserve settings paths, provider gates and safety limits; original-source diff unavailable."
     },
@@ -130,13 +143,13 @@
     {
       "path": "modules/subagents/tests/fixtures/pi-provider.ts",
       "originalSha256": "83492531c735037b48304ee1e7a9e42fc00e5e738848163ccdfc18be0d11e95f",
-      "sha256": "f9ddb5d0a73b7a3e24c17d325e6d7b18b2223e1239848891ae348f273932e1b9",
-      "reason": "Run the real PowerShell backend on Windows or real Bash/Node on POSIX, emitting a 600 KiB prefix and 2000-line short tail to separate structured payload size from model-facing line truncation. No model calls or shell stub; retain retry/usage/exclusion fixture behavior."
+      "sha256": "ddef0b3d2b3baa8168a95a68ab4454de4b70dd050289e6660dfe8d9b5536c667",
+      "reason": "Retain offline retry/usage/exclusion provider behavior; user-requested removal of large-shell stress fixture and unused runtime platform imports."
     },
     {
       "path": "modules/web-tools/tests/unit/debug-log.test.ts",
       "originalSha256": "3b9e14565f8f47f58424d7372e32d05d4e0fd5285370ed00e59b019f146bef78",
-      "sha256": "b7e3ffc28bf500e464b44997fa00a622aa90595251462515fb7ea4cc0a62fc94",
+      "sha256": "53f986e126679541968027436e16159861eccb843533089040c59b10ca9ab12a",
       "reason": "Use host-native cwd paths for basename expectations; add trailing separator, NFKC and POSIX literal-backslash cases. No runtime/settings/log namespace changes and no weakened redaction, permission or retention assertions."
     },
     {
@@ -173,8 +186,8 @@
     {
       "path": "modules/subagents/tests/child-args.test.ts",
       "originalSha256": "d8acdc2ffeef714abb91e37b0f7eeb73ab7cb32bcde8af4f641015efa73cd4aa",
-      "sha256": "8b3f99616737fe737d8413ce7c50ebe08c007f0765fdc06a60a4dc4cc63ff5c2",
-      "reason": "Require managed creation for all dispatch shapes and retain recursion, model/thinking, tools and @file contract assertions. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted."
+      "sha256": "a83d368708a12c6d840fb884e688254031dbd4972fce263eac15e88d2cf41dee",
+      "reason": "Require managed creation and retain recursion, model/thinking, tools and @file contract assertions. UUID→ULID preserved. User-requested duplicate removal: pseudo-mode loop only changes task filenames, not dispatch modes; exclusion/@file retained in session-store ARG-01, real dispatch-mode assertions retained in always-managed."
     },
     {
       "path": "modules/subagents/tests/compatibility.test.ts",
@@ -185,13 +198,13 @@
     {
       "path": "modules/subagents/tests/pi-cli.integration.test.ts",
       "originalSha256": "b6b7e255d9c180293d0f0db4486a6f11025d4fa920cc9f43ca32ecbf28e4bea0",
-      "sha256": "d0c1f462b7aacf762e6d54b4efb19d4245cd8bb66cfe28e29b944210ceeb7168",
-      "reason": "Assert default actual-CLI dispatch persists verified native sessions, releases locks, and never creates ephemeral logs; retain retry/usage/large-output/exclusion checks and lowercase ULID identity. Canonicalize fixture root, require exact realpath transcript location (ready aggregate versus failed per-run evidence), use platform-native shell and additionally prove >600 KiB actual output, truncation, compact transcript and output-temp cleanup."
+      "sha256": "66c4a97467b9b294b492bca248829639896be14cbeedf035ffe2ec53d1e449fd",
+      "reason": "Assert default actual-CLI dispatch persists verified native sessions, releases locks, and never creates ephemeral logs; retain retry/usage/exclusion checks, lowercase ULID identity and canonical transcript location. User requested removal of the large-shell output stress case; no longer claim that probe."
     },
     {
       "path": "modules/subagents/tests/pi-session.integration.test.ts",
       "originalSha256": "8272722d87cb70d0d8ba57baa969e4df4008da983f3a291fb034e294b0bcbbd3",
-      "sha256": "ad1b92a29952cc547dd49639a5d9e4d07fe85662d1df7772e544cf6c981c7e52",
+      "sha256": "3332cfe4c286067838a96b26932f4641a1c57ee748dec8ff757944a3e9d8ab7f",
       "reason": "Fingerprint repository/module inputs and the root lockfile without inspecting real user settings/auth/trust. Pi 1.0.0 upgrade: derive the expected CLI version from the fixed root baseline or explicit PI_SUBAGENTS_TEST_EXPECTED_VERSION; retain native session, output and evidence assertions. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted."
     },
     {
@@ -201,15 +214,9 @@
       "reason": "Preserve existing bounded-I/O, abort, retention and fault assertions under mandatory managed allocation; forward native child arguments in mocked spawn."
     },
     {
-      "path": "modules/subagents/tests/runner-stress.test.ts",
-      "originalSha256": "1263defcc2b31ac65a206864610d68084caca2f92527ae4ffa03535e968ea4e3",
-      "sha256": "17392702c3f5e8b6c875259120d13a1f798185479de1727d9a03269ba6f64363",
-      "reason": "Preserve 100 MiB immediate/delayed/missing-canonical assertions with explicit managed-storage substitutes, not claims of native checkpoint correctness."
-    },
-    {
       "path": "modules/subagents/tests/runner.test.ts",
       "originalSha256": "de6458f70321b5ab76c2f042a4d7b91bed32b38c75a9506a9b4a0553679af74b",
-      "sha256": "8656845a28e5c8565f1648d460de56126f9fd0cb33fba4e2428018e7421e8a4c",
+      "sha256": "c8c7ae18b8ffdb495139e7181fba6bce54b42b7f9439506e182f3962e4280985",
       "reason": "Run existing protocol/timing/cancellation/progress cases through managed allocation with explicit storage substitutes; metadata now resides in managed run.json. Stalled debugLog write test: ioTimeoutMs 50→1000 so the shared managed-I/O timeout cannot fire on real disk begin-run before the injected stalled debug writer; assertions unchanged."
     },
     {
@@ -221,13 +228,13 @@
     {
       "path": "modules/subagents/tests/fixtures/child.mjs",
       "originalSha256": "56d785e53499c5bd843db6570544cc96ca48516da96b7c72da7460c51008840d",
-      "sha256": "8fbea14ea6ebd2b2f9d8cb5343ca69e66d072a140f37ffd7dae2631d12e83e94",
+      "sha256": "9cd174b414d54061b2eaf682f792ade6fd7d97d32db3319ad89656efa90a51f8",
       "reason": "Emit matching managed native session wire header for existing offline protocol/stream fixture; real native validation is tested separately."
     },
     {
       "path": "modules/subagents/tests/fixtures/pi-resume-provider.ts",
       "originalSha256": "9b38afc3a7433c6d9e3e0e9e0530fada12508f309bb5fb8a87dfdb5006e74f53",
-      "sha256": "1e6c0a40c30f51b876847748995a02eb5a6face541c9de8b5fb55981f68ec971",
+      "sha256": "610997654507a086abdadd9e9edc34bfa54bff69d1ff28382bcb269ed91548a8",
       "reason": "Remove resumable:true from actual-CLI initial dispatches so production resume tests verify automatic persistence. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted."
     },
     {
@@ -245,13 +252,13 @@
     {
       "path": "modules/file-tools/package.json",
       "originalSha256": "5ac4d162dd21b29a6535d50210ae9955b3bc65ad1861ce913b101dce1e1583f6",
-      "sha256": "f1125bda59344ca2625de50b9cddd0632f88be7b78fd55e8c321e37dfeba4816",
-      "reason": "Project owner confirmed MIT licensing; user later requested uniform src/index.ts public entries. Update local manifest entry only; preserve source identity, test runner and original import hash."
+      "sha256": "c7ce11268fa01396f0565bb22b8bcdee1adbe3b1cbd3ab29f18ffb8132b57a43",
+      "reason": "Project owner confirmed MIT licensing; user later requested uniform src/index.ts public entries. Update local manifest entry; serialize test files with --test-concurrency=1 while preserving source identity, tsx runner, every remaining assertion/deadline and original import hash."
     },
     {
       "path": "modules/file-tools/tests/packaged-runtime.test.mjs",
       "originalSha256": "aa96c409bd82795d03cc5903ec63c76b84fbb1cb5850a2a03355d3a32d40c6cc",
-      "sha256": "244a8be0ae98bd5f1cf8ddefad04694f7fd5afb64b180f59ee3f097f03b6cae1",
+      "sha256": "0eefb7c70ee1f3d96d5383d988dfb03246692dddb4f83d6ebd4731646c49e80d",
       "reason": "Resolve the development regression dependency link against the integration root; production smoke independently installs real dependencies without links. Pi 1.0.0 upgrade: require advanced annotation, nested pipeline, codemode and renderer probes on 0.99.1/0.99.2/1.0.0 instead of skipping the new host."
     },
     {
@@ -329,7 +336,7 @@
     {
       "path": "modules/shell-tools/tests/debug-log.test.mjs",
       "originalSha256": "a4f8feb542aad709839d11ae953a7496df643709eb5702b7725df231ecbea1bb",
-      "sha256": "d2aa250b2af853b374fa6227d833dcd67c69f213b755f0b95c71ecbfeefbb92e",
+      "sha256": "0412bf726faed165eb51e5d403fdfd113f1cf722313513db41c20d7c7bf6b528",
       "reason": "User-requested UUID→ULID: test fixtures/assertions generate and match ULIDs; legacy UUID acceptance unchanged."
     },
     {
@@ -359,7 +366,7 @@
     {
       "path": "modules/subagents/tests/pi-resume.integration.test.ts",
       "originalSha256": "d6345d2746fa24b3d0e4c608f4c8267a4fb76c5e0b781987d97a4818932ff1ac",
-      "sha256": "07ea20e8f2ae9f036f4562d48fc4628518a8471572af3d2c7933e52a7a2fa4c0",
+      "sha256": "38956456393f3aa7e0c23e3193ee7ad87c3df4d932cc811550e9d94dc16553ae",
       "reason": "User-requested UUID→ULID: test fixtures/assertions generate and match ULIDs; legacy UUID acceptance unchanged."
     },
     {
@@ -376,10 +383,15 @@
     }
   ],
   "addedFiles": [
+    { "path": "modules/subagents/tests/fixtures/managed-boundary.ts", "sha256": "e9495b81873add7085b67cd08c8021a281f9d0e1cdd51e21c1b16bfe69306035", "reason": "Reviewed existing protocol-test storage substitute, not native checkpoint verification. Windows realpathSync keeps DOS short paths unlike production async realpath; use realpathSync.native for mocked session header identity. Retain production strict identity and all assertions; 5 prior identity-related runner failures now pass." },
+    { "path": "modules/pty-terminal/src/targets.ts", "sha256": "a54df6ec36327b887b6f56caeae03c5afaf43ddf521286521c7bfe4334f3b860", "reason": "Pure local/WSL/SSH target launch resolver; strict target fields, absolute remote cwd, explicit env, POSIX quoting and fail-closed selection." },
+    { "path": "modules/pty-terminal/tests/targets.test.ts", "sha256": "3760264aeb15d7d1ba3ea652940df8629c70276192a2b8e7e31f2d00c6b2d46f", "reason": "Local compatibility, WSL argv/platform gate, SSH quoting/host policy, invalid config and effective-settings/pre-abort boundary tests; no real remote credentials." },
+    { "path": "modules/pty-terminal/tests/fixture.ts", "sha256": "4e6d9f10c708fe12d33b58466cb69f60508197fd567d73ff05ea59c5909cc22e", "reason": "Ready-handshaked cross-platform real terminal input fixture." },
     {
       "path": "modules/subagents/tests/always-managed.test.ts",
-      "sha256": "a1d068d6cc8a3e9c0445ec1f50ee6d13392259fed566419de8fb81491e44ae04",
-      "reason": "Track the pre-existing integration-native mandatory-managed regression suite, absent from the immutable source import list. Compare returned transcript path to the expected file realpath while retaining all identity/checkpoint/guard/lock/failure assertions."
+      "sha256": "cca10cd589416b31e0b1f24c0e93a5cc2c3e0ef9fd97af547a90917dac6ded42",
+      "preReviewSha256": "a1d068d6cc8a3e9c0445ec1f50ee6d13392259fed566419de8fb81491e44ae04",
+      "reason": "Reviewed current 104-line pre-existing integration-native mandatory-managed suite (no source edit in PTY work): real native fixture verifies all dispatch modes, canonical transcript realpath, checkpoint/guard/locks, resume history, blocked failures and removed-parameter rejection. Correct stale recorded hash after code review, without changing immutable source import hashes or relaxing assertions."
     },
     {
       "path": "modules/subagents/src/index.ts",
@@ -408,16 +420,18 @@
     },
     {
       "path": "tests/fixtures/json-schema-provider.ts",
-      "sha256": "1d94b1185cca0c212a672ab6c1fdabf9d653a1356a4d0844c4c7637952edf151",
+      "sha256": "38c5c69f17f733e3da24d44a91f60d831a9d6af40460181cd99ea3bb0d8c2d13",
       "reason": "Synthetic offline provider and fault injection; no real model calls. Updated for the native json-schema rewrite: only --json-schema/--json-output, fixed best-effort extraction, no force mode."
     },
     {
       "path": "tests/fixtures/json-schema-runtime.mjs",
-      "sha256": "2d36d3eba38c6106b945238c13ecad84ce4abdec901d4cf0d18d3e313e7eca6e",
+      "sha256": "fdbba1d9073ec0fa63299b0a8c3d39bbdced0775d82aaa79a16107a6d2585e70",
       "reason": "Complete stdout JSON.parse and exit/file contract probes, reused against actual production tarballs on all matrix hosts. Updated for the native json-schema rewrite: only --json-schema/--json-output, fixed best-effort extraction, no force mode."
     }
   ],
   "removedFiles": [
+    { "path": "modules/subagents/tests/runner-stress.test.ts", "originalSha256": "1263defcc2b31ac65a206864610d68084caca2f92527ae4ffa03535e968ea4e3", "reason": "User-requested removal of stress tests: 100 MiB/400-result immediate, delayed and missing-canonical loads." },
+    { "path": "modules/shell-tools/tests/helpers/debug-log-deadline.mjs", "originalSha256": "04fc1d5fc8535b9b2e23cc212b1574396f3a97962fd94267b1503c2356982510", "reason": "Unused after user-requested removal of thread-pool saturation stress test." },
     {
       "path": "modules/web-tools/tests/integration/package.test.ts",
       "originalSha256": "e1db5b3b10ab520a305998a82d5f59c65e743fd21a50bd7b32d4afa21a84f7ad",

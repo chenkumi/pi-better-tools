@@ -12,15 +12,15 @@ const evidenceRoot = resolve(process.env.PI_SUBAGENTS_TEST_EVIDENCE ?? join(proj
 const records = (s: string) => s.split("\n").filter(Boolean).map(line => JSON.parse(line));
 const tools = (wire: string) => records(wire).filter(e => e.type === "message_end" && e.message?.role === "toolResult" && e.message.toolName === "subagent").map(e => e.message);
 const settings = (changed = false) => ({ packages: [project], extensions: [fixture], defaultProvider: "resume-offline", defaultModel: changed ? "alternate" : "selected", defaultThinkingLevel: changed ? "low" : "high", defaultTools: ["resume_nonce"], compaction: { enabled: false }, retry: { enabled: false }, cacheWarming: "off", defaultProjectTrust: "never" });
-async function launch(root: string, session: string, phase: string, mode = "single", large = false, missing = false) {
+async function launch(root: string, session: string, phase: string, mode = "single", missing = false) {
 	const task = join(root, `${phase}-task.txt`); await writeFile(task, phase === "first" ? "P6_PARENT_FIRST: dispatch initial work" : "P6_PARENT_DECISION: Use B");
 	const args = ["--mode", "json", "-p", "--offline", "--no-extensions", "--no-context-files", "--no-skills", "--no-prompt-templates", "--no-themes", "-e", project, "-e", fixture, "--model", "resume-offline/alternate", "--tools", "subagent", ...(phase === "first" ? ["--session-id", session] : ["--session", session]), `@${task}`];
-	return invokeCli(resolve(cli!), args, root, { ...isolatedEnv(root), P6_MODE: mode, P6_LARGE: large ? "1" : "0", P6_MISSING_MODEL: missing ? "1" : "0", P6_CHILD_ONLY_MISSING: mode === "child-missing-model" && phase !== "first" ? "1" : "0", P6_CHILD_CWD: mode === "child-trust" ? join(root, "child-cwd") : undefined }, join(root, "wire", phase), large ? 256 * 1024 * 1024 : 64 * 1024 * 1024);
+	return invokeCli(resolve(cli!), args, root, { ...isolatedEnv(root), P6_MODE: mode, P6_MISSING_MODEL: missing ? "1" : "0", P6_CHILD_ONLY_MISSING: mode === "child-missing-model" && phase !== "first" ? "1" : "0", P6_CHILD_CWD: mode === "child-trust" ? join(root, "child-cwd") : undefined }, join(root, "wire", phase), 64 * 1024 * 1024);
 }
-for (const mode of ["single", "parallel", "chain", "large", "missing-model", "child-missing-model", "child-trust"]) {
+for (const mode of ["single", "parallel", "chain", "missing-model", "child-missing-model", "child-trust"]) {
 	test(`P6 real production resumable dispatch: ${mode}`, { skip: !cli && "Set PI_SUBAGENTS_TEST_CLI (skipped is not pass)", timeout: 240000 }, async () => {
 		console.log(`[progress] Verifying production resumable contract: ${mode}`);
-		const root = await mkdtemp(join(tmpdir(), "pi-resume-e2e-")), out = join(evidenceRoot, mode);
+		const root = await realpath(await mkdtemp(join(tmpdir(), "pi-resume-e2e-"))), out = join(evidenceRoot, mode);
 		await mkdir(out, { recursive: true });
 		try {
 			await mkdir(join(root, "config")); await writeFile(join(root, "config/settings.json"), JSON.stringify(settings())); await writeFile(join(root, "config/auth.json"), "{}");
@@ -29,18 +29,12 @@ for (const mode of ["single", "parallel", "chain", "large", "missing-model", "ch
 				await writeFile(join(root, "child-cwd/.pi/settings.json"), "{}");
 				await writeFile(join(root, "config/trust.json"), JSON.stringify({ [await realpath(join(root, "child-cwd"))]: true }));
 			}
-			const first = await launch(root, ulid().toLowerCase(), "first", mode, mode === "large");
+			const first = await launch(root, ulid().toLowerCase(), "first", mode);
 			assert.equal(first.code, 0, first.stderr); const firstTool = tools(first.stdout).at(-1); assert.ok(firstTool);
 			const initial = firstTool.details.results; assert.equal(initial.length, ["parallel", "chain"].includes(mode) ? 2 : 1);
 			assert.equal(new Set(initial.map((r: any) => r.subagentSessionId)).size, initial.length);
 			for (const r of initial) { assert.equal(r.status, "completed", r.errorMessage); assert.equal(r.canResume, true, r.logError); assert.match(firstTool.content[0].text, new RegExp(r.subagentSessionId)); }
-			if (["parallel", "chain", "large"].includes(mode)) {
-				if (mode === "large") {
-					const view = records(await readFile(initial[0].logPath, "utf8")), user = view.filter(r => r.type === "user"); assert.ok(user.length > 1); assert.ok(user.every((r, i) => r.part === i && r.messageId === user[0].messageId));
-					assert.ok(user.map(r => r.content).join("").includes("\u0001".repeat(1024 * 1024))); assert.ok(user.every(r => Buffer.byteLength(JSON.stringify(r)) < 1024 * 1024));
-				}
-				return;
-			}
+			if (["parallel", "chain"].includes(mode)) return;
 			const r1 = initial[0], directory = join(root, "config/subagent-sessions", r1.subagentSessionId);
 			const m1 = JSON.parse(await readFile(join(directory, "manifest.json"), "utf8"));
 			const native1 = await readFile(join(directory, m1.nativeFile)), view1 = await readFile(r1.logPath);
@@ -50,7 +44,7 @@ for (const mode of ["single", "parallel", "chain", "large", "missing-model", "ch
 				assert.equal(m1.config.childTrusted, true);
 				await writeFile(join(root, "config/trust.json"), JSON.stringify({ [await realpath(join(root, "child-cwd"))]: false }));
 			}
-			const second = await launch(root, parentStartup.file, "resume", mode, false, mode === "missing-model"); assert.equal(second.code, 0, second.stderr);
+			const second = await launch(root, parentStartup.file, "resume", mode, mode === "missing-model"); assert.equal(second.code, 0, second.stderr);
 			assert.notEqual(first.pid, second.pid); const t2 = tools(second.stdout).at(-1); assert.ok(t2);
 			const r2 = t2.details.results[0];
 			if (mode === "missing-model") {

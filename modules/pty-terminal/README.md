@@ -1,0 +1,64 @@
+# PTY Terminal（整合版）
+
+來源：使用者擁有的 `pi-pty-terminal` 0.1.0（MIT）；來源 README 說明其工具移植自 `opencode-pty-mcp`。此為來源快照加上本地 target 適配，不依賴原專案路徑。根 package/lockfile/Pi manifest 為唯一安裝單元；公開入口 `modules/pty-terminal/src/index.ts`。原始雜湊見 `docs/sources.json`，差異見 `docs/adaptations.json`。
+
+## 工具
+
+- `pty_spawn`：`{ command, args?, target?, cwd?, env?, cols?, rows? }`；`target` 預設 `local`，回傳 sessionId、本機 transport pid、target、transport。
+- `pty_write`：`{ sessionId, data }`，支援 `\\x03`、`\\r`、`\\t` 等控制字元。
+- `pty_read`：drain pending output，預設等待 1000ms；每次輸出最多 2000 行／50KiB，超量 drain 部分會截斷，不保留完整檔案。
+- `pty_resize`：調整 terminal cols/rows。
+- `pty_wait_exit`：回傳 transport exitCode，等待逾時為 -1；SSH 連線錯誤可能為 255，並非遠端測試成功。
+- `pty_kill`：關閉本機 transport 並釋放 session；POSIX 預設 SIGHUP，Windows 使用 backend 無 signal 的終止操作（signal 參數不適用）。
+- `pty_list`：列出本 session 保留的 active/exited PTY 與 target。
+
+只有 spawn 指定 target；後續使用 sessionId。不改其他 shell/file 工具的執行位置。PTY 合併終端輸出並可能有 ANSI 控制碼，不提供逐指令結構化 stdout/stderr/exit code；互動 shell 的 exitCode 是 shell 結束碼。
+
+## 設定
+
+在 Pi 的 user settings 或受信任專案 `.pi/settings.json` 加入（不會自動寫入）：
+
+```json
+{
+  "pi-pty-terminal": {
+    "targets": {
+      "linux": {
+        "transport": "wsl",
+        "distribution": "Ubuntu",
+        "cwd": "/home/user/projects/pi-better-tools"
+      },
+      "macos": {
+        "transport": "ssh",
+        "host": "mac-dev",
+        "cwd": "/Users/user/projects/pi-better-tools"
+      }
+    }
+  }
+}
+```
+
+`local` 是保留內建名稱，不使用設定覆寫。Target name 為英數開頭，後續只接受英數、`_`、`-`。每次 remote spawn 使用 Pi `getSettings()` 有效、trust-aware settings；手動修改後 `/reload`。未知 target、錯誤設定、非絕對 POSIX cwd 不回退 local。target entry 僅接受上例欄位；host alias 可使用 `user@host`，連接埠／金鑰／ProxyJump 放在使用者 SSH config，不接受密碼或自由 SSH options。
+
+```json
+{ "target": "linux", "command": "bash", "args": ["-l"] }
+```
+
+```json
+{ "target": "macos", "command": "zsh", "args": ["-l"] }
+```
+
+`cwd`／`env` 指目標程式；cwd 可覆寫 target 預設路徑，不把 Windows cwd 自動映射。遠端 env 僅傳明確指定的值，名稱須符合 POSIX；本機 SSH client 仍繼承本機環境。WSL 使用 `wsl.exe --distribution … --cd … --exec env -- …`，僅 Windows host 支援，需 WSL 支援 `--cd`。SSH 使用本機 `ssh -tt`，遠端須有 POSIX 相容 login shell、`sh` 與 `env`；參數逐一 POSIX quote。金鑰／SSH agent 認證、`BatchMode=yes`、ConnectTimeout=15，不停用 host key 驗證；請先自行驗證主機並建立 known_hosts。SSH config 的 ForwardAgent/SendEnv 等仍由使用者負責。
+
+## 安裝及驗證
+
+從根目錄執行 `npm ci --ignore-scripts`，再明確執行 `npm run pty:install`（只 rebuild node-pty 的 native setup；無預編譯支援時需本機編譯工具）。使用符合根 manifest 的 Node 與 Pi 1.0.0 開發基準。原來源採用的 `node-pty` 1.2.0-beta.14 保留為固定 runtime dependency，未宣稱 beta 等同 stable 或所有 OS/architecture 都已實測。
+
+根 `npm run typecheck`／`npm test` 包含此模組；loader 與真實 production tarball 使用真正本機 PTY。WSL/SSH argv/settings 單元測試不等於真實遠端連線驗證。原來源 POSIX shell 測試改用平台原生 Node fixtures，保留互動、drain、exit 及 kill 斷言。
+
+啟用前停用獨立 `pi-pty-terminal`，避免工具重複註冊；不自動修改全域設定。原七個工具 activation 交由 Pi；explicit allowlist 需加入工具名稱，no-tools/exclusions 不繞過。
+
+## 安全與 lifecycle
+
+任意指令以 target 使用者權限執行；不是 OS sandbox。WSL 可存取 Windows 掛載檔案，SSH 可改遠端專案。GitHub 同步、commit/push/pull 不自動執行；跨平台測試前自行確認同一 commit 及乾淨 working tree，各平台自行安裝 dependencies。
+
+`session_shutdown`（含 reload）清理本機 PTY，關閉 transport 不保證遠端 descendants/背景程序停止；不呼叫 `wsl --shutdown`。建立 session 不等於 SSH/WSL 握手或命令成功，必須 read 輸出及 wait_exit。操作取消不自動關閉持續 session；需要時明確 kill。輸出 buffer 沿用來源的記憶體累積方式，長期未 drain 可能佔用大量記憶體。

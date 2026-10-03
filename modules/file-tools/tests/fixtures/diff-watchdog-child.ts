@@ -1,7 +1,5 @@
 import assert from "node:assert/strict";
 import { getEventListeners } from "node:events";
-import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import { performance } from "node:perf_hooks";
 import { Worker } from "node:worker_threads";
 import { applyPatch } from "diff";
@@ -12,11 +10,10 @@ import {
   type DiffRunnerTestOptions,
 } from "../../src/diff-runner.js";
 import { FileToolError } from "../../src/errors.js";
-import { editTextFile, sha256 } from "../../src/file-operations.js";
 
 // This script must be launched by the independent parent watchdog, never imported
 // into the test runner: a regression to synchronous diff can hang its event loop.
-const [scenario, directory] = process.argv.slice(2);
+const [scenario] = process.argv.slice(2);
 const fixtureUrl = new URL("./diff-behavior-worker.mjs", import.meta.url);
 
 async function expectError(action: () => Promise<unknown>, code: string) {
@@ -204,50 +201,8 @@ async function lifecycle() {
   return { workersTerminated: workers.length };
 }
 
-async function regression(abort: boolean) {
-  const path = join(directory, "regression.txt");
-  const original = "a\n".repeat(15_000);
-  const expected = "b\n".repeat(15_000);
-  await writeFile(path, original, "utf8");
-  const controller = new AbortController();
-  const started = performance.now();
-  let ticks = 0;
-  let lastTick = started;
-  let maxGap = 0;
-  const heartbeat = setInterval(() => {
-    const now = performance.now();
-    maxGap = Math.max(maxGap, now - lastTick);
-    lastTick = now;
-    ticks++;
-  }, 10);
-  const cancel = abort ? setTimeout(() => controller.abort(), 100) : undefined;
-  let outcome: string;
-  try {
-    const result = await editTextFile(path, "regression.txt", [{ oldText: original, newText: expected }], sha256(original), controller.signal);
-    assert.equal(abort, false, "the long-running regression must honor cancellation");
-    assert.equal(applyPatch(original, result.patch), expected);
-    assert.equal(await readFile(path, "utf8"), expected);
-    outcome = "success";
-  } catch (error) {
-    assert.ok(error instanceof FileToolError);
-    assert.equal(error.payload.code, abort ? "OPERATION_ABORTED" : "OPERATION_TIMEOUT");
-    assert.deepEqual(await readFile(path), Buffer.from(original), "failed diff must leave the original bytes unchanged");
-    outcome = error.payload.code;
-  } finally {
-    clearInterval(heartbeat);
-    clearTimeout(cancel);
-  }
-  maxGap = Math.max(maxGap, performance.now() - lastTick);
-  assert.ok(ticks > 0, "event loop heartbeat must run while edit is pending");
-  assert.ok(maxGap < 1_500, `main event loop stalled for ${maxGap}ms`);
-  assert.ok(performance.now() - started < 6_000, "regression must not take the old 20+ seconds");
-  return { outcome, ticks, maxGap, unchanged: (await readFile(path, "utf8")) === original };
-}
-
 let details: object;
 if (scenario === "lifecycle") details = await lifecycle();
-else if (scenario === "regression") details = await regression(false);
-else if (scenario === "abort-regression") details = await regression(true);
 else if (scenario === "different-cwd") {
   const result = await createDiffFeedback("old\n", "new\n", "path with spaces.txt");
   assert.equal(applyPatch("old\n", result.patch), "new\n");

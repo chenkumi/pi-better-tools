@@ -42,7 +42,7 @@ export default function (pi: ExtensionAPI) {
      const tools = getCurrentTools(context.messages).map(t=>t.name);
      save(`request-${nth}.json`, {pid:process.pid,phase,nth,executionsBeforeRequest:executions,model:{provider:model.provider,id:model.id},reasoning:options?.reasoning,tools,messages:context.messages});
      assert.ok(!tools.includes("subagent"), "subagent declaration must be excluded");
-     assert.deepEqual(tools, phase === "anchor" || phase === "large" ? [] : ["p0_nonce"]);
+     assert.deepEqual(tools, phase === "anchor" ? [] : ["p0_nonce"]);
      const old = context.messages.find((m:any)=>m.role==="toolResult" && m.toolCallId==="p0-first-call") as any;
      if (phase === "resume" && nth === 1) {
       assert.equal(executions,0,"history verification must precede every new tool");
