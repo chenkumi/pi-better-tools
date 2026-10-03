@@ -19,6 +19,8 @@ export interface CompactSubagentResult {
 	agent: string;
 	agentSource: "bundled" | "user" | "project" | "unknown";
 	task: string;
+	/** Parent TUI label only; not part of the child's task or saved configuration. */
+	title?: string;
 	status: TaskStatus;
 	exitCode: number;
 	output: string;
@@ -140,6 +142,7 @@ export function compactResult(input: CompactSubagentResult & Record<string, unkn
 		exitCode,
 		output,
 		usage,
+		...(typeof input.title === "string" && input.title ? { title: input.title } : {}),
 		...(logPath ? { logPath } : {}),
 		...(subagentSessionId ? { subagentSessionId, canResume: canResume === true } : {}),
 		...(errorCode ? { errorCode } : {}),

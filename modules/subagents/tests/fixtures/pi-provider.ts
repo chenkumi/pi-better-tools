@@ -60,7 +60,7 @@ export default function (pi: ExtensionAPI) {
 						if (scenario === "exclusion") call = { id: "fixture-call", name: "probe", arguments: {} };
 					}
 					if (parent && nth === 1) {
-						const task = { agent: "worker", task: "Offline subagent contract fixture; no paid model calls." };
+						const task = { agent: "worker", task: "Offline subagent contract fixture; no paid model calls.", title: "驗證子代理合約" };
 						const mode = process.env.PI_SUBAGENTS_TEST_MODE ?? "single";
 						const args = mode === "parallel" ? { tasks: [task, task] } : mode === "chain" ? { chain: [task, { ...task, task: "Offline next step: {previous}" }] } : task;
 						if (scenario === "selection-model-fallback") Object.assign(args, { model: "chat-5.6-terra", thinkingLevel: "high" });

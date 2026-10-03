@@ -16,8 +16,9 @@
 | 參數 | 說明 |
 | --- | --- |
 | `agent`、`task` | single 模式 |
-| `tasks` | parallel 模式，`[{ agent, task, cwd? }]` |
-| `chain` | chain 模式，`[{ agent, task, cwd? }]`；`task` 可用 `{previous}` 取得前一步完整 assistant 文字 |
+| `title` | 選填；用 50 字內描述這個 subagent 要做甚麼事，顯示於 TUI，不取代完整 `task` |
+| `tasks` | parallel 模式，`[{ agent, task, title?, cwd? }]` |
+| `chain` | chain 模式，`[{ agent, task, title?, cwd? }]`；`task` 可用 `{previous}` 取得前一步完整 assistant 文字 |
 | `resume`、`task` | resume 模式，`resume` 為工具回傳的完整 `subagentSessionId` |
 | `cwd` | single 模式的工作目錄 |
 | `provider` | 選填；須搭配不含 `/` 的 `model` |
@@ -38,15 +39,17 @@
 
 首次 task 須完整說明目標、操作要求、相關路徑、限制／非目標及預期回傳格式。
 
+`title` 是父工具的 UI 標題：single／resume 填頂層欄位，parallel／chain 每項可填獨立標題（優先於頂層批次標題 fallback）。Call、執行中及完成後均保留 agent 身份並顯示標題；缺少標題沿用舊呈現。最多 50 個 Unicode 字元（code points／碼點），不按 UTF-16 code units 計數；組合 emoji／重音可包含多個碼點。Schema 保留 maxLength 50，派遣前再次計數，避免宿主分群演算法漏過超長組合文字；另限原始 UTF-8 4 KiB，避免極長 combining sequences。空白、只有控制碼或超長會於派遣前拒絕。沿用 Pi 參數正規化：optional null 可視為省略，數字／布林可轉為字串；直接 execute 收到非字串則拒絕。TUI 清理標題的 ANSI／控制字元與 bidi；不變 task／child args／提示、managed config／guard／trust，不修改真實設定。標題僅保存於 parent 工具 arguments/details；resume 的新標題不改先前紀錄，也不自動沿用前次標題。
+
 ```json
-{ "agent": "scout", "task": "Find all authentication code." }
+{ "agent": "scout", "title": "調查登入與驗證程式碼", "task": "Find all authentication code." }
 ```
 
 ```json
 {
   "tasks": [
-    { "agent": "scout", "task": "Find model-related code." },
-    { "agent": "scout", "task": "Find provider-related code." }
+    { "agent": "scout", "title": "調查模型相關程式碼", "task": "Find model-related code." },
+    { "agent": "scout", "title": "調查 provider 相關程式碼", "task": "Find provider-related code." }
   ]
 }
 ```
@@ -76,10 +79,10 @@ Task 以權限受限的 UTF-8 暫存檔（Pi `@file` 參數）傳給 child，不
 派遣成功並完成驗證後，結果會回傳 `subagentSessionId` 與 `canResume: true`：
 
 ```json
-{ "resume": "<subagentSessionId>", "task": "採用方案 B，繼續實作並執行驗證。" }
+{ "resume": "<subagentSessionId>", "title": "實作並驗證方案 B", "task": "採用方案 B，繼續實作並執行驗證。" }
 ```
 
-- Resume 只接受 `resume` 與非空 `task`；不可同時提供 agent、tasks、chain、cwd、provider、model、thinkingLevel、agentScope、confirmProjectAgents。
+- Resume 只接受 `resume`、非空 `task` 與選填顯示用 `title`；不可同時提供 agent、tasks、chain、cwd、provider、model、thinkingLevel、agentScope、confirmProjectAgents。
 - 只接受完整小寫 ULID（沿用舊版 UUID 的既有 session 仍可續接）；續接只載入該 child 自己的歷史，看不到 parent 新對話。
 - Parallel／chain 每個 item／step 各有獨立 session，不共用 context。
 - 限相同 parent session 與 canonical parent cwd。

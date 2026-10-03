@@ -24,6 +24,7 @@ import { Type } from "typebox";
 import { type AgentConfig, type AgentScope, discoverAgents } from "./agents.ts";
 import { buildSubagentPiArgs } from "./child-args.ts";
 import { selectDispatchDefaults } from "./model-selection.ts";
+import { displayTitle, isValidTitle, MAX_TITLE_LENGTH } from "./title.ts";
 import { ManagedSession, SessionError, ConversationDigest, canonicalCwd, snapshotConfig, validateConfig } from "./session-store.ts";
 import {
 	aggregateUsage,
@@ -88,6 +89,7 @@ interface SubagentDetails {
 	mode: "single" | "parallel" | "chain";
 	agentScope: AgentScope;
 	projectAgentsDir: string | null;
+	title?: string;
 	results: SingleResult[];
 	errorCode?: string;
 	/** Ephemeral renderer-only progress; omitted from the final tool result. */
@@ -309,14 +311,14 @@ export async function runSingleAgent(
 	task: string, cwd: string | undefined, step: number | undefined, signal: AbortSignal | undefined,
 	onUpdate: OnUpdateCallback | undefined,
 	makeDetails: (results: SingleResult[], progress?: LiveProgress[]) => SubagentDetails,
-	parentSessionId: string, parentToolCallId: string, runtime: RunnerRuntime = {},
+	parentSessionId: string, parentToolCallId: string, runtime: RunnerRuntime = {}, title?: string,
 ): Promise<SingleResult> {
 	const agent = runtime.resumeSession?.manifest.config.agent ?? agents.find((candidate) => candidate.name === agentName);
 	const model = runtime.resumeSession?.manifest.config.model ?? (dispatchDefaults.modelWasExplicit ? dispatchDefaults.model : agent?.model ?? dispatchDefaults.model);
 	const taskId = ulid().toLowerCase();
 	const debugInput = { agent: agentName, task, taskPrompt: `Task: ${task}`, systemPrompt: agent?.systemPrompt };
 	const currentResult = compactResult({ taskId, agent: agentName, agentSource: agent?.source ?? "unknown",
-		task, status: "running", exitCode: -1, output: "", usage: emptyUsage(), model, step });
+		task, ...(title ? { title: title.trim() } : {}), status: "running", exitCode: -1, output: "", usage: emptyUsage(), model, step });
 	const io = new IoGate(runtime.ioTimeoutMs);
 	let managed = runtime.resumeSession;
 	let lockHeld = false;
@@ -787,14 +789,20 @@ export async function runSingleAgent(
 	return currentResult;
 }
 
+const TitleSchema = Type.String({
+	description: "用50字內描述這個subagent要做甚麼事",
+	minLength: 1, maxLength: MAX_TITLE_LENGTH,
+});
 const TaskItem = Type.Object({
 	agent: Type.String({ description: "Name of the agent to invoke" }),
 	task: Type.String({ description: "Task to delegate to the agent" }),
+	title: Type.Optional(TitleSchema),
 	cwd: Type.Optional(Type.String({ description: "Working directory for the agent process" })),
 });
 const ChainItem = Type.Object({
 	agent: Type.String({ description: "Name of the agent to invoke" }),
 	task: Type.String({ description: "Task with optional {previous} placeholder for prior output" }),
+	title: Type.Optional(TitleSchema),
 	cwd: Type.Optional(Type.String({ description: "Working directory for the agent process" })),
 });
 const AgentScopeSchema = StringEnum(["user", "project", "both"] as const, {
@@ -805,11 +813,12 @@ const ThinkingLevelSchema = Type.String({
 	description: "Omit by default; pass only when explicitly requested by the user or a skill. Pi thinking level (off, minimal, low, medium, high, xhigh, max). Checked after resolving the model; unknown or unsupported levels are ignored and defaults are used.",
 });
 const SubagentParams = Type.Object({
-	resume: Type.Optional(Type.String({ description: "Complete managed subagentSessionId to continue; only accepts a new task, no config overrides." })),
+	resume: Type.Optional(Type.String({ description: "Complete managed subagentSessionId to continue; accepts a new task and optional display title, no config overrides." })),
 	agent: Type.Optional(Type.String({ description: "Name of the agent to invoke (for single mode)" })),
 	task: Type.Optional(Type.String({ description: "Task to delegate (for single mode)" })),
-	tasks: Type.Optional(Type.Array(TaskItem, { description: "Array of {agent, task} for parallel execution" })),
-	chain: Type.Optional(Type.Array(ChainItem, { description: "Array of {agent, task} for sequential execution" })),
+	title: Type.Optional(TitleSchema),
+	tasks: Type.Optional(Type.Array(TaskItem, { description: "Array of {agent, task, title?, cwd?} for parallel execution" })),
+	chain: Type.Optional(Type.Array(ChainItem, { description: "Array of {agent, task, title?, cwd?} for sequential execution" })),
 	provider: Type.Optional(Type.String({ description: "Omit by default; pass only when the user or a skill explicitly requests a model/provider override. Requires a bare model ID and combines as provider/model; an unregistered selection is ignored." })),
 	model: Type.Optional(Type.String({ description: "Omit by default; pass only when explicitly requested by the user or a skill. Exact model ID or provider/model; a registered selection overrides the agent/current session model. Unknown or ambiguous selections are ignored and defaults are used." })),
 	thinkingLevel: Type.Optional(ThinkingLevelSchema),
@@ -822,8 +831,12 @@ export function normalizeDispatch(params: Record<string, any>): "single" | "para
 	if (Object.hasOwn(params, "resumable")) throw new SessionError("INVALID_DISPATCH", "resumable was removed: every initial task automatically uses a managed native session. Omit this parameter.");
 	const present = (key: string) => params[key] !== undefined;
 	const nonblank = (v: unknown) => typeof v === "string" && !!v.trim();
+	const validateTitle = (value: unknown) => {
+		if (!isValidTitle(value)) throw new SessionError("INVALID_DISPATCH", "title must be nonempty text describing the work in at most 50 characters.");
+	};
+	validateTitle(params.title);
 	if (present("resume")) {
-		if (Object.keys(params).some((key) => !["resume", "task"].includes(key)) || !nonblank(params.resume) || !nonblank(params.task)) throw new SessionError("INVALID_DISPATCH", "resume accepts only a complete session ID and nonempty new task");
+		if (Object.keys(params).some((key) => !["resume", "task", "title"].includes(key)) || !nonblank(params.resume) || !nonblank(params.task)) throw new SessionError("INVALID_DISPATCH", "resume accepts only a complete session ID, nonempty new task and optional display title");
 		return "resume";
 	}
 	const modes = Number(present("agent")) + Number(present("tasks")) + Number(present("chain"));
@@ -834,7 +847,8 @@ export function normalizeDispatch(params: Record<string, any>): "single" | "para
 	}
 	if (present("task")) throw new SessionError("INVALID_DISPATCH", "Top-level task requires single or resume mode");
 	const mode = present("tasks") ? "parallel" : "chain", items = params[mode === "parallel" ? "tasks" : "chain"];
-	if (!Array.isArray(items) || !items.length || items.some((item) => !isRecord(item) || !nonblank(item.agent) || !nonblank(item.task) || Object.keys(item).some((key) => !["agent", "task", "cwd"].includes(key)))) throw new SessionError("INVALID_DISPATCH", "Dispatch items require nonempty agent/task; nested resume is unsupported");
+	if (!Array.isArray(items) || !items.length || items.some((item) => !isRecord(item) || !nonblank(item.agent) || !nonblank(item.task) || Object.keys(item).some((key) => !["agent", "task", "title", "cwd"].includes(key)))) throw new SessionError("INVALID_DISPATCH", "Dispatch items require nonempty agent/task; nested resume is unsupported");
+	for (const item of items) validateTitle(item.title);
 	return mode;
 }
 
@@ -851,7 +865,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 		description: [
 			"Delegate tasks to specialized agents with isolated context.",
 			"Provide exactly one mode: single (agent + task), parallel (tasks array), chain (steps with {previous}), or resume (complete subagentSessionId + new task).",
-			"Every initial task automatically saves a managed native session; there is no non-persistent mode or resumable parameter. Resume accepts no configuration overrides and belongs to the same parent session/cwd; only verified ready sessions can continue.",
+			"Every initial task automatically saves a managed native session; there is no non-persistent mode or resumable parameter. Resume accepts an optional display title but no configuration overrides and belongs to the same parent session/cwd; only verified ready sessions can continue.",
 			`Dispatch limits: parallel mode accepts at most ${MAX_PARALLEL_TASKS} tasks and runs at most ${MAX_CONCURRENCY} at once.`,
 			"Chain steps run in order, pass each complete assistant-text output into {previous}, and stop at the first failed step.",
 			"Each task records its non-reasoning child transcript in a sub-session JSONL log; parent results contain only assistant output, status, usage, and the log path.",
@@ -863,6 +877,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 		promptSnippet: "Delegate a self-contained task to an isolated subagent context",
 		promptGuidelines: [
 			"Omit model, provider, and thinkingLevel unless the user or a skill explicitly specifies them. Do not choose overrides on your own; invalid selections fall back to defaults after model-first validation.",
+			"Supply a title of at most 50 characters describing what the subagent will do; for parallel/chain dispatch put a specific title on each item. Title is a TUI label, not a replacement for the complete task.",
 			"Initial subagent dispatches have clean isolated context, with no parent conversation. Include the goal, complete action, relevant paths/references, constraints/non-goals, operating instructions, and handoff format.",
 			"Every task is automatically persisted. A child can return questions and exit normally; use its returned ready subagentSessionId to resume after a decision. Do not keep it alive waiting for decisions.",
 			"Resume with the returned complete subagentSessionId and a concrete new decision/task. It loads only that child's native history, not the parent chat. Do not repost logs or omit necessary new information.",
@@ -893,8 +908,8 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 						if (slash < 1 || !ctx.modelRegistry.find(selection.slice(0, slash), selection.slice(slash + 1))) throw new SessionError("MODEL_UNAVAILABLE", "Saved model selection is not registered in the current host");
 					};
 					await preflight.run(validate, "validate continuation configuration");
-					const details = (results: SingleResult[], progress?: LiveProgress[]): SubagentDetails => ({ mode: "single", agentScope, projectAgentsDir: discoverAgents(ctx.cwd, agentScope).projectAgentsDir, results, ...(progress ? { progress } : {}) });
-					const result = await runSingleAgent(ctx.cwd, { modelWasExplicit: true, thinkingLevelWasExplicit: true }, [], session.manifest.config.agent.name, params.task!, session.manifest.config.cwd, undefined, signal, onUpdate, details, owner.parentSessionId, toolCallId, { ...taskRuntime, resumeSession: session, validateResumeConfig: validate });
+					const details = (results: SingleResult[], progress?: LiveProgress[]): SubagentDetails => ({ mode: "single", agentScope, projectAgentsDir: discoverAgents(ctx.cwd, agentScope).projectAgentsDir, ...(params.title ? { title: params.title.trim() } : {}), results, ...(progress ? { progress } : {}) });
+					const result = await runSingleAgent(ctx.cwd, { modelWasExplicit: true, thinkingLevelWasExplicit: true }, [], session.manifest.config.agent.name, params.task!, session.manifest.config.cwd, undefined, signal, onUpdate, details, owner.parentSessionId, toolCallId, { ...taskRuntime, resumeSession: session, validateResumeConfig: validate }, params.title);
 					return { content: [{ type: "text", text: formatParentResults("single", [result]) }], details: details([result]), usage: asToolUsage([result]), ...(isFailedResult(result) ? { isError: true } : {}) };
 				} catch (error) {
 					return { content: [{ type: "text", text: errorToString(error) }], details: { mode: "single", agentScope, projectAgentsDir: null, results: [], errorCode: error instanceof SessionError ? error.code : "COMMIT_FAILED" }, isError: true };
@@ -927,6 +942,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 					mode,
 					agentScope,
 					projectAgentsDir: discovery.projectAgentsDir,
+					...(params.title ? { title: params.title.trim() } : {}),
 					results,
 					...(progress && progress.length > 0 ? { progress } : {}),
 				});
@@ -948,12 +964,12 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 						canceled.abort();
 						const mode: SubagentDetails["mode"] = hasChain ? "chain" : hasTasks ? "parallel" : "single";
 						const requested = hasChain
-							? (params.chain ?? []).map((step, index) => ({ agent: step.agent, task: step.task, cwd: step.cwd, step: index + 1 }))
+							? (params.chain ?? []).map((step, index) => ({ agent: step.agent, task: step.task, title: step.title ?? params.title, cwd: step.cwd, step: index + 1 }))
 							: hasTasks
-								? (params.tasks ?? []).map((task) => ({ agent: task.agent, task: task.task, cwd: task.cwd, step: undefined }))
-								: [{ agent: params.agent!, task: params.task!, cwd: params.cwd, step: undefined }];
+								? (params.tasks ?? []).map((task) => ({ agent: task.agent, task: task.task, title: task.title ?? params.title, cwd: task.cwd, step: undefined }))
+								: [{ agent: params.agent!, task: params.task!, title: params.title, cwd: params.cwd, step: undefined }];
 						const results = await mapWithConcurrencyLimit(requested, MAX_CONCURRENCY, (item) =>
-							runSingleAgent(ctx.cwd, dispatchDefaultsFor(item.agent), agents, item.agent, item.task, item.cwd, item.step, canceled.signal, undefined, makeDetails(mode), parentSessionId, toolCallId, taskRuntime),
+							runSingleAgent(ctx.cwd, dispatchDefaultsFor(item.agent), agents, item.agent, item.task, item.cwd, item.step, canceled.signal, undefined, makeDetails(mode), parentSessionId, toolCallId, taskRuntime, item.title),
 						);
 						return { content: [{ type: "text", text: `Canceled: project-local agents not approved.\n\n${formatParentResults(mode, results)}` }], details: makeDetails(mode)(results), usage: asToolUsage(results), isError: true };
 					}
@@ -973,7 +989,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 								try { onUpdate({ content: partial.content, details: makeDetails("chain")([...results, current], partial.details?.progress) }); } catch { /* progress delivery is contained */ }
 							}
 						: undefined;
-					const result = await runSingleAgent(ctx.cwd, dispatchDefaultsFor(step.agent), agents, step.agent, taskWithContext, step.cwd, index + 1, signal, chainUpdate, makeDetails("chain"), parentSessionId, toolCallId, taskRuntime);
+					const result = await runSingleAgent(ctx.cwd, dispatchDefaultsFor(step.agent), agents, step.agent, taskWithContext, step.cwd, index + 1, signal, chainUpdate, makeDetails("chain"), parentSessionId, toolCallId, taskRuntime, step.title ?? params.title);
 					results.push(result);
 					if (isFailedResult(result)) {
 						return { content: [{ type: "text", text: formatParentResults("chain", results) }], details: makeDetails("chain")(results), usage: asToolUsage(results), isError: true };
@@ -986,7 +1002,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 			if (params.tasks && params.tasks.length > 0) {
 				const liveProgress: Array<LiveProgress | undefined> = new Array(params.tasks.length);
 				const allResults: SingleResult[] = params.tasks.map((task) => compactResult({
-					taskId: ulid().toLowerCase(), agent: task.agent, agentSource: "unknown", task: task.task, status: "running", exitCode: -1, output: "", usage: emptyUsage(),
+					taskId: ulid().toLowerCase(), agent: task.agent, agentSource: "unknown", task: task.task, title: task.title ?? params.title, status: "running", exitCode: -1, output: "", usage: emptyUsage(),
 				}));
 				const emitParallelUpdate = () => {
 					if (!onUpdate) return;
@@ -1001,7 +1017,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 						if (partial.details?.results[0]) allResults[index] = partial.details.results[0];
 						liveProgress[index] = partial.details?.progress?.[0];
 						emitParallelUpdate();
-					}, makeDetails("parallel"), parentSessionId, toolCallId, taskRuntime);
+					}, makeDetails("parallel"), parentSessionId, toolCallId, taskRuntime, task.title ?? params.title);
 					allResults[index] = result;
 					liveProgress[index] = undefined;
 					emitParallelUpdate();
@@ -1012,18 +1028,27 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 			}
 
 			if (params.agent && params.task) {
-				const result = await runSingleAgent(ctx.cwd, dispatchDefaultsFor(params.agent), agents, params.agent, params.task, params.cwd, undefined, signal, onUpdate, makeDetails("single"), parentSessionId, toolCallId, taskRuntime);
+				const result = await runSingleAgent(ctx.cwd, dispatchDefaultsFor(params.agent), agents, params.agent, params.task, params.cwd, undefined, signal, onUpdate, makeDetails("single"), parentSessionId, toolCallId, taskRuntime, params.title);
 				return { content: [{ type: "text", text: formatParentResults("single", [result]) }], details: makeDetails("single")([result]), usage: asToolUsage([result]), ...(isFailedResult(result) ? { isError: true } : {}) };
 			}
 			return { content: [{ type: "text", text: "Invalid parameters." }], details: makeDetails("single")([]) };
 		},
 
 		renderCall(args, theme, _context) {
+			args = args ?? {};
 			const scope: AgentScope = args.agentScope ?? "user";
-			if (args.resume) return new Text(`${theme.fg("toolTitle", theme.bold("subagent resume "))}${theme.fg("accent", args.resume)}`, 0, 0);
-			if (args.chain?.length) return new Text(`${theme.fg("toolTitle", theme.bold("subagent "))}${theme.fg("accent", `chain (${args.chain.length} steps)`)}${theme.fg("muted", ` [${scope}]`)}`, 0, 0);
-			if (args.tasks?.length) return new Text(`${theme.fg("toolTitle", theme.bold("subagent "))}${theme.fg("accent", `parallel (${args.tasks.length} tasks)`)}${theme.fg("muted", ` [${scope}]`)}`, 0, 0);
-			return new Text(`${theme.fg("toolTitle", theme.bold("subagent "))}${theme.fg("accent", args.agent || "...")}${theme.fg("muted", ` [${scope}]`)}`, 0, 0);
+			const title = displayTitle(args.title);
+			const suffix = title ? theme.fg("accent", ` · ${title}`) : "";
+			const header = args.resume ? `${theme.fg("toolTitle", theme.bold("subagent resume "))}${theme.fg("accent", args.resume)}`
+				: `${theme.fg("toolTitle", theme.bold("subagent "))}${theme.fg("accent", args.chain?.length ? `chain (${args.chain.length} steps)` : args.tasks?.length ? `parallel (${args.tasks.length} tasks)` : args.agent || "...")}${theme.fg("muted", ` [${scope}]`)}`;
+			const container = new Container();
+			container.addChild(new Text(header + suffix, 0, 0));
+			const items = Array.isArray(args.chain) ? args.chain : Array.isArray(args.tasks) ? args.tasks : [];
+			for (const item of items.slice(0, MAX_PARALLEL_TASKS)) {
+				const itemTitle = displayTitle(item?.title);
+				if (itemTitle) container.addChild(new Text(`${theme.fg("muted", displayTitle(item?.agent) || "...")} · ${theme.fg("accent", itemTitle)}`, 0, 0));
+			}
+			return container;
 		},
 
 		renderResult(result, { expanded }, theme, _context) {
@@ -1033,14 +1058,15 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 				return new Text(content?.type === "text" ? content.text : "(no output)", 0, 0);
 			}
 			const completed = details.results.filter((entry) => entry.status !== "running").length;
-			const title = details.mode === "single" ? details.results[0].agent : `${details.mode} ${completed}/${details.results.length}`;
+			const label = displayTitle(details.mode === "single" ? details.results[0].title : details.title);
+			const title = (details.mode === "single" ? details.results[0].agent : `${details.mode} ${completed}/${details.results.length}`) + (label ? ` · ${label}` : "");
 			if (!expanded) {
 				const container = new Container();
 				container.addChild(new Text(theme.fg("toolTitle", theme.bold(title)), 0, 0));
 				for (const entry of details.results) {
 					const statusColor = entry.status === "completed" ? "success" : entry.status === "running" ? "warning" : "error";
 					container.addChild(new Spacer(1));
-					container.addChild(new Text(`${theme.fg(statusColor, `${entry.status}: `)}${theme.fg("accent", entry.agent)}`, 0, 0));
+					container.addChild(new Text(`${theme.fg(statusColor, `${entry.status}: `)}${theme.fg("accent", entry.agent)}${displayTitle(entry.title) ? theme.fg("accent", ` · ${displayTitle(entry.title)}`) : ""}`, 0, 0));
 					const live = details.progress?.find((progress) => progress.taskId === entry.taskId);
 					addLiveProgress(container, live, (text) => theme.fg("dim", text));
 					if (entry.status !== "running") container.addChild(new Text(theme.fg("toolOutput", getResultOutput(entry)), 0, 0));
@@ -1054,7 +1080,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 			for (const entry of details.results) {
 				const statusColor = entry.status === "completed" ? "success" : entry.status === "running" ? "warning" : "error";
 				container.addChild(new Spacer(1));
-				container.addChild(new Text(`${theme.fg(statusColor, entry.status)} ${theme.fg("accent", entry.agent)}`, 0, 0));
+				container.addChild(new Text(`${theme.fg(statusColor, entry.status)} ${theme.fg("accent", entry.agent)}${displayTitle(entry.title) ? theme.fg("accent", ` · ${displayTitle(entry.title)}`) : ""}`, 0, 0));
 				container.addChild(new Text(theme.fg("muted", `Task: ${entry.task}`), 0, 0));
 				const live = details.progress?.find((progress) => progress.taskId === entry.taskId);
 				addLiveProgress(container, live, (text) => theme.fg("dim", text));

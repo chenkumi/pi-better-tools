@@ -20,7 +20,11 @@ Omit `model`, `provider` and `thinkingLevel` overrides unless explicitly request
 
 Ignoring an override is equivalent to omitting it: use a registered agent model or inherit the parent model. Parent-model inheritance also inherits parent thinking, normalized with the host's thinking-level helper. A valid model override or agent model without a valid thinking override omits `--thinking`, letting child Pi use its default. The thinking schema accepts a string so unknown names can reach this fallback rather than failing enum validation. Invalid parameter shapes and provider/model combinations remain subject to existing validation.
 
-Resume accepts only saved identity and a new task, and does not silently replace saved model configuration. Child startup guard/trust/checkpoint checks remain strict. Registry checks do not issue provider requests or validate credentials, and parent-only provider registrations may still be unavailable in the child. No settings or auth files are changed.
+Resume accepts saved identity, a new task and an optional display-only `title`, and does not silently replace saved model configuration. Child startup guard/trust/checkpoint checks remain strict. Registry checks do not issue provider requests or validate credentials, and parent-only provider registrations may still be unavailable in the child. No settings or auth files are changed.
+
+## Subagent display title
+
+Optional `title` describes the subagent's work in at most 50 Unicode code points, not UTF-16 code units (combined emoji/accents can contain multiple code points). Single/resume use the top-level field; parallel/chain items accept their own title, falling back to a top-level batch title. Blank/control-only titles, over-50-code-point titles and raw UTF-8 over 4 KiB are rejected before dispatch. Runtime repeats the length check because host schema counters can group some combining sequences. Normal Pi argument normalization remains unchanged: optional null can be omitted and number/boolean can become strings; direct execute rejects non-string titles. Call, running and final TUI displays retain agent identity and show sanitized titles; old calls/results without titles retain their former display. Title stays in parent tool arguments/details, never replaces `task`, enters child argv/prompt, or changes the saved managed configuration. Resume requires a fresh optional title; it does not read one from prior runs. Reload to activate the schema/renderer changes; no new settings.
 
 ## Web search
 

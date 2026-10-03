@@ -85,7 +85,7 @@ Repository 開發環境可用 `npm run test:browser` 驗證實際 Chromium；run
 | Goal | `/goal`；`goal get/complete/blocked` | 原文驗收目標持續推動，與 plan 分離；明確 pause／resume／clear；有界續跑、保守恢復 |
 | JSON Schema | 條件式 `json_output`；`--json-schema`、`--json-output` | CLI schema + zod 4 驗證；有 `--json-output` 寫檔、否則單一 JSON stdout；未給 `--json-schema` 時 inactive |
 
-Subagents **只保留 managed／可續接持久化**：首次呼叫照常提供 agent/task 或 tasks/chain，成功會回傳 `subagentSessionId`；後續只傳 `resume` 與新 `task`。已移除 `resumable` 開關，舊呼叫請省略它。所有新 sessions 存於 `<agentDir>/subagent-sessions/<ULID>/`；失敗／取消不會冒稱 ready，舊 ephemeral logs 不自動轉換。
+Subagents **只保留 managed／可續接持久化**：首次呼叫照常提供 agent/task 或 tasks/chain，成功會回傳 `subagentSessionId`；後續傳 `resume` 與新 `task`，可另附顯示用 `title`，不能覆寫執行配置。已移除 `resumable` 開關，舊呼叫請省略它。所有新 sessions 存於 `<agentDir>/subagent-sessions/<ULID>/`；失敗／取消不會冒稱 ready，舊 ephemeral logs 不自動轉換。
 
 Subagent 的 `model`／`provider`／`thinkingLevel` 呼叫參數**預設省略，只有使用者或 skill 明確指定才傳入**。首次派遣先確認模型，再檢查該模型支援的思考等級；未知／歧義模型與未知／不支援等級忽略，依原預設規則執行，不因選擇參數無效直接報錯。模型預設為可用 agent 模型或 parent 模型；思考等級依模型繼承或使用 child 預設。Resume 與 child startup guard 仍嚴格驗證配置，不保證遠端 API 可用。完整規則見 [Subagents README](modules/subagents/README.md)。
 
@@ -95,7 +95,7 @@ Pi **1.0.0** 預設 fullscreen TUI；本專案不自動修改 UI 設定，需要
 
 ### 工具 TUI 顯示
 
-21 個互動式 function tools 均有 `renderCall`／`renderResult`（含沿用宿主 renderer）：Shell／Subagent 保留現有呈現；File 的 `read`／`write` 錯誤顯示錯誤碼、訊息與 recovery，不再原樣顯示錯誤 JSON，`read` 成功與圖片仍沿用宿主行為，`write` 成功顯示 bytes，展開可看路徑與版本 token；`note` 摘要分類／標題與儲存路徑，不預覽整份 Markdown；Scheduler 顯示 revision、精確時間／時區、host 與取消請求狀態；Goal 顯示目標／驗收摘要；Web 顯示來源、警告與全文暫存路徑，展開看結果文字；PTY 七個工具顯示 session／target／transport、讀取文字、transport exit／逾時與釋放狀態，不把 transport 結束冒稱遠端程序樹已停止。這些只改 UI，不改模型可見 content／details／structuredContent。
+21 個互動式 function tools 均有 `renderCall`／`renderResult`（含沿用宿主 renderer）：Shell 保留宿主呈現；Subagent 可用選填 `title`（50 字內）顯示工作摘要，single／resume 使用頂層欄位，parallel／chain 各項可附獨立標題，並於 call／執行中／完成後呈現；File 的 `read`／`write` 錯誤顯示錯誤碼、訊息與 recovery，不再原樣顯示錯誤 JSON，`read` 成功與圖片仍沿用宿主行為，`write` 成功顯示 bytes，展開可看路徑與版本 token；`note` 摘要分類／標題與儲存路徑，不預覽整份 Markdown；Scheduler 顯示 revision、精確時間／時區、host 與取消請求狀態；Goal 顯示目標／驗收摘要；Web 顯示來源、警告與全文暫存路徑，展開看結果文字；PTY 七個工具顯示 session／target／transport、讀取文字、transport exit／逾時與釋放狀態，不把 transport 結束冒稱遠端程序樹已停止。Renderer 只改 UI，不修改模型可見 content／structuredContent；Subagent 的選填 title 另保存於 parent details 顯示 metadata，不變 child task 或執行配置。
 
 第 22 個工具 `json_output` 僅在 print mode 搭配有效 schema 註冊，刻意維持無 TUI renderer；GPT Speed 沒有 function tool，OpenAI 原生搜尋亦非 Pi function tool。
 

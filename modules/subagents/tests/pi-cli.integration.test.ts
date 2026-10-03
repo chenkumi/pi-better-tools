@@ -85,6 +85,7 @@ for (const [scenario, mode, debugLog = true] of cases) {
 			assert.equal(tool.usage.cost.total, perCost * results.length);
 			assert.equal(tool.usage.totalTokens, perTokens * results.length);
 			for (const result of results) {
+				assert.equal(result.title, "驗證子代理合約");
 				assert.equal(result.status, isFailure ? "failed" : "completed", result.errorMessage);
 				assert.equal(result.stopReason, isFailure ? "error" : "stop");
 				assert.equal(result.usage.cost, perCost);

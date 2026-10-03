@@ -117,6 +117,18 @@ export function assertToolRenderers(definitions, cwd) {
     assert.match(render(byName('web_search'), result), /Query: test query/);
     assert.match(render(byName('web_search'), result, true), /Snippet text/);
   }
+  const subagent = byName('subagent');
+  assert.equal(subagent.parameters.properties.title.maxLength, 50);
+  assert.equal(subagent.parameters.properties.tasks.items.properties.title.maxLength, 50);
+  assert.equal(subagent.parameters.properties.chain.items.properties.title.maxLength, 50);
+  const titleArgs = { agent: 'scout', title: '調查登入流程', task: 'Full task' };
+  assert.match(subagent.renderCall(titleArgs, theme, contexts(titleArgs)).render(80).join('\n'), /調查登入流程/);
+  const titleEntry = { taskId: 'title-task', agent: 'scout', task: 'Full task', title: '\u001b]0;unsafe\u0007\u001b[2J調查登入流程\u202e', status: 'running', exitCode: -1, output: '', usage: {} };
+  for (const expanded of [false, true]) {
+    const shown = render(subagent, textResult('', { mode: 'single', results: [titleEntry] }), expanded);
+    assert.match(shown, /調查登入流程/);
+    assert.doesNotMatch(shown, /unsafe|\u202e/);
+  }
   const pty = { sessionId: 'pty-test', pid: 123, target: 'macos', transport: 'ssh' };
   assert.match(render(byName('pty_spawn'), textResult(JSON.stringify(pty), pty)), /PTY session created/);
   assert.match(render(byName('pty_spawn'), textResult(JSON.stringify(pty), pty)), /Local transport PID: 123/);
