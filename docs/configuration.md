@@ -28,7 +28,7 @@ OpenAI credentials belong to Pi. Native search is injected only for supported pr
 
 For Exa, use `provider: "exa"` and `providers.exa.apiKeyEnv: "EXA_API_KEY"`. There is no implicit provider fallback. Invalid configuration disables search while leaving safe-default Fetch available. Full schema/example: `modules/web-tools/schemas/web_search.schema.json` and `modules/web-tools/examples/web-search.json`.
 
-Chromium must be installed explicitly with `npm run browser:install`; no personal browser profile/cookies are used. Private/local network access, login, CAPTCHA bypass and PDF are not supported by model-callable Fetch.
+Chromium must be installed explicitly with `npm run browser:install`; this downloads the browser only. On Linux/WSL2, `npm run browser:install-deps` installs its OS dependencies, or `npm run setup:browser` explicitly installs both. OS dependency installation may request sudo and is never run automatically by npm install or extension loading. See the root README's Linux installation section for prerequisites and limitations. No personal browser profile/cookies are used. Private/local network access, login, CAPTCHA bypass and PDF are not supported by model-callable Fetch.
 
 ## Note Tools
 

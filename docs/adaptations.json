@@ -1,5 +1,11 @@
 {
   "schemaVersion": 1,
+  "installationChanges": [
+    {
+      "scope": "Root package.json scripts, README.md and docs/configuration.md only; no imported module source or dependency versions changed.",
+      "reason": "Add explicit browser:install-deps and setup:browser commands for Linux/WSL2 Chromium prerequisites. Preserve browser:install as browser-download-only; no postinstall hook, implicit sudo, or automatic OS package installation. Document permission requirements, optional browser setup, Linux CLI selection and runtime-only tarball limits."
+    }
+  ],
   "entryLayoutChanges": [
     {
       "date": "2026-10-02",

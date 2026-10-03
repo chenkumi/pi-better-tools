@@ -72,6 +72,8 @@
         "test:matrix": "node scripts/package-smoke.mjs --host 0.99.1 --host 0.99.2 --host 1.0.0",
         "check": "npm run build && npm run typecheck && npm test && npm run test:integration && npm run test:package",
         "browser:install": "playwright install chromium --no-shell",
+        "browser:install-deps": "playwright install-deps chromium",
+        "setup:browser": "playwright install --with-deps chromium --no-shell",
         "sources:verify": "node scripts/verify-sources.mjs",
         "prepack": "npm run build"
     },

@@ -22,6 +22,31 @@ pi install D:/projects/pi-better-tools
 
 Pi-managed npm／git package 安裝會處理 runtime dependencies；本機路徑不會自動替你執行 npm install。Chromium 不在 tarball 裡，extension 載入時也不下載／啟動瀏覽器。解壓 tarball 後可在安裝目錄執行 `npm run browser:install`；勿在 runtime-only tarball 執行 repository 的 build／test scripts。
 
+### Linux／WSL2 安裝
+
+請在 Linux 環境安裝符合上述版本要求的 Node.js，以及 `@earendil-works/pi-coding-agent`。WSL2 建議將 repository 放在 Linux 檔案系統（例如 `~/GitHub/pi-better-tools`），並以 `command -v node npm pi` 確認使用 Linux 安裝的命令，而非 `/mnt/c/` 下的 Windows 全域 npm 命令。
+
+```bash
+cd ~/GitHub/pi-better-tools    # 改成實際 checkout 路徑
+npm ci --ignore-scripts
+npm run build                 # 僅獨立 pi-scheduler CLI 需要
+npm run setup:browser         # 選用：web_fetch 需要 Chromium 及 Linux 系統依賴
+pi install -l "$PWD"          # 僅安裝到目前專案的 Pi 設定
+```
+
+`setup:browser` 呼叫 Playwright 安裝 Chromium 與系統依賴，會下載瀏覽器，並可能要求 sudo 權限、透過系統套件管理器安裝函式庫。只在你同意修改系統套件時執行；不要把整個 `npm ci` 改用 sudo。Pi package 安裝與 extension 載入都不會自動執行此步驟；`--ignore-scripts` 不影響之後明確執行的 `npm run setup:browser`。
+
+若只使用非瀏覽器功能，可以省略 `setup:browser`。想分開安裝，或系統依賴由管理員／container image 提供時：
+
+```bash
+npm run browser:install-deps   # 僅系統依賴；Linux 可能要求 sudo
+npm run browser:install        # 僅下載 Chromium，不安裝系統函式庫
+```
+
+`browser:install` 下載成功不代表 Chromium 一定能啟動。例如缺少 `libnspr4.so`、`libnss3.so` 或 `libasound.so.2` 時，仍需補裝系統依賴。無管理員權限、離線或 Playwright 不支援的 Linux 發行版，需由管理員依環境提供依賴；這些指令不保證每個發行版都能自動安裝。瀏覽器快取由 Playwright 管理，安裝時可能清理舊版本。
+
+Repository 開發環境可用 `npm run test:browser` 驗證實際 Chromium；runtime-only tarball 不包含 repository 測試。需要先試用且不修改 Pi 設定，可用 `pi --no-extensions -e "$PWD"`。Linux 支援 Bash；本專案的 PowerShell backend 僅支援原生 Windows。
+
 ## 功能
 
 | 模組 | 工具／命令 | 注意事項 |
@@ -122,7 +147,7 @@ npm run build
 npm run typecheck
 npm test
 npm run test:integration
-npm run test:browser      # 真實 Chromium；需要 browser:install
+npm run test:browser      # 真實 Chromium；Linux 首次可用 setup:browser 安裝瀏覽器與系統依賴
 npm run test:package      # 真實 tarball + 乾淨 production install；需要 npm registry
 npm run test:matrix       # tarball smoke + Goal／SDK hooks／JSON delivery：Pi 0.99.1 / 0.99.2 / 1.0.0
 npm run sources:verify    # 匯入來源／本地適配雜湊
