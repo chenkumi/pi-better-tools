@@ -11,6 +11,13 @@
       "reason": "Add explicit browser:install-deps and setup:browser commands for Linux/WSL2 Chromium prerequisites. Preserve browser:install as browser-download-only; no postinstall hook, implicit sudo, or automatic OS package installation. Document permission requirements, optional browser setup, Linux CLI selection and runtime-only tarball limits."
     }
   ],
+  "linuxCompatibilityChanges": [
+    {
+      "date": "2026-10-03",
+      "scope": "Root test/pack/provenance tooling, imported test fixtures and Web cwd basename implementation; public tool schemas, trust, storage and production Subagent lifecycle unchanged.",
+      "reason": "User-requested Linux fixes and removal of README plan/* references. Explicitly include module READMEs and existing/authorized module licenses in tarballs; restore missing owner-authorized Shell MIT notice. Serialize disk-heavy Subagent unit test files to prevent 100-MiB stress starving unchanged 300-ms fault-injection startup gates; in-test parallel dispatch coverage and production limits remain intact. Pack stages record command, parse and resource validation atomically. Historical snapshot metadata is explicit about unavailable earlier contents, not full original-diff certification."
+    }
+  ],
   "entryLayoutChanges": [
     {
       "date": "2026-10-02",
@@ -76,6 +83,14 @@
     }
   ],
   "scope": "Explicit reviewed local adaptations to the immutable docs/sources.json import snapshot. Includes user-authorized Subagent persistence, Shell/File license metadata, and Pi 1.0.0 test contracts. Records do not certify or re-sign unrelated pre-existing snapshot mismatches.",
+  "mergeChanges": [
+    { "upstreamCommit": "47475813e3f87e88a8a61d014175c7a3a5c5a9f9", "localCommit": "04dce1530826d48f1751d3d35228d5679cfe8028", "scope": "Merge Linux compatibility/provenance work with PTY integration and user-requested stress/duplicate removal.", "reason": "Keep ten TS entries, node-pty native setup, sequential direct tests and removed stress cases; retain native npm resolution, strict legacy/npm-12 pack parser, module README/license resources, Web cross-host cwd handling, bounded I/O fixture cleanup and historical-audit limits. Combine relative GNU tar archive path with strict pack parser. Restore eight fetched files to verified upstream LF bytes after Windows autocrlf checkout; do not re-sign their provenance or immutable imports. Remove stale Shell adaptation because working bytes exactly match immutable import; retain original newline history in earlier Linux record. Public tool/trust/lifecycle contracts unchanged by conflict resolution." },
+    {
+      "upstreamCommit": "ae1fa69",
+      "scope": "Integrate remote macOS validation with uncommitted local Linux/provenance work; no production Subagent lifecycle changes.",
+      "reason": "Retain upstream File LICENSE removal and root-only package license requirement, realpath assertions, real shell full-output fixture and cleanup. Preserve local Shell notice, strict pack parser and explicit historical-audit limits. Combine Web basename tests around local cross-host Windows absolute-path recognition while retaining native POSIX backslash semantics; update documentation and reviewed file hashes."
+    }
+  ],
   "verificationChanges": [
     { "date": "2026-10-03", "scope": "Subagent resume fixtures and File packaged-runtime test; production logic unchanged.", "reason": "Canonicalize isolated P6 root like the existing CLI fixture to avoid Windows short/long startup path mismatch; preserve native guard/trust/model/history assertions. Remove remaining P6 1 MiB control-character load and its provider env branch per earlier stress-removal request. Give GNU tar a relative archive filename plus cwd so Windows drive letters are not interpreted as remote archive hosts. Dedicated P6 6/6 and packaged-runtime 8/8 passed after fixes; unrelated Scheduler integration still fails on Windows filesystem/cleanup timing." },
     { "date": "2026-10-03", "scope": "Root direct Node test runner and File test script serialize test files; same source runners, assertions and deadlines. PTY kill tool text clarifies Windows ignores POSIX signals.", "reason": "Avoid default CPU-count test-file concurrency competing with real worker/PTY/child deadlines; internal parallel/chain and lifecycle concurrency tests remain intact. Review stale provenance: Shell timeout-ms bytes exactly match immutable import, remove stale adaptation; reviewed current Web README (140 lines) and debug-log tests (91 lines) match documented host-native path, Node engine and safety contracts, record their actual hashes without source edits or re-signing immutable imports." },
@@ -104,41 +119,16 @@
     { "path": "modules/pty-terminal/tests/pty-manager.test.ts", "originalSha256": "4e55dd232346d27d3aed9614cf0047fa0d2e67a058443361de974d5c1aaca196", "sha256": "bdbdd3b8e5198a21a757161e4d34418730664a2db5706fdf7306f8e5dfae353b", "reason": "Cross-platform real Node PTY keeps output-once, exit 7, input and released-session assertions; OS signal field is backend-specific, not universally 0. Add resize, abort, timeout and shutdown waiter coverage." },
     { "path": "modules/pty-terminal/README.md", "originalSha256": "376b39ee2aaed1b440a186ab4fdb1012f783449536d66b31eca3841f2baf835d", "sha256": "fc89adfb0f8457ab83b5e43d17dbb0be09ddcb689f26108539ec8c9a1a418cf0", "reason": "Replace standalone install/publishing guidance with root integration, target schema, SSH/WSL prerequisites, native dependency setup, security and actual test boundaries; preserve source identity/port attribution." },
     {
-      "path": "modules/file-tools/README.md",
-      "originalSha256": "eb24c5848998f3383cd7eed92ab8c6adf2ceb8fdf895ea280bc7af71777e7f8a",
-      "sha256": "73c29be3446a5d371d2ae07c5f66bd5198a9f343c417f0bd7a060ad23b5d258d",
-      "reason": "Reviewed existing integrated Chinese tool documentation, unchanged in this fix: read metadata/continuation, strict hash-guarded atomic file edits, worker budgets and persisted debug namespace match the current module and tests. Not an unchanged import; original-source diff unavailable."
+      "path": "modules/file-tools/scripts/test-process.mjs",
+      "originalSha256": "21d6c39d2a97d40b81f5ed4952e07a6a2281b2b3799d143ac879c8626c0d150c",
+      "sha256": "b9dedc6e2babb08981c88c5711f0193d83485d14f03d703fc049a0c049a98d09",
+      "reason": "Linux compatibility: resolve npm CLI from the current Node installation (including nvm lib layout) before inherited Windows PATH; handle case-insensitive Windows Path keys and actual win32/posix path APIs; preserve timeout/termination bounds. Strictly parse single-package legacy-array and npm-12-keyed pack JSON, validating identity and resource metadata without relaxing package assertions."
     },
     {
-      "path": "modules/web-tools/README.md",
-      "originalSha256": "39be626cf45a2409a02bf8caeea9585188413776a1b6c8d456664fa909ebf71c",
-      "sha256": "86d9e6da9104d82e25dcce5573cb0aef09f1930f52b2180bb946037c6dd1cb57",
-      "preChangeSha256": "5f5f1d8c15836abe56ea10966bf83517d9e780adb620765c4bc5c53aa758fdc8",
-      "reason": "Reviewed existing integrated Chinese fetch/search/safety contracts; update stale Node requirement to the root jsdom 30 engine range and document host-native cwd basename normalization. Preserve settings paths, provider gates and safety limits; original-source diff unavailable."
-    },
-    {
-      "path": "modules/scheduler/src/app-scheduler.ts",
-      "originalSha256": "b48db36fe7cf2aeda2d50fcd29cdb9646ca3868683d5cc397f48a39146f7a1ba",
-      "sha256": "666f56ef456be1bd36dffa3ff80aab9ecba96cb1e3a00d612bbb3297130c638d",
-      "reason": "Reviewed pre-existing app host implementation, unchanged in this fix: child-disabled startup, serialized refresh, host/standby election, shutdown of owned session/runner resources, and runtime error status without a versions field. Covered by app-scheduler and real Pi integration; original-source diff unavailable."
-    },
-    {
-      "path": "modules/scheduler/src/cron-engine.ts",
-      "originalSha256": "9b5e8d0b55f6bdd47b0d0737902e25ab11945a2a3b145ca404b31cd40a05eab6",
-      "sha256": "5204abae383f2ba7eb843b6e177d89700edecff4b4cc018f3cdcbf97500e26fe",
-      "reason": "Reviewed pre-existing Croner adapter, unchanged in this fix: explicit ISO offset/timezone validation, protected cron callbacks, stopped timer guards, long-delay rearming and no past-once catch-up. Covered by cron-engine/runner regression tests; original-source diff unavailable."
-    },
-    {
-      "path": "modules/scheduler/src/extension.ts",
-      "originalSha256": "534b0523e1396a3f73907910595b7dea0710e297cc49d4dacde3ee4a0b31a60d",
-      "sha256": "5e3e496b791bbff8cd894fc42ec650097478f251c7239fbf0904e8b928eff56f",
-      "reason": "Reviewed existing Pi integration, unchanged in this fix: eager tool registration, session-owned start/stop, settled profile restoration, input/message/model/thinking event forwarding and UI cleanup. Real session/CLI/SDK-hook probes verify current contracts; original-source diff unavailable."
-    },
-    {
-      "path": "modules/scheduler/tests/integration/app-scheduler.test.ts",
-      "originalSha256": "b745d3efb89e9ffdcfc50a0deb8efc2fb987648e522e3ac3a2a5142a0330d347",
-      "sha256": "291a9f203a8d468ae0996c3e350bb30fc9afdb40e354937499a2f7ff74c97587",
-      "reason": "Reviewed existing integration assertions, unchanged in this fix: 5s bounded asynchronous waits, real owned children, no status versions property, orphan barriers/capacity/election/cancellation/once-claim and cleanup assertions. Original-source diff unavailable."
+      "path": "modules/file-tools/tests/test-tooling.test.mjs",
+      "originalSha256": "894e959a3fe49dde96b59e80cb75526b49debfe0950cadc8772dda5a26dcc6ec",
+      "sha256": "631211d5d76beed8a905287392ede1b95f50549203060baedf3cc6638ed60bc3",
+      "reason": "Add native npm resolution, legacy/keyed pack metadata and malformed/unsafe manifest regressions. Preserve original 10-second npm watchdog and process termination/output/cleanup assertions."
     },
     {
       "path": "modules/subagents/tests/fixtures/pi-provider.ts",
@@ -147,10 +137,65 @@
       "reason": "Retain offline retry/usage/exclusion provider behavior; user-requested removal of large-shell stress fixture and unused runtime platform imports."
     },
     {
+      "path": "modules/web-tools/src/debug-log.ts",
+      "originalSha256": "fbb4df42250e8cb0a615fb1c9d2d1b06fc10181a45be2a9c6a99b04713d83000",
+      "sha256": "991905d2130da9f20c233aafa06171453b0a4a5187dd48a0111ed4af63983261",
+      "reason": "Recognize explicit Windows drive/UNC cwd basenames across hosts while preserving native POSIX backslash filenames. Keep NFKC normalization, safe segments, reserved-device protection, log limits, opt-in keys and storage policy."
+    },
+    {
       "path": "modules/web-tools/tests/unit/debug-log.test.ts",
       "originalSha256": "3b9e14565f8f47f58424d7372e32d05d4e0fd5285370ed00e59b019f146bef78",
-      "sha256": "53f986e126679541968027436e16159861eccb843533089040c59b10ca9ab12a",
-      "reason": "Use host-native cwd paths for basename expectations; add trailing separator, NFKC and POSIX literal-backslash cases. No runtime/settings/log namespace changes and no weakened redaction, permission or retention assertions."
+      "sha256": "a1bd4f467b7bcd3747fe00f0749e1755d6f1250c2025e1ef6a22b2d4bff8f6a4",
+      "reason": "Extend existing Windows basename assertions with drive/UNC, native paths, root rejection, Unicode/device normalization, length bounds and POSIX literal-backslash tests; no removed assertions."
+    },
+    {
+      "path": "modules/file-tools/README.md",
+      "originalSha256": "eb24c5848998f3383cd7eed92ab8c6adf2ceb8fdf895ea280bc7af71777e7f8a",
+      "sha256": "73c29be3446a5d371d2ae07c5f66bd5198a9f343c417f0bd7a060ad23b5d258d",
+      "historicalDeltaAudit": "unavailable",
+      "localSnapshotReview": "2026-10-03: complete local README inspected against local schema, mutation queue and settings implementation; same bytes as initial commit f14b837.",
+      "reason": "Pre-existing historical delta identified by local snapshot hash. Original source contents unavailable; full baseline-to-local diff is unaudited. Documented strict schema/hash/worker/settings contracts are supported by local code; no original-diff or behavior-equivalence certification."
+    },
+    {
+      "path": "modules/web-tools/README.md",
+      "originalSha256": "39be626cf45a2409a02bf8caeea9585188413776a1b6c8d456664fa909ebf71c",
+      "sha256": "6793d7a040b00692ca9a5b0548b30866be9de925332e5790da3d0c0a17804c20",
+      "preChangeSha256": "5f5f1d8c15836abe56ea10966bf83517d9e780adb620765c4bc5c53aa758fdc8",
+      "historicalDeltaAudit": "unavailable",
+      "localSnapshotReview": "2026-10-03: complete pre-change README inspected against local Web config/provider/network/browser contracts; pre-change bytes match initial commit f14b837.",
+      "reason": "Update root Node engine requirements, explicit Linux browser setup and cross-host cwd basename contract. Pre-existing baseline-to-preChange delta remains unaudited because original contents are unavailable; this record does not certify original-diff or behavior equivalence."
+    },
+    {
+      "path": "modules/scheduler/src/app-scheduler.ts",
+      "originalSha256": "b48db36fe7cf2aeda2d50fcd29cdb9646ca3868683d5cc397f48a39146f7a1ba",
+      "sha256": "666f56ef456be1bd36dffa3ff80aab9ecba96cb1e3a00d612bbb3297130c638d",
+      "historicalDeltaAudit": "unavailable",
+      "localSnapshotReview": "2026-10-03: complete local snapshot inspected; app-open host/standby lifecycle, child marker and shutdown wiring verified statically; same bytes as initial commit f14b837.",
+      "reason": "Pre-existing historical delta, not changed this round. Original source contents unavailable; full baseline-to-local diff unaudited. Hash identifies the locally inspected snapshot only, not original-diff or runtime equivalence certification."
+    },
+    {
+      "path": "modules/scheduler/src/cron-engine.ts",
+      "originalSha256": "9b5e8d0b55f6bdd47b0d0737902e25ab11945a2a3b145ca404b31cd40a05eab6",
+      "sha256": "5204abae383f2ba7eb843b6e177d89700edecff4b4cc018f3cdcbf97500e26fe",
+      "historicalDeltaAudit": "unavailable",
+      "localSnapshotReview": "2026-10-03: complete local snapshot inspected; Croner timezone, long-timer rearming and no-backfill contracts verified statically; same bytes as initial commit f14b837. Calendar overflow validation remains a known issue.",
+      "reason": "Pre-existing historical delta, not changed this round. Original source contents unavailable; full baseline-to-local diff unaudited. Hash identifies locally inspected snapshot only; Date-based calendar overflow is not certified as strict validation."
+    },
+    {
+      "path": "modules/scheduler/src/extension.ts",
+      "originalSha256": "534b0523e1396a3f73907910595b7dea0710e297cc49d4dacde3ee4a0b31a60d",
+      "sha256": "5e3e496b791bbff8cd894fc42ec650097478f251c7239fbf0904e8b928eff56f",
+      "historicalDeltaAudit": "unavailable",
+      "localSnapshotReview": "2026-10-03: complete local snapshot inspected; session_start/shutdown, agent_settled and session profile hooks verified statically; same bytes as initial commit f14b837.",
+      "reason": "Pre-existing historical delta, not changed this round. Original source contents unavailable; full baseline-to-local diff unaudited. Local hook inspection is not original-diff or runtime equivalence certification."
+    },
+    {
+      "path": "modules/scheduler/tests/integration/app-scheduler.test.ts",
+      "originalSha256": "b745d3efb89e9ffdcfc50a0deb8efc2fb987648e522e3ac3a2a5142a0330d347",
+      "sha256": "291a9f203a8d468ae0996c3e350bb30fc9afdb40e354937499a2f7ff74c97587",
+      "historicalDeltaAudit": "unavailable",
+      "localSnapshotReview": "2026-10-03: complete local test inspected; isolated fixture exercises orphan barriers, revision, host takeover, child disable and cancellation; same bytes as initial commit f14b837.",
+      "reason": "Pre-existing historical delta, not changed this round. Original assertions unavailable; full baseline-to-local diff unaudited. Record does not claim historical assertions were unchanged or source-equivalent."
     },
     {
       "path": "modules/scheduler/package.json",
@@ -210,8 +255,8 @@
     {
       "path": "modules/subagents/tests/runner-io.test.ts",
       "originalSha256": "a480c1b802d3317859d221e2a4187638976a214b79f4fe65bf7fc79a2e3dc593",
-      "sha256": "b5d4e09eef9cbf5fe51c4695ffb2fe695675528afda1148cc4eb5ca657267957",
-      "reason": "Preserve existing bounded-I/O, abort, retention and fault assertions under mandatory managed allocation; forward native child arguments in mocked spawn."
+      "sha256": "6a72fd8ed08132cfed406d5bb5e028f0e9a28fd9da63028166c69181ba74ecd5",
+      "reason": "Preserve existing bounded-I/O, abort, retention and fault assertions under mandatory managed allocation; forward native child arguments in mocked spawn. Fix fixture cleanup to wait for late writer creation and actual close only when a transcript handle exists, with bounded diagnostic failure retaining artifacts; add deterministic creation-failure and still-blocked spool cleanup regressions. Wait for actual abandoned spool iterator completion before deleting artifacts; race injected-stage admission against early runner failure to expose startup diagnostics rather than hang. Terminal-trailing test-only I/O allowance is 2000ms for real managed startup; 100ms inactivity, 15ms escalation, 10s outer watchdog and I/O-stall assertions remain unchanged. Production lifecycle untouched."
     },
     {
       "path": "modules/subagents/tests/runner.test.ts",
@@ -258,8 +303,8 @@
     {
       "path": "modules/file-tools/tests/packaged-runtime.test.mjs",
       "originalSha256": "aa96c409bd82795d03cc5903ec63c76b84fbb1cb5850a2a03355d3a32d40c6cc",
-      "sha256": "0eefb7c70ee1f3d96d5383d988dfb03246692dddb4f83d6ebd4731646c49e80d",
-      "reason": "Resolve the development regression dependency link against the integration root; production smoke independently installs real dependencies without links. Pi 1.0.0 upgrade: require advanced annotation, nested pipeline, codemode and renderer probes on 0.99.1/0.99.2/1.0.0 instead of skipping the new host."
+      "sha256": "78f3b63cb59458fbd3cbeb9057a4012d55fc33e032cb65a0b6c1d109a7ddc703",
+      "reason": "Resolve the development regression dependency link against the integration root; production smoke independently installs real dependencies without links. Pi 1.0.0 upgrade: require advanced annotation, nested pipeline, codemode and renderer probes on 0.99.1/0.99.2/1.0.0 instead of skipping the new host. Strict single-package legacy-array/npm-12-keyed parsing retains identity and resource assertions; merge also preserves relative archive filename plus cwd for Windows GNU tar."
     },
     {
       "path": "modules/web-tools/tests/unit/pi-citation-compat.test.ts",
@@ -387,6 +432,16 @@
     { "path": "modules/pty-terminal/src/targets.ts", "sha256": "a54df6ec36327b887b6f56caeae03c5afaf43ddf521286521c7bfe4334f3b860", "reason": "Pure local/WSL/SSH target launch resolver; strict target fields, absolute remote cwd, explicit env, POSIX quoting and fail-closed selection." },
     { "path": "modules/pty-terminal/tests/targets.test.ts", "sha256": "3760264aeb15d7d1ba3ea652940df8629c70276192a2b8e7e31f2d00c6b2d46f", "reason": "Local compatibility, WSL argv/platform gate, SSH quoting/host policy, invalid config and effective-settings/pre-abort boundary tests; no real remote credentials." },
     { "path": "modules/pty-terminal/tests/fixture.ts", "sha256": "4e6d9f10c708fe12d33b58466cb69f60508197fd567d73ff05ea59c5909cc22e", "reason": "Ready-handshaked cross-platform real terminal input fixture." },
+    {
+      "path": "tests/integration/provenance.test.mjs",
+      "sha256": "afa91c6b8d6ca9b897c0ecb7286dae69d0b8a8770f0149339e459b7231d19fec",
+      "reason": "Isolated miniature provenance trees exercise historical-limit warnings, strict imported/native hash rejection, required review metadata, immutable origin matching and actual --originals byte checks; no source-directory or user-data access."
+    },
+    {
+      "path": "modules/shell-tools/LICENSE",
+      "sha256": "34ec042a47f8a47dc8b12d9df19a42a421104140e5fc6f3e77c7e76f48f95f5d",
+      "reason": "Restore missing owner-authorized MIT integration notice using root LICENSE verbatim; source import had no license and its immutable baseline is not modified. This is an integration addition, not a recovered original source file."
+    },
     {
       "path": "modules/subagents/tests/always-managed.test.ts",
       "sha256": "cca10cd589416b31e0b1f24c0e93a5cc2c3e0ef9fd97af547a90917dac6ded42",

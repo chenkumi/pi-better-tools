@@ -7,18 +7,31 @@ import { executeWithDebugLog, logToolExecutionFailure, logToolFailure, projectNa
 
 const date = (day: number) => new Date(Date.UTC(2026, 8, day, 12));
 
-test('project log directory name is a safe normalized host-native cwd basename', () => {
+test('host-native basename preserves trailing separators, Unicode and literal backslashes', () => {
   const parent = resolve('work');
-  assert.equal(projectNameFromCwd(join(parent, 'my-project')), 'my-project');
-  assert.equal(projectNameFromCwd(join(parent, 'my project')), 'my_project');
-  assert.equal(projectNameFromCwd(join(parent, 'CON')), '_CON');
-  assert.match(projectNameFromCwd(join(parent, 'CON'))!, /^[A-Za-z0-9._-]+$/);
   assert.equal(projectNameFromCwd(join(parent, 'my-project') + sep), 'my-project');
   assert.equal(projectNameFromCwd(join(parent, 'Ｍｙ project')), 'My_project');
-  // A backslash is a valid filename character on POSIX, not a foreign separator.
   if (process.platform !== 'win32') {
     assert.equal(projectNameFromCwd(join(parent, 'my\\project')), 'my_project');
-    assert.equal(projectNameFromCwd('C:\\work\\my-project'), 'C__work_my-project');
+  }
+});
+
+test('project log directory name is a safe normalized cwd basename', () => {
+  assert.equal(projectNameFromCwd('C:\\work\\my-project'), 'my-project');
+  assert.equal(projectNameFromCwd('C:\\work\\my project'), 'my_project');
+  assert.equal(projectNameFromCwd('C:\\work\\CON'), '_CON');
+  assert.match(projectNameFromCwd('C:\\work\\CON')!, /^[A-Za-z0-9._-]+$/);
+  assert.equal(projectNameFromCwd('C:/work/my-project/'), 'my-project');
+  assert.equal(projectNameFromCwd('\\\\server\\share\\my-project\\'), 'my-project');
+  assert.equal(projectNameFromCwd('C:\\'), undefined);
+  assert.equal(projectNameFromCwd(join(tmpdir(), 'my-project')), 'my-project');
+  assert.equal(projectNameFromCwd(join(tmpdir(), 'my project')), 'my_project');
+  assert.equal(projectNameFromCwd(join(tmpdir(), 'ＣＯＮ')), '_CON');
+  assert.equal(projectNameFromCwd(join(tmpdir(), '.'.repeat(4))), undefined);
+  assert.equal(projectNameFromCwd(join(tmpdir(), 'x'.repeat(100)))!.length, 80);
+  if (process.platform !== 'win32') {
+    assert.equal(projectNameFromCwd('/'), undefined);
+    assert.equal(projectNameFromCwd('/work/project\\name'), 'project_name');
   }
 });
 

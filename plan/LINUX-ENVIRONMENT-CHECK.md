@@ -1,5 +1,11 @@
 # Current Linux environment validation
 
+## Follow-up status
+
+This document preserves the initial check, not the latest environment status. Subsequent browser setup validation passed all 13 real Chromium tests; `ldd` no longer reported the initially missing libraries. See `BROWSER-SETUP-SCRIPTS.md` for that follow-up. The later Linux compatibility fixes address pack JSON parsing, native npm resolution, Windows-path basename handling and platform shell fixtures; their final results are recorded separately. Initial failed evidence remains historical and is not overwritten as a pass.
+
+The initial lockfile statement below applies only to the dependency-install observation: later checks left a `hasShrinkwrap` metadata deletion in the working tree, as documented in `BROWSER-SETUP-SCRIPTS.md`; no dependency versions changed.
+
 ## Scope
 
 Validated the current checkout on WSL2 Linux x86_64 (kernel 6.6.87.2), Node.js v24.18.0, npm 12.0.2, using the project's locked Pi 1.0.0. This is not a claim of compatibility with every Linux distribution, host version, real provider, or interactive TUI.

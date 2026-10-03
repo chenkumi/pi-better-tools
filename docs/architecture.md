@@ -29,6 +29,8 @@ Runtime dependency refresh: `diff` is pinned to 9.0.0 and `jsdom` to 30.1.1. The
 
 `docs/sources.json` records initial hashes; `docs/adaptations.json` records reviewed local changes and current hashes. Source projects are immutable inputs. A future import must compare source changes and re-run module, integration and package checks; importing a source snapshot does not create automatic synchronization.
 
+Local provenance verification checks every recorded hash strictly, including separately marked historical deltas whose earlier contents are unavailable. It warns rather than claiming original-diff equivalence; `--originals` still checks accessible immutable source bytes. Native stale metadata retains its previous recorded hash and local inspection scope. See `docs/source-references.md` for the audit boundary.
+
 Individual historic matrix/production scripts under modules were retained as source evidence; they may assume an independent package lockfile/layout. Use the root validation scripts for this integrated repository.
 
 ## Subagent persistence decision (2026-10-01)
@@ -49,11 +51,15 @@ The source-only loader regression stages all modules without any `dist/` artifac
 
 Source tests retain their Node/tsx/Vitest runners. Root direct Node suites and File Tools run test files sequentially (`--test-concurrency=1`) to avoid CPU-count parallel imports/workers distorting real resource deadlines; concurrency inside individual parallel/chain/cleanup tests is unchanged, as are assertions and production budgets. Existing protocol/I/O units use an explicit managed-storage boundary substitute; they do not establish native checkpoint/guard correctness. Separate real store/native fixture tests and offline actual-Pi CLI creation/resume tests cover those contracts. Root integration uses isolated subprocesses because module-level configuration constants and Pi registries are process-local. Real Pi loader/session probes check activation, prompts, file mutations/worker, search mode registration, Scheduler policy and reload/shutdown.
 
+Fixture cleanup waits for late writer creation, transcript close and abandoned spool iterator completion before removing test artifacts; early startup failure is reported rather than waiting forever for an injection point.
+
+The root tarball smoke accepts strict single-package legacy-array and npm 12 package-keyed manifests, checking identity, resource paths, counts and sizes before a pack stage is marked passed. Module READMEs and existing/authorized license notices are explicitly included rather than relying on npm's nested-document behavior. npm resolution prefers the current Linux/macOS Node installation, retains Windows drive/UNC and case-insensitive Path handling, and avoids inherited WSL Windows npm when native npm exists.
+
 The root tarball smoke installs actual production dependencies with no development-tree junctions. Source File Tools' historical packaged regression still uses a development dependency link; it is not substituted for the production smoke. A test-only fixture is copied outside this repository and imports the explicitly installed host SDK.
 
 No test makes a real paid model call. Offline CLI tests use explicit synthetic providers, not production credentials. Chromium/local fixture tests use a code-only private-network testing seam; that permission is not exposed as user configuration. The large-output/Read test composes real FetchService, toolOutput and Pi-wrapped File Read components; it is not a model-callable private-network bypass or a paid backend end-to-end test.
 
-Goal 的純單元測試覆蓋 objective 原文、非 plan completion、run ownership、in-flight／post-stop gate、dialog race、boundary 組合、20／3 guard 與 append fault。根 `tests/fixtures/goal-runtime.mjs` 使用真正 Pi loader／SDK、檔案 session、deterministic provider 與禁止 fetch 的隔離環境，覆蓋多輪成果、pause／clear 前後序 preflight、input transform／handled、reload／tree／tombstone、exclusions、保存故障。Production tarball 各 host 重跑同一 lifecycle fixture及 managed child 禁用 Goal 斷言；離線 provider 只證明管線，不證明實際模型驗收品質。實際結果見 `plan/GOAL-PROGRESS.md`。
+Goal 的純單元測試覆蓋 objective 原文、非 plan completion、run ownership、in-flight／post-stop gate、dialog race、boundary 組合、20／3 guard 與 append fault。根 `tests/fixtures/goal-runtime.mjs` 使用真正 Pi loader／SDK、檔案 session、deterministic provider 與禁止 fetch 的隔離環境，覆蓋多輪成果、pause／clear 前後序 preflight、input transform／handled、reload／tree／tombstone、exclusions、保存故障。Production tarball 各 host 重跑同一 lifecycle fixture及 managed child 禁用 Goal 斷言；離線 provider 只證明管線，不證明實際模型驗收品質。完整契約見 `modules/goal/README.md`。
 
 Pi 1.0.0 回歸另有 `tests/fixtures/sdk-hooks.mjs`：使用八個實際入口、file-backed 隔離 settings 與離線 provider，檢查 defaultTools reload、explicit／no-tools／exclusion、延後註冊工具的 restore／reload／放棄，以及 hidden declaration 的 prompt snippets 和既有 catalog／Web section 合成。真實 read tool pipeline 檢查 hook 次序與 awaited stream delivery；這不是真實 OpenAI backend 或完整 MCP server E2E。三版 production matrix 重跑相同 fixture，舊版以其明確歷史契約驗證。
 

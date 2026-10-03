@@ -6,7 +6,7 @@
 
 ## 本機安裝
 
-需要 Node.js **`^22.22.2 || ^24.15.0 || >=26.0.0`**（與 jsdom 30 的 runtime 需求一致） 與 `@earendil-works/*` namespace 的 Pi。開發基準固定 Pi **1.0.0**；實際驗證範圍與未完成項目見 [plan/PROGRESS.md](plan/PROGRESS.md)（repository 文件，不包含於 runtime tarball）。
+需要 Node.js **`^22.22.2 || ^24.15.0 || >=26.0.0`**（與 jsdom 30 的 runtime 需求一致） 與 `@earendil-works/*` namespace 的 Pi。開發基準固定 Pi **1.0.0**；production smoke matrix 涵蓋 **0.99.1／0.99.2／1.0.0**，不代表所有 Pi 版本皆相容。
 
 ```powershell
 cd D:\projects\pi-better-tools
@@ -126,10 +126,10 @@ Pi **1.0.0** 預設 fullscreen TUI；本專案不自動修改 UI 設定，需要
 ### 新增分類筆記
 
 ```json
-{ "type": "plan", "content": "# Plan\n\nImplementation steps…\n" }
+{ "type": "report", "content": "# Report\n\nVerification results…\n" }
 ```
 
-`type` 限定 `plan | issue | research | report | task`，寫入呼叫時工作目錄下的 `./<type>/<TYPE>-<UTC timestamp>.md`，例如 `./plan/PLAN-2026-10-01T04-30-00-123Z.md`。目錄不存在會自動建立；內容以 UTF-8 原樣保存，同名檔案會換名、不覆寫。結果回傳絕對／相對路徑；後續直接使用 `read`／`edit`／`write` 操作。
+`type` 限定 `plan | issue | research | report | task`，寫入呼叫時工作目錄下的 `./<type>/<TYPE>-<UTC timestamp>.md`，例如 `./report/REPORT-2026-10-01T04-30-00-123Z.md`。目錄不存在會自動建立；內容以 UTF-8 原樣保存，同名檔案會換名、不覆寫。結果回傳絕對／相對路徑；後續直接使用 `read`／`edit`／`write` 操作。
 
 獨立入口：`modules/note-tools/src/index.ts`。若使用 `--tools` 明確 allowlist，請加入 `note` 才能啟用；exclusions／no-tools 仍優先。`defaultTools` 不是 extension tools 的全域 allowlist。完整契約見 [Note Tools README](modules/note-tools/README.md)。
 
@@ -210,6 +210,6 @@ npm run sources:verify    # 匯入來源／本地適配雜湊
 npm pack                 # prepack 會重建 Scheduler
 ```
 
-跨平台測試沿用宿主語意：Subagent transcript 位置以 `realpath` 驗證（包括 macOS `/var`／`/private/var` alias）；大型 shell 輸出在 Windows 使用 PowerShell、macOS／Linux 使用 Bash，實際產生超過 600 KiB，驗證完整輸出及精簡 transcript，不以 skip 代替。Web debug-log 專案名稱依本機 cwd basename 正規化，不把 POSIX 檔名中的反斜線當成 Windows 分隔符。Windows-only 平台測試仍另行標示 skip，不能算通過。
+跨平台測試：Subagent transcript 位置以 `realpath` 驗證（包括 macOS `/var`／`/private/var` alias）；大型 shell 輸出在 Windows 使用 PowerShell、macOS／Linux 使用 Bash，實際產生超過 600 KiB，驗證完整輸出及精簡 transcript，不以 skip 代替。Web debug-log 解析明確的 Windows 絕對磁碟／UNC 路徑，其餘依宿主 cwd basename 正規化，保留 POSIX 檔名中的反斜線語意。Windows-only 平台測試仍另行標示 skip，不能算通過。
 
-所有長時間腳本定期輸出英文進度；測試不用真實憑證／付費模型／生產排程。`test:matrix` 是封裝／runtime smoke，不等同各版的全部 source regression；Goal 實作與驗證另見 [plan/GOAL-PROGRESS.md](plan/GOAL-PROGRESS.md)。Skip 不算通過。Pi 1.0.0 hooks 查核與本輪驗證見 [plan/PI-1.0.0-UPGRADE.md](plan/PI-1.0.0-UPGRADE.md)；人工 fullscreen TUI／真實 provider 不在離線驗證範圍。JSON Schema 實際交付／回歸證據见 [plan/JSON-SCHEMA.md](plan/JSON-SCHEMA.md)。更多結構見 [docs/architecture.md](docs/architecture.md)。
+所有長時間腳本定期輸出英文進度；測試不用真實憑證／付費模型／生產排程。`test:matrix` 是封裝／runtime smoke，不等同各版的全部 source regression。Skip 不算通過；人工 fullscreen TUI／真實 provider 不在離線驗證範圍。更多結構見 [docs/architecture.md](docs/architecture.md)。

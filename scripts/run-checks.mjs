@@ -35,6 +35,7 @@ const groups = {
     { label: 'json-schema:real-cli', args: ['--test', 'modules/json-schema/tests/runtime.test.mjs'] },
     { label: 'scheduler:source-loader', args: ['--test', 'tests/integration/scheduler-source.test.mjs'] },
     { label: 'all-modules:sdk-hooks', args: ['--test', 'tests/integration/sdk-hooks.test.mjs'] },
+    { label: 'all-modules:provenance', args: ['--test', 'tests/integration/provenance.test.mjs'] },
     { label: 'all-modules:integration', args: ['--import', import.meta.resolve('tsx'), '--test', '--test-concurrency=1', 'tests/integration/package.test.mjs'] }],
   browser: [{ label: 'web-tools:real-browser', args: ['--import', import.meta.resolve('tsx'), '--test', 'modules/web-tools/tests/integration/fetch.test.ts'] },
     { label: 'all-modules:web-read', args: ['--import', import.meta.resolve('tsx'), '--test', 'tests/integration/browser.test.mjs'] }],

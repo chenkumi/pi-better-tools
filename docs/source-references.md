@@ -13,4 +13,6 @@ When making relevant changes, inspect the original reports in their immutable lo
 
 If originals are unavailable, obtain the required reference material before changing covered lifecycle/security contracts. These absolute paths identify documentation inputs only; shipped extensions must not use them.
 
+Historical source contents could not be located in the checked WSL paths during the Linux compatibility work. `historicalDeltaAudit: "unavailable"` entries explicitly distinguish a locally inspected snapshot from an unaudited baseline-to-local delta; `localSnapshotReview` records what was actually inspected. The verifier checks their local hashes with the same strict assertions and emits a warning: a successful local integrity check is not original-diff or behavior-equivalence certification. Original verification still requires accessible immutable originals. Shell adapter CRLF-to-LF normalization was separately confirmed by exact hash reconstruction, not by accessing its original directory.
+
 `docs/sources.json` is the immutable import manifest. `docs/adaptations.json` lists the reviewed current hashes and reasons for every locally changed imported file. Verify the local snapshot using `npm run sources:verify`, or also compare immutable originals using `node scripts/verify-sources.mjs --originals` where those paths exist.
