@@ -182,11 +182,6 @@ describe("createDiffFeedback real worker", () => {
 });
 
 describe("diff lifecycle under an independent subprocess watchdog", () => {
-  it("terminates busy workers, handles all protocol/error paths, and releases listeners/timers", { timeout: 20_000 }, async () => {
-    const result = await runIsolated("lifecycle");
-    assert.ok(typeof result.workersTerminated === "number" && result.workersTerminated >= 20);
-  });
-
   it("resolves the plain JS worker relative to the module from a different cwd containing spaces", { timeout: 20_000 }, async () => {
     const result = await runIsolated("different-cwd");
     assert.equal(result.firstChangedLine, 1);

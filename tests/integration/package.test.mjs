@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { describe, test } from 'node:test';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -13,6 +13,8 @@ const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
 const expectedExtensions = manifest.pi.extensions.length;
 const modules = (await readdir(join(root, 'modules'), { withFileTypes: true })).filter(e => e.isDirectory()).map(e => e.name);
 assert.deepEqual([...manifest.pi.extensions].sort(), modules.map(name => `./modules/${name}/src/index.ts`).sort());
+// Each mode spawns an isolated Pi host in its own home, so modes can overlap.
+describe('all manifest extensions', { concurrency: 4 }, () => {
 for (const mode of ['full', 'read-only', 'no-tools', 'exclude', 'brave', 'exa', 'invalid', 'child']) {
   test(`all manifest extensions: ${mode}`, { timeout: 180000 }, async () => {
     const home = await mkdtemp(join(tmpdir(), 'pi-better-tools-test-'));
@@ -23,3 +25,4 @@ for (const mode of ['full', 'read-only', 'no-tools', 'exclude', 'brave', 'exa', 
     } finally { await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
   });
 }
+});

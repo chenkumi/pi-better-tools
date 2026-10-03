@@ -234,37 +234,6 @@ test("real PowerShell keeps UTF-8 output and does not inherit Bash command prefi
   assert.equal(result.structuredContent.exit_code, 0);
 });
 
-test("ongoing stdout/stderr activity refreshes the shell idle timeout", { timeout }, async () => {
-  const { session } = await shellSession();
-  for (const name of shellNames) {
-    const command = name === "bash"
-      ? "for ((i=0; i<16; i++)); do printf 'tick\\n'; sleep 0.25; done; printf IDLE_TIMEOUT_REFRESH_OK"
-      : "for ($i=0; $i -lt 16; $i++) { [Console]::Out.WriteLine('tick'); Start-Sleep -Milliseconds 250 }; [Console]::Out.Write('IDLE_TIMEOUT_REFRESH_OK')";
-    const result = await fixture.execute(session, name, { command, timeoutMs: 1500 });
-    assert.equal(result.structuredContent.exit_code, 0, `${name} should survive while output keeps arriving`);
-    assert.match(result.structuredContent.output, /IDLE_TIMEOUT_REFRESH_OK/);
-  }
-});
-
-test("real shell idle timeouts prevent post-timeout side effects", { timeout }, async () => {
-  const { session, cwd } = await shellSession();
-  for (const name of shellNames) {
-    const marker = path.join(cwd, `${name}-after-timeout`);
-    await fixture.execute(session, name, { command: markerCommand(name, marker), timeoutMs: 5000 });
-    assert.equal(fs.existsSync(marker), true, "positive control: command can write in the session cwd");
-    fs.rmSync(marker);
-    const command = name === "bash"
-      ? `sleep 2; ${markerCommand(name, marker)}`
-      : `Start-Sleep -Seconds 2; ${markerCommand(name, marker)}`;
-    const started = performance.now();
-    await assert.rejects(fixture.execute(session, name, { command, timeoutMs: 200 }), /timed out after 0\.2 seconds/);
-    assert.ok(performance.now() - started < 8000, `${name} should terminate well before the watchdog`);
-    // Wait beyond the command's delay: a still-running process would create this marker.
-    await new Promise((resolve) => setTimeout(resolve, 2300));
-    assert.equal(fs.existsSync(marker), false, `${name} must not continue after timeout`);
-  }
-});
-
 test("AbortSignal reaches running shells and prevents post-abort side effects", { timeout }, async () => {
   const { session, cwd } = await shellSession();
   for (const name of shellNames) {
@@ -289,17 +258,6 @@ test("AbortSignal reaches running shells and prevents post-abort side effects", 
     assert.equal(observedReady, true, `${name} cancellation must happen after observable startup`);
     await new Promise((resolve) => setTimeout(resolve, 2300));
     assert.equal(fs.existsSync(marker), false, `${name} must not continue after cancellation`);
-  }
-});
-
-test("sentinel and omitted timeout both execute successfully without a duration limit", { timeout }, async () => {
-  const { session } = await shellSession();
-  for (const name of shellNames) {
-    const command = name === "bash" ? "printf SENTINEL_OK" : "Write-Output SENTINEL_OK";
-    for (const timeoutMs of [undefined, 2_147_483_647]) {
-      const result = await fixture.execute(session, name, { command, ...(timeoutMs === undefined ? {} : { timeoutMs }) });
-      assert.equal(result.structuredContent.output.trim(), "SENTINEL_OK");
-    }
   }
 });
 

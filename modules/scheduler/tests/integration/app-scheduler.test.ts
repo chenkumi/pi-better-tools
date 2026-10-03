@@ -16,7 +16,7 @@ const waitFor: typeof vi.waitFor = (callback, options) => vi.waitFor(callback, o
 afterEach(async () => { for (const cleanup of cleanups.splice(0).reverse()) await cleanup(); });
 async function setup() {
   const directory = await mkdtemp(join(tmpdir(), "pi-app-host-"));
-  cleanups.push(() => rm(directory, { recursive: true, force: true }));
+  cleanups.push(() => rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
   const paths = resolveSchedulerPaths(directory);
   const registry = new RegistryStore({ registryPath: paths.registryPath, lockPath: paths.lockPath });
   const runs = new RunStore({ runsPath: paths.runsPath, lockPath: paths.lockPath, logsDir: paths.logsDir });

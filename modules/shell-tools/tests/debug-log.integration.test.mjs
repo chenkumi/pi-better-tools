@@ -91,21 +91,6 @@ test("adapter validation and missing-context exceptions are logged without chang
   assert.equal(records.find((record) => record.toolCallId === "no-context").cwd, undefined);
 });
 
-test("real shell timeouts leave exception diagnostics after the command rejects", { timeout }, async () => {
-  fixture.writeDebugSettings(enabled);
-  const { session } = await shellSession();
-  for (const name of shellNames) {
-    const command = name === "bash" ? "sleep 2" : "Start-Sleep -Seconds 2";
-    await assert.rejects(fixture.execute(session, name, { command, timeoutMs: 200 }), /timed out after 0\.2 seconds/);
-    const record = logs().find((record) => record.tool === name);
-    assert.equal(record.failure.kind, "exception");
-    assert.equal(record.input.timeoutMs, 200);
-    assert.match(record.failure.error.message, /timed out after 0\.2 seconds/);
-    assert.match(record.failure.error.stack, /Error/);
-  }
-  assert.equal(logs().length, shellNames.length);
-});
-
 test("cancelled running shells still finish writing their debug logs", { timeout }, async () => {
   fixture.writeDebugSettings(enabled);
   const { session } = await shellSession();

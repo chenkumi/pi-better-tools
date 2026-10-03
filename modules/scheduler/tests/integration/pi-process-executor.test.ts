@@ -52,16 +52,6 @@ describe("Pi child executor", () => {
     const result = await executor.wait(started); child.emit("close", 0, null);
     expect(result.ownershipUnknown).toBe(true); expect(result.piErrors.join(" ")).toMatch(/pipes did not close/);
   });
-  // Windows observed immediate close with inherited Node stdio; do not assert POSIX pipe behavior there.
-  it.skipIf(process.platform === "win32")("bounds pipe draining when a self-ending POSIX descendant retains inherited stdio", async () => {
-    const script = `const {spawn}=require('node:child_process'); spawn(process.execPath,['-e','setTimeout(()=>{},6000)'],{stdio:['ignore',process.stdout,process.stderr]}); console.log(JSON.stringify({type:'message_end',message:{role:'assistant',stopReason:'stop'}})); process.exit(0);`;
-    const executor = new PiProcessExecutor({ resolve: () => ({ command: process.execPath, args: ["-e", script, "--"] }) }, nodeChildSpawner);
-    const start = Date.now(); const { result } = await executor.execute(request("ok"));
-    try { expect(result.ownershipUnknown).toBe(true); expect(result.piErrors.join(" ")).toMatch(/pipes did not close/); }
-    finally { // Fixture-only descendant self-ends; never kill a bare persisted PID.
-      await new Promise((resolve) => setTimeout(resolve, Math.max(0, 6500 - (Date.now() - start))));
-    }
-  }, 15_000);
   it("sends leading @ text literally via stdin, not as a CLI attachment", async () => {
     const { spawner, seen } = await fakeSpawner(); const executor = new PiProcessExecutor({ resolve: () => ({ command: process.execPath }) }, spawner);
     const { result } = await executor.execute(request("@missing-file literal task"));

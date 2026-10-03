@@ -73,6 +73,8 @@
         "typecheck": "node scripts/run-checks.mjs typecheck",
         "test": "node scripts/run-checks.mjs unit",
         "test:integration": "node scripts/run-checks.mjs integration",
+        "test:module": "node scripts/run-checks.mjs module",
+        "test:cross": "node scripts/run-checks.mjs cross",
         "test:browser": "node scripts/run-checks.mjs browser",
         "test:package": "node scripts/package-smoke.mjs",
         "test:matrix": "node scripts/package-smoke.mjs --host 0.99.1 --host 0.99.2 --host 1.0.0",

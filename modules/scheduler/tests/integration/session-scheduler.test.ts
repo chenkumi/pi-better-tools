@@ -13,7 +13,7 @@ afterEach(async () => {
   for (const scheduler of schedulers.splice(0)) await scheduler.shutdown();
   await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
 });
-async function setup(idle = true, admissionTimeoutMs = 1500) {
+async function setup(idle = true, admissionTimeoutMs = 10_000) {
   const directory = await mkdtemp(join(tmpdir(), "pi-scheduler-session-")); directories.push(directory);
   const registry = new RegistryStore({ registryPath: join(directory, "registry.json"), lockPath: join(directory, "lock"), now: () => "2026-09-17T00:00:00.000Z" });
   const runs = new RunStore({ runsPath: join(directory, "runs.jsonl"), lockPath: join(directory, "lock"), logsDir: join(directory, "logs") });

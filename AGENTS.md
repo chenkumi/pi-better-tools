@@ -33,6 +33,13 @@
 - 先讀取欲修改模組的 `AGENTS.md`／README；其舊版依賴、獨立 lockfile 與 scripts 宣告是匯入時的歷史資訊，整合版本／命令以根 manifest 為準。未匯入的來源報告位置見 `docs/source-references.md`；改動 Subagent lifecycle 前，讀來源要求的 reliability 報告。
 - 根開發基準固定 Pi 1.0.0；production smoke matrix 保留 0.99.1／0.99.2／1.0.0。模組匯入時的版本不是目前基準；不以 wildcard peers 宣稱所有版本相容。
 - 整合 scripts 建立後，執行 `npm run build`、`npm run typecheck`、`npm test`、`npm run test:integration` 與 `npm run test:package`；涉及 Web 實際瀏覽器時另執行 `npm run browser:install`、`npm run test:browser`。
+- 測試依變更範圍分組，不要每次都跑全部：
+  - `npm test`（單元，約 2 分鐘）：每次修改程式碼後的基本檢查；`npm run typecheck`：修改 TS 型別、介面或 schema 時。
+  - `npm run test:module -- <module>`（該模組的 build／typecheck／單元／整合／真實 host 測試；module 為 file-tools、goal、gpt-speed、json-schema、note-tools、pty-terminal、scheduler、shell-tools、subagents、web-tools）：只修改該模組時執行，不跑其他模組的整合測試。Web 真實瀏覽器測試包含在 `test:module -- web-tools`，需先 `npm run browser:install`。
+  - `npm run test:cross`（所有 manifest extensions 載入、SDK hooks、provenance）：修改根 `package.json`／manifest、`scripts/`、`tests/`、共用 helper、`docs/*.json` provenance、Pi 版本，或同時變更多個模組時。
+  - `npm run test:integration`（全部整合）、`npm run test:package`、`npm run test:matrix`、`npm run check`：只在發布前、升級 Pi／依賴、變更 package `files`／入口／tarball 內容，或使用者明確要求完整驗證時執行。
+  - 交付說明須列出實際執行的分組與理由；未執行的分組要明講為未執行，不算通過。
+- 新增測試前先判斷分組：不依賴真實 Pi host、子行程或固定等待的放單元測試；需要真實 host／CLI／瀏覽器者放整合測試並歸屬單一模組。不新增靠 idle、watchdog 或固定 sleep 驗證 timeout 的測試（`timeoutMs` 語意已穩定，由 `timeout-ms.test.mjs` 單元測試覆蓋）。
 - 保留來源測試 runner；路徑／版本適配不能弱化斷言或默默跳過已支援 host 的 probes。Subagents `hostContract: "0.99.1"` 是持久化格式身份，不隨 SDK 升級更名。實際 tarball 必須驗證乾淨 production dependencies、Pi loader、worker、guard、agents、prompts 與 runner。
 - Skip、環境阻礙及未執行不算通過。進度、證據、剩餘風險保存在 `plan/`，不要放入本文件。
 - 變更功能／設定／路徑時同步更新 README、相關 `docs/` 與 provenance；交付時說明實際驗證、失敗與未完成項目。

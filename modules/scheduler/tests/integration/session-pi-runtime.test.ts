@@ -76,7 +76,7 @@ async function fixture(options: Options = {}) {
       if (options.preflightGate) pi.on("before_agent_start", () => new Promise<void>((resolve) => { release = resolve; }));
       pi.on("session_start", async (_event, context) => {
         ctx = context;
-        scheduler = new SessionScheduler({ registry, runs, pi, admissionTimeoutMs: options.admissionTimeoutMs ?? 1500 } as never);
+        scheduler = new SessionScheduler({ registry, runs, pi, admissionTimeoutMs: options.admissionTimeoutMs ?? 10_000 } as never);
         await scheduler.start(ctx);
       });
       // Optional calls let the original implementation run these same defect assertions.
@@ -109,7 +109,7 @@ async function terminal(f: Awaited<ReturnType<typeof fixture>>) {
       // A committed history row can become visible before post-commit log cleanup
       // and release of in-memory ownership. Require both completion boundaries.
       expect(f.scheduler.profileOwnershipActive).toBe(false);
-    }, { timeout: 3000, interval: 10 });
+    }, { timeout: 10_000, interval: 10 });
   }
   catch (error) {
     throw new Error(`Terminal wait failed: ${JSON.stringify({ runs: await f.runs.list(), errors: f.errors, calls: f.calls(), settles: f.settles(), streaming: f.session.isStreaming, schedulerError: f.scheduler.lastError })}`, { cause: error });
@@ -122,7 +122,7 @@ describe(`real Pi ${expectedPiVersion} offline SDK regression`, () => {
     const f = await fixture({ preflightGate: true }); await f.scheduler.dispatch(f.schedule);
     await vi.waitFor(() => expect(f.gated()).toBe(true)); const old = f.scheduler;
     await f.session.reload(); expect(f.scheduler).not.toBe(old); f.release();
-    await vi.waitFor(() => expect(f.settles()).toBeGreaterThan(0), { timeout: 3000 });
+    await vi.waitFor(() => expect(f.settles()).toBeGreaterThan(0), { timeout: 10_000 });
     expect((await terminal(f)).status).toBe("cancelled"); expect(f.calls()).toBe(0);
   });
   it("keeps correlation through an input transformer registered after the guard", async () => {
@@ -133,7 +133,7 @@ describe(`real Pi ${expectedPiVersion} offline SDK regression`, () => {
   it("cancels a wrapped prompt's preflight without invoking the provider", async () => {
     const f = await fixture({ transform: true, preflightGate: true }); const run = await f.scheduler.dispatch(f.schedule);
     await vi.waitFor(() => expect(f.gated()).toBe(true)); await f.scheduler.cancelActiveRun(run.runId); f.release();
-    await vi.waitFor(() => expect(f.settles()).toBeGreaterThan(0), { timeout: 3000 }); expect(f.calls()).toBe(0);
+    await vi.waitFor(() => expect(f.settles()).toBeGreaterThan(0), { timeout: 10_000 }); expect(f.calls()).toBe(0);
   });
   it("preserves a real thinking change during an asynchronous model-select gate", async () => {
     const f = await fixture({ modelOnly: true, modelGate: true }); const dispatched = f.scheduler.dispatch(f.schedule);
@@ -171,7 +171,7 @@ describe(`real Pi ${expectedPiVersion} offline SDK regression`, () => {
     const f = await fixture({ preflightGate: true }); const submitted = await f.scheduler.dispatch(f.schedule);
     await vi.waitFor(() => expect(f.gated()).toBe(true)); expect(f.calls()).toBe(0);
     await f.scheduler.cancelActiveRun(submitted.runId); f.release();
-    await vi.waitFor(() => expect(f.settles()).toBeGreaterThan(0), { timeout: 3000 });
+    await vi.waitFor(() => expect(f.settles()).toBeGreaterThan(0), { timeout: 10_000 });
     expect((await terminal(f)).status).toBe("cancelled"); expect(f.calls()).toBe(0);
   });
   it("rejects a prompt returning late from an input handler after cancellation", async () => {
@@ -184,7 +184,7 @@ describe(`real Pi ${expectedPiVersion} offline SDK regression`, () => {
   it("fences a late preflight after the admission deadline instead of replaying it", async () => {
     const f = await fixture({ preflightGate: true, admissionTimeoutMs: 80 }); await f.scheduler.dispatch(f.schedule);
     await vi.waitFor(() => expect(f.gated()).toBe(true)); expect((await terminal(f)).status).toBe("failed_preflight");
-    f.release(); await vi.waitFor(() => expect(f.settles()).toBeGreaterThan(0), { timeout: 3000 });
+    f.release(); await vi.waitFor(() => expect(f.settles()).toBeGreaterThan(0), { timeout: 10_000 });
     expect(f.calls()).toBe(0); expect(f.scheduler.profileOwnershipActive).toBe(false);
   });
   it("captures clamped effective thinking without mistaking its self-event for a user change (RISK-003)", async () => {

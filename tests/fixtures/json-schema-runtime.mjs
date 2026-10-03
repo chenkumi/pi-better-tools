@@ -70,29 +70,38 @@ async function run(name, scenario, extra = [], expected = { name: 'Acme', count:
     cases.push({ name, status: 'passed', calls: requests.length });
   } finally { await rm(home, { recursive: true, force: true, maxRetries: 6, retryDelay: 100 }); }
 }
+const queue = [];
+const enqueue = (...args) => queue.push(args);
+// Cases use isolated homes, so they run through a small pool; per-case calls stay sequential inside one CLI process.
+const concurrency = Number(process.env.PI_JSON_SCHEMA_CASE_CONCURRENCY ?? 4);
+async function drain() {
+  const next = async () => { for (let args; (args = queue.shift());) await run(...args); };
+  await Promise.all(Array.from({ length: concurrency }, next));
+}
 try {
-  for (const scenario of ['tool', 'text', 'fenced', 'mixed', 'duplicate']) await run(`stdout ${scenario}`, scenario, [], undefined, { calls: 1 });
-  await run('file tool atomic replacement', 'tool', [], undefined, { file: true, oldFile: true, calls: 1 });
-  await run('file text extraction', 'text', [], undefined, { file: true, calls: 1 });
-  await run('stdout rejects multiple prompts without reusing prior result', 'text', [], undefined, { multi: true, fail: true, calls: 1 });
-  await run('SIGTERM event during settlement cancels staged JSON', 'signal', [], undefined, { fail: true, calls: 1 });
-  await run('virtual model extraction routing', 'virtual', [], undefined, { calls: 2 });
-  await run('extraction from a tool call', 'fallback', [], undefined, { calls: 2 });
-  await run('extraction from text', 'fallback-text', [], undefined, { calls: 2 });
-  await run('invalid tool arguments are rejected, never delivered, and end in failure', 'invalid-tool', [], undefined, { fail: true, calls: 3 });
-  for (const scenario of ['invalid-text', 'overflow', 'null', 'empty']) await run(`unusable text ${scenario} falls back to one extraction call`, scenario, [], undefined, { calls: 2 });
-  for (const scenario of ['error', 'aborted', 'conflict']) await run(`failure ${scenario}`, scenario, [], undefined, { fail: true, calls: 1 });
-  await run('extraction failure is bounded to one extra call', 'fallback-fail', [], undefined, { fail: true, calls: 2 });
-  await run('extraction with the wrong tool name is rejected', 'fallback-wrong', [], undefined, { fail: true, calls: 2 });
-  await run('file extraction failure preserves old result', 'fallback-fail', [], undefined, { fail: true, file: true, oldFile: true, calls: 2 });
-  await run('missing schema stops before model', 'tool', ['--json-schema', ''], undefined, { fail: true, calls: 0 });
-  await run('invalid schema stops before model', 'tool', ['--json-schema', '{"type":"object","required":7}'], undefined, { fail: true, calls: 0 });
-  await run('unsupported schema keyword stops before model', 'tool', ['--json-schema', '{"type":"object","properties":{"a":{"type":"string"}},"if":{"required":["a"]}}'], undefined, { fail: true, calls: 0 });
-  await run('JSONL mode rejected', 'tool', ['--mode', 'json'], undefined, { fail: true, calls: 0, protocol: true });
-  await run('exclude prevents extraction tool bypass', 'fallback', ['--exclude-tools', 'json_output'], undefined, { fail: true, calls: 1, noTool: true });
-  await run('no-tools prevents extraction tool bypass', 'fallback', ['--no-tools'], undefined, { fail: true, calls: 1, noTool: true });
-  await run('disabled tool still accepts validated text', 'text', ['--no-tools'], undefined, { calls: 1, noTool: true });
-  await run('inactive retains normal print output', 'inactive', [], undefined, { inactive: true, calls: 1, noTool: true });
+  for (const scenario of ['tool', 'text', 'fenced', 'mixed', 'duplicate']) enqueue(`stdout ${scenario}`, scenario, [], undefined, { calls: 1 });
+  enqueue('file tool atomic replacement', 'tool', [], undefined, { file: true, oldFile: true, calls: 1 });
+  enqueue('file text extraction', 'text', [], undefined, { file: true, calls: 1 });
+  enqueue('stdout rejects multiple prompts without reusing prior result', 'text', [], undefined, { multi: true, fail: true, calls: 1 });
+  enqueue('SIGTERM event during settlement cancels staged JSON', 'signal', [], undefined, { fail: true, calls: 1 });
+  enqueue('virtual model extraction routing', 'virtual', [], undefined, { calls: 2 });
+  enqueue('extraction from a tool call', 'fallback', [], undefined, { calls: 2 });
+  enqueue('extraction from text', 'fallback-text', [], undefined, { calls: 2 });
+  enqueue('invalid tool arguments are rejected, never delivered, and end in failure', 'invalid-tool', [], undefined, { fail: true, calls: 3 });
+  for (const scenario of ['invalid-text', 'overflow', 'null', 'empty']) enqueue(`unusable text ${scenario} falls back to one extraction call`, scenario, [], undefined, { calls: 2 });
+  for (const scenario of ['error', 'aborted', 'conflict']) enqueue(`failure ${scenario}`, scenario, [], undefined, { fail: true, calls: 1 });
+  enqueue('extraction failure is bounded to one extra call', 'fallback-fail', [], undefined, { fail: true, calls: 2 });
+  enqueue('extraction with the wrong tool name is rejected', 'fallback-wrong', [], undefined, { fail: true, calls: 2 });
+  enqueue('file extraction failure preserves old result', 'fallback-fail', [], undefined, { fail: true, file: true, oldFile: true, calls: 2 });
+  enqueue('missing schema stops before model', 'tool', ['--json-schema', ''], undefined, { fail: true, calls: 0 });
+  enqueue('invalid schema stops before model', 'tool', ['--json-schema', '{"type":"object","required":7}'], undefined, { fail: true, calls: 0 });
+  enqueue('unsupported schema keyword stops before model', 'tool', ['--json-schema', '{"type":"object","properties":{"a":{"type":"string"}},"if":{"required":["a"]}}'], undefined, { fail: true, calls: 0 });
+  enqueue('JSONL mode rejected', 'tool', ['--mode', 'json'], undefined, { fail: true, calls: 0, protocol: true });
+  enqueue('exclude prevents extraction tool bypass', 'fallback', ['--exclude-tools', 'json_output'], undefined, { fail: true, calls: 1, noTool: true });
+  enqueue('no-tools prevents extraction tool bypass', 'fallback', ['--no-tools'], undefined, { fail: true, calls: 1, noTool: true });
+  enqueue('disabled tool still accepts validated text', 'text', ['--no-tools'], undefined, { calls: 1, noTool: true });
+  enqueue('inactive retains normal print output', 'inactive', [], undefined, { inactive: true, calls: 1, noTool: true });
+  await drain();
   const version = JSON.parse(await readFile(join(hostRoot, 'package.json'), 'utf8')).version;
   console.log(JSON.stringify({ status: 'passed', hostVersion: version, cases, noNetwork: true, noPaidModels: true }));
 } finally { clearInterval(heartbeat); }
