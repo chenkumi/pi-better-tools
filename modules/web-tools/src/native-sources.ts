@@ -33,8 +33,8 @@ function citation(value: unknown): Citation | undefined {
 }
 
 /** Only terminal response output is inspected. Never copy raw events or query/auth fields. */
-export function captureNativeSources(event: ParsedProviderEvent, experimentalCodex = false): NativeSourceRecord | undefined {
-  if (!supportsNativeSearch(event, experimentalCodex) || !identifier(event.model, 256) || !record(event.data)) return;
+export function captureNativeSources(event: ParsedProviderEvent): NativeSourceRecord | undefined {
+  if (!supportsNativeSearch(event) || !identifier(event.model, 256) || !record(event.data)) return;
   if (!['response.completed', 'response.incomplete'].includes(event.data.type as string)) return;
   const response = event.data.response;
   if (!record(response) || !identifier(response.id, 256) || !['completed', 'incomplete'].includes(response.status as string) || event.data.type !== `response.${response.status}`) return;

@@ -12,7 +12,7 @@
     "providers": {
       "type": "object", "additionalProperties": false,
       "properties": {
-        "openai": { "type": "object", "additionalProperties": false, "properties": { "experimentalCodex": { "type": "boolean", "default": false }, "captureSources": { "type": "boolean", "default": false } } },
+        "openai": { "type": "object", "additionalProperties": false, "properties": { "captureSources": { "type": "boolean", "default": false } } },
         "brave": { "$ref": "#/$defs/credential" },
         "exa": { "$ref": "#/$defs/credential" }
       }

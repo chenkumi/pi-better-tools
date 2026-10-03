@@ -55,6 +55,39 @@ test('native hook restricted by model and mode; virtual payload model is never g
   assert.equal(harness('brave').hooks.get('before_provider_request')!(event, context), undefined);
   assert.equal(harness('openai', false).hooks.get('before_provider_request')!(event, context), undefined);
 });
+test('Codex native search works by default without TUI or headless warnings and respects mode gates', async () => {
+  for (const hasUI of [false, true]) {
+    const h = harness();
+    const ctx = { ...h.context, hasUI, model: { api: 'openai-codex-responses', provider: 'openai-codex', id: 'fixture' },
+      ui: { notify: (message: string) => h.diagnostics.push(message) } };
+    h.hooks.get('session_start')!({}, ctx);
+    h.hooks.get('model_select')!({}, ctx);
+    assert.equal(h.hooks.get('before_agent_start')!({ systemPrompt: 'Original' }, ctx).systemPrompt, 'Original' + NATIVE_GUIDANCE);
+    const event = { payload: { tools: [], include: [] } };
+    const result = h.hooks.get('before_provider_request')!(event, ctx);
+    assert.deepEqual(result.tools, [{ type: 'web_search' }]);
+    assert.deepEqual(result.include, ['web_search_call.action.sources']);
+    assert.deepEqual(event.payload, { tools: [], include: [] });
+    assert.deepEqual(h.diagnostics, []);
+    await h.commands.get('web-tools')!.handler('status', ctx);
+    assert.match(h.diagnostics.at(-1)!, /Native OpenAI for current model: enabled/);
+    assert.doesNotMatch(h.diagnostics.join(''), /experimental|opt-in.*Codex/i);
+    for (const other of [harness('openai', false), harness('brave'), harness('exa')]) {
+      assert.equal(other.hooks.get('before_provider_request')!(event, ctx), undefined);
+      assert.equal(other.hooks.get('before_agent_start')!({ systemPrompt: 'Original' }, ctx), undefined);
+    }
+  }
+});
+test('Codex source capture remains opt-in and persists matching successful responses', () => {
+  const h = harness('openai', true, true);
+  const identity = { provider: 'openai-codex', api: 'openai-codex-responses' };
+  h.context.model = { ...h.context.model, ...identity };
+  h.hooks.get('provider_stream_event')!({ ...terminal('resp_codex'), ...identity }, h.context);
+  const event = messageEnd('resp_codex');
+  h.hooks.get('turn_end')!({ message: { ...event.message, ...identity } }, h.context);
+  assert.equal(h.branch().length, 1);
+  assert.equal((h.branch()[0]!.data as { provider: string }).provider, 'openai-codex');
+});
 test('modern prompt section preserves other handlers and custom prompts; disabling removes own section', () => {
   const h = harness(), options = { sections: { another_extension: 'Keep' }, customPrompt: 'User SYSTEM.md' };
   const event = { systemPrompt: 'User SYSTEM.md', systemPromptOptions: options };

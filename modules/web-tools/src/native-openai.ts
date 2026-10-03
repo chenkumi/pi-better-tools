@@ -1,8 +1,8 @@
 export interface ModelIdentity { api: string; provider: string }
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
-export function supportsNativeSearch(model: ModelIdentity | undefined, experimentalCodex = false): boolean {
+export function supportsNativeSearch(model: ModelIdentity | undefined): boolean {
   if (!model) return false;
-  if (model.api === 'openai-codex-responses') return experimentalCodex && model.provider === 'openai-codex';
+  if (model.api === 'openai-codex-responses') return model.provider === 'openai-codex';
   return (model.api === 'openai-responses' && model.provider === 'openai') ||
     (model.api === 'azure-openai-responses' && model.provider === 'azure-openai-responses');
 }

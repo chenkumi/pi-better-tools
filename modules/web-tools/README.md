@@ -25,7 +25,6 @@
 | `enabled` | `true` | 只控制搜尋；`web_fetch` 不受影響 |
 | `numResults` | `5` | 1–10，僅 REST 搜尋（Brave／Exa） |
 | `searchTimeoutMs` | `60000` | 1000–120000，僅 REST 搜尋 |
-| `providers.openai.experimentalCodex` | `false` | 允許對 legacy `openai-codex` 注入原生搜尋 |
 | `providers.openai.captureSources` | `false` | 擷取原生搜尋來源紀錄（需 Pi 提供 `provider_stream_event`） |
 | `providers.brave.apiKeyEnv` | `"BRAVE_API_KEY"` | 存放金鑰的環境變數名稱 |
 | `providers.brave.apiKey` | — | 明文金鑰；與 `apiKeyEnv` 互斥 |
@@ -50,12 +49,14 @@
 | --- | --- |
 | `openai`／`openai-responses` | 注入 |
 | `azure-openai-responses` | 注入（部署需支援） |
-| `openai-codex` | 預設不注入；`experimentalCodex: true` 時才注入，不保證後端接受 |
+| `openai-codex`／`openai-codex-responses` | 注入，無額外開關或實驗性警告（後端仍需支援） |
 | virtual model、Claude、Gemini、Chat Completions、自訂 proxy | 不注入 |
 
 若請求中已存在同名 `web_search` function tool，本模組會中止該請求並報錯，不刪除對方工具；請勿同時啟用其他提供 `web_search` 的 extension。切換到非 OpenAI 模型後原生搜尋即不可用；需跨模型一致搜尋請改用 Brave／Exa。
 
 `captureSources: true` 時，將終結回應中的來源 URL／title／citation offsets 以 `pi-web-tools.native-sources` custom entry 存入 session（每筆最多 50 項、24 KiB，超過標示 truncated；URL 上限 2048 字元，title 上限 300 字元；拒絕非 HTTP(S) 或含帳密的 URL）。不保存 raw events、回應 body、搜尋 query 或 auth headers；取消／失敗的回答不保存。這些資料可能含敏感 URL，僅在需要時啟用。
+
+`openai-codex` 使用相同的預設 OpenAI 搜尋設定，不需要額外 opt-in；本 extension 不顯示 Codex 實驗性警告。已移除 `providers.openai.experimentalCodex`，舊設定請刪除該欄位後 `/reload`（保留未知欄位拒絕規則）。設定錯誤與不支援模型的診斷仍保留；是否接受請求取決於實際後端及認證。
 
 ### Brave／Exa
 

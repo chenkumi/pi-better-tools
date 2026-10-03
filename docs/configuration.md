@@ -34,7 +34,7 @@ Default `~/.pi/agent/web-search.json` does not silently follow agentDir. Set an 
 { "provider": "openai", "enabled": true }
 ```
 
-OpenAI credentials belong to Pi. Native search is injected only for supported provider/API gates; no same-named function tool is registered. Actual backend/auth availability is not guaranteed. Legacy Codex is experimental; virtual routing does not infer the physical provider.
+OpenAI credentials belong to Pi. Native search is injected only for supported provider/API gates; no same-named function tool is registered. Actual backend/auth availability is not guaranteed. The `openai-codex`/`openai-codex-responses` pair is enabled by default without an extra opt-in or experimental warning. The removed `providers.openai.experimentalCodex` field must be deleted from old config files before reload; unknown fields remain invalid. Configuration errors and unsupported-model diagnostics are retained. Virtual routing does not infer the physical provider.
 
 ```json
 { "provider": "brave", "providers": { "brave": { "apiKeyEnv": "BRAVE_API_KEY" } } }

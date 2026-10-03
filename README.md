@@ -78,7 +78,7 @@ Repository 開發環境可用 `npm run test:browser` 驗證實際 Chromium；run
 | PTY Terminal | `pty_spawn/write/read/resize/wait_exit/kill/list` | `target` 預設 local；named WSL／SSH targets；session 綁定 target，關閉 transport 不保證遠端背景程序停止 |
 | Shell Tools | 覆寫 `bash`、`powershell` | `timeoutMs` 為毫秒 inactivity timeout；不自動啟用未選的 shell；PowerShell backend 僅原生 Windows |
 | File Tools | 覆寫 `read`、`write`、`edit` | 絕對行號、32 字元 hash、精準 literal／regex、原子寫入、diff worker |
-| Web Tools | `web_fetch`；條件式 REST `web_search`；`/web-tools status`、`/web-tools sources` | OpenAI 原生模式不註冊同名 function tool；Brave／Exa 要明確設定；無登入／CAPTCHA bypass／PDF |
+| Web Tools | `web_fetch`；條件式 REST `web_search`；`/web-tools status`、`/web-tools sources` | OpenAI／Codex 原生搜尋預設啟用、無實驗開關或警告，不註冊同名 function tool；Brave／Exa 要明確設定；無登入／CAPTCHA bypass／PDF |
 | Scheduler | `schedule_create/update/status/cancel`；`/schedule` | Pi 開啟時運行，不安裝 OS service、不補跑錯過時間；runner CLI 保留相容用途 |
 | Note Tools | `note` | `{ type, content }`；自動分類、產生時間戳檔名，只新增 Markdown 檔案並回報路徑，不覆寫 |
 | GPT Speed | `/fast`、`/ultrafast`、`/normal` | GPT >= 5.6 的 luna／terra／sol／astra pattern；Ultrafast 在 luna／terra 降為 Fast；TUI 顯示實際速度 |

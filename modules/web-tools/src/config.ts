@@ -10,14 +10,14 @@ export interface Config {
   enabled: boolean;
   numResults: number;
   searchTimeoutMs: number;
-  providers: { openai: { experimentalCodex: boolean; captureSources: boolean }; brave: Credential; exa: Credential };
+  providers: { openai: { captureSources: boolean }; brave: Credential; exa: Credential };
   fetch: { channel: 'chromium' | 'chrome'; timeoutMs: number; maxConcurrency: number; idleTimeoutMs: number };
 }
 // Explicit override only; changing pi's agentDir must not silently migrate secrets.
 export const CONFIG_PATH = process.env.PI_WEB_TOOLS_CONFIG ?? join(homedir(), '.pi', 'agent', 'web-search.json');
 export const defaults = (): Config => ({
   version: 1, provider: 'openai', enabled: true, numResults: 5, searchTimeoutMs: 60000,
-  providers: { openai: { experimentalCodex: false, captureSources: false }, brave: { apiKeyEnv: 'BRAVE_API_KEY' }, exa: { apiKeyEnv: 'EXA_API_KEY' } },
+  providers: { openai: { captureSources: false }, brave: { apiKeyEnv: 'BRAVE_API_KEY' }, exa: { apiKeyEnv: 'EXA_API_KEY' } },
   fetch: { channel: 'chromium', timeoutMs: 30000, maxConcurrency: 2, idleTimeoutMs: 60000 },
 });
 function invalid(path: string): never { throw new Error(`CONFIG_INVALID: ${path}`); }
@@ -63,9 +63,8 @@ export function parseConfig(value: unknown): Config {
     for (const name of ['brave', 'exa'] as const) if (p[name] !== undefined) c.providers[name] = credential(p[name], `providers.${name}`);
     if (p.openai !== undefined) {
       const a = object(p.openai, 'providers.openai');
-      keys(a, ['experimentalCodex', 'captureSources'], 'providers.openai');
+      keys(a, ['captureSources'], 'providers.openai');
       if (a.captureSources !== undefined) c.providers.openai.captureSources = boolean(a.captureSources, 'providers.openai.captureSources');
-      if (a.experimentalCodex !== undefined) c.providers.openai.experimentalCodex = boolean(a.experimentalCodex, 'providers.openai.experimentalCodex');
     }
   }
   if (o.fetch !== undefined) {
