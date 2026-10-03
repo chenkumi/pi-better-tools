@@ -12,8 +12,12 @@ const moduleTask = (module, script) => ({ label: `${module}:${script}`, module, 
 const tsx = import.meta.resolve('tsx');
 const testFiles = (dir, keep) => readdirSync(join(root, dir)).filter(name => /\.test\.(ts|mjs)$/.test(name) && keep(name)).sort().map(name => `${dir}/${name}`);
 const isIntegration = name => name.includes('.integration.');
-const directTests = (label, dir, keep, extra = {}) => ({ label, args: ['--import', tsx, '--test', ...testFiles(dir, keep)], ...extra });
-const sourceTests = [directTests('subagents:test', 'modules/subagents/tests', name => !isIntegration(name)),
+const directTests = (label, dir, keep, { testConcurrency, ...extra } = {}) => ({ label,
+  args: ['--import', tsx, '--test', ...(testConcurrency ? [`--test-concurrency=${testConcurrency}`] : []), ...testFiles(dir, keep)], ...extra });
+// Keep disk-heavy 100 MiB stress files from starving the 300 ms fault-injection
+// startup gates. This changes file scheduling only: parallel dispatch tests,
+// watchdogs, failure assertions and production concurrency remain intact.
+const sourceTests = [directTests('subagents:test', 'modules/subagents/tests', name => !isIntegration(name), { testConcurrency: 1 }),
   directTests('shell-tools:test:unit', 'modules/shell-tools/tests', name => !isIntegration(name)),
   moduleTask('file-tools', 'test'), moduleTask('file-tools', 'test:tooling'),
   directTests('web-tools:test', 'modules/web-tools/tests/unit', () => true), moduleTask('scheduler', 'test:unit')];
@@ -35,6 +39,7 @@ const groups = {
     { label: 'json-schema:real-cli', args: ['--test', 'modules/json-schema/tests/runtime.test.mjs'] },
     { label: 'scheduler:source-loader', args: ['--test', 'tests/integration/scheduler-source.test.mjs'] },
     { label: 'all-modules:sdk-hooks', args: ['--test', 'tests/integration/sdk-hooks.test.mjs'] },
+    { label: 'all-modules:provenance', args: ['--test', 'tests/integration/provenance.test.mjs'] },
     { label: 'all-modules:integration', args: ['--import', import.meta.resolve('tsx'), '--test', '--test-concurrency=1', 'tests/integration/package.test.mjs'] }],
   browser: [{ label: 'web-tools:real-browser', args: ['--import', import.meta.resolve('tsx'), '--test', 'modules/web-tools/tests/integration/fetch.test.ts'] },
     { label: 'all-modules:web-read', args: ['--import', import.meta.resolve('tsx'), '--test', 'tests/integration/browser.test.mjs'] }],

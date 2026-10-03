@@ -13,6 +13,7 @@ beforeEach(installManagedBoundary);
 import { runSingleAgent } from "../extensions/subagent/index.ts";
 import { IoGate, SUBAGENT_IO_TIMEOUT_MS } from "../extensions/subagent/io-gate.ts";
 import { SubsessionWriter, MAX_PENDING_LOG_BYTES } from "../extensions/subagent/subsession-log.ts";
+import { ToolResultSpool } from "../extensions/subagent/tool-result-spool.ts";
 
 function deferred() {
 	let resolve!: () => void;
@@ -23,7 +24,7 @@ const fallback = { type: "tool_execution_end", toolCallId: "call", toolName: "re
 const canonical = { type: "message_end", message: { role: "toolResult", toolCallId: "call", toolName: "read", content: [{ type: "text", text: "canonical" }] } };
 const terminal = { type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "done" }], stopReason: "stop" } };
 
-type Mode = "managed-close-stall" | "terminal-trailing" | "slow" | "abort" | "stall" | "final-stall" | "final-abort" | "header-abort" | "close-stall" | "rename-failure" | "unlink-failure" | "spool-failure" | "spool-read-stall";
+type Mode = "spool-read-cleanup" | "writer-create-failure" | "managed-close-stall" | "terminal-trailing" | "slow" | "abort" | "stall" | "final-stall" | "final-abort" | "header-abort" | "close-stall" | "rename-failure" | "unlink-failure" | "spool-failure" | "spool-read-stall";
 async function setup(t: TestContext, mode: Mode) {
 	const root = await fs.promises.mkdtemp(join(tmpdir(), "pi-runner-io-"));
 	const agentPath = join(root, "agent.md");
@@ -31,17 +32,33 @@ async function setup(t: TestContext, mode: Mode) {
 	const blocked = deferred();
 	const entered = deferred();
 	const closed = deferred();
+	const cleanupReadBlocked = deferred();
+	const cleanupWaiting = deferred();
+	const spoolIterations = new Set<Promise<void>>();
+	const originalRecords = ToolResultSpool.prototype.records;
+	t.mock.method(ToolResultSpool.prototype, "records", function (this: ToolResultSpool) {
+		const completed = deferred();
+		spoolIterations.add(completed.promise);
+		const source = originalRecords.call(this);
+		return (async function* () {
+			try { yield* source; }
+			finally { completed.resolve(); spoolIterations.delete(completed.promise); }
+		})();
+	});
 	const controller = new AbortController();
 	const signals: string[] = [];
 	const originalOpen = fs.promises.open;
 	const originalCreate = SubsessionWriter.create.bind(SubsessionWriter);
 	let writer: SubsessionWriter | undefined;
+	let writerCreation: Promise<void> | undefined;
+	let transcriptOpened = false;
 	let closeCount = 0;
 	let started = false;
 	let heartbeat: ReturnType<typeof setInterval> | undefined;
 	t.mock.method(fs.promises, "open", async (...args: Parameters<typeof originalOpen>) => {
 		const handle = await originalOpen(...args);
 		if (String(args[0]).endsWith(".jsonl.partial")) {
+			transcriptOpened = true;
 			const originalWrite = handle.writeFile.bind(handle);
 			const originalClose = handle.close.bind(handle);
 			const sync = handle.sync.bind(handle);
@@ -65,20 +82,27 @@ async function setup(t: TestContext, mode: Mode) {
 				await originalClose();
 				closed.resolve();
 			});
-		} else if (mode === "spool-read-stall" && String(args[0]).includes("tool-results-") && String(args[0]).endsWith(".json")) {
+		} else if (["spool-read-stall", "spool-read-cleanup"].includes(mode) && String(args[0]).includes("tool-results-") && String(args[0]).endsWith(".json")) {
 			const originalRead = handle.read.bind(handle);
 			t.mock.method(handle, "read", async (...readArgs: any[]) => {
 				entered.resolve();
 				await blocked.promise;
+				if (mode === "spool-read-cleanup") await cleanupReadBlocked.promise;
 				return originalRead(...readArgs as [any, any, any, any]);
 			});
 		}
 		return handle;
 	});
-	t.mock.method(SubsessionWriter, "create", async (options: any) => {
-		writer = await originalCreate(options);
-		if (mode === "header-abort") { entered.resolve(); await blocked.promise; }
-		return writer;
+	t.mock.method(SubsessionWriter, "create", (options: any) => {
+		const creation = (async () => {
+			if (mode === "writer-create-failure") throw new Error("EACCES injected writer creation failure");
+			writer = await originalCreate(options);
+			if (mode === "header-abort") { entered.resolve(); await blocked.promise; }
+			return writer;
+		})();
+		// Track even late creation after the runner's I/O gate has stopped waiting.
+		writerCreation = creation.then(() => undefined, () => undefined);
+		return creation;
 	});
 	if (mode === "rename-failure") {
 		const original = fs.promises.rename;
@@ -120,7 +144,7 @@ async function setup(t: TestContext, mode: Mode) {
 		});
 		setImmediate(() => {
 			emitManagedHeader(stdout, args, root);
-			const events = mode === "spool-read-stall" ? [fallback, terminal] : [fallback, canonical, canonical, terminal];
+			const events = ["spool-read-stall", "spool-read-cleanup"].includes(mode) ? [fallback, terminal] : [fallback, canonical, canonical, terminal];
 			stdout.write([...events, { type: "agent_settled" }].map((event) => JSON.stringify(event)).join("\n") + "\n");
 			stderr.write("diagnostic");
 			const finish = () => { stdout.end(); stderr.end(); proc.exitCode = 0; proc.emit("close", 0, null); };
@@ -135,15 +159,35 @@ async function setup(t: TestContext, mode: Mode) {
 		[{ name: "worker", description: "test", source: "bundled", filePath: agentPath, systemPrompt: "test" }],
 		"worker", "I/O test", undefined, undefined, controller.signal, undefined,
 		(results, progress) => ({ mode: "single", agentScope: "user", projectAgentsDir: null, results, progress }),
-		"parent", "call", { sessionRootDir: join(root, "managed"), invocation: (args) => ({ command: "mock", args }), inactivityTimeoutMs: 100, ioTimeoutMs: mode === "slow" ? 2000 : 300, forceKillDelayMs: 15 });
+		"parent", "call", { sessionRootDir: join(root, "managed"), invocation: (args) => ({ command: "mock", args }), inactivityTimeoutMs: 100, ioTimeoutMs: ["slow", "terminal-trailing", "writer-create-failure"].includes(mode) ? 2000 : 300, forceKillDelayMs: 15 });
 	return {
-		root, result, controller, entered: entered.promise, release: blocked.resolve, signals,
+		root, result, controller, release: blocked.resolve, signals,
+		entered: () => Promise.race([entered.promise, result.then(settled => { throw new Error(`Runner settled before injected ${mode} I/O; ${JSON.stringify(settled)}`); })]),
+		transcriptClosed: closed.promise, cleanupWaiting: cleanupWaiting.promise, releaseRead: cleanupReadBlocked.resolve,
+		get pendingSpoolIterations() { return spoolIterations.size; },
 		get writer() { return writer; }, get closeCount() { return closeCount; }, get started() { return started; },
 		async files() { return fs.promises.readdir(root, { recursive: true }); },
 		async dispose() {
 			blocked.resolve();
-			await result;
-			await closed.promise;
+			const settled = await result;
+			let cleanupTimer: ReturnType<typeof setTimeout> | undefined;
+			try {
+				await Promise.race([
+					(async () => {
+						await writerCreation;
+						// A failure before opening the transcript has no handle to close.
+						// If creation was in flight, wait for it first and retain the real close barrier.
+						if (transcriptOpened) await closed.promise;
+						while (spoolIterations.size) {
+							cleanupWaiting.resolve();
+							await Promise.all([...spoolIterations]);
+						}
+					})(),
+					new Promise<never>((_resolve, reject) => {
+						cleanupTimer = setTimeout(() => reject(new Error(`Fixture cleanup stalled; retained ${root}; mode=${mode}; started=${started}; transcriptOpened=${transcriptOpened}; result=${JSON.stringify(settled)}`)), 3000);
+					}),
+				]);
+			} finally { if (cleanupTimer) clearTimeout(cleanupTimer); }
 			// Any released spool read/iterator-return must finish before test directory removal.
 			t.mock.restoreAll(); syncBuiltinESMExports();
 			await fs.promises.rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 20 });
@@ -158,7 +202,7 @@ test("production logging I/O deadline is fixed at 300 seconds", () => {
 test("slow write freezes inactivity and keeps fallback until canonical acknowledgement", { timeout: 10000 }, async (t) => {
 	const h = await setup(t, "slow");
 	try {
-		await h.entered;
+		await h.entered();
 		let settled = false; void h.result.then(() => { settled = true; });
 		await delay(220); // deliberately beyond inactivity, while controlled write remains blocked
 		assert.equal(settled, false);
@@ -184,7 +228,7 @@ for (const mode of ["abort", "stall", "final-stall", "final-abort", "header-abor
 	test(`blocked I/O is bounded without premature handle or file cleanup: ${mode}`, { timeout: 10000 }, async (t) => {
 		const h = await setup(t, mode);
 		try {
-			await h.entered;
+			await h.entered();
 			const abort = mode.includes("abort");
 			if (abort) h.controller.abort();
 			if (mode === "abort") assert.deepEqual(h.signals, ["SIGTERM"]); // synchronous, before releasing I/O
@@ -227,7 +271,7 @@ for (const mode of ["rename-failure", "unlink-failure", "spool-failure"] as cons
 test("managed failed writer retains lock while abandoned close is pending", { timeout: 10000 }, async (t) => {
 	const h = await setup(t, "managed-close-stall");
 	try {
-		await h.entered;
+		await h.entered();
 		const result = await h.result;
 		assert.equal(result.status, "failed"); assert.equal(result.canResume, false);
 		assert.match(result.logError!, /close abandoned managed transcript/);
@@ -237,6 +281,44 @@ test("managed failed writer retains lock while abandoned close is pending", { ti
 		h.release(); await delay(50);
 		await fs.promises.stat(join(directory, "writer.lock")); // no asynchronous takeover/release
 	} finally { await h.dispose(); }
+});
+
+test("cleanup retains artifacts after transcript close until the abandoned spool iterator finishes", { timeout: 10000 }, async (t) => {
+	const h = await setup(t, "spool-read-cleanup");
+	let disposing: Promise<void> | undefined;
+	try {
+		await h.entered();
+		const result = await h.result;
+		assert.equal(result.status, "failed");
+		assert.match(result.logError!, /logging I\/O stalled/);
+		await h.transcriptClosed;
+		assert.equal(h.closeCount, 1);
+		assert.equal(h.pendingSpoolIterations, 1);
+		let removed = false;
+		disposing = h.dispose().then(() => { removed = true; });
+		await h.cleanupWaiting;
+		assert.equal(removed, false);
+		assert.ok((await h.files()).some(name => name.includes("tool-results-")));
+		h.releaseRead();
+		await disposing;
+		assert.equal(h.pendingSpoolIterations, 0);
+		await assert.rejects(fs.promises.stat(h.root), { code: "ENOENT" });
+	} finally {
+		h.releaseRead();
+		if (disposing) await disposing; else await h.dispose();
+	}
+});
+
+test("writer creation failure cleans up without waiting for a nonexistent transcript handle", { timeout: 10000 }, async (t) => {
+	const h = await setup(t, "writer-create-failure");
+	try {
+		const result = await h.result;
+		assert.equal(result.status, "failed");
+		assert.match(result.logError!, /EACCES injected writer creation failure/);
+		assert.equal(h.started, false);
+		assert.equal(h.closeCount, 0);
+	} finally { await h.dispose(); }
+	await assert.rejects(fs.promises.stat(h.root), { code: "ENOENT" });
 });
 
 test("trailing stderr writes cannot renew the settled process-close deadline", { timeout: 10000 }, async (t) => {

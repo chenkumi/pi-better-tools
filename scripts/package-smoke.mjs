@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, isAbsolute, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { runCommand, runNpm } from '../modules/file-tools/scripts/test-process.mjs';
+import { parsePackManifest, runCommand, runNpm } from '../modules/file-tools/scripts/test-process.mjs';
 import { isolatedEnv } from '../tests/helpers/environment.mjs';
 import { runChildSmoke } from '../tests/helpers/child-smoke.mjs';
 
@@ -16,7 +16,8 @@ for (let i = 2; i < process.argv.length; i += 2) {
   if (process.argv[i] !== '--host' || !/^\d+\.\d+\.\d+$/.test(process.argv[i + 1] ?? '')) throw new Error('Usage: package-smoke.mjs [--host x.y.z]...');
   hosts.push(process.argv[i + 1]);
 }
-if (!hosts.length) hosts.push(JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).devDependencies['@earendil-works/pi-coding-agent']);
+const rootManifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+if (!hosts.length) hosts.push(rootManifest.devDependencies['@earendil-works/pi-coding-agent']);
 await mkdir(evidence, { recursive: true });
 const results = [];
 const report = { status: 'running', node: process.version, platform: process.platform, hosts, results, scope: 'production tarball runtime smoke, not full source regression or paid backend verification' };
@@ -24,7 +25,8 @@ const logs = [];
 async function record(label, action) {
   const startedAt = new Date().toISOString();
   try {
-    const output = await action(); logs.push(`=== ${label} ===\n${output ?? ''}`);
+    const output = await action();
+    logs.push(`=== ${label} ===\n${typeof output === 'string' ? output : JSON.stringify(output) ?? ''}`);
     results.push({ label, status: 'passed', startedAt, endedAt: new Date().toISOString() });
     return output;
   } catch (error) {
@@ -37,7 +39,7 @@ async function record(label, action) {
   }
 }
 const required = [
-  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'scheduler', 'note-tools', 'gpt-speed', 'goal', 'json-schema'].map(name => `modules/${name}/src/index.ts`),
+  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'scheduler', 'note-tools', 'gpt-speed', 'goal', 'json-schema'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
   'modules/subagents/extensions/subagent/index.ts', 'modules/subagents/extensions/subagent/child-guard.ts',
   'modules/subagents/agents/planner.md', 'modules/subagents/agents/reviewer.md', 'modules/subagents/agents/scout.md', 'modules/subagents/agents/worker.md',
   'modules/subagents/prompts/implement.md', 'modules/subagents/prompts/implement-and-review.md', 'modules/subagents/prompts/scout-and-plan.md',
@@ -62,10 +64,16 @@ function checkContents(pack) {
 }
 try {
   await record('build', () => runNpm('package build', ['run', 'build'], { cwd: root, timeoutMs: 180000 }));
-  const dry = JSON.parse(await record('pack:dry-run', () => runNpm('package dry-run', ['pack', '--dry-run', '--ignore-scripts', '--json'], { cwd: root, timeoutMs: 120000, quiet: true })))[0];
-  checkContents(dry);
-  const packed = JSON.parse(await record('pack:tarball', () => runNpm('real package tarball', ['pack', '--ignore-scripts', '--json', '--pack-destination', evidence], { cwd: root, timeoutMs: 120000, quiet: true })))[0];
-  checkContents(packed);
+  await record('pack:dry-run', async () => {
+    const pack = parsePackManifest(await runNpm('package dry-run', ['pack', '--dry-run', '--ignore-scripts', '--json'], { cwd: root, timeoutMs: 120000, quiet: true }), rootManifest);
+    checkContents(pack);
+    return pack;
+  });
+  const packed = await record('pack:tarball', async () => {
+    const pack = parsePackManifest(await runNpm('real package tarball', ['pack', '--ignore-scripts', '--json', '--pack-destination', evidence], { cwd: root, timeoutMs: 120000, quiet: true }), rootManifest);
+    checkContents(pack);
+    return pack;
+  });
   const tarball = join(evidence, packed.filename);
   report.tarball = { filename: packed.filename, sha256: createHash('sha256').update(await readFile(tarball)).digest('hex'), files: packed.files.length, bytes: packed.size };
   for (const version of hosts) {

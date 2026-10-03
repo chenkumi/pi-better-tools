@@ -10,6 +10,8 @@ No settings are renamed or automatically migrated. These namespaces are module i
 | Web | `<cwd-basename>.debugLog` | fixed `~/.pi/agent/settings.json` | `~/.pi/logs/<normalized-cwd-basename>/tool-errors-YYYY-MM-DD.jsonl` |
 | Scheduler | `pi-scheduler.debugLog` | fixed `~/.pi/agent/settings.json`, reread on failure | `~/.pi/logs/pi-scheduler/` |
 
+Web cwd basenames recognize explicit Windows drive/UNC absolute paths on all hosts; other paths follow native host semantics (including literal backslashes in POSIX filenames). NFKC/safe-character normalization, length bounds and Windows device-name protection apply before selecting the opt-in key and log directory.
+
 Debug logs are opt-in. Subagent/Shell/File diagnostics may contain prompts, commands or file content. Web/Scheduler omit tool parameters but errors can still contain sensitive information. Log retention varies by module; do not claim a shared retention policy or automatic cleanup.
 
 ## Web search

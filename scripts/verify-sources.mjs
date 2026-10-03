@@ -13,6 +13,7 @@ assert.equal(removed.size, (adaptations.removedFiles ?? []).length, 'duplicate r
 assert.equal(changes.size, adaptations.files.length, 'duplicate adaptation path');
 const digest = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 let verified = 0, sourceFiles = 0;
+const historicalDeltas = [];
 const checkOriginal = process.argv.includes('--originals');
 const importedPaths = new Set(manifest.modules.flatMap(module => module.files.map(file => `modules/${module.module}/${file.path}`)));
 const addedPaths = new Set();
@@ -37,6 +38,11 @@ for (const module of manifest.modules) {
     if (change) {
       assert.equal(change.originalSha256, file.sha256, `adaptation origin mismatch ${path}`);
       assert.ok(change.reason && change.reason.trim(), `undocumented adaptation ${path}`);
+      if (change.historicalDeltaAudit !== undefined) {
+        assert.equal(change.historicalDeltaAudit, 'unavailable', `invalid historical audit status ${path}`);
+        assert.ok(change.localSnapshotReview?.trim(), `historical delta needs local snapshot review ${path}`);
+        historicalDeltas.push(path);
+      }
       changes.delete(path);
     }
     assert.equal(await digest(join(root, path)), change?.sha256 ?? file.sha256, `snapshot changed without reviewed adaptation: ${path}`);
@@ -53,7 +59,7 @@ for (const module of manifest.modules) {
 }
 assert.equal(removed.size, 0, `removal references a non-imported path: ${[...removed.keys()]}`);
 assert.equal(changes.size, 0, `adaptation references a non-imported path: ${[...changes.keys()]}`);
-console.log(`[sources] ${verified} snapshot files verified, ${adaptations.files.length} documented adaptations; ${sourceFiles} original files checked. No automatic source synchronization.`);
+console.log(`[sources] ${verified} local snapshot hashes verified, ${adaptations.files.length} documented adaptations; ${sourceFiles} original files checked. No automatic source synchronization.`);
 const native = JSON.parse(await readFile(join(root, 'docs/native-modules.json'), 'utf8'));
 const nativePaths = new Set();
 for (const module of native.modules) {
@@ -64,7 +70,16 @@ for (const module of native.modules) {
     assert.ok(file.path.startsWith(`modules/${module.module}/`) && !file.path.split('/').includes('..'), `unsafe native path ${file.path}`);
     assert.ok(!nativePaths.has(file.path), `duplicate native path ${file.path}`);
     nativePaths.add(file.path);
+    if (file.historicalDeltaAudit !== undefined) {
+      assert.equal(file.historicalDeltaAudit, 'unavailable', `invalid native historical audit status ${file.path}`);
+      assert.ok(file.localSnapshotReview?.trim() && file.reason?.trim(), `native historical delta needs local review and reason ${file.path}`);
+      assert.match(file.previousRecordedSha256 ?? '', /^[a-f0-9]{64}$/, `native historical delta needs previous hash ${file.path}`);
+      historicalDeltas.push(file.path);
+    }
     assert.equal(await digest(join(root, file.path)), file.sha256, `native module changed without updated provenance: ${file.path}`);
   }
 }
 console.log(`[sources] ${nativePaths.size} native module files verified separately from imported source snapshots.`);
+if (historicalDeltas.length) {
+  console.warn(`[sources] WARNING: ${historicalDeltas.length} recorded historical deltas have unavailable earlier contents; local hash integrity is verified, not historical-diff equivalence:\n${historicalDeltas.join('\n')}`);
+}

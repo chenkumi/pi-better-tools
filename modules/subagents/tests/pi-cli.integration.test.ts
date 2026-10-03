@@ -123,12 +123,14 @@ for (const [scenario, mode, debugLog = true] of cases) {
 					const shell = log.find(entry => entry.type === "tool_result" && entry.callId === call?.callId);
 					assert.ok(shell);
 					assert.equal(shell.isError, false);
+
 					assert.ok(logText.length < 10000, "structured shell payload must not inflate the child transcript");
 					const native = (await readFile(join(directory, manifest.nativeFile), "utf8")).trim().split("\n").map(line => JSON.parse(line));
 					const nativeShell = native.map(entry => entry.message).find(message => message?.role === "toolResult" && message.toolName === shellTool);
 					assert.ok(nativeShell, "native session must retain the actual shell result");
 					assert.equal(nativeShell.isError, false);
 					assert.equal(nativeShell.details.truncation.truncated, true);
+					assert.ok(nativeShell.details.truncation.totalBytes >= 614400, "Shell must really produce at least 600 KiB");
 					const outputPath = nativeShell.details.fullOutputPath;
 					try {
 						const fullOutput = await readFile(outputPath, "utf8");

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { appendFile, chmod, mkdir, readdir, stat, unlink } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename, join, resolve, win32 } from 'node:path';
 
 const MAX_LOG_BYTES = 2 * 1024 * 1024;
 const MAX_LOG_DAYS = 7;
@@ -13,7 +13,11 @@ const appendTails = new Map<string, Promise<void>>();
 type FailureContext = { cwd: string } | undefined;
 
 export function projectNameFromCwd(cwd: string): string | undefined {
-  const name = basename(resolve(cwd)).normalize('NFKC')
+  // Recognize explicit Windows drive/UNC paths on every host; ordinary POSIX
+  // names may contain backslashes, so do not reinterpret all paths as Windows.
+  const windowsAbsolute = /^[A-Za-z]:[\\/]/.test(cwd) || /^\\\\[^\\/]+[\\/][^\\/]+/.test(cwd);
+  const leaf = windowsAbsolute ? win32.basename(win32.normalize(cwd)) : basename(resolve(cwd));
+  const name = leaf.normalize('NFKC')
     .replace(/[^A-Za-z0-9._-]/g, '_').replace(/^\.+|\.+$/g, '').slice(0, 80);
   if (!name || name === '.' || name === '..') return;
   return /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(name) ? `_${name}` : name;

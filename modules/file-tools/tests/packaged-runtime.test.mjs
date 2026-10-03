@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { crc32, deflateSync } from "node:zlib";
 import { test } from "node:test";
-import { runCommand, runNpm } from "../scripts/test-process.mjs";
+import { parsePackManifest, runCommand, runNpm } from "../scripts/test-process.mjs";
 import { cleanupTestResources } from "../scripts/test-cleanup.mjs";
 
 const project = fileURLToPath(new URL("../", import.meta.url));
@@ -45,7 +45,8 @@ test(`packaged extension with real Pi ${hostVersion} loader`, { timeout: 120000 
   let primaryError;
   try {
     await Promise.all([workspace, extracted, agentDir].map(path => mkdir(path, { recursive: true })));
-    const [manifest] = JSON.parse(await runNpm("npm pack", ["pack", "--json", "--ignore-scripts", "--pack-destination", root], { cwd: project, quiet: true, timeoutMs: 60000 }));
+    const expectedPackage = JSON.parse(await readFile(join(project, "package.json"), "utf8"));
+    const manifest = parsePackManifest(await runNpm("npm pack", ["pack", "--json", "--ignore-scripts", "--pack-destination", root], { cwd: project, quiet: true, timeoutMs: 60000 }), expectedPackage);
     assert.ok(manifest.files.some(file => file.path === "src/diff-worker.mjs"));
     assert.ok(!manifest.files.some(file => /^(tests|scripts|issues|node_modules)\//.test(file.path)));
     await runCommand("extract package", "tar", ["-xzf", join(root, manifest.filename), "-C", extracted], { timeoutMs: 30000 });
