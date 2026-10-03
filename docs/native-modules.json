@@ -15,15 +15,17 @@
         },
         {
           "path": "modules/note-tools/extensions/note.ts",
-          "sha256": "55f162a834e4a6096222ffcb5014b9f44de0f834656e2209642a724c0ac43c34",
+          "sha256": "186fa6f64234d431e90a53098b4ac7a3bf53b20af82972d93a04d9be7411834f",
+          "preChangeSha256": "55f162a834e4a6096222ffcb5014b9f44de0f834656e2209642a724c0ac43c34",
           "previousRecordedSha256": "b753ab14a2ffe217509ed09555fb73553f8da694f70acf928785e57492562ea3",
           "historicalDeltaAudit": "unavailable",
-          "localSnapshotReview": "2026-10-03: complete current implementation inspected; strict type/content schema, well-formed Unicode, exclusive-create, mutation queue, bounded collisions and path result verified against local tests. Current bytes match initial commit f14b837; earlier recorded bytes unavailable.",
-          "reason": "Correct stale native metadata to identify the locally inspected snapshot without claiming an audited historical diff. No implementation changed this round."
+          "localSnapshotReview": "2026-10-03: pre-change implementation inspected; strict schema, Unicode, exclusive-create, mutation queue, bounded collisions and path result verified locally. Pre-change bytes match initial commit f14b837; earlier recorded bytes unavailable.",
+          "reason": "Retain historical audit limitations. User-requested pure note call/result presentation and compact UTC YYYYMMDDTHHmmssSSSZ filenames; preserve model-facing output, millisecond collision retries and old files."
         },
         {
           "path": "modules/note-tools/tests/note.test.ts",
-          "sha256": "9bd4047820aa9d7c6d01a266e49746f9f323851fc0c71af1a05463e19949b3d9"
+          "sha256": "ccc5cc396a0ff4d41b10f3b85d3d635240f352f5cfafad1a3be6f6a2eadbff55",
+          "reason": "Update compact timestamp assertions; add UTC rollover, lexical sorting, legacy-file retention and 1000-collision exhaustion regressions without removing existing assertions."
         },
         {
           "path": "modules/note-tools/tsconfig.json",
@@ -32,11 +34,12 @@
         },
         {
           "path": "modules/note-tools/README.md",
-          "sha256": "ed929109b39aa1e86db362e8109b54bfef1bae45a7ccef4f7f48c468522fba41",
+          "sha256": "3e94b4e04e40e3e3fa73df619213bdc4aa508f183dbb2259f288322046a18c48",
+          "preChangeSha256": "ed929109b39aa1e86db362e8109b54bfef1bae45a7ccef4f7f48c468522fba41",
           "previousRecordedSha256": "ab18ee3335437ce91af7fcdd1e8dbdc6198ab2c9989c0de37adf967b41e92bb9",
           "historicalDeltaAudit": "unavailable",
-          "localSnapshotReview": "2026-10-03: complete README inspected against local note schema, exclusive-create, Unicode, cancellation and path contracts; current bytes match initial commit f14b837, earlier recorded bytes unavailable.",
-          "reason": "Identify pre-existing local native documentation; historical diff unavailable, no content changed this round."
+          "localSnapshotReview": "2026-10-03: pre-change README inspected against local note contracts; pre-change bytes match initial commit f14b837, earlier recorded bytes unavailable.",
+          "reason": "Document compact UTC timestamp and TUI preview/path presentation. Historical baseline-to-pre-change diff remains unavailable."
         }
       ]
     },
@@ -87,7 +90,13 @@
         },
         {
           "path": "modules/goal/extensions/goal.ts",
-          "sha256": "835c8277236ad08f67f61d7a3c3a5b4e880bd76e617cae2b93ab509b785411db"
+          "sha256": "fb7b11b8a2cfbc2c02ab4217aaeba76681d1787f5b9a013eeb1c09aa8d6db649",
+          "reason": "Wire pure goal call/result rendering; preserve model-visible JSON and user-owned lifecycle."
+        },
+        {
+          "path": "modules/goal/src/renderers.ts",
+          "sha256": "951918e1cf0eb84131df2cb6cae978791753c47cc0af235bfa211549ad1d8e18",
+          "reason": "State/objective, diagnostic, blocking and expanded verification presentation; completion evidence remains explicitly model-reported, not independently audited."
         },
         {
           "path": "modules/goal/src/state.ts",
@@ -115,11 +124,12 @@
         },
         {
           "path": "modules/goal/README.md",
-          "sha256": "773daeeab9f8b74f883ad48845d6ff0a439b504109bb5301c5db81481d853eb6",
+          "sha256": "8ecaba5aad628f6e25d8e7642bba244474a6504e035ffb61593ac8356027781d",
+          "preChangeSha256": "773daeeab9f8b74f883ad48845d6ff0a439b504109bb5301c5db81481d853eb6",
           "previousRecordedSha256": "23e2a0a245d26264ae24fd0a5ae0013d18f1e8f421005229a5432ecfc59d9294",
           "historicalDeltaAudit": "unavailable",
-          "localSnapshotReview": "2026-10-03: complete README inspected against root goal policy and existing local lifecycle/runtime tests; current bytes match initial commit f14b837, earlier recorded bytes unavailable.",
-          "reason": "Identify pre-existing local native documentation; historical diff unavailable, no content changed this round. Runtime tests are separate from original-diff certification."
+          "localSnapshotReview": "2026-10-03: pre-change README inspected against root goal policy and local lifecycle/runtime tests; pre-change bytes match initial commit f14b837, earlier recorded bytes unavailable.",
+          "reason": "Document goal tool TUI summaries and expanded model-reported evidence. Historical baseline-to-pre-change diff remains unavailable; runtime tests are not original-diff certification."
         }
       ]
     },

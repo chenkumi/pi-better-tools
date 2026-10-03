@@ -17,8 +17,11 @@ async function setup(scenario = "normal") {
 		debugLog: false, sessionRootDir: join(root, "managed"),
 		invocation(args) { invocations.push([...args]); return { command: process.execPath, args: [child, scenario, ...args] }; },
 	});
-	const ctx = { cwd: root, hasUI: false, isProjectTrusted: () => false, model: { provider: "offline-fixture", id: "model" }, thinkingLevel: "off",
-		sessionManager: { getSessionId: () => "parent" }, modelRegistry: { find: (provider: string, id: string) => provider === "offline-fixture" && id === "model" ? { provider, id } : undefined } } as unknown as ExtensionContext;
+	const models = [{ provider: "offline-fixture", id: "model", reasoning: true }, { provider: "offline-fixture", id: "alternate", reasoning: false }];
+	const ctx = { cwd: root, hasUI: false, isProjectTrusted: () => false, model: models[0], thinkingLevel: "off",
+		sessionManager: { getSessionId: () => "parent" }, modelRegistry: {
+			find: (provider: string, id: string) => models.find(model => model.provider === provider && model.id === id), getAll: () => models,
+		} } as unknown as ExtensionContext;
 	return { root, tool, ctx, invocations,
 		execute: (id: string, args: any) => tool.execute(id, args, undefined, undefined, ctx),
 		manifest: async (id: string) => JSON.parse(await readFile(join(root, "managed", id, "manifest.json"), "utf8")),
@@ -98,6 +101,59 @@ for (const resumable of [true, false, null, undefined]) {
 		} finally { await h.dispose(); }
 	});
 }
+for (const mode of ["single", "parallel", "chain"] as const) {
+	test(`${mode} ignores unknown overrides before spawning and persists the default selection`, async () => {
+		const h = await setup();
+		try {
+			(h.ctx as any).thinkingLevel = "high";
+			const task = { agent: "worker", task: "fallback work" };
+			const dispatch = mode === "single" ? task : mode === "parallel" ? { tasks: [task, task] } : { chain: [task, task] };
+			const outcome = await h.execute("fallback", { ...dispatch, model: "chat-5.6-terra", thinkingLevel: "ultra" });
+			assert.equal(outcome.isError, undefined, JSON.stringify(outcome.content));
+			for (const args of h.invocations) {
+				assert.equal(args[args.indexOf("--model") + 1], "offline-fixture/model");
+				assert.equal(args[args.indexOf("--thinking") + 1], "high");
+			}
+			for (const result of outcome.details.results) {
+				assert.equal(result.canResume, true);
+				const manifest = await h.manifest(result.subagentSessionId);
+				assert.equal(manifest.config.model, "offline-fixture/model");
+				assert.equal(manifest.config.thinkingLevel, "high");
+			}
+		} finally { await h.dispose(); }
+	});
+}
+
+test("valid model with unsupported thinking omits --thinking rather than applying parent thinking", async () => {
+	const h = await setup();
+	try {
+		(h.ctx as any).thinkingLevel = "high";
+		const outcome = await h.execute("selected", { agent: "worker", task: "work", provider: "offline-fixture", model: "alternate", thinkingLevel: "high" });
+		assert.equal(outcome.isError, undefined, JSON.stringify(outcome.content));
+		assert.equal(h.invocations[0][h.invocations[0].indexOf("--model") + 1], "offline-fixture/alternate");
+		assert.equal(h.invocations[0].includes("--thinking"), false);
+		const first = outcome.details.results[0];
+		assert.equal((await h.manifest(first.subagentSessionId)).config.thinkingLevel, "off");
+		(h.ctx as any).modelRegistry.find = () => undefined;
+		const resume = await h.execute("missing-saved", { resume: first.subagentSessionId, task: "continue" });
+		assert.equal(resume.isError, true); assert.equal(resume.details.errorCode, "MODEL_UNAVAILABLE");
+		assert.equal(h.invocations.length, 1, "saved resume configuration must not silently fall back");
+	} finally { await h.dispose(); }
+});
+
+test("model and thinking schema descriptions require user/skill opt-in and allow unknown thinking strings to reach fallback", async () => {
+	const h = await setup();
+	try {
+		for (const key of ["model", "thinkingLevel"]) {
+			assert.match(h.tool.parameters.properties[key].description, /Omit by default/);
+			assert.match(h.tool.parameters.properties[key].description, /user or a skill/);
+		}
+		assert.equal(h.tool.parameters.properties.thinkingLevel.type, "string");
+		assert.equal(h.tool.parameters.properties.thinkingLevel.enum, undefined);
+		assert.ok(h.tool.promptGuidelines?.some(line => /Omit model, provider, and thinkingLevel/.test(line)));
+	} finally { await h.dispose(); }
+});
+
 test("argument builder cannot fall back to a missing or ephemeral persistence configuration", () => {
 	for (const persistence of [undefined, { kind: "ephemeral" }]) assert.throws(() => buildSubagentPiArgs({ taskPath: "/task", persistence } as any), /Managed session persistence is required/);
 });

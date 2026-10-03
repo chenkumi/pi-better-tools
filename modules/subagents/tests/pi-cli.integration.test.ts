@@ -26,6 +26,9 @@ const cases = [
 	["usage", "single"], ["nested-usage", "single"], ["large-shell", "single"], ["exclusion", "single"],
 	["retry", "parallel"], ["retry", "chain"], ["usage", "parallel"], ["usage", "chain"],
 	["retry-exhausted", "single", false],
+	["selection-model-fallback", "single"], ["selection-model-fallback", "parallel"], ["selection-model-fallback", "chain"],
+	["selection-thinking-fallback", "single"], ["selection-unsupported-thinking", "single"],
+	["selection-valid-model", "single"], ["selection-valid-thinking", "single"],
 ] as const;
 for (const [scenario, mode, debugLog = true] of cases) {
 	const caseName = `${scenario}-${mode}${debugLog ? "" : "-debug-off"}`;
@@ -77,7 +80,7 @@ for (const [scenario, mode, debugLog = true] of cases) {
 			} else {
 				await assert.rejects(stat(debugDir), { code: "ENOENT" });
 			}
-			const perCost = ["usage", "nested-usage"].includes(scenario) ? 5 : ["retry", "retry-exhausted", "follow-up"].includes(scenario) ? 2 : scenario === "normal" ? 1 : 2;
+			const perCost = ["usage", "nested-usage"].includes(scenario) ? 5 : ["retry", "retry-exhausted", "follow-up"].includes(scenario) ? 2 : (scenario === "normal" || scenario.startsWith("selection-")) ? 1 : 2;
 			const perTokens = scenario === "nested-usage" ? 48 : scenario === "usage" ? 36 : perCost === 1 ? 12 : 24;
 			assert.equal(tool.usage.cost.total, perCost * results.length);
 			assert.equal(tool.usage.totalTokens, perTokens * results.length);
@@ -106,6 +109,12 @@ for (const [scenario, mode, debugLog = true] of cases) {
 				assert.equal(result.canResume, !isFailure);
 				const manifest = JSON.parse(await readFile(join(directory, "manifest.json"), "utf8"));
 				assert.equal(manifest.state, isFailure ? "blocked" : "ready");
+				if (scenario.startsWith("selection-")) {
+					assert.equal(result.model, "subagent-test/fixture");
+					assert.equal(manifest.config.model, "subagent-test/fixture");
+					assert.equal(manifest.config.thinkingLevel, "off");
+					assert.equal(result.errorCode, undefined);
+				}
 				assert.ok((await readdir(join(directory, "pi"))).some(file => file.endsWith(".jsonl")));
 				await assert.rejects(stat(join(directory, "writer.lock")), { code: "ENOENT" });
 				await assert.rejects(stat(join(root, "config", "sub-sessions")), { code: "ENOENT" });

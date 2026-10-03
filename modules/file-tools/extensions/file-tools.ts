@@ -1,7 +1,8 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { createReadToolDefinition, withFileMutationQueue } from "@earendil-works/pi-coding-agent";
+import { createReadToolDefinition, createWriteToolDefinition, withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { readFile, stat } from "node:fs/promises";
+import { stripVTControlCharacters } from "node:util";
 import { Type } from "typebox";
 import { FileToolError, classifyFsError, formatFileToolErrorForDisplay } from "../src/errors.js";
 import { executeWithFailureLogging, loadFileToolsGlobalConfig, prepareWithFailureLogging } from "../src/debug-logging.js";
@@ -429,6 +430,9 @@ async function readBufferAtPath(absolutePath: string, displayPath: string): Prom
 
 export default function fileToolsExtension(pi: ExtensionAPI) {
   const debugLog = loadFileToolsGlobalConfig().debugLog ?? false;
+  // Explicitly retain the host's call/ successful read presentation (including images).
+  const builtinRead = createReadToolDefinition(process.cwd());
+  const builtinWrite = createWriteToolDefinition(process.cwd());
   let loadedSkillPaths: string[] = [];
   pi.on("before_agent_start", (event) => {
     loadedSkillPaths = event.systemPromptOptions.skills.map((skill) => skill.filePath);
@@ -448,6 +452,14 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
     parameters: readSchema,
     constrainedSampling: { type: "json_schema", strict: "prefer" },
     prepareArguments: prepareWithFailureLogging(debugLog, "read", prepareReadArguments),
+    renderCall: builtinRead.renderCall,
+    renderResult(result, options, theme, context) {
+      // The host renderer only consumes common content and optional truncation fields.
+      const builtinResult = result as Parameters<NonNullable<typeof builtinRead.renderResult>>[0];
+      if (!context.isError) return builtinRead.renderResult?.(builtinResult, options, theme, context) ?? new Text("", 0, 0);
+      const text = result.content.filter(block => block.type === "text").map(block => block.text).join("\n");
+      return new Text(theme.fg("error", formatFileToolErrorForDisplay(text, options.expanded, "read")), 0, 0);
+    },
     async execute(toolCallId, params, signal, onUpdate, ctx) {
       return executeWithFailureLogging(debugLog, "read", toolCallId, params, async () => {
         const absolutePath = resolveToolPath(params.path, ctx.cwd);
@@ -522,6 +534,21 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
     parameters: writeSchema,
     constrainedSampling: { type: "json_schema", strict: "prefer" },
     prepareArguments: prepareWithFailureLogging(debugLog, "write", prepareWriteArguments),
+    renderCall: builtinWrite.renderCall,
+    renderResult(result, { expanded, isPartial }, theme, context) {
+      const text = result.content.filter(block => block.type === "text").map(block => block.text).join("\n");
+      if (context.isError) return new Text(theme.fg("error", formatFileToolErrorForDisplay(text, expanded, "write")), 0, 0);
+      if (isPartial) return new Text(theme.fg("muted", "Writing file…"), 0, 0);
+      let summary = "File written", detail = "";
+      try {
+        const payload = JSON.parse(text.split("[FILE_WRITE_SUCCESS]\n")[1]);
+        if (typeof payload.bytes === "number") summary += ` · ${payload.bytes} bytes`;
+        if (typeof payload.path === "string") detail += `\nPath: ${payload.path}`;
+        if (typeof payload.sha256 === "string") detail += `\nSHA-256: ${payload.sha256}`;
+      } catch { /* old or missing success metadata still gets a compact result */ }
+      const clean = stripVTControlCharacters(summary + (expanded ? detail : "")).replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, "");
+      return new Text(theme.fg("success", clean), 0, 0);
+    },
     async execute(toolCallId, params, signal, _onUpdate, ctx) {
       return executeWithFailureLogging(debugLog, "write", toolCallId, params, async () => {
         const absolutePath = resolveToolPath(params.path, ctx.cwd);

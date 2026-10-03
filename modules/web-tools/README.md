@@ -123,6 +123,10 @@ Brave 使用 Web Search endpoint；Exa 使用 Search endpoint（`type: "auto"`�
 
 無 UI 模式下輸出至 stderr，不污染 JSON stdout。
 
+## TUI 顯示
+
+`web_fetch` 與 REST `web_search` 有專用 call/result renderer：收合顯示網頁／搜尋來源摘要、HTTP／provider 資訊、警告、截斷及全文暫存路徑，展開顯示原有結果文字。來源標為不可信外部資料；URL 標籤移除 userinfo，顯示文字清理控制字元（不代表全面敏感資料遮蔽）。Renderer 不啟動 browser、不發送 provider 請求，亦不改 content／details／structuredContent。OpenAI 原生 `web_search` 不屬於 Pi function tool，由宿主／模型回應呈現。
+
 ## 輸出限制
 
 - 工具 content 上限 24 KiB／1000 行（含截斷提示）；頁面抽取內容上限 1 MiB，格式化結果 2 MiB，原始／渲染 HTML 5 MiB。

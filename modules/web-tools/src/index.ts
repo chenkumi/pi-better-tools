@@ -9,6 +9,7 @@ import { fetchOutputSchema, searchOutputSchema, webToolMetadata } from './tool-s
 import { captureNativeSources, formatSourceRecord, readSourceRecord, SOURCE_ENTRY_TYPE, type NativeSourceRecord, type ParsedProviderEvent } from './native-sources.ts';
 import { search } from './search.ts';
 import type { FetchService } from './fetch/service.ts';
+import { webRenderers } from './renderers.ts';
 
 export default function webTools(pi: ExtensionAPI) { return registerWebTools(pi, loadConfig); }
 
@@ -55,6 +56,7 @@ export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig
 
   pi.registerTool({
     name: 'web_fetch', label: 'Web Fetch',
+    ...webRenderers('fetch'),
     ...webToolMetadata, ...{ outputSchema: fetchOutputSchema },
     description: 'Fetch a public HTTP(S) page using headless Chromium and return cleaned Markdown or text. No login, CAPTCHA bypass or PDF support. Output is bounded to 24 KiB/1000 lines; longer cleaned content is saved to a temporary file for read.',
     promptSnippet: 'Retrieve rendered web pages as cleaned Markdown or text',
@@ -88,6 +90,7 @@ export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig
   if (!configError && config.enabled && config.provider !== 'openai') {
     pi.registerTool({
       name: 'web_search', label: 'Web Search',
+      ...webRenderers('search'),
       ...webToolMetadata, ...{ outputSchema: searchOutputSchema },
       description: 'Search the web using Brave or Exa. Returns source URLs and provider snippets, not fetched full pages. Use web_fetch for full content. Output is bounded to 24 KiB/1000 lines.',
       promptSnippet: 'Search the web via Brave or Exa for sources and snippets',

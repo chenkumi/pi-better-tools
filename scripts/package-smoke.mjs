@@ -45,6 +45,7 @@ const required = [
   'modules/subagents/prompts/implement.md', 'modules/subagents/prompts/implement-and-review.md', 'modules/subagents/prompts/scout-and-plan.md',
   'modules/shell-tools/extensions/timeout-ms.ts', 'modules/file-tools/extensions/file-tools.ts', 'modules/file-tools/src/diff-worker.mjs',
   'modules/web-tools/src/index.ts', 'modules/web-tools/schemas/web_search.schema.json', 'modules/scheduler/src/extension.ts', 'modules/scheduler/package.json', 'modules/scheduler/dist/runner.js',
+  'modules/web-tools/src/renderers.ts', 'modules/scheduler/src/renderers.ts', 'modules/goal/src/renderers.ts',
   'modules/note-tools/extensions/note.ts', 'modules/note-tools/README.md',
   'modules/gpt-speed/extensions/gpt-speed.ts', 'modules/gpt-speed/README.md',
   'modules/goal/extensions/goal.ts', 'modules/goal/src/state.ts', 'modules/goal/src/controller.ts', 'modules/goal/src/prompts.ts', 'modules/goal/README.md',
@@ -121,6 +122,7 @@ try {
         assert.equal(result.hooksObserved.length, 21); assert.equal(new Set(result.hooksObserved).size, 21); return output;
       });
       const fixture = join(temp, 'smoke.mjs'); await copyFile(join(root, 'tests/fixtures/smoke.mjs'), fixture);
+      await copyFile(join(root, 'tests/fixtures/renderer-probes.mjs'), join(temp, 'renderer-probes.mjs'));
       for (const mode of ['full', 'read-only', 'no-tools', 'exclude', 'brave', 'exa', 'invalid', 'child']) {
         const home = join(temp, `home-${mode}`); await mkdir(home);
         await record(`${version}:${mode}`, () => runCommand(`production Pi ${version} ${mode}`, process.execPath, [fixture, packageRoot, mode], { cwd: home, env: { ...isolatedEnv(home), PI_BETTER_TOOLS_HOST: host }, timeoutMs: 150000 }));

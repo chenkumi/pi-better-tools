@@ -72,6 +72,11 @@ export default function (pi: ExtensionAPI) {
 						const task = { agent: "worker", task: "Offline subagent contract fixture; no paid model calls." };
 						const mode = process.env.PI_SUBAGENTS_TEST_MODE ?? "single";
 						const args = mode === "parallel" ? { tasks: [task, task] } : mode === "chain" ? { chain: [task, { ...task, task: "Offline next step: {previous}" }] } : task;
+						if (scenario === "selection-model-fallback") Object.assign(args, { model: "chat-5.6-terra", thinkingLevel: "high" });
+						if (scenario === "selection-thinking-fallback") Object.assign(args, { thinkingLevel: "ultra" });
+						if (scenario === "selection-unsupported-thinking") Object.assign(args, { thinkingLevel: "max" });
+						if (scenario === "selection-valid-model") Object.assign(args, { provider: "subagent-test", model: "fixture", thinkingLevel: "ultra" });
+						if (scenario === "selection-valid-thinking") Object.assign(args, { thinkingLevel: "off" });
 						call = { id: "fixture-delegate", name: "subagent", arguments: args };
 					}
 					if (call) {

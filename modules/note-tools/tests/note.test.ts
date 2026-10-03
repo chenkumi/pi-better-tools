@@ -9,7 +9,7 @@ import { Check } from "typebox/value";
 import noteExtension, { noteTool } from "../extensions/note.ts";
 
 const timestamp = Date.UTC(2026, 0, 2, 3, 4, 5, 6);
-const firstName = "PLAN-2026-01-02T03-04-05-006Z.md";
+const firstName = "PLAN-20260102T030405006Z.md";
 const types = ["plan", "issue", "research", "report", "task"] as const;
 const execute = (cwd: string, args: Static<typeof noteTool.parameters>, signal?: AbortSignal) =>
   noteTool.execute("test-note", args, signal, undefined, { cwd } as ExtensionToolContext);
@@ -42,7 +42,7 @@ for (const type of types) {
     const content = "# 測試 😀\r\n\nno trailing newline";
     const result = await execute(cwd, { type, content });
     const saved = result.details;
-    assert.equal(saved.path, resolve(cwd, type, `${type.toUpperCase()}-2026-01-02T03-04-05-006Z.md`));
+    assert.equal(saved.path, resolve(cwd, type, `${type.toUpperCase()}-20260102T030405006Z.md`));
     assert.equal(saved.relativePath, `${type}/${basename(saved.path)}`);
     assert.equal(saved.type, type);
     assert.deepEqual(result.structuredContent, saved);
@@ -72,10 +72,26 @@ test("collision never overwrites an existing file or touches PLAN.md", async t =
   await writeFile(join(cwd, "plan", firstName), "KEEP");
   await writeFile(join(cwd, "plan", "PLAN.md"), "KEEP BASELINE");
   const result = await execute(cwd, { type: "plan", content: "NEW" });
-  assert.equal(basename(result.details.path), "PLAN-2026-01-02T03-04-05-007Z.md");
+  assert.equal(basename(result.details.path), "PLAN-20260102T030405007Z.md");
   assert.equal(await readFile(join(cwd, "plan", firstName), "utf8"), "KEEP");
   assert.equal(await readFile(join(cwd, "plan", "PLAN.md"), "utf8"), "KEEP BASELINE");
   assert.equal(await readFile(result.details.path, "utf8"), "NEW");
+});
+
+test("compact timestamps keep UTC milliseconds, lexical ordering and rollover collision semantics", async t => {
+  const cwd = await workspace(t);
+  const rollover = Date.UTC(2026, 11, 31, 23, 59, 59, 999);
+  t.mock.method(Date, "now", () => rollover);
+  await mkdir(join(cwd, "report"));
+  const oldName = "REPORT-2026-12-31T23-59-59-999Z.md";
+  await writeFile(join(cwd, "report", oldName), "OLD FORMAT KEEP");
+  const a = await execute(cwd, { type: "report", content: "first" });
+  const b = await execute(cwd, { type: "report", content: "second" });
+  assert.equal(basename(a.details.path), "REPORT-20261231T235959999Z.md");
+  assert.equal(basename(b.details.path), "REPORT-20270101T000000000Z.md");
+  assert.ok(basename(a.details.path) < basename(b.details.path));
+  assert.match(basename(a.details.path), /^REPORT-\d{8}T\d{9}Z\.md$/);
+  assert.equal(await readFile(join(cwd, "report", oldName), "utf8"), "OLD FORMAT KEEP");
 });
 
 test("parallel calls with identical timestamp each create a unique complete file", async t => {
@@ -86,6 +102,20 @@ test("parallel calls with identical timestamp each create a unique complete file
   assert.equal(new Set(results.map(r => r.details.path)).size, contents.length);
   assert.equal((await readdir(join(cwd, "plan"))).length, contents.length);
   for (const [i, result] of results.entries()) assert.equal(await readFile(result.details.path, "utf8"), contents[i]);
+});
+
+test("1000 compact timestamp collisions fail without overwriting or creating a 1001st file", async t => {
+  const cwd = await workspace(t);
+  t.mock.method(Date, "now", () => timestamp);
+  const dir = join(cwd, "plan");
+  await mkdir(dir);
+  for (let i = 0; i < 1000; i++) {
+    const name = `PLAN-${new Date(timestamp + i).toISOString().replace(/[-:.]/g, "")}.md`;
+    await writeFile(join(dir, name), "KEEP");
+  }
+  await assert.rejects(execute(cwd, { type: "plan", content: "MUST NOT WRITE" }), /NOTE_FILENAME_COLLISION/);
+  assert.equal((await readdir(dir)).length, 1000);
+  for (const name of await readdir(dir)) assert.equal(await readFile(join(dir, name), "utf8"), "KEEP");
 });
 
 test("uses invocation cwd, not process cwd or extension installation directory", async t => {

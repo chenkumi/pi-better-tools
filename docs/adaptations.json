@@ -97,7 +97,44 @@
       "baselineLimit": "Seven pre-existing import hash mismatches were reviewed against current code, documentation and regression contracts. Original Windows source directories are unavailable here, so these records do not claim an original-source line-by-line comparison. Immutable docs/sources.json hashes remain unchanged; --originals remains a separate check."
     }
   ],
+  "tuiRenderingChanges": [
+    {
+      "date": "2026-10-03",
+      "scope": "File, Web, Scheduler and native Note/Goal presentation; root/module documentation and loader/production fixture probes. No execution, trust, provider, activation or persistence lifecycle changes.",
+      "reason": "User-requested inventory and missing TUI renderers. Read successful content/image delegation preserved; read/write errors show operation/code/recovery rather than JSON, malformed error payloads use an unavailable-details fallback. Write success receives a dedicated bytes/path/hash summary instead of raw metadata. Web Search previews existing formatted content because actual hosts forward only content/details. Scheduler shows independent runner warnings, endedAt and cancellation requests. Native Note filenames become compact UTC with existing millisecond collision semantics; existing files are not renamed.",
+      "integrationFiles": ["README.md", "docs/configuration.md", "tests/fixtures/smoke.mjs", "tests/fixtures/renderer-probes.mjs", "scripts/package-smoke.mjs"],
+      "productionRunnerChange": {
+        "path": "scripts/package-smoke.mjs",
+        "sha256": "102d7e96feb745f627b3ed553c6549c5654bdad296a959cb4324c1e59d87aa1a",
+        "reason": "Existing root integration runner: require renderer tarball resources and stage renderer-probes.mjs beside smoke.mjs. This is not an imported module file or a new addedFiles entry; source verifier retains its existing modules/tests path allowlist. Root script correctness is covered by package/matrix execution, not imported-source verification."
+      }
+    }
+  ],
   "files": [
+    {
+      "path": "modules/file-tools/extensions/file-tools.ts",
+      "originalSha256": "3a55b1b953cb2406b8326684d701826e907fca0324d179afea7ecc4cd01d739f",
+      "sha256": "f8fa9a46171867c2f3c9772506b76d6179c3739e1260eb36af628318c3d97dfc",
+      "reason": "Wire builtin read/write calls and successful read/image presentation; custom error and write-success summaries. Tool schemas/content/details/structuredContent and file execution are unchanged."
+    },
+    {
+      "path": "modules/file-tools/src/errors.ts",
+      "originalSha256": "8e76d4b78ac5c82e95ce6a8fb44469a51117ae7cf786a4f05c08e5489bd24063",
+      "sha256": "f7070c792d244cdf4c0c052ea5f8b4c63366f226dcf74e43b8d23ed91273ecb7",
+      "reason": "Parameterize operation label and sanitize presentation; collapsed read/write include recovery and malformed payloads avoid raw JSON. Strict parser/error protocol and edit fallback behavior unchanged."
+    },
+    {
+      "path": "modules/scheduler/src/tools.ts",
+      "originalSha256": "d7f83aa7e956c0c1b6610c78c58f7b5138d817e33f9a877d125e2b52c62fd36c",
+      "sha256": "03cd3404209851ac8f33e38f31648b7bdc8711417289bf7c11b7d5ed1579ce32",
+      "reason": "Attach pure call/result renderers for all four tools without changing execution, schemas, cancellation or trust."
+    },
+    {
+      "path": "modules/web-tools/src/index.ts",
+      "originalSha256": "e8dd3537ad78f72e548eb6a4677cbd5b6324c6cb762ffb3d828dd5cc2a5b5bb0",
+      "sha256": "9183d47f21e0f491f6c71e39a900d37bdac61b009e3dc8e4310d16283be13a87",
+      "reason": "Attach pure Fetch/REST Search renderers; provider/native mode gates, content/details/structuredContent, browser and network behavior unchanged."
+    },
     {
       "path": "modules/file-tools/scripts/test-process.mjs",
       "originalSha256": "21d6c39d2a97d40b81f5ed4952e07a6a2281b2b3799d143ac879c8626c0d150c",
@@ -113,8 +150,8 @@
     {
       "path": "modules/subagents/tests/fixtures/pi-provider.ts",
       "originalSha256": "83492531c735037b48304ee1e7a9e42fc00e5e738848163ccdfc18be0d11e95f",
-      "sha256": "f9ddb5d0a73b7a3e24c17d325e6d7b18b2223e1239848891ae348f273932e1b9",
-      "reason": "Merge preserves upstream real PowerShell on Windows or Bash/Node on POSIX, emitting a 600 KiB prefix and 2000-line tail to separate structured payload retention from model-facing line truncation. Offline provider, timeout schema and production lifecycle unchanged."
+      "sha256": "8b9c8d018a42e083c307d21a7df52b936c176d1e0b468292d7d4183845c949d2",
+      "reason": "Merge preserves upstream real PowerShell on Windows or Bash/Node on POSIX, emitting a 600 KiB prefix and 2000-line tail to separate structured payload retention from model-facing line truncation. Add offline model/thinking selection scenarios, including unknown thinking strings through real host schema validation; no paid providers. Timeout schema and production lifecycle unchanged."
     },
     {
       "path": "modules/web-tools/src/debug-log.ts",
@@ -137,19 +174,20 @@
     {
       "path": "modules/file-tools/README.md",
       "originalSha256": "eb24c5848998f3383cd7eed92ab8c6adf2ceb8fdf895ea280bc7af71777e7f8a",
-      "sha256": "73c29be3446a5d371d2ae07c5f66bd5198a9f343c417f0bd7a060ad23b5d258d",
+      "sha256": "4613fb7908afcc890beff25201022a6894957fda1cc6bfeee2667e059c6ea742",
+      "preChangeSha256": "73c29be3446a5d371d2ae07c5f66bd5198a9f343c417f0bd7a060ad23b5d258d",
       "historicalDeltaAudit": "unavailable",
-      "localSnapshotReview": "2026-10-03: complete local README inspected against local schema, mutation queue and settings implementation; same bytes as initial commit f14b837.",
-      "reason": "Pre-existing historical delta identified by local snapshot hash. Original source contents unavailable; full baseline-to-local diff is unaudited. Documented strict schema/hash/worker/settings contracts are supported by local code; no original-diff or behavior-equivalence certification."
+      "localSnapshotReview": "2026-10-03: pre-change local README inspected against schema, mutation queue and settings; pre-change bytes match initial commit f14b837.",
+      "reason": "Document read/write error summaries, preserved builtin successful read/image behavior and write success bytes/path/hash presentation. Original source contents unavailable; historical baseline-to-pre-change diff remains unaudited, no original-source equivalence certification."
     },
     {
       "path": "modules/web-tools/README.md",
       "originalSha256": "39be626cf45a2409a02bf8caeea9585188413776a1b6c8d456664fa909ebf71c",
-      "sha256": "6793d7a040b00692ca9a5b0548b30866be9de925332e5790da3d0c0a17804c20",
+      "sha256": "670e646f290e977c2fdb8f96a1214dcd9ffdaf9c3d87dce55154e92ee0744f25",
       "preChangeSha256": "5f5f1d8c15836abe56ea10966bf83517d9e780adb620765c4bc5c53aa758fdc8",
       "historicalDeltaAudit": "unavailable",
       "localSnapshotReview": "2026-10-03: complete pre-change README inspected against local Web config/provider/network/browser contracts; pre-change bytes match initial commit f14b837.",
-      "reason": "Update root Node engine requirements, explicit Linux browser setup and cross-host cwd basename contract. Pre-existing baseline-to-preChange delta remains unaudited because original contents are unavailable; this record does not certify original-diff or behavior equivalence."
+      "reason": "Update root Node requirements, explicit Linux browser setup, cwd basename contract and presentation-only Fetch/REST Search renderers. Pre-existing baseline-to-preChange delta remains unaudited because original contents are unavailable; this record does not certify original-diff or behavior equivalence."
     },
     {
       "path": "modules/scheduler/src/app-scheduler.ts",
@@ -192,9 +230,9 @@
     {
       "path": "modules/scheduler/README.md",
       "originalSha256": "995ce250828d718d2a076ac60279b7278ff815ce919dfa6ca40eede3d15b60c2",
-      "sha256": "826d291fa81450855782ba11d93cae31fc161a8ec14cda29fc2b9a17560a6aa9",
+      "sha256": "d047ff47346e53a0fe57741679c400a2f1483c112706d6dd6db9c30d94f5b3e2",
       "preChangeSha256": "4bea6dcddd19beea013e99db64b0ba84ac6469ab8308dfe7aff2347fb05a98a7",
-      "reason": "Add direct TS public-entry and compiled standalone CLI guidance to the pre-existing local README; source baseline is immutable and this does not certify pre-existing README changes."
+      "reason": "Add direct TS entry, standalone CLI guidance and schedule tool TUI summaries with explicit cancellation-request-only semantics to the pre-existing local README; source baseline is immutable and this does not certify pre-existing README changes."
     },
     {
       "path": "modules/shell-tools/tsconfig.json",
@@ -211,8 +249,8 @@
     {
       "path": "modules/subagents/extensions/subagent/index.ts",
       "originalSha256": "4bba69600d0ea3da3d29bb7b7d6e092a15422fb8b6dc8fb3b9ad390dbc92e4f1",
-      "sha256": "b6615b24cb18394d3829a2964646c4388f421af08c7faf56a2b67fdf32a10f08",
-      "reason": "User-authorized resumable-only change: always allocate managed sessions, require guard/log/native checkpoint, remove opt-in and ephemeral metadata branch, retain bounded diagnostics in managed runs; consolidate bounded tool-result identities without changing output limits. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted."
+      "sha256": "720fb7946cfcd26a55a456e75d30f45df408c4554c21a0f7d07452acde463ea5",
+      "reason": "User-authorized resumable-only change: always allocate managed sessions, require guard/log/native checkpoint, remove opt-in and ephemeral metadata branch, retain bounded diagnostics in managed runs; consolidate bounded tool-result identities without changing output limits. User-requested model/thinking preflight: descriptions require user/skill opt-in; initial dispatch resolves registered model then validates thinking, ignoring invalid overrides in favor of defaults. Thinking schema accepts strings to permit unknown-level fallback; resume and child lifecycle/guard remain strict. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted."
     },
     {
       "path": "modules/subagents/tests/child-args.test.ts",
@@ -229,8 +267,8 @@
     {
       "path": "modules/subagents/tests/pi-cli.integration.test.ts",
       "originalSha256": "b6b7e255d9c180293d0f0db4486a6f11025d4fa920cc9f43ca32ecbf28e4bea0",
-      "sha256": "fb156c25fa8864e3fef028f1f220d69706d427a07f910625e58f74585ebe9ba3",
-      "reason": "Merge retains upstream canonical fixture root, exact realpath transcript location, ready/failed evidence, real platform shell, >600 KiB full-output validation and cleanup; retain local native truncation totalBytes >=600 KiB assertion using the manifest-selected native session. Compact transcript, retry/usage/exclusion and lowercase ULID checks remain intact."
+      "sha256": "6e2d1e82de40abc646d3e6465b5c9f402ae6ab0571bbba750d7f35569c74aa1f",
+      "reason": "Merge retains upstream canonical fixture root, exact realpath transcript location, ready/failed evidence, real platform shell, >600 KiB full-output validation and cleanup; retain local native truncation totalBytes >=600 KiB assertion using the manifest-selected native session. Compact transcript, retry/usage/exclusion and lowercase ULID checks remain intact. Add real CLI model-first fallback across single/parallel/chain and unknown/unsupported/valid thinking tests with ready/native selection assertions."
     },
     {
       "path": "modules/subagents/tests/pi-session.integration.test.ts",
@@ -283,8 +321,8 @@
     {
       "path": "modules/subagents/README.md",
       "originalSha256": "279147070b436c428835ab950c632deea983a13d5e940c3205ea7b7c7f9bf4cf",
-      "sha256": "7a88d322a221d605f9bd88a187f9d01d9d3f11ff91959005eeb82ba1292d7185",
-      "reason": "Document mandatory managed persistence, removed parameter, storage paths, unchanged resume guard and explicit mock/native/CLI test boundaries. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted."
+      "sha256": "cb02880dea986870c5d7145b565f8e5c83c4c9dbea1da97565bac9ef2652be0d",
+      "reason": "Document mandatory managed persistence, removed parameter, storage paths, unchanged resume guard and explicit mock/native/CLI test boundaries. Document user/skill-only model/thinking overrides, exact registry parsing policy and model-first invalid-selection fallback defaults and limitations. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted."
     },
     {
       "path": "modules/file-tools/package.json",
@@ -419,7 +457,44 @@
       "reason": "Modules no longer carry a manifest: drop the read of modules/subagents/package.json; the persisted settings namespace is asserted as the literal \"pi-subagents\" (SUBAGENTS_PROJECT_NAME, log dir and legacy-key rejection assertions unchanged)."
     }
   ],
+  "subagentSelectionChanges": [
+    {
+      "date": "2026-10-03",
+      "scope": "Subagent initial-dispatch selection and descriptions, isolated tests, root/module README and docs/configuration.md; no managed-session lifecycle changes.",
+      "reason": "User requires model/thinking overrides only on user/skill instruction and model-first validation with invalid overrides ignored. Exact canonical selection, explicit-provider restriction, slash-ID precedence and host thinking normalization preserve deterministic defaults; resume and child guard stay strict. Schema accepts thinking strings so unknown levels can reach fallback. Parent registry does not certify child registry or remote API availability."
+    }
+  ],
   "addedFiles": [
+    {
+      "path": "modules/scheduler/src/renderers.ts",
+      "sha256": "9fb5a8a72898df2f4da4267c803a037902ceaa4afe7f178b6c240ff853611183",
+      "reason": "Pure schedule/revision/timezone, runtime-warning and run-history summaries; bounded/sanitized expansion and explicit unconfirmed cancellation semantics."
+    },
+    {
+      "path": "modules/web-tools/src/renderers.ts",
+      "sha256": "da9ef0c013e8982489b96c6e1f3b673da5eb5d7b31a9f60dbcd87a699b52662d",
+      "reason": "Pure bounded Fetch/REST Search previews using actual host content/details; external/untrusted labels, warnings and full-output paths, URL-label userinfo removal, controls cleanup. No provider/browser execution."
+    },
+    {
+      "path": "tests/fixtures/renderer-probes.mjs",
+      "sha256": "bcee6ee1d6e548822cbd9d8deb9d088cf098d92904fa210ff6694925d28806c2",
+      "reason": "Actual loader definitions rendered with host-style content/details envelope; call/result, widths 12/24/80, partial/error/legacy/malformed, controls, cancellation, diagnostics and immutable model-output probes."
+    },
+    {
+      "path": "tests/fixtures/smoke.mjs",
+      "sha256": "9652a53caf55c38dc271245660b7c7c2c96c0f6daa29e1857a2b13825763f4e3",
+      "reason": "Track amended pre-existing integration-native loader fixture, absent from source imports: invoke renderer probes in workspace and real production tarball hosts, assert compact note filename. Existing execution/protocol/activation assertions retained."
+    },
+    {
+      "path": "modules/subagents/extensions/subagent/model-selection.ts",
+      "sha256": "e5b8537e4ce8fef07825629418192c14a9cd6b4e029d2739b4ee3b50f1c0eaf3",
+      "reason": "Pure parent-registry preflight: resolve exact model/provider before checking thinking, ignore unavailable overrides, normalize inherited defaults with host helpers; no provider requests or persistence lifecycle changes."
+    },
+    {
+      "path": "modules/subagents/tests/model-selection.test.ts",
+      "sha256": "4a3a9272c69dc5787ef3627645ea76869161c04e1ee64d28ae9a2c7d36ea70a6",
+      "reason": "Offline exact/ambiguous/slash/provider parsing, override/agent/parent precedence, thinking capability/default normalization and model-before-thinking ordering regressions."
+    },
     {
       "path": "tests/integration/provenance.test.mjs",
       "sha256": "afa91c6b8d6ca9b897c0ecb7286dae69d0b8a8770f0149339e459b7231d19fec",
@@ -432,8 +507,8 @@
     },
     {
       "path": "modules/subagents/tests/always-managed.test.ts",
-      "sha256": "a1d068d6cc8a3e9c0445ec1f50ee6d13392259fed566419de8fb81491e44ae04",
-      "reason": "Track the pre-existing integration-native mandatory-managed regression suite, absent from the immutable source import list. Compare returned transcript path to the expected file realpath while retaining all identity/checkpoint/guard/lock/failure assertions."
+      "sha256": "02c562c9ba2588c7193aa5c296d15674b64df62e0761c28d0329a1eb98a0edd3",
+      "reason": "Track the pre-existing integration-native mandatory-managed regression suite, absent from the immutable source import list. Compare returned transcript path to the expected file realpath while retaining all identity/checkpoint/guard/lock/failure assertions. Add model/thinking fallback and schema-description regressions across dispatch modes; confirm missing saved resume model still fails without spawning."
     },
     {
       "path": "modules/subagents/src/index.ts",

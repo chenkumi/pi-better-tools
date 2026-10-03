@@ -23,6 +23,7 @@ import { type Component, Container, Markdown, Spacer, Text, truncateToWidth, vis
 import { Type } from "typebox";
 import { type AgentConfig, type AgentScope, discoverAgents } from "./agents.ts";
 import { buildSubagentPiArgs } from "./child-args.ts";
+import { selectDispatchDefaults } from "./model-selection.ts";
 import { ManagedSession, SessionError, ConversationDigest, canonicalCwd, snapshotConfig, validateConfig } from "./session-store.ts";
 import {
 	aggregateUsage,
@@ -800,8 +801,8 @@ const AgentScopeSchema = StringEnum(["user", "project", "both"] as const, {
 	description: 'Which agent directories to use. Default: "user".',
 	default: "user",
 });
-const ThinkingLevelSchema = StringEnum(["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const, {
-	description: "Optional Pi thinking level for every subagent dispatched by this tool call.",
+const ThinkingLevelSchema = Type.String({
+	description: "Omit by default; pass only when explicitly requested by the user or a skill. Pi thinking level (off, minimal, low, medium, high, xhigh, max). Checked after resolving the model; unknown or unsupported levels are ignored and defaults are used.",
 });
 const SubagentParams = Type.Object({
 	resume: Type.Optional(Type.String({ description: "Complete managed subagentSessionId to continue; only accepts a new task, no config overrides." })),
@@ -809,8 +810,8 @@ const SubagentParams = Type.Object({
 	task: Type.Optional(Type.String({ description: "Task to delegate (for single mode)" })),
 	tasks: Type.Optional(Type.Array(TaskItem, { description: "Array of {agent, task} for parallel execution" })),
 	chain: Type.Optional(Type.Array(ChainItem, { description: "Array of {agent, task} for sequential execution" })),
-	provider: Type.Optional(Type.String({ description: "Optional provider ID. Requires a bare model ID and combines as provider/model." })),
-	model: Type.Optional(Type.String({ description: "Optional model ID or provider/model. Overrides the agent definition and current session model." })),
+	provider: Type.Optional(Type.String({ description: "Omit by default; pass only when the user or a skill explicitly requests a model/provider override. Requires a bare model ID and combines as provider/model; an unregistered selection is ignored." })),
+	model: Type.Optional(Type.String({ description: "Omit by default; pass only when explicitly requested by the user or a skill. Exact model ID or provider/model; a registered selection overrides the agent/current session model. Unknown or ambiguous selections are ignored and defaults are used." })),
 	thinkingLevel: Type.Optional(ThinkingLevelSchema),
 	agentScope: Type.Optional(AgentScopeSchema),
 	confirmProjectAgents: Type.Optional(Type.Boolean({ description: "Prompt before running project-local agents. Default: true.", default: true })),
@@ -854,13 +855,14 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 			`Dispatch limits: parallel mode accepts at most ${MAX_PARALLEL_TASKS} tasks and runs at most ${MAX_CONCURRENCY} at once.`,
 			"Chain steps run in order, pass each complete assistant-text output into {previous}, and stop at the first failed step.",
 			"Each task records its non-reasoning child transcript in a sub-session JSONL log; parent results contain only assistant output, status, usage, and the log path.",
-			"Optional provider, model, and thinkingLevel apply to every subagent in this tool call and override agent/session defaults. provider requires a bare model ID; alternatively pass provider/model as model.",
+			"Omit provider, model, and thinkingLevel by default; pass overrides only when explicitly requested by the user or a skill. Resolve the model first, then check its supported thinking levels before spawning each child. Unknown or ambiguous models and unknown or unsupported thinking levels are ignored in favor of defaults. provider requires a bare model ID; alternatively pass provider/model as model.",
 			"Child Pi processes always exclude the subagent tool, so subagents cannot recursively dispatch further subagents through this tool.",
 			"Default agent scope is \"user\": bundled package agents plus user agents.",
 			`User agents are loaded from ${path.join(getAgentDir(), "agents")}. To enable project-local agents in ${CONFIG_DIR_NAME}/agents, set agentScope: "both" (or "project").`,
 		].join(" "),
 		promptSnippet: "Delegate a self-contained task to an isolated subagent context",
 		promptGuidelines: [
+			"Omit model, provider, and thinkingLevel unless the user or a skill explicitly specifies them. Do not choose overrides on your own; invalid selections fall back to defaults after model-first validation.",
 			"Initial subagent dispatches have clean isolated context, with no parent conversation. Include the goal, complete action, relevant paths/references, constraints/non-goals, operating instructions, and handoff format.",
 			"Every task is automatically persisted. A child can return questions and exit normally; use its returned ready subagentSessionId to resume after a decision. Do not keep it alive waiting for decisions.",
 			"Resume with the returned complete subagentSessionId and a concrete new decision/task. It loads only that child's native history, not the parent chat. Do not repost logs or omit necessary new information.",
@@ -907,19 +909,15 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 				results: [],
 			});
 			if (params.provider && !provider) return { content: [{ type: "text", text: "Invalid provider: it must not be blank." }], details: emptyDetails("single") };
-			if (params.model && !requestedModel) return { content: [{ type: "text", text: "Invalid model: it must not be blank." }], details: emptyDetails("single") };
 			if (provider && !requestedModel) return { content: [{ type: "text", text: "provider requires model. Supply a bare model ID with provider, or use model: provider/model." }], details: emptyDetails("single") };
 			if (provider && requestedModel?.includes("/")) return { content: [{ type: "text", text: "Use either provider + a bare model ID, or a provider/model value for model; do not provide both." }], details: emptyDetails("single") };
 
-			const modelOverride = provider && requestedModel ? `${provider}/${requestedModel}` : requestedModel;
-			const dispatchDefaults: DispatchDefaults = {
-				model: modelOverride ?? (ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined),
-				thinkingLevel: params.thinkingLevel ?? ctx.thinkingLevel,
-				modelWasExplicit: Boolean(modelOverride),
-				thinkingLevelWasExplicit: params.thinkingLevel !== undefined,
-			};
 			const discovery = discoverAgents(ctx.cwd, agentScope);
 			const agents = discovery.agents;
+			const dispatchDefaultsFor = (agentName: string): DispatchDefaults => selectDispatchDefaults(
+				ctx, { provider, model: requestedModel, thinkingLevel: params.thinkingLevel },
+				agents.find(agent => agent.name === agentName)?.model,
+			);
 			const parentSessionId = ctx.sessionManager.getSessionId();
 			const hasChain = (params.chain?.length ?? 0) > 0;
 			const hasTasks = (params.tasks?.length ?? 0) > 0;
@@ -955,7 +953,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 								? (params.tasks ?? []).map((task) => ({ agent: task.agent, task: task.task, cwd: task.cwd, step: undefined }))
 								: [{ agent: params.agent!, task: params.task!, cwd: params.cwd, step: undefined }];
 						const results = await mapWithConcurrencyLimit(requested, MAX_CONCURRENCY, (item) =>
-							runSingleAgent(ctx.cwd, dispatchDefaults, agents, item.agent, item.task, item.cwd, item.step, canceled.signal, undefined, makeDetails(mode), parentSessionId, toolCallId, taskRuntime),
+							runSingleAgent(ctx.cwd, dispatchDefaultsFor(item.agent), agents, item.agent, item.task, item.cwd, item.step, canceled.signal, undefined, makeDetails(mode), parentSessionId, toolCallId, taskRuntime),
 						);
 						return { content: [{ type: "text", text: `Canceled: project-local agents not approved.\n\n${formatParentResults(mode, results)}` }], details: makeDetails(mode)(results), usage: asToolUsage(results), isError: true };
 					}
@@ -975,7 +973,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 								try { onUpdate({ content: partial.content, details: makeDetails("chain")([...results, current], partial.details?.progress) }); } catch { /* progress delivery is contained */ }
 							}
 						: undefined;
-					const result = await runSingleAgent(ctx.cwd, dispatchDefaults, agents, step.agent, taskWithContext, step.cwd, index + 1, signal, chainUpdate, makeDetails("chain"), parentSessionId, toolCallId, taskRuntime);
+					const result = await runSingleAgent(ctx.cwd, dispatchDefaultsFor(step.agent), agents, step.agent, taskWithContext, step.cwd, index + 1, signal, chainUpdate, makeDetails("chain"), parentSessionId, toolCallId, taskRuntime);
 					results.push(result);
 					if (isFailedResult(result)) {
 						return { content: [{ type: "text", text: formatParentResults("chain", results) }], details: makeDetails("chain")(results), usage: asToolUsage(results), isError: true };
@@ -999,7 +997,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 					} catch { /* progress delivery is contained */ }
 				};
 				const results = await mapWithConcurrencyLimit(params.tasks, MAX_CONCURRENCY, async (task, index) => {
-					const result = await runSingleAgent(ctx.cwd, dispatchDefaults, agents, task.agent, task.task, task.cwd, undefined, signal, (partial) => {
+					const result = await runSingleAgent(ctx.cwd, dispatchDefaultsFor(task.agent), agents, task.agent, task.task, task.cwd, undefined, signal, (partial) => {
 						if (partial.details?.results[0]) allResults[index] = partial.details.results[0];
 						liveProgress[index] = partial.details?.progress?.[0];
 						emitParallelUpdate();
@@ -1014,7 +1012,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 			}
 
 			if (params.agent && params.task) {
-				const result = await runSingleAgent(ctx.cwd, dispatchDefaults, agents, params.agent, params.task, params.cwd, undefined, signal, onUpdate, makeDetails("single"), parentSessionId, toolCallId, taskRuntime);
+				const result = await runSingleAgent(ctx.cwd, dispatchDefaultsFor(params.agent), agents, params.agent, params.task, params.cwd, undefined, signal, onUpdate, makeDetails("single"), parentSessionId, toolCallId, taskRuntime);
 				return { content: [{ type: "text", text: formatParentResults("single", [result]) }], details: makeDetails("single")([result]), usage: asToolUsage([result]), ...(isFailedResult(result) ? { isError: true } : {}) };
 			}
 			return { content: [{ type: "text", text: "Invalid parameters." }], details: makeDetails("single")([]) };

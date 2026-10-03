@@ -11,6 +11,10 @@
 - 對同一檔案的操作透過 Pi 的 file mutation queue 排序。
 - 錯誤以例外拋出（`isError: true`），內容為 `[FILE_TOOL_ERROR]` JSON；TUI 僅調整顯示，不改變模型可見內容。
 
+## TUI 顯示
+
+`read`／`write` 呼叫沿用宿主 renderer；`read` 成功、syntax highlighting 與圖片附件亦保留宿主行為。`[FILE_TOOL_ERROR]` 由專用 renderer 顯示操作、錯誤碼、訊息及 recovery，展開可看路徑／行範圍，不原樣輸出錯誤 JSON。`write` 成功顯示寫入 bytes，展開顯示路徑與 SHA-256；模型仍收到原本的 `[FILE_WRITE_SUCCESS]`。`edit` 保留 diff renderer，三者共用錯誤 formatter。這些都是顯示層變更，不改工具回傳格式。
+
 ## `read`
 
 | 參數 | 型別 | 說明 |

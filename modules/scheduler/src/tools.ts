@@ -2,6 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import type { SchedulerService } from "./scheduler-service.js";
 import { ToolDebugLogger } from "./tool-debug-log.js";
+import { scheduleRenderers } from "./renderers.js";
 
 const timing = Type.Object({
   kind: Type.Union([Type.Literal("once"), Type.Literal("cron")]),
@@ -32,6 +33,7 @@ export function registerScheduleTools(pi: ExtensionAPI, service: SchedulerServic
   };
   pi.registerTool({
     name: "schedule_create", label: "Create schedule",
+    ...scheduleRenderers("create"),
     outputSchema: mutationOutput,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     description: "Schedule an explicitly requested future task. Runs while Pi is open, without an OS service. Use schedule_status first to resolve local time. New independent session is default; pass the current sessionId (or mode=session) to run in this session while it is open and idle. Missed times are not backfilled. Do not promise execution while all apps are closed.",
@@ -56,6 +58,7 @@ export function registerScheduleTools(pi: ExtensionAPI, service: SchedulerServic
   });
   pi.registerTool({
     name: "schedule_update", label: "Update schedule",
+    ...scheduleRenderers("update"),
     outputSchema: mutationOutput,
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     description: "Update or pause/resume a schedule using its latest revision from schedule_status. Changing timing can re-arm a consumed once job. Does not interrupt an active run; use schedule_cancel for cancellation.",
@@ -72,6 +75,7 @@ export function registerScheduleTools(pi: ExtensionAPI, service: SchedulerServic
   });
   pi.registerTool({
     name: "schedule_status", label: "Schedule status",
+    ...scheduleRenderers("status"),
     outputSchema: Type.Object({ now: Type.String(), timezone: Type.String(), total: Type.Integer(), schedules: Type.Array(Type.Unknown()), runs: Type.Array(Type.Unknown()), runtime: runtimeOutput }, { additionalProperties: true }),
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     description: "Read current date/time/timezone, local host/standby/error state, persisted schedules with revisions and next times, and recent execution history. Supports pagination; no work is executed.",
@@ -85,6 +89,7 @@ export function registerScheduleTools(pi: ExtensionAPI, service: SchedulerServic
   });
   pi.registerTool({
     name: "schedule_cancel", label: "Cancel schedule",
+    ...scheduleRenderers("cancel"),
     outputSchema: Type.Object({ cancellationRequested: Type.Array(Type.String()), note: Type.String(), runtime: runtimeOutput }, { additionalProperties: true }),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
     description: "Supply exactly one target: id disables future schedule occurrences (cancelRunning defaults false), or runId requests stopping only that run. Cancellation is asynchronous; check schedule_status. Never claims a remote process was terminated.",

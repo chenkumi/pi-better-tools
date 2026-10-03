@@ -83,9 +83,17 @@ Repository 開發環境可用 `npm run test:browser` 驗證實際 Chromium；run
 
 Subagents **只保留 managed／可續接持久化**：首次呼叫照常提供 agent/task 或 tasks/chain，成功會回傳 `subagentSessionId`；後續只傳 `resume` 與新 `task`。已移除 `resumable` 開關，舊呼叫請省略它。所有新 sessions 存於 `<agentDir>/subagent-sessions/<ULID>/`；失敗／取消不會冒稱 ready，舊 ephemeral logs 不自動轉換。
 
+Subagent 的 `model`／`provider`／`thinkingLevel` 呼叫參數**預設省略，只有使用者或 skill 明確指定才傳入**。首次派遣先確認模型，再檢查該模型支援的思考等級；未知／歧義模型與未知／不支援等級忽略，依原預設規則執行，不因選擇參數無效直接報錯。模型預設為可用 agent 模型或 parent 模型；思考等級依模型繼承或使用 child 預設。Resume 與 child startup guard 仍嚴格驗證配置，不保證遠端 API 可用。完整規則見 [Subagents README](modules/subagents/README.md)。
+
 工具 activation 仍由 Pi 的工具選取與 extension `defaultActive` 決定。`defaultTools` 不是全域 allowlist：部分 extension tools 會在註冊時啟用；需要嚴格唯讀請使用 `--tools read`，需要全部停用請用 `--no-tools`，排除工具用 `--exclude-tools`。整合包不增加另一層權限或 OS sandbox。
 
 Pi **1.0.0** 預設 fullscreen TUI；本專案不自動修改 UI 設定，需要舊模式可自行用 `--tui-mode regular`。新版 `/reload` 會啟用新加入 `defaultTools` 的工具，但不會因刪除 defaults 而撤權；explicit tools／no-tools／exclusions 仍優先。
+
+### 工具 TUI 顯示
+
+14 個互動式 function tools 均有 `renderCall`／`renderResult`（含沿用宿主 renderer）：Shell／Subagent 保留現有呈現；File 的 `read`／`write` 錯誤顯示錯誤碼、訊息與 recovery，不再原樣顯示錯誤 JSON，`read` 成功與圖片仍沿用宿主行為，`write` 成功顯示 bytes，展開可看路徑與版本 token；`note` 摘要分類／標題與儲存路徑，不預覽整份 Markdown；Scheduler 顯示 revision、精確時間／時區、host 與取消請求狀態；Goal 顯示目標／驗收摘要；Web 顯示來源、警告與全文暫存路徑，展開看結果文字。這些只改 UI，不改模型可見 content／details／structuredContent。
+
+第 15 個工具 `json_output` 僅在 print mode 搭配有效 schema 註冊，刻意維持無 TUI renderer；GPT Speed 沒有 function tool，OpenAI 原生搜尋亦非 Pi function tool。
 
 ### 新增分類筆記
 
@@ -93,7 +101,7 @@ Pi **1.0.0** 預設 fullscreen TUI；本專案不自動修改 UI 設定，需要
 { "type": "report", "content": "# Report\n\nVerification results…\n" }
 ```
 
-`type` 限定 `plan | issue | research | report | task`，寫入呼叫時工作目錄下的 `./<type>/<TYPE>-<UTC timestamp>.md`，例如 `./report/REPORT-2026-10-01T04-30-00-123Z.md`。目錄不存在會自動建立；內容以 UTF-8 原樣保存，同名檔案會換名、不覆寫。結果回傳絕對／相對路徑；後續直接使用 `read`／`edit`／`write` 操作。
+`type` 限定 `plan | issue | research | report | task`，寫入呼叫時工作目錄下的 `./<type>/<TYPE>-<UTC timestamp>.md`，採緊湊 UTC 格式 `YYYYMMDDTHHmmssSSSZ`，例如 `./report/REPORT-20261001T043000123Z.md`；保留毫秒與時間排序，既有筆記不更名。目錄不存在會自動建立；內容以 UTF-8 原樣保存，同名檔案會換名、不覆寫。結果回傳絕對／相對路徑；後續直接使用 `read`／`edit`／`write` 操作。
 
 獨立入口：`modules/note-tools/src/index.ts`。若使用 `--tools` 明確 allowlist，請加入 `note` 才能啟用；exclusions／no-tools 仍優先。`defaultTools` 不是 extension tools 的全域 allowlist。完整契約見 [Note Tools README](modules/note-tools/README.md)。
 

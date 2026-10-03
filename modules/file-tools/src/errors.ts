@@ -1,3 +1,7 @@
+import { stripVTControlCharacters } from "node:util";
+
+const safeDisplay = (text: string) => stripVTControlCharacters(text).replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, "");
+
 export type FileToolErrorCode =
   | "INVALID_ARGUMENT"
   | "FILE_NOT_FOUND"
@@ -140,15 +144,23 @@ export function parseFileToolErrorText(text: string): FileToolErrorPayload | und
   }
 }
 
-export function formatFileToolErrorForDisplay(text: string, expanded: boolean): string {
+export function formatFileToolErrorForDisplay(text: string, expanded: boolean, tool: "read" | "write" | "edit" = "edit"): string {
   const payload = parseFileToolErrorText(text);
-  if (!payload) return text;
-
-  const lines = [`✗ Edit failed · ${payload.code}`, truncateDisplayText(payload.message, 400)];
+  const label = tool[0].toUpperCase() + tool.slice(1);
+  if (!payload) {
+    if (tool !== "edit" && text.includes(FILE_TOOL_ERROR_MARKER)) {
+      return `✗ ${label} failed · error details unavailable\nMalformed or legacy file error. The original payload remains in the tool result.`;
+    }
+    return safeDisplay(text);
+  }
+  const lines = [`✗ ${label} failed · ${payload.code}`, truncateDisplayText(payload.message, 400)];
   if (payload.code === "INVALID_REGEX" && payload.message.includes("regexFlags")) {
     lines.push("Hint: regexFlags accepts only i, m, s, u; omit g and use replaceAll=true.");
   }
-  if (!expanded) return lines.join("\n");
+  if (!expanded) {
+    if (tool !== "edit" && payload.recovery) lines.push(`Recovery: ${truncateDisplayText(payload.recovery, 400)}`);
+    return safeDisplay(lines.join("\n"));
+  }
 
   if (payload.path) lines.push(`Path: ${payload.path}`);
   if (payload.editIndex !== undefined) lines.push(`Edit: edits[${payload.editIndex}]`);
@@ -159,7 +171,7 @@ export function formatFileToolErrorForDisplay(text: string, expanded: boolean): 
   }
   if (payload.rangePreview) lines.push(`Preview:\n${truncateDisplayText(payload.rangePreview, 1200)}`);
   if (payload.recovery) lines.push(`Recovery: ${truncateDisplayText(payload.recovery, 400)}`);
-  return lines.join("\n");
+  return safeDisplay(lines.join("\n"));
 }
 
 export class FileToolError extends Error {

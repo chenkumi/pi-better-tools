@@ -15,6 +15,8 @@
 | `schedule_status` | 唯讀。參數：`id`、`limit`（1–50，預設 20）、`offset`、`runsLimit`（0–50，預設 10）。回傳目前時間／時區、host 狀態、排程（含 revision、下次時間）與近期 run。 |
 | `schedule_cancel` | 二擇一：`id`（停止未來觸發，`cancelRunning: true` 時一併請求取消進行中的 run）或 `runId`（只請求取消該 run）。取消為非同步請求，不代表程序已停止。 |
 
+四個工具都有專用 TUI call/result renderer：收合顯示排程 ID、revision、精確下次時間／時區與 host 警告；展開可看 prompt、cwd、執行設定與 run history。取消結果明示只提出取消請求、未確認程序停止，並提醒 Pi 須開啟、錯過不補跑。只改 UI，不改 content／details／structuredContent 或排程執行語意。
+
 ### timing
 
 ```json

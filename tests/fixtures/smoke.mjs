@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { assertToolRenderers } from './renderer-probes.mjs';
 
 const packageRoot = resolve(process.argv[2]);
 const manifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
@@ -37,6 +38,7 @@ try {
   assert.deepEqual(loaded.errors, []); assert.equal(loaded.extensions.length, expectedExtensions);
   assert.deepEqual(loaded.extensions.map(e => resolve(e.path)).sort(), manifest.pi.extensions.map(p => resolve(packageRoot, p)).sort());
   const definitions = loaded.extensions.flatMap(e => [...e.tools.values()].map(t => t.definition));
+  assertToolRenderers(definitions, cwd);
   const names = definitions.map(d => d.name);
   assert.equal(new Set(names).size, names.length, 'no duplicate tool registration');
   assert.equal(names.includes('goal'), mode !== 'child');
@@ -111,7 +113,7 @@ try {
       const created = await execute('note', { type, content: contents[i] });
       assert.equal(created.details.type, type);
       assert.equal(created.details.path, join(cwd, created.details.relativePath));
-      assert.match(created.details.relativePath, new RegExp(`^${type}/${type.toUpperCase()}-\\d{4}-\\d{2}-\\d{2}T\\d{2}-\\d{2}-\\d{2}-\\d{3}Z\\.md$`));
+      assert.match(created.details.relativePath, new RegExp(`^${type}/${type.toUpperCase()}-\\d{8}T\\d{9}Z\\.md$`));
       assert.equal(await readFile(created.details.path, 'utf8'), contents[i]);
       assert.deepEqual(created.structuredContent, created.details);
       assert.ok(text(created).includes(created.details.path));

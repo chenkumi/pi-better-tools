@@ -21,12 +21,20 @@
 | `resume`、`task` | resume 模式，`resume` 為工具回傳的完整 `subagentSessionId` |
 | `cwd` | single 模式的工作目錄 |
 | `provider` | 選填；須搭配不含 `/` 的 `model` |
-| `model` | 選填；model ID 或 `provider/model`；覆寫 agent 定義與主 session |
-| `thinkingLevel` | 選填：`off`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max` |
+| `model` | 預設省略；只有使用者或 skill 明確指定時才傳入。exact model ID 或 `provider/model`；未知／歧義選擇忽略並使用預設值 |
+| `thinkingLevel` | 預設省略；只有使用者或 skill 明確指定時才傳入。`off`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max`；未知／目標模型不支援的等級忽略並使用預設值 |
 | `agentScope` | `"user"`（預設）、`"project"`、`"both"` |
 | `confirmProjectAgents` | 預設 `true`；使用專案 agent 且專案未信任、有 UI 時先確認 |
 
-`provider`、`model`、`thinkingLevel` 套用於本次呼叫的所有 subagents。`provider` 不可與 `provider/model` 格式的 `model` 併用。`resumable` 參數已移除，傳入會回傳 `INVALID_DISPATCH`。
+`provider`、`model`、`thinkingLevel` 預設不傳；只有使用者或 skill 明確指定才作為本次所有 subagents 的 override，代理不可自行猜測。`provider` 不可與 `provider/model` 格式的 `model` 併用。`resumable` 參數已移除，傳入會回傳 `INVALID_DISPATCH`。
+
+首次派遣在啟動 child 前，**先解析模型，再檢查該模型支援的思考等級**：
+
+- 模型以 parent registry 的 exact ID 查詢，不做 fuzzy 猜測；明確的 `provider` 僅查詢該 provider。單一模型字串優先採已註冊的 `provider/model` 解讀，否則按完整裸 ID 查詢（優先目前 provider，其餘須唯一匹配）；含 `/` 的裸 ID 若與另一組已註冊的 `provider/model` 衝突，請傳入完整 provider 前綴消除歧義。成功後傳入完整 `provider/model`。未知／歧義 override 忽略，改用已註冊的 agent 模型，否則繼承 parent 模型。
+- 未知或模型不支援的思考等級忽略，等同省略 `thinkingLevel`。為允許這種容錯，schema 接受字串，支援清單在執行前驗證。
+- 繼承 parent 模型時，預設繼承 parent 思考等級並依宿主能力正規化；使用有效 model override 或 agent 模型、且沒有有效 thinking override 時，不傳 `--thinking`，交由 child Pi 預設設定決定。
+- 此容錯只處理新派遣的選擇參數；resume 不接受 override，已保存的模型／信任／checkpoint 驗證保持嚴格。格式錯誤（例如只提供 provider）仍依原規則拒絕。
+- Parent registry 的存在／能力檢查不發出模型 API 請求，也不保證 child 能載入相同 provider 或遠端憑證有效。保留 child startup guard；child 設定不一致仍會失敗，不自動重試。
 
 首次 task 須完整說明目標、操作要求、相關路徑、限制／非目標及預期回傳格式。
 

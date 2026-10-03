@@ -2,6 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { GoalController } from "../src/controller.ts";
 import { GoalArgumentsSchema } from "../src/state.ts";
 import { filterControls } from "../src/prompts.ts";
+import { goalRenderers } from "../src/renderers.ts";
 
 export default function goalExtension(pi: ExtensionAPI) {
   // Managed children cannot own or mutate the parent's goal. Do not even expose
@@ -16,6 +17,7 @@ export default function goalExtension(pi: ExtensionAPI) {
     name: "goal", label: "Goal", exposure: "model-only", executionMode: "sequential",
     description: "Read the session acceptance objective with get. For the currently running goal only, submit complete with goalId/runId, summary and verification [{criterion,evidence}], or blocked with reason and suggestedAction. A plan is optional and independent: finishing a plan does not complete a goal. The user owns creation, replacement, pause, resume and clear. Never claim skipped or unexecuted required verification passed.",
     parameters: GoalArgumentsSchema,
+    ...goalRenderers,
     async execute(_id, args, signal, _update, ctx) {
       const result = controller.execute(args, ctx, signal);
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }], details: result };
