@@ -15,5 +15,6 @@ build 17s／typecheck 101s／test 131s／test:integration 約 281s；原整合�
 
 ## 剩餘風險
 - 已放寬 scheduler 測試 timeout（admissionTimeoutMs 10s、waitFor 10s、vitest testTimeout 30s），未改任何斷言。
-- `npm run sources:verify` 在本次之前就失敗（`subagents/extensions/subagent/title.ts` 雜湊不符）；`docs/adaptations.json` 另有約 40 個檔案雜湊與工作目錄不符（含本次之前的 PTY／subagents 等），本次未更新 provenance，需另行整理（先確認是否為 CRLF／LF 換行差異）。
+- `sources:verify` 在這台 Windows 機器（`core.autocrlf=true`，工作目錄為 CRLF）直接執行會因換行失敗：46 個雜湊不符檔案的 LF 版本與 HEAD blob 皆吻合；另有 7 個是本次的真實差異，已更新雜湊並補 adaptation 說明，另為本次修改的 5 個 imported 檔案新增 adaptation 項目。
+- 驗證方式：`git -c core.autocrlf=false -c core.eol=lf archive HEAD` 解開到暫存目錄後執行 `node scripts/verify-sources.mjs`，已通過。在 CRLF 工作目錄直接執行仍會失敗，屬環境換行問題，未更動。
 - 尚未執行 `test:package`／`test:matrix`。
