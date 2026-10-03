@@ -484,6 +484,36 @@
       "originalSha256": "a37d52baf52ca262ca82f3decb3c81b9cc36c63817fbeaf566c072262b6997bf",
       "sha256": "5b78a83063072272b4e55d544358944e230cc3fdd7e99861463b39da1b8e85d7",
       "reason": "Modules no longer carry a manifest: drop the read of modules/subagents/package.json; the persisted settings namespace is asserted as the literal \"pi-subagents\" (SUBAGENTS_PROJECT_NAME, log dir and legacy-key rejection assertions unchanged)."
+    },
+    {
+      "path": "modules/shell-tools/tests/debug-log.integration.test.mjs",
+      "originalSha256": "1f0ff7bf6e8018bbe4a02e99d1e9bd1a9e8197d295b5dbc423e1d24a48b8f98c",
+      "sha256": "c76c3027c31fd28b20db70d4e2ced7f45e18d9365a253aeee358cb6a3a44d7a2",
+      "reason": "Test-speed policy: remove the real-shell timeout debug-log test (idle wait on timeoutMs, whose semantics are stable and covered by the timeout-ms unit tests); other debug-log integration tests unchanged."
+    },
+    {
+      "path": "modules/shell-tools/tests/extension.integration.test.mjs",
+      "originalSha256": "9dda3c2edd15f299a8437b15b83c018424bc13a16fe4dfc285fafbe6c10d07f5",
+      "sha256": "8fc7929fd26496cd01a9f64689b7f764cc6620f5bc4783f6b922eb51e1155ce8",
+      "reason": "Test-speed policy: remove the idle-refresh, idle-timeout side-effect and sentinel/omitted-timeout real-shell tests (idle waits on stable timeoutMs semantics, covered by the timeout-ms unit tests); abort, structured-output and loadout tests unchanged."
+    },
+    {
+      "path": "modules/scheduler/tests/integration/pi-process-executor.test.ts",
+      "originalSha256": "66df9e5a96cb3b2e5dbe5f85cdda8a9c9a0e0fa3f907317604a24198cbfc0e71",
+      "sha256": "9e969b4ddf96256d4772ec16edc4e0daf3143f61d4357d50de9ddaa5d5b092c3",
+      "reason": "Test-speed policy: remove the POSIX-only real-descendant pipe-drain test with a fixed 6.5s wait (skipped on Windows); the mocked retained-pipe ownership test covers the same bound."
+    },
+    {
+      "path": "modules/scheduler/tests/integration/session-scheduler.test.ts",
+      "originalSha256": "84bc7b4190197a840b04a2a23d5b9cd282d9db10632abb07c8256abd50f79f78",
+      "sha256": "bcc1236f539022c9837a4e51d3dff98718c710566a49e6f34fd22622494e85bc",
+      "reason": "Fixture default admissionTimeoutMs 1500->10000 so loaded hosts do not fail admission; assertions unchanged."
+    },
+    {
+      "path": "modules/scheduler/vitest.config.ts",
+      "originalSha256": "d3abdb0a5b9a4cc1782ba858de976e896ceb259a6180565a5746673f07eb24a9",
+      "sha256": "1f83d818e6506ada415a044800fc9df6c23571d71f31d346dc6884b26b0ee919",
+      "reason": "testTimeout 30s (default 5s flakes while 4 workers load real SDK/CLI on Windows); no assertion changed."
     }
   ],
   "subagentTitleChanges": [{ "date": "2026-10-03", "scope": "Subagent index/result/title helper and tests, offline real-CLI fixture/integration assertions, renderer probes, root/module README and docs/configuration.md.", "reason": "User-requested optional title with exact Chinese description and maxLength 50. Top-level single/resume and batch summary; nested parallel/chain titles override fallback. Validate at most 50 Unicode code points and nonblank visible text before dispatch, with bounded sanitized UI previews. Preserve normal host optional-null/coercion semantics; runtime repeats length check because host schema grapheme counting can differ. Queued, streaming, final, failure and cancellation details retain titles; call/collapsed/expanded TUI exposes them with agent identity. Title does not change child tasks/argv/prompts or saved configuration, resume validation, trust, guard, lifecycle, limits or user settings. Production probes cover title schema and real registered renderers; removed upstream stress coverage is not restored or claimed." }],
