@@ -8,7 +8,12 @@
 ## 實測（Windows，同機）
 build 17s／typecheck 101s／test 131s／test:integration 約 281s；原整合約 400s、單元約 255s。
 
+## Scheduler 偶發失敗修正
+- 根因：Windows 上 `rename` 覆蓋 `runs.jsonl`／registry 時，若檔案正被讀取或掃描，會暫時 EPERM／EBUSY／EACCES（獨立壓測可重現，通常 5–16ms 內恢復；重負載下曾持續超過 1s）。
+- 修正：新增 `modules/scheduler/src/atomic-rename.ts`（`renameWithRetry`，僅 win32、僅這三個 code、最多約 4.3s，最後錯誤原樣拋出；仍是 atomic rename），RunStore.writeAll 與 RegistryStore.atomicWrite 使用。
+- 驗證：修正前串行約 3/6 次失敗；修正後串行 11/11 通過，4 路並行重負載 32 次 0 失敗（retry 上限 1s 時 32 次仍有 2 次失敗，故放寬到約 4.3s）。
+
 ## 剩餘風險
-- `scheduler:test:integration`（app-scheduler、session-pi-runtime）在 Windows 偶發失敗（約 3/6 次）。已確認不是逾時：失敗時 run 卡在 queued/running，錯誤為 `runs.jsonl` 的 `rename` EPERM（RunStore.writeAll，src/run-store.ts）或 `No API key found for scheduler-offline-N` 時序問題。尚未修改正式程式碼；候選修法為對 rename 做有限次 EPERM/EBUSY 重試。
 - 已放寬 scheduler 測試 timeout（admissionTimeoutMs 10s、waitFor 10s、vitest testTimeout 30s），未改任何斷言。
-- 尚未執行 `test:package`／`test:matrix`；所有改動尚未提交。
+- `npm run sources:verify` 在本次之前就失敗（`subagents/extensions/subagent/title.ts` 雜湊不符）；`docs/adaptations.json` 另有約 40 個檔案雜湊與工作目錄不符（含本次之前的 PTY／subagents 等），本次未更新 provenance，需另行整理（先確認是否為 CRLF／LF 換行差異）。
+- 尚未執行 `test:package`／`test:matrix`。

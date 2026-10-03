@@ -1,4 +1,5 @@
-import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { renameWithRetry } from "./atomic-rename.js";
 import { dirname, join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 
@@ -194,7 +195,7 @@ export class RunStore {
     await mkdir(dirname(this.options.runsPath), { recursive: true });
     const temporary = `${this.options.runsPath}.tmp-${process.pid}-${Date.now()}`;
     await writeFile(temporary, runs.map((run) => JSON.stringify(run)).join("\n") + (runs.length ? "\n" : ""), "utf8");
-    await rename(temporary, this.options.runsPath);
+    await renameWithRetry(temporary, this.options.runsPath);
     // History commits first. Only canonical scheduler ULID (or legacy UUID) log names are owned;
     // never recurse, follow symlinks, or remove unrecognized files.
     try {

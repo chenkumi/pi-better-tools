@@ -1,4 +1,5 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { renameWithRetry } from "./atomic-rename.js";
 import { dirname } from "node:path";
 import { createHash } from "node:crypto";
 import { ulid } from "ulid";
@@ -60,7 +61,7 @@ async function atomicWrite(path: string, data: SchedulerRegistry): Promise<void>
   await mkdir(dirname(path), { recursive: true });
   const temporary = `${path}.tmp-${process.pid}-${Date.now()}`;
   await writeFile(temporary, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-  await rename(temporary, path);
+  await renameWithRetry(temporary, path);
 }
 
 export class RegistryStore {
