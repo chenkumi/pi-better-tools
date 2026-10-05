@@ -14,9 +14,9 @@ No script here automatically changes user settings/auth, deletes logs, removes o
 
 根四個 Pi devDependencies 與唯一 lockfile 固定為 1.0.0；在根目錄執行 `npm ci --ignore-scripts`、`npm run build`，不要依 modules 的歷史 manifests 個別安裝。Runtime 仍由 host 提供 Pi peers；不修改使用者真實 Pi 安裝、auth、trust 或排程。
 
-八個 extensions 使用的 hooks 不需要更名。Pi 1.0.0 預設 fullscreen；如需舊 UI 可自行用 `--tui-mode regular`，本專案不自動改設定。`/reload` 啟用新加入 defaultTools 的工具，但移除 defaults 不會停用已 active 工具；需要撤權使用工具排除／明確 allowlist，而非僅改 defaultTools。`defaultTools: ["read"]` 也不抑制 default-active extension tools；唯讀使用 `--tools read`。
+九個 extensions 使用的 hooks 不需要更名。Pi 1.0.0 預設 fullscreen；如需舊 UI 可自行用 `--tui-mode regular`，本專案不自動改設定。`/reload` 啟用新加入 defaultTools 的工具，但移除 defaults 不會停用已 active 工具；需要撤權使用工具排除／明確 allowlist，而非僅改 defaultTools。`defaultTools: ["read"]` 也不抑制 default-active extension tools；唯讀使用 `--tools read`。
 
-保存資料不遷移：Subagents `hostContract: "0.99.1"`、Goal／Scheduler schema 與 entry names 均保留。升級 SDK 不允許直接把 durable format 字串換為 1.0.0；已有 managed sessions 仍依原 owner／fingerprint／guard 驗證。
+保存資料不遷移：Subagents `hostContract: "0.99.1"`、Scheduler schema 與 entry names 均保留。升級 SDK 不允許直接把 durable format 字串換為 1.0.0；已有 managed sessions 仍依原 owner／fingerprint／guard 驗證。
 
 ## Module/resource selection
 
@@ -24,7 +24,7 @@ Use `pi config` or a package entry's `extensions`/`prompts` filters. Paths are r
 
 ## Unified TypeScript entry points
 
-All ten public Pi entries now use `modules/<name>/src/index.ts`. If package resource filters or explicit `-e` paths referenced `extensions/...`, Scheduler `dist/extension.js` / `src/extension.ts`, or JSON Schema's root `index.ts`, update them manually to the matching new path. This repository does not rewrite personal/project settings. Exclusion filters referencing an old path no longer exclude the new entry; review filters before reload, especially Scheduler host activation. Do not load both an old implementation entry and its new forwarding entry, as that registers tools/hooks twice.
+All nine public Pi entries now use `modules/<name>/src/index.ts`. If package resource filters or explicit `-e` paths referenced `extensions/...`, Scheduler `dist/extension.js` / `src/extension.ts`, or JSON Schema's root `index.ts`, update them manually to the matching new path. This repository does not rewrite personal/project settings. Exclusion filters referencing an old path no longer exclude the new entry; review filters before reload, especially Scheduler host activation. Do not load both an old implementation entry and its new forwarding entry, as that registers tools/hooks twice.
 
 Scheduler's extension no longer needs a build; `/reload` or restart loads the TS sources. The standalone `pi-scheduler` CLI still uses `dist/runner.js` and requires root `npm run build` when developing from source. Sources and CLI artifacts ship in the same package; no second installation unit is added. No persistent data or bundled-agent paths are moved.
 
@@ -34,11 +34,11 @@ All initial single/parallel/chain tasks now create managed native sessions autom
 
 Existing managed sessions retain their format and guards, but old ephemeral logs cannot be resumed or reconstructed into native history. No log/session conversion or cleanup runs during upgrade. Persistent storage is now required for every dispatch; metadata/transcript creation failures refuse execution rather than falling back to a no-session child.
 
-## Native Goal
+## Goal removal
 
-啟用前停用舊同名 `/goal`／`goal` extension（包括獨立 pi-goal-x）；Pi 不以 package identity 去除同名命令／工具。根 manifest 直接載入 `modules/goal/src/index.ts`，如不需要請以 resource filters 排除；明確工具清單要加入 `goal` 才能開始／resume。沒有來源 goal state／plan／任務樹遷移，也不修改舊 sessions。
+本整合包已移除 Goal 模組，不再提供 `/goal` 指令、`goal` 工具或自動續跑。更新後請 `/reload` 或重新啟動 Pi；若個人／專案 settings 的 resource filters、`-e` 路徑或工具 allowlist 仍指向 Goal，請手動移除。Repository 不會自動修改使用者設定。
 
-目標按目前 session branch 儲存；reload／恢復／fork／tree change 先暫停 active，明確 `/goal resume` 再授權。不用 `/reload` 清除儲存 fault：請先修好磁碟問題，再從已保存檔案重新開啟 session。停用／回退 extension 不撤銷已發生的專案修改。完整契約見 `modules/goal/README.md`。
+既有 sessions 的 `pi-better-goal-state` entries 與歷史工具結果保留，不遷移、重播或刪除；移除模組不會還原既有專案修改。
 
 ## JSON Schema integration
 

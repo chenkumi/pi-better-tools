@@ -1,6 +1,6 @@
 # Pi Better Tools
 
-單一 Pi extensions package，整合 Subagents、Shell Tools、Precise File Tools、Web Tools、Scheduler 與 PTY Terminal，加上 JSON Schema structured delivery，並提供本專案原生 Note Tools、GPT Speed 與 Goal extensions。必要程式碼與資源已納入 `modules/`，不依賴來源專案的本機路徑。
+單一 Pi extensions package，整合 Subagents、Shell Tools、Precise File Tools、Web Tools、Scheduler 與 PTY Terminal，加上 JSON Schema structured delivery，並提供本專案原生 Note Tools 與 GPT Speed extensions。必要程式碼與資源已納入 `modules/`，不依賴來源專案的本機路徑。
 
 > 本專案採用 [MIT License](LICENSE)。使用者已確認五個來源專案均為其所有，並授權本整合專案採 MIT；封裝測試以根目錄 `LICENSE` 為必要授權檔，不要求重複模組 LICENSE；原有模組授權聲明仍保留，來源與相依套件說明見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。`private: true` 僅用於避免誤發布 npm，不限制未來公開至 GitHub；目前未執行任何遠端發布。
 
@@ -74,15 +74,14 @@ Repository 開發環境可用 `npm run test:browser` 驗證實際 Chromium；run
 
 | 模組 | 工具／命令 | 注意事項 |
 | --- | --- | --- |
-| Subagents | `subagent`；`/implement`、`/scout-and-plan`、`/implement-and-review` | 四個內建 agents；single／parallel／chain 全自動保存，ready 後用 resume 續接；child 排除遞迴 subagent |
+| Subagents | `subagent`、`subagent_status/cancel/message`；三個 workflow prompts | 同步預設；`background:true` 支援背景 single／parallel／chain／resume，control 改方向、query 用唯讀快照回答；ready 後可續接 |
 | PTY Terminal | `pty_spawn/write/read/resize/wait_exit/kill/list` | `target` 預設 local；named WSL／SSH targets；session 綁定 target，關閉 transport 不保證遠端背景程序停止 |
-| Shell Tools | 覆寫 `bash`、`powershell` | `timeoutMs` 為毫秒 inactivity timeout；不自動啟用未選的 shell；PowerShell backend 僅原生 Windows |
+| Shell Tools | 覆寫 `bash`、`powershell`；`shell_job_status/cancel` | 同步預設；`background:true` 立即回 jobId／liveLogPath；`timeoutMs` 仍為輸出停滯期限；管理工具需額外選取；PowerShell 僅原生 Windows |
 | File Tools | 覆寫 `read`、`write`、`edit` | 絕對行號、32 字元 hash、精準 literal／regex、原子寫入、diff worker |
 | Web Tools | `web_fetch`；條件式 REST `web_search`；`/web-tools status`、`/web-tools sources` | OpenAI／Codex 原生搜尋預設啟用、無實驗開關或警告，不註冊同名 function tool；Brave／Exa 要明確設定；無登入／CAPTCHA bypass／PDF |
 | Scheduler | `schedule_create/update/status/cancel`；`/schedule` | Pi 開啟時運行，不安裝 OS service、不補跑錯過時間；runner CLI 保留相容用途 |
 | Note Tools | `note` | `{ type, content }`；自動分類、產生時間戳檔名，只新增 Markdown 檔案並回報路徑，不覆寫 |
 | GPT Speed | `/fast`、`/ultrafast`、`/normal` | GPT >= 5.6 的 luna／terra／sol／astra pattern；Ultrafast 在 luna／terra 降為 Fast；TUI 顯示實際速度 |
-| Goal | `/goal`；`goal get/complete/blocked` | 原文驗收目標持續推動，與 plan 分離；明確 pause／resume／clear；有界續跑、保守恢復 |
 | JSON Schema | 條件式 `json_output`；`--json-schema`、`--json-output` | CLI schema + zod 4 驗證；有 `--json-output` 寫檔、否則單一 JSON stdout；未給 `--json-schema` 時 inactive |
 
 Subagents **只保留 managed／可續接持久化**：首次呼叫照常提供 agent/task 或 tasks/chain，成功會回傳 `subagentSessionId`；後續傳 `resume` 與新 `task`，可另附顯示用 `title`，不能覆寫執行配置。已移除 `resumable` 開關，舊呼叫請省略它。所有新 sessions 存於 `<agentDir>/subagent-sessions/<ULID>/`；失敗／取消不會冒稱 ready，舊 ephemeral logs 不自動轉換。
@@ -95,9 +94,27 @@ Pi **1.0.0** 預設 fullscreen TUI；本專案不自動修改 UI 設定，需要
 
 ### 工具 TUI 顯示
 
-21 個互動式 function tools 均有 `renderCall`／`renderResult`（含沿用宿主 renderer）：Shell 保留宿主呈現；Subagent 可用選填 `title`（50 字內）顯示工作摘要，single／resume 使用頂層欄位，parallel／chain 各項可附獨立標題，並於 call／執行中／完成後呈現；File 的 `read`／`write` 錯誤顯示錯誤碼、訊息與 recovery，不再原樣顯示錯誤 JSON，`read` 成功與圖片仍沿用宿主行為，`write` 成功顯示 bytes，展開可看路徑與版本 token；`note` 摘要分類／標題與儲存路徑，不預覽整份 Markdown；Scheduler 顯示 revision、精確時間／時區、host 與取消請求狀態；Goal 顯示目標／驗收摘要；Web 顯示來源、警告與全文暫存路徑，展開看結果文字；PTY 七個工具顯示 session／target／transport、讀取文字、transport exit／逾時與釋放狀態，不把 transport 結束冒稱遠端程序樹已停止。Renderer 只改 UI，不修改模型可見 content／structuredContent；Subagent 的選填 title 另保存於 parent details 顯示 metadata，不變 child task 或執行配置。
+原有 20 個互動式 function tools 均有 `renderCall`／`renderResult`（含沿用宿主 renderer）：Shell 保留宿主呈現；Subagent 可用選填 `title`（50 字內）顯示工作摘要，single／resume 使用頂層欄位，parallel／chain 各項可附獨立標題，並於 call／執行中／完成後呈現；File 的 `read`／`write` 錯誤顯示錯誤碼、訊息與 recovery，不再原樣顯示錯誤 JSON，`read` 成功與圖片仍沿用宿主行為，`write` 成功顯示 bytes，展開可看路徑與版本 token；`note` 摘要分類／標題與儲存路徑，不預覽整份 Markdown；Scheduler 顯示 revision、精確時間／時區、host 與取消請求狀態；Web 顯示來源、警告與全文暫存路徑，展開看結果文字；PTY 七個工具顯示 session／target／transport、讀取文字、transport exit／逾時與釋放狀態，不把 transport 結束冒稱遠端程序樹已停止。Renderer 只改 UI，不修改模型可見 content／structuredContent；Subagent 的選填 title 另保存於 parent details 顯示 metadata，不變 child task 或執行配置。
 
-第 22 個工具 `json_output` 僅在 print mode 搭配有效 schema 註冊，刻意維持無 TUI renderer；GPT Speed 沒有 function tool，OpenAI 原生搜尋亦非 Pi function tool。
+新增五個背景管理／互動工具亦有 call／result renderer：顯示 job／task／mode 與有界結果，清除顯示控制碼，不預覽 control／query 訊息內容，取消仍明示未確認程序樹終止。`json_output` 僅在 print mode 搭配有效 schema 註冊，刻意維持無 TUI renderer；GPT Speed 沒有 function tool，OpenAI 原生搜尋亦非 Pi function tool。
+
+### 背景委派與結果回送
+
+```json
+{ "command": "npm test", "background": true }
+```
+
+```json
+{ "agent": "scout", "task": "查找相關模組並回報，勿修改檔案。", "background": true }
+```
+
+啟動立即回傳 job receipt，主 agent 可繼續其他任務；shell 提供 `liveLogPath`，subagent 在 session/log 建立後提供各 task 的 `.partial` 路徑（排隊／chain 未啟動者標 `logPending`，以 `subagent_status` 或進度通知取得）。用現有 `read` 查閱完成的對話紀錄，不是逐 token 串流；完成後通知提供最終 `logPath`。`read` 遇到符合 managed run 規則的缺失 `.partial`，只提示改讀同目錄 final／等待通知，不自動切換檔案或判定完成。改讀 conversation aggregate 時不可沿用 run-local 行數。
+
+完成／失敗／取消以 model-visible custom message + `triggerTurn:true, deliverAs:"followUp"` 自動讓原 session 接續，輸出視為不可信資料，不提升為 system 指令。離開 Pi、reload 或替換 session 時取消背景工作並抑制舊通知；沒有 daemon／重啟恢復。SDK 必須 `await runtime.dispose()`，直接 `session.dispose()` 不觸發 extension shutdown。取消是 best-effort，並非整棵 process tree 已停止。
+
+`subagent_message` 必須指定同一 job 的 running `taskId`：`control` 在 assistant／tools 邊界加入主線 user input、不打斷目前工具；`query` 從安全 canonical prefix 建立 tool-free 一次性模型請求，答案不寫回 child 主線，可能落後目前長工具，另計用量。Control 的 accepted／queued 不等於 applied；query 完成也透過 followUp 回送。背景 subagent 與 query 用量保存在結果中，**不自動加到 Pi session totals**。
+
+使用 explicit `--tools` 時要加入需要的五個管理／互動工具；shell 管理工具預設 inactive，須額外選取，extension 不改你的 loadout／settings。完整 receipt、資源上限與互動語意見 [Subagents](modules/subagents/README.md)、[Shell Tools](modules/shell-tools/README.md) 與 [設定](docs/configuration.md#background-execution-and-interaction)。新能力目前以 Pi 1.0.0 離線 host 驗證；0.99.1／0.99.2 及真實 provider 尚未驗證。
 
 ### 跨平台 PTY
 
@@ -147,20 +164,6 @@ Pi **1.0.0** 預設 fullscreen TUI；本專案不自動修改 UI 設定，需要
 
 TUI footer 顯示 Normal／Fast／Ultrafast，並標註降級或 inactive。預設 Normal；命令保存全域 `pi-gpt-speed.mode`，受信任專案設定可在下次載入時覆蓋。入口與完整契約見 [GPT Speed README](modules/gpt-speed/README.md)。若已裝 pi-codex-fast 或其他速度 extension，請先停用以避免衝突。模型 pattern 是本地政策，不保證後端權限或支援。
 
-### 驗收目標持續推動
-
-```text
-/goal 使用者能登入；錯誤密碼不得登入；既有功能不退化；相關測試實際通過。
-/goal status
-/goal pause
-/goal resume
-/goal clear
-```
-
-Goal 定義成功結果，不管理 plan／steps；沒有計畫也能開始、續跑並完成。當輪結束但尚未達標，主 agent 使用目前上下文與專案現況繼續；完成須透過 `goal complete` 保存驗收報告，不以「計畫已完成」或自然語言宣告改狀態。報告是模型提供的證據，非獨立 auditor。
-
-明確工具清單要加入 `goal`；排除工具時不會自行啟用。每次 start／resume 至多 20 次自身續跑提案、3 次連續空自動回覆則暫停；不是 token／費用硬上限。Reload／恢復／branch change 的 active 先 paused，須明確 resume。Child markers 禁用 goal command／tool／自動接管。完整契約與儲存故障恢復見 [Goal README](modules/goal/README.md)。若已裝其他同名 Goal extension，請先停用。
-
 ### Structured JSON 交付
 
 ```powershell
@@ -190,7 +193,7 @@ pi -p "Extract company name: Acme" --json-schema $schema --json-output result.js
 }
 ```
 
-十個模組（subagents、shell-tools、file-tools、web-tools、scheduler、note-tools、gpt-speed、goal、json-schema、pty-terminal）的公開入口均為 `modules/<name>/src/index.ts`。薄入口轉接既有實作，內部資源位置不變。
+九個模組（subagents、shell-tools、file-tools、web-tools、scheduler、note-tools、gpt-speed、json-schema、pty-terminal）的公開入口均為 `modules/<name>/src/index.ts`。薄入口轉接既有實作，內部資源位置不變。
 
 Filters 以整合包 root 為基準；與 tool allowlist 不同，它們控制 extension 是否執行／是否啟動生命週期資源。既有 filters 若使用舊入口路徑，請手動更新為新路徑，見 [入口遷移](docs/migration.md#unified-typescript-entry-points)。
 
@@ -213,7 +216,7 @@ npm test
 npm run test:integration
 npm run test:browser      # 真實 Chromium；Linux 首次可用 setup:browser 安裝瀏覽器與系統依賴
 npm run test:package      # 真實 tarball + 乾淨 production install；需要 npm registry
-npm run test:matrix       # tarball smoke + Goal／SDK hooks／JSON delivery：Pi 0.99.1 / 0.99.2 / 1.0.0
+npm run test:matrix       # tarball smoke + SDK hooks／JSON delivery：Pi 0.99.1 / 0.99.2 / 1.0.0
 npm run sources:verify    # 匯入來源／本地適配雜湊
 npm pack                 # prepack 會重建 Scheduler
 ```

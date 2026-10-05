@@ -16,7 +16,7 @@ function optionValue(args: string[], option: string): string | undefined {
 
 function expectSubagentExcluded(args: string[]) {
 	assert.equal(args.filter((arg) => arg === "--exclude-tools").length, 1);
-	assert.equal(optionValue(args, "--exclude-tools"), "subagent");
+	assert.deepEqual(optionValue(args, "--exclude-tools")?.split(","), ["subagent", "subagent_status", "subagent_cancel", "subagent_message"]);
 }
 
 test("bundled scout inherits the parent model", () => {
@@ -61,6 +61,17 @@ test("provider-resolved model, thinking level, and prompt path are preserved", (
 	assert.equal(optionValue(args, "--model"), "openai-codex/gpt-5.4");
 	assert.equal(optionValue(args, "--thinking"), "high");
 	assert.equal(optionValue(args, "--append-system-prompt"), "/tmp/prompt-worker.md");
+});
+
+for (const kind of ["new", "resume"] as const) test(`RPC ${kind} preserves managed identity/guard and excludes print/task argv`, () => {
+	const saved = kind === "new" ? persistence : { kind, sessionDir: "/managed/pi", sessionFile: "/managed/pi/native.jsonl" };
+	const args = buildSubagentPiArgs({ persistence: saved, transport: "rpc", guardPath: "/module/child-guard.ts", bridgePath: "/module/child-bridge.ts", taskPath: "/tmp/task.txt", model: "offline/fixture", thinkingLevel: "off", promptPath: "/tmp/system.md" });
+	expectSubagentExcluded(args); assert.equal(optionValue(args, "--mode"), "rpc"); assert.equal(args.includes("-p"), false);
+	assert.equal(args.some(arg => arg.startsWith("@")), false); assert.equal(optionValue(args, "--session-dir"), "/managed/pi");
+	assert.equal(optionValue(args, kind === "new" ? "--session-id" : "--session"), kind === "new" ? persistence.sessionId : "/managed/pi/native.jsonl");
+	assert.deepEqual(args.flatMap((arg, index) => arg === "-e" ? [args[index + 1]] : []), ["/module/child-guard.ts", "/module/child-bridge.ts"]);
+	assert.equal(optionValue(args, "--model"), "offline/fixture"); assert.equal(optionValue(args, "--thinking"), "off"); assert.equal(optionValue(args, "--append-system-prompt"), "/tmp/system.md");
+	assert.equal(args.includes("--approve"), false); assert.equal(args.includes("--no-session"), false);
 });
 
 test("installed Pi @file pipeline preserves long task content without recursive file expansion", async () => {

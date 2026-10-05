@@ -171,11 +171,11 @@ try {
   for (const [name, options, expected] of [
     ['explicit read-only selection survives defaultTools reload', { tools: ['read'] }, ['read']],
     ['noTools all survives defaultTools reload', { noTools: 'all' }, []],
-    ['excluded shells and goal stay excluded after defaultTools reload', { exclude: ['bash', 'powershell', 'goal', 'note'] }, defaultFiles],
+    ['excluded shells and note stay excluded after defaultTools reload', { exclude: ['bash', 'powershell', 'note'] }, defaultFiles],
   ]) await check(name, options, async f => {
-    await writeSettings(['read', 'bash', 'powershell', 'goal', 'note']); await f.session.reload();
+    await writeSettings(['read', 'bash', 'powershell', 'note']); await f.session.reload();
     assert.deepEqual(selectedBase(f.session), expected);
-    for (const toolName of ['bash', 'powershell', 'goal', 'note']) assert.ok(!f.session.getActiveToolNames().includes(toolName), toolName);
+    for (const toolName of ['bash', 'powershell', 'note']) assert.ok(!f.session.getActiveToolNames().includes(toolName), toolName);
     if (options.tools || options.noTools) assert.deepEqual(f.session.getCallableToolNames().sort(), expected);
   });
   await check('restored delayed tool activates only after registration', { restored: ['read', 'fixture_late'] }, async f => {

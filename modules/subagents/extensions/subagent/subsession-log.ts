@@ -386,7 +386,7 @@ export class SubsessionWriter {
 		let serialized: string;
 		const numbered = this.formatVersion === 1 && record.type !== "header" && record.type !== "final";
 		try {
-			if (this.formatVersion === 2 && (!["user", "assistant", "tool_call", "tool_result"].includes(record.type) || (record.type !== "tool_call" && typeof (record as ReadableRecord).content !== "string"))) throw new Error("Invalid readable transcript record");
+			if (this.formatVersion === 2 && (!["user", "assistant", "tool_call", "tool_result"].includes(record.type) || (record.type !== "tool_call" && (!("content" in record) || typeof record.content !== "string")))) throw new Error("Invalid readable transcript record");
 			serialized = `${JSON.stringify({ ...record,
 				...(numbered ? { seq: "seq" in record && typeof record.seq === "number" ? record.seq : this.sequence + 1 } : {}),
 				...(record.type !== "header" ? { timestamp: transcriptTimestamp("timestamp" in record ? record.timestamp : undefined) } : {}),

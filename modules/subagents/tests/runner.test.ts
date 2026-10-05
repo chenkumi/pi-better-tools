@@ -40,7 +40,7 @@ async function run(scenario: string, task = "test", controller?: AbortController
 				inactivityTimeoutMs,
 				...extraRuntime,
 				invocation(args) {
-					assert.equal(args[args.indexOf("--exclude-tools") + 1], "subagent");
+					assert.equal(args[args.indexOf("--exclude-tools") + 1], "subagent,subagent_status,subagent_cancel,subagent_message");
 					assert.ok(args.join(" ").length < 4000);
 					taskPath = args.at(-1)!.slice(1);
 					promptPath = args[args.indexOf("--append-system-prompt") + 1];

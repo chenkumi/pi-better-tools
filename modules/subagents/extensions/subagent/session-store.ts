@@ -61,7 +61,7 @@ interface RunIntent {
 	version: 1; taskId: string; dispatchKey: string; requestHash: string; oldCommittedBytes: number;
 	state: string; startedAt: string; ownerNonce: string; [key: string]: unknown;
 }
-const fail = (code: string, message: string): never => { throw new SessionError(code, message); };
+function fail(code: string, message: string): never { throw new SessionError(code, message); }
 const record = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
 const validHash = (v: unknown) => typeof v === "string" && /^[a-f0-9]{64}$/.test(v);
 const integer = (v: unknown) => Number.isSafeInteger(v) && (v as number) >= 0;

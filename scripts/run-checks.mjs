@@ -12,26 +12,25 @@ const moduleTask = (module, script) => ({ label: `${module}:${script}`, module, 
 const tsx = import.meta.resolve('tsx');
 const testFiles = (dir, keep) => readdirSync(join(root, dir)).filter(name => /\.test\.(ts|mjs)$/.test(name) && keep(name)).sort().map(name => `${dir}/${name}`);
 const isIntegration = name => name.includes('.integration.');
-// Unit files use isolated temp dirs and run in separate processes; integration groups stay serial (real Pi hosts, ports, shells).
+// Unit files use isolated temp dirs and separate processes. Subagent fault-injection files stay serial:
+// concurrent Windows disk/process load can exhaust their 300ms I/O setup budget before the injected fault.
 const directTests = (label, dir, keep, extra = {}) => ({ label, args: ['--import', tsx, '--test', `--test-concurrency=${extra.concurrency ?? 1}`, ...testFiles(dir, keep)], ...extra });
-const sourceTests = [directTests('pty-terminal:test', 'modules/pty-terminal/tests', () => true), directTests('subagents:test', 'modules/subagents/tests', name => !isIntegration(name), { concurrency: 4 }),
+const sourceTests = [directTests('pty-terminal:test', 'modules/pty-terminal/tests', () => true), directTests('subagents:test', 'modules/subagents/tests', name => !isIntegration(name)),
   directTests('shell-tools:test:unit', 'modules/shell-tools/tests', name => !isIntegration(name)),
   moduleTask('file-tools', 'test'), moduleTask('file-tools', 'test:tooling'),
   directTests('web-tools:test', 'modules/web-tools/tests/unit', () => true, { concurrency: 4 }), moduleTask('scheduler', 'test:unit')];
 const groups = {
   build: [moduleTask('scheduler', 'build')],
   typecheck: [...['file-tools', 'scheduler'].map(m => moduleTask(m, 'typecheck')),
-    ...['shell-tools', 'web-tools', 'pty-terminal'].map(m => ({ label: `${m}:typecheck`, args: ['node_modules/typescript/bin/tsc', '-p', `modules/${m}/tsconfig.json`] })),
+    ...['shell-tools', 'web-tools', 'pty-terminal', 'subagents'].map(m => ({ label: `${m}:typecheck`, args: ['node_modules/typescript/bin/tsc', '-p', `modules/${m}/tsconfig.json`] })),
     { label: 'note-tools:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/note-tools/tsconfig.json'] },
     { label: 'gpt-speed:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/gpt-speed/tsconfig.json'] },
-    { label: 'goal:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/goal/tsconfig.json'] },
     { label: 'json-schema:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/json-schema/tsconfig.json'] }],
   // Scan test directories (not hard-coded lists) so a new *.test.ts is never silently skipped; *.test.mjs there are real-host integration tests.
-  unit: [...sourceTests, ...[['note-tools', 'modules/note-tools/tests'], ['gpt-speed', 'modules/gpt-speed/tests'], ['goal', 'modules/goal/tests'], ['json-schema', 'modules/json-schema/tests']]
+  unit: [...sourceTests, ...[['note-tools', 'modules/note-tools/tests'], ['gpt-speed', 'modules/gpt-speed/tests'], ['json-schema', 'modules/json-schema/tests']]
     .map(([module, dir]) => directTests(`${module}:test`, dir, name => name.endsWith('.test.ts')))],
   integration: [directTests('shell-tools:test:integration', 'modules/shell-tools/tests', isIntegration), moduleTask('file-tools', 'test:integration'), moduleTask('scheduler', 'test:integration'),
     directTests('subagents:test:integration', 'modules/subagents/tests', isIntegration, { concurrency: 3 }),
-    { label: 'goal:real-pi-runtime', args: ['--test', 'modules/goal/tests/runtime.test.mjs'] },
     { label: 'json-schema:real-cli', args: ['--test', 'modules/json-schema/tests/runtime.test.mjs'] },
     { label: 'scheduler:source-loader', args: ['--test', 'tests/integration/scheduler-source.test.mjs'] },
     { label: 'all-modules:sdk-hooks', args: ['--test', 'tests/integration/sdk-hooks.test.mjs'] },

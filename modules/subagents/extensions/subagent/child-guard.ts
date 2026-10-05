@@ -28,5 +28,10 @@ export default function (pi: ExtensionAPI) {
 			fs.writeSync(2, `${errorCode}: managed child startup configuration rejected before provider request\n`);
 			process.exit(1);
 		}
+		// Pin learned defaults for the query bridge too; later child configuration
+		// changes must not silently route a disposable query elsewhere.
+		expected.model = selected;
+		expected.thinkingLevel = pi.getThinkingLevel();
+		expected.childTrusted = ctx.isProjectTrusted();
 	});
 }

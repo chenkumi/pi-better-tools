@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -7,6 +7,8 @@ import { describe, it } from "node:test";
 import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import fileToolsExtension, { detectImageMime } from "../extensions/file-tools.js";
 import { normalizeToolPath, resolveToolPath } from "../src/path-utils.js";
+import { FileToolError } from "../src/errors.js";
+import { hintMissingSubagentLog } from "../src/subagent-log-paths.js";
 
 function toolsAt(cwd: string) {
   const tools = new Map<string, ToolDefinition>();
@@ -51,6 +53,17 @@ describe("COMPAT-001 shared path adapter", () => {
     assert.equal(normalizeToolPath("~"), homedir());
     assert.equal(resolveToolPath("~/child.txt", cwd), join(homedir(), "child.txt"));
     assert.equal(resolveToolPath("~\\child.txt", cwd), join(homedir(), "child.txt"));
+  });
+
+  it("prefers an existing literal path over the @ / unicode-space rewrite", async () => {
+    await inWorkspace(async root => {
+      await mkdir(join(root, "@scope"));
+      await writeFile(join(root, "@scope", "x.txt"), "x");
+      await writeFile(join(root, "shot 1.png"), "x");
+      assert.equal(resolveToolPath("@scope/x.txt", root), join(root, "@scope", "x.txt"));
+      assert.equal(resolveToolPath("shot 1.png", root), join(root, "shot 1.png"));
+      assert.equal(resolveToolPath("shot 2.png", root), join(root, "shot 2.png"));
+    });
   });
 
   it("preserves literal cwd characters while normalizing input paths", async () => {
@@ -128,6 +141,62 @@ describe("COMPAT-001 shared path adapter", () => {
         assert.equal(await readFile(decoy, "utf8"), "untouched");
       }
     });
+  });
+});
+
+describe("subagent live transcript rename recovery", () => {
+  const sessionId = "01m45czjs2j8x53wc4ecpyjge4";
+  const taskId = "01m45czjs2vtq8kqxqbpd8ecsf";
+  const runAt = (cwd: string) => join(cwd, "subagent-sessions", sessionId, "runs", taskId);
+
+  it("reads a live transcript, then hints the renamed file without returning its contents", async () => {
+    await inWorkspace(async cwd => {
+      const run = runAt(cwd); await mkdir(run, { recursive: true });
+      const partial = join(run, "transcript.jsonl.partial"), final = join(run, "transcript.jsonl");
+      const content = '{"type":"assistant","content":"PRIVATE_LOG_SENTINEL"}\n';
+      await writeFile(partial, content);
+      const call = toolsAt(cwd);
+      assert.match(textOf(await call("read", { path: partial })), /PRIVATE_LOG_SENTINEL/);
+      await rename(partial, final);
+      await assert.rejects(call("read", { path: partial, offset: 1 }), (error: unknown) => {
+        assert.ok(error instanceof FileToolError);
+        assert.equal(error.payload.code, "FILE_NOT_FOUND");
+        assert.equal(error.payload.path, partial);
+        assert.ok(error.payload.recovery?.includes(JSON.stringify(final)));
+        assert.match(error.payload.recovery!, /not proof the job completed/);
+        assert.ok(!error.message.includes("PRIVATE_LOG_SENTINEL"));
+        return true;
+      });
+      assert.match(textOf(await call("read", { path: final })), /PRIVATE_LOG_SENTINEL/);
+    });
+  });
+
+  it("offers notification guidance when neither path exists", async () => {
+    await inWorkspace(async cwd => {
+      const path = join(runAt(cwd), "transcript.jsonl.partial");
+      await assert.rejects(toolsAt(cwd)("read", { path }), (error: unknown) => {
+        assert.ok(error instanceof FileToolError);
+        assert.match(error.payload.recovery!, /Wait for the background job notification/);
+        assert.equal(error.payload.code, "FILE_NOT_FOUND"); return true;
+      });
+    });
+  });
+
+  it("does not guess ordinary .partial files, malformed IDs, or other filenames", async () => {
+    const original = new FileToolError("FILE_NOT_FOUND", "missing", { recovery: "original" });
+    for (const path of [resolve("transcript.jsonl.partial"), join(runAt(resolve("fixture")), "other.partial"),
+      resolve("subagent-sessions", "not-an-id", "runs", taskId, "transcript.jsonl.partial")]) {
+      assert.equal(await hintMissingSubagentLog(original, path, async () => { assert.fail("must not probe unrelated paths"); }), original);
+    }
+  });
+
+  it("does not reinterpret permission errors, unreadable candidates, or failed probes", async () => {
+    const path = join(runAt(resolve("fixture")), "transcript.jsonl.partial");
+    const permission = new FileToolError("FILE_NOT_READABLE", "denied", { causeCode: "EACCES" });
+    assert.equal(await hintMissingSubagentLog(permission, path, async () => { assert.fail("must not probe on permission error"); }), permission);
+    const original = new FileToolError("FILE_NOT_FOUND", "missing");
+    assert.equal(await hintMissingSubagentLog(original, path, async () => ({ isFile: () => false })), original);
+    assert.equal(await hintMissingSubagentLog(original, path, async () => { throw Object.assign(new Error("denied"), { code: "EACCES" }); }), original);
   });
 });
 

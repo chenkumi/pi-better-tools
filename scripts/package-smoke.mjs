@@ -39,16 +39,15 @@ async function record(label, action) {
   }
 }
 const required = [
-  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'scheduler', 'note-tools', 'gpt-speed', 'goal', 'json-schema', 'pty-terminal'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
+  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'scheduler', 'note-tools', 'gpt-speed', 'json-schema', 'pty-terminal'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
   'modules/subagents/extensions/subagent/index.ts', 'modules/subagents/extensions/subagent/child-guard.ts',
   'modules/subagents/agents/planner.md', 'modules/subagents/agents/reviewer.md', 'modules/subagents/agents/scout.md', 'modules/subagents/agents/worker.md',
   'modules/subagents/prompts/implement.md', 'modules/subagents/prompts/implement-and-review.md', 'modules/subagents/prompts/scout-and-plan.md',
   'modules/shell-tools/extensions/timeout-ms.ts', 'modules/file-tools/extensions/file-tools.ts', 'modules/file-tools/src/diff-worker.mjs',
   'modules/web-tools/src/index.ts', 'modules/web-tools/schemas/web_search.schema.json', 'modules/scheduler/src/extension.ts', 'modules/scheduler/package.json', 'modules/scheduler/dist/runner.js',
-  'modules/web-tools/src/renderers.ts', 'modules/scheduler/src/renderers.ts', 'modules/goal/src/renderers.ts',
+  'modules/web-tools/src/renderers.ts', 'modules/scheduler/src/renderers.ts',
   'modules/note-tools/extensions/note.ts', 'modules/note-tools/README.md',
   'modules/gpt-speed/extensions/gpt-speed.ts', 'modules/gpt-speed/README.md',
-  'modules/goal/extensions/goal.ts', 'modules/goal/src/state.ts', 'modules/goal/src/controller.ts', 'modules/goal/src/prompts.ts', 'modules/goal/README.md',
   'modules/json-schema/extensions/json-schema.ts', 'modules/json-schema/src/index.ts', 'modules/json-schema/src/schema.ts', 'modules/json-schema/src/extract.ts', 'modules/json-schema/src/delivery.ts', 'modules/json-schema/README.md',
   // The integrated package is licensed by the root LICENSE. Original module
   // notices remain preserved, but duplicate module LICENSE files are not required.
@@ -57,6 +56,7 @@ const required = [
 ];
 function checkContents(pack) {
   const paths = pack.files.map(f => f.path);
+  assert.ok(!paths.some(path => path.startsWith('modules/goal/')), 'removed Goal module must not ship');
   for (const path of required) assert.ok(paths.includes(path), `missing tarball resource ${path}`);
   for (const path of paths) {
     assert.ok(!isAbsolute(path) && !path.split('/').includes('..'), `unsafe package path ${path}`);
@@ -110,11 +110,6 @@ try {
         const result = JSON.parse(output.trim().split('\n').at(-1));
         assert.equal(result.hostVersion, version); assert.equal(result.status, 'passed'); assert.ok(result.cases.length >= 30); assert.ok(result.cases.every(c => c.status === 'passed')); return output;
       });
-      // Run the independent goal lifecycle before broad probes, so an unrelated
-      // module fault cannot hide whether this host admitted the new extension.
-      const goalFixture = join(temp, 'goal-runtime.mjs'); await copyFile(join(root, 'tests/fixtures/goal-runtime.mjs'), goalFixture);
-      const goalHome = join(temp, 'home-goal'); await mkdir(goalHome);
-      await record(`${version}:goal-runtime`, () => runCommand(`production Pi ${version} goal-runtime`, process.execPath, [goalFixture, packageRoot], { cwd: goalHome, env: { ...isolatedEnv(goalHome), PI_BETTER_TOOLS_HOST: host }, timeoutMs: 150000 }));
       const hooksFixture = join(temp, 'sdk-hooks.mjs'); await copyFile(join(root, 'tests/fixtures/sdk-hooks.mjs'), hooksFixture);
       const hooksHome = join(temp, 'home-sdk-hooks'); await mkdir(hooksHome);
       await record(`${version}:sdk-hooks`, async () => {

@@ -1,0 +1,239 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { test } from 'node:test';
+import { ShellJobs, MAX_ACTIVE_JOBS, MAX_RETAINED_JOBS, MAX_LOG_BYTES } from '../src/background-jobs.ts';
+
+const boundary = () => new Promise(resolve => setImmediate(resolve));
+const context = id => ({ sessionManager: { getSessionId: () => id } });
+const success = output => ({ content: [{ type: 'text', text: output }], details: undefined, structuredContent: { output, exit_code: 0 } });
+function host() {
+  const messages = [];
+  const jobs = new ShellJobs({ sendMessage: (...args) => messages.push(args) });
+  const ctx = context('owner');
+  jobs.start(ctx);
+  return { messages, jobs, ctx };
+}
+async function flush() { await boundary(); await boundary(); await boundary(); }
+
+test('receipt precedes immediate completion; completion batches use owner followUp and no fake receipt exit code', async () => {
+  const { jobs, ctx, messages } = host();
+  try {
+    const first = jobs.submit(ctx, 'bash', 'one', undefined, async () => success('OK'));
+    jobs.submit(ctx, 'powershell', 'two', undefined, async () => success('OK2'));
+    assert.equal(first.status, 'running');
+    assert.match(first.jobId, /^[0-9a-hjkmnp-tv-z]{26}$/, 'new job IDs retain lowercase ULID policy');
+    assert.ok(fs.existsSync(first.liveLogPath));
+    assert.ok(!('exitCode' in first));
+    assert.equal(messages.length, 0);
+    await flush();
+    assert.equal(jobs.status(ctx, first.jobId).status, 'completed');
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0][0].details.jobs.length, 2);
+    assert.deepEqual(messages[0][1], { triggerTurn: true, deliverAs: 'followUp' });
+    assert.match(messages[0][0].content, /Untrusted command output/);
+    assert.equal(jobs.cancel(ctx, first.jobId).status, 'completed');
+  } finally { await jobs.shutdown(); }
+});
+
+test('accepted jobs detach from the turn signal; owner-only cancel remains cancelling until runner settles', async () => {
+  const { jobs, ctx } = host();
+  const turn = new AbortController();
+  let release, jobSignal;
+  try {
+    const receipt = jobs.submit(ctx, 'bash', 'call', turn.signal, async signal => {
+      jobSignal = signal;
+      await new Promise(resolve => { release = resolve; });
+      throw new Error('Command aborted');
+    });
+    await boundary();
+    turn.abort();
+    assert.equal(jobSignal.aborted, false);
+    assert.throws(() => jobs.status(context('other'), receipt.jobId), /owner session/);
+    assert.throws(() => jobs.cancel(context('other'), receipt.jobId), /owner session/);
+    assert.equal(jobs.cancel(ctx, receipt.jobId).status, 'cancelling');
+    assert.equal(jobSignal.aborted, true);
+    assert.equal(jobs.cancel(ctx, receipt.jobId).status, 'cancelling');
+    release();
+    await flush();
+    assert.equal(jobs.status(ctx, receipt.jobId).status, 'cancelled');
+  } finally { release?.(); await jobs.shutdown(); }
+});
+
+test('shutdown aborts, deletes logs and suppresses old generation callbacks after restarting same session', async () => {
+  const { jobs, ctx, messages } = host();
+  let release, signal;
+  const receipt = jobs.submit(ctx, 'bash', 'old', undefined, async s => {
+    signal = s;
+    await new Promise(resolve => { release = resolve; s.addEventListener('abort', resolve, { once: true }); });
+    return success('LATE');
+  });
+  await boundary();
+  await jobs.shutdown();
+  assert.equal(signal.aborted, true);
+  assert.equal(fs.existsSync(receipt.liveLogPath), false);
+  assert.throws(() => jobs.status(ctx, receipt.jobId), /shutting down/);
+  jobs.start(ctx);
+  release();
+  await flush();
+  assert.equal(messages.length, 0);
+  assert.throws(() => jobs.status(ctx, receipt.jobId), /Unknown or expired/);
+  await jobs.shutdown();
+});
+
+test('live output disk and host accumulator remain bounded while all source chunks are consumed', async () => {
+  const { jobs, ctx } = host();
+  let chunks = 0, forwarded = 0, lines = 0;
+  try {
+    const receipt = jobs.submit(ctx, 'bash', 'flood', undefined, async (signal, wrap) => {
+      const result = await wrap({ async exec(_command, _cwd, { onData }) {
+        for (let i = 0; i < 100; i++) { chunks++; onData(Buffer.from('x\n'.repeat(10_000))); }
+        return { exitCode: 7 };
+      } }).exec('flood', '.', { signal, onData: data => { forwarded += data.length; lines += data.toString().split('\n').length - 1; } });
+      return { ...success('bounded'), isError: true, structuredContent: { output: 'bounded', exit_code: result.exitCode } };
+    });
+    await flush();
+    const status = jobs.status(ctx, receipt.jobId);
+    assert.equal(chunks, 100);
+    assert.equal(fs.statSync(receipt.liveLogPath).size, MAX_LOG_BYTES);
+    assert.ok(forwarded <= Math.floor(32768 / 3));
+    assert.ok(lines <= 1000);
+    assert.equal(status.outputTruncated, true);
+    assert.equal(status.exitCode, 7);
+    assert.equal(status.status, 'failed');
+  } finally { await jobs.shutdown(); }
+});
+
+test('active capacity rejects before allocating and retained jobs evict completed logs', async () => {
+  const { jobs, ctx } = host();
+  const releases = [];
+  try {
+    const active = [];
+    for (let i = 0; i < MAX_ACTIVE_JOBS; i++) active.push(jobs.submit(ctx, 'bash', `${i}`, undefined, async () => {
+      await new Promise(resolve => releases.push(resolve)); return success('done');
+    }));
+    assert.throws(() => jobs.submit(ctx, 'bash', 'overflow', undefined, async () => success('bad')), /active limit/);
+    const aborted = new AbortController(); aborted.abort();
+    assert.throws(() => jobs.submit(ctx, 'bash', 'aborted', aborted.signal, async () => success('bad')), /aborted before/);
+    await boundary();
+    releases.forEach(resolve => resolve());
+    await flush();
+    for (let i = 0; i < MAX_RETAINED_JOBS; i++) {
+      jobs.submit(ctx, 'bash', `retained-${i}`, undefined, async () => success('OK'));
+      await flush();
+    }
+    assert.equal(fs.existsSync(active[0].liveLogPath), false);
+    assert.throws(() => jobs.status(ctx, active[0].jobId), /expired/);
+  } finally { releases.forEach(resolve => resolve()); await jobs.shutdown(); }
+});
+
+test('pre-submit abort rejects before running or scheduling any background callback', async () => {
+  const { jobs, ctx, messages } = host();
+  const controller = new AbortController();
+  controller.abort();
+  let runs = 0;
+  try {
+    assert.throws(() => jobs.submit(ctx, 'bash', 'pre-aborted', controller.signal, async () => { runs++; return success('forbidden'); }), /aborted before/);
+    await flush();
+    assert.equal(runs, 0);
+    assert.equal(messages.length, 0);
+  } finally { await jobs.shutdown(); }
+});
+
+test('long asynchronous failure preserves timeout tail and bounded head/tail diagnostics', async () => {
+  const { jobs, ctx, messages } = host();
+  try {
+    const receipt = jobs.submit(ctx, 'bash', 'long-timeout', undefined, async () => {
+      await Promise.resolve();
+      throw new Error('HEAD_MARKER ' + 'x'.repeat(100000) + '\nCommand stopped: no output for 1 seconds (timeoutMs idle timeout)');
+    });
+    await flush();
+    const result = jobs.status(ctx, receipt.jobId);
+    assert.equal(result.status, 'timed_out');
+    assert.ok(result.error.length <= 32768);
+    assert.match(result.error, /^HEAD_MARKER/);
+    assert.match(result.error, /error output omitted/);
+    assert.match(result.error, /\(timeoutMs idle timeout\)$/);
+    assert.equal(messages.length, 1);
+  } finally { await jobs.shutdown(); }
+});
+
+test('disposed owner getter fails closed during live output, cancels runner and cleans observed logs', async () => {
+  let disposed = false, emit, runningSignal;
+  const ctx = { sessionManager: { getSessionId() { if (disposed) throw new Error('Extension context is no longer active'); return 'owner'; } } };
+  const messages = [];
+  const jobs = new ShellJobs({ sendMessage: (...args) => messages.push(args) });
+  jobs.start(ctx);
+  try {
+    const receipt = jobs.submit(ctx, 'bash', 'disposed-running', undefined, async (signal, wrap) => {
+      runningSignal = signal;
+      await wrap({ exec(_cmd, _cwd, { onData }) {
+        emit = onData;
+        return new Promise(resolve => signal.addEventListener('abort', () => resolve({ exitCode: null }), { once: true }));
+      } }).exec('fake', '.', { signal, onData() {} });
+      return success('must not notify');
+    });
+    await boundary();
+    disposed = true;
+    assert.doesNotThrow(() => emit(Buffer.from('activity after session.dispose')));
+    assert.equal(runningSignal.aborted, true);
+    await flush();
+    assert.equal(messages.length, 0);
+    assert.equal(fs.existsSync(receipt.liveLogPath), false);
+  } finally { await jobs.shutdown(); }
+});
+
+test('disposed owner getter at deferred completion never rejects detached work or sends followUp', async () => {
+  let disposed = false, release;
+  const ctx = { sessionManager: { getSessionId() { if (disposed) throw new Error('disposed getter'); return 'owner'; } } };
+  const messages = [];
+  const jobs = new ShellJobs({ sendMessage: (...args) => messages.push(args) });
+  jobs.start(ctx);
+  try {
+    const receipt = jobs.submit(ctx, 'bash', 'disposed-completion', undefined, async () => {
+      await new Promise(resolve => { release = resolve; });
+      return success('late');
+    });
+    await boundary();
+    disposed = true;
+    release();
+    await flush();
+    assert.equal(messages.length, 0);
+    assert.equal(fs.existsSync(receipt.liveLogPath), false);
+  } finally { release?.(); await jobs.shutdown(); }
+});
+
+test('outer rejection containment handles errors whose stringification itself throws', async () => {
+  const { jobs, ctx } = host();
+  let runningSignal;
+  try {
+    const receipt = jobs.submit(ctx, 'bash', 'poison-error', undefined, async signal => {
+      runningSignal = signal;
+      await Promise.resolve();
+      throw { toString() { throw new Error('stringification failed'); } };
+    });
+    await flush();
+    const result = jobs.status(ctx, receipt.jobId);
+    assert.equal(result.status, 'failed');
+    assert.equal(result.error, 'Unexpected shell background runner failure');
+    assert.equal(runningSignal.aborted, true);
+    // node:test also fails if the detached promise produces unhandledRejection.
+  } finally { await jobs.shutdown(); }
+});
+
+test('changed session identity suppresses completion and timeout errors remain distinct from cancellation', async () => {
+  const messages = [];
+  const jobs = new ShellJobs({ sendMessage: (...args) => messages.push(args) });
+  let id = 'owner';
+  const ctx = { sessionManager: { getSessionId: () => id } };
+  jobs.start(ctx);
+  try {
+    const receipt = jobs.submit(ctx, 'bash', 'timeout', undefined, async () => { throw new Error('Command stopped: no output for 1 seconds (timeoutMs idle timeout)'); });
+    await flush();
+    assert.equal(jobs.status(ctx, receipt.jobId).status, 'timed_out');
+    messages.length = 0;
+    jobs.submit(ctx, 'bash', 'late', undefined, async () => success('late'));
+    id = 'replacement';
+    await flush();
+    assert.equal(messages.length, 0);
+  } finally { await jobs.shutdown(); }
+});

@@ -16,7 +16,7 @@ export function assertToolRenderers(definitions, cwd) {
     let text = '';
     for (const width of [12, 24, 80]) {
       const lines = component.render(width);
-      if (definition.name.startsWith('pty_') || ['note', 'goal', 'web_fetch', 'web_search', 'schedule_create', 'schedule_update', 'schedule_status', 'schedule_cancel'].includes(definition.name)) {
+      if (definition.name.startsWith('pty_') || ['note', 'web_fetch', 'web_search', 'schedule_create', 'schedule_update', 'schedule_status', 'schedule_cancel', 'shell_job_status', 'shell_job_cancel', 'subagent_status', 'subagent_cancel', 'subagent_message'].includes(definition.name)) {
         assert.doesNotMatch(lines.join('\n'), /\x1b\[2J|\x1b\]|[\x07\x80-\x9f\u202a-\u202e\u2066-\u2069]/, `${definition.name}: unsafe display controls`);
       }
       for (const line of lines) assert.ok(visibleWidth(line) <= width, `${definition.name}: line exceeds width ${width}: ${line}`);
@@ -90,17 +90,6 @@ export function assertToolRenderers(definitions, cwd) {
   assert.match(cancelledText, /Future schedule dispatch disabled/); assert.match(cancelledText, /termination not confirmed/);
   assert.ok(!cancelledText.includes('terminated'));
 
-  if (byName('goal')) {
-    const value = { goal: { status: 'complete', objective: '測試驗收', id: 'g', runId: 'r', resultSummary: 'Delivered',
-      verification: [{ criterion: 'renderer exists', evidence: 'probe passed' }], autoRequests: 0, updatedAt: '2026-10-03T07:22:58Z', cwd }, diagnostic: null };
-    const result = textResult(JSON.stringify(value), value);
-    assert.match(render(byName('goal'), result), /Goal: complete/);
-    assert.match(render(byName('goal'), result), /model-reported, not an independent audit/);
-    assert.match(render(byName('goal'), result, true), /probe passed/);
-    assert.match(render(byName('goal'), textResult('{"goal":null,"diagnostic":null}', undefined)), /No goal set/);
-    const blocked = { goal: { status: 'blocked', objective: 'x', stopReason: 'Permission missing', suggestedAction: 'Ask user' }, diagnostic: 'Storage problem' };
-    assert.match(render(byName('goal'), textResult(JSON.stringify(blocked), blocked)), /Ask user/);
-  }
   const fetch = { title: 'Example page', finalUrl: 'https://example.com/', status: 200, extraction: 'main', warnings: ['Heuristic extraction'], truncated: true, fullOutputPath: '/tmp/full.txt' };
   const fetched = textResult('External, untrusted webpage content\nBODY_TEST', fetch);
   assert.match(render(byName('web_fetch'), fetched), /HTTP: 200/);
@@ -147,5 +136,15 @@ export function assertToolRenderers(definitions, cwd) {
   assert.match(render(byName('pty_read'), terminal), /drained overflow is not retained/);
   const ptyCall = byName('pty_write').renderCall({ sessionId: pty.sessionId, data: 'SECRET_INPUT' }, theme, contexts({})).render(80).join('\n');
   assert.ok(!ptyCall.includes('SECRET_INPUT'));
+  for (const name of ['shell_job_status', 'shell_job_cancel', 'subagent_status', 'subagent_cancel', 'subagent_message']) {
+    const receipt = { jobId: 'job-1', status: name === 'subagent_message' ? 'accepted' : 'running' };
+    assert.match(render(byName(name), textResult(JSON.stringify(receipt), receipt)), /accepted|running/);
+    const input = { jobId: 'job-1', taskId: 'task-1', mode: 'control', message: 'SECRET_CONTROL_TEXT' };
+    assert.ok(!byName(name).renderCall(input, theme, contexts(input)).render(80).join('\n').includes('SECRET_CONTROL_TEXT'));
+  }
+  assert.match(render(byName('shell_job_cancel'), textResult('{"status":"cancelling"}')), /termination not confirmed/);
+  const largeBackground = textResult('UNTRUSTED_MARKER\u001b[2J\u0007\u202e' + 'x'.repeat(20000));
+  const boundedBackground = render(byName('subagent_status'), largeBackground, true);
+  assert.match(boundedBackground, /UNTRUSTED_MARKER/); assert.ok(boundedBackground.length < 9000);
   console.log(`[renderers] ${definitions.length} loader definitions verified: calls/results, partial/error/legacy, widths 12/24/80, output unchanged.`);
 }

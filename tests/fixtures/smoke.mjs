@@ -9,7 +9,8 @@ const packageRoot = resolve(process.argv[2]);
 const manifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
 const expectedExtensions = manifest.pi.extensions.length;
 assert.ok(manifest.pi.extensions.includes('./modules/note-tools/src/index.ts'));
-assert.ok(manifest.pi.extensions.includes('./modules/goal/src/index.ts'));
+assert.equal(expectedExtensions, 9);
+assert.ok(!manifest.pi.extensions.some(entry => entry.includes('/goal/')));
 for (const entry of manifest.pi.extensions) assert.match(entry, /^\.\/modules\/[^/]+\/src\/index\.ts$/);
 const mode = process.argv[3] ?? 'full';
 const host = process.env.PI_BETTER_TOOLS_HOST;
@@ -30,7 +31,8 @@ try {
   sdk.initTheme('dark', false);
   const readOnly = mode === 'read-only', noTools = mode === 'no-tools';
   const ptyNames = ['pty_spawn', 'pty_read', 'pty_write', 'pty_resize', 'pty_wait_exit', 'pty_kill', 'pty_list'];
-  const selection = readOnly ? ['read'] : ['read', 'write', 'edit', 'bash', ...(process.platform === 'win32' ? ['powershell'] : []), 'subagent', 'note', 'goal', ...ptyNames, 'web_fetch', 'schedule_create', 'schedule_update', 'schedule_status', 'schedule_cancel', ...(['brave', 'exa'].includes(mode) ? ['web_search'] : [])];
+  const backgroundNames = ['subagent_status', 'subagent_cancel', 'subagent_message', 'shell_job_status', 'shell_job_cancel'];
+  const selection = readOnly ? ['read'] : [...backgroundNames, 'read', 'write', 'edit', 'bash', ...(process.platform === 'win32' ? ['powershell'] : []), 'subagent', 'note', ...ptyNames, 'web_fetch', 'schedule_create', 'schedule_update', 'schedule_status', 'schedule_cancel', ...(['brave', 'exa'].includes(mode) ? ['web_search'] : [])];
   const settings = sdk.SettingsManager.inMemory({ defaultTools: selection, retry: { enabled: false }, compaction: { enabled: false }, cacheWarming: 'off', enableInstallTelemetry: false });
   loader = new sdk.DefaultResourceLoader({ cwd, agentDir, settingsManager: settings,
     additionalExtensionPaths: [packageRoot], noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true });
@@ -42,8 +44,8 @@ try {
   assertToolRenderers(definitions, cwd);
   const names = definitions.map(d => d.name);
   assert.equal(new Set(names).size, names.length, 'no duplicate tool registration');
-  assert.equal(names.includes('goal'), mode !== 'child');
-  assert.equal(loaded.extensions.some(e => e.commands.has('goal')), mode !== 'child');
+  assert.equal(names.includes('goal'), false, 'removed Goal tool must not register');
+  assert.equal(loaded.extensions.some(e => e.commands.has('goal')), false, 'removed Goal command must not register');
   for (const name of ptyNames) assert.ok(names.includes(name));
   assert.ok(definitions.find(d => d.name === 'pty_spawn').parameters.properties.target);
   const note = definitions.find(d => d.name === 'note');
@@ -58,16 +60,21 @@ try {
   const subagent = definitions.find(d => d.name === 'subagent');
   assert.equal(subagent.parameters.properties.resumable, undefined, 'removed persistence switch must not be exposed');
   assert.ok(subagent.parameters.properties.resume);
+  assert.equal(subagent.parameters.properties.background.type, 'boolean');
+  for (const name of backgroundNames) assert.ok(names.includes(name), `background tool ${name}`);
+  assert.deepEqual(definitions.find(d => d.name === 'subagent_message').parameters.properties.mode.enum, ['control', 'query']);
   assert.match(subagent.description, /Every initial task automatically saves/);
   assert.ok(subagent.promptGuidelines.some(line => line.includes('automatically persisted')));
   const shell = definitions.find(d => d.name === 'bash');
   assert.ok(shell.parameters.properties.timeoutMs); assert.equal(shell.parameters.properties.timeout, undefined);
   assert.equal(shell.defaultActive, false);
+  assert.equal(shell.parameters.properties.background.type, 'boolean');
+  for (const name of ['shell_job_status', 'shell_job_cancel']) assert.equal(definitions.find(d => d.name === name).defaultActive, false);
   const modelRuntime = await sdk.ModelRuntime.create({ authPath: join(agentDir, 'auth.json'), modelsPath: null, allowModelNetwork: false, refreshOnCreate: false });
   const model = { ...modelRuntime.getModels()[0], id: 'offline-fixture', provider: 'offline-fixture', api: 'openai-responses' };
   ({ session } = await sdk.createAgentSession({ cwd, agentDir, settingsManager: settings, resourceLoader: loader, modelRuntime, model,
     sessionManager: sdk.SessionManager.inMemory(cwd), ...(noTools ? { noTools: 'all' } : { tools: selection }),
-    ...(mode === 'exclude' ? { excludeTools: ['subagent', 'bash', 'powershell', 'note', 'goal', ...ptyNames] } : {}) }));
+    ...(mode === 'exclude' ? { excludeTools: ['subagent', 'bash', 'powershell', 'note', ...ptyNames, ...backgroundNames] } : {}) }));
   await session.bindExtensions({ mode: 'json', onError: e => errors.push(e.error) });
   // Real command contexts + request-hook composition, even with no-tools/read-only.
   const speedCommand = async name => {
@@ -93,7 +100,11 @@ try {
   if (readOnly || noTools) {
     assert.deepEqual(active, noTools ? [] : ['read']); assert.deepEqual(callable, noTools ? [] : ['read']);
   }
-  if (mode === 'exclude') for (const name of ['subagent', 'bash', 'powershell', 'note', 'goal', ...ptyNames]) { assert.ok(!active.includes(name)); assert.ok(!callable.includes(name)); }
+  if (!readOnly && !noTools && mode !== 'exclude') for (const name of backgroundNames) {
+    assert.ok(active.includes(name), `explicit background activation ${name}`);
+    assert.ok(callable.includes(name), `background callable ${name}`);
+  }
+  if (mode === 'exclude') for (const name of ['subagent', 'bash', 'powershell', 'note', ...ptyNames, ...backgroundNames]) { assert.ok(!active.includes(name)); assert.ok(!callable.includes(name)); }
   const text = result => result.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
   const execute = async (name, args, signal) => {
     const tool = session.agent.state.tools.find(t => t.name === name); assert.ok(tool, `active tool ${name}`);
@@ -115,14 +126,6 @@ try {
     assert.ok(listed.some(s => s.sessionId === sessionId && s.target === 'local'));
     await execute('pty_kill', { sessionId });
     assert.deepEqual((await execute('pty_list', {})).details, []);
-  }
-  if (active.includes('goal')) {
-    const goal = await execute('goal', { action: 'get' });
-    assert.equal(goal.details.goal, null); assert.equal(goal.details.diagnostic, null);
-    assert.ok(!callable.includes('goal'), 'only the main model may submit outcomes, not nested codemode');
-  } else if (mode !== 'child') {
-    const command = session.extensionRunner.getCommand('goal');
-    await assert.rejects(command.handler('Do not execute this excluded goal', session.extensionRunner.createCommandContext()), /GOAL_TOOL_DISABLED/);
   }
   if (active.includes('note')) {
     const contents = ['# Plan\nalpha\n', '# Issue\nUTF-8: 中文 😀', '', '# Report\r\nexact', '# Task'];

@@ -3,7 +3,7 @@
     "version": "0.1.0",
     "private": true,
     "license": "MIT",
-    "description": "A single Pi package integrating subagents, shell, precise file, web, scheduler, note, GPT speed, goal-first, JSON Schema delivery and cross-platform PTY extensions.",
+    "description": "A single Pi package integrating subagents, shell, precise file, web, scheduler, note, GPT speed, JSON Schema delivery and cross-platform PTY extensions.",
     "type": "module",
     "keywords": [
         "pi-package",
@@ -34,8 +34,6 @@
         "modules/note-tools/src",
         "modules/gpt-speed/extensions",
         "modules/gpt-speed/src",
-        "modules/goal/extensions",
-        "modules/goal/src",
         "modules/json-schema/extensions",
         "modules/json-schema/src",
         "modules/pty-terminal/src",
@@ -57,7 +55,6 @@
             "./modules/scheduler/src/index.ts",
             "./modules/note-tools/src/index.ts",
             "./modules/gpt-speed/src/index.ts",
-            "./modules/goal/src/index.ts",
             "./modules/json-schema/src/index.ts",
             "./modules/pty-terminal/src/index.ts"
         ],

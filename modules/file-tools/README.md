@@ -27,6 +27,7 @@
 - 單次最多 2000 行／50 KiB；被截斷或受 `limit` 限制時附 `[READ_CONTINUATION] nextOffset=...; totalLines=...; reason=...`。過長而被略過的行以 `reason=oversized_line_skipped` 標示。
 - 圖片（PNG／JPEG／GIF／WebP／BMP，以檔頭判斷）交由 Pi 內建圖片附件行為處理。以檔頭判斷不等於完整驗證圖片。
 - 若路徑不存在，且為 `<skill 目錄>/SKILL.md`，並唯一對應到已載入的 skill 檔，會自動更正為該路徑，並在輸出加入 `[SKILL_PATH_AUTO_CORRECTED]`。
+- 背景 subagent 的 managed `subagent-sessions/<ULID 或舊 UUID>/runs/<taskId>/transcript.jsonl.partial` 若回報 `FILE_NOT_FOUND`，會檢查同目錄 `transcript.jsonl`：存在時僅指引明確改讀、不自動替換；兩者皆不存在時提示等待完成通知。權限／probe 錯誤保留，缺失不代表工作已完成。完成通知中的 conversation aggregate `logPath` 與 run-local 行數不同，不可沿用 offset。
 
 ```json
 { "path": "src/app.ts", "offset": 1, "limit": 200 }

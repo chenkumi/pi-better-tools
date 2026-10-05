@@ -49,7 +49,10 @@ test("package loader replaces only the timeout contract and preserves upstream m
     assert.equal(definition.parameters.properties.timeoutMs.maximum, 2_147_483_647);
     assert.equal(definition.parameters.additionalProperties, false);
     assert.ok(!("timeout" in definition.parameters.properties));
-    assert.deepEqual(definition.outputSchema, builtin.outputSchema);
+    assert.deepEqual(definition.outputSchema.anyOf[0], builtin.outputSchema);
+    assert.equal(definition.parameters.properties.background.type, "boolean");
+    assert.deepEqual(definition.outputSchema.anyOf[1].required, ["jobId", "status", "liveLogPath"]);
+    assert.ok(!("exit_code" in definition.outputSchema.anyOf[1].properties));
     assert.deepEqual(definition.constrainedSampling, builtin.constrainedSampling);
     assert.equal(typeof definition.renderCall, "function");
     assert.equal(typeof definition.renderResult, "function");
@@ -367,6 +370,26 @@ test("codemode nested parallel shell calls use timeoutMs and structured return d
   assert.match(text(result), /CODEMODE_BASH_OK/);
   if (windows) assert.match(text(result), /CODEMODE_PS_OK/);
   assert.match(text(result), /exit_code/);
+});
+
+test("real codemode returns the background receipt branch without invented exit data", { timeout }, async () => {
+  const { session } = await shellSession({ codemode: true, tools: ["bash", "codemode"] });
+  try {
+    const result = await fixture.execute(session, "codemode", {
+      // This schema probe uses only Bash builtins. Descendant process-tree
+      // cancellation is verified separately after an observable READY event.
+      code: 'const result = await tools.bash({command: "while :; do :; done", background: true}); text(result);',
+    });
+    assert.ok(!result.isError, text(result));
+    assert.match(text(result), /jobId/);
+    assert.match(text(result), /running/);
+    assert.match(text(result), /liveLogPath/);
+    assert.ok(!text(result).includes("exit_code"));
+  } finally {
+    // Reload dispatches session_shutdown and cancels the accepted job. No model
+    // provider is called, and no wait/sleep is needed to keep the job running.
+    await session.reload();
+  }
 });
 
 test("codemode nonzero exits resolve structured data rather than hiding the exit code", { timeout }, async () => {

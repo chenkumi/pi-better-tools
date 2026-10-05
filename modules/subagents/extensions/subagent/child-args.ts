@@ -9,6 +9,8 @@ export interface SubagentPiArgsOptions {
 	tools?: string[];
 	promptPath?: string;
 	guardPath?: string;
+	transport?: "json" | "rpc";
+	bridgePath?: string;
 	/** Absolute path to a generated UTF-8 task file, never raw task text. */
 	taskPath: string;
 }
@@ -21,7 +23,8 @@ export interface SubagentPiArgsOptions {
  * model-visible tool schema.
  */
 export function buildSubagentPiArgs(options: SubagentPiArgsOptions): string[] {
-	const args = ["--mode", "json", "-p", "--exclude-tools", "subagent"];
+	const rpc = options.transport === "rpc";
+	const args = ["--mode", rpc ? "rpc" : "json", ...(!rpc ? ["-p"] : []), "--exclude-tools", "subagent,subagent_status,subagent_cancel,subagent_message"];
 	const persistence = options.persistence;
 	if (!persistence || !["new", "resume"].includes(persistence.kind)) throw new Error("Managed session persistence is required for every subagent child.");
 	args.push("--session-dir", persistence.sessionDir);
@@ -29,11 +32,12 @@ export function buildSubagentPiArgs(options: SubagentPiArgsOptions): string[] {
 	else args.push("--session", persistence.sessionFile);
 
 	if (options.guardPath) args.push("-e", options.guardPath);
+	if (rpc && options.bridgePath) args.push("-e", options.bridgePath);
 	if (options.model) args.push("--model", options.model);
 	if (options.thinkingLevel) args.push("--thinking", options.thinkingLevel);
 	if (options.tools && options.tools.length > 0) args.push("--tools", options.tools.join(","));
 	if (options.promptPath) args.push("--append-system-prompt", options.promptPath);
-	args.push(`@${options.taskPath}`);
+	if (!rpc) args.push(`@${options.taskPath}`);
 
 	return args;
 }
