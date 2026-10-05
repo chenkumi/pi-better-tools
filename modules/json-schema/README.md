@@ -21,7 +21,9 @@ pi -p --json-schema "$schema" --json-output result.json "回答問題"
 
 ## 運作
 
-啟用後註冊 `json_output` 工具（僅模型可用，參數即所給 schema），指示模型在最後一步呼叫；驗證通過即結束這次執行，不再多一輪模型請求。
+啟用後註冊 `json_output` 工具（僅模型可用，參數即所給 schema），指示模型呼叫一次、作為最後一步，且參數本身即結果（tool description 已涵蓋，不另加 prompt guideline）；驗證通過即結束這次執行，不再多一輪模型請求。
+
+驗證失敗不會使整個執行失敗：`json_output` 以**工具錯誤**回給模型，模型可依錯誤訊息修正後重試。目前沒有重試次數上限（受模型自身的回合與成本限制）；模型始終不給出有效結果時，會落入下方的 best-effort 回收。
 
 - file：原子寫入（暫存檔後 rename），2 格縮排 JSON 並結尾換行；失敗時保留舊檔。
 - stdout：單行 JSON 加換行。結構化輸出的執行不會把助理的說明文字印到 stdout；每次執行只接受一個 prompt（要多個請用 `--json-output`）。
@@ -50,3 +52,7 @@ zod 無法忠實驗證的內容會**在啟動時被拒絕**，避免悄悄放行
 - `if`／`then`／`else`、`not`、`dependentRequired`／`dependentSchemas`／`dependencies`、`unevaluatedProperties`／`unevaluatedItems`、`$dynamicRef`／`$anchor`、外部 `$ref`。
 - 陣列形式的 `items`（draft-07 tuple）會逐元素稽核，同樣套用以上規則。
 - 沒有 `type`（也沒有 `$ref`／`enum`／`const`）卻帶型別專屬約束的子 schema，例如 `allOf: [{type:"string"}, {minLength:3}]` 的第二項；zod 會忽略這類約束，請補上 `type`。
+
+## Provider 相容性警告
+
+`json_output` 的參數 schema 會原樣交給 provider 作為 tool 參數 schema，各 provider 對 JSON Schema 子集的支援不一：部分 provider 會拒絕或忽略 `$ref`（含遞迴）、`oneOf`、`format`、`additionalProperties`，甚至要求特定寫法（例如物件必須明列 `additionalProperties: false`）。本模組的 zod 驗證僅在本地執行，不保證 provider 端會強制同一組約束。遇到 provider 回報 schema 無效時，請改用較平坦的 schema（內嵌取代 `$ref`、`anyOf` 取代 `oneOf`、少用 `format`）；最終正確性以本地驗證為準。

@@ -86,7 +86,7 @@ describe("app-hosted independent scheduler", () => {
     const f = await setup(); await f.create("past", "2029-01-01T00:00:00Z"); const runner = f.makeRunner();
     await runner.start(); await runner.poll(); await runner.stop(); await runner.start(); await runner.poll();
     expect(await f.runs.list()).toHaveLength(1); expect(f.start).not.toHaveBeenCalled();
-    expect((await f.runs.list())[0].events[0].detail).toBe("missed_no_backfill");
+    expect((await f.runs.list())[0]).toMatchObject({ status: "missed", events: [] });
   });
 
   it("replaces edited timers and rejects stale/cancelled callbacks", async () => {

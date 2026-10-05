@@ -121,7 +121,7 @@ export class FetchService {
         return browser;
       }).catch(() => {
         if (this.closed) throw new Error('CLOSED: Fetch service is closed.');
-        throw new Error('BROWSER_UNAVAILABLE: Could not launch Chromium. Install the configured Playwright browser and retry.');
+        throw new Error('BROWSER_UNAVAILABLE: Could not launch Chromium. Install the Playwright browser with `npm run browser:install`, then start a new session. Do not retry web_fetch until it is installed.');
       }).finally(() => { this.launching = undefined; });
     }
     return this.launching;
@@ -152,7 +152,7 @@ export class FetchService {
     const controller = new AbortController();
     const localSignal = controller.signal;
     const deadline = performance.now() + this.options.timeoutMs;
-    const timeout = () => controller.abort(new Error('TIMEOUT: Fetch deadline exceeded (including queue and browser startup).'));
+    const timeout = () => controller.abort(new Error('TIMEOUT: Fetch deadline exceeded (including queue and browser startup). Try a different page, or set waitForSelector to an element that appears early.'));
     const timer = setTimeout(timeout, this.options.timeoutMs);
     const onAbort = () => controller.abort(new Error('CANCELLED: Fetch was cancelled.'));
     signal?.addEventListener('abort', onAbort, { once: true });
@@ -248,14 +248,14 @@ export class FetchService {
           }
           const headers = response.headers();
           if (/\battachment\b/i.test(headers['content-disposition'] ?? '')) {
-            throw new Error('UNSUPPORTED_CONTENT: Downloads are not supported.');
+            throw new Error('UNSUPPORTED_CONTENT: Downloads are not supported. Look for an HTML page that describes the file instead.');
           }
           if (exceedsResponseLimit(headers)) throw new Error('TOO_LARGE: Response exceeds the 10 MiB limit.');
           if (mainNavigation && response.status() >= 400) throw new Error(`HTTP_ERROR: Server returned HTTP ${response.status()}.`);
           if (mainNavigation && !(response.status() >= 300 && response.status() < 400)) {
             const type = (headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase();
             if (type && !['text/html', 'application/xhtml+xml', 'text/plain'].includes(type)) {
-              throw new Error('UNSUPPORTED_CONTENT: Only HTML and plain text pages are supported.');
+              throw new Error('UNSUPPORTED_CONTENT: Only HTML and plain text pages are supported (PDF, images and binary files are not). Look for an HTML version or abstract page, or search for a text mirror.');
             }
             if (Number(headers['content-length']) > MAX_HTML_BYTES) throw new Error('TOO_LARGE: HTML response exceeds the 5 MiB limit.');
             const body = await response.body();
@@ -294,7 +294,7 @@ export class FetchService {
           checkAbort(localSignal);
           if (navigationRedirect) { navigationTarget = navigationRedirect; continue; }
           if (navigationError) throw navigationError;
-          if (error instanceof Error && error.name === 'TimeoutError') throw new Error('TIMEOUT: Navigation or selector wait exceeded the fetch deadline.');
+          if (error instanceof Error && error.name === 'TimeoutError') throw new Error('TIMEOUT: Navigation or selector wait exceeded the fetch deadline. Adjust or remove waitForSelector, or try a different page.');
           throw new Error('FETCH_FAILED: Could not render the page or find the requested selector.');
         }
       }

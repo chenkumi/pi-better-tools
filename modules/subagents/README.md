@@ -74,8 +74,10 @@ Task 先寫入權限受限的 UTF-8 暫存檔，不放入 command line。同步�
 ```
 
 - 回傳 `{ jobId, status: "queued", cancelRequested: false, tasks: [{ taskId, agent, status: "queued", logPending: true }] }`；jobId 是本次 batch，taskId 是固定 invocation identity，不是 subagentSessionId。尚未建立 session/log 不預回路徑，也不預回 finalLogPath。
-- 取得 active-child permit 並建立 readable log 後，`subagent_background` custom message（`kind: "log_ready"`）提供各 task 的 subagentSessionId／liveLogPath（僅既有 `runs/<taskId>/transcript.jsonl.partial`）。也可用 `subagent_status({ jobId })` 查詢最新資料。Readable log 是 finalized message/tool records，不是逐 token 日誌；可能含敏感資訊。rename 後 .partial 可能不存在，依完成通知的 logPath 重新讀取，aggregate log 不沿用 run-local offset。
-- 完整 runner 完成（包括 native identity／guard／digest、commit/rollback、writer release）後，送出 `kind: "task_result"` custom message，加上 `{ triggerTurn: true, deliverAs: "followUp" }`；主 agent 忙碌時排後續，閒置時觸發回合。原始輸出是委派內容，不提升為 system 權限。每 task 通知摘要最多 512 UTF-8 bytes；status 保留最多 8 KiB，完整 readable 輸出見 result.logPath。
+- 取得 active-child permit 並建立 readable log 後，`subagent_background` custom message（`kind: "log_ready"`）提供各 task 的 subagentSessionId／liveLogPath（僅既有 `runs/<taskId>/transcript.jsonl.partial`）。也可用 `subagent_status({ jobId })` 查詢最新資料。Readable log 是 finalized message/tool records，不是逐 token 日誌；可能含敏感資訊。log_ready 另附 `finalLogPath`（rename 後的最終路徑，完成前尚不存在）：liveLogPath 在完成時會被 rename 而失效，之後改讀 finalLogPath／完成通知的 logPath（兩者相同）；完成後 status 不再回傳 liveLogPath／finalLogPath。依完成通知的 logPath 重新讀取，aggregate log 不沿用 run-local offset。
+- 完整 runner 完成（包括 native identity／guard／digest、commit/rollback、writer release）後，送出 `kind: "task_result"` custom message，加上 `{ triggerTurn: true, deliverAs: "followUp" }`；主 agent 忙碌時排後續，閒置時觸發回合。原始輸出是委派內容，不提升為 system 權限。每 task 通知摘要取輸出第一個非空行（bundled agents 的輸出契約要求首行為一句結論），最多 512 UTF-8 bytes；status 保留最多 8 KiB，完整 readable 輸出見 result.logPath。
+- `subagent_status({})`（省略 jobId）唯讀列出同 owner session／cwd 的 jobs：`{ jobs: [{ jobId, status, cancelRequested, tasks: [{ taskId, agent, status, canMessage?, summary? }] }] }`，summary 為輸出首行（最多 200 bytes）。背景派發後不要輪詢，等待 `task_result` followUp。
+- 容量錯誤（`BACKGROUND_CAPACITY`、`Too many parallel tasks`）會附目前 `submitted n/32, active n/8` 與建議動作（subagent_status、subagent_cancel、拆批）；32 submitted／8 active 上限不變。
 - `subagent_status({ jobId })` 回傳當前 receipt 與 bounded task result（status、exitCode、usage、canResume、logPath、摘要）；`subagent_cancel({ jobId })` 要求取消，回傳 cancelRequested。取消不是確認完整 process tree 已退出，請查詢最終狀態。管理工具限相同 owner session/canonical cwd/runtime；不重複加入 tool usage。
 - 背景 usage 在 status/通知呈現，**不自動加入 host totals**。Job registry 僅存在目前 runtime，最多保留 64 jobs，超量時移除最舊的已結束 job；managed native/log/run metadata 仍在磁碟，不自動刪除。退出後不能用 jobId 恢復工作，不保證通知 exactly-once 或送達確認。
 - 接受前尊重 tool signal；接受後改由 job-owned signal 控制，因此原 turn 結束不會偷偷取消工作。退出、reload、session replacement 會抑制舊 generation 通知、取消 jobs，最多等待 15 秒 cleanup；既有 child kill escalation 與 bounded I/O 保留。未及清理或強制退出仍可能留下 process tree／blocked writer。
@@ -220,3 +222,11 @@ writer.lock/          # 獨占鎖
 - 所有 child 以 `--exclude-tools subagent,subagent_status,subagent_cancel,subagent_message` 啟動，無法再次派遣或管理 parent 的 subagents。若 agent 有 shell 權限仍可自行執行 `pi`，需另用 sandbox 限制。
 - Child 另載入 startup guard，於第一個 provider request 前驗證 model registry 與 trust；不複製 parent 的臨時 provider、credentials 或一次性 approve。Child 須能自行載入相同 provider 定義。
 - Process isolation 不是 credential 隔離或 OS sandbox。只使用你信任的 agents。
+
+## 輸出契約與 structuredContent
+
+- 同步（single／parallel／chain／resume）結果除 `content` 外附 `structuredContent`：`{ mode, status, results: [{ taskId, agent, status, exitCode, canResume, subagentSessionId?, logPath?, errorCode?, stopReason?, summary? }] }`；`summary` 為輸出首行（最多 256 bytes），完整輸出仍在 `content` 與 sub-session log。
+- `subagent_status` 的 outputSchema 對 `result`（status、exitCode、canResume、logPath、output…）、`controls`、`queries` 有具體型別，並允許額外欄位。
+- Bundled agents（scout／worker／planner／reviewer）與 prompts 要求：首行一句結論、長細節寫檔只回傳路徑、全文長度上限（約 400–500 字）；prompts 提醒各 step 為隔離 context，task 須帶具體路徑。
+- `subagent_status` 的 outputSchema 為 `Type.Union([單一 job receipt, jobs 列表])`（anyOf）。已核對 Pi 0.99.1／0.99.2／1.0.0 原始碼：host 只把 `outputSchema` 當 codemode 的型別宣告（`schemaToType` 支援 anyOf），不驗證 structuredContent、也不要求 object 型別，故可註冊。
+- 模型可見文字瘦身：背景 receipt／status／cancel／通知的 `content` 只含下一步所需欄位（taskId、agent、status、subagentSessionId、live／finalLogPath、result 的首行摘要／logPath／canResume／錯誤、usage 的 totalTokens／cost）；`false`、`exitCode: 0`、`stopReason: "stop"`、空 controls／queries、重複的 agent／status／model／完整 usage 不輸出。`subagent_message` 文字只回 status 與 messageId／queryId。`structuredContent`（只給 codemode）與 `details`（TUI renderer）維持完整 receipt。

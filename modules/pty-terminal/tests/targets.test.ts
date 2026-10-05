@@ -31,6 +31,11 @@ test("invalid targets/config/paths/env fail closed without fallback", () => {
 	assert.throws(() => resolveTarget("bash", [], { target: "macos", env: { "X;bad": "v" } }, "local", settings), /environment/);
 	assert.throws(() => resolveTarget("bash", ["\0"], { target: "macos" }, "local", settings), /NUL/);
 });
+test("unknown target error lists configured names only, not their values", () => {
+	const cfg = { targets: { zeta: { transport: "ssh", host: "secret-host", cwd: "/x" }, alpha: { transport: "wsl", distribution: "Ubuntu", cwd: "/y" } } };
+	assert.throws(() => resolveTarget("bash", [], { target: "missing" }, "local", cfg), (error: Error) => /Configured targets: alpha, zeta/.test(error.message) && !/secret-host|Ubuntu/.test(error.message));
+	assert.throws(() => resolveTarget("bash", [], { target: "missing" }, "local", undefined), /Configured targets: \(none\)/);
+});
 test("remote command that looks like an env assignment or is empty/blank is rejected", () => {
 	for (const target of ["macos", "linux"]) {
 		assert.throws(() => resolveTarget("FOO=bar", ["x"], { target }, "C:/repo", settings, "win32"), /assignment/);
@@ -43,7 +48,7 @@ test("SSH never disables or overrides host-key verification", () => {
 	const plan = resolveTarget("node", [], { target: "macos" }, "C:/repo", settings);
 	assert.ok(!plan.args.some(arg => /StrictHostKeyChecking|UserKnownHostsFile/i.test(arg)));
 });
-test("extension reads effective settings only for remote and rejects pre-aborted spawn", async () => {
+test("extension reads effective settings for spawn, resolves targets only for remote, and rejects pre-aborted spawn", async () => {
 	const tools = new Map<string, any>(); let reads = 0;
 	extension({ registerTool: (tool: any) => tools.set(tool.name, tool), on: () => {}, getSettings: () => { reads++; return {}; } } as never);
 	const spawn = tools.get("pty_spawn");

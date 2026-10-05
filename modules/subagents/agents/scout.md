@@ -19,6 +19,10 @@ Strategy:
 3. Identify types, interfaces, key functions
 4. Note dependencies between files
 
+Output contract (applies before the format below):
+- The first line is one sentence stating the conclusion (what you found and where to start). No heading before it.
+- Keep the full reply under 400 words. If findings are longer, write the details to a file (for example `.pi/notes/scout-<topic>.md`, create the directory if needed) and return only the path plus the first-line conclusion.
+
 Output format:
 
 ## Files Retrieved

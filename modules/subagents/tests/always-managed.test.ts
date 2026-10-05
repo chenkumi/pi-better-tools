@@ -38,6 +38,9 @@ for (const mode of ["single", "parallel", "chain"] as const) {
 			assert.equal(outcome.isError, undefined, JSON.stringify(outcome.content));
 			const results = outcome.details.results;
 			assert.equal(results.length, mode === "single" ? 1 : 2);
+			const structured = (outcome as any).structuredContent;
+			assert.equal(structured.mode, mode); assert.equal(structured.status, "completed"); assert.equal(structured.results.length, results.length);
+			for (const [index, entry] of structured.results.entries()) { assert.equal(entry.canResume, true); assert.equal(entry.subagentSessionId, results[index].subagentSessionId); assert.equal(entry.status, "completed"); }
 			assert.equal(new Set(results.map((r: any) => r.subagentSessionId)).size, results.length);
 			for (const result of results) {
 				assert.equal(result.status, "completed"); assert.equal(result.canResume, true);

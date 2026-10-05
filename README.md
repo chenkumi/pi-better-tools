@@ -79,8 +79,8 @@ Repository 開發環境可用 `npm run test:browser` 驗證實際 Chromium；run
 | Shell Tools | 覆寫 `bash`、`powershell`；`shell_job_status/cancel` | 同步預設；`background:true` 立即回 jobId／liveLogPath；`timeoutMs` 仍為輸出停滯期限；管理工具需額外選取；PowerShell 僅原生 Windows |
 | File Tools | 覆寫 `read`、`write`、`edit` | 絕對行號、32 字元 hash、精準 literal／regex、原子寫入、diff worker |
 | Web Tools | `web_fetch`；條件式 REST `web_search`；`/web-tools status`、`/web-tools sources` | OpenAI／Codex 原生搜尋預設啟用、無實驗開關或警告，不註冊同名 function tool；Brave／Exa 要明確設定；無登入／CAPTCHA bypass／PDF |
-| Scheduler | `schedule_create/update/status/cancel`；`/schedule` | Pi 開啟時運行，不安裝 OS service、不補跑錯過時間；runner CLI 保留相容用途 |
-| Note Tools | `note` | `{ type, content }`；自動分類、產生時間戳檔名，只新增 Markdown 檔案並回報路徑，不覆寫 |
+| Scheduler | `schedule_create/update/status/cancel/delete`；`/schedule` | Pi 開啟時運行，不安裝 OS service、不補跑錯過時間（run 狀態 `missed`）；`schedule_delete` 只刪已停用排程；runner CLI 保留相容用途 |
+| Note Tools | `note` | `{ type, content }`；自動分類、產生「時間戳＋內容標題 slug」檔名（`TYPE-<UTC 時間戳>[-slug].md`），只新增 Markdown 檔案並回報單一相對路徑，不覆寫 |
 | GPT Speed | `/fast`、`/ultrafast`、`/normal` | GPT >= 5.6 的 luna／terra／sol／astra pattern；Ultrafast 在 luna／terra 降為 Fast；TUI 顯示實際速度 |
 | JSON Schema | 條件式 `json_output`；`--json-schema`、`--json-output` | CLI schema + zod 4 驗證；有 `--json-output` 寫檔、否則單一 JSON stdout；未給 `--json-schema` 時 inactive |
 
@@ -94,7 +94,7 @@ Pi **1.0.0** 預設 fullscreen TUI；本專案不自動修改 UI 設定，需要
 
 ### 工具 TUI 顯示
 
-原有 20 個互動式 function tools 均有 `renderCall`／`renderResult`（含沿用宿主 renderer）：Shell 保留宿主呈現；Subagent 可用選填 `title`（50 字內）顯示工作摘要，single／resume 使用頂層欄位，parallel／chain 各項可附獨立標題，並於 call／執行中／完成後呈現；File 的 `read`／`write` 錯誤顯示錯誤碼、訊息與 recovery，不再原樣顯示錯誤 JSON，`read` 成功與圖片仍沿用宿主行為，`write` 成功顯示 bytes，展開可看路徑與版本 token；`note` 摘要分類／標題與儲存路徑，不預覽整份 Markdown；Scheduler 顯示 revision、精確時間／時區、host 與取消請求狀態；Web 顯示來源、警告與全文暫存路徑，展開看結果文字；PTY 七個工具顯示 session／target／transport、讀取文字、transport exit／逾時與釋放狀態，不把 transport 結束冒稱遠端程序樹已停止。Renderer 只改 UI，不修改模型可見 content／structuredContent；Subagent 的選填 title 另保存於 parent details 顯示 metadata，不變 child task 或執行配置。
+原有 20 個互動式 function tools 均有 `renderCall`／`renderResult`（含沿用宿主 renderer）：Shell 保留宿主呈現；Subagent 可用選填 `title`（50 字內）顯示工作摘要，single／resume 使用頂層欄位，parallel／chain 各項可附獨立標題，並於 call／執行中／完成後呈現；File 的 `read`／`write` 錯誤顯示錯誤碼、訊息與 recovery，不再原樣顯示錯誤 JSON，`read` 成功與圖片仍沿用宿主行為，`write` 成功顯示 bytes，展開可看路徑與版本 token；`note` 摘要分類／標題與儲存路徑，不預覽整份 Markdown；Scheduler（含 `schedule_delete`）顯示 revision、精確時間／時區、host 與取消請求狀態；Web 顯示來源、警告與全文暫存路徑，展開看結果文字；PTY 七個工具顯示 session／target／transport、讀取文字、transport exit／逾時與釋放狀態，不把 transport 結束冒稱遠端程序樹已停止。Renderer 只改 UI，不修改模型可見 content／structuredContent；Subagent 的選填 title 另保存於 parent details 顯示 metadata，不變 child task 或執行配置。
 
 新增五個背景管理／互動工具亦有 call／result renderer：顯示 job／task／mode 與有界結果，清除顯示控制碼，不預覽 control／query 訊息內容，取消仍明示未確認程序樹終止。`json_output` 僅在 print mode 搭配有效 schema 註冊，刻意維持無 TUI renderer；GPT Speed 沒有 function tool，OpenAI 原生搜尋亦非 Pi function tool。
 

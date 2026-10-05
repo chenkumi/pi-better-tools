@@ -23,7 +23,7 @@ test('Brave query encoding, header, snippets and source deduplication', async ()
 });
 test('Exa uses auto search and highlights without extra model synthesis', async () => {
   const exa = config(); exa.provider = 'exa';
-  const result = await search(exa, { query: 'topic', provider: 'exa', numResults: 2 }, undefined, async (url, init) => {
+  const result = await search(exa, { query: 'topic', numResults: 2 }, undefined, async (url, init) => {
     assert.equal(url, 'https://api.exa.ai/search');
     assert.equal(init.method, 'POST');
     assert.equal(new Headers(init.headers).get('x-api-key'), 'EXASECRET');
@@ -61,10 +61,12 @@ test('deadline cancels and provider selection cannot silently fall back', async 
   })), /TIMEOUT/);
   c.provider = 'openai';
   await assert.rejects(search(c, { query: 'topic' }), /PROVIDER_UNSUPPORTED/);
-  await assert.rejects(search(config(), { query: '', provider: 'brave' }), /CONFIG_INVALID/);
+  await assert.rejects(search(config(), { query: '' }), /CONFIG_INVALID/);
 });
-test('model-selected provider cannot override the configured provider', async () => {
-  await assert.rejects(search(config(), { query: 'topic', provider: 'exa' }, undefined, async () => { throw new Error('must not call'); }), /PROVIDER_UNSUPPORTED/);
+test('a legacy provider input is ignored: the configured provider is always used', async () => {
+  let called = '';
+  await search(config(), { query: 'topic', provider: 'exa' } as never, undefined, async (url) => { called = String(url); return new Response(JSON.stringify({ web: { results: [] } }), { status: 200 }); });
+  assert.match(called, /api\.search\.brave\.com/);
 });
 test('present malformed Brave section is not confused with an empty search', async () => {
   for (const web of ['invalid', null, 42, []]) {

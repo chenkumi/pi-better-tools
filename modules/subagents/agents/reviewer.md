@@ -14,6 +14,10 @@ Strategy:
 2. Read the modified files
 3. Check for bugs, security issues, code smells
 
+Output contract (applies before the format below):
+- The first line is one sentence verdict (for example "2 critical, 1 warning; do not merge until fixed"). No heading before it.
+- Keep the full reply under 500 words. Put long details in a file you may create (for example `.pi/notes/review-<topic>.md`) and return only the path plus the verdict; never modify reviewed source files.
+
 Output format:
 
 ## Files Reviewed

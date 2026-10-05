@@ -30,12 +30,12 @@ export function ptyRenderers(action: Action): Pick<ToolDefinition, "renderCall" 
       const data = record(value), input = record(context.args);
       const session = oneLine(data.sessionId ?? input.sessionId) || "unknown";
       const lines: string[] = [];
-      if (action === "read") {
+      if (action === "read" || (action === "write" && text.trim() !== "ok" && text.trim() !== "")) {
         const body = clean(text, 50 * 1024);
         const all = body.split("\n");
-        lines.push(`PTY output · ${session}`, (expanded ? body : all.slice(0, 12).join("\n")) || "No pending output");
+        lines.push(`PTY output · ${session}${action === "write" ? " (after write)" : ""}`, (expanded ? body : all.slice(0, 12).join("\n")) || "No pending output");
         if (!expanded && all.length > 12) lines.push(`… (${all.length - 12} more lines; expand to view)`);
-        if (data.truncated === true) lines.push("Output truncated; drained overflow is not retained in a full-output file.");
+        if (data.truncated === true) lines.push("Output truncated; the remainder stays buffered for the next read.");
       } else if (action === "list") {
         if (!Array.isArray(value)) lines.push("PTY session details unavailable");
         else {
@@ -53,14 +53,15 @@ export function ptyRenderers(action: Action): Pick<ToolDefinition, "renderCall" 
           `Local transport PID: ${oneLine(data.pid) || "?"}`, "Session creation does not confirm remote handshake or command success.");
       } else if (action === "wait_exit") {
         if (typeof data.exitCode !== "number") lines.push("PTY exit details unavailable");
-        else if (data.exitCode === -1) lines.push(`PTY wait timed out or exit unconfirmed · ${session}`);
+        else if (data.timedOut === true || data.exitCode === -1) lines.push(`PTY wait timed out or exit unconfirmed · ${session}`);
         else lines.push(`PTY transport exit code: ${data.exitCode} · ${session}`, "Transport exit does not verify command/business success or remote descendant termination.");
         if (expanded && typeof data.signal === "number") lines.push(`Signal: ${data.signal}`);
+      } else if (action === "kill") {
+        if (typeof data.released !== "boolean") lines.push(`${name}: result details unavailable`);
+        else lines.push(data.released === false ? `PTY session retained (transport still running) · ${session}` : `PTY session released · ${session}`, "Local transport only; remote process-tree termination not confirmed.");
       } else if (text.trim() !== "ok") {
         lines.push(`${name}: result details unavailable`);
         if (expanded) lines.push(clean(text, 2000));
-      } else if (action === "kill") {
-        lines.push(data.released === false ? `PTY session retained (transport still running) · ${session}` : `PTY session released · ${session}`, "Local transport only; remote process-tree termination not confirmed.");
       } else if (action === "resize") {
         lines.push(`PTY resized · ${session} · ${oneLine(data.cols ?? input.cols) || "?"}×${oneLine(data.rows ?? input.rows) || "?"}`);
       } else {

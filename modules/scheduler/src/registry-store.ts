@@ -82,13 +82,13 @@ export class RegistryStore {
     return Object.values(registry.schedules).filter((schedule) => includeDeleted || schedule.state !== "deleted");
   }
 
-  async mutate<T>(expectedRevision: number | undefined, mutation: (registry: SchedulerRegistry) => T): Promise<T> {
+  async mutate<T>(expectedRevision: number | undefined, mutation: (registry: SchedulerRegistry) => T | Promise<T>): Promise<T> {
     return withAdvisoryLock(this.options.lockPath, async () => {
       const registry = await readRegistry(this.options.registryPath);
       if (expectedRevision !== undefined && registry.revision !== expectedRevision) {
         throw new RevisionConflictError(expectedRevision, registry.revision);
       }
-      const value = mutation(registry);
+      const value = await mutation(registry);
       registry.revision += 1;
       await atomicWrite(this.options.registryPath, registry);
       return value;
@@ -165,6 +165,22 @@ export class RegistryStore {
       schedule.lastPlannedAt = slot;
       schedule.lastRunId = runId;
       return { ...schedule };
+    });
+  }
+
+  /**
+   * Removes an inactive schedule. Revision and state are checked under the registry lock (claims need an
+   * active schedule and the same lock), and `guard` can veto while that lock is held.
+   */
+  async remove(id: string, expectedRevision: number, guard?: (schedule: Schedule) => void | Promise<void>): Promise<Schedule> {
+    return this.mutate(undefined, async (registry) => {
+      const schedule = registry.schedules[id];
+      if (!schedule || schedule.state === "deleted") throw new Error(`Unknown schedule: ${id}`);
+      if (schedule.revision !== expectedRevision) throw new RevisionConflictError(expectedRevision, schedule.revision);
+      if (schedule.state === "active") throw new Error(`Schedule ${id} is still active; call schedule_cancel first, then schedule_delete.`);
+      await guard?.(schedule);
+      delete registry.schedules[id];
+      return schedule;
     });
   }
 

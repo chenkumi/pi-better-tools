@@ -12,6 +12,7 @@ export type RunStatus =
   | "failed"
   | "cancelled"
   | "skipped_busy"
+  | "missed"
   | "failed_preflight"
   | "orphaned";
 
@@ -20,6 +21,7 @@ export const terminalRunStatuses = new Set<RunStatus>([
   "failed",
   "cancelled",
   "skipped_busy",
+  "missed",
   "failed_preflight",
   "orphaned",
 ]);
@@ -110,9 +112,16 @@ const transitions: Readonly<Record<RunStatus, readonly RunStatus[]>> = {
   failed: [],
   cancelled: [],
   skipped_busy: [],
+  missed: [],
   failed_preflight: [],
   orphaned: [],
 };
+
+/** Legacy missed records were stored as skipped_busy plus a missed_no_backfill diagnostic; read them as `missed`. */
+export function normalizeRun(run: Run): Run {
+  return run.status === "skipped_busy" && run.events?.some((event) => event.type === "diagnostic" && event.detail === "missed_no_backfill")
+    ? { ...run, status: "missed" } : run;
+}
 
 export function isTerminalRunStatus(status: RunStatus): boolean {
   return terminalRunStatuses.has(status);

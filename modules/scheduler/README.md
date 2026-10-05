@@ -12,10 +12,11 @@
 | --- | --- |
 | `schedule_create` | 建立排程。參數：`prompt`（必填，1–32000 字）、`timing`（必填）、`title`、`mode`、`sessionId`、`cwd`、`execution`、`projectTrust`。回傳排程、revision、下次時間與本機執行狀態。 |
 | `schedule_update` | 以 `id`、最新 `revision` 與 `patch` 更新排程。`patch` 至少一項：`title`、`prompt`、`timing`、`execution`、`projectTrust`、`state`（`active`／`paused`）。revision 衝突即失敗；變更 timing 可重新啟用已消耗的 once 排程；不會中斷進行中的 run。 |
-| `schedule_status` | 唯讀。參數：`id`、`limit`（1–50，預設 20）、`offset`、`runsLimit`（0–50，預設 10）。回傳目前時間／時區、host 狀態、排程（含 revision、下次時間）與近期 run。 |
+| `schedule_status` | 唯讀。參數：`id`、`runId`（選填）、`limit`（1–50，預設 20）、`offset`、`runsLimit`（0–50，預設 10）。回傳目前時間／時區、host 狀態、排程與近期 run。**列表預設為摘要**：排程只含 `id`、`title`、`state`、`revision`、`nextRun`、`lastRunAt`、`lastRunId`，`mode`（僅 session）、`consumed`（僅為 true）；run 只含 `runId`、`scheduleId`、`mode`、`status`、`plannedAt`、`endedAt`、`error`（截短）與 `capacitySkipped`（僅為 true）；空值與預設值不輸出。給 `id` 回傳該排程完整欄位（prompt、cwd、timing 等）；給 `id` 或 `runId` 時 run 為完整紀錄。錯過的時間以 run 狀態 `missed` 表示。給 `runId` 時另回傳 `result`：該次執行結果尾端（最多約 2000 字元）及 `source`（`final_assistant_text`、`log_excerpt`、`session_output_summary`、`none`）與 `truncated`。independent run 從保留的 stdout log 取最後一則完整 assistant 文字；log 只保留前 64 KiB，若最終訊息已被截斷則退回 log 摘錄。outputSchema 列出 schedules／runs／result 的關鍵欄位（其餘欄位仍允許）。 |
 | `schedule_cancel` | 二擇一：`id`（停止未來觸發，`cancelRunning: true` 時一併請求取消進行中的 run）或 `runId`（只請求取消該 run）。取消為非同步請求，不代表程序已停止。 |
+| `schedule_delete` | 永久刪除**已停用**（`paused` 或 `cancelled`）的排程。參數：`id`、最新 `revision`（衝突即失敗）。仍為 `active` 時拒絕並提示「請先 `schedule_cancel`」。在 registry lock 下檢查 revision 與狀態（claim 需 `active` 且同一 lock，故不會與派送競爭）；排程仍有進行中（非終態）run 或 `orphaned` run 時拒絕並列出 runId（orphaned 是安全 barrier，不可繞過）。成功時移除排程紀錄及其已結束的 run 歷史與 log，不留孤兒 run；無法復原。標 `destructiveHint`；scheduler child 為唯讀不可呼叫。 |
 
-四個工具都有專用 TUI call/result renderer：收合顯示排程 ID、revision、精確下次時間／時區與 host 警告；展開可看 prompt、cwd、執行設定與 run history。取消結果明示只提出取消請求、未確認程序停止，並提醒 Pi 須開啟、錯過不補跑。只改 UI，不改 content／details／structuredContent 或排程執行語意。
+五個工具都有專用 TUI call/result renderer：收合顯示排程 ID、revision、精確下次時間／時區與 host 警告；展開可看 prompt、cwd、執行設定與 run history。工具結果只輸出一份：`content` 為精簡（無縮排）JSON 文字，`structuredContent` 為同一資料（滿足 outputSchema），不再另附 `details` 副本；renderer 讀 `structuredContent`。取消結果明示只提出取消請求、未確認程序停止，並提醒 Pi 須開啟、錯過不補跑。只改 UI，不改 content／details／structuredContent 或排程執行語意。
 
 ### timing
 
@@ -25,7 +26,7 @@
 ```
 
 - `once`：`expression` 為含 offset 或 `Z` 的未來 ISO 時間。
-- `cron`：`expression` 為 Croner 格式。
+- `cron`：`expression` 為 Croner 格式，5 欄 `分 時 日(day-of-month) 月 週(day-of-week)`（可加前置秒欄，但兩次觸發須至少相隔 1 分鐘）。同時限定日與週時，符合**任一**即觸發（傳統 cron 的 OR 語意）。例：`0 9 * * 1-5` ＝ 週一至週五 09:00。
 - `timezone` 必填，須為 IANA 時區。
 
 無效 timing、過去的一次性時間、空白 prompt、不存在或非目錄的 `cwd`、無效 profile 皆使工具呼叫失敗。prompt 與 registry 不應包含憑證。
@@ -33,7 +34,7 @@
 ### execution 與 projectTrust
 
 - `execution`：`provider`＋`model`（須成對）及／或 `thinkingLevel`（`off`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max`）。省略則沿用 Pi 預設解析。
-- `projectTrust`：預設 `false`。為 `true` 時，獨立子程序加上 `--approve`；否則依 Pi 既有 trust 決定（未信任專案的本地 extension／設定可能不載入）。
+- `projectTrust`：預設 `false`；除非使用者明確授權，模型不得自行設為 `true`。為 `true` 時，獨立子程序加上 `--approve`；否則依 Pi 既有 trust 決定（未信任專案的本地 extension／設定可能不載入）。
 
 ## 指令
 
@@ -51,14 +52,14 @@
 ## 執行模式
 
 - **independent（預設）**：以 `pi --mode json -p --name <title 或 scheduler-<runId>>` 在排程的 `cwd` 啟動無頭子程序，prompt 經 stdin 原樣傳入。子程序不繼承目前對話，prompt 須自足。建立它的對話不必保持開啟，任何共用同一 agent 目錄且開啟中的 Pi 皆可執行。
-- **session**：傳入目前 `sessionId`（或 `mode: "session"`）時，只在該 session 開啟且閒置時送入；不可變更 `cwd`。忙碌時記為 `skipped_busy`，不排隊。送入後須在 15 秒內確認 scheduler 的 user `message_start`，否則記為 `failed_preflight`，不重送。排程標記 `[[pi-scheduler:...]]` 為保留字，其他 extension 不得移除。session 工作會暫時套用 `execution` profile，並在 `agent_settled` 後還原；還原失敗記為 `restoreError`，並暫停該 session 的本機派送，直到 reload。
+- **session**：傳入目前 `sessionId`（或 `mode: "session"`；`sessionId` 只能是呼叫端目前 session 自己的 ID，由宿主 context 提供，通常直接用 `mode: "session"` 即可）時，只在該 session 開啟且閒置時送入；不可變更 `cwd`。忙碌時記為 `skipped_busy`，不排隊。送入後須在 15 秒內確認 scheduler 的 user `message_start`，否則記為 `failed_preflight`，不重送。排程標記 `[[pi-scheduler:...]]` 為保留字，其他 extension 不得移除。session 工作會暫時套用 `execution` profile，並在 `agent_settled` 後還原；還原失敗記為 `restoreError`，並暫停該 session 的本機派送，直到 reload。
 
 ## 執行語意
 
 - 多個 Pi 以 advisory lock 選出一個 independent host，其餘為 `standby`，約每秒重試。另有每 session 的 lock 避免重複派送。若 lock 因睡眠或事件迴圈停滯而失效（compromised），該 host 會停止計時器、降為 standby 並記錄錯誤，不會丟出例外；仍在監督中的子程序會繼續等待結束，之後可重新取得 lock。每個排程時段（slot）的 claim 會去重，同一或更早的 slot 不會被第二個 host 再派送。
 - 本機工具變更立即重排計時器；外部變更由輪詢發現。
-- 錯過的時間**不補跑**：已過期的一次性排程記錄一筆 `missed_no_backfill`；cron 從下一次開始。cron 觸發若晚於預定時間超過 60 秒（例如睡眠喚醒），視為錯過：只記一筆 `missed_no_backfill`，不執行。cron 兩次觸發的間隔須至少 1 分鐘（建立／更新時驗證），避免 `skipped_busy` 記錄洗掉真實歷史。一次性排程時間須在未來（工具層驗證）。一次性排程派送前先持久化 claim，claim 與啟動之間當機可能略過而非重播（at-most-once，非 exactly-once）。
-- 每個 independent host 同時最多 4 個子程序；可用 `PI_SCHEDULER_MAX_CHILDREN`（整數 1–32）調整。超出容量記為 `skipped_busy`，不累積。
+- 錯過的時間**不補跑**：已過期的一次性排程記錄一筆錯過紀錄；cron 從下一次開始。cron 觸發若晚於預定時間超過 60 秒（例如睡眠喚醒），視為錯過：只記一筆錯過紀錄，不執行。錯過紀錄的持久化狀態為 `missed`（終態，不補跑、不佔用 `skipped_busy`）。**舊資料相容**：先前版本把錯過存成 `skipped_busy` 加 diagnostic `missed_no_backfill`；讀取時視為 `missed`，磁碟上的舊紀錄不會被改寫（寫入路徑使用原始紀錄，歷史檔因其他寫入而整檔重寫時舊紀錄仍保持原貌）。新寫入一律用 `missed`。cron 兩次觸發的間隔須至少 1 分鐘（建立／更新時驗證），避免 `missed`／`skipped_busy` 記錄洗掉真實歷史。一次性排程時間須在未來（工具層驗證）。一次性排程派送前先持久化 claim，claim 與啟動之間當機可能略過而非重播（at-most-once，非 exactly-once）。
+- 每個 independent host 同時最多 4 個子程序；可用 `PI_SCHEDULER_MAX_CHILDREN`（整數 1–32）調整。超出容量記為 `skipped_busy`（另附 diagnostic `host_capacity_skipped`，status 以 `capacitySkipped: true` 標出），不累積。session 模式遇 session 忙碌同樣 skip。排程 prompt 內不應再要求建立排程。
 - 子程序環境帶有 `PI_SCHEDULER_CHILD=1`，不啟動巢狀 scheduler host；其 scheduler 工具中 status 可用，create／update／cancel 需開啟中的 host。這是工具層政策，不是 OS sandbox。
 - 正常關閉、`/reload`、session 替換時，停止本機計時器、請求取消自己擁有的工作、還原 profile 並釋放 lock。
 - 取消只是請求；最終結果以 run 歷史為準。host 異常結束或關閉未能確認時，未完成工作標為 `orphaned`，該排程不再自動派送新工作，且此 barrier 不會被歷史修剪移除。run 歷史若有無法解析的行，會備份到 `runs.jsonl.corrupt` 並略過（registry 損毀仍會明確報錯）；registry／歷史寫入先 fsync 暫存檔再 rename，registry 另保留 `registry.json.bak`。session 結案寫入連續失敗（3 次）時，會釋放輸入攔截、標記 profile fault 並視為 orphaned。`run-once` 對暫停／取消的排程會回報明確錯誤。排程器不會依持久化 PID 強制終止程序，也無法回復已發生的副作用。Windows 上 shutdown 逾時的強制終止（SIGKILL）只作用於直接子程序，不代表整個行程樹已停止。子程序結束後 1500 ms 管線仍未關閉時，記為擁有者不明的 `orphaned`。
@@ -66,7 +67,7 @@
 
 ### Run 狀態
 
-`planned`、`queued`、`running`、`cancelling`，以及終態 `succeeded`、`failed`、`cancelled`、`skipped_busy`、`failed_preflight`、`orphaned`。Run 另記錄子 Pi 版本（自訂指令為 `unknown`）、要求／實際 profile 與實際回應模型。
+`planned`、`queued`、`running`、`cancelling`，以及終態 `succeeded`、`failed`、`cancelled`、`missed`（錯過，不補跑）、`skipped_busy`（忙碌或容量已滿而略過）、`failed_preflight`、`orphaned`。Run 另記錄子 Pi 版本（自訂指令為 `unknown`）、要求／實際 profile 與實際回應模型。
 
 ## 設定與環境變數
 
@@ -98,7 +99,7 @@ Pi `~/.pi/agent/settings.json` 可選設定：
 
 ### 工具失敗除錯記錄
 
-啟用 `debugLog` 後，`schedule_create`／`update`／`status`／`cancel` 執行中拋出的錯誤（含中止）會在 `~/.pi/logs/pi-scheduler/` 寫入 `<UTC 時間戳>-<ULID>.log`（JSON）：時間、工具名、tool-call ID、PID，以及受長度限制的錯誤名稱／訊息／stack。不記錄參數、prompt、設定或環境變數，但錯誤訊息仍可能含敏感資訊。成功呼叫、人工指令與非同步排程結果不寫入；記錄無自動清理。
+啟用 `debugLog` 後，`schedule_create`／`update`／`status`／`cancel`／`delete` 執行中拋出的錯誤（含中止）會在 `~/.pi/logs/pi-scheduler/` 寫入 `<UTC 時間戳>-<ULID>.log`（JSON）：時間、工具名、tool-call ID、PID，以及受長度限制的錯誤名稱／訊息／stack。不記錄參數、prompt、設定或環境變數，但錯誤訊息仍可能含敏感資訊。成功呼叫、人工指令與非同步排程結果不寫入；記錄無自動清理。
 
 ## 獨立 CLI（進階）
 

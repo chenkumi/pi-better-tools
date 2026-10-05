@@ -8,3 +8,5 @@ Use the subagent tool with the chain parameter to execute this workflow:
 3. Finally, use the "worker" agent to implement the plan from the previous step (use {previous} placeholder)
 
 Execute this as a chain, passing output between steps via {previous}.
+
+Each step is a separate isolated context with no parent conversation: pass concrete file paths, constraints and the expected output (a one-line conclusion first, details written to a file with only its path returned).

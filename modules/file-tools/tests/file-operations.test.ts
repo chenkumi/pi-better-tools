@@ -14,6 +14,7 @@ import fileToolsExtension, {
 import { FileToolError, formatFileToolErrorForDisplay } from "../src/errors.js";
 import { findUniqueSkillFallbackPath } from "../src/skill-paths.js";
 import {
+  compactPatch,
   editTextFile,
   MAX_EDIT_OPERATIONS,
   MAX_INPUT_BYTES,
@@ -68,8 +69,8 @@ describe("readTextFile", () => {
     await writeFile(path, "alpha\nbeta\ngamma\ndelta", "utf8");
 
     const result = await readTextFile(path, "sample.txt", 2, 2);
-
-    assert.match(result.text, /"lineStart":2/);
+    assert.match(result.text, /^\[FILE_METADATA\] \{"path":"sample\.txt","sha256":"[0-9a-f]{32}","lines":"2-3","total":4\}\n2│beta/);
+    assert.doesNotMatch(result.text, /LINE_PREFIX|lineStart|lineEnd/);
     assert.match(result.text, /2│beta\n3│gamma/);
     assert.equal(result.details.lineStart, 2);
     assert.equal(result.details.lineEnd, 3);
@@ -87,7 +88,8 @@ describe("readTextFile", () => {
           const result = readTextBuffer(buffer, "reference.txt", offset, limit);
           const end = Math.min(lines.length, limit === undefined ? lines.length : offset + limit - 1);
           const expectedBody = lines.slice(offset - 1, end).map((body, index) => `${String(offset + index).padStart(String(end).length)}│${body}`).join("\n");
-          assert.equal(result.text.split("\n").slice(2).join("\n"), expectedBody + (end < lines.length ? `\n[READ_CONTINUATION] nextOffset=${end + 1}; totalLines=${lines.length}; reason=limit` : ""));
+          assert.equal(result.text.split("\n").slice(1).join("\n"), expectedBody + (end < lines.length ? `\n[READ_CONTINUATION] nextOffset=${end + 1}; totalLines=${lines.length}; reason=limit` : ""));
+          assert.equal(result.text.split(String.fromCharCode(10))[0].includes("\"lines\""), !(offset === 1 && end === lines.length));
           assert.deepEqual(result.details, { path: "reference.txt", sha256: sha256Token(buffer), totalLines: lines.length, lineStart: offset, lineEnd: end });
         }
       }
@@ -823,7 +825,9 @@ describe("read skill path fallback", () => {
     const text = result.content.find((block) => block.type === "text")?.text ?? "";
     assert.ok(text.includes("[FILE_METADATA]"));
     assert.ok(text.includes("[SKILL_PATH_AUTO_CORRECTED]"));
-    assert.ok(text.indexOf("[LINE_PREFIX]") < text.indexOf("[SKILL_PATH_AUTO_CORRECTED]"));
+    assert.ok(!text.includes("[LINE_PREFIX]"));
+    assert.ok(text.indexOf("[FILE_METADATA]") < text.indexOf("[SKILL_PATH_AUTO_CORRECTED]"));
+    assert.ok(text.indexOf("[SKILL_PATH_AUTO_CORRECTED]") < text.indexOf("1│"));
     const correctionPrefix = "[SKILL_PATH_AUTO_CORRECTED] ";
     const correctionLine = text.split("\n").find((line) => line.startsWith(correctionPrefix));
     assert.ok(correctionLine);
@@ -889,9 +893,15 @@ describe("extension registration and argument preparation", () => {
     assert.equal(typeof edit?.prepareArguments, "function");
     assert.equal(typeof edit?.renderCall, "function");
     assert.equal(typeof edit?.renderResult, "function");
-    assert.match(String(edit?.description), /JavaScript ECMAScript RegExp syntax \(not Python or PCRE\)/);
-    assert.match(String(edit?.description), /regexFlags='m'.*bare inline flag.*\(\?m\)/);
-    assert.match(String(edit?.description), /replaceAll=true/);
+    const guidelines = (edit?.promptGuidelines as string[]).join("\n");
+    const readGuidelines = (tools.find((tool) => tool.name === "read")?.promptGuidelines as string[]).join("\n");
+    // Full regex rules live only in promptGuidelines; the description stays a one-line purpose.
+    assert.doesNotMatch(String(edit?.description), /RegExp|regexFlags|\(\?m\)/);
+    assert.match(guidelines, /JavaScript ECMAScript RegExp syntax[^.]*not Python\/PCRE/);
+    assert.match(guidelines, /regexFlags='m'.*bare inline flag.*\(\?m\)/);
+    assert.match(guidelines, /replaceAll=true/);
+    assert.match(guidelines, /sha256After[^.]*expectedHash/);
+    assert.match(readGuidelines, /shell rg.*offset\/limit/);
     assert.ok((edit?.promptGuidelines as string[]).some((guideline) => guideline.includes("regexFlags") && guideline.includes("never pass g")));
     assert.ok((edit?.promptGuidelines as string[]).some((guideline) => guideline.includes("unique whole-file literal match") && guideline.includes("do not use this fallback")));
   });
@@ -950,13 +960,14 @@ describe("extension registration and argument preparation", () => {
     assert.match(component.render(200).join("\n"), /Edit failed · INVALID_REGEX/);
   });
 
-  it("keeps a diff marker visible when large feedback is truncated", () => {
+  it("bounds large edit feedback with a one-line omission summary and keeps the full patch for details", () => {
     const changedRanges = Array.from({ length: 100 }, (_, index) => ({
       editIndex: 0,
       matchIndex: index,
       matchedLineStart: index + 1,
       matchedLineEnd: index + 1,
     }));
+    const patch = `--- large.txt\n+++ large.txt\n@@ -1,0 +1,10000 @@\n${"+changed\n".repeat(10_000)}`;
     const feedback = formatEditSuccessFeedback({
       path: "large.txt",
       sha256Before: "a".repeat(64),
@@ -965,14 +976,27 @@ describe("extension registration and argument preparation", () => {
       matchedCount: 100,
       changedCount: 100,
       diff: "",
-      patch: `--- large.txt\n+++ large.txt\n${"+changed\n".repeat(10_000)}`,
+      patch,
       changedRanges,
     });
 
-    assert.equal(feedback.truncated, true);
-    assert.match(feedback.content, /changedRangesOmitted/);
-    assert.match(feedback.content, /\[DIFF\]/);
-    assert.match(feedback.content, /\[OUTPUT_TRUNCATED\]/);
+    assert.equal(feedback.truncated, false);
+    assert.match(feedback.content, /^\[FILE_EDIT_SUCCESS\] \{"sha256After":"b{64}","edits":1,"replacements":100,"added":10000\}\n\[DIFF\]\n@@ /);
+    assert.match(feedback.content, /… 9961 more diff line\(s\) omitted$/);
+    assert.doesNotMatch(feedback.content, /changedRanges|sha256Before|--- large/);
+    assert.ok(feedback.content.length < 1_000);
+  });
+
+  it("compacts a patch: trims context, drops headers, bounds line length and counts changes", () => {
+    const patch = [
+      "--- f.txt", "+++ f.txt", "@@ -1,9 +1,9 @@",
+      " c1", " c2", " c3", " c4", "-old", "+new", " c5", " c6", " c7", " c8",
+    ].join("\n") + "\n";
+    const compact = compactPatch(patch);
+    assert.deepEqual({ added: compact.added, removed: compact.removed, omittedLines: compact.omittedLines }, { added: 1, removed: 1, omittedLines: 0 });
+    assert.equal(compact.text, ["@@ -4,3 +4,3 @@", " c4", "-old", "+new", " c5"].join("\n"));
+    const long = compactPatch(`--- a\n+++ a\n@@ -1 +1 @@\n-x\n+${"y".repeat(500)}\n`);
+    assert.match(long.text, /…\[\+301 chars\]/);
   });
 
   it("normalizes a JSON-string edits payload", () => {

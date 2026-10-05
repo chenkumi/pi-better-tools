@@ -44,10 +44,10 @@ export class NetworkPolicy {
     if (this.allowPrivateNetwork) return url;
     const hostname = url.hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
     if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local')) {
-      throw new Error('NETWORK_BLOCKED: Local network destinations are not allowed.');
+      throw new Error('NETWORK_BLOCKED: Local network destinations are not allowed. Private and local addresses cannot be fetched; use a public URL.');
     }
     if (ipaddr.isValid(hostname)) {
-      if (!isPublicAddress(hostname)) throw new Error('NETWORK_BLOCKED: Non-public addresses are not allowed.');
+      if (!isPublicAddress(hostname)) throw new Error('NETWORK_BLOCKED: Non-public addresses are not allowed. Private and local addresses cannot be fetched; use a public URL.');
       return url;
     }
     let addresses: readonly { address: string }[];
@@ -55,7 +55,7 @@ export class NetworkPolicy {
       throw new Error('NETWORK_ERROR: Could not resolve the destination.');
     }
     if (!addresses.length || addresses.some(({ address }) => !isPublicAddress(address))) {
-      throw new Error('NETWORK_BLOCKED: Every resolved address must be public.');
+      throw new Error('NETWORK_BLOCKED: Every resolved address must be public. Private and local addresses cannot be fetched; use a public URL.');
     }
     return url;
   }

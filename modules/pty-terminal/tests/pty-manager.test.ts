@@ -29,13 +29,20 @@ test("buffered output does not prematurely settle waitForExit; abort and shutdow
 	const manager = new PtySessionManager(); t.after(() => manager.shutdown());
 	const { sessionId } = manager.spawn(process.execPath, ["-e", "process.stdout.write('READY');setInterval(()=>{},1000)"], {}, process.cwd());
 	await until(manager, sessionId, /READY/);
-	assert.equal((await manager.waitForExit(sessionId, 50)).exitCode, -1);
+	const timedOut = await manager.waitForExit(sessionId, 50); assert.equal(timedOut.exitCode, -1); assert.equal(timedOut.timedOut, true);
 	const controller = new AbortController();
 	const pending = manager.read(sessionId, 10000, controller.signal);
 	controller.abort(new Error("cancelled")); await assert.rejects(pending, /cancelled/);
 	const read = manager.read(sessionId, 10000); const exit = manager.waitForExit(sessionId, 10000);
-	manager.shutdown(); await read; await exit; assert.deepEqual(manager.list(), []);
+	manager.shutdown(); await read; const shutdownExit = await exit; assert.equal(shutdownExit.exitCode, -1); assert.equal(shutdownExit.timedOut, undefined); assert.deepEqual(manager.list(), []);
 	manager.shutdown();
+});
+test("SSH exit 255 carries a connection-error note; other exits do not", async t => {
+	const manager = new PtySessionManager(); t.after(() => manager.shutdown());
+	const ssh = manager.spawn(process.execPath, ["-e", "process.exit(255)"], { transport: "ssh", target: "x" }, process.cwd());
+	const info = await manager.waitForExit(ssh.sessionId, 5000); assert.equal(info.exitCode, 255); assert.match(info.note ?? "", /connection error/);
+	const local = manager.spawn(process.execPath, ["-e", "process.exit(255)"], {}, process.cwd());
+	assert.equal((await manager.waitForExit(local.sessionId, 5000)).note, undefined);
 });
 test("output ring buffer drops oldest data and reports it once", async t => {
 	const manager = new PtySessionManager({ maxBufferChars: 100 }); t.after(() => manager.shutdown());

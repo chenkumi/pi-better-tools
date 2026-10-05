@@ -13,7 +13,7 @@
 
 ## TUI 顯示
 
-`read`／`write` 呼叫沿用宿主 renderer；`read` 成功、syntax highlighting 與圖片附件亦保留宿主行為。`[FILE_TOOL_ERROR]` 由專用 renderer 顯示操作、錯誤碼、訊息及 recovery，展開可看路徑／行範圍，不原樣輸出錯誤 JSON。`write` 成功顯示寫入 bytes，展開顯示路徑與 SHA-256；模型仍收到原本的 `[FILE_WRITE_SUCCESS]`。`edit` 保留 diff renderer，三者共用錯誤 formatter。這些都是顯示層變更，不改工具回傳格式。
+`read`／`write` 呼叫沿用宿主 renderer；`read` 成功、syntax highlighting 與圖片附件亦保留宿主行為。`[FILE_TOOL_ERROR]` 由專用 renderer 顯示操作、錯誤碼、訊息及 recovery，展開可看路徑／行範圍，不原樣輸出錯誤 JSON。`write` 成功顯示寫入 bytes，展開顯示路徑與 SHA-256；`edit` 展開顯示完整 diff。兩者的 renderer 皆讀 `details`（結構化欄位），`write` 在宿主未提供 `details` 時退回解析文字（相容精簡單行與舊的多行 JSON）。三者共用錯誤 formatter。成功結果的模型文字已精簡（見下方各工具），完整資料只在 `details`；失敗輸出（`[FILE_TOOL_ERROR]`、錯誤碼、recovery）不縮減。
 
 ## `read`
 
@@ -23,7 +23,7 @@
 | `offset` | integer ≥ 1 | 起始行（1 基底） |
 | `limit` | integer ≥ 1 | 最多回傳行數 |
 
-- 輸出以 `[FILE_METADATA] {...}` 開頭，其後每行為 `<絕對行號>│<內容>`；前綴是中介資料，不可複製進 `edit.oldText`。metadata 含版本 token。
+- 輸出以單行 `[FILE_METADATA] {"path":...,"sha256":...}` 開頭，其後每行為 `<絕對行號>│<內容>`；前綴是中介資料，不可複製進 `edit.oldText`（此規則只在 `promptGuidelines`，結果不再附 `[LINE_PREFIX]` 說明行）。`sha256` 為版本 token。讀取整檔時只有 `path`、`sha256`；只讀部分範圍時另有 `lines`（`"起-迄"`，無輸出為 `"none"`）與 `total`（總行數）。完整的 `path`／`sha256`／`totalLines`／`lineStart`／`lineEnd`／`truncation` 仍在 `details`。
 - 單次最多 2000 行／50 KiB；被截斷或受 `limit` 限制時附 `[READ_CONTINUATION] nextOffset=...; totalLines=...; reason=...`。過長而被略過的行以 `reason=oversized_line_skipped` 標示。
 - 圖片（PNG／JPEG／GIF／WebP／BMP，以檔頭判斷）交由 Pi 內建圖片附件行為處理。以檔頭判斷不等於完整驗證圖片。
 - 若路徑不存在，且為 `<skill 目錄>/SKILL.md`，並唯一對應到已載入的 skill 檔，會自動更正為該路徑，並在輸出加入 `[SKILL_PATH_AUTO_CORRECTED]`。
@@ -44,7 +44,7 @@
 - 省略 `expectedHash` 為無條件覆寫，但提交前仍會重新驗證自己的初始快照。
 - 新檔以不覆蓋的原子方式建立；既有檔以同目錄原子取代。
 - 拒絕以符號連結為寫入目標（`SYMLINK_UNSUPPORTED`）。
-- 成功回傳 `[FILE_WRITE_SUCCESS]` JSON。
+- 成功回傳單行 `[FILE_WRITE_SUCCESS] {"sha256":...,"bytes":...}`；新建檔案才附 `"created":true`（預設值不輸出）。`details` 含 `path`、`sha256`、`bytes`、`created`。
 
 ```json
 { "path": "src/new-file.ts", "content": "export {};\n", "expectedHash": "missing" }
@@ -72,6 +72,8 @@
 
 行為：
 
+- 提示詞精簡：regex／flags／`(?m)`／`replaceAll` 的完整規則只放在 `promptGuidelines`；tool description 僅一句用途，schema 欄位描述只保留型別與限制。`edit` 回傳的 `sha256After` 可直接作為下一次 `expectedHash`；`read` 指引搜尋內容請用 shell `rg`，再以 `offset`／`limit` 讀取。
+- 錯誤 recovery 提示 shell：`read` 對目錄的 `FILE_NOT_READABLE` 指向 `ls`／`rg --files`；`INVALID_ENCODING` 指向 `xxd`／`iconv`；`[LINE_TOO_LARGE]` 行附 `sed -n 'Np' | cut -c`／`head -c` 提示。`TEXT_NOT_FOUND_IN_RANGE` 對 literal 與 regex 皆附 `candidateRanges` 與 `rangePreview`。
 - regex 搭配 `lineRange` 時，視窗文字以獨立字串比對：`^`、`$`、lookbehind／lookahead 看不到視窗外的內容；需要整檔語意時請省略 `lineRange`。
 - `read`／`edit`／`write` 只接受一般檔案；FIFO、裝置與目錄回報 `FILE_NOT_READABLE`／`FILE_NOT_WRITABLE`，不會阻塞。
 - 新檔建立優先用 hard link 保證不覆蓋；檔案系統不支援時改用 exclusive create（`wx`）。寫入會 fsync、在 rename 前套用目標權限；Windows 上 rename 遇 EPERM／EBUSY 會短暫重試；失敗時盡力移除本次建立的空目錄。
@@ -81,7 +83,7 @@
 - 所有 `edits` 皆對原始快照比對，不得重疊，全部驗證通過後才一次原子提交。
 - 保留 BOM 與未修改處的 CRLF／LF 混用；取代結果若含孤立 surrogate 則 `INVALID_ARGUMENT`，檔案不變。
 - `edits` 接受 JSON 字串或單一物件形式（會正規化為陣列）；頂層的 `oldText`／`regex`／`newText`／`lineRange`／`lineStart`／`lineEnd` 會被拒絕。
-- 成功回傳 `[FILE_EDIT_SUCCESS]`（含 `appliedEdits`、`matchedCount`、`changedCount`、`sha256Before`、`sha256After`、最多 20 筆 `changedRanges`）與 `[DIFF]` unified diff。
+- 成功回傳單行 `[FILE_EDIT_SUCCESS] {"sha256After":...,"edits":N,"replacements":N,"added":N,"removed":N}` 與「精簡 diff」`[DIFF]`：只留 hunk，每個變更前後最多 1 行 context，單行最多 200 字元（超出附 `…[+N chars]`），最多 40 行（超出以 `… N more diff line(s) omitted` 一行取代）。`replacements` 僅在與 `edits` 不同時輸出，`added`／`removed` 為 0 時省略。`sha256After` 可直接作下一次 `expectedHash`。完整 `diff`、`patch`、`firstChangedLine`、`appliedEdits`、`matchedCount`、`changedCount`、`sha256Before`、`sha256After`、`changedRanges`、`added`、`removed` 只放在 `details`，供 renderer 使用，不進模型文字。
 
 ```json
 {

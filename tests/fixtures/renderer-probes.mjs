@@ -16,7 +16,7 @@ export function assertToolRenderers(definitions, cwd) {
     let text = '';
     for (const width of [12, 24, 80]) {
       const lines = component.render(width);
-      if (definition.name.startsWith('pty_') || ['note', 'web_fetch', 'web_search', 'schedule_create', 'schedule_update', 'schedule_status', 'schedule_cancel', 'shell_job_status', 'shell_job_cancel', 'subagent_status', 'subagent_cancel', 'subagent_message'].includes(definition.name)) {
+      if (definition.name.startsWith('pty_') || ['note', 'web_fetch', 'web_search', 'schedule_create', 'schedule_update', 'schedule_status', 'schedule_cancel', 'schedule_delete', 'shell_job_status', 'shell_job_cancel', 'subagent_status', 'subagent_cancel', 'subagent_message'].includes(definition.name)) {
         assert.doesNotMatch(lines.join('\n'), /\x1b\[2J|\x1b\]|[\x07\x80-\x9f\u202a-\u202e\u2066-\u2069]/, `${definition.name}: unsafe display controls`);
       }
       for (const line of lines) assert.ok(visibleWidth(line) <= width, `${definition.name}: line exceeds width ${width}: ${line}`);
@@ -89,6 +89,16 @@ export function assertToolRenderers(definitions, cwd) {
   const cancelledText = render(byName('schedule_cancel'), textResult(JSON.stringify(cancelled), cancelled));
   assert.match(cancelledText, /Future schedule dispatch disabled/); assert.match(cancelledText, /termination not confirmed/);
   assert.ok(!cancelledText.includes('terminated'));
+  const missedStatus = { ...status, runs: [{ runId: 'run-2', scheduleId: 'schedule-1', status: 'missed', plannedAt: '2026-10-03T07:00:00.000Z' }],
+    result: { runId: 'run-2', scheduleId: 'schedule-1', status: 'missed', source: 'none', tail: 'RESULT_TAIL_TEST', truncated: false } };
+  assert.match(render(byName('schedule_status'), textResult(JSON.stringify(missedStatus), missedStatus)), /RESULT_TAIL_TEST/);
+  assert.match(render(byName('schedule_status'), textResult(JSON.stringify(missedStatus), missedStatus), true), /missed \(no backfill\)/);
+  const deleted = { deleted: { id: 'schedule-1', revision: 3, title: '測試排程' }, prunedRuns: 2, note: 'Deleted permanently.', runtime: { role: 'host' } };
+  const deletedText = render(byName('schedule_delete'), textResult(JSON.stringify(deleted), deleted));
+  assert.match(deletedText, /Schedule deleted/); assert.match(deletedText, /Finished runs removed: 2/);
+  assert.match(render(byName('schedule_delete'), textResult(JSON.stringify(deleted), deleted), true), /Deleted permanently/);
+  const deleteCall = byName('schedule_delete').renderCall({ id: 'schedule-1', revision: 3 }, theme, contexts({})).render(80).join('\n');
+  assert.match(deleteCall, /schedule_delete/); assert.match(deleteCall, /revision 3/);
 
   const fetch = { title: 'Example page', finalUrl: 'https://example.com/', status: 200, extraction: 'main', warnings: ['Heuristic extraction'], truncated: true, fullOutputPath: '/tmp/full.txt' };
   const fetched = textResult('External, untrusted webpage content\nBODY_TEST', fetch);
@@ -124,7 +134,12 @@ export function assertToolRenderers(definitions, cwd) {
   assert.match(render(byName('pty_spawn'), textResult(JSON.stringify(pty), undefined)), /does not confirm remote handshake/);
   assert.match(render(byName('pty_wait_exit'), textResult('{"exitCode":-1}', { exitCode: -1 })), /timed out or exit unconfirmed/);
   assert.match(render(byName('pty_wait_exit'), textResult('{"exitCode":255}', { exitCode: 255 })), /transport exit code: 255/);
-  assert.match(render(byName('pty_kill'), textResult('ok', { sessionId: pty.sessionId })), /remote process-tree termination not confirmed/);
+  assert.match(render(byName('pty_kill'), textResult('{"released":true}', { sessionId: pty.sessionId, released: true })), /PTY session released/);
+  assert.match(render(byName('pty_kill'), textResult('{"released":true}', { sessionId: pty.sessionId, released: true })), /remote process-tree termination not confirmed/);
+  assert.match(render(byName('pty_kill'), textResult('{"released":false}', { sessionId: pty.sessionId, released: false })), /retained \(transport still running\)/);
+  assert.match(render(byName('pty_wait_exit'), textResult('{"exitCode":-1,"timedOut":true}', { exitCode: -1, timedOut: true })), /timed out or exit unconfirmed/);
+  const written = textResult('prompt> READ_AFTER_WRITE', { sessionId: pty.sessionId });
+  assert.match(render(byName('pty_write'), written), /READ_AFTER_WRITE/);
   assert.match(render(byName('pty_list'), textResult('[]', [])), /PTY sessions: 0/);
   const list = [{ ...pty, state: 'exited', bufferedBytes: 0 }];
   assert.match(render(byName('pty_list'), textResult(JSON.stringify(list), list), true), /macos\/ssh/);
@@ -133,7 +148,7 @@ export function assertToolRenderers(definitions, cwd) {
   const terminal = textResult('\u001b[2J\u001b]0;UNSAFE\u0007hello\r\n' + Array.from({ length: 20 }, (_, i) => `line ${i}`).join('\n'), { sessionId: pty.sessionId, truncated: true });
   assert.match(render(byName('pty_read'), terminal), /expand to view/);
   assert.match(render(byName('pty_read'), terminal, true), /line 19/);
-  assert.match(render(byName('pty_read'), terminal), /drained overflow is not retained/);
+  assert.match(render(byName('pty_read'), terminal), /remainder stays buffered for the next read/);
   const ptyCall = byName('pty_write').renderCall({ sessionId: pty.sessionId, data: 'SECRET_INPUT' }, theme, contexts({})).render(80).join('\n');
   assert.ok(!ptyCall.includes('SECRET_INPUT'));
   for (const name of ['shell_job_status', 'shell_job_cancel', 'subagent_status', 'subagent_cancel', 'subagent_message']) {

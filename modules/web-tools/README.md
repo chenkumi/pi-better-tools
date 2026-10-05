@@ -99,7 +99,8 @@ Brave 使用 Web Search endpoint；Exa 使用 Search endpoint（`type: "auto"`�
 - 以 Readability 擷取正文，必要時回退 main／body，並回報實際使用的 extraction。
 - 移除 script、導覽等非正文元素，保留程式碼、列表、表格與安全的絕對連結。
 - 每次呼叫使用獨立 browser context，cookies／storage 不共用；browser 共用並於閒置後回收。取消只影響該次抓取，session shutdown／reload 時清理 browser。
-- 回傳 title、最終 URL、HTTP status、取得時間與警告；不是 AI 摘要。
+- 回傳 title、URL、HTTP status 與警告（模型可見文字不含取得時間，仍在 data）；不是 AI 摘要。`Final URL` 行僅在與請求 URL 不同時顯示（`data.finalUrl` 永遠保留）。
+- 錯誤訊息附下一步提示（仍不含 Playwright log、headers 或 DNS 細節）：`BROWSER_UNAVAILABLE` 指示執行 `npm run browser:install` 且不要重試；`NETWORK_BLOCKED` 說明私有／本機位址不可抓、請改用公開 URL；`TIMEOUT` 建議調整 `waitForSelector` 或換頁；`UNSUPPORTED_CONTENT`（PDF、下載等）建議改找 HTML 版本。
 - HTTP 錯誤、不支援內容或空內容視為失敗。反爬與登入頁偵測僅為啟發式。
 - 不處理 PDF、影音或下載；不登入、不繞過 CAPTCHA 或付費牆、不使用個人 cookies。
 
@@ -108,14 +109,13 @@ Brave 使用 Web Search endpoint；Exa 使用 Search endpoint（`type: "auto"`�
 | 參數 | 必填 | 說明 |
 | --- | --- | --- |
 | `query` | 是 | 1–2000 字元 |
-| `provider` | 否 | `brave`／`exa`；省略時用設定值 |
 | `numResults` | 否 | 1–10；省略時用設定值 |
 
 ```json
-{ "query": "Playwright Chromium headless documentation", "provider": "brave", "numResults": 5 }
+{ "query": "Playwright Chromium headless documentation", "numResults": 5 }
 ```
 
-回傳每筆結果的 URL、title、供應商 snippet 與可取得的發布日期；全文請用 `web_fetch`。一次只查一個供應商，不跨供應商 fallback、不自動重試；429 時提示有限格式的 Retry-After；逾時或取消會中止 HTTP 請求。
+回傳每筆結果的 URL、title、供應商 snippet 與可取得的發布日期；全文請用 `web_fetch`。無結果時提示改寫關鍵字。工具 description 於註冊時依設定寫明實際 provider（Brave 或 Exa）；schema 無 `provider` 欄位（由設定決定），舊呼叫帶入的 `provider` 會在 `prepareArguments` 丟棄。模型可見文字不含 Provider 行，snippet 每筆最多 600 字元（`data`／`structuredContent` 保留完整內容與 provider）。`promptGuidelines` 要求回答附來源 URL、以 `web_fetch` 讀最相關 1~3 筆、不僅憑 snippet 下結論，並附 query 語法提示。一次只查一個供應商，不跨供應商 fallback、不自動重試；429 時提示有限格式的 Retry-After；逾時或取消會中止 HTTP 請求。
 
 ## 指令
 
@@ -138,7 +138,7 @@ Brave 使用 Web Search endpoint；Exa 使用 Search endpoint（`type: "auto"`�
 ## 安全行為與限制
 
 - 只存取公開 HTTP(S)；預設阻擋私有、loopback、link-local 與 metadata 位址。初始 URL、redirect 與子資源皆檢查；拒絕內嵌帳密的 URL。此限制無法由設定關閉。
-- `web_search` 的 `provider` 參數為相容保留；只接受與設定相同的 provider，不同則回傳 PROVIDER_UNSUPPORTED，不能繞過已設定的單一 provider。
+- `web_search` 已無 `provider` 參數；provider 僅由設定決定，舊呼叫帶入的值會被丟棄，不能繞過已設定的單一 provider。設定為 OpenAI 時 REST 搜尋仍回傳 PROVIDER_UNSUPPORTED。
 - 主頁面 redirect 以 abort 後重新 goto 處理，redirect 回應上的 Set-Cookie 不會寫入 browser cookie jar（已知限制）；子資源 redirect 同樣由 Node 端手動追蹤。
 - context 關閉設有 5 秒上限，逾時仍會釋放佇列名額，瀏覽器由 idle／shutdown 清理。
 - 為逐跳驗證 redirect，網路請求經 Playwright context request 取回後交給 browser；部分重新導向子資源的相對 URL 語意可能與一般瀏覽不同。

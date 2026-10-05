@@ -1,4 +1,6 @@
 import { spawn, type IPty } from "node-pty";
+import { filterEnv, type EnvPolicy } from "./env.ts";
+import { stripEscapes, truncatePtyOutput, type OutputFormat } from "./output.ts";
 
 /** Output buffer cap per session (UTF-16 code units, ~2 MiB of ASCII). Oldest output is dropped first. */
 export const MAX_BUFFER_CHARS = 2 * 1024 * 1024;
@@ -29,6 +31,46 @@ export interface ManagerOptions {
 	/** Wait after each kill attempt (initial signal, then SIGKILL escalation). */
 	killWaitMs?: number;
 	now?: () => number;
+	/** Timer seam so waits can run on a fake clock in tests. Defaults to setTimeout/clearTimeout. */
+	timers?: { set(callback: () => void, ms: number): unknown; clear(handle: unknown): void };
+	/** PTY factory seam (tests). Defaults to node-pty spawn. */
+	spawnPty?: typeof spawn;
+}
+
+/** Longest tail of unread output examined by waitFor, bounding regex cost. */
+const MATCH_WINDOW_CHARS = 256 * 1024;
+
+export interface DroppedRange { from: number; to: number }
+
+export interface ReadOptions {
+	timeoutMs: number;
+	signal?: AbortSignal;
+	/** Return as soon as the unread (ANSI-stripped) output matches. */
+	waitFor?: RegExp;
+	/** Return once no new output arrived for this long (after waitFor matched, if given). Bounded by timeoutMs. */
+	settleMs?: number;
+	/** Re-read buffered output from this cursor without consuming it. */
+	since?: number;
+	/** Output format of the caller; text format keeps waiting while only an incomplete escape sequence is buffered. */
+	format?: OutputFormat;
+}
+
+export interface ReadSnapshot {
+	text: string;
+	/** Cursor of text[0]. */
+	start: number;
+	/** Cursor just after the last buffered character. */
+	end: number;
+	/** Output lost to the ring buffer that this read could not return. */
+	dropped?: DroppedRange;
+	/** Present when waitFor was requested. */
+	wait?: "matched" | "timeout" | "exited";
+	exited: boolean;
+}
+
+export function droppedNotice(range: DroppedRange): string {
+	return `[pty-terminal: ${range.to - range.from} earlier characters were dropped (cursor ${range.from}-${range.to}); output exceeded the buffer]
+`;
 }
 
 function checkSize(value: number | undefined, max: number, label: string): void {
@@ -41,6 +83,10 @@ export type SessionState = "running" | "exited";
 export interface ExitInfo {
 	exitCode: number;
 	signal?: number;
+	/** True only when pty_wait_exit's own timeout expired (exitCode -1 is then a placeholder, not a real exit). */
+	timedOut?: true;
+	/** Present for SSH exit 255, which usually means a connection error rather than the remote command's code. */
+	note?: string;
 }
 
 export interface PtySessionSummary {
@@ -53,6 +99,8 @@ export interface PtySessionSummary {
 	bufferedBytes: number;
 	/** Characters dropped from the ring buffer and not yet reported by pty_read. */
 	droppedChars: number;
+	/** Monotonic cursor just after the latest output. */
+	cursor: number;
 }
 
 interface PtySession {
@@ -63,8 +111,14 @@ interface PtySession {
 	transport: "local" | "wsl" | "ssh";
 	pty: IPty;
 	state: SessionState;
-	outputBuffer: string;
-	droppedChars: number;
+	/** Retained output (read and unread); buffer[0] has cursor bufStart. Cursors count UTF-16 units and only grow. */
+	buffer: string;
+	bufStart: number;
+	/** Cursor of the first unread character. */
+	readPos: number;
+	/** Unread output lost to the ring buffer, not yet reported. */
+	drop?: DroppedRange;
+	lastDataAt: number;
 	exitedAt?: number;
 	exitInfo?: ExitInfo;
 	dataWaiters: Set<() => void>;
@@ -78,6 +132,8 @@ export interface SpawnOptions {
 	env?: Record<string, string>;
 	cols?: number;
 	rows?: number;
+	/** Optional allow/deny filter for the inherited process.env (default: inherit everything). */
+	envPolicy?: EnvPolicy;
 }
 
 function abortError(signal: AbortSignal): Error {
@@ -96,6 +152,8 @@ export class PtySessionManager {
 	private readonly retentionMs: number;
 	private readonly killWaitMs: number;
 	private readonly now: () => number;
+	private readonly timers: NonNullable<ManagerOptions["timers"]>;
+	private readonly spawnPty: typeof spawn;
 
 	constructor(options: ManagerOptions = {}) {
 		this.maxSessions = options.maxSessions ?? MAX_SESSIONS;
@@ -103,6 +161,8 @@ export class PtySessionManager {
 		this.retentionMs = options.exitedRetentionMs ?? EXITED_RETENTION_MS;
 		this.killWaitMs = options.killWaitMs ?? 2_000;
 		this.now = options.now ?? Date.now;
+		this.timers = options.timers ?? { set: (callback, ms) => setTimeout(callback, ms), clear: handle => clearTimeout(handle as NodeJS.Timeout) };
+		this.spawnPty = options.spawnPty ?? spawn;
 	}
 
 	/** Drop exited sessions past retention; if still at capacity, drop the oldest exited ones. */
@@ -131,13 +191,13 @@ export class PtySessionManager {
 		checkSize(options.rows, MAX_ROWS, "rows");
 		this.reclaim(true);
 		if (this.sessions.size >= this.maxSessions) throw new Error(`PTY session limit reached (${this.maxSessions}); kill an existing session first`);
-		const pty = spawn(command, args, {
+		const pty = this.spawnPty(command, args, {
 			name: "xterm-256color",
 			cols: options.cols ?? 100,
 			rows: options.rows ?? 30,
 			cwd: options.cwd ?? defaultCwd,
 			env: {
-				...(process.env as Record<string, string>),
+				...filterEnv(process.env, options.envPolicy),
 				TERM: "xterm-256color",
 				...(options.env ?? {}),
 			},
@@ -151,21 +211,15 @@ export class PtySessionManager {
 			transport: options.transport ?? "local",
 			pty,
 			state: "running",
-			outputBuffer: "",
-			droppedChars: 0,
+			buffer: "",
+			bufStart: 0,
+			readPos: 0,
+			lastDataAt: this.now(),
 			dataWaiters: new Set(),
 			exitWaiters: new Set(),
 		};
 
-		pty.onData((data) => {
-			session.outputBuffer += data;
-			if (session.outputBuffer.length > this.maxBufferChars) {
-				const overflow = session.outputBuffer.length - this.maxBufferChars;
-				session.droppedChars += overflow;
-				session.outputBuffer = session.outputBuffer.slice(overflow).replace(/^[\uDC00-\uDFFF]/, "");
-			}
-			this.notify(session.dataWaiters);
-		});
+		pty.onData((data) => this.append(session, data));
 		pty.onExit(({ exitCode, signal }) => {
 			session.state = "exited";
 			session.exitedAt = this.now();
@@ -182,23 +236,112 @@ export class PtySessionManager {
 		this.requireSession(sessionId).pty.write(data);
 	}
 
-	async read(sessionId: string, timeoutMs: number, signal?: AbortSignal): Promise<string> {
-		const session = this.requireSession(sessionId);
-		if (session.outputBuffer.length === 0 && session.state === "running") {
-			await this.waitForOutputOrExit(session, Math.min(timeoutMs, MAX_WAIT_MS), signal);
+	/** Appends output, advances the cursor and enforces the ring buffer (oldest output dropped first). */
+	private append(session: PtySession, data: string): void {
+		session.buffer += data;
+		session.lastDataAt = this.now();
+		if (session.buffer.length > this.maxBufferChars) {
+			let overflow = session.buffer.length - this.maxBufferChars;
+			if ((session.buffer.charCodeAt(overflow) & 0xfc00) === 0xdc00) overflow++; // do not start on a lone low surrogate
+			session.buffer = session.buffer.slice(overflow);
+			session.bufStart += overflow;
+			if (session.bufStart > session.readPos) {
+				session.drop = { from: session.drop?.from ?? session.readPos, to: session.bufStart };
+				session.readPos = session.bufStart;
+			}
 		}
-		return this.drainOutput(session);
+		this.notify(session.dataWaiters);
 	}
 
-	/** Returns output a caller drained but could not deliver to the front of the buffer, honoring the buffer cap. */
-	unread(sessionId: string, text: string): void {
+	/** Drains pending output as one string (dropped-output notice first). Use readEx for cursors, waiting and re-reads. */
+	async read(sessionId: string, timeoutMs: number, signal?: AbortSignal): Promise<string> {
+		const snapshot = await this.readEx(sessionId, { timeoutMs, signal });
+		this.consume(sessionId, snapshot.end);
+		return (snapshot.dropped ? droppedNotice(snapshot.dropped) : "") + snapshot.text;
+	}
+
+	/**
+	 * Waits as requested, then returns a snapshot of buffered output WITHOUT consuming it; call consume() with the
+	 * cursor actually delivered. Aborting only stops the wait: the session and its output are untouched.
+	 */
+	async readEx(sessionId: string, options: ReadOptions): Promise<ReadSnapshot> {
+		const session = this.requireSession(sessionId);
+		const end = () => session.bufStart + session.buffer.length;
+		if (options.since !== undefined && (!Number.isInteger(options.since) || options.since < 0 || options.since > end())) {
+			throw new Error(`since must be a cursor between 0 and ${end()} (the latest cursor); use a cursor from an earlier pty_read.`);
+		}
+		const from = options.since ?? session.readPos;
+		const started = this.now();
+		const timeout = Math.min(Math.max(options.timeoutMs, 0), MAX_WAIT_MS);
+		const deadline = started + timeout;
+		let wait: ReadSnapshot["wait"];
+		if (options.waitFor) {
+			const matched = await this.waitMatch(session, options.waitFor, from, deadline, options.signal);
+			wait = matched ? "matched" : session.state === "exited" ? "exited" : "timeout";
+			if (matched && options.settleMs) await this.waitSettle(session, options.settleMs, started, deadline, options.signal);
+		} else if (options.settleMs) {
+			await this.waitSettle(session, options.settleMs, started, deadline, options.signal);
+		} else {
+			// Default wait: until something deliverable is buffered. In text format an unfinished trailing escape sequence
+			// is held back by truncatePtyOutput, so it does not count; keep waiting (bounded by the deadline) instead of returning empty.
+			while (timeout > 0 && session.state === "running" && !this.deliverable(session, from, options.format)) {
+				const remaining = deadline - this.now();
+				if (remaining <= 0) break;
+				await this.waitFor(session, remaining, options.signal, session.dataWaiters, session.exitWaiters);
+			}
+		}
+		const begin = Math.max(from, session.bufStart);
+		return {
+			text: session.buffer.slice(begin - session.bufStart),
+			start: begin,
+			end: end(),
+			dropped: options.since !== undefined ? (options.since < session.bufStart ? { from: options.since, to: session.bufStart } : undefined) : session.drop,
+			wait,
+			exited: session.state === "exited",
+		};
+	}
+
+	/** True when unread output exists that a read in `format` would hand out (not merely an incomplete escape sequence held back). */
+	private deliverable(session: PtySession, from: number, format: OutputFormat | undefined): boolean {
+		const pending = session.buffer.slice(Math.max(from, session.bufStart) - session.bufStart);
+		if (!pending) return false;
+		if (format !== "text") return true;
+		const held = truncatePtyOutput(pending, { format, final: false });
+		return !(held.content === "" && held.remainder !== "");
+	}
+
+	/** Marks output up to `cursor` as delivered (the default read drains it) and clears the reported drop notice. */
+	consume(sessionId: string, cursor: number): void {
 		const session = this.sessions.get(sessionId);
-		if (!session || text.length === 0) return;
-		session.outputBuffer = text + session.outputBuffer;
-		if (session.outputBuffer.length > this.maxBufferChars) {
-			const overflow = session.outputBuffer.length - this.maxBufferChars;
-			session.droppedChars += overflow;
-			session.outputBuffer = session.outputBuffer.slice(overflow).replace(/^[\uDC00-\uDFFF]/, "");
+		if (!session) return;
+		session.readPos = Math.max(session.readPos, Math.min(cursor, session.bufStart + session.buffer.length));
+		session.drop = undefined;
+	}
+
+	/** Waits a fixed time (cut short if the process exits); abortable. */
+	async pause(sessionId: string, ms: number, signal?: AbortSignal): Promise<void> {
+		const session = this.requireSession(sessionId);
+		await this.waitFor(session, Math.min(Math.max(ms, 0), MAX_WAIT_MS), signal, undefined, undefined);
+	}
+
+	private async waitMatch(session: PtySession, pattern: RegExp, from: number, deadline: number, signal?: AbortSignal): Promise<boolean> {
+		for (;;) {
+			const begin = Math.max(from, session.bufStart);
+			let window = session.buffer.slice(begin - session.bufStart);
+			if (window.length > MATCH_WINDOW_CHARS) window = window.slice(-MATCH_WINDOW_CHARS);
+			if (pattern.test(stripEscapes(window))) return true;
+			const remaining = deadline - this.now();
+			if (session.state === "exited" || remaining <= 0) return false;
+			await this.waitFor(session, remaining, signal, session.dataWaiters, session.exitWaiters);
+		}
+	}
+
+	private async waitSettle(session: PtySession, settleMs: number, started: number, deadline: number, signal?: AbortSignal): Promise<void> {
+		for (;;) {
+			const now = this.now();
+			const quiet = now - Math.max(session.lastDataAt, started);
+			if (session.state === "exited" || quiet >= settleMs || now >= deadline) return;
+			await this.waitFor(session, Math.min(settleMs - quiet, deadline - now), signal, session.dataWaiters, session.exitWaiters);
 		}
 	}
 
@@ -210,10 +353,13 @@ export class PtySessionManager {
 
 	async waitForExit(sessionId: string, timeoutMs: number, signal?: AbortSignal): Promise<ExitInfo> {
 		const session = this.requireSession(sessionId);
-		if (session.exitInfo) return session.exitInfo;
+		const annotate = (info: ExitInfo): ExitInfo => session.transport === "ssh" && info.exitCode === 255
+			? { ...info, note: "SSH exit code 255 may indicate a connection error rather than the remote command's exit code; check pty_read output." }
+			: info;
+		if (session.exitInfo) return annotate(session.exitInfo);
 
 		const exited = await this.waitForExitOrTimeout(session, Math.min(timeoutMs, MAX_WAIT_MS), signal);
-		return exited ? (session.exitInfo ?? { exitCode: -1 }) : { exitCode: -1 };
+		return exited ? annotate(session.exitInfo ?? { exitCode: -1 }) : { exitCode: -1, timedOut: true };
 	}
 
 	/**
@@ -255,8 +401,9 @@ export class PtySessionManager {
 			target: session.target,
 			transport: session.transport,
 			state: session.state,
-			bufferedBytes: Buffer.byteLength(session.outputBuffer),
-			droppedChars: session.droppedChars,
+			bufferedBytes: Buffer.byteLength(session.buffer.slice(session.readPos - session.bufStart)),
+			droppedChars: session.drop ? session.drop.to - session.drop.from : 0,
+			cursor: session.bufStart + session.buffer.length,
 		}));
 	}
 
@@ -282,21 +429,9 @@ export class PtySessionManager {
 		return session;
 	}
 
-	private drainOutput(session: PtySession): string {
-		const notice = session.droppedChars > 0 ? `[pty-terminal: ${session.droppedChars} earlier characters were dropped because output was not read fast enough]\n` : "";
-		const output = notice + session.outputBuffer;
-		session.outputBuffer = "";
-		session.droppedChars = 0;
-		return output;
-	}
-
 	private notify(waiters: Set<() => void>): void {
 		for (const notify of waiters) notify();
 		waiters.clear();
-	}
-
-	private waitForOutputOrExit(session: PtySession, timeoutMs: number, signal?: AbortSignal): Promise<void> {
-		return this.waitFor(session, timeoutMs, signal, session.dataWaiters, session.exitWaiters);
 	}
 
 	private async waitForExitOrTimeout(session: PtySession, timeoutMs: number, signal?: AbortSignal): Promise<boolean> {
@@ -322,7 +457,7 @@ export class PtySessionManager {
 			const finish = (): void => {
 				if (settled) return;
 				settled = true;
-				clearTimeout(timer);
+				this.timers.clear(timer);
 				dataWaiters?.delete(onData);
 				exitWaiters?.delete(onExitWaiter);
 				signal?.removeEventListener("abort", onAbort);
@@ -336,20 +471,20 @@ export class PtySessionManager {
 			const onAbort = (): void => {
 				if (settled) return;
 				settled = true;
-				clearTimeout(timer);
+				this.timers.clear(timer);
 				dataWaiters?.delete(onData);
 				exitWaiters?.delete(onExitWaiter);
 				signal?.removeEventListener("abort", onAbort);
 				reject(abortError(signal!));
 			};
-			const timer = setTimeout(finish, timeoutMs);
+			const timer = this.timers.set(finish, timeoutMs);
 
 			dataWaiters?.add(onData);
 			exitWaiters?.add(onExitWaiter);
 			signal?.addEventListener("abort", onAbort, { once: true });
 
-			if ((dataWaiters && session.outputBuffer.length > 0) || session.exitInfo) {
-				if (session.exitInfo) onExit?.();
+			if (session.exitInfo) {
+				onExit?.();
 				finish();
 			}
 		});

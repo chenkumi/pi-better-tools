@@ -26,7 +26,11 @@ export function resolveTarget(command: string, args: string[], options: SpawnOpt
 	const target = options.target ?? "local";
 	if (target === "local") return { command, args, options, target, transport: "local" };
 	if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(target)) throw new Error("Invalid PTY target name");
-	if (!record(settings) || !record(settings.targets) || !Object.hasOwn(settings.targets, target)) throw new Error(`Unknown PTY target: ${target}`);
+	if (!record(settings) || !record(settings.targets) || !Object.hasOwn(settings.targets, target)) {
+		// Settings reach here already trust-filtered by the host; list names only (never host/cwd/distribution values).
+		const names = record(settings) && record(settings.targets) ? Object.keys(settings.targets).filter(name => /^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(name)).sort() : [];
+		throw new Error(`Unknown PTY target: ${target}. Configured targets: ${names.length ? names.join(", ") : "(none)"}; "local" is the default.`);
+	}
 	const config = settings.targets[target];
 	if (!record(config) || !["ssh", "wsl"].includes(String(config.transport))) throw new Error(`Invalid PTY target: ${target}`);
 	const allowed = config.transport === "ssh" ? ["transport", "host", "cwd"] : ["transport", "distribution", "cwd"];

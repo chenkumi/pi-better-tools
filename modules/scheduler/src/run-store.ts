@@ -3,7 +3,7 @@ import { atomicWriteFile } from "./atomic-rename.js";
 import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 
-import { appendRunEvent, isTerminalRunStatus, transitionRun, type ProcessIdentity, type Run, type RunEvent, type RunStatus } from "./domain.js";
+import { appendRunEvent, isTerminalRunStatus, normalizeRun, transitionRun, type ProcessIdentity, type Run, type RunEvent, type RunStatus } from "./domain.js";
 import { withAdvisoryLock } from "./locking.js";
 
 export interface RunStoreOptions {
@@ -50,15 +50,36 @@ export class RunStore {
     this.maxOutputBytes = options.maxOutputBytes ?? 64 * 1024;
   }
 
-  async list(scheduleId?: string): Promise<Run[]> {
+  /** Raw persisted records. Mutating operations use this so legacy records are never rewritten as a side effect of a read. */
+  private async load(): Promise<Run[]> {
     try {
       const { runs, bad } = parseRuns(await readFile(this.options.runsPath, "utf8"));
       await this.quarantine(bad);
-      return scheduleId ? runs.filter((run) => run.scheduleId === scheduleId) : runs;
+      return runs;
     } catch (error: unknown) {
       if (typeof error === "object" && error !== null && "code" in error && (error as { code?: string }).code === "ENOENT") return [];
       throw error;
     }
+  }
+
+  /** Read view: legacy missed records (skipped_busy + diagnostic missed_no_backfill) are presented as `missed`; stored data is untouched. */
+  async list(scheduleId?: string): Promise<Run[]> {
+    const runs = (await this.load()).map(normalizeRun);
+    return scheduleId ? runs.filter((run) => run.scheduleId === scheduleId) : runs;
+  }
+
+  /**
+   * Drops finished history of a deleted schedule (and its retained logs). Active and orphaned runs are
+   * barriers and are never removed. Returns how many records were removed.
+   */
+  async removeForSchedule(scheduleId: string): Promise<number> {
+    return withAdvisoryLock(this.options.lockPath, async () => {
+      const runs = await this.load();
+      const kept = runs.filter((run) => run.scheduleId !== scheduleId || !isTerminalRunStatus(run.status) || run.status === "orphaned");
+      if (kept.length === runs.length) return 0;
+      await this.writeAll(kept);
+      return runs.length - kept.length;
+    });
   }
 
   /** Back up each distinct bad line once (the next rewrite drops it from runs.jsonl) and keep going without it. */
@@ -77,7 +98,7 @@ export class RunStore {
    */
   async appendUnlessBusy(run: Run, whenBusy: (run: Run) => Run): Promise<Run> {
     return withAdvisoryLock(this.options.lockPath, async () => {
-      const runs = await this.list();
+      const runs = await this.load();
       const busy = runs.some((item) => item.scheduleId === run.scheduleId && (!isTerminalRunStatus(item.status) || item.status === "orphaned"));
       const record = busy ? whenBusy(run) : run;
       await this.writeAll(this.retain([...runs, record]));
@@ -87,7 +108,7 @@ export class RunStore {
 
   async append(run: Run): Promise<void> {
     await withAdvisoryLock(this.options.lockPath, async () => {
-      const runs = await this.list();
+      const runs = await this.load();
       const retained = this.retain([...runs, run]);
       await this.writeAll(retained);
     });
@@ -95,7 +116,7 @@ export class RunStore {
 
   async transition(runId: string, to: RunStatus, at: string, details: Partial<Run> = {}): Promise<Run> {
     return withAdvisoryLock(this.options.lockPath, async () => {
-      const runs = await this.list();
+      const runs = await this.load();
       const index = runs.findIndex((run) => run.runId === runId);
       if (index < 0) throw new Error(`Unknown run: ${runId}`);
       const updated = transitionRun(runs[index], to, at, details);
@@ -107,7 +128,7 @@ export class RunStore {
 
   async appendEvent(runId: string, event: RunEvent): Promise<Run> {
     return withAdvisoryLock(this.options.lockPath, async () => {
-      const runs = await this.list();
+      const runs = await this.load();
       const index = runs.findIndex((run) => run.runId === runId);
       if (index < 0) throw new Error(`Unknown run: ${runId}`);
       const updated = appendRunEvent(runs[index], event);
@@ -120,7 +141,7 @@ export class RunStore {
   /** Cancellation and synchronous spawn authorization share the history lock. */
   async startQueued(runId: string, at: string, start: () => ProcessIdentity | undefined | false, details: Partial<Run> = {}): Promise<Run> {
     return withAdvisoryLock(this.options.lockPath, async () => {
-      const runs = await this.list();
+      const runs = await this.load();
       const index = runs.findIndex((run) => run.runId === runId);
       if (index < 0 || runs[index].status !== "queued") throw new Error("Run is not queued");
       const run = runs[index];
@@ -141,7 +162,7 @@ export class RunStore {
   /** A void ExtensionAPI call is submission, not proof that Pi started an agent. */
   async submitQueued(runId: string, at: string, submit: () => "submitted" | "busy" | false): Promise<Run> {
     return withAdvisoryLock(this.options.lockPath, async () => {
-      const runs = await this.list();
+      const runs = await this.load();
       const index = runs.findIndex((run) => run.runId === runId);
       if (index < 0 || runs[index].status !== "queued") throw new Error("Run is not queued");
       const run = runs[index];
@@ -164,7 +185,7 @@ export class RunStore {
 
   async beginCancellation(runId: string, at: string): Promise<Run> {
     return withAdvisoryLock(this.options.lockPath, async () => {
-      const runs = await this.list();
+      const runs = await this.load();
       const index = runs.findIndex((run) => run.runId === runId);
       if (index < 0) throw new Error(`Unknown run: ${runId}`);
       if (isTerminalRunStatus(runs[index].status) || runs[index].status === "cancelling") return runs[index];
@@ -175,9 +196,9 @@ export class RunStore {
   }
 
   /** Final outcome and cancellation are resolved atomically, never using a stale status. */
-  async finish(runId: string, outcome: "succeeded" | "failed" | "cancelled" | "failed_preflight" | "skipped_busy" | "orphaned", at: string, details: Partial<Run> = {}): Promise<Run> {
+  async finish(runId: string, outcome: "succeeded" | "failed" | "cancelled" | "failed_preflight" | "skipped_busy" | "missed" | "orphaned", at: string, details: Partial<Run> = {}): Promise<Run> {
     return withAdvisoryLock(this.options.lockPath, async () => {
-      const runs = await this.list();
+      const runs = await this.load();
       const index = runs.findIndex((run) => run.runId === runId);
       if (index < 0) throw new Error(`Unknown run: ${runId}`);
       const current = runs[index];
@@ -200,7 +221,7 @@ export class RunStore {
 
   async requestCancellation(runId: string, at: string): Promise<Run> {
     return withAdvisoryLock(this.options.lockPath, async () => {
-      const runs = await this.list();
+      const runs = await this.load();
       const index = runs.findIndex((run) => run.runId === runId);
       if (index < 0) throw new Error(`Unknown run: ${runId}`);
       const run = runs[index];
@@ -222,6 +243,13 @@ export class RunStore {
     const path = join(this.options.logsDir, `${runId}.${stream}.log`);
     await writeFile(path, truncateOutput(output, this.maxOutputBytes), "utf8");
     return path;
+  }
+
+  /** Read a retained run log (only canonical run ids, so the id can never traverse paths). Undefined when absent. */
+  async readOutput(runId: string, stream: "stdout" | "stderr"): Promise<string | undefined> {
+    if (!/^[0-9a-hjkmnp-tv-z]{26}$|^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i.test(runId)) return undefined;
+    try { return await readFile(join(this.options.logsDir, `${runId}.${stream}.log`), "utf8"); }
+    catch { return undefined; }
   }
 
   private async writeAll(runs: readonly Run[]): Promise<void> {

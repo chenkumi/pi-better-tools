@@ -1,3 +1,4 @@
+import { appendBoundedUtf8 } from "./progress.ts";
 import type { SubsessionStatus } from "./subsession-log.ts";
 
 export type TaskStatus = "running" | SubsessionStatus;
@@ -152,4 +153,10 @@ export function compactResult(input: CompactSubagentResult & Record<string, unkn
 		...(errorMessage ? { errorMessage } : {}),
 		...(step === undefined ? {} : { step }),
 	};
+}
+
+/** First non-empty line of an output, bounded to maxBytes of UTF-8 (the conclusion line by the bundled output contract). */
+export function firstLineSummary(text: string, maxBytes: number): string {
+	const line = text.split(/\r?\n/u).find((entry) => entry.trim())?.trim() ?? "";
+	return appendBoundedUtf8("", line, maxBytes);
 }

@@ -22,15 +22,14 @@ export function registerScheduleCommands(pi: ExtensionAPI, service: SchedulerSer
         const action = words[0] ?? "status";
         if (["status", "list"].includes(action) && words.length <= 1) {
           const status = await service.status({ runsLimit: 0 });
-          const lines = status.schedules.map((s) => `${s.id} r${s.revision} ${s.state}${s.consumed ? "/consumed" : ""} ${s.mode} next=${s.nextRun ?? "none"} (${s.timing.timezone})`);
+          const lines = status.schedules.map((s) => `${s.id} r${s.revision} ${s.state}${s.consumed ? "/consumed" : ""} ${s.mode ?? "independent"} next=${s.nextRun ?? "none"}`);
           return notify(ctx, [`Scheduler: ${status.runtime.role}; Pi must stay open; missed runs are not backfilled.`,
             `Now: ${status.localTime}`, status.runtime.lastError, status.runtime.sessionError, status.runtime.independent.lastError,
             ...lines, status.total > lines.length ? `Showing ${lines.length}/${status.total}; use schedule_status pagination.` : undefined,
             !lines.length ? "No schedules." : undefined].filter(Boolean).map((v) => safe(v!)).join("\n"));
         }
         if (action === "show" && words.length === 2) {
-          const { schedules } = await service.status({ id: words[1], runsLimit: 0 });
-          const s = schedules[0];
+          const s = await service.show(words[1]);
           return notify(ctx, safe(`${s.id} r${s.revision} ${s.state} ${s.mode}\n${s.timing.kind}: ${s.timing.expression} (${s.timing.timezone})\nNext: ${s.nextRun ?? "none"}; consumed: ${s.consumed}\nCwd: ${s.cwd}\nPrompt: ${s.prompt}`));
         }
         if (action === "runs" && words.length <= 2) {

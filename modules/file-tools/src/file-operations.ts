@@ -195,7 +195,7 @@ export function decodeUtf8(buffer: Buffer, displayPath: string): string {
   } catch {
     throw new FileToolError("INVALID_ENCODING", "The file is not valid UTF-8 and cannot be safely processed as text.", {
       path: displayPath,
-      recovery: "Use a binary-aware tool or convert the file to valid UTF-8 before editing it.",
+      recovery: "The file is not valid UTF-8. Inspect it with shell (for example xxd <file> | head, or iconv -f <encoding> -t UTF-8 <file> > <new file>), then retry on UTF-8 content.",
     });
   }
 }
@@ -701,10 +701,17 @@ export function readTextBuffer(
     lineEnd,
   };
 
-  let output = `[FILE_METADATA] ${JSON.stringify(metadata)}\n`;
-  output += "[LINE_PREFIX] Each displayed line starts with <absolute-line-number>│. The prefix is metadata and is not part of the file.\n";
+  // Single-line compact metadata: defaults (a whole-file read) are omitted. The
+  // line-prefix rule lives in promptGuidelines, not in every result.
+  const wholeFile = offset === 1 && lineEnd === totalLines && !truncation.firstLineExceedsLimit;
+  const compactMetadata = {
+    path: displayPath,
+    sha256: metadata.sha256,
+    ...(wholeFile ? {} : { lines: truncation.outputLines === 0 ? "none" : `${offset}-${lineEnd}`, total: totalLines }),
+  };
+  let output = `[FILE_METADATA] ${JSON.stringify(compactMetadata)}\n`;
   if (truncation.firstLineExceedsLimit) {
-    output += `[LINE_TOO_LARGE] Line ${offset} exceeds the ${MAX_OUTPUT_BYTES}-byte output limit and cannot be paginated with a line offset.`;
+    output += `[LINE_TOO_LARGE] Line ${offset} exceeds the ${MAX_OUTPUT_BYTES}-byte output limit and cannot be paginated with a line offset. Inspect it with shell instead, for example: sed -n '${offset}p' <file> | cut -c1-2000, or head -c 20000 <file>.`;
   } else {
     output += truncation.content;
   }
@@ -731,7 +738,7 @@ export function assertRegularReadableFile(fileStat: { isFile(): boolean }, displ
   if (!fileStat.isFile()) {
     throw new FileToolError("FILE_NOT_READABLE", "The target is not a regular file.", {
       path: displayPath,
-      recovery: "Target a regular file rather than a directory, FIFO, device, or other special path.",
+      recovery: "Target a regular file. For a directory, list it with shell (ls, or rg --files <dir>) and read a file inside; FIFOs and devices are unsupported.",
     });
   }
 }
@@ -1444,6 +1451,60 @@ export async function editTextFile(
   } catch (error) {
     throw classifyFsError(error, displayPath, "edit");
   }
+}
+
+export const COMPACT_DIFF_MAX_LINES = 40;
+export const COMPACT_DIFF_MAX_LINE_CHARS = 200;
+const COMPACT_DIFF_CONTEXT = 1;
+
+/**
+ * Condense a unified patch for model-visible text: drop file headers, keep at most
+ * one context line around each change, bound line count/length and report the rest
+ * in one summary line. The full patch stays available in structured details.
+ */
+export function compactPatch(patch: string): { text: string; added: number; removed: number; omittedLines: number } {
+  const lines = patch.split("\n");
+  const out: string[] = [];
+  let added = 0;
+  let removed = 0;
+  let index = lines.findIndex((line) => line.startsWith("@@"));
+  while (index !== -1 && index < lines.length) {
+    const header = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(lines[index]);
+    let end = index + 1;
+    while (end < lines.length && !lines[end].startsWith("@@")) end++;
+    let body = lines.slice(index + 1, end);
+    while (body.length > 0 && body[body.length - 1] === "") body.pop();
+    for (const line of body) {
+      if (line.startsWith("+")) added++;
+      else if (line.startsWith("-")) removed++;
+    }
+    let lead = 0;
+    while (lead < body.length && body[lead].startsWith(" ")) lead++;
+    let tail = 0;
+    while (tail < body.length - lead && body[body.length - 1 - tail].startsWith(" ")) tail++;
+    const dropLead = Math.max(0, lead - COMPACT_DIFF_CONTEXT);
+    const dropTail = Math.max(0, tail - COMPACT_DIFF_CONTEXT);
+    body = body.slice(dropLead, body.length - dropTail);
+    if (header) {
+      const content = body.filter((line) => !line.startsWith("\\"));
+      const oldLength = content.filter((line) => !line.startsWith("+")).length;
+      const newLength = content.filter((line) => !line.startsWith("-")).length;
+      const oldStart = Number(header[1]) + (oldLength > 0 ? dropLead : 0);
+      const newStart = Number(header[3]) + (newLength > 0 ? dropLead : 0);
+      out.push(`@@ -${oldStart},${oldLength} +${newStart},${newLength} @@`);
+    } else {
+      out.push(lines[index]);
+    }
+    out.push(...body);
+    index = end < lines.length ? end : -1;
+  }
+  const bounded = out.map((line) => line.length > COMPACT_DIFF_MAX_LINE_CHARS
+    ? `${line.slice(0, COMPACT_DIFF_MAX_LINE_CHARS)}…[+${line.length - COMPACT_DIFF_MAX_LINE_CHARS} chars]`
+    : line);
+  const omittedLines = Math.max(0, bounded.length - COMPACT_DIFF_MAX_LINES);
+  const shown = bounded.slice(0, COMPACT_DIFF_MAX_LINES);
+  if (omittedLines > 0) shown.push(`… ${omittedLines} more diff line(s) omitted`);
+  return { text: shown.join("\n"), added, removed, omittedLines };
 }
 
 export function truncateFeedback(content: string): { content: string; truncated: boolean } {

@@ -3,13 +3,25 @@
   "goalRemoval": {
     "date": "2026-10-05",
     "reason": "User requested removal of the project-native Goal module. Remove its complete source/test directory and root lifecycle fixture, manifest/package resources, runner stages and renderer probes; nine public entries remain. Update current documentation and native inventory. Historical Goal references in prior adaptation records and plan/report documents remain historical, not active resources.",
-    "removedResources": ["modules/goal/", "tests/fixtures/goal-runtime.mjs"],
+    "removedResources": [
+      "modules/goal/",
+      "tests/fixtures/goal-runtime.mjs"
+    ],
     "verificationChanges": "Loader probes now assert Goal tool/command absence in every mode; production pack rejects modules/goal resources. SDK defaultTools/exclusion probes continue with remaining Shell/Note tools. No surviving module execution, dependency, trust or persistence changes.",
     "preservedData": "Existing user settings/auth/schedules and saved session entries are not changed, migrated, replayed or deleted.",
     "reviewedRootFiles": [
-      { "path": "scripts/run-checks.mjs", "sha256": "7793adc50f4afc5a0227cb8d96ab5ef32ad5efd08491e3733bde13541e27478f" },
-      { "path": "scripts/package-smoke.mjs", "sha256": "bffd6084439d1fab865e2d00223a99ab5125be8aa98645f48aa080e6554ee62b" },
-      { "path": "tests/fixtures/sdk-hooks.mjs", "sha256": "5d76d367ae5d25ac3be378f2d66bf6212eb55c7f34ba83142b90cccebea1ff38" }
+      {
+        "path": "scripts/run-checks.mjs",
+        "sha256": "7793adc50f4afc5a0227cb8d96ab5ef32ad5efd08491e3733bde13541e27478f"
+      },
+      {
+        "path": "scripts/package-smoke.mjs",
+        "sha256": "bffd6084439d1fab865e2d00223a99ab5125be8aa98645f48aa080e6554ee62b"
+      },
+      {
+        "path": "tests/fixtures/sdk-hooks.mjs",
+        "sha256": "5d76d367ae5d25ac3be378f2d66bf6212eb55c7f34ba83142b90cccebea1ff38"
+      }
     ]
   },
   "ptyIntegration": {
@@ -215,8 +227,8 @@
     {
       "path": "modules/web-tools/tests/unit/extension.test.ts",
       "originalSha256": "a3030e8ce09b0ba10e1032eceb0885ee91fc5ff309cdd8b770593351c62301a2",
-      "sha256": "853182fdf8ab8b606edb02ddb3769ecded682c96fc7e20c008a5fe4423f99b02",
-      "reason": "Add default Codex request/prompt injection, TUI/headless silence, mode/disabled gates and successful opt-in capture tests; no live backend."
+      "sha256": "76ad878d361eb65506270c25ff8d7b4ce3c1d396c89745e500f848cf0b0e1662",
+      "reason": "Add default Codex request/prompt injection, TUI/headless silence, mode/disabled gates and successful opt-in capture tests; no live backend. 2026-10-06 local adaptation (web-tools): actionable next-step error hints, web_search provider field removed (prepareArguments drops legacy argument), dynamic description/guidelines, text slimming. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/web-tools/tests/unit/native-openai.test.ts",
@@ -233,8 +245,8 @@
     {
       "path": "modules/subagents/extensions/subagent/result.ts",
       "originalSha256": "08041e76f3d739c17653554a88b5d76af4ddaf291249aeb64c439935dc5987df",
-      "sha256": "0ff0a23410b4e505bbddcea9d631734f5322fd184d66a9ba2ca25859b8284b81",
-      "reason": "User-requested optional parent display title retained by compact-result allowlist. Existing output/task formatting, child configuration and identity/usage limits unchanged."
+      "sha256": "f33f06c1cf4b25143891b12e7289b1b3a2cf4782d5cf6f0998b1a1899dc252d3",
+      "reason": "User-requested optional parent display title retained by compact-result allowlist. Existing output/task formatting, child configuration and identity/usage limits unchanged. 2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/pty-terminal/src/escape.ts",
@@ -245,8 +257,8 @@
     {
       "path": "modules/pty-terminal/src/output.ts",
       "originalSha256": "62106be495a05b7c7987b4eed11b05cf82f549b2235e1ac350859e47f4d0b853",
-      "sha256": "17754e8b028ddcfc62726aa7c80311d15e694833a8163f8726a8d97749ab04c0",
-      "reason": "Git LF normalization only: fetched blob reconstructs immutable CRLF import hash exactly; source text unchanged, immutable import not re-signed."
+      "sha256": "5dde5fd58b86482994dcbd01181be58cb2620cb79b0bad2af7631107c32dd1a4",
+      "reason": "Git LF normalization only: fetched blob reconstructs immutable CRLF import hash exactly; source text unchanged, immutable import not re-signed. 2026-10-06 local adaptation (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/pty-terminal/tests/escape.test.ts",
@@ -257,8 +269,8 @@
     {
       "path": "modules/pty-terminal/tests/output.test.ts",
       "originalSha256": "9ca0fcc1d09a0569517aa8dfdcb1ed6674b71460b2e015216571c59d964974de",
-      "sha256": "6c42197898d826e6b982ac3a66f064c4e97e6a7591567fe044f30ebd944d8d89",
-      "reason": "Git LF normalization only: fetched blob reconstructs immutable CRLF import hash exactly; source text unchanged, immutable import not re-signed."
+      "sha256": "fef96a648416ae95f5c721d9bdd7ea7f39d9c76a63e7931858517fa75a2115fc",
+      "reason": "Git LF normalization only: fetched blob reconstructs immutable CRLF import hash exactly; source text unchanged, immutable import not re-signed. 2026-10-06 local adaptation (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/pty-terminal/LICENSE",
@@ -275,15 +287,15 @@
     {
       "path": "modules/shell-tools/extensions/timeout-ms.ts",
       "originalSha256": "ea332aa731a69d182bb1e4f6361ba82455beda04a880019cf663a6d1cf97727f",
-      "sha256": "1451cc0f7e1d7170d899b9ed156a15bd20f5fee5020518d109949c143ba6fe2b",
-      "reason": "Earlier baseline was LF normalization only; immutable import remains unchanged. Current 2026-10-05 async adaptation is intentional behavior/schema extension: user-authorized background boolean, real acceptance receipt output schema, lazy job registry, host execution/settings/idle timeout preserved; optional management tools, session lifecycle hooks and bounded pure management renderers.",
+      "sha256": "1fabc1d505cdc0a61cbbc99deed6463091fbf69cceda7fb7c302b5a98d8bcc55",
+      "reason": "Earlier baseline was LF normalization only; immutable import remains unchanged. Current 2026-10-05 async adaptation is intentional behavior/schema extension: user-authorized background boolean, real acceptance receipt output schema, lazy job registry, host execution/settings/idle timeout preserved; optional management tools, session lifecycle hooks and bounded pure management renderers. 2026-10-06 local adaptation (shell-tools): background job status/list fields and jobId-less listing, tail ring buffer, MAX_RAW_CAPTURE_BYTES 8192, cancel race fix, compactJob text slimming, timeoutMs description, receipt decided dynamically via getActiveTools. Assertions kept or tightened; not a source-identical copy.",
       "previousAsyncRecordedSha256": "bdda9dfa68bd0a9ba4522d4bae127b1b911d70c500833a77611a10591b65cfd2"
     },
     {
       "path": "modules/file-tools/tests/file-operations.test.ts",
       "originalSha256": "0b5cc95d9d5dd0a9572f94857513358f2619a5f726afd0b64564ae98a147058a",
-      "sha256": "75e3c4915deb21a34827a7b5dbf9cb5aa22e0c93681a692b9554516b83c8a717",
-      "reason": "User-requested duplicate removal: outside-range duplicate retained in stronger search-window test; identical plain failure fallback retained in error-display.test.ts. No unique argument/rendering or mutation assertions removed."
+      "sha256": "10165b415830c1eccb56e844d7404b3d2d8f762ee31a0c3e45de4621ec00a815",
+      "reason": "User-requested duplicate removal: outside-range duplicate retained in stronger search-window test; identical plain failure fallback retained in error-display.test.ts. No unique argument/rendering or mutation assertions removed. 2026-10-06 local adaptation (file-tools): read/edit/write return slimming (no LINE_PREFIX, single-line metadata, compactPatch, no write details), error recovery points to shell, description/schema/guidelines de-duplicated. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/file-tools/tests/diff-runner.test.ts",
@@ -312,41 +324,41 @@
     {
       "path": "modules/pty-terminal/src/index.ts",
       "originalSha256": "0f5c5096cfe08026d756ddb62ecfa8fb68cbf8867284c9a8bbd885e2ee1b3304",
-      "sha256": "c36548f7003b6daf2b790db3e17320496f82ab5e34b6c04d56b83a96f375ba3e",
+      "sha256": "a78422714f7ceef2341fddf4774ef031bb76fdad311c8443845b6a2ad47823dd",
       "preMergeRecordedSha256": "d775b8a2ba803316f86ff7ab5bb9a0a5c9657b6083e8f44918e91ef374d71b88",
-      "reason": "Owner-requested integration: optional local-default named target, trust-aware effective settings, pre-spawn abort, transport caveats; preserve seven source tool names and host selection. Merge wires pure renderers only. Fetched pre-renderer LF blob c46f567e96e6e04e21c1847100916af88509d1f9f602430947bc72d2bf68472e reconstructs the earlier recorded CRLF hash exactly."
+      "reason": "Owner-requested integration: optional local-default named target, trust-aware effective settings, pre-spawn abort, transport caveats; preserve seven source tool names and host selection. Merge wires pure renderers only. Fetched pre-renderer LF blob c46f567e96e6e04e21c1847100916af88509d1f9f602430947bc72d2bf68472e reconstructs the earlier recorded CRLF hash exactly. 2026-10-06 local adaptation (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/pty-terminal/src/pty-manager.ts",
       "originalSha256": "3ffd62eaf69145ed1974702e29371f059a1004e19ea740ac6d5862dc0bd13287",
-      "sha256": "4562f270f807c44fd668e5063e8c2259a4101369c924deea7404268f3ebac0ac",
+      "sha256": "17f682f67656dd3b5d3cb9c079b81ad63bfa2e57d52af3a9933a826e397ef4cc",
       "preMergeRecordedSha256": "3cc4f0ab9b8c580a043a65bbf737398a9711d0cda06ffdb1a26e9b3f5885822c",
-      "reason": "Attach target/transport metadata and local PID semantics; Windows node-pty cannot take POSIX signals, use signal-free kill; settle cleanup waiters and prevent buffered output from prematurely finishing exit wait. Git LF normalization only in this merge: fetched bytes exactly reconstruct previous recorded CRLF hash; no runtime edits."
+      "reason": "Attach target/transport metadata and local PID semantics; Windows node-pty cannot take POSIX signals, use signal-free kill; settle cleanup waiters and prevent buffered output from prematurely finishing exit wait. Git LF normalization only in this merge: fetched bytes exactly reconstruct previous recorded CRLF hash; no runtime edits. 2026-10-06 local adaptation (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/pty-terminal/tests/extension.test.ts",
       "originalSha256": "8396214cd72c35343d2d25402a585ac09b3672680c36ef0a18d2eb44d318e339",
-      "sha256": "2790ff52125ccca9de2c437b670daddeb287763037800a1b35177a024a04c32a",
+      "sha256": "c5e7d64c657190b5b0dd6e9aa6ba315e05e8608b18269baae6ebc0b9817aa3ec",
       "preMergeRecordedSha256": "9704df993b62ac774e79d75e7b82ef670fbf0515cfbebab4787ca44fb05ed32e",
-      "reason": "Real platform-native Node PTY fixture replaces POSIX-only shell; retain seven registrations, shutdown and received-input assertions; ready handshake and cleanup on failure. Git LF normalization only in this merge: fetched bytes exactly reconstruct previous recorded CRLF hash; assertions unchanged."
+      "reason": "Real platform-native Node PTY fixture replaces POSIX-only shell; retain seven registrations, shutdown and received-input assertions; ready handshake and cleanup on failure. Git LF normalization only in this merge: fetched bytes exactly reconstruct previous recorded CRLF hash; assertions unchanged. 2026-10-06 local adaptation (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/pty-terminal/tests/pty-manager.test.ts",
       "originalSha256": "4e55dd232346d27d3aed9614cf0047fa0d2e67a058443361de974d5c1aaca196",
-      "sha256": "04c6896af1df1c997dd4d01e981283026c5ef94e099503ae1954a811dde76f5a",
-      "reason": "Cross-platform real Node PTY keeps output-once, exit 7, input and released-session assertions; OS signal field is backend-specific, not universally 0. Add resize, abort, timeout and shutdown waiter coverage."
+      "sha256": "310fe4bab862399d005ae95bdf6cbb9eda9048470dea0c494d8c8faba1a5de2e",
+      "reason": "Cross-platform real Node PTY keeps output-once, exit 7, input and released-session assertions; OS signal field is backend-specific, not universally 0. Add resize, abort, timeout and shutdown waiter coverage. 2026-10-06 local adaptation (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/pty-terminal/README.md",
       "originalSha256": "376b39ee2aaed1b440a186ab4fdb1012f783449536d66b31eca3841f2baf835d",
-      "sha256": "c8757bbdfa1173184ee11c394b48df5e4c02e3df9840331d9e37f221f32113ae",
-      "reason": "Replace standalone install/publishing guidance with root integration, target schema, SSH/WSL prerequisites, native dependency setup, security and actual test boundaries; preserve source identity/port attribution. Document presentation-only PTY previews and caveats, pinned npm 12 native-script policy and npm-run env adapter; consumer parent project must approve its own setup."
+      "sha256": "09b6b37ae880f474f81eb27632cb0bc30b5c022d17502725524ce2f6e53d70a4",
+      "reason": "Replace standalone install/publishing guidance with root integration, target schema, SSH/WSL prerequisites, native dependency setup, security and actual test boundaries; preserve source identity/port attribution. Document presentation-only PTY previews and caveats, pinned npm 12 native-script policy and npm-run env adapter; consumer parent project must approve its own setup. 2026-10-06 local adaptation (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/file-tools/extensions/file-tools.ts",
       "originalSha256": "3a55b1b953cb2406b8326684d701826e907fca0324d179afea7ecc4cd01d739f",
-      "sha256": "050b5a4d78ca1498f438ebfcbe9b4ca875050a8b6054c343e1d247ef00f5af77",
-      "reason": "Wire builtin read/write calls and successful read/image presentation; custom error and write-success summaries. Tool schemas/content/details/structuredContent and file execution are unchanged. 2026-10-05 async adaptation: Advisory recovery only for missing managed run partial logs, no target substitution or permission/completion inference.",
+      "sha256": "4693bcaf4310376092f387e3a16ba0cd2e4a513873ec3447e0c483865663dcf5",
+      "reason": "Wire builtin read/write calls and successful read/image presentation; custom error and write-success summaries. Tool schemas/content/details/structuredContent and file execution are unchanged. 2026-10-05 async adaptation: Advisory recovery only for missing managed run partial logs, no target substitution or permission/completion inference. 2026-10-06 local adaptation (file-tools): read/edit/write return slimming (no LINE_PREFIX, single-line metadata, compactPatch, no write details), error recovery points to shell, description/schema/guidelines de-duplicated. Assertions kept or tightened; not a source-identical copy.",
       "previousAsyncRecordedSha256": "afbb6aa93ff9cf2f3c759b0cba20df1df7136d6b977bf0f85169036e396448d6"
     },
     {
@@ -358,14 +370,14 @@
     {
       "path": "modules/scheduler/src/tools.ts",
       "originalSha256": "d7f83aa7e956c0c1b6610c78c58f7b5138d817e33f9a877d125e2b52c62fd36c",
-      "sha256": "03cd3404209851ac8f33e38f31648b7bdc8711417289bf7c11b7d5ed1579ce32",
-      "reason": "Attach pure call/result renderers for all four tools without changing execution, schemas, cancellation or trust."
+      "sha256": "4273891dc6dd4dabebede6505a84ff87a81b829ce3b984f6efec2ebc813a0ff8",
+      "reason": "Attach pure call/result renderers for all four tools without changing execution, schemas, cancellation or trust. 2026-10-06 local adaptation (scheduler): schedule_delete tool, missed terminal state (legacy skipped_busy+missed_no_backfill read as missed without rewrite, one-way upgrade), status runId/result and summary listing, results only in structuredContent, cron/limit docs. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/web-tools/src/index.ts",
       "originalSha256": "e8dd3537ad78f72e548eb6a4677cbd5b6324c6cb762ffb3d828dd5cc2a5b5bb0",
-      "sha256": "cada093edf98d49630ab89c18372808ce75aa46690770a09da8c145cd0f71057",
-      "reason": "Attach pure Fetch/REST Search renderers. User-requested removal of Codex experimental gate and startup warning; native mode and source capture share exact provider/API eligibility, while enabled/provider gates, unsupported-model diagnostics, conflicts, browser/network behavior and output contracts remain."
+      "sha256": "3644ef19289553a610afb43449a37848686c8b6d131bfdaeed05d0cce64c4e21",
+      "reason": "Attach pure Fetch/REST Search renderers. User-requested removal of Codex experimental gate and startup warning; native mode and source capture share exact provider/API eligibility, while enabled/provider gates, unsupported-model diagnostics, conflicts, browser/network behavior and output contracts remain. 2026-10-06 local adaptation (web-tools): actionable next-step error hints, web_search provider field removed (prepareArguments drops legacy argument), dynamic description/guidelines, text slimming. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/file-tools/scripts/test-process.mjs",
@@ -400,21 +412,21 @@
     {
       "path": "modules/file-tools/README.md",
       "originalSha256": "eb24c5848998f3383cd7eed92ab8c6adf2ceb8fdf895ea280bc7af71777e7f8a",
-      "sha256": "2690a268bbe8e73cb69a09e0031121e804f6f86b1c1de0b27240129a64fd3429",
+      "sha256": "da7197dcc2aa6b9833a6a6ab0a9c5c46752e03ea0244182c193fa47ac959218b",
       "preChangeSha256": "73c29be3446a5d371d2ae07c5f66bd5198a9f343c417f0bd7a060ad23b5d258d",
       "historicalDeltaAudit": "unavailable",
       "localSnapshotReview": "2026-10-03: pre-change local README inspected against schema, mutation queue and settings; pre-change bytes match initial commit f14b837.",
-      "reason": "Document read/write error summaries, preserved builtin successful read/image behavior and write success bytes/path/hash presentation. Original source contents unavailable; historical baseline-to-pre-change diff remains unaudited, no original-source equivalence certification. 2026-10-05 async adaptation: Document advisory managed-log retry and run versus aggregate offsets.",
+      "reason": "Document read/write error summaries, preserved builtin successful read/image behavior and write success bytes/path/hash presentation. Original source contents unavailable; historical baseline-to-pre-change diff remains unaudited, no original-source equivalence certification. 2026-10-05 async adaptation: Document advisory managed-log retry and run versus aggregate offsets. 2026-10-06 local adaptation (file-tools): read/edit/write return slimming (no LINE_PREFIX, single-line metadata, compactPatch, no write details), error recovery points to shell, description/schema/guidelines de-duplicated. Assertions kept or tightened; not a source-identical copy.",
       "previousAsyncRecordedSha256": "b5cc2025e996d39af767f53311e3270c2c05528da64bd45a5808d983c25526d1"
     },
     {
       "path": "modules/web-tools/README.md",
       "originalSha256": "39be626cf45a2409a02bf8caeea9585188413776a1b6c8d456664fa909ebf71c",
-      "sha256": "69d132f548d0ade53dbd365d012e86d747dc591c2b8354bcc080063a6278312b",
+      "sha256": "effd0a3e97805e0a9cf539d1ab97404ffc5140b4e0d733e9945ef544331b0c54",
       "preChangeSha256": "5f5f1d8c15836abe56ea10966bf83517d9e780adb620765c4bc5c53aa758fdc8",
       "historicalDeltaAudit": "unavailable",
       "localSnapshotReview": "2026-10-03: complete pre-change README inspected against local Web config/provider/network/browser contracts; pre-change bytes match initial commit f14b837.",
-      "reason": "Update root Node requirements, explicit Linux browser setup, cwd basename contract and presentation-only Fetch/REST Search renderers. Document user-requested default Codex native search, removed experimental setting/warning and manual field removal before reload. Pre-existing baseline-to-preChange delta remains unaudited because original contents are unavailable; this record does not certify original-diff or behavior equivalence."
+      "reason": "Update root Node requirements, explicit Linux browser setup, cwd basename contract and presentation-only Fetch/REST Search renderers. Document user-requested default Codex native search, removed experimental setting/warning and manual field removal before reload. Pre-existing baseline-to-preChange delta remains unaudited because original contents are unavailable; this record does not certify original-diff or behavior equivalence. 2026-10-06 local adaptation (web-tools): actionable next-step error hints, web_search provider field removed (prepareArguments drops legacy argument), dynamic description/guidelines, text slimming. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/scheduler/src/app-scheduler.ts",
@@ -443,10 +455,10 @@
     {
       "path": "modules/scheduler/tests/integration/app-scheduler.test.ts",
       "originalSha256": "b745d3efb89e9ffdcfc50a0deb8efc2fb987648e522e3ac3a2a5142a0330d347",
-      "sha256": "354dde7940cebd64953400cae98b9203d09766d4b668e9fe83f3b7ac147c7086",
+      "sha256": "4b28f8246a060cb1bf228a55729b4ba0bc26f94120fcfa3c76c82b958f541d3b",
       "historicalDeltaAudit": "unavailable",
       "localSnapshotReview": "2026-10-03: complete local test inspected; isolated fixture exercises orphan barriers, revision, host takeover, child disable and cancellation; same bytes as initial commit f14b837.",
-      "reason": "Pre-existing historical delta, not changed this round. Original assertions unavailable; full baseline-to-local diff unaudited. Record does not claim historical assertions were unchanged or source-equivalent. Retry temp-directory cleanup (maxRetries/retryDelay) for Windows EBUSY; no assertion changed."
+      "reason": "Pre-existing historical delta, not changed this round. Original assertions unavailable; full baseline-to-local diff unaudited. Record does not claim historical assertions were unchanged or source-equivalent. Retry temp-directory cleanup (maxRetries/retryDelay) for Windows EBUSY; no assertion changed. 2026-10-06 local adaptation (scheduler): schedule_delete tool, missed terminal state (legacy skipped_busy+missed_no_backfill read as missed without rewrite, one-way upgrade), status runId/result and summary listing, results only in structuredContent, cron/limit docs. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/scheduler/package.json",
@@ -457,9 +469,9 @@
     {
       "path": "modules/scheduler/README.md",
       "originalSha256": "995ce250828d718d2a076ac60279b7278ff815ce919dfa6ca40eede3d15b60c2",
-      "sha256": "79a95ac226553736916ee5cba9b204a52d8ef73d59844dca5042464221296d2f",
+      "sha256": "8f32c564e023332ab5ae7dc486f5e8544e43b6da9ced8c3e68d923d32ad649bc",
       "preChangeSha256": "4bea6dcddd19beea013e99db64b0ba84ac6469ab8308dfe7aff2347fb05a98a7",
-      "reason": "Add direct TS entry, standalone CLI guidance and schedule tool TUI summaries with explicit cancellation-request-only semantics to the pre-existing local README; source baseline is immutable and this does not certify pre-existing README changes."
+      "reason": "Add direct TS entry, standalone CLI guidance and schedule tool TUI summaries with explicit cancellation-request-only semantics to the pre-existing local README; source baseline is immutable and this does not certify pre-existing README changes. 2026-10-06 local adaptation (scheduler): schedule_delete tool, missed terminal state (legacy skipped_busy+missed_no_backfill read as missed without rewrite, one-way upgrade), status runId/result and summary listing, results only in structuredContent, cron/limit docs. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/shell-tools/tsconfig.json",
@@ -477,8 +489,8 @@
     {
       "path": "modules/subagents/extensions/subagent/index.ts",
       "originalSha256": "4bba69600d0ea3da3d29bb7b7d6e092a15422fb8b6dc8fb3b9ad390dbc92e4f1",
-      "sha256": "bed1b75798226e243f1a9ef9c9eb9cd6b3e88d9708cd9479d75ce352c27766bc",
-      "reason": "User-authorized resumable-only change: always allocate managed sessions, require guard/log/native checkpoint, remove opt-in and ephemeral metadata branch, retain bounded diagnostics in managed runs; consolidate bounded tool-result identities without changing output limits. User-requested model/thinking preflight: descriptions require user/skill opt-in; initial dispatch resolves registered model then validates thinking, ignoring invalid overrides in favor of defaults. Thinking schema accepts strings to permit unknown-level fallback; resume and child lifecycle/guard remain strict. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted. 2026-10-05 async adaptation: Background acceptance/status/cancel/control/query, verified RPC identity, canonical logging, managed commit before followUp completion, owner/generation shutdown fences.",
+      "sha256": "83d8a3a92d6f163e65e4dea9a7ba4c111a9cadf2061f77fee3cb8a3dad55c4d1",
+      "reason": "User-authorized resumable-only change: always allocate managed sessions, require guard/log/native checkpoint, remove opt-in and ephemeral metadata branch, retain bounded diagnostics in managed runs; consolidate bounded tool-result identities without changing output limits. User-requested model/thinking preflight: descriptions require user/skill opt-in; initial dispatch resolves registered model then validates thinking, ignoring invalid overrides in favor of defaults. Thinking schema accepts strings to permit unknown-level fallback; resume and child lifecycle/guard remain strict. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted. 2026-10-05 async adaptation: Background acceptance/status/cancel/control/query, verified RPC identity, canonical logging, managed commit before followUp completion, owner/generation shutdown fences. 2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy.",
       "previousAsyncRecordedSha256": "9ccd2f8bd71ade79ac61292d95b463f089a32129fd79c5569101608cc7706d08"
     },
     {
@@ -516,8 +528,8 @@
     {
       "path": "modules/subagents/tests/runner.test.ts",
       "originalSha256": "de6458f70321b5ab76c2f042a4d7b91bed32b38c75a9506a9b4a0553679af74b",
-      "sha256": "069177b45d4a08a53c0afa4e46279b20d8af978b20ebf340e563b7af4a0e5640",
-      "reason": "Run existing protocol/timing/cancellation/progress cases through managed allocation with explicit storage substitutes; metadata now resides in managed run.json. Stalled debugLog write test: ioTimeoutMs 50→1000 so the shared managed-I/O timeout cannot fire on real disk begin-run before the injected stalled debug writer; assertions unchanged. 2026-10-05 async adaptation: User-authorized session-owned background/control/query implementation or offline regression contract adaptation; synchronous defaults and existing safety assertions retained.",
+      "sha256": "20736cb483eac4e25ecbb58f6e310fc11f2bce661db801ea497d1ac845711a63",
+      "reason": "Run existing protocol/timing/cancellation/progress cases through managed allocation with explicit storage substitutes; metadata now resides in managed run.json. Stalled debugLog write test: ioTimeoutMs 50→1000 so the shared managed-I/O timeout cannot fire on real disk begin-run before the injected stalled debug writer; assertions unchanged. 2026-10-05 async adaptation: User-authorized session-owned background/control/query implementation or offline regression contract adaptation; synchronous defaults and existing safety assertions retained. 2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy.",
       "previousAsyncRecordedSha256": "63f2c4477d33f1969da5b3eaa92a20378a34f10a2f704fa7c0c8697887883a81"
     },
     {
@@ -542,14 +554,14 @@
     {
       "path": "modules/subagents/prompts/implement-and-review.md",
       "originalSha256": "5a9260ec6035f997a0f384bc303d71f5575c23c352d667b23d9362b64edabe3d",
-      "sha256": "2d8045f334d8e219d0e6968d4a732d9ad5c7c2ff3bfe0611f3a8cee38737b487",
-      "reason": "Remove obsolete resumable opt-in instructions; every chain step now automatically owns its own managed native session."
+      "sha256": "0ff785acbe00da5c5aa3466e2b1627842a667965f7b84431d0b2c8d748a0d5a9",
+      "reason": "Remove obsolete resumable opt-in instructions; every chain step now automatically owns its own managed native session. 2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/subagents/README.md",
       "originalSha256": "279147070b436c428835ab950c632deea983a13d5e940c3205ea7b7c7f9bf4cf",
-      "sha256": "b05104b461b1392fa3ed9919c8250d240d3039514ff3c5be7b12cf1620783f79",
-      "reason": "Document mandatory managed persistence, removed parameter, storage paths, unchanged resume guard and explicit mock/native/CLI test boundaries. Document user/skill-only model/thinking overrides, exact registry parsing policy and model-first invalid-selection fallback defaults and limitations. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted. 2026-10-05 async adaptation: User-authorized session-owned background/control/query implementation or offline regression contract adaptation; synchronous defaults and existing safety assertions retained.",
+      "sha256": "ab82cb707219dfaeaf1c71aa1199b3a545e933668dcd9bdc391bc38e94379ee3",
+      "reason": "Document mandatory managed persistence, removed parameter, storage paths, unchanged resume guard and explicit mock/native/CLI test boundaries. Document user/skill-only model/thinking overrides, exact registry parsing policy and model-first invalid-selection fallback defaults and limitations. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted. 2026-10-05 async adaptation: User-authorized session-owned background/control/query implementation or offline regression contract adaptation; synchronous defaults and existing safety assertions retained. 2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy.",
       "previousAsyncRecordedSha256": "87c74395adbdaaae7687df2e429192da4432bbf9c880068f5c9f27403a625d55"
     },
     {
@@ -587,26 +599,26 @@
     {
       "path": "modules/file-tools/src/file-operations.ts",
       "originalSha256": "5a72dadef94d35902898dad72864e1589e2c46edd2cb71f26f1957a30371d7a4",
-      "sha256": "4dea48dec1504c1363ecda03b3f02de4191097aeebac2a81174f235bbd0cdd76",
-      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change."
+      "sha256": "c42a1b5e295e66dbcb835d719e9a8658c0e7fd28fa05d96ec24b888ca9d1e71d",
+      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change. 2026-10-06 local adaptation (file-tools): read/edit/write return slimming (no LINE_PREFIX, single-line metadata, compactPatch, no write details), error recovery points to shell, description/schema/guidelines de-duplicated. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/scheduler/src/registry-store.ts",
       "originalSha256": "bca1f648bad4286193b2e8f83b33d10568ed1f8954dff165ea39bdbbb62eb796",
-      "sha256": "e42bc9b384b3922235324c901c0010b410d7160b2e0980e57f9cc91b7cca2ae4",
-      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change. Atomic replace uses renameWithRetry (Windows-only bounded retry of transient EPERM/EBUSY/EACCES; still an atomic rename, last error rethrown); no schema, key or directory change."
+      "sha256": "a3514a4597cb3c57847c6dd6444835234d65852f981ef56fa362d9ece15b5343",
+      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change. Atomic replace uses renameWithRetry (Windows-only bounded retry of transient EPERM/EBUSY/EACCES; still an atomic rename, last error rethrown); no schema, key or directory change. 2026-10-06 local adaptation (scheduler): schedule_delete tool, missed terminal state (legacy skipped_busy+missed_no_backfill read as missed without rewrite, one-way upgrade), status runId/result and summary listing, results only in structuredContent, cron/limit docs. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/scheduler/src/runner.ts",
       "originalSha256": "0638a4dbc3d8d039e8216dbc44b2ea40ff1d0165fc25277332b639c58f4af715",
-      "sha256": "8db7f434d68daf7403e801e5ea455b52bbc7e2a6e4a26949d01641f1b7bd2fea",
-      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change."
+      "sha256": "2e6983ada64d573bba5fa3364c9169105c943af3709d6dc16cbeab88d986383d",
+      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change. 2026-10-06 local adaptation (scheduler): schedule_delete tool, missed terminal state (legacy skipped_busy+missed_no_backfill read as missed without rewrite, one-way upgrade), status runId/result and summary listing, results only in structuredContent, cron/limit docs. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/scheduler/src/session-scheduler.ts",
       "originalSha256": "991778138074a1be84ce3724f383954728114460c945637fecff5fbe97fcbb58",
-      "sha256": "1c48d27311d4887275010440c845920d219f67347b5c9cfb328524407fc36f78",
-      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change."
+      "sha256": "8d2d48d30c9ad9240350dacb38cbbb3bc123f4b1e1504e0a91eb393bbb01c5c7",
+      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change. 2026-10-06 local adaptation (scheduler): schedule_delete tool, missed terminal state (legacy skipped_busy+missed_no_backfill read as missed without rewrite, one-way upgrade), status runId/result and summary listing, results only in structuredContent, cron/limit docs. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/scheduler/src/tool-debug-log.ts",
@@ -617,8 +629,8 @@
     {
       "path": "modules/scheduler/src/run-store.ts",
       "originalSha256": "ef2ce37898bce6aecb84b15ab294c2e0a208204f870ad626ad058ef03008d9dc",
-      "sha256": "247306426ddf62c843ccdbc10b0ae1e656b030fa8d9d2703b8b393455e8082f8",
-      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change. Atomic replace uses renameWithRetry (Windows-only bounded retry of transient EPERM/EBUSY/EACCES; still an atomic rename, last error rethrown); no schema, key or directory change."
+      "sha256": "08728683ad0bb33d7ed21b12adade5a20869bff85c2a8525ff72d15f5b404786",
+      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change. Atomic replace uses renameWithRetry (Windows-only bounded retry of transient EPERM/EBUSY/EACCES; still an atomic rename, last error rethrown); no schema, key or directory change. 2026-10-06 local adaptation (scheduler): schedule_delete tool, missed terminal state (legacy skipped_busy+missed_no_backfill read as missed without rewrite, one-way upgrade), status runId/result and summary listing, results only in structuredContent, cron/limit docs. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/scheduler/tests/unit/run-store.test.ts",
@@ -679,8 +691,8 @@
     {
       "path": "modules/shell-tools/README.md",
       "originalSha256": "8f9a194e5960d5a4f01ea3fe8fe92ec6d74a60301b3b8f4926f547a6c6bd3956",
-      "sha256": "c95bdeb707bf788bc4a82d22bcf903005c8d843ee9d5572616688a52bf3a0e96",
-      "reason": "User-requested UUID→ULID: documentation updated for ULID identifiers (legacy UUID noted where still accepted). 2026-10-05 async adaptation: User-authorized session-owned background/control/query implementation or offline regression contract adaptation; synchronous defaults and existing safety assertions retained.",
+      "sha256": "98c06972b24ce2ef2f6b6c2894ecc00574fbecf2a753eaaff9256881d5a8ada5",
+      "reason": "User-requested UUID→ULID: documentation updated for ULID identifiers (legacy UUID noted where still accepted). 2026-10-05 async adaptation: User-authorized session-owned background/control/query implementation or offline regression contract adaptation; synchronous defaults and existing safety assertions retained. 2026-10-06 local adaptation (shell-tools): background job status/list fields and jobId-less listing, tail ring buffer, MAX_RAW_CAPTURE_BYTES 8192, cancel race fix, compactJob text slimming, timeoutMs description, receipt decided dynamically via getActiveTools. Assertions kept or tightened; not a source-identical copy.",
       "previousAsyncRecordedSha256": "4cf1899449bd49eded5204b56f79c4d5162c9cbf0f0f604577841a0a7ea30a5d"
     },
     {
@@ -711,8 +723,8 @@
     {
       "path": "modules/scheduler/tests/integration/session-scheduler.test.ts",
       "originalSha256": "84bc7b4190197a840b04a2a23d5b9cd282d9db10632abb07c8256abd50f79f78",
-      "sha256": "4d52a3f4cee75f482f025ddb6d57e759ff63d112432c742ce3f4f491edae11f8",
-      "reason": "Fixture default admissionTimeoutMs 1500->10000 so loaded hosts do not fail admission; assertions unchanged."
+      "sha256": "9d05d1834a20b679013841dc7f72d9f4472a10330cf9fd734c29349e38d51a01",
+      "reason": "Fixture default admissionTimeoutMs 1500->10000 so loaded hosts do not fail admission; assertions unchanged. 2026-10-06 local adaptation (scheduler): schedule_delete tool, missed terminal state (legacy skipped_busy+missed_no_backfill read as missed without rewrite, one-way upgrade), status runId/result and summary listing, results only in structuredContent, cron/limit docs. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/scheduler/vitest.config.ts",
@@ -730,38 +742,38 @@
     {
       "path": "modules/web-tools/src/search.ts",
       "originalSha256": "b2cead3c20ae104d60cb2d51c97a3eb5a3f6baea03b405f1e33b0cb5caddbc3a",
-      "sha256": "b921be42b3306e1dd4888c9ae220de85c0876581282d270125fa5a25e40c77a7",
-      "reason": "2026-10-04 code-review stability fixes: web_search provider that differs from the configured provider fails with PROVIDER_UNSUPPORTED; schema unchanged."
+      "sha256": "57d332925b47e513e2befb02603a6bf71f5e19ef4c33ca9f02bf6eaa5e6de641",
+      "reason": "2026-10-04 code-review stability fixes: web_search provider that differs from the configured provider fails with PROVIDER_UNSUPPORTED; schema unchanged. 2026-10-06 local adaptation (web-tools): actionable next-step error hints, web_search provider field removed (prepareArguments drops legacy argument), dynamic description/guidelines, text slimming. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/web-tools/src/fetch/extract.ts",
       "originalSha256": "eaf1629c4fc773ec1313db65b692c1fef9b6fbe02df25b258f421b2a0ffb41ae",
-      "sha256": "704e75e9dd6b0638695104b9d8846dd98574f548e6f8cbb4021d8f30b3a9df2f",
-      "reason": "2026-10-04 code-review stability fixes: inputs over 1 MiB are truncated on a UTF-8 boundary with a warning instead of TOO_LARGE."
+      "sha256": "9ef59995fb15f347084609f1111ad08d5f67a196ec2b2eac04aeead6dcfc0415",
+      "reason": "2026-10-04 code-review stability fixes: inputs over 1 MiB are truncated on a UTF-8 boundary with a warning instead of TOO_LARGE. 2026-10-06 local adaptation (web-tools): actionable next-step error hints, web_search provider field removed (prepareArguments drops legacy argument), dynamic description/guidelines, text slimming. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/web-tools/src/fetch/service.ts",
       "originalSha256": "ed6bba32451c52c97e63e8f6dc917ec2b1e6366ca2e994e6b4aebeeede9fb013",
-      "sha256": "281958fe4568b5ccddc6ab5da666fede07dc2d8d7966b1535d0af64bd9467707",
-      "reason": "2026-10-04 code-review stability fixes: 10 MiB cap on proxied responses, media/font subresources aborted, closeContext bounded by a 5s timeout; DNS-rebinding window documented, not fixed."
+      "sha256": "870d52968b31d9b9c079d7c8e59a19e24b4e2b8d4862f45a6c798990463a2104",
+      "reason": "2026-10-04 code-review stability fixes: 10 MiB cap on proxied responses, media/font subresources aborted, closeContext bounded by a 5s timeout; DNS-rebinding window documented, not fixed. 2026-10-06 local adaptation (web-tools): actionable next-step error hints, web_search provider field removed (prepareArguments drops legacy argument), dynamic description/guidelines, text slimming. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/web-tools/tests/unit/fetch.test.ts",
       "originalSha256": "586066237f9d9b6f10aa6d6b34d451616aa4dea588da2e8fab9db70942f218b9",
-      "sha256": "6e2b0eb19aa4e7a0a43973a2aed01e708c349fc52d91640eae9e5985893d7fc0",
-      "reason": "2026-10-04 code-review stability fixes: tests follow truncation/size-limit behavior; assertions not weakened."
+      "sha256": "158f1494a90f45db9b49556b70f36d16af42b2dd3d0cd89d9e14e64c04d76424",
+      "reason": "2026-10-04 code-review stability fixes: tests follow truncation/size-limit behavior; assertions not weakened. 2026-10-06 local adaptation (web-tools): actionable next-step error hints, web_search provider field removed (prepareArguments drops legacy argument), dynamic description/guidelines, text slimming. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/web-tools/tests/unit/search.test.ts",
       "originalSha256": "d3cc6f1ab68e87e848d758a9f014c1e911d63cd3c11f039521cafdc64a1fee51",
-      "sha256": "9bc84c6061f9fd35ff90f66bd470bf73059632d9dff31e9777bbdb9d36374522",
+      "sha256": "b08a28fc26f1dc43a211591c0afab628a073f6c1a33c308001f652022a48d71e",
       "reason": "2026-10-04 code-review stability fixes: Exa test configures Exa; adds provider-mismatch rejection test."
     },
     {
       "path": "modules/scheduler/src/locking.ts",
       "originalSha256": "1d1aef01d00e816eed459d4c07dc85975e5dfdce83981b684308468abf1eb815",
-      "sha256": "1826e281b8d57e517f8b78e5413cf6774d5dc3ca38b702407294eb4230745e99",
-      "reason": "2026-10-04 code-review stability fixes: always installs onCompromised (proper-lockfile default throws) and forwards it to the owner without throwing."
+      "sha256": "ffedb28682d3b9e5d70e6a4a9af89dd1be4c19776b946ede7c7896fc28b059fc",
+      "reason": "2026-10-04 code-review stability fixes: always installs onCompromised (proper-lockfile default throws) and forwards it to the owner without throwing. 2026-10-06 local adaptation (scheduler): schedule_delete tool, missed terminal state (legacy skipped_busy+missed_no_backfill read as missed without rewrite, one-way upgrade), status runId/result and summary listing, results only in structuredContent, cron/limit docs. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/scheduler/tests/unit/cron-engine.test.ts",
@@ -778,8 +790,98 @@
     {
       "path": "modules/file-tools/tests/path-image-regressions.test.ts",
       "originalSha256": "133ca940994db8223c3222beef086c60777b77e3924405dec3087177cf1c8bca",
-      "sha256": "72b5457988a7c872780feb16d2e45bb3f87bd91799fe85e12ea69187a69cc35b",
-      "reason": "2026-10-05 async adaptation: Four missing-live-log guidance regressions preserve all existing path/image assertions."
+      "sha256": "20f5db3c53ef4ff4dbcf4641bdd2b5cdf0caecbd1dd8e6229715d816f0d1ced9",
+      "reason": "2026-10-05 async adaptation: Four missing-live-log guidance regressions preserve all existing path/image assertions. 2026-10-06 local adaptation (file-tools): read/edit/write return slimming (no LINE_PREFIX, single-line metadata, compactPatch, no write details), error recovery points to shell, description/schema/guidelines de-duplicated. Assertions kept or tightened; not a source-identical copy."
+    },
+    {
+      "path": "modules/subagents/tests/result.test.ts",
+      "originalSha256": "e610a76d0784af39fedddee14069e539c21edd0fd7edeec1253e319291c77713",
+      "sha256": "b94bd2cea166a9bb145b6c583e8a3667e968f80f3ee73340fee424f9903bff66",
+      "reason": "2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy."
+    },
+    {
+      "path": "modules/subagents/agents/planner.md",
+      "originalSha256": "d9f97d6812dbfa9a8c2d11ee5d988cb9af33fe2c06d548dc3d2ad92bbbb4fb66",
+      "sha256": "6cd5cfb6317016e5e98d6c2365798c32113add00f5bee038ec8b7617450cb96f",
+      "reason": "2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy."
+    },
+    {
+      "path": "modules/subagents/agents/reviewer.md",
+      "originalSha256": "bcf9d560205f33eebc69f5d4d32dd9bbf0bdcf7e3ed39b601db43558e1af7515",
+      "sha256": "9c18d6566901c102f2b838b189f3a1f05e03a9232d264fec1d531def05837fc0",
+      "reason": "2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy."
+    },
+    {
+      "path": "modules/subagents/agents/scout.md",
+      "originalSha256": "36070d67a870ee051b32fe35db4d4ed173b86c2c0204a54d74e283979626215e",
+      "sha256": "7f62a4946a80bf5d4b69b2f51b298b5d22071466421f587eed30cc5743f47108",
+      "reason": "2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy."
+    },
+    {
+      "path": "modules/subagents/agents/worker.md",
+      "originalSha256": "ddc0a845139966dd23d003f45fb8d639ee4a96607e96b074f0f4d10e08930907",
+      "sha256": "5d4a1eb950d2755d76ee4c0d41543fee4fbd6d1ca10f7624fa2cd81ccbb8a147",
+      "reason": "2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy."
+    },
+    {
+      "path": "modules/subagents/prompts/implement.md",
+      "originalSha256": "65462de33c97ac1372cfed270dad9af164605b05028c069dd4c013ff9792675b",
+      "sha256": "e373b0b9476f48a3175a772a73914e2ed55f7725d086fc2bb84800d623d80341",
+      "reason": "2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy."
+    },
+    {
+      "path": "modules/subagents/prompts/scout-and-plan.md",
+      "originalSha256": "9506399391e0d2c71826c45f26cc332175dd964465f99a8bb880e109f8ed89f4",
+      "sha256": "f014846fce5aa1d00758f1ecdee59011e80ab5224fe94c6612d98fb0eb6100fd",
+      "reason": "2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy."
+    },
+    {
+      "path": "modules/file-tools/src/path-utils.ts",
+      "originalSha256": "1977da15b78cefc88609eda7aca077384a1d7225d63c624d1697d9227e9f8448",
+      "sha256": "de9c23e0e3a75581e067af9360c31c7aa56ec3ee0b2ee0a17179c44f5638fda6",
+      "reason": "2026-10-06 local adaptation (file-tools): read/edit/write return slimming (no LINE_PREFIX, single-line metadata, compactPatch, no write details), error recovery points to shell, description/schema/guidelines de-duplicated. Assertions kept or tightened; not a source-identical copy."
+    },
+    {
+      "path": "modules/file-tools/tests/error-display.test.ts",
+      "originalSha256": "987e205300c3163f9a022eb1ded786745d1ba7258755167ce69c3a16f582acd4",
+      "sha256": "a9b40401bd1100d0b17a57c6f49776d23d0f08f65e469407508c4d5bef671f09",
+      "reason": "2026-10-06 local adaptation (file-tools): read/edit/write return slimming (no LINE_PREFIX, single-line metadata, compactPatch, no write details), error recovery points to shell, description/schema/guidelines de-duplicated. Assertions kept or tightened; not a source-identical copy."
+    },
+    {
+      "path": "modules/web-tools/src/fetch/network.ts",
+      "originalSha256": "d25504f5c2c8097835cb6ed8608105a1029657afd119418ea0387ae183f8aa14",
+      "sha256": "b242dffce521795bb6296cb65f8753e40343c6244b59fa4e21195c520dc17f97",
+      "reason": "2026-10-06 local adaptation (web-tools): actionable next-step error hints, web_search provider field removed (prepareArguments drops legacy argument), dynamic description/guidelines, text slimming. Assertions kept or tightened; not a source-identical copy."
+    },
+    {
+      "path": "modules/scheduler/src/commands.ts",
+      "originalSha256": "eb21c65be1e3b7a195d9df5860d0b7befff8cba86fb58e56848d5fde8b511b0b",
+      "sha256": "5039d232877a6dc1d672f54fec981ee8bbf48ced7056cbff26c4f4c7b9937d32",
+      "reason": "2026-10-06 local adaptation (scheduler): schedule_delete tool, missed terminal state (legacy skipped_busy+missed_no_backfill read as missed without rewrite, one-way upgrade), status runId/result and summary listing, results only in structuredContent, cron/limit docs. Assertions kept or tightened; not a source-identical copy."
+    },
+    {
+      "path": "modules/scheduler/src/domain.ts",
+      "originalSha256": "f1da00533d7ae985496dbeded45d4284747cc9803d135e4c72f1012b2213b98c",
+      "sha256": "055cd220760bac9d43301b877e747ef467e93991d9ec6ddb65dec59025a44570",
+      "reason": "2026-10-06 local adaptation (scheduler): schedule_delete tool, missed terminal state (legacy skipped_busy+missed_no_backfill read as missed without rewrite, one-way upgrade), status runId/result and summary listing, results only in structuredContent, cron/limit docs. Assertions kept or tightened; not a source-identical copy."
+    },
+    {
+      "path": "modules/scheduler/src/scheduler-service.ts",
+      "originalSha256": "e6087343e595d76c44abf00ccc0e8cb06606e105f729a2a35b87e9e75abb0845",
+      "sha256": "de24df3a60a74ef33dcfaa5ca45852cb295c592c73920e46caee0e5beffee0aa",
+      "reason": "2026-10-06 local adaptation (scheduler): schedule_delete tool, missed terminal state (legacy skipped_busy+missed_no_backfill read as missed without rewrite, one-way upgrade), status runId/result and summary listing, results only in structuredContent, cron/limit docs. Assertions kept or tightened; not a source-identical copy."
+    },
+    {
+      "path": "modules/scheduler/tests/fixtures/smoke-extension.ts",
+      "originalSha256": "6c1aeca085eca6353f384cca0f722e6552a97d9d69fccc11aa893868ec63ecb5",
+      "sha256": "870fa4dc1055ff3ac192124abbebf39f638c7393dc28a7eb9ff576e09298bf69",
+      "reason": "2026-10-06 local adaptation (scheduler): schedule_delete tool, missed terminal state (legacy skipped_busy+missed_no_backfill read as missed without rewrite, one-way upgrade), status runId/result and summary listing, results only in structuredContent, cron/limit docs. Assertions kept or tightened; not a source-identical copy."
+    },
+    {
+      "path": "modules/scheduler/tests/integration/scheduler-tools.test.ts",
+      "originalSha256": "c8294d2e71c45f433e48f976b278c46055170cfc199cd33f8b4cf9c6aa8736f5",
+      "sha256": "3ad1cf59a1e12accd69c60dd21e390ed29913f60d12f13c5b09e7b515c4fdfb1",
+      "reason": "2026-10-06 local adaptation (scheduler): schedule_delete tool, missed terminal state (legacy skipped_busy+missed_no_backfill read as missed without rewrite, one-way upgrade), status runId/result and summary listing, results only in structuredContent, cron/limit docs. Assertions kept or tightened; not a source-identical copy."
     }
   ],
   "subagentTitleChanges": [
@@ -809,8 +911,8 @@
     },
     {
       "path": "modules/pty-terminal/src/renderers.ts",
-      "sha256": "2efa433fca70b59e6b04ae5964e8100b94ed0ed60ddd34f62f86ee74443af0ff",
-      "reason": "Pure call/result renderers for seven PTY tools; bounded sanitized UI previews, no input/args/env preview, explicit local-transport/timeout/drain/remote-descendant caveats. No PTY execution, draining or model-visible changes."
+      "sha256": "06ae43a055329767a6e785f8687a7ea332d97f31b6e389914f37cfdfd2b0e690",
+      "reason": "Pure call/result renderers for seven PTY tools; bounded sanitized UI previews, no input/args/env preview, explicit local-transport/timeout/drain/remote-descendant caveats. No PTY execution, draining or model-visible changes. 2026-10-06 local adaptation (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/pty-terminal/src/install.mjs",
@@ -829,13 +931,13 @@
     },
     {
       "path": "modules/pty-terminal/src/targets.ts",
-      "sha256": "698cefe298c5bf4f07803d378fdff24af12021886f76f00df924c1158b8391b1",
-      "reason": "Pure local/WSL/SSH target launch resolver; strict target fields, absolute remote cwd, explicit env, POSIX quoting and fail-closed selection."
+      "sha256": "530de4c415096158abd43084a206fbf254d176497701ccb37af0dd6f6fe11bcd",
+      "reason": "Pure local/WSL/SSH target launch resolver; strict target fields, absolute remote cwd, explicit env, POSIX quoting and fail-closed selection. 2026-10-06 local adaptation (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/pty-terminal/tests/targets.test.ts",
-      "sha256": "5379224a4f582b08ac1e3d47a39f6f64a6a5eebfde57426a779a61904ce6f447",
-      "reason": "Local compatibility, WSL argv/platform gate, SSH quoting/host policy, invalid config and effective-settings/pre-abort boundary tests; no real remote credentials."
+      "sha256": "b230ee7b157fcce341413c7cc65c3658b94b8a7e86b0111b8a6bb36ddaaeb322",
+      "reason": "Local compatibility, WSL argv/platform gate, SSH quoting/host policy, invalid config and effective-settings/pre-abort boundary tests; no real remote credentials. 2026-10-06 local adaptation (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/pty-terminal/tests/fixture.ts",
@@ -844,8 +946,8 @@
     },
     {
       "path": "modules/scheduler/src/renderers.ts",
-      "sha256": "9fb5a8a72898df2f4da4267c803a037902ceaa4afe7f178b6c240ff853611183",
-      "reason": "Pure schedule/revision/timezone, runtime-warning and run-history summaries; bounded/sanitized expansion and explicit unconfirmed cancellation semantics."
+      "sha256": "6913829450b49b3344505fc11d2259ffdacb5071c472a033bccaa0a0d9710b8e",
+      "reason": "Pure schedule/revision/timezone, runtime-warning and run-history summaries; bounded/sanitized expansion and explicit unconfirmed cancellation semantics. 2026-10-06 local adaptation (scheduler): schedule_delete tool, missed terminal state (legacy skipped_busy+missed_no_backfill read as missed without rewrite, one-way upgrade), status runId/result and summary listing, results only in structuredContent, cron/limit docs. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/web-tools/src/renderers.ts",
@@ -854,13 +956,13 @@
     },
     {
       "path": "tests/fixtures/renderer-probes.mjs",
-      "sha256": "1fe0d042eb327783065b3f9f47f97731d8e2f0fcf0fdceee06c9244b8647007a",
-      "reason": "Actual loader definitions rendered with host-style content/details envelope; call/result, widths 12/24/80, partial/error/legacy/malformed, controls, cancellation, diagnostics and immutable model-output probes. Merge covers all 21 interactive tools, including seven PTY previews, -1 timeout, transport PID/exit, unconfirmed remote termination, hidden write input and drained overflow."
+      "sha256": "1dfd063a31830477ef190f1b640cd31a77999158656ee13e754f78896c566488",
+      "reason": "Actual loader definitions rendered with host-style content/details envelope; call/result, widths 12/24/80, partial/error/legacy/malformed, controls, cancellation, diagnostics and immutable model-output probes. Merge covers all 21 interactive tools, including seven PTY previews, -1 timeout, transport PID/exit, unconfirmed remote termination, hidden write input and drained overflow. 2026-10-06: fixtures updated for schedule_delete tool list/renderer probes, missed/result status, new PTY kill/write/wait_exit formats and note path output; assertions not weakened."
     },
     {
       "path": "tests/fixtures/smoke.mjs",
-      "sha256": "804da061e82a199d03162a3438284b72f2b748f8940de9da58aa76d699168ecf",
-      "reason": "Track amended pre-existing integration-native loader fixture, absent from source imports: invoke renderer probes in workspace and real production tarball hosts, assert compact note filename. Existing execution/protocol/activation assertions retained; merge adds fetched real-local PTY spawn/read/write/wait/kill checks and seven tool registrations. 2026-10-05 async adaptation: Real all-module loader asserts background schemas, five management registrations, explicit activation, exclusion, read-only and no-tools; existing renderer/runtime assertions retained.",
+      "sha256": "f562f064525716e0f945d5a3c8e9acd4069aaec1c432761111c616e52ade2850",
+      "reason": "Track amended pre-existing integration-native loader fixture, absent from source imports: invoke renderer probes in workspace and real production tarball hosts, assert compact note filename. Existing execution/protocol/activation assertions retained; merge adds fetched real-local PTY spawn/read/write/wait/kill checks and seven tool registrations. 2026-10-05 async adaptation: Real all-module loader asserts background schemas, five management registrations, explicit activation, exclusion, read-only and no-tools; existing renderer/runtime assertions retained. 2026-10-06 local adaptation (fixtures): undefined. Assertions kept or tightened; not a source-identical copy. 2026-10-06: fixtures updated for schedule_delete tool list/renderer probes, missed/result status, new PTY kill/write/wait_exit formats and note path output; assertions not weakened.",
       "previousAsyncRecordedSha256": "76dc83ddd8d7924f6b10da7f48063d47bbe049cecbfcb64078fbe2e9a76ed41c"
     },
     {
@@ -885,8 +987,8 @@
     },
     {
       "path": "modules/subagents/tests/always-managed.test.ts",
-      "sha256": "30786071d70c9f24f9e2d5f1ae3d2cdf18e2681fbd90c3eb6e152bafdaf89bdd",
-      "reason": "Track the pre-existing integration-native mandatory-managed regression suite, absent from the immutable source import list. Compare returned transcript path to the expected file realpath while retaining all identity/checkpoint/guard/lock/failure assertions. Add model/thinking fallback and schema-description regressions across dispatch modes; confirm missing saved resume model still fails without spawning. 2026-10-05 async adaptation: User-authorized session-owned background/control/query implementation or offline regression contract adaptation; synchronous defaults and existing safety assertions retained.",
+      "sha256": "1193466cc025d51de02e303aebc35d14c29ddfd5c48934d2014cf098fead9198",
+      "reason": "Track the pre-existing integration-native mandatory-managed regression suite, absent from the immutable source import list. Compare returned transcript path to the expected file realpath while retaining all identity/checkpoint/guard/lock/failure assertions. Add model/thinking fallback and schema-description regressions across dispatch modes; confirm missing saved resume model still fails without spawning. 2026-10-05 async adaptation: User-authorized session-owned background/control/query implementation or offline regression contract adaptation; synchronous defaults and existing safety assertions retained. 2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy.",
       "previousAsyncRecordedSha256": "02c562c9ba2588c7193aa5c296d15674b64df62e0761c28d0329a1eb98a0edd3"
     },
     {
@@ -911,8 +1013,8 @@
     },
     {
       "path": "tests/integration/scheduler-source.test.mjs",
-      "sha256": "ab3e552eb3cb761b9a7694de3f9797fa53d8c72ed7415a7419c374938a0474cb",
-      "reason": "Stage all nine modules without dist artifacts; actual Pi full/child lifecycle smoke and Scheduler tool assertions. Development-dependency test, not a production-install claim."
+      "sha256": "97f5b0bd24701c65dad3f7d2626bd25ca198af12e5363bfe75cb3f55919dd4d7",
+      "reason": "Stage all nine modules without dist artifacts; actual Pi full/child lifecycle smoke and Scheduler tool assertions. Development-dependency test, not a production-install claim. 2026-10-06: fixtures updated for schedule_delete tool list/renderer probes, missed/result status, new PTY kill/write/wait_exit formats and note path output; assertions not weakened."
     },
     {
       "path": "tests/fixtures/json-schema-provider.ts",
@@ -926,8 +1028,8 @@
     },
     {
       "path": "modules/scheduler/tests/unit/locking.test.ts",
-      "sha256": "cae295c7a06789b2b5f7ddf325388256a6cf5f429dd32d0fe474f461da891f6f",
-      "reason": "2026-10-04 code-review stability fixes: onCompromised never throws and demotes owner; mocked lock, no sleeps."
+      "sha256": "7a90eda1d03b925b3921a81494ea9380e73667e1c64437c8634b7a58a3445fd5",
+      "reason": "2026-10-04 code-review stability fixes: onCompromised never throws and demotes owner; mocked lock, no sleeps. 2026-10-06 local adaptation (scheduler): schedule_delete tool, missed terminal state (legacy skipped_busy+missed_no_backfill read as missed without rewrite, one-way upgrade), status runId/result and summary listing, results only in structuredContent, cron/limit docs. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/scheduler/tests/unit/runner-lock.test.ts",
@@ -946,8 +1048,8 @@
     },
     {
       "path": "modules/subagents/extensions/subagent/background.ts",
-      "sha256": "c14c3805c94ca5f199f3fba4501ad5b8022ba4bd7f38652c4c487fe8a24997e4",
-      "reason": "User-authorized session-owned bounded background registry or verified RPC/query bridge; synchronous default, owner/cancellation, canonical context and resource safety preserved."
+      "sha256": "41e2045e1e66e2fb551fc0a09a594d5d7a142f734ee75b3fe710dafcea476c3a",
+      "reason": "User-authorized session-owned bounded background registry or verified RPC/query bridge; synchronous default, owner/cancellation, canonical context and resource safety preserved. 2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/subagents/extensions/subagent/child-bridge.ts",
@@ -961,8 +1063,8 @@
     },
     {
       "path": "modules/subagents/extensions/subagent/rpc.ts",
-      "sha256": "8d67f10c3a5eda3dae0c826bf8672221655cb1fb8a4ed0a006d37a37e9b982ee",
-      "reason": "User-authorized session-owned bounded background registry or verified RPC/query bridge; synchronous default, owner/cancellation, canonical context and resource safety preserved."
+      "sha256": "1a37bd58a84233cf5a67d292b05359f950df71e4bbd8078c6fc0cbb83348699c",
+      "reason": "User-authorized session-owned bounded background registry or verified RPC/query bridge; synchronous default, owner/cancellation, canonical context and resource safety preserved. 2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/subagents/tests/background-disposed.test.ts",
@@ -981,13 +1083,13 @@
     },
     {
       "path": "modules/subagents/tests/background.integration.test.ts",
-      "sha256": "11bb69b4d39f98fa9d1fa3cafe3e03d1e4b9449a8f7e51fbc755b06dafeaaf5f",
-      "reason": "Offline background/RPC/control/query acceptance, isolation, shutdown, resource limits or actual-host continuation regression; isolated workspace/provider, no paid API or real credentials."
+      "sha256": "446897e1f879a04cefc55d2c46c01195956e67827eb0deb5c44d9af6bbb066f8",
+      "reason": "Offline background/RPC/control/query acceptance, isolation, shutdown, resource limits or actual-host continuation regression; isolated workspace/provider, no paid API or real credentials. 2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/subagents/tests/background.test.ts",
-      "sha256": "054bb58e261d166786e60a9d9cda862054126fda58055cfef5d3a758953dfbd8",
-      "reason": "Offline background/RPC/control/query acceptance, isolation, shutdown, resource limits or actual-host continuation regression; isolated workspace/provider, no paid API or real credentials."
+      "sha256": "942120ad472fbc67254a8c998a45677d19eae109b53cc7d4c81a40088c258f66",
+      "reason": "Offline background/RPC/control/query acceptance, isolation, shutdown, resource limits or actual-host continuation regression; isolated workspace/provider, no paid API or real credentials. 2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/subagents/tests/fixtures/background-child.mjs",
@@ -1031,18 +1133,18 @@
     },
     {
       "path": "modules/shell-tools/src/background-jobs.ts",
-      "sha256": "7df69154955c3615aae65d84de69488bf77c56bc087f5ddce87ad3b4a00abe3a",
-      "reason": "User-authorized session-owned bounded background registry or verified RPC/query bridge; synchronous default, owner/cancellation, canonical context and resource safety preserved."
+      "sha256": "d9b4e4a324b115216af9b5320fb06bcdaab12ad2d5778c20afecf0aa6861ffc5",
+      "reason": "User-authorized session-owned bounded background registry or verified RPC/query bridge; synchronous default, owner/cancellation, canonical context and resource safety preserved. 2026-10-06 local adaptation (shell-tools): background job status/list fields and jobId-less listing, tail ring buffer, MAX_RAW_CAPTURE_BYTES 8192, cancel race fix, compactJob text slimming, timeoutMs description, receipt decided dynamically via getActiveTools. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/shell-tools/tests/background-jobs.test.mjs",
-      "sha256": "722b049692e59da69650e5fb499be1d988b163091d0f49f8e9081c2072daf670",
-      "reason": "Offline background/RPC/control/query acceptance, isolation, shutdown, resource limits or actual-host continuation regression; isolated workspace/provider, no paid API or real credentials."
+      "sha256": "637f69972ef888e6859883792de07e4226185f7f964bf52ef0aaa66b8056011f",
+      "reason": "Offline background/RPC/control/query acceptance, isolation, shutdown, resource limits or actual-host continuation regression; isolated workspace/provider, no paid API or real credentials. 2026-10-06 local adaptation (shell-tools): background job status/list fields and jobId-less listing, tail ring buffer, MAX_RAW_CAPTURE_BYTES 8192, cancel race fix, compactJob text slimming, timeoutMs description, receipt decided dynamically via getActiveTools. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/shell-tools/tests/background.integration.test.mjs",
-      "sha256": "275737ed96897cbca5409f1f948507fa01475be0fbcb7190c1315b696b2616fb",
-      "reason": "Offline background/RPC/control/query acceptance, isolation, shutdown, resource limits or actual-host continuation regression; isolated workspace/provider, no paid API or real credentials."
+      "sha256": "7c3715fcd4fa3be4fa8a07377c39188c3c272c96e386ac6f1a1f07e8544f7cd3",
+      "reason": "Offline background/RPC/control/query acceptance, isolation, shutdown, resource limits or actual-host continuation regression; isolated workspace/provider, no paid API or real credentials. 2026-10-06 local adaptation (shell-tools): background job status/list fields and jobId-less listing, tail ring buffer, MAX_RAW_CAPTURE_BYTES 8192, cancel race fix, compactJob text slimming, timeoutMs description, receipt decided dynamically via getActiveTools. Assertions kept or tightened; not a source-identical copy."
     },
     {
       "path": "modules/file-tools/src/subagent-log-paths.ts",
@@ -1053,6 +1155,36 @@
       "path": "modules/subagents/tsconfig.json",
       "sha256": "b2129b8f8bf20348fdd307ac025df983216b0ad2f241be4ff6ab66b8bcfe0d11",
       "reason": "Add strict noEmit production Subagent typecheck to root/module groups; host peers remain unbundled."
+    },
+    {
+      "path": "modules/pty-terminal/src/env.ts",
+      "sha256": "6e44ec2692a433dc050608584b420737e07815eb084435bf47ea2720ec572a92",
+      "reason": "2026-10-06 new local file (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts."
+    },
+    {
+      "path": "modules/pty-terminal/src/keys.ts",
+      "sha256": "49bc0d335ce4ef5251ca482120490bf569dbe42e074b64e03171a2facf732d97",
+      "reason": "2026-10-06 new local file (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts."
+    },
+    {
+      "path": "modules/pty-terminal/src/wait-for.ts",
+      "sha256": "4661732a483fd1871ab1e226ab217d1a3b2ec86c81e04ac04368d0f308dd17ef",
+      "reason": "2026-10-06 new local file (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts."
+    },
+    {
+      "path": "modules/pty-terminal/tests/env.test.ts",
+      "sha256": "d16970c7dc0f848fb3054a21929572d69ada22bf01966f4318055cd16e5071a0",
+      "reason": "2026-10-06 new local file (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts."
+    },
+    {
+      "path": "modules/pty-terminal/tests/keys.test.ts",
+      "sha256": "ebe6a14abf492b4b67c7b7f5713fb23644673c57b719256fc3aa97c2747b5ce2",
+      "reason": "2026-10-06 new local file (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts."
+    },
+    {
+      "path": "modules/pty-terminal/tests/pty-read.test.ts",
+      "sha256": "91d2e0faf27a8b5cc53a9c3ffc307654ccb2a4ced338419b0d76c71eb9ceba26",
+      "reason": "2026-10-06 new local file (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts."
     }
   ],
   "removedFiles": [
@@ -1141,5 +1273,19 @@
       "newIds": "Agent-visible job/task/control/query IDs use lowercase ULIDs from the existing root dependency; private query-channel authentication tokens are not job IDs. No persisted-data migration.",
       "limits": "No daemon, restart recovery, delivery acknowledgment, exactly-once effects, process-tree stop guarantee or OS sandbox."
     }
-  ]
+  ],
+  "contractSlimmingChanges": {
+    "date": "2026-10-06",
+    "reason": "Model-visible output/schema slimming across file, shell, subagent, web, PTY, scheduler, note and json-schema modules. Tool names, settings keys, storage directories and trust semantics preserved except documented: web_search provider argument removed; scheduler adds schedule_delete; PTY adds env allow/deny settings. See docs/migration.md.",
+    "modules": {
+      "file-tools": "read/edit/write return slimming (no LINE_PREFIX, single-line metadata, compactPatch, no write details), error recovery points to shell, description/schema/guidelines de-duplicated",
+      "shell-tools": "background job status/list fields and jobId-less listing, tail ring buffer, MAX_RAW_CAPTURE_BYTES 8192, cancel race fix, compactJob text slimming, timeoutMs description, receipt decided dynamically via getActiveTools",
+      "subagents": "status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines",
+      "web-tools": "actionable next-step error hints, web_search provider field removed (prepareArguments drops legacy argument), dynamic description/guidelines, text slimming",
+      "pty-terminal": "waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts",
+      "scheduler": "schedule_delete tool, missed terminal state (legacy skipped_busy+missed_no_backfill read as missed without rewrite, one-way upgrade), status runId/result and summary listing, results only in structuredContent, cron/limit docs",
+      "note-tools": "slug filename TYPE-<UTC timestamp>[-slug].md (CJK preserved, 40 code points), NOTE_EMPTY error, single relative path result",
+      "json-schema": "description merged, README documents validation-failure semantics and provider compatibility warning"
+    }
+  }
 }

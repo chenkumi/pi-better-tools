@@ -12,25 +12,42 @@ const displayText = (value: unknown, max = 2000) => typeof value === "string"
 /** Generous UTF-8 byte cap for one note (a note is a document, not a data dump). */
 export const MAX_NOTE_BYTES = 8 * 1024 * 1024;
 
+/** Max slug length in Unicode code points (never splits a surrogate pair). */
+export const MAX_SLUG_CODE_POINTS = 40;
+const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[0-9\u00b9\u00b2\u00b3]|lpt[0-9\u00b9\u00b2\u00b3])$/;
+
+/**
+ * Derive a filename slug from the content only: first Markdown heading, else first non-empty line.
+ * Keeps letters/numbers (incl. CJK), turns everything else into single hyphens, lowercases.
+ * Returns "" when no safe slug exists (caller falls back to a timestamp-only name).
+ */
+export function deriveSlug(content: string): string {
+  const lines = content.replace(/^\uFEFF/, "").split(/\r\n?|\n/);
+  const heading = lines.map(line => /^ {0,3}#{1,6}[ \t]+(.*)$/.exec(line)?.[1]).find(text => text !== undefined && /[\p{L}\p{N}]/u.test(text));
+  const source = heading ?? lines.find(line => line.trim() !== "") ?? "";
+  const normalized = source.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}\p{M}]+/gu, "-").replace(/^-+|-+$/g, "");
+  const slug = Array.from(normalized).slice(0, MAX_SLUG_CODE_POINTS).join("").replace(/-+$/g, "");
+  // A name without any letter/number, or a Windows device name, is not a usable slug.
+  if (!/[\p{L}\p{N}]/u.test(slug) || WINDOWS_RESERVED.test(slug)) return "";
+  return slug;
+}
+
 const noteTypes = ["plan", "issue", "research", "report", "task"] as const;
 
 export const noteTool = defineTool({
   name: "note",
   label: "Note",
   description:
-    "Save a NEW Markdown document (plan, issue, research, report or task) to the project. This is the required way to create such documents: do NOT use write for them and do NOT invent a file name or folder. " +
-    "Pass only `type` and the full `content`; the tool picks the folder (<cwd>/<type>/) and file name (TYPE-YYYYMMDDTHHmmssSSSZ.md, UTC), never overwrites anything, and returns the saved path. " +
-    "Use it whenever the user asks to write down, record, save, document, file or log a plan, an issue/bug/problem, research/investigation findings, a report/summary/review, or a task/to-do, or when you finish work that deserves such a record. " +
-    "Type guide: plan = proposed approach, design or roadmap; issue = bug, problem or risk found; research = investigation notes or findings; report = results, summary or review of completed work; task = actionable work item or to-do. " +
-    "Not for source code, config, or existing files: to read or modify a note afterwards, use read/edit with the returned path.",
+    "Save a NEW Markdown document as plan, issue, research, report or task. Required for such documents: do NOT use write and do NOT choose a file name or folder. " +
+    "The tool picks <cwd>/<type>/TYPE-YYYYMMDDTHHmmssSSSZ[-title-slug].md (UTC; slug derived from the content title), never overwrites, and returns the path; send the complete document in one call. " +
+    "Use it when asked to write down, record, save or log such a document, or when finished work deserves a record. Not for source code or existing files: to change a note afterwards use read/edit on the returned path.",
   promptSnippet: "Save a new plan/issue/research/report/task Markdown document; file name is auto-generated and the saved path is returned.",
   promptGuidelines: [
-    "When creating a plan, issue, research, report or task document, call note with { type, content } instead of write; never choose its file name or location yourself.",
-    "Put the complete document in content in one call; note only creates new files. Use the returned path with read/edit for any later changes.",
+    "Create plan/issue/research/report/task documents with note { type, content }, not write.",
   ],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   parameters: Type.Object({
-    type: StringEnum(noteTypes, { description: "Document category, which also selects the folder: plan (approach/design), issue (bug/problem/risk), research (findings), report (results/summary), task (to-do)." }),
+    type: StringEnum(noteTypes, { description: "Category and folder: plan = approach/design/roadmap; issue = bug/problem/risk; research = findings; report = results/summary/review; task = to-do." }),
     content: Type.String({ description: "The full Markdown document, including a title heading, written verbatim. Do not include a file name." }),
   }, { additionalProperties: false }),
   outputSchema: Type.Object({
@@ -60,6 +77,9 @@ export const noteTool = defineTool({
     if (Buffer.byteLength(params.content, "utf8") > MAX_NOTE_BYTES) {
       throw new Error(`NOTE_TOO_LARGE: Content exceeds ${MAX_NOTE_BYTES} bytes; split it into several notes.`);
     }
+    if (params.content.trim() === "") {
+      throw new Error("NOTE_EMPTY: content is empty or whitespace only. Write the complete Markdown document (with a title heading) into content and call note again.");
+    }
     signal?.throwIfAborted();
     const directory = resolve(ctx.cwd, params.type);
     await mkdir(directory, { recursive: true });
@@ -69,10 +89,11 @@ export const noteTool = defineTool({
     if (inside === "" || inside.startsWith("..") || isAbsolute(inside)) {
       throw new Error(`NOTE_DIRECTORY_ESCAPE: ${params.type}/ resolves outside the workspace; refusing to write.`);
     }
+    const slug = deriveSlug(params.content);
     const timestamp = Date.now();
     for (let attempt = 0; attempt < 1000; attempt++) {
       const stamp = new Date(timestamp + attempt).toISOString().replace(/[-:.]/g, "");
-      const filename = `${params.type.toUpperCase()}-${stamp}.md`;
+      const filename = `${params.type.toUpperCase()}-${stamp}${slug ? `-${slug}` : ""}.md`;
       const path = join(directory, filename);
       try {
         await withFileMutationQueue(path, async () => {
@@ -95,7 +116,7 @@ export const noteTool = defineTool({
       }
       const saved = { type: params.type, path, relativePath: `${params.type}/${filename}` };
       return {
-        content: [{ type: "text", text: `Saved note: ${saved.relativePath}\nAbsolute path: ${saved.path}` }],
+        content: [{ type: "text", text: `Saved note: ${saved.relativePath} (relative to cwd; use read/edit on this path to change it)` }],
         details: saved,
         structuredContent: saved,
       };

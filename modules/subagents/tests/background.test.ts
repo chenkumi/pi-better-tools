@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { BackgroundJobs, type BackgroundReceipt } from "../extensions/subagent/background.ts";
+import { BackgroundJobs, slimJobList, slimReceipt, type BackgroundReceipt } from "../extensions/subagent/background.ts";
 
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(r => { resolve = r; }); return { promise, resolve }; }
 test("receipt is detached queued data; live paths appear only after runner admission and completion once", async () => {
@@ -17,10 +17,11 @@ test("receipt is detached queued data; live paths appear only after runner admis
 	assert.throws(() => jobs.cancel(receipt.jobId, "owner", "/another"), /NOT_FOUND/);
 	admitted.resolve(); await Promise.resolve(); await Promise.resolve();
 	assert.match(jobs.get(receipt.jobId, "owner", "/cwd").tasks[0].liveLogPath!, /\.partial$/);
+	assert.equal(jobs.get(receipt.jobId, "owner", "/cwd").tasks[0].finalLogPath, "/existing/transcript.jsonl", "live notice also announces the post-rename path");
 	assert.equal(receipt.tasks[0].liveLogPath, undefined, "receipt cannot mutate after it was returned");
 	complete.resolve(); await finished.promise;
 	const result = jobs.get(receipt.jobId, "owner", "/cwd"); assert.equal(result.status, "completed");
-	assert.equal(result.tasks[0].liveLogPath, undefined); assert.deepEqual(notifications.map(n => n.kind), ["log_ready", "task_result"]);
+	assert.equal(result.tasks[0].liveLogPath, undefined); assert.equal(result.tasks[0].finalLogPath, undefined); assert.deepEqual(notifications.map(n => n.kind), ["log_ready", "task_result"]);
 	assert.equal(jobs.cancel(receipt.jobId, "owner", "/cwd").cancelRequested, false, "late cancel cannot rewrite success");
 	await jobs.shutdown();
 });
@@ -56,4 +57,30 @@ test("chain unscheduled items are skipped rather than invented logs/results", as
 	await done.promise; const tasks = jobs.get(receipt.jobId, "owner", "/cwd").tasks;
 	assert.equal(tasks[1].status, "skipped"); assert.equal(tasks[1].logPending, true); assert.equal(tasks[1].liveLogPath, undefined); assert.equal(tasks[1].result, undefined);
 	await jobs.shutdown();
+});
+
+test("capacity errors report submitted/active load and the next action; list is owner-scoped and read-only", async () => {
+	const release = deferred(), finished = deferred();
+	const jobs = new BackgroundJobs(kind => { if (kind === "task_result") finished.resolve(); }, () => 3);
+	const receipt = jobs.submit("owner", "/cwd", jobs.epoch, Array(32).fill("worker"), async (_signal, ids, _live, finish) => { await release.promise; ids.forEach((_id, index) => finish(index, { output: "\n\nDone: first line\nsecond line" }, "completed")); });
+	assert.throws(() => jobs.submit("owner", "/cwd", jobs.epoch, ["worker"], async () => {}), /BACKGROUND_CAPACITY.*submitted 32\/32, active 3\/8.*subagent_status.*subagent_cancel.*split/);
+	assert.deepEqual(jobs.list("other", "/cwd"), []); assert.deepEqual(jobs.list("owner", "/elsewhere"), []);
+	const running = jobs.list("owner", "/cwd"); assert.equal(running.length, 1); assert.equal(running[0].jobId, receipt.jobId); assert.equal(running[0].tasks.length, 32);
+	release.resolve(); await finished.promise;
+	const done = jobs.list("owner", "/cwd")[0];
+	assert.equal(done.status, "completed"); assert.equal(done.tasks[0].summary, "Done: first line"); assert.equal(done.cancelRequested, false);
+	await jobs.shutdown(); assert.deepEqual(jobs.list("owner", "/cwd"), []);
+});
+
+test("model-visible receipt text omits defaults and duplicates but keeps next-step fields", () => {
+	const receipt: BackgroundReceipt = { jobId: "j", status: "completed", cancelRequested: false, tasks: [
+		{ taskId: "t1", agent: "worker", status: "completed", logPending: false, subagentSessionId: "s1", canMessage: false, result: { agent: "worker", status: "completed", exitCode: 0, stopReason: "stop", canResume: true, subagentSessionId: "s1", output: "done", logPath: "/l.jsonl", usage: { totalTokens: 12 }, model: "m", outputTruncated: false } },
+		{ taskId: "t2", agent: "scout", status: "failed", logPending: true, result: { exitCode: 1, errorCode: "E", errorMessage: "boom" } },
+	] };
+	const slim = slimReceipt(receipt, "task_result") as any;
+	assert.deepEqual(slim, { kind: "task_result", jobId: "j", status: "completed", tasks: [
+		{ taskId: "t1", agent: "worker", status: "completed", subagentSessionId: "s1", result: { output: "done", logPath: "/l.jsonl", canResume: true, usage: { totalTokens: 12 } } },
+		{ taskId: "t2", agent: "scout", status: "failed", result: { errorCode: "E", errorMessage: "boom", exitCode: 1 } },
+	] });
+	assert.deepEqual(slimJobList([{ jobId: "j", status: "running", cancelRequested: false, tasks: [{ taskId: "t", agent: "a", status: "running", canMessage: false }] }]), { jobs: [{ jobId: "j", status: "running", tasks: [{ taskId: "t", agent: "a", status: "running" }] }] });
 });

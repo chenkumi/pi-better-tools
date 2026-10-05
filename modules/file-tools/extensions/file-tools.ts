@@ -12,6 +12,7 @@ import {
   editTextFile,
   MAX_EDIT_OPERATIONS,
   MAX_REGEX_PATTERN_LENGTH,
+  compactPatch,
   readTextBuffer,
   truncateFeedback,
   writeTextFile,
@@ -59,8 +60,8 @@ const writeSchema = Type.Object(
 
 const lineRangeSchema = Type.Object(
   {
-    start: Type.Integer({ minimum: 1, description: "First line of the inclusive search window (1-based). This scopes matching; it is not a whole-line replacement boundary." }),
-    end: Type.Integer({ minimum: 1, description: "Last line of the inclusive search window (1-based). The match must fit entirely inside this window. For regex, the window text is matched as a standalone string, so ^, $, lookbehind and lookahead cannot see text outside it." }),
+    start: Type.Integer({ minimum: 1, description: "First line of the inclusive search window (1-based)." }),
+    end: Type.Integer({ minimum: 1, description: "Last line of the inclusive search window (1-based); the match must fit inside it." }),
   },
   strictObject,
 );
@@ -78,16 +79,16 @@ const editSchema = Type.Object(
       Type.Object(
         {
           oldText: Type.Optional(Type.String({ minLength: 1, description: "Exact literal text to match. Use exactly one of oldText or regex." })),
-          regex: Type.Optional(Type.String({ minLength: 1, maxLength: MAX_REGEX_PATTERN_LENGTH, description: "JavaScript ECMAScript RegExp pattern (not Python or PCRE syntax). Put flags in regexFlags; for example use regex='^foo' with regexFlags='m', not a bare inline flag like (?m). Use exactly one of oldText or regex." })),
+          regex: Type.Optional(Type.String({ minLength: 1, maxLength: MAX_REGEX_PATTERN_LENGTH, description: "JavaScript RegExp pattern; flags go in regexFlags. Use exactly one of oldText or regex." })),
           regexFlags: Type.Optional(
             Type.String({
               pattern: "^[imsu]*$",
-              description: "JavaScript RegExp flags; use only with regex. Each of i, m, s, u is allowed at most once. Example: regex='^foo' with regexFlags='m' makes ^ match line starts. Do not pass g; use replaceAll=true to replace every match. Omit when no flags are needed.",
+              description: "RegExp flags i, m, s, u (each at most once, never g); only with regex.",
             }),
           ),
           newText: Type.String({ description: "Replacement text. Empty string deletes matches. With regex and replacementMode=template, $1 and $<name> insert captures." }),
           lineRange: Type.Optional(lineRangeSchema),
-          replaceAll: Type.Optional(Type.Boolean({ default: false, description: "Replace every match in the selected scope. When false, exactly one match is required; this replaces the regex g flag." })),
+          replaceAll: Type.Optional(Type.Boolean({ default: false, description: "Replace every match in the selected scope; when false, exactly one match is required." })),
           replacementMode: Type.Optional(
             Type.Union([Type.Literal("literal"), Type.Literal("template")], {
               description: "literal by default; template enables regex replacement tokens such as $1 and $<name>.",
@@ -342,20 +343,16 @@ export function prepareEditArguments(value: unknown) {
 }
 
 export function formatEditSuccessFeedback(result: EditResult): { content: string; truncated: boolean } {
-  const visibleRanges = result.changedRanges.slice(0, 20);
-  const omittedRanges = result.changedRanges.length - visibleRanges.length;
+  // Model-visible text is compact; the full diff, patch and changedRanges live in details.
+  const compact = compactPatch(result.patch);
   const metadata = {
-    status: "success",
-    path: result.path,
-    appliedEdits: result.appliedEdits,
-    matchedCount: result.matchedCount,
-    changedCount: result.changedCount,
-    sha256Before: result.sha256Before,
     sha256After: result.sha256After,
-    changedRanges: visibleRanges,
-    ...(omittedRanges > 0 ? { changedRangesOmitted: omittedRanges } : {}),
+    edits: result.appliedEdits,
+    ...(result.changedCount !== result.appliedEdits ? { replacements: result.changedCount } : {}),
+    ...(compact.added > 0 ? { added: compact.added } : {}),
+    ...(compact.removed > 0 ? { removed: compact.removed } : {}),
   };
-  return truncateFeedback(`[FILE_EDIT_SUCCESS]\n${JSON.stringify(metadata, null, 2)}\n\n[DIFF]\n${result.patch}`);
+  return truncateFeedback(`[FILE_EDIT_SUCCESS] ${JSON.stringify(metadata)}\n[DIFF]\n${compact.text}`);
 }
 
 export function formatEditCallPreview(value: unknown): { path: string; ranges: string } {
@@ -450,6 +447,7 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
     promptGuidelines: [
       "Use read before edit to obtain the latest 32-character SHA-256 version token as expectedHash and the exact text. Omit lineRange when oldText is unique; use lineRange only to disambiguate or limit the search scope.",
       "When copying oldText from read output, omit the '<line>│' display prefix because it is metadata, not file content.",
+      "To search file contents use shell rg, then read the relevant range with offset/limit.",
       "If read reports READ_CONTINUATION, continue with the supplied nextOffset before assuming the file was fully inspected.",
       "A missing live subagent transcript may include a same-directory final-path recovery hint. Retry that path explicitly; missing logs do not prove job completion.",
     ],
@@ -509,9 +507,9 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
         const correctionNotice = autoCorrected
           ? `[SKILL_PATH_AUTO_CORRECTED] ${JSON.stringify({ requestedPath: params.path, actualPath })}`
           : undefined;
-        const secondHeaderEnd = result.text.indexOf("\n", result.text.indexOf("\n") + 1);
-        const text = correctionNotice && secondHeaderEnd !== -1
-          ? `${result.text.slice(0, secondHeaderEnd + 1)}${correctionNotice}\n${result.text.slice(secondHeaderEnd + 1)}`
+        const headerEnd = result.text.indexOf("\n");
+        const text = correctionNotice && headerEnd !== -1
+          ? `${result.text.slice(0, headerEnd + 1)}${correctionNotice}\n${result.text.slice(headerEnd + 1)}`
           : result.text;
         return {
           content: [{ type: "text", text }],
@@ -544,12 +542,21 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
       if (context.isError) return new Text(theme.fg("error", formatFileToolErrorForDisplay(text, expanded, "write")), 0, 0);
       if (isPartial) return new Text(theme.fg("muted", "Writing file…"), 0, 0);
       let summary = "File written", detail = "";
-      try {
-        const payload = JSON.parse(text.split("[FILE_WRITE_SUCCESS]\n")[1]);
+      // Prefer structured details; fall back to text parsing for hosts that drop
+      // them (accepts both the compact single-line and the legacy multi-line payload).
+      let payload = result.details as { bytes?: unknown; path?: unknown; sha256?: unknown } | undefined;
+      if (!payload || typeof payload !== "object") {
+        payload = undefined;
+        try {
+          const marker = text.indexOf("[FILE_WRITE_SUCCESS]");
+          if (marker !== -1) payload = JSON.parse(text.slice(marker + "[FILE_WRITE_SUCCESS]".length).trim());
+        } catch { /* missing success metadata still gets a compact result */ }
+      }
+      if (payload) {
         if (typeof payload.bytes === "number") summary += ` · ${payload.bytes} bytes`;
         if (typeof payload.path === "string") detail += `\nPath: ${payload.path}`;
         if (typeof payload.sha256 === "string") detail += `\nSHA-256: ${payload.sha256}`;
-      } catch { /* old or missing success metadata still gets a compact result */ }
+      }
       const clean = stripVTControlCharacters(summary + (expanded ? detail : "")).replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, "");
       return new Text(theme.fg("success", clean), 0, 0);
     },
@@ -562,10 +569,10 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
             content: [
               {
                 type: "text",
-                text: `[FILE_WRITE_SUCCESS]\n${JSON.stringify({ status: "success", ...result }, null, 2)}`,
+                text: `[FILE_WRITE_SUCCESS] ${JSON.stringify({ sha256: result.sha256, bytes: result.bytes, ...(result.created ? { created: true } : {}) })}`,
               },
             ],
-            details: undefined,
+            details: { path: result.path, sha256: result.sha256, bytes: result.bytes, created: result.created },
           };
         });
       });
@@ -577,16 +584,17 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
     ...mutationToolMetadata,
     label: "edit (precise)",
     description:
-      "Edit one UTF-8 file using exact text or JavaScript ECMAScript RegExp syntax (not Python or PCRE). Each edits item must contain exactly one non-empty oldText or regex plus newText. Pass i/m/s/u flags separately in regexFlags—for example regex='^foo' with regexFlags='m'; do not use a bare inline flag such as (?m). Never pass g; use replaceAll=true to replace every match. Whole-file matching is the default. A 1-based inclusive lineRange is an initial search window; if oldText misses it, the tool falls back only when that literal is unique in the whole file. Regex does not use this fallback. All edits validate against one original snapshot and commit atomically with a model-visible diff.",
+      "Edit one UTF-8 file with exact-text or regex replacements, validated against one snapshot and committed atomically with a model-visible diff.",
     promptSnippet: "Edit exact text or regex matches with optional line ranges and replace-all behavior",
     promptGuidelines: [
       "Prefer oldText without lineRange when the exact text is unique in the whole file; this remains stable when earlier lines move.",
-      "Use lineRange as a 1-based inclusive initial search window, not a line replacement boundary. If oldText is not found there, a unique whole-file literal match is applied automatically; repeated whole-file matches remain an error. Regex edits do not use this fallback.",
+      "Use lineRange as a 1-based inclusive initial search window, not a line replacement boundary. If oldText is not found there, a unique whole-file literal match is applied automatically; repeated whole-file matches remain an error. Regex edits do not use this fallback, and a regex lineRange window is matched as a standalone string (^, $, lookbehind and lookahead cannot see outside it).",
       "After AMBIGUOUS_MATCH or a ranged miss, use returned candidateRanges to choose a narrower lineRange or include more exact surrounding text.",
       "Use replaceAll=true only when every match in the selected scope should change. Otherwise the selected scope must contain exactly one match.",
       "Use JavaScript ECMAScript RegExp syntax for regex patterns, not Python/PCRE syntax. Pass flags separately via regexFlags: for multiline ^/$ use regexFlags='m' rather than a bare inline flag such as (?m). Only i, m, s, u are accepted, each at most once; never pass g. Use replaceAll=true when every match in the selected scope should change.",
       "Use replacementMode=template only with regex when capture substitution such as $1 is required; use literal for ordinary replacement text.",
-      "Pass the 32-character SHA-256 version token from the latest read as edit.expectedHash whenever available so stale edits fail safely.",
+      "Pass the 32-character SHA-256 version token from the latest read as edit.expectedHash whenever available so stale edits fail safely. You may reuse the sha256After returned by the previous edit as the next expectedHash.",
+      "Each edits item needs exactly one non-empty oldText or regex plus newText. Whole-file matching is the default; omit lineRange unless disambiguating.",
       "All edits in one edit call refer to the original pre-edit snapshot and must target non-overlapping text.",
     ],
     parameters: editSchema,
@@ -624,6 +632,7 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
         return withFileMutationQueue(absolutePath, async () => {
           const result = await editTextFile(absolutePath, params.path, params.edits, params.expectedHash, signal);
           const feedback = formatEditSuccessFeedback(result);
+          const { added, removed } = compactPatch(result.patch);
           return {
             content: [{ type: "text", text: feedback.content }],
             details: {
@@ -636,6 +645,8 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
               sha256Before: result.sha256Before,
               sha256After: result.sha256After,
               changedRanges: result.changedRanges,
+              added,
+              removed,
               feedbackTruncated: feedback.truncated,
             },
           };

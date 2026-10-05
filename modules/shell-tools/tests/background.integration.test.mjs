@@ -68,10 +68,15 @@ test('real local shells return readable receipts, allow foreground work, detach 
       assert.ok([...host.tools.values()].every(tool => tool.defaultActive === false));
       const completion = host.completion();
       const readyEvent = waitForFile(ready);
-      assert.match(host.tools.get(name).description, /inactive unless explicitly selected/);
+      assert.match(host.tools.get(name).description, /need explicit selection/);
+      assert.ok(!host.tools.get(name).description.includes('2147483647'));
+      assert.ok(!host.tools.get(name).parameters.properties.timeoutMs.description.includes('2147483647'));
+      assert.match(host.tools.get(name).parameters.properties.timeoutMs.description, /Not a total time limit/);
+      assert.match(host.tools.get(name).description, name === 'bash' ? /Git Bash/ : /shellCommandPrefix is not applied/);
       const accepted = await host.execute(name, { command: nodeCommand(name, script), background: true }, turn.signal);
-      assert.match(accepted.content[0].text, /Management requires explicitly selected/);
-      assert.match(accepted.content[0].text, /shell-only loadouts cannot request job cancellation/);
+      assert.match(accepted.content[0].text, /read log tail/i);
+      assert.match(accepted.content[0].text, /shell_job_status\/cancel not selected/);
+      assert.ok(accepted.content[0].text.length < 260);
       const receipt = accepted.structuredContent;
       host.setSettings({ shellCommandPrefix: 'export BG_PREFIX=changed-after-receipt' });
       assert.equal(receipt.status, 'running');
@@ -81,6 +86,10 @@ test('real local shells return readable receipts, allow foreground work, detach 
       turn.abort();
       const running = (await host.execute('shell_job_status', { jobId: receipt.jobId })).structuredContent;
       assert.equal(running.status, 'running');
+      assert.equal(running.command, nodeCommand(name, script));
+      assert.equal(typeof running.elapsedMs, 'number');
+      const listed = (await host.execute('shell_job_status', {})).structuredContent;
+      assert.deepEqual(listed.jobs.map(job => job.jobId), [receipt.jobId]);
       assert.match(fs.readFileSync(receipt.liveLogPath, 'utf8'), /READY/);
       const foreground = await host.execute(name, { command: name === 'bash' ? 'printf FOREGROUND' : 'Write-Output FOREGROUND' });
       assert.match(foreground.structuredContent.output, /FOREGROUND/);
@@ -88,7 +97,12 @@ test('real local shells return readable receipts, allow foreground work, detach 
       fs.writeFileSync(gate, 'release');
       const notification = await completion;
       assert.deepEqual(notification.options, { triggerTurn: true, deliverAs: 'followUp' });
-      const final = (await host.execute('shell_job_status', { jobId: receipt.jobId })).structuredContent;
+      const finalResult = await host.execute('shell_job_status', { jobId: receipt.jobId });
+      const final = finalResult.structuredContent;
+      const finalText = JSON.parse(finalResult.content[0].text);
+      assert.equal(finalText.status, 'completed');
+      assert.match(finalText.output, /FINISHED/);
+      for (const noise of ['cancelRequested', 'logPath', 'liveLogPath', 'toolCallId', 'command', 'outputTail', 'logBytes']) assert.ok(!(noise in finalText), noise);
       assert.equal(final.status, 'completed');
       assert.equal(final.exitCode, 0);
       assert.match(final.output, /FINISHED/);
@@ -146,7 +160,8 @@ test('invalid UTF8 flood keeps decoded host output bounded and creates no extern
       assert.equal(result.exitCode, 0);
       assert.equal(result.outputTruncated, true);
       assert.ok(Buffer.byteLength(result.output, 'utf8') <= 32768, name);
-      if (name === 'bash') assert.equal(result.output, '\uFFFD'.repeat(Math.floor(32768 / 3)));
+      if (name === 'bash') assert.equal(result.output, '\uFFFD'.repeat(Math.floor((32768 - 8192) / 3)));
+      assert.ok(Buffer.byteLength(result.outputTail, 'utf8') <= 8192);
       assert.equal(fs.statSync(receipt.liveLogPath).size, 1024 * 1024);
       // OutputAccumulator must never produce its own pi-bash-/pi-powershell-
       // temp file: their decoded truncation thresholds must not be reached.
@@ -184,4 +199,32 @@ test('background flood consumes output without unbounded host files, preserves U
       } finally { await host.shutdown('quit'); }
     }
   } finally { fixture.writeDebugSettings({}); }
+});
+
+test('status of a running job shows only the last 2000 tail characters in model text while structuredContent keeps the full tail', { timeout: 60000 }, async () => {
+  for (const name of names) {
+    const cwd = fs.mkdtempSync(path.join(fixture.temp, 'bg-tail-'));
+    const host = fakeHost(cwd);
+    const script = path.join(cwd, 'flood.cjs');
+    const ready = path.join(cwd, 'ready'), gate = path.join(cwd, 'gate');
+    fs.writeFileSync(script, `const fs = require('node:fs');
+const watcher = fs.watch('.', () => { if (fs.existsSync('gate')) { watcher.close(); process.stdout.write('DONE\\n'); } });
+process.stdout.write('A'.repeat(6000) + '\\n', () => fs.writeFileSync('ready', String(process.pid)));
+`);
+    try {
+      const completion = host.completion();
+      const readyEvent = waitForFile(ready);
+      const accepted = await host.execute(name, { command: nodeCommand(name, script), background: true });
+      await readyEvent;
+      const result = await host.execute('shell_job_status', { jobId: accepted.structuredContent.jobId });
+      assert.equal(result.structuredContent.status, 'running');
+      assert.ok(result.structuredContent.outputTail.length >= 6000, 'structuredContent keeps the whole tail');
+      const text = JSON.parse(result.content[0].text);
+      assert.equal(text.status, 'running');
+      assert.ok(text.outputTail.length <= 2000, `model text tail is at most 2000 chars, got ${text.outputTail.length}`);
+      assert.ok(/^A+\s*$/.test(text.outputTail), 'the clipped tail is the most recent output');
+      fs.writeFileSync(gate, 'release');
+      await completion;
+    } finally { await host.shutdown('quit'); }
+  }
 });

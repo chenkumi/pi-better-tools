@@ -29,16 +29,16 @@ malformed.push(
 );
 
 interface Component { render(width: number): string[] }
-interface Result { content: Array<{ type: "text"; text: string }>; details?: { appliedEdits?: number; changedCount?: number; diff?: string } }
+interface Result { content: Array<{ type: "text"; text: string }>; details?: { appliedEdits?: number; changedCount?: number; diff?: string; bytes?: number; path?: string; sha256?: string } }
 type Renderer = (result: Result, options: object, theme: { fg(color: string, text: string): string }, context: { isError: boolean; expanded: boolean; lastComponent?: Component }) => Component;
-function registeredRenderer(): Renderer {
+function registeredRenderer(name = "edit"): Renderer {
   const tools: Array<Record<string, unknown>> = [];
   // The read tool subscribes to skill refreshes; renderer tests do not trigger the event.
   fileToolsExtension({
     registerTool: (tool: Record<string, unknown>) => tools.push(tool),
     on: () => () => {},
   } as never);
-  const renderer = tools.find((tool) => tool.name === "edit")?.renderResult;
+  const renderer = tools.find((tool) => tool.name === name)?.renderResult;
   assert.equal(typeof renderer, "function");
   return renderer as Renderer;
 }
@@ -124,5 +124,17 @@ describe("BUG-007 error payload validation", () => {
     render(success, {}, theme, { isError: false, expanded: false, lastComponent: component });
     assert.doesNotMatch(renderText(component), /\+1 new/);
     assert.equal(JSON.stringify(success), originalSuccess);
+  });
+
+  it("write renderer reads structured details and falls back to compact or legacy text", () => {
+    const render = registeredRenderer("write");
+    const opts = { expanded: true, isPartial: false };
+    const ctx = { isError: false, expanded: true };
+    const fromDetails = render(frozenResult("[FILE_WRITE_SUCCESS] {}", { bytes: 12, path: "a.txt", sha256: "abc" }), opts, theme, ctx);
+    assert.match(renderText(fromDetails), /File written · 12 bytes[\s\S]*Path: a\.txt[\s\S]*SHA-256: abc/);
+    const compact = render(frozenResult('[FILE_WRITE_SUCCESS] {"sha256":"def","bytes":7}'), opts, theme, ctx);
+    assert.match(renderText(compact), /File written · 7 bytes[\s\S]*SHA-256: def/);
+    const legacy = render(frozenResult('[FILE_WRITE_SUCCESS]\n{\n  "status": "success",\n  "path": "b.txt",\n  "bytes": 3\n}'), opts, theme, ctx);
+    assert.match(renderText(legacy), /File written · 3 bytes[\s\S]*Path: b\.txt/);
   });
 });

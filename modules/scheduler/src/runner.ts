@@ -243,8 +243,8 @@ export class IndependentRunner {
     let run: Run = { runId, scheduleId: schedule.id, mode: "independent", status: "planned", plannedAt: at, requestedProfile: schedule.execution, events: [] };
     const atCapacity = this.children.size >= (this.options.maxChildren ?? 4);
     if (missed) {
-      run = { ...run, status: "skipped_busy", endedAt: at, error: "Scheduled time was missed (app closed, host asleep or stalled); no backfill.",
-        events: [{ type: "diagnostic", at, detail: "missed_no_backfill" }] };
+      run = { ...run, status: "missed", endedAt: at, error: "Scheduled time was missed (app closed, host asleep or stalled); no backfill.",
+        events: [] };
       if (atCapacity) run.events.push({ type: "diagnostic", at, detail: "host_capacity_skipped" });
       await this.options.runs.append(run);
       return run;

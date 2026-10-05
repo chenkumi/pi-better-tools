@@ -25,12 +25,11 @@ async function readJson(response: Response): Promise<unknown> {
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
 }
 export async function search(
-  config: Config, input: { query: string; provider?: 'brave' | 'exa'; numResults?: number },
+  config: Config, input: { query: string; numResults?: number },
   signal?: AbortSignal, http: FetchLike = fetch,
 ): Promise<SearchResponse> {
   if (!config.enabled) throw new Error('CONFIG_INVALID: search is disabled');
-  // The configured provider is authoritative; a model-chosen provider may not bypass it.
-  if (input.provider !== undefined && input.provider !== config.provider) throw new Error(`PROVIDER_UNSUPPORTED: only the configured provider (${config.provider}) may be used`);
+  // The configured provider is authoritative; the model cannot choose one.
   const provider = config.provider;
   if (provider !== 'brave' && provider !== 'exa') throw new Error('PROVIDER_UNSUPPORTED: OpenAI uses native search, not this tool');
   if (typeof input.query !== 'string' || !input.query.trim() || input.query.length > 2000) throw new Error('CONFIG_INVALID: query must contain 1–2000 characters');

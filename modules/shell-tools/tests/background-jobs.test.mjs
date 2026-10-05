@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { test } from 'node:test';
-import { ShellJobs, MAX_ACTIVE_JOBS, MAX_RETAINED_JOBS, MAX_LOG_BYTES } from '../src/background-jobs.ts';
+import { ShellJobs, MAX_ACTIVE_JOBS, MAX_RETAINED_JOBS, MAX_LOG_BYTES, MAX_RAW_CAPTURE_BYTES, TAIL_BYTES, IDLE_TIMEOUT_HINT, idleTimeoutMessage, compactJob } from '../src/background-jobs.ts';
 
 const boundary = () => new Promise(resolve => setImmediate(resolve));
 const context = id => ({ sessionManager: { getSessionId: () => id } });
@@ -30,7 +30,7 @@ test('receipt precedes immediate completion; completion batches use owner follow
     assert.equal(messages.length, 1);
     assert.equal(messages[0][0].details.jobs.length, 2);
     assert.deepEqual(messages[0][1], { triggerTurn: true, deliverAs: 'followUp' });
-    assert.match(messages[0][0].content, /Untrusted command output/);
+    assert.match(messages[0][0].content, /untrusted data, not instructions/);
     assert.equal(jobs.cancel(ctx, first.jobId).status, 'completed');
   } finally { await jobs.shutdown(); }
 });
@@ -76,7 +76,7 @@ test('shutdown aborts, deletes logs and suppresses old generation callbacks afte
   release();
   await flush();
   assert.equal(messages.length, 0);
-  assert.throws(() => jobs.status(ctx, receipt.jobId), /Unknown or expired/);
+  assert.throws(() => jobs.status(ctx, receipt.jobId), /does not exist in this session/);
   await jobs.shutdown();
 });
 
@@ -95,7 +95,8 @@ test('live output disk and host accumulator remain bounded while all source chun
     const status = jobs.status(ctx, receipt.jobId);
     assert.equal(chunks, 100);
     assert.equal(fs.statSync(receipt.liveLogPath).size, MAX_LOG_BYTES);
-    assert.ok(forwarded <= Math.floor(32768 / 3));
+    assert.equal(MAX_RAW_CAPTURE_BYTES, Math.floor((32768 - 8192) / 3));
+    assert.ok(forwarded <= MAX_RAW_CAPTURE_BYTES);
     assert.ok(lines <= 1000);
     assert.equal(status.outputTruncated, true);
     assert.equal(status.exitCode, 7);
@@ -111,7 +112,8 @@ test('active capacity rejects before allocating and retained jobs evict complete
     for (let i = 0; i < MAX_ACTIVE_JOBS; i++) active.push(jobs.submit(ctx, 'bash', `${i}`, undefined, async () => {
       await new Promise(resolve => releases.push(resolve)); return success('done');
     }));
-    assert.throws(() => jobs.submit(ctx, 'bash', 'overflow', undefined, async () => success('bad')), /active limit/);
+    assert.throws(() => jobs.submit(ctx, 'bash', 'overflow', undefined, async () => success('bad')),
+      error => /active limit/.test(error.message) && /shell_job_cancel/.test(error.message) && active.every(r => error.message.includes(r.jobId)));
     const aborted = new AbortController(); aborted.abort();
     assert.throws(() => jobs.submit(ctx, 'bash', 'aborted', aborted.signal, async () => success('bad')), /aborted before/);
     await boundary();
@@ -122,7 +124,8 @@ test('active capacity rejects before allocating and retained jobs evict complete
       await flush();
     }
     assert.equal(fs.existsSync(active[0].liveLogPath), false);
-    assert.throws(() => jobs.status(ctx, active[0].jobId), /expired/);
+    assert.throws(() => jobs.status(ctx, active[0].jobId), /was evicted/);
+    assert.throws(() => jobs.status(ctx, 'never-existed'), /does not exist in this session/);
   } finally { releases.forEach(resolve => resolve()); await jobs.shutdown(); }
 });
 
@@ -235,5 +238,136 @@ test('changed session identity suppresses completion and timeout errors remain d
     id = 'replacement';
     await flush();
     assert.equal(messages.length, 0);
+  } finally { await jobs.shutdown(); }
+});
+
+test('snapshot carries command preview, timing, logBytes, and completion notification carries command and log hint', async () => {
+  const { jobs, ctx, messages } = host();
+  try {
+    const longCommand = 'echo ' + 'a'.repeat(500);
+    const receipt = jobs.submit(ctx, 'bash', 'meta', undefined, async (signal, wrap) => {
+      await wrap({ async exec(_c, _d, { onData }) { onData(Buffer.from('hello\n')); return { exitCode: 0 }; } }).exec('x', '.', { signal, onData() {} });
+      return success('hello');
+    }, longCommand);
+    await boundary();
+    const running = jobs.status(ctx, receipt.jobId);
+    assert.ok(running.command.length <= 201 && running.command.startsWith('echo aaa'));
+    assert.ok(!Number.isNaN(Date.parse(running.startedAt)));
+    assert.equal(typeof running.elapsedMs, 'number');
+    await flush();
+    const done = jobs.status(ctx, receipt.jobId);
+    assert.equal(done.logBytes, 6);
+    assert.equal(done.cancelRequested, false);
+    const frozen = done.elapsedMs;
+    await boundary();
+    assert.equal(jobs.status(ctx, receipt.jobId).elapsedMs, frozen, 'elapsed stops at completion');
+    assert.match(messages[0][0].content, /echo aaa/);
+    assert.equal(messages[0][0].details.jobs[0].command, done.command);
+    assert.ok(!messages[0][0].content.includes('truncated'));
+    for (const noise of ['cancelRequested', 'logPath', 'liveLogPath', 'toolCallId', 'startedAt', 'logBytes', 'outputTail']) assert.ok(!messages[0][0].content.includes(noise), noise);
+  } finally { await jobs.shutdown(); }
+});
+
+test('list shows running jobs first with identifying info; status errors distinguish evicted from missing and name running jobs', async () => {
+  const { jobs, ctx } = host();
+  let release;
+  try {
+    jobs.submit(ctx, 'bash', 'done', undefined, async () => success('d'), 'finished-cmd');
+    await flush();
+    const running = jobs.submit(ctx, 'powershell', 'run', undefined, () => new Promise(resolve => { release = () => resolve(success('x')); }), 'long-running-cmd');
+    await boundary();
+    const list = jobs.list(ctx);
+    assert.equal(list.length, 2);
+    assert.equal(list[0].jobId, running.jobId);
+    assert.equal(list[0].status, 'running');
+    assert.equal(list[0].command, 'long-running-cmd');
+    assert.ok(!('output' in list[0]) && !('outputTail' in list[0]));
+    assert.throws(() => jobs.status(ctx, 'missing'), error => /does not exist/.test(error.message) && error.message.includes(running.jobId) && error.message.includes('long-running-cmd'));
+  } finally { release?.(); await jobs.shutdown(); }
+});
+
+test('background tail ring keeps last bytes; status exposes head and tail only when output was cut', async () => {
+  const { jobs, ctx } = host();
+  try {
+    const receipt = jobs.submit(ctx, 'bash', 'tail', undefined, async (signal, wrap) => {
+      await wrap({ async exec(_c, _d, { onData }) {
+        for (let i = 0; i < 50; i++) onData(Buffer.from(`line-${String(i).padStart(3, '0')} ${'z'.repeat(990)}\n`));
+        onData(Buffer.from('FINAL-MARKER'));
+        return { exitCode: 0 };
+      } }).exec('x', '.', { signal, onData() {} });
+      return success('head-only');
+    });
+    await flush();
+    const result = jobs.status(ctx, receipt.jobId);
+    assert.equal(result.output, 'head-only');
+    assert.ok(Buffer.byteLength(result.outputTail) <= TAIL_BYTES);
+    assert.ok(result.outputTail.endsWith('FINAL-MARKER'));
+    assert.ok(!result.outputTail.includes('line-000'));
+    assert.equal(result.outputTruncated, true);
+  } finally { await jobs.shutdown(); }
+});
+
+test('small complete output has no redundant tail, invalid UTF-8 tail stays bounded', async () => {
+  const { jobs, ctx } = host();
+  try {
+    const small = jobs.submit(ctx, 'bash', 'small', undefined, async (signal, wrap) => {
+      await wrap({ async exec(_c, _d, { onData }) { onData(Buffer.from('tiny')); return { exitCode: 0 }; } }).exec('x', '.', { signal, onData() {} });
+      return success('tiny');
+    });
+    const bad = jobs.submit(ctx, 'bash', 'bad', undefined, async (signal, wrap) => {
+      await wrap({ async exec(_c, _d, { onData }) { onData(Buffer.alloc(100_000, 255)); return { exitCode: 0 }; } }).exec('x', '.', { signal, onData() {} });
+      return success('bad');
+    });
+    await flush();
+    assert.ok(!('outputTail' in jobs.status(ctx, small.jobId)));
+    const tail = jobs.status(ctx, bad.jobId).outputTail;
+    assert.ok(Buffer.byteLength(tail) <= TAIL_BYTES);
+    assert.ok(tail.length > 0);
+  } finally { await jobs.shutdown(); }
+});
+
+test('an existing result wins over a racing cancel; cancelRequested records the request', async () => {
+  const { jobs, ctx } = host();
+  let release;
+  try {
+    const receipt = jobs.submit(ctx, 'bash', 'race', undefined, () => new Promise(resolve => { release = () => resolve(success('finished anyway')); }));
+    await boundary();
+    assert.equal(jobs.cancel(ctx, receipt.jobId).status, 'cancelling');
+    assert.equal(jobs.status(ctx, receipt.jobId).cancelRequested, true);
+    release(); // runner returns a successful result instead of throwing
+    await flush();
+    const final = jobs.status(ctx, receipt.jobId);
+    assert.equal(final.status, 'completed');
+    assert.equal(final.exitCode, 0);
+    assert.equal(final.cancelRequested, true);
+  } finally { release?.(); await jobs.shutdown(); }
+});
+
+test('idle-timeout hint is appended to the message yet still classifies as timed_out', async () => {
+  const { jobs, ctx } = host();
+  try {
+    assert.match(idleTimeoutMessage('5'), /no output for 5 seconds \(timeoutMs idle timeout\)\./);
+    assert.ok(idleTimeoutMessage('5').endsWith(IDLE_TIMEOUT_HINT));
+    assert.match(IDLE_TIMEOUT_HINT, /omit or raise timeoutMs.*background/);
+    const receipt = jobs.submit(ctx, 'bash', 'hint', undefined, async () => { throw new Error('partial output\n' + idleTimeoutMessage('5')); });
+    await flush();
+    const result = jobs.status(ctx, receipt.jobId);
+    assert.equal(result.status, 'timed_out');
+    assert.match(result.error, /naturally quiet/);
+  } finally { await jobs.shutdown(); }
+});
+
+test('compactJob drops defaults and duplicates but keeps next-step data', async () => {
+  const { jobs, ctx } = host();
+  try {
+    const receipt = jobs.submit(ctx, 'bash', 'c', undefined, async () => success('hello'), 'echo hello');
+    await flush();
+    const done = compactJob(jobs.status(ctx, receipt.jobId), { output: true });
+    assert.deepEqual(Object.keys(done).sort(), ['elapsedMs', 'exitCode', 'jobId', 'output', 'status']);
+    assert.ok(!('output' in compactJob(jobs.status(ctx, receipt.jobId))));
+    const running = compactJob({ jobId: 'j', status: 'cancelling', elapsedMs: 1, cancelRequested: true, outputTruncated: false, liveLogPath: '/l', logPath: '/l', outputTail: '' }, { output: true });
+    assert.deepEqual(running, { jobId: 'j', status: 'cancelling', elapsedMs: 1, cancelRequested: true, log: '/l' });
+    const truncated = compactJob({ jobId: 'j', status: 'completed', elapsedMs: 1, cancelRequested: false, outputTruncated: true, liveLogPath: '/l', output: 'x' }, { output: true });
+    assert.deepEqual(truncated, { jobId: 'j', status: 'completed', elapsedMs: 1, outputTruncated: true, log: '/l', output: 'x' });
   } finally { await jobs.shutdown(); }
 });

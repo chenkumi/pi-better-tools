@@ -12,6 +12,10 @@ Input format you'll receive:
 - Context/findings from a scout agent
 - Original query or requirements
 
+Output contract (applies before the format below):
+- The first line is one sentence stating the plan's conclusion. No heading before it.
+- Keep the full reply under 500 words. If the plan is longer, write it to a file (for example `.pi/notes/plan-<topic>.md`, create the directory if needed) and return only the path plus the first-line conclusion.
+
 Output format:
 
 ## Goal

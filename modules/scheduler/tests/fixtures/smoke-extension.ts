@@ -49,7 +49,7 @@ export default function (pi: any) {
     async handler(_args: string, ctx: any) {
       const created: string[] = [];
       const observations: any[] = [];
-      const call = async (name: string, params: any) => (await tools.get(name).execute("smoke", params, undefined, undefined, ctx)).details;
+      const call = async (name: string, params: any) => (await tools.get(name).execute("smoke", params, undefined, undefined, ctx)).structuredContent;
       const check = (condition: unknown, message: string) => { if (!condition) throw new Error(message); };
       const wait = async (condition: () => Promise<boolean>, label: string, timeout = 30000) => {
         const start = Date.now(); let progress = 0;

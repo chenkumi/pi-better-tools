@@ -4,7 +4,7 @@
 
 <!-- user-specified -->
 - 使用繁體中文對話。
-- 使用者另要求原生 `note` extension：`{ type, content }`，分類為 plan／issue／research／report／task，自動產生檔名、只新增檔案並回報路徑；後續交由檔案工具操作。
+- 使用者另要求原生 `note` extension：`{ type, content }`，分類為 plan／issue／research／report／task，自動產生檔名、只新增檔案並回報路徑；後續交由檔案工具操作。檔名由系統自動產生（`TYPE-<UTC 時間戳>[-slug].md`，slug 僅自內容標題衍生，不接受使用者指定路徑），回傳單一相對路徑。
 - Script 長時間執行時定期輸出英文進度，不允許長期沉默。
 
 ## 結構與依賴

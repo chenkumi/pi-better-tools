@@ -29,7 +29,7 @@ for (const mode of ["single", "parallel", "chain", "resume"] as const) {
 				sendMessage(message, options) {
 					notifications.push({ message, options });
 					const data = message.details as any;
-					if (data.kind === "log_ready") for (const task of data.tasks) if (task.liveLogPath) liveChecks.push(stat(task.liveLogPath));
+					if (data.kind === "log_ready") for (const task of data.tasks) if (task.liveLogPath) { assert.equal(task.finalLogPath, task.liveLogPath.replace(/\.partial$/, "")); const finalPath = task.finalLogPath; liveChecks.push(stat(task.liveLogPath).catch(error => { if (error?.code !== "ENOENT") throw error; return stat(finalPath); })); } // the live file may already be renamed to its announced final path
 					if (data.kind === "task_result") complete(data);
 				} } as ExtensionAPI, { debugLog: false, sessionRootDir: join(root, "managed"), invocation: args => ({ command: process.execPath, args: [launcher, root, resolve(cli!), ...args] }) });
 			let call = 0;
@@ -61,6 +61,9 @@ for (const mode of ["single", "parallel", "chain", "resume"] as const) {
 			assert.deepEqual(notice.options, { triggerTurn: true, deliverAs: "followUp" });
 			const status = await execute("subagent_status", { jobId: receipt.jobId }); assert.equal(status.usage, undefined);
 			assert.equal((status.details as any).status, "completed");
+			const listed = await execute("subagent_status", {}); assert.equal(listed.isError, undefined);
+			const listedJob = (listed.structuredContent as any).jobs.find((job: any) => job.jobId === receipt.jobId);
+			assert.equal(listedJob.status, "completed"); assert.equal(listedJob.tasks[0].summary, "done");
 			const denied = await tools.get("subagent_status")!.execute("wrong-owner", { jobId: receipt.jobId }, undefined, undefined,
 				{ ...ctx, sessionManager: { getSessionId: () => "another-owner" } } as any);
 			assert.equal(denied.isError, true);

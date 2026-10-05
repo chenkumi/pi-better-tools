@@ -32,7 +32,7 @@ try {
   const readOnly = mode === 'read-only', noTools = mode === 'no-tools';
   const ptyNames = ['pty_spawn', 'pty_read', 'pty_write', 'pty_resize', 'pty_wait_exit', 'pty_kill', 'pty_list'];
   const backgroundNames = ['subagent_status', 'subagent_cancel', 'subagent_message', 'shell_job_status', 'shell_job_cancel'];
-  const selection = readOnly ? ['read'] : [...backgroundNames, 'read', 'write', 'edit', 'bash', ...(process.platform === 'win32' ? ['powershell'] : []), 'subagent', 'note', ...ptyNames, 'web_fetch', 'schedule_create', 'schedule_update', 'schedule_status', 'schedule_cancel', ...(['brave', 'exa'].includes(mode) ? ['web_search'] : [])];
+  const selection = readOnly ? ['read'] : [...backgroundNames, 'read', 'write', 'edit', 'bash', ...(process.platform === 'win32' ? ['powershell'] : []), 'subagent', 'note', ...ptyNames, 'web_fetch', 'schedule_create', 'schedule_update', 'schedule_status', 'schedule_cancel', 'schedule_delete', ...(['brave', 'exa'].includes(mode) ? ['web_search'] : [])];
   const settings = sdk.SettingsManager.inMemory({ defaultTools: selection, retry: { enabled: false }, compaction: { enabled: false }, cacheWarming: 'off', enableInstallTelemetry: false });
   loader = new sdk.DefaultResourceLoader({ cwd, agentDir, settingsManager: settings,
     additionalExtensionPaths: [packageRoot], noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true });
@@ -128,15 +128,16 @@ try {
     assert.deepEqual((await execute('pty_list', {})).details, []);
   }
   if (active.includes('note')) {
-    const contents = ['# Plan\nalpha\n', '# Issue\nUTF-8: 中文 😀', '', '# Report\r\nexact', '# Task'];
+    await assert.rejects(execute('note', { type: 'task', content: '  ' }), /NOTE_EMPTY/);
+    const contents = ['# Plan\nalpha\n', '# Issue\nUTF-8: 中文 😀', '\n# Research\nleading blank line', '# Report\r\nexact', '# Task'];
     for (const [i, type] of ['plan', 'issue', 'research', 'report', 'task'].entries()) {
       const created = await execute('note', { type, content: contents[i] });
       assert.equal(created.details.type, type);
       assert.equal(created.details.path, join(cwd, created.details.relativePath));
-      assert.match(created.details.relativePath, new RegExp(`^${type}/${type.toUpperCase()}-\\d{8}T\\d{9}Z\\.md$`));
+      assert.match(created.details.relativePath, new RegExp(`^${type}/${type.toUpperCase()}-\\d{8}T\\d{9}Z(-[^/]+)?\\.md$`));
       assert.equal(await readFile(created.details.path, 'utf8'), contents[i]);
       assert.deepEqual(created.structuredContent, created.details);
-      assert.ok(text(created).includes(created.details.path));
+      assert.ok(text(created).includes(created.details.relativePath)); assert.ok(!text(created).includes(created.details.path));
       if (type === 'plan') {
         const before = await execute('read', { path: created.details.path, offset: null, limit: null });
         await execute('edit', { path: created.details.path, expectedHash: before.details.sha256, edits: [{ oldText: 'alpha', newText: 'BETA' }] });
@@ -168,7 +169,13 @@ try {
       await assert.rejects(execute('schedule_create', { prompt: 'Never execute', timing: { kind: 'once', expression: '2099-01-01T00:00:00Z', timezone: 'UTC' } }), /host|child|open/i);
     } else {
       const created = JSON.parse(text(await execute('schedule_create', { prompt: 'Offline future job; do not execute', timing: { kind: 'once', expression: '2099-01-01T00:00:00Z', timezone: 'UTC' } })));
-      assert.ok(created.schedule.id); await execute('schedule_cancel', { id: created.schedule.id });
+      assert.ok(created.schedule.id);
+      const cancelled = (await execute('schedule_cancel', { id: created.schedule.id })).structuredContent;
+      assert.equal(cancelled.schedule.state, 'cancelled');
+      await assert.rejects(execute('schedule_delete', { id: created.schedule.id, revision: created.schedule.revision }), /revision|stale|conflict/i);
+      const removed = (await execute('schedule_delete', { id: created.schedule.id, revision: cancelled.schedule.revision })).structuredContent;
+      assert.equal(removed.deleted.id, created.schedule.id);
+      assert.equal(JSON.parse(text(await execute('schedule_status', {}))).schedules.length, 0);
     }
     await assert.rejects(execute('web_fetch', { url: 'http://127.0.0.1/' }), /NETWORK_BLOCKED/);
     // Real before_agent_start composition, without making a provider request.

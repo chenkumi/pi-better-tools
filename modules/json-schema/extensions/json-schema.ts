@@ -69,9 +69,8 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
       name: TOOL,
       label: "JSON output",
       exposure: "model-only",
-      description: "Submit the final structured result. The arguments are the result and must match the required schema.",
+      description: "Submit the final structured result. Call this exactly once, as the LAST step after all other work is done; the arguments themselves are the result (not wrapped in another object) and must match the required schema. Do not also answer in prose.",
       promptSnippet: "Submit the final structured result",
-      promptGuidelines: [`When the task is complete, call ${TOOL} exactly once with the final result instead of answering in prose.`],
       parameters: Type.Unsafe(schema.jsonSchema),
       async execute(_id: string, params: unknown) {
         const data = clone(params);

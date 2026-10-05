@@ -209,3 +209,48 @@ test('shutdown racing the first lazy import cannot initialize or leave a browser
   assert.match(h.diagnostics.at(-1)!, /Browser service: not initialized/);
   await assert.rejects(execute('after', { url: 'https://example.com/' }, undefined), /AbortError|CANCELLED|aborted/i);
 });
+
+test('web_search description names the configured provider and guidelines require sources and fetch', () => {
+  for (const [provider, label] of [['brave', 'Brave'], ['exa', 'Exa']] as const) {
+    const search = harness(provider).definitions.get('web_search')!;
+    assert.ok(String(search.description).includes(`using ${label} (configured provider)`));
+    assert.ok(!/provider argument/i.test(String(search.description)), 'description no longer mentions a provider argument');
+    const guidelines = (search.promptGuidelines as string[]).join('\n');
+    assert.match(guidelines, /source URL/);
+    assert.match(guidelines, /1-3 most relevant results with web_fetch/);
+    assert.match(guidelines, /snippets alone/);
+    assert.match(guidelines, /Query tips/);
+    assert.equal((search.parameters as { properties: Record<string, unknown> }).properties.provider, undefined, 'provider field removed from schema');
+    const prepare = (search as unknown as { prepareArguments: (a: unknown) => unknown }).prepareArguments;
+    assert.deepEqual(prepare({ query: 'q', provider: 'exa', numResults: 2 }), { query: 'q', numResults: 2 });
+    assert.deepEqual(prepare({ query: 'q' }), { query: 'q' });
+  }
+  const fetchGuidelines = (harness('brave').definitions.get('web_fetch')!.promptGuidelines as string[]).join('\n');
+  assert.match(fetchGuidelines, /BROWSER_UNAVAILABLE/);
+  assert.match(fetchGuidelines, /npm run browser:install/);
+});
+
+test('web_search model-visible text omits the Provider line and clips long snippets, while structured data keeps them whole', async () => {
+  const h = harness('brave');
+  const searchTool = h.definitions.get('web_search')!.execute as Function;
+  const longSnippet = '😀'.repeat(700); // 700 code points = 1400 UTF-16 units: must be cut on a code point boundary
+  const original = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(JSON.stringify({ web: { results: [
+    { title: 'Long', url: 'https://example.com/long', description: longSnippet },
+    { title: 'Short', url: 'https://example.com/short', description: 'short snippet' },
+  ] } }), { status: 200, headers: { 'content-type': 'application/json' } })) as typeof fetch;
+  try {
+    const result = await searchTool('snippets', { query: 'clip test' }, undefined, undefined, { ...h.context, cwd: process.cwd() });
+    const text = result.content[0].text as string;
+    assert.ok(!/^Provider:/m.test(text), 'no Provider line in model-visible text');
+    assert.match(text, /^Query: clip test/m);
+    const clipped = /\[1\] Long\nhttps:\/\/example\.com\/long\n(.*)/.exec(text)?.[1] ?? '';
+    assert.equal(Array.from(clipped).length, 601, '600 code points plus the ellipsis');
+    assert.ok(clipped.endsWith('…'));
+    assert.ok(!/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/.test(clipped), 'no lone surrogate from clipping');
+    assert.match(text, /\[2\] Short\nhttps:\/\/example\.com\/short\nshort snippet/, 'short snippets are untouched');
+    const data = (result.structuredContent as { data: { provider: string; results: { snippet?: string }[] } }).data;
+    assert.equal(data.provider, 'brave');
+    assert.equal(Array.from(data.results[0]!.snippet ?? '').length, 700, 'structured data keeps the whole snippet');
+  } finally { globalThis.fetch = original; }
+});

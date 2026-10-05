@@ -52,6 +52,20 @@ The module is now a project-native rewrite (zod 4 replaces Ajv), not a snapshot 
 
 現有 PTY session 無法跨 extension reload/移轉恢復；先完成工作或明確關閉。Windows kill/shutdown 不傳 POSIX signal；WSL/SSH kill 是 transport 關閉，不保證遠端背景程序停止。完整 target 路徑、env、SSH prerequisites 見 `modules/pty-terminal/README.md`。
 
+## 2026-10 model-visible contract changes
+
+These slim model-visible output and schemas; tool names, settings keys, storage directories and trust semantics are unchanged except where stated. Scripts or prompts that parse old output must be updated.
+
+- File Tools: `read` output no longer carries a `LINE_PREFIX` marker, metadata is a single line, `edit` returns a compact patch, `write` returns no `details` payload; error recovery text points to shell. Descriptions/schemas/guidelines are de-duplicated.
+- Shell Tools: background `shell_job_status` omits `jobId` to list jobs and returns new status/list fields; output keeps a tail ring buffer (`MAX_RAW_CAPTURE_BYTES` 8192); `compactJob` text is shorter; the receipt wording is decided dynamically from `getActiveTools`. `timeoutMs` remains the output-stall deadline.
+- Subagents: `subagent_status` omits `jobId` to list jobs; outputSchema is a Union; `finalLogPath` is returned; capacity errors carry the submitted payload; foreground results include `structuredContent`; receipts/notifications are slimmer; bundled agents and prompts state an output contract. `hostContract: "0.99.1"` is unchanged.
+- Web Tools: **`web_search` no longer accepts a `provider` argument** (provider is chosen by configuration only; legacy `provider` arguments are dropped, not rejected). Errors include a next-step hint; description/guidelines are dynamic.
+- PTY Terminal: `pty_read` gains `waitFor`/`settleMs`/`format`/`since` (cursor-based re-read without drain); `pty_write` gains `keys`/`readAfterMs`; `pty_wait_exit` reports `timedOut` and an SSH 255 note; new optional `pi-pty-terminal.env.{allow,deny}` settings filter inherited local environment (default unchanged). Return text is slimmer (defaults omitted; `pty_spawn` returns `sessionId`).
+- Scheduler: new tool **`schedule_delete`** (deletes only paused/cancelled schedules with the latest revision; refused while a run is active or orphaned; removes finished run history; irreversible). `schedule_status` lists summaries, accepts `runId` (returns a bounded `result` tail), and results are returned once as compact JSON text plus `structuredContent` (no `details` copy). Select `schedule_delete` explicitly when using a `--tools` allowlist.
+- Scheduler persistence: a missed time is now stored as run status `missed` (terminal, never backfilled). Older records stored as `skipped_busy` with diagnostic `missed_no_backfill` are read as `missed` and are not rewritten. The upgrade is one-way: new records written as `missed` are not understood as such by older versions (they would see an unknown status); do not downgrade with live scheduler data without backing up `pi-schedular` state.
+- Note Tools: filenames are `TYPE-<UTC timestamp>[-slug].md` (CJK preserved, slug at most 40 code points, derived from the content title only); empty/whitespace content fails with `NOTE_EMPTY`; the result text has a single relative path. Existing notes are not renamed.
+- JSON Schema: description merged; the README documents validation-failure semantics and provider compatibility caveats.
+
 ## Existing data
 
 Debug namespaces, Web configuration and storage paths remain compatible. Scheduler's local folder spelling `pi-schedular` is not its state/debug namespace (`pi-scheduler`). No schema migration or replay is performed.

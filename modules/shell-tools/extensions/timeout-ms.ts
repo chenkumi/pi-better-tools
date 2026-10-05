@@ -12,7 +12,10 @@ import { Type } from "typebox";
 import { Text } from "@earendil-works/pi-tui";
 import { stripVTControlCharacters } from "node:util";
 
-import { ShellJobs } from "../src/background-jobs.js";
+import { ShellJobs, compactJob, idleTimeoutMessage } from "../src/background-jobs.js";
+
+/** Polling a running job repeats this text each time; keep it short (full tail stays in structuredContent). */
+const RUNNING_TAIL_CHARS = 2000;
 import { writeFailureDebugLog, type FailureDetails } from "../src/debug-log.mjs";
 import {
   MAX_TIMEOUT_MS,
@@ -25,11 +28,11 @@ const display = (text: string, limit: number) => stripVTControlCharacters(text.s
 
 const parameters = Type.Object({
   command: Type.String({ description: "Shell command to execute" }),
-  background: Type.Optional(Type.Boolean({ description: "Return a background job receipt immediately; completion wakes this owner session. Jobs are cancelled on quit, reload, or session replacement." })),
+  background: Type.Optional(Type.Boolean({ description: "Run as a background job: returns a receipt at once and wakes this session on completion. Cancelled on quit, reload or session replacement." })),
   timeoutMs: Type.Optional(
     Type.Integer({
       description:
-        "Idle timeout in milliseconds, refreshed whenever stdout or stderr produces output. For example, 20000 means 20 seconds without output. Omit or use 2147483647 for no timeout.",
+        "Idle (stall) timeout in ms: the command is killed after this long with no stdout/stderr output; any output resets it. Omit for no timeout. Not a total time limit: continuous output never times out, while quiet long commands (sleep, silent builds) are killed.",
       minimum: 1,
       maximum: MAX_TIMEOUT_MS,
     }),
@@ -79,6 +82,9 @@ function withIdleTimeout(operations: BashOperations): BashOperations {
   };
 }
 
+const STALLED = /Command timed out after (\S+) seconds/;
+const stalledMessage = (message: string) => message.replace(STALLED, (_m, seconds: string) => idleTimeoutMessage(seconds));
+
 const receiptSchema = Type.Object({
   jobId: Type.String(), status: Type.Literal("running"), liveLogPath: Type.String(),
 }, { additionalProperties: false });
@@ -108,7 +114,10 @@ function registerTimeoutMsOverride(
   // built-in definition with the current session's cwd and shell settings.
   const base = createBase(process.cwd());
 
-  const timeoutGuideline = `For ${name}, timeoutMs is an idle timeout in milliseconds, not seconds; it resets whenever the command writes to stdout or stderr. Example: use 20000 to stop the command after 20 seconds without output. Omit it or use ${MAX_TIMEOUT_MS} to disable the idle timeout.`;
+  const timeoutGuideline = `For ${name}, timeoutMs is an idle timeout in milliseconds, not seconds and not a total limit; it resets whenever the command writes to stdout or stderr (20000 = stop after 20 seconds without output). Omit it for no timeout; quiet long commands should omit it or use background:true.`;
+  const platformNote = name === "bash"
+    ? "On Windows bash needs Git Bash (or shellPath) and applies shellCommandPrefix."
+    : "Windows only; shellCommandPrefix is not applied.";
   const descriptionWithoutOldTimeout = base.description.replace(
     /\s*Optionally provide a timeout in seconds\./,
     "",
@@ -119,7 +128,7 @@ function registerTimeoutMsOverride(
     // Override the schema, not the user's loadout. Pi activates this tool only
     // when selected by defaults, --tools, or setActiveTools().
     defaultActive: false,
-    description: `${descriptionWithoutOldTimeout} Optionally provide timeoutMs in milliseconds (for example, 20000 = 20 seconds). With background:true returns jobId/status/liveLogPath, not an exit code. Read that bounded progress log. shell_job_status and shell_job_cancel are inactive unless explicitly selected; with a bash/powershell-only loadout ask the user to select these management tools before relying on status/cancel. Completion automatically follows up in this session. Avoid concurrent edits to the same files.`,
+    description: `${descriptionWithoutOldTimeout} timeoutMs is an idle timeout in ms. background:true returns a jobId/liveLogPath receipt (no exit code) and reports completion automatically; shell_job_status/cancel need explicit selection. ${platformNote}`,
     parameters,
     outputSchema: Type.Union([base.outputSchema!, receiptSchema]),
     promptGuidelines: [...(base.promptGuidelines ?? []), timeoutGuideline],
@@ -179,15 +188,21 @@ function registerTimeoutMsOverride(
           } catch (error) {
             if (background) await logFailure({ kind: "exception", error });
             if (error instanceof Error && input.timeoutMs !== undefined) {
-              const stalled = error.message.replace(/Command timed out after (\S+) seconds/, "Command stopped: no output for $1 seconds (timeoutMs idle timeout)");
+              const stalled = stalledMessage(error.message);
               if (stalled !== error.message) throw new Error(stalled, { cause: error });
             }
             throw error;
           }
         };
         if (background) {
-          const receipt = jobs.submit(ctx, name, toolCallId, signal, run);
-          return { content: [{ type: "text", text: `${JSON.stringify(receipt)}\nManagement requires explicitly selected shell_job_status / shell_job_cancel tools. If unavailable, read liveLogPath for bounded output and ask the user to select management tools; shell-only loadouts cannot request job cancellation.` }], details: undefined, structuredContent: receipt };
+          const receipt = jobs.submit(ctx, name, toolCallId, signal, run, command);
+          // The receipt names only what this loadout can actually do.
+          let canQuery = false;
+          try { canQuery = pi.getActiveTools?.().includes("shell_job_status") ?? false; } catch { /* host may not expose it */ }
+          const next = canQuery
+            ? "Progress: shell_job_status or read log tail. Completion is auto-reported."
+            : "Progress: read log tail. Completion is auto-reported (shell_job_status/cancel not selected).";
+          return { content: [{ type: "text", text: `job ${receipt.jobId} running\nlog ${receipt.liveLogPath}\n${next}` }], details: undefined, structuredContent: receipt };
         }
         return await run(signal);
       } catch (error) {
@@ -195,10 +210,7 @@ function registerTimeoutMsOverride(
         // The host formats `timeout:<s>` as an absolute-timeout message, but
         // here it means an output stall. Make the message accurate.
         if (input.timeoutMs !== undefined && error instanceof Error) {
-          const stalled = error.message.replace(
-            /Command timed out after (\S+) seconds/,
-            "Command stopped: no output for $1 seconds (timeoutMs idle timeout)",
-          );
+          const stalled = stalledMessage(error.message);
           if (stalled !== error.message) throw new Error(stalled, { cause: error });
         }
         throw error;
@@ -211,17 +223,28 @@ export default function (pi: ExtensionAPI) {
   const jobs = new ShellJobs(pi);
   pi.on("session_start", (_event, ctx) => { jobs.start(ctx); });
   pi.on("session_shutdown", () => jobs.shutdown());
+  const jobFields = {
+    jobId: Type.String(), status: Type.String(), tool: Type.String(), toolCallId: Type.String(), command: Type.String(),
+    startedAt: Type.String(), elapsedMs: Type.Number(), logBytes: Type.Number(), cancelRequested: Type.Boolean(),
+    liveLogPath: Type.String(), logPath: Type.String(), outputTruncated: Type.Boolean(),
+    exitCode: Type.Optional(Type.Number()), error: Type.Optional(Type.String()),
+  };
+  const jobSchema = Type.Object({
+    ...jobFields, output: Type.Optional(Type.String()), outputTail: Type.Optional(Type.String()),
+  }, { additionalProperties: false });
+  const listSchema = Type.Object({ jobs: Type.Array(Type.Object(jobFields, { additionalProperties: false })) }, { additionalProperties: false });
   for (const action of ["status", "cancel"] as const) {
     pi.registerTool({
       name: `shell_job_${action}`, label: `Shell job ${action}`, defaultActive: false,
-      description: action === "status" ? "Read a shell background job status and bounded result owned by this session." : "Request cancellation of a shell background job owned by this session. cancelling does not confirm the process tree has exited.",
-      parameters: Type.Object({ jobId: Type.String() }, { additionalProperties: false }),
-      outputSchema: Type.Object({
-        jobId: Type.String(), status: Type.String(), tool: Type.String(), toolCallId: Type.String(), liveLogPath: Type.String(), logPath: Type.String(),
-        outputTruncated: Type.Boolean(), exitCode: Type.Optional(Type.Number()), output: Type.Optional(Type.String()), error: Type.Optional(Type.String()),
-      }, { additionalProperties: false }),
+      description: action === "status"
+        ? "Shell background jobs owned by this session. With jobId: status, exit code, head output (output) and last ~8 KiB (outputTail; only the last 2000 characters while the job is running, read liveLogPath for more). Without jobId: list jobs (running first) with command, start time and elapsed time."
+        : "Request cancellation of a shell background job owned by this session. cancelling does not confirm the process tree has exited.",
+      parameters: Type.Object(action === "status"
+        ? { jobId: Type.Optional(Type.String({ description: "Job to inspect; omit to list all jobs." })) }
+        : { jobId: Type.String() }, { additionalProperties: false }),
+      outputSchema: action === "status" ? Type.Union([jobSchema, listSchema]) : jobSchema,
       renderCall(args, theme) {
-        return new Text(theme.fg("toolTitle", `Shell job ${action} ${display(typeof args?.jobId === "string" ? args.jobId : "…", 64)}`), 0, 0);
+        return new Text(theme.fg("toolTitle", `Shell job ${action} ${display(typeof args?.jobId === "string" ? args.jobId : action === "status" ? "(list)" : "…", 64)}`), 0, 0);
       },
       renderResult(result, { expanded, isPartial }, theme) {
         const text = result.content.filter(part => part.type === "text").map(part => part.text).join("\n");
@@ -229,8 +252,14 @@ export default function (pi: ExtensionAPI) {
         return new Text(theme.fg("muted", `${isPartial ? "Pending…\n" : ""}${caveat}${display(text, expanded ? 8192 : 512)}`), 0, 0);
       },
       async execute(_id, input, _signal, _onUpdate, ctx) {
-        const result = jobs[action](ctx, input.jobId);
-        return { content: [{ type: "text", text: JSON.stringify(result) }], details: undefined, structuredContent: result };
+        const result = action === "status" && input.jobId === undefined
+          ? { jobs: jobs.list(ctx) }
+          : jobs[action](ctx, input.jobId as string);
+        // Model text is compacted; structuredContent keeps the full schema-compatible result.
+        const text = "jobs" in result
+          ? JSON.stringify(result.jobs.map(j => ({ jobId: j.jobId, status: j.status, command: j.command.slice(0, 80), elapsedMs: j.elapsedMs, ...(j.exitCode !== undefined ? { exitCode: j.exitCode } : {}), ...(j.error ? { error: j.error } : {}) })))
+          : JSON.stringify(compactJob(result, { output: action === "status", outputLimit: result.status === "running" || result.status === "cancelling" ? RUNNING_TAIL_CHARS : undefined })) + (action === "cancel" && result.status === "cancelling" ? "\nCancel requested; completion is auto-reported." : "");
+        return { content: [{ type: "text", text }], details: undefined, structuredContent: result };
       },
     });
   }

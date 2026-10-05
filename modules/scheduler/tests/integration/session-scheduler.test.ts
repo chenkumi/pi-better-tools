@@ -123,8 +123,24 @@ describe("session-affine scheduler", () => {
     await f.registry.create({ id: "created-after-start", mode: "session", prompt: "scheduled work", cwd: process.cwd(), targetSessionId: "session-1",
       timing: { kind: "once", expression: due.toISOString(), timezone: "Asia/Taipei" } });
     await scheduler.refresh(); expect(timers).toHaveLength(1); now = due; timers[0]!();
-    await vi.waitFor(() => expect(f.pi.sendUserMessage).toHaveBeenCalledWith(expect.stringContaining("\nscheduled work"), { expandPromptTemplates: false }));
+    // The fake clock fires the timer; wait on the persisted outcome. sendUserMessage runs inside the history lock before the
+    // submit diagnostic is written, so asserting right after the call could read runs.jsonl mid-write (rename on Windows).
+    await vi.waitFor(async () => {
+      expect((await f.runs.list())[0]?.events.some((event) => event.detail?.startsWith("session_prompt_submitted"))).toBe(true);
+    }, { timeout: 15_000, interval: 20 });
+    expect(f.pi.sendUserMessage).toHaveBeenCalledWith(expect.stringContaining("\nscheduled work"), { expandPromptTemplates: false });
     expect((await f.runs.list())[0]?.status).toBe("queued"); expect((await f.runs.list())[0]?.startedAt).toBeUndefined();
+  });
+  it("records a one-shot that is already past at session start as a persisted missed run and never sends it", async () => {
+    const f = await setup(); await f.scheduler.shutdown();
+    await f.registry.setState(f.schedule.id, f.schedule.revision, "cancelled");
+    await f.registry.create({ id: "already-past", mode: "session", prompt: "late work", cwd: process.cwd(), targetSessionId: "session-1",
+      timing: { kind: "once", expression: "2020-01-01T00:00:00.000Z", timezone: "UTC" } });
+    const scheduler = new SessionScheduler({ registry: f.registry, runs: f.runs, pi: f.pi as never, clock: { now: () => new Date("2030-01-01T00:00:00.000Z") } });
+    schedulers.push(scheduler); await scheduler.start(f.ctx as never);
+    const runs = await f.runs.list();
+    expect(runs).toHaveLength(1); expect(runs[0]).toMatchObject({ scheduleId: "already-past", status: "missed", events: [] });
+    expect(f.pi.sendUserMessage).not.toHaveBeenCalled();
   });
   it("releases input interception and marks the run orphaned when history finalization keeps failing", async () => {
     const f = await setup(); await f.scheduler.dispatch(f.schedule); await begin(f);

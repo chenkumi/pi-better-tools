@@ -93,3 +93,11 @@ test("legacy saved usage reconstructs cumulative tokens rather than its final co
 	assert.equal(total.totalTokens, 20);
 	assert.equal(total.contextTokens, 20);
 });
+
+test("firstLineSummary keeps the first non-empty line within the UTF-8 byte limit", async () => {
+	const { firstLineSummary } = await import("../extensions/subagent/result.ts");
+	assert.equal(firstLineSummary("\n  \nConclusion line\nDetails", 512), "Conclusion line");
+	assert.equal(firstLineSummary("", 512), "");
+	const bounded = firstLineSummary("中".repeat(400), 512);
+	assert.ok(Buffer.byteLength(bounded, "utf8") <= 512 && bounded.length > 100);
+});

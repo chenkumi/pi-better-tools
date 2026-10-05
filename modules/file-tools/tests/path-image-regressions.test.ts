@@ -257,3 +257,24 @@ describe("COMPAT-002 BMP snapshot classification", () => {
     });
   });
 });
+
+describe("compact model-visible success output", () => {
+  it("write and edit return single-line metadata while full details stay structured", async () => {
+    await inWorkspace(async cwd => {
+      const call = toolsAt(cwd);
+      const created = await call("write", { path: "n.txt", content: "a\nb\nc\n", expectedHash: "missing" });
+      const writeText = textOf(created);
+      assert.match(writeText, /^\[FILE_WRITE_SUCCESS\] \{"sha256":"[0-9a-f]{32}","bytes":6,"created":true\}$/);
+      assert.deepEqual(created.details, { path: "n.txt", sha256: (created.details as { sha256: string }).sha256, bytes: 6, created: true });
+
+      const edit = await call("edit", { path: "n.txt", expectedHash: (created.details as { sha256: string }).sha256, edits: [{ oldText: "b", newText: "B" }] });
+      const editText = textOf(edit);
+      assert.match(editText, /^\[FILE_EDIT_SUCCESS\] \{"sha256After":"[0-9a-f]{32}","edits":1,"added":1,"removed":1\}\n\[DIFF\]\n@@ -1,3 \+1,3 @@\n a\n-b\n\+B\n c$/);
+      const details = edit.details as { sha256After: string; diff: string; patch: string; added: number; removed: number };
+      assert.equal(details.added, 1);
+      assert.equal(details.removed, 1);
+      assert.ok(details.diff.length > 0 && details.patch.includes("--- "));
+      assert.ok(!editText.includes("sha256Before") && !editText.includes("changedRanges"));
+    });
+  });
+});

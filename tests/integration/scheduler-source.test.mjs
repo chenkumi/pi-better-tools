@@ -32,7 +32,7 @@ test('Scheduler uses the TS entry and runs without any dist artifacts', { timeou
       const result = JSON.parse(output.trim().split('\n').at(-1));
       assert.equal(result.loaded, true);
       assert.equal(result.extensions, manifest.pi.extensions.length);
-      for (const name of ['schedule_create', 'schedule_update', 'schedule_status', 'schedule_cancel']) assert.ok(result.tools.includes(name));
+      for (const name of ['schedule_create', 'schedule_update', 'schedule_status', 'schedule_cancel', 'schedule_delete']) assert.ok(result.tools.includes(name));
     }
   } finally {
     await rm(staged, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });

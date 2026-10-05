@@ -159,7 +159,7 @@ export class SessionScheduler {
     const runId = ulid().toLowerCase();
     const at = now(this.clock);
     if (await this.options.registry.claim(schedule.id, schedule.revision, runId, at, slot?.toISOString())) {
-      await this.options.runs.append({ runId, scheduleId: schedule.id, targetSessionId: this.sessionId, mode: "session", status: "skipped_busy", plannedAt: at, endedAt: at, events: [{ type: "diagnostic", at, detail: "missed_no_backfill" }], error });
+      await this.options.runs.append({ runId, scheduleId: schedule.id, targetSessionId: this.sessionId, mode: "session", status: "missed", plannedAt: at, endedAt: at, events: [], error });
     }
   }
   async shutdown(): Promise<void> {

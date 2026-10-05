@@ -15,17 +15,18 @@
         },
         {
           "path": "modules/note-tools/extensions/note.ts",
-          "sha256": "b224c95b00c707d879e886507aa21d9be8258a6a4693b2523e12d7708175f2a4",
-          "preChangeSha256": "55f162a834e4a6096222ffcb5014b9f44de0f834656e2209642a724c0ac43c34",
+          "sha256": "700d97c743992c772ba47ae041c710b467cabff45a95e3fac128942937ae9259",
+          "preChangeSha256": "b224c95b00c707d879e886507aa21d9be8258a6a4693b2523e12d7708175f2a4",
           "previousRecordedSha256": "b753ab14a2ffe217509ed09555fb73553f8da694f70acf928785e57492562ea3",
           "historicalDeltaAudit": "unavailable",
           "localSnapshotReview": "2026-10-03: pre-change implementation inspected; strict schema, Unicode, exclusive-create, mutation queue, bounded collisions and path result verified locally. Pre-change bytes match initial commit f14b837; earlier recorded bytes unavailable.",
-          "reason": "Retain historical audit limitations. User-requested pure note call/result presentation and compact UTC YYYYMMDDTHHmmssSSSZ filenames; preserve model-facing output, millisecond collision retries and old files."
+          "reason": "Retain historical audit limitations. User-requested pure note call/result presentation and compact UTC YYYYMMDDTHHmmssSSSZ filenames; preserve model-facing output, millisecond collision retries and old files. 2026-10-06 local adaptation (note-tools): slug filename TYPE-<UTC timestamp>[-slug].md (CJK preserved, 40 code points), NOTE_EMPTY error, single relative path result. Assertions kept or tightened; not a source-identical copy."
         },
         {
           "path": "modules/note-tools/tests/note.test.ts",
-          "sha256": "b5d6895104641e88ae2fd06d2fb41b9f955df86c1b7fb8732b0a26e0ae4bb603",
-          "reason": "Update compact timestamp assertions; add UTC rollover, lexical sorting, legacy-file retention and 1000-collision exhaustion regressions without removing existing assertions."
+          "sha256": "71dec5d32ba9d557175be46a73a68457f2fe1195d76b2c4df6b6c60dc760b664",
+          "reason": "Update compact timestamp assertions; add UTC rollover, lexical sorting, legacy-file retention and 1000-collision exhaustion regressions without removing existing assertions. 2026-10-06 local adaptation (note-tools): slug filename TYPE-<UTC timestamp>[-slug].md (CJK preserved, 40 code points), NOTE_EMPTY error, single relative path result. Assertions kept or tightened; not a source-identical copy.",
+          "preChangeSha256": "b5d6895104641e88ae2fd06d2fb41b9f955df86c1b7fb8732b0a26e0ae4bb603"
         },
         {
           "path": "modules/note-tools/tsconfig.json",
@@ -34,12 +35,12 @@
         },
         {
           "path": "modules/note-tools/README.md",
-          "sha256": "d48131a0ac81493e67c45b929ec37227d720ce122566362a40ab850638154171",
-          "preChangeSha256": "ed929109b39aa1e86db362e8109b54bfef1bae45a7ccef4f7f48c468522fba41",
+          "sha256": "48c2c50806cb89586a797aeaa5a84a6765e5da913f0231120827163dda98f668",
+          "preChangeSha256": "d48131a0ac81493e67c45b929ec37227d720ce122566362a40ab850638154171",
           "previousRecordedSha256": "ab18ee3335437ce91af7fcdd1e8dbdc6198ab2c9989c0de37adf967b41e92bb9",
           "historicalDeltaAudit": "unavailable",
           "localSnapshotReview": "2026-10-03: pre-change README inspected against local note contracts; pre-change bytes match initial commit f14b837, earlier recorded bytes unavailable.",
-          "reason": "Document compact UTC timestamp and TUI preview/path presentation. Historical baseline-to-pre-change diff remains unavailable."
+          "reason": "Document compact UTC timestamp and TUI preview/path presentation. Historical baseline-to-pre-change diff remains unavailable. 2026-10-06 local adaptation (note-tools): slug filename TYPE-<UTC timestamp>[-slug].md (CJK preserved, 40 code points), NOTE_EMPTY error, single relative path result. Assertions kept or tightened; not a source-identical copy."
         }
       ]
     },
@@ -89,7 +90,9 @@
         },
         {
           "path": "modules/json-schema/extensions/json-schema.ts",
-          "sha256": "54b24fcdd98e16d99f5d7a6f1e1719d78ef95833540d14bdbf578a352c2e235a"
+          "sha256": "4747b023d38aec8c39120ffdcb8a7cafd64898386079889d8ceb3df81d3382b7",
+          "preChangeSha256": "54b24fcdd98e16d99f5d7a6f1e1719d78ef95833540d14bdbf578a352c2e235a",
+          "reason": " 2026-10-06 local adaptation (json-schema): description merged, README documents validation-failure semantics and provider compatibility warning. Assertions kept or tightened; not a source-identical copy."
         },
         {
           "path": "modules/json-schema/src/schema.ts",
@@ -125,7 +128,9 @@
         },
         {
           "path": "modules/json-schema/README.md",
-          "sha256": "d958f41be3768e319f816e1707dbbff41bb4c25e591152392796a5088c52bde6"
+          "sha256": "16ad5948fb43eb04394b4726b81b06bbbc0939e3b46d63c8d805ea4fbff44f50",
+          "preChangeSha256": "d958f41be3768e319f816e1707dbbff41bb4c25e591152392796a5088c52bde6",
+          "reason": " 2026-10-06 local adaptation (json-schema): description merged, README documents validation-failure semantics and provider compatibility warning. Assertions kept or tightened; not a source-identical copy."
         }
       ]
     }

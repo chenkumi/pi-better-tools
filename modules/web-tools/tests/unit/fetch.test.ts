@@ -154,7 +154,7 @@ test('pre-abort, default private-network rejection, and close do not require bro
     const controller = new AbortController();
     controller.abort(new Error('external secret'));
     await assert.rejects(service.fetch({ url: 'https://example.org/' }, controller.signal), /^Error: CANCELLED:/);
-    await assert.rejects(service.fetch({ url: 'http://127.0.0.1/' }), /NETWORK_BLOCKED:/);
+    await assert.rejects(service.fetch({ url: 'http://127.0.0.1/' }), /NETWORK_BLOCKED:.*use a public URL/);
     await assert.rejects(service.fetch({ url: 'http://user:secret@example.org/' }), (error: Error) => !error.message.includes('secret') && error.message.startsWith('INVALID_URL:'));
   } finally { await service.close(); }
   await service.close();
