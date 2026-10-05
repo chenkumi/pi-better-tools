@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,9 +29,21 @@ export function normalizeToolPath(input: string): string {
   return normalizeLocalPath(path.replace(UNICODE_SPACES, " "));
 }
 
-export function resolveToolPath(input: string, cwd: string): string {
-  const normalized = normalizeToolPath(input);
+function resolveAgainst(path: string, cwd: string): string {
   // cwd is an actual workspace path, not model input. Keep literal @ and Unicode
   // spaces there, while still supporting a shell path or file URL as the base.
-  return isAbsolute(normalized) ? resolve(normalized) : resolve(normalizeLocalPath(cwd), normalized);
+  return isAbsolute(path) ? resolve(path) : resolve(normalizeLocalPath(cwd), path);
+}
+
+export function resolveToolPath(input: string, cwd: string): string {
+  const normalized = resolveAgainst(normalizeToolPath(input), cwd);
+  // The @ / Unicode-space rewrite is a convenience for model-typed paths. If the literal
+  // path exists (e.g. macOS screenshot names with U+202F, or an @scope directory), it wins.
+  if (input.startsWith("@") || /[  -   　]/.test(input)) {
+    try {
+      const literal = resolveAgainst(normalizeLocalPath(input), cwd);
+      if (literal !== normalized && existsSync(literal)) return literal;
+    } catch { /* malformed literal (e.g. bad file URL): use the normalized form */ }
+  }
+  return normalized;
 }

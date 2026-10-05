@@ -90,7 +90,7 @@ export async function search(
     if (signal?.aborted) throw new Error('CANCELLED: search cancelled');
     if (controller.signal.aborted) throw new Error('TIMEOUT: search deadline exceeded');
     // Only our fixed error messages escape. Never serialize upstream error bodies, headers or request objects.
-    if (e instanceof SearchError && !e.message.includes(key)) throw e;
+    if (e instanceof SearchError && !(key && e.message.includes(key))) throw e;
     throw new Error(`UPSTREAM_ERROR: ${provider} request failed`);
   } finally {
     clearTimeout(timer);

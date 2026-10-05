@@ -70,6 +70,7 @@ export default function (pi: ExtensionAPI) {
 		async execute(_toolCallId, params, signal) {
 			const output = await sessions.read(params.sessionId, params.timeoutMs ?? 1_000, signal);
 			const result = truncatePtyOutput(output);
+			sessions.unread(params.sessionId, result.remainder);
 			return {
 				content: [{ type: "text", text: result.content }],
 				details: { sessionId: params.sessionId, truncated: result.truncated },

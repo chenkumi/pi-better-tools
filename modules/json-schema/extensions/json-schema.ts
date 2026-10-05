@@ -96,6 +96,10 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
       fail("stdout delivery accepts a single prompt; use --json-output for several");
       return { action: "handled" as const };
     }
+    // With --json-output several prompts are allowed and the last one's result is delivered, so a new prompt
+    // must not be judged "conflicting" against a result submitted for the previous one.
+    accepted = undefined;
+    lastText = "";
     return { action: "continue" as const };
   });
 

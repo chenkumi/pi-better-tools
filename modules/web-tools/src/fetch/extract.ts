@@ -34,6 +34,16 @@ function asText(element: Element): string {
   return (copy.textContent ?? '').replace(/\n[ \t]+\n/g, '\n\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+let turndownService: TurndownService | undefined;
+// Stateless between calls; building the rule set per page is pure overhead.
+function getTurndown(): TurndownService {
+  if (!turndownService) {
+    turndownService = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced', fence: '```' });
+    turndownService.use(gfm);
+  }
+  return turndownService;
+}
+
 export function extractHtml(html: string, url: string, format: ContentFormat = 'markdown', mode: ExtractionMode = 'auto') {
   if (Buffer.byteLength(html, 'utf8') > MAX_HTML_BYTES) throw new Error('TOO_LARGE: Rendered HTML exceeds the 5 MiB limit.');
   // No runScripts/resources: extraction never executes scripts or loads URLs.
@@ -79,9 +89,7 @@ export function extractHtml(html: string, url: string, format: ContentFormat = '
     let content: string;
     if (format === 'text') content = asText(selected);
     else {
-      const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced', fence: '```' });
-      turndown.use(gfm);
-      content = turndown.turndown(selected.innerHTML).trim();
+      content = getTurndown().turndown(selected.innerHTML).trim();
     }
     if (!content.trim()) throw new Error('EMPTY_CONTENT: The page has no extractable content.');
     if (Buffer.byteLength(content, 'utf8') > MAX_EXTRACTED_BYTES) {

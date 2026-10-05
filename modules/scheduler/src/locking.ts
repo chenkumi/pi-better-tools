@@ -29,10 +29,18 @@ export async function acquireAdvisoryLock(path: string, options: LockOptions = {
 }
 
 export async function withAdvisoryLock<T>(path: string, action: () => Promise<T>, options: LockOptions = {}): Promise<T> {
-  const release = await acquireAdvisoryLock(path, options);
+  let compromised = false;
+  const release = await acquireAdvisoryLock(path, {
+    ...options,
+    onCompromised: (error) => {
+      compromised = true;
+      options.onCompromised?.(error);
+    },
+  });
   try {
     return await action();
   } finally {
-    await release();
+    // A compromised lock is already released; proper-lockfile throws ERELEASED, which would mask the action's result.
+    try { await release(); } catch (error) { if (!compromised) throw error; }
   }
 }

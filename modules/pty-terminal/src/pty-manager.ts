@@ -190,6 +190,18 @@ export class PtySessionManager {
 		return this.drainOutput(session);
 	}
 
+	/** Returns output a caller drained but could not deliver to the front of the buffer, honoring the buffer cap. */
+	unread(sessionId: string, text: string): void {
+		const session = this.sessions.get(sessionId);
+		if (!session || text.length === 0) return;
+		session.outputBuffer = text + session.outputBuffer;
+		if (session.outputBuffer.length > this.maxBufferChars) {
+			const overflow = session.outputBuffer.length - this.maxBufferChars;
+			session.droppedChars += overflow;
+			session.outputBuffer = session.outputBuffer.slice(overflow).replace(/^[\uDC00-\uDFFF]/, "");
+		}
+	}
+
 	resize(sessionId: string, cols: number, rows: number): void {
 		checkSize(cols, MAX_COLS, "cols");
 		checkSize(rows, MAX_ROWS, "rows");

@@ -6,7 +6,7 @@
 
 - `pty_spawn`：`{ command, args?, target?, cwd?, env?, cols?, rows? }`；`target` 預設 `local`，回傳 sessionId、本機 transport pid、target、transport。
 - `pty_write`：`{ sessionId, data }`，支援 `\\x03`、`\\r`、`\\t` 等控制字元。
-- `pty_read`：drain pending output，預設等待 1000ms（上限 60000ms，`pty_wait_exit` 同）；每次輸出最多 2000 行／50KiB，超量 drain 部分會截斷，不保留完整檔案。
+- `pty_read`：drain pending output，預設等待 1000ms（上限 60000ms，`pty_wait_exit` 同）；每次輸出最多 2000 行／50KiB，超量部分會放回 buffer，下次 `pty_read` 可繼續讀取（仍受 buffer 上限限制，超過上限的舊輸出會被丟棄並提示）。
 - `pty_resize`：調整 terminal cols/rows。
 - `pty_wait_exit`：回傳 transport exitCode，等待逾時為 -1；SSH 連線錯誤可能為 255，並非遠端測試成功。
 - `pty_kill`：終止本機 transport；POSIX 預設 SIGHUP，僅接受 SIGHUP／SIGINT／SIGQUIT／SIGTERM／SIGKILL，逾時（2 秒）未結束會升級為 SIGKILL；Windows 使用 backend 無 signal 的終止操作（signal 參數不適用）。只有 transport 確認已結束才釋放 session（結果 `released: true`）；kill 失敗或仍在執行時保留 session（可重試，shutdown 仍可清理），不再吞掉錯誤。
