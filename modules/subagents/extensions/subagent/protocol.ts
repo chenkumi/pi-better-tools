@@ -1,6 +1,8 @@
 export interface StdoutProtocolState {
 	buffer: string;
 	finished: boolean;
+	/** Running UTF-8 size of `buffer` maintained by consumeStdoutChunkAsync (avoids rescanning the buffer per chunk). */
+	bufferBytes?: number;
 }
 
 /** Completes one assistant message, not the session (which may retry or continue). */
@@ -39,18 +41,25 @@ export async function consumeStdoutChunkAsync(
 	processLine: (line: string) => Promise<void>,
 ): Promise<boolean> {
 	let offset = 0;
+	// Trust the counter only while it describes the current buffer (callers may reset `buffer` directly).
+	let buffered = state.buffer === "" ? 0 : state.bufferBytes ?? Buffer.byteLength(state.buffer, "utf8");
 	while (!state.finished && offset < chunk.length) {
 		const newline = chunk.indexOf("\n", offset);
 		const end = newline < 0 ? chunk.length : newline;
 		const fragment = chunk.slice(offset, end);
-		if (Buffer.byteLength(state.buffer, "utf8") + Buffer.byteLength(fragment, "utf8") > maxBufferedBytes) return true;
+		const fragmentBytes = Buffer.byteLength(fragment, "utf8");
+		if (buffered + fragmentBytes > maxBufferedBytes) { state.bufferBytes = buffered; return true; }
 		state.buffer += fragment;
+		buffered += fragmentBytes;
 		if (newline < 0) break;
 		const line = state.buffer;
 		state.buffer = "";
+		buffered = 0;
+		state.bufferBytes = 0;
 		await processLine(line);
 		offset = newline + 1;
 	}
+	state.bufferBytes = buffered;
 	if (state.finished) state.buffer = "";
 	return false;
 }

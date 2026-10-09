@@ -6,14 +6,16 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import registerSubagent from "../extensions/subagent/index.ts";
+import { messageHarness } from "./fixtures/message-harness.ts";
 import { buildSubagentPiArgs } from "../extensions/subagent/child-args.ts";
 
 const child = fileURLToPath(new URL("./fixtures/managed-native.mjs", import.meta.url));
 async function setup(scenario = "normal") {
 	const root = await mkdtemp(join(tmpdir(), "pi-always-managed-"));
-	let tool!: ToolDefinition;
+	let tool!: ToolDefinition, messageTool!: ToolDefinition;
+	const messages = messageHarness();
 	const invocations: string[][] = [];
-	registerSubagent({ registerTool(t) { tool = t; }, on() {} } as ExtensionAPI, {
+	registerSubagent({ sendMessage: messages.sendMessage, registerMessageRenderer() {}, registerTool(t) { if (t.name === "subagent") tool = t; if (t.name === "subagent_message") messageTool = t; }, on() {} } as ExtensionAPI, {
 		debugLog: false, sessionRootDir: join(root, "managed"),
 		invocation(args) { invocations.push([...args]); return { command: process.execPath, args: [child, scenario, ...args] }; },
 	});
@@ -24,6 +26,7 @@ async function setup(scenario = "normal") {
 		} } as unknown as ExtensionContext;
 	return { root, tool, ctx, invocations,
 		execute: (id: string, args: any) => tool.execute(id, args, undefined, undefined, ctx),
+		message: (id: string, args: any) => messages.message(messageTool, id, args, ctx),
 		manifest: async (id: string) => JSON.parse(await readFile(join(root, "managed", id, "manifest.json"), "utf8")),
 		dispose: () => rm(root, { recursive: true, force: true }),
 	};
@@ -68,7 +71,7 @@ test("default managed task resumes native history under the same identity and pr
 		assert.equal(first.canResume, true, first.errorMessage);
 		const prefix = await readFile(first.logPath);
 		(h.ctx as any).model = { provider: "different-parent", id: "alternate" };
-		const secondOutcome = await h.execute("decision", { resume: first.subagentSessionId, task: "choose B" });
+		const secondOutcome = await h.message("decision", { subagentSessionId: first.subagentSessionId, message: "choose B" });
 		assert.equal(secondOutcome.isError, undefined, JSON.stringify(secondOutcome.content));
 		const second = secondOutcome.details.results[0];
 		assert.equal(second.subagentSessionId, first.subagentSessionId); assert.notEqual(second.taskId, first.taskId); assert.equal(second.logPath, first.logPath);
@@ -76,7 +79,7 @@ test("default managed task resumes native history under the same identity and pr
 		assert.deepEqual((await readFile(second.logPath)).subarray(0, prefix.length), prefix);
 		assert.ok(h.invocations[1].includes("--session")); assert.equal(h.invocations[1].includes("--session-id"), false);
 		assert.equal(h.invocations[1][h.invocations[1].indexOf("--model") + 1], "offline-fixture/model");
-		const duplicate = await h.execute("decision", { resume: first.subagentSessionId, task: "choose B" });
+		const duplicate = await h.message("decision", { subagentSessionId: first.subagentSessionId, message: "choose B" });
 		assert.equal(duplicate.isError, true); assert.equal(h.invocations.length, 2); assert.equal((await h.manifest(first.subagentSessionId)).state, "ready");
 	} finally { await h.dispose(); }
 });
@@ -88,7 +91,7 @@ for (const scenario of ["missing-startup", "missing-header", "changed-model", "e
 			assert.equal(outcome.isError, true); const result = outcome.details.results[0];
 			assert.equal(result.status, "failed"); assert.equal(result.canResume, false);
 			assert.equal((await h.manifest(result.subagentSessionId)).state, "blocked");
-			const retry = await h.execute("must-not-spawn", { resume: result.subagentSessionId, task: "continue" });
+			const retry = await h.message("must-not-spawn", { subagentSessionId: result.subagentSessionId, message: "continue" });
 			assert.equal(retry.isError, true); assert.equal(h.invocations.length, 1);
 		} finally { await h.dispose(); }
 	});
@@ -138,7 +141,7 @@ test("valid model with unsupported thinking omits --thinking rather than applyin
 		const first = outcome.details.results[0];
 		assert.equal((await h.manifest(first.subagentSessionId)).config.thinkingLevel, "off");
 		(h.ctx as any).modelRegistry.find = () => undefined;
-		const resume = await h.execute("missing-saved", { resume: first.subagentSessionId, task: "continue" });
+		const resume = await h.message("missing-saved", { subagentSessionId: first.subagentSessionId, message: "continue" });
 		assert.equal(resume.isError, true); assert.equal(resume.details.errorCode, "MODEL_UNAVAILABLE");
 		assert.equal(h.invocations.length, 1, "saved resume configuration must not silently fall back");
 	} finally { await h.dispose(); }

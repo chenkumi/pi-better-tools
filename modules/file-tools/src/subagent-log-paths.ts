@@ -2,7 +2,7 @@ import { lstat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { FileToolError } from "./errors.js";
 
-const id = "(?:[0-9a-hjkmnp-tv-z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})";
+const id = "(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-hjkmnp-tv-z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})";
 const managedRun = new RegExp(`(?:^|/)subagent-sessions/${id}/runs/${id}/transcript\\.jsonl\\.partial$`);
 
 /** Advisory only: never read a guessed file or replace the user's requested path. */

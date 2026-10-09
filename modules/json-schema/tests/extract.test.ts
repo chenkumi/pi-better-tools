@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { extractJson } from "../src/extract.ts";
+import { extractJson, extractJsonCandidates } from "../src/extract.ts";
 
 test("extracts the whole text, a fenced block, or the first balanced value", () => {
   assert.deepEqual(extractJson('{"a":1}'), { value: { a: 1 } });
@@ -30,4 +30,9 @@ test("valid scalar documents are parsed as-is", () => {
 test("huge unbalanced text is bounded and still finds nothing quickly", () => {
   assert.equal(extractJson("{".repeat(200_000)), undefined);
   assert.equal(extractJson("[1,".repeat(100_000)), undefined);
+});
+
+test("extractJsonCandidates returns every parsable candidate in order", () => {
+  assert.deepEqual(extractJsonCandidates('first {} then [1] then {"a":1}').map((c) => c.value), [{}, [1], { a: 1 }]);
+  assert.deepEqual(extractJsonCandidates("nothing"), []);
 });

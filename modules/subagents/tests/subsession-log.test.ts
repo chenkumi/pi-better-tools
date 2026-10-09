@@ -281,6 +281,35 @@ test("oversized writer record fails immediately rather than waiting for capacity
 	} finally { await rm(rootDir, { recursive: true, force: true }); }
 });
 
+for (const action of ["finalize", "abandon"] as const) {
+	test(`actual handle close rejection preserves the ownership barrier: ${action}`, async t => {
+		const rootDir = await mkdtemp(join(tmpdir(), "pi-log-close-reject-"));
+		const open = fs.promises.open;
+		let actualClose: (() => Promise<void>) | undefined;
+		let closes = 0;
+		t.mock.method(fs.promises, "open", async (...args: Parameters<typeof open>) => {
+			const handle = await open(...args);
+			actualClose = handle.close.bind(handle);
+			t.mock.method(handle, "close", async () => { closes++; throw new Error("injected actual close failure"); });
+			return handle;
+		});
+		try {
+			const writer = await SubsessionWriter.create({ formatVersion: 2, stagingDir: rootDir, rootDir, parentSessionId: "parent", parentToolCallId: "call", agent: "worker", agentSource: "bundled", task: "test", cwd: rootDir });
+			if (action === "abandon") {
+				await assert.rejects(writer.abandon("primary write failure"), /primary write failure.*close.*injected actual close failure/i);
+			}
+			const result = await writer.finalize(finalRecord);
+			assert.match(result.error!, /close.*injected actual close failure/i);
+			if (action === "abandon") assert.match(result.error!, /primary write failure/);
+			assert.equal(result.logPath, undefined);
+			await assert.rejects(writer.abandon("secondary cleanup"), /close.*injected actual close failure/i);
+			assert.equal(closes, 1, "a failed close is not a confirmed ownership release or an automatic retry");
+			await stat(writer.partialPath);
+			await assert.rejects(stat(writer.finalPath), { code: "ENOENT" });
+		} finally { await actualClose?.(); t.mock.restoreAll(); await rm(rootDir, { recursive: true, force: true }); }
+	});
+}
+
 test("serialization errors are reported without rejected background work", async () => {
 	const rootDir = await mkdtemp(join(tmpdir(), "pi-log-serialization-"));
 	try {

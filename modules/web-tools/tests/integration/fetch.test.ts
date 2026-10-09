@@ -4,6 +4,8 @@ import { createServer, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import test from 'node:test';
 import type { Browser } from 'playwright';
+import { extractHtmlIsolated } from '../../src/fetch/extract.js';
+import { NetworkPolicy, parseWebUrl } from '../../src/fetch/network.js';
 import { FetchService, type FetchOptions } from '../../src/fetch/service.js';
 
 const options: FetchOptions = { channel: 'chromium', timeoutMs: 10_000, maxConcurrency: 2, idleTimeoutMs: 60_000 };
@@ -36,7 +38,9 @@ async function fixture() {
     if (path === '/redirect-two') return redirect('/spa');
     if (path === '/redirect-unsafe-one') return redirect('/redirect-unsafe-two');
     if (path === '/redirect-unsafe-two' || path === '/redirect-resource') return redirect(`http://user:TOP_SECRET@127.0.0.1:${(server.address() as AddressInfo).port}/forbidden`);
+    if (path === '/js-redirect') return html('<main>Must not return this stale document.</main><script>setTimeout(() => location.replace("/forbidden"), 0);</script>');
     if (path === '/subresource') return html('<main>Readable despite a blocked subresource.</main><script src="/redirect-resource"></script>');
+    if (path === '/assets') return html('<link rel="stylesheet" href="/style.css"><main>Readable with images <img src="/pic.png"></main>');
     if (path === '/websocket') return html(`<main>Socket test page</main><script>new WebSocket('ws://' + location.host + '/socket');</script>`);
     if (path === '/serviceworker') return html(`<main>Waiting for registration</main><script>navigator.serviceWorker.register('/worker.js').then((registration) => { document.querySelector('main').textContent = registration ? 'Unexpected registration' : 'Registration blocked'; document.querySelector('main').id = 'ready'; }).catch(() => { document.querySelector('main').textContent = 'Registration blocked'; document.querySelector('main').id = 'ready'; });</script>`);
     if (path === '/worker.js') { response.writeHead(200, { 'content-type': 'application/javascript' }); return response.end('self.addEventListener("fetch", () => {});'); }
@@ -117,6 +121,23 @@ test('real Chromium rendered fetch, isolation, routing and cleanup', { timeout: 
     assert.equal(site.hits.get('/forbidden'), undefined);
   });
 
+  await t.test('JS main navigation to a blocked URL fails closed rather than returning stale content', async (t) => {
+    const policy = (service as unknown as { policy: NetworkPolicy }).policy;
+    const validate = policy.validate.bind(policy);
+    // Permit the fixture document, but apply the production private-address policy to its JS navigation.
+    t.mock.method(policy, 'validate', (url: string) => new URL(url).pathname === '/forbidden'
+      ? new NetworkPolicy().validate(url) : validate(url));
+    await assert.rejects(service.fetch({ url: `${site.url}/js-redirect` }), /NETWORK_BLOCKED:/);
+    assert.equal(site.hits.has('/forbidden'), false);
+  });
+
+  await t.test('never downloads image or stylesheet subresources', async () => {
+    const result = await service.fetch({ url: `${site.url}/assets`, extraction: 'main' });
+    assert.match(result.content, /Readable with images/);
+    assert.equal(site.hits.has('/style.css'), false);
+    assert.equal(site.hits.has('/pic.png'), false);
+  });
+
   await t.test('blocks WebSockets/service workers and warns about obvious access/login challenges', async () => {
     await service.fetch({ url: `${site.url}/websocket` });
     assert.equal(site.upgrades, 0);
@@ -158,6 +179,34 @@ test('real Chromium rendered fetch, isolation, routing and cleanup', { timeout: 
   });
 });
 
+test('connected-address mitigation blocks private response use but does not prevent the request', { timeout: 45_000 }, async (t) => {
+  const site = await fixture();
+  const service = new FetchService(options);
+  t.after(async () => { await service.close(); await site.close(); });
+  // Only the connected-address assertions belong inside the fetch deadline, not cold jsdom startup.
+  await extractHtmlIsolated('<main>warm</main>', 'https://example.org/', 'text', 'main', new AbortController().signal);
+  const policy = (service as unknown as { policy: NetworkPolicy }).policy;
+  // Simulate a successful public preflight without relying on external DNS or a real rebinding domain.
+  // The actual route.fetch connection remains loopback and must be checked independently.
+  t.mock.method(policy, 'validate', async (url: string) => parseWebUrl(url));
+  await assert.rejects(service.fetch({ url: `${site.url}/article` }), /NETWORK_BLOCKED:/);
+  assert.equal(site.hits.get('/article'), 1, 'post-response checking cannot prevent blind SSRF');
+  await assert.rejects(service.fetch({ url: `${site.url}/redirect-one` }), /NETWORK_BLOCKED:/);
+  assert.equal(site.hits.has('/redirect-two'), false, 'a blocked peer redirect must never be followed');
+
+  const assertConnected = policy.assertConnectedAddress.bind(policy);
+  let connections = 0;
+  // Model a public main document, followed by a rebound subresource.
+  t.mock.method(policy, 'assertConnectedAddress', (address: string | undefined) => {
+    if (++connections > 1) assertConnected(address);
+  });
+  const result = await service.fetch({ url: `${site.url}/subresource`, extraction: 'main' });
+  assert.match(result.content, /Readable despite/);
+  assert.ok(result.warnings.some((warning) => /subresources/.test(warning)));
+  assert.equal(site.hits.get('/redirect-resource'), 1);
+  assert.equal(site.hits.has('/forbidden'), false);
+});
+
 test('queue cancellation and shutdown are bounded and do not start queued requests', { timeout: 45_000 }, async (t) => {
   const site = await fixture();
   const service = new FetchService({ ...options, maxConcurrency: 1 }, { allowPrivateNetwork: true });
@@ -186,6 +235,8 @@ test('deadline covers queue/navigation/selector waits and idle browser is reaped
   const service = new FetchService({ ...options, timeoutMs: 2500, maxConcurrency: 1, idleTimeoutMs: 25 }, { allowPrivateNetwork: true });
   t.after(async () => { await service.close(); await site.close(); });
   // Warm startup so this test measures the fetch deadline rather than machine startup speed.
+  // Loading jsdom in a fresh extraction worker takes seconds; warm the pooled worker outside the 2.5s deadline.
+  await extractHtmlIsolated('<main>warm</main>', 'https://example.org/', 'text', 'main', new AbortController().signal);
   await service.fetch({ url: `${site.url}/article` });
   const first = service.fetch({ url: `${site.url}/article`, waitForSelector: '#never-created' });
   const firstRejected = assert.rejects(first, /TIMEOUT:/);

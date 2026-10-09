@@ -36,7 +36,7 @@ function harness(options: ConstructorParameters<typeof PtySessionManager>[0] = {
 		onData: (callback: (data: string) => void) => { emit = callback; return { dispose() {} }; },
 		onExit: () => ({ dispose() {} }),
 	};
-	const manager = new PtySessionManager({ now: clock.now, timers: clock.timers, spawnPty: (() => fakePty) as never, ...options });
+	const manager = new PtySessionManager({ now: clock.now, timers: clock.timers, spawnPty: (() => fakePty) as never, matchPattern: async (pattern, input, signal) => { if (signal?.aborted) throw signal.reason; return pattern.test(input); }, ...options });
 	const { sessionId } = manager.spawn("fake", [], {}, process.cwd());
 	return { manager, clock, sessionId, emit: (data: string) => emit(data) };
 }
@@ -46,12 +46,14 @@ function track<T>(promise: Promise<T>) {
 	return state;
 }
 
-test("waitFor returns as soon as ANSI-stripped output matches, without a timer firing", async () => {
+test("waitFor matches ANSI-stripped output after the bounded retry debounce", async () => {
 	const { manager, clock, sessionId, emit } = harness();
 	const read = track(manager.readEx(sessionId, { timeoutMs: 10_000, waitFor: compileWaitFor("ready>\\s*$") }));
 	await flush(); emit("booting\n"); await flush();
 	assert.equal(read.settled, false);
 	emit("\x1b[32mready>\x1b[0m "); await flush();
+	assert.equal(read.settled, false, "new output coalesces during the retry debounce");
+	clock.advance(50); await flush();
 	assert.equal(read.settled, true);
 	assert.equal(read.value?.wait, "matched");
 	assert.match(read.value?.text ?? "", /booting/);

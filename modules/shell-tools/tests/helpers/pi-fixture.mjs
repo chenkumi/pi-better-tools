@@ -78,7 +78,7 @@ export async function createPiFixture() {
   async function createSession({
     loadOverride = true, defaultTools, tools, excludeTools, noTools,
     settings = {}, disk = false, globalSettings = {}, projectSettings,
-    trusted = false, codemode = false, agentDir: sessionAgentDir = agentDir,
+    trusted = false, codemode = false, persistentSession = false, agentDir: sessionAgentDir = agentDir,
   } = {}) {
     const cwd = path.join(temp, `workspace-${++sequence}`);
     fs.mkdirSync(cwd);
@@ -106,7 +106,7 @@ export async function createPiFixture() {
     assert.deepEqual(resourceLoader.getExtensions().errors, [], "Pi package loader errors");
     const { session } = await sdk.createAgentSession({
       cwd, agentDir: sessionAgentDir, settingsManager, resourceLoader, modelRuntime, model,
-      sessionManager: sdk.SessionManager.inMemory(cwd), thinkingLevel: "off",
+      sessionManager: persistentSession ? sdk.SessionManager.create(cwd, path.join(temp, "sessions")) : sdk.SessionManager.inMemory(cwd), thinkingLevel: "off",
       ...(tools === undefined ? {} : { tools }),
       ...(excludeTools === undefined ? {} : { excludeTools }),
       ...(noTools === undefined ? {} : { noTools }),

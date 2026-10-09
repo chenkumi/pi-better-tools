@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readFile, stat } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 
@@ -54,7 +54,7 @@ for (const module of manifest.modules) {
   }
   if (checkOriginal) {
     assert.equal(await digest(join(module.sourcePath, 'package.json')), module.sourceManifestSha256);
-    assert.equal(await digest(join(module.sourcePath, 'package-lock.json')), module.sourceLockSha256);
+    assert.equal(await digest(join(module.sourcePath, module.sourceLockFile ?? 'package-lock.json')), module.sourceLockSha256);
   }
 }
 assert.equal(removed.size, 0, `removal references a non-imported path: ${[...removed.keys()]}`);
@@ -80,6 +80,41 @@ for (const module of native.modules) {
   }
 }
 console.log(`[sources] ${nativePaths.size} native module files verified separately from imported source snapshots.`);
+const suite = adaptations.blackholeVendoring?.npmSuite ?? adaptations.localSourceNpmSuite;
+assert.ok(suite?.packages?.length === 2, 'active local-source suite must contain two npm dependencies');
+assert.deepEqual(suite.packages.map(dependency => dependency.name).sort(), ['@ff-labs/pi-fff', 'pi-open-tui']);
+const packageManifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+const lock = JSON.parse(await readFile(join(root, 'package-lock.json'), 'utf8'));
+assert.equal(packageManifest.dependencies['pi-blackhole'], undefined, 'Blackhole is vendored, not an npm runtime dependency');
+assert.equal(lock.packages['node_modules/pi-blackhole'], undefined, 'removed Blackhole npm identity must not remain locked');
+assert.ok(!packageManifest.pi.extensions.some(entry => entry.startsWith('./node_modules/pi-blackhole/')), 'Blackhole must not load twice');
+const suiteNames = new Set();
+for (const dependency of suite.packages) {
+  assert.ok(!suiteNames.has(dependency.name), `duplicate suite dependency ${dependency.name}`);
+  suiteNames.add(dependency.name);
+  assert.equal(packageManifest.dependencies[dependency.name], dependency.version);
+  const locked = lock.packages[`node_modules/${dependency.name}`];
+  assert.equal(locked?.version, dependency.version);
+  assert.equal(locked?.integrity, dependency.integrity);
+  assert.equal(locked?.resolved, dependency.resolved);
+  const dependencyRoot = join(root, 'node_modules', dependency.name);
+  const installed = JSON.parse(await readFile(join(dependencyRoot, 'package.json'), 'utf8'));
+  assert.equal(installed.version, dependency.version);
+  assert.equal(installed.license, dependency.license);
+  assert.ok(installed.pi.extensions.includes(dependency.entry), `unrecognized dependency entry ${dependency.name}`);
+  assert.ok(packageManifest.pi.extensions.includes(`./node_modules/${dependency.name}/${dependency.entry.replace(/^\.\//, '')}`));
+  assert.ok((await stat(resolve(dependencyRoot, dependency.entry))).isFile());
+}
+const finalIntegration = adaptations.localSourceSuiteFinalIntegration;
+assert.ok(finalIntegration?.rootFiles?.length, 'final suite integration hashes are required');
+const finalPaths = new Set();
+for (const file of finalIntegration.rootFiles) {
+  assert.ok(!file.path.startsWith('/') && !file.path.includes('\\') && !file.path.split('/').includes('..'), `unsafe final integration path ${file.path}`);
+  assert.ok(!finalPaths.has(file.path), `duplicate final integration path ${file.path}`);
+  finalPaths.add(file.path);
+  assert.equal(await digest(join(root, file.path)), file.sha256, `final suite integration changed without provenance: ${file.path}`);
+}
+console.log(`[sources] ${suiteNames.size} pinned npm dependencies and ${finalPaths.size} final root integration hashes verified; older provenance snapshots remain historical.`);
 if (historicalDeltas.length) {
   console.warn(`[sources] WARNING: ${historicalDeltas.length} recorded historical deltas have unavailable earlier contents; local hash integrity is verified, not historical-diff equivalence:\n${historicalDeltas.join('\n')}`);
 }

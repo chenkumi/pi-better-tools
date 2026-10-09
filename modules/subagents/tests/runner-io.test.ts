@@ -14,6 +14,7 @@ import { runSingleAgent } from "../extensions/subagent/index.ts";
 import { IoGate, SUBAGENT_IO_TIMEOUT_MS } from "../extensions/subagent/io-gate.ts";
 import { SubsessionWriter, MAX_PENDING_LOG_BYTES } from "../extensions/subagent/subsession-log.ts";
 import { ToolResultSpool } from "../extensions/subagent/tool-result-spool.ts";
+import { ManagedSession } from "../extensions/subagent/session-store.ts";
 
 function deferred() {
 	let resolve!: () => void;
@@ -32,6 +33,18 @@ async function setup(t: TestContext, mode: Mode) {
 	const blocked = deferred();
 	const entered = deferred();
 	const closed = deferred();
+	const released = deferred();
+	let acquired = false;
+	let acquiring: Promise<void> | undefined;
+	const originalAcquire = ManagedSession.prototype.acquire;
+	t.mock.method(ManagedSession.prototype, "acquire", function (this: ManagedSession, taskId: string) {
+		acquiring = originalAcquire.call(this, taskId).then(() => { acquired = true; });
+		return acquiring;
+	});
+	const originalRelease = ManagedSession.prototype.release;
+	t.mock.method(ManagedSession.prototype, "release", async function (this: ManagedSession) {
+		await originalRelease.call(this); released.resolve();
+	});
 	const cleanupReadBlocked = deferred();
 	const cleanupWaiting = deferred();
 	const spoolIterations = new Set<Promise<void>>();
@@ -163,7 +176,7 @@ async function setup(t: TestContext, mode: Mode) {
 	return {
 		root, result, controller, release: blocked.resolve, signals,
 		entered: () => Promise.race([entered.promise, result.then(settled => { throw new Error(`Runner settled before injected ${mode} I/O; ${JSON.stringify(settled)}`); })]),
-		transcriptClosed: closed.promise, cleanupWaiting: cleanupWaiting.promise, releaseRead: cleanupReadBlocked.resolve,
+		transcriptClosed: closed.promise, writerReleased: released.promise, cleanupWaiting: cleanupWaiting.promise, releaseRead: cleanupReadBlocked.resolve,
 		get pendingSpoolIterations() { return spoolIterations.size; },
 		get writer() { return writer; }, get closeCount() { return closeCount; }, get started() { return started; },
 		async files() { return fs.promises.readdir(root, { recursive: true }); },
@@ -182,6 +195,8 @@ async function setup(t: TestContext, mode: Mode) {
 							cleanupWaiting.resolve();
 							await Promise.all([...spoolIterations]);
 						}
+						await acquiring;
+						if (acquired) await released.promise;
 					})(),
 					new Promise<never>((_resolve, reject) => {
 						cleanupTimer = setTimeout(() => reject(new Error(`Fixture cleanup stalled; retained ${root}; mode=${mode}; started=${started}; transcriptOpened=${transcriptOpened}; result=${JSON.stringify(settled)}`)), 3000);
@@ -278,8 +293,10 @@ test("managed failed writer retains lock while abandoned close is pending", { ti
 		const directory = join(h.root, "managed", result.subagentSessionId!);
 		await fs.promises.stat(join(directory, "writer.lock"));
 		assert.equal(JSON.parse(await fs.promises.readFile(join(directory, "manifest.json"), "utf8")).state, "running");
-		h.release(); await delay(50);
-		await fs.promises.stat(join(directory, "writer.lock")); // no asynchronous takeover/release
+		h.release(); await h.writerReleased;
+		await assert.rejects(fs.promises.stat(join(directory, "writer.lock")), { code: "ENOENT" });
+		assert.equal(JSON.parse(await fs.promises.readFile(join(directory, "manifest.json"), "utf8")).state, "blocked");
+		assert.equal(result.canResume, false, "late cleanup must not promote the interrupted receipt to ready");
 	} finally { await h.dispose(); }
 });
 
@@ -345,7 +362,12 @@ test("I/O gate contains observers, preserves undefined rejection and tracks late
 	gate.stop(new Error("second cancellation"));
 	await assert.rejects(waiting, /first cancellation/);
 	assert.equal(gate.pendingOperations, 1);
+	let idle = false;
+	const actualIdle = gate.whenIdle().then(() => { idle = true; });
+	await Promise.resolve();
+	assert.equal(idle, false, "stopped waiting is not actual I/O completion");
 	blocked.resolve();
+	await actualIdle;
 	await new Promise<void>((resolve) => setImmediate(resolve));
 	assert.equal(gate.pendingOperations, 0);
 	await assert.rejects(gate.run(async () => {}, "never started"), /first cancellation/);

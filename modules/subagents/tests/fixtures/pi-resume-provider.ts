@@ -27,7 +27,7 @@ export default function (pi: ExtensionAPI) {
 		streamSimple(model, context, options) {
 			const stream = createAssistantMessageEventStream(), nth = ++requests, isParent = parent();
 			const message: any = { role: "assistant", provider: model.provider, api: model.api, model: model.id, content: [], stopReason: "pending", usage: usage(), timestamp: Date.now() };
-			setImmediate(() => {
+			setImmediate(async () => {
 				try {
 					save(`request-${nth}.json`, { pid: process.pid, model: model.id, reasoning: options?.reasoning, executions, messages: context.messages });
 					const currentUser = text(context.messages.filter((m: any) => m.role === "user").at(-1));
@@ -35,8 +35,8 @@ export default function (pi: ExtensionAPI) {
 					if (isParent && nth === 1) {
 						if (currentUser.includes("P6_PARENT_DECISION")) {
 							const previous = context.messages.filter((m: any) => m.role === "toolResult" && m.toolName === "subagent").at(-1) as any;
-							const id = text(previous).match(/Subagent session: ([0-9a-z]{26}) \(ready to resume\)/)?.[1]; assert.ok(id, "visible parent content must supply ready ID");
-							call = { name: "subagent", id: "parent-resume", arguments: { resume: id, task: "P6_DECISION_B: Use B and finish the prior work." } };
+							const id = text(previous).match(/Subagent session: ([0-9A-HJKMNP-TV-Z]{26})\nResume available: a verified conversation checkpoint is ready\./)?.[1]; assert.ok(id, "visible parent content must supply ready ID");
+							call = { name: "subagent_message", id: `parent-resume-${process.env.P6_PHASE ?? "resume"}`, arguments: { subagentSessionId: id, message: "P6_DECISION_B: Use B and finish the prior work." } };
 						} else {
 							const task = { agent: "worker", task: "P6_INITIAL_USER: work until a decision is needed.", ...(process.env.P6_CHILD_CWD ? { cwd: process.env.P6_CHILD_CWD } : {}) };
 							const mode = process.env.P6_MODE ?? "single";

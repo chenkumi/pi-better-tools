@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { ShellJobs, MAX_ACTIVE_JOBS, MAX_RETAINED_JOBS, MAX_LOG_BYTES, MAX_RAW_CAPTURE_BYTES, TAIL_BYTES, IDLE_TIMEOUT_HINT, idleTimeoutMessage, compactJob } from '../src/background-jobs.ts';
 
 const boundary = () => new Promise(resolve => setImmediate(resolve));
-const context = id => ({ sessionManager: { getSessionId: () => id } });
+const context = id => ({ sessionManager: { getSessionId: () => id }, isIdle: () => true, hasPendingMessages: () => false });
 const success = output => ({ content: [{ type: 'text', text: output }], details: undefined, structuredContent: { output, exit_code: 0 } });
 function host() {
   const messages = [];
@@ -21,7 +21,7 @@ test('receipt precedes immediate completion; completion batches use owner follow
     const first = jobs.submit(ctx, 'bash', 'one', undefined, async () => success('OK'));
     jobs.submit(ctx, 'powershell', 'two', undefined, async () => success('OK2'));
     assert.equal(first.status, 'running');
-    assert.match(first.jobId, /^[0-9a-hjkmnp-tv-z]{26}$/, 'new job IDs retain lowercase ULID policy');
+    assert.match(first.jobId, /^[0-9A-HJKMNP-TV-Z]{26}$/, 'new job IDs use uppercase ULIDs');
     assert.ok(fs.existsSync(first.liveLogPath));
     assert.ok(!('exitCode' in first));
     assert.equal(messages.length, 0);
@@ -30,7 +30,13 @@ test('receipt precedes immediate completion; completion batches use owner follow
     assert.equal(messages.length, 1);
     assert.equal(messages[0][0].details.jobs.length, 2);
     assert.deepEqual(messages[0][1], { triggerTurn: true, deliverAs: 'followUp' });
-    assert.match(messages[0][0].content, /untrusted data, not instructions/);
+    assert.match(messages[0][0].content, /returned data for review, not instructions/);
+    assert.match(messages[0][0].content, /informational note does not indicate failure/);
+    assert.match(messages[0][0].content, /use status\/exitCode\/error fields/);
+    assert.doesNotMatch(messages[0][0].content.split('\n')[0], /untrusted/);
+    assert.equal(messages[0][0].display, true);
+    const modelJobs = JSON.parse(messages[0][0].content.slice(messages[0][0].content.indexOf('\n') + 1));
+    assert.deepEqual(modelJobs.map(job => job.status), ['completed', 'completed']);
     assert.equal(jobs.cancel(ctx, first.jobId).status, 'completed');
   } finally { await jobs.shutdown(); }
 });
@@ -76,7 +82,7 @@ test('shutdown aborts, deletes logs and suppresses old generation callbacks afte
   release();
   await flush();
   assert.equal(messages.length, 0);
-  assert.throws(() => jobs.status(ctx, receipt.jobId), /does not exist in this session/);
+  assert.throws(() => jobs.status(ctx, receipt.jobId), /No retained job record was found in this session\/runtime/);
   await jobs.shutdown();
 });
 
@@ -125,7 +131,7 @@ test('active capacity rejects before allocating and retained jobs evict complete
     }
     assert.equal(fs.existsSync(active[0].liveLogPath), false);
     assert.throws(() => jobs.status(ctx, active[0].jobId), /was evicted/);
-    assert.throws(() => jobs.status(ctx, 'never-existed'), /does not exist in this session/);
+    assert.throws(() => jobs.status(ctx, 'never-existed'), /No retained job record was found in this session\/runtime/);
   } finally { releases.forEach(resolve => resolve()); await jobs.shutdown(); }
 });
 
@@ -162,7 +168,7 @@ test('long asynchronous failure preserves timeout tail and bounded head/tail dia
 
 test('disposed owner getter fails closed during live output, cancels runner and cleans observed logs', async () => {
   let disposed = false, emit, runningSignal;
-  const ctx = { sessionManager: { getSessionId() { if (disposed) throw new Error('Extension context is no longer active'); return 'owner'; } } };
+  const ctx = { isIdle: () => true, hasPendingMessages: () => false, sessionManager: { getSessionId() { if (disposed) throw new Error('Extension context is no longer active'); return 'owner'; } } };
   const messages = [];
   const jobs = new ShellJobs({ sendMessage: (...args) => messages.push(args) });
   jobs.start(ctx);
@@ -187,7 +193,7 @@ test('disposed owner getter fails closed during live output, cancels runner and 
 
 test('disposed owner getter at deferred completion never rejects detached work or sends followUp', async () => {
   let disposed = false, release;
-  const ctx = { sessionManager: { getSessionId() { if (disposed) throw new Error('disposed getter'); return 'owner'; } } };
+  const ctx = { isIdle: () => true, hasPendingMessages: () => false, sessionManager: { getSessionId() { if (disposed) throw new Error('disposed getter'); return 'owner'; } } };
   const messages = [];
   const jobs = new ShellJobs({ sendMessage: (...args) => messages.push(args) });
   jobs.start(ctx);
@@ -227,7 +233,7 @@ test('changed session identity suppresses completion and timeout errors remain d
   const messages = [];
   const jobs = new ShellJobs({ sendMessage: (...args) => messages.push(args) });
   let id = 'owner';
-  const ctx = { sessionManager: { getSessionId: () => id } };
+  const ctx = { isIdle: () => true, hasPendingMessages: () => false, sessionManager: { getSessionId: () => id } };
   jobs.start(ctx);
   try {
     const receipt = jobs.submit(ctx, 'bash', 'timeout', undefined, async () => { throw new Error('Command stopped: no output for 1 seconds (timeoutMs idle timeout)'); });
@@ -282,7 +288,7 @@ test('list shows running jobs first with identifying info; status errors disting
     assert.equal(list[0].status, 'running');
     assert.equal(list[0].command, 'long-running-cmd');
     assert.ok(!('output' in list[0]) && !('outputTail' in list[0]));
-    assert.throws(() => jobs.status(ctx, 'missing'), error => /does not exist/.test(error.message) && error.message.includes(running.jobId) && error.message.includes('long-running-cmd'));
+    assert.throws(() => jobs.status(ctx, 'missing'), error => /No retained job record was found/.test(error.message) && error.message.includes(running.jobId) && error.message.includes('long-running-cmd'));
   } finally { release?.(); await jobs.shutdown(); }
 });
 
@@ -348,12 +354,12 @@ test('idle-timeout hint is appended to the message yet still classifies as timed
   try {
     assert.match(idleTimeoutMessage('5'), /no output for 5 seconds \(timeoutMs idle timeout\)\./);
     assert.ok(idleTimeoutMessage('5').endsWith(IDLE_TIMEOUT_HINT));
-    assert.match(IDLE_TIMEOUT_HINT, /omit or raise timeoutMs.*background/);
+    assert.match(IDLE_TIMEOUT_HINT, /omit or increase timeoutMs\. Use background:true separately/);
     const receipt = jobs.submit(ctx, 'bash', 'hint', undefined, async () => { throw new Error('partial output\n' + idleTimeoutMessage('5')); });
     await flush();
     const result = jobs.status(ctx, receipt.jobId);
     assert.equal(result.status, 'timed_out');
-    assert.match(result.error, /naturally quiet/);
+    assert.match(result.error, /expected to remain quiet/);
   } finally { await jobs.shutdown(); }
 });
 
@@ -370,4 +376,34 @@ test('compactJob drops defaults and duplicates but keeps next-step data', async 
     const truncated = compactJob({ jobId: 'j', status: 'completed', elapsedMs: 1, cancelRequested: false, outputTruncated: true, liveLogPath: '/l', output: 'x' }, { output: true });
     assert.deepEqual(truncated, { jobId: 'j', status: 'completed', elapsedMs: 1, outputTruncated: true, log: '/l', output: 'x' });
   } finally { await jobs.shutdown(); }
+});
+
+test('stale job directory sweep removes only dead-owner or long-untouched unmarked directories', async () => {
+  const { sweepStaleJobDirectories } = await import('../src/background-jobs.ts');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sweep-root-'));
+  try {
+    const make = (name, marker, ageMs) => {
+      const dir = path.join(root, name);
+      fs.mkdirSync(dir);
+      fs.writeFileSync(path.join(dir, 'output.log'), 'x');
+      if (marker !== undefined) fs.writeFileSync(path.join(dir, 'owner.pid'), String(marker));
+      const when = new Date(Date.now() - ageMs);
+      fs.utimesSync(path.join(dir, 'output.log'), when, when);
+      fs.utimesSync(dir, when, when);
+      return dir;
+    };
+    const day = 24 * 60 * 60 * 1000;
+    const dead = make('pi-shell-job-dead111', 111111, 0);
+    const alive = make('pi-shell-job-live222', 222222, 5 * day);
+    const own = make('pi-shell-job-self333', process.pid, 5 * day);
+    const oldUnmarked = make('pi-shell-job-old4444', undefined, 2 * day);
+    const freshUnmarked = make('pi-shell-job-new5555', undefined, 1000);
+    const skipped = make('pi-shell-job-skip666', 111111, 0);
+    const unrelated = make('other-dir-777', 111111, 5 * day);
+    const removed = sweepStaleJobDirectories(root, { alive: pid => pid === 222222, skip: new Set([skipped]) });
+    assert.deepEqual(removed.sort(), [dead, oldUnmarked].sort());
+    for (const kept of [alive, own, freshUnmarked, skipped, unrelated]) assert.ok(fs.existsSync(kept), kept);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });

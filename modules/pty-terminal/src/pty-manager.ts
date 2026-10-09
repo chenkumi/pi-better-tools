@@ -1,6 +1,11 @@
-import { spawn, type IPty } from "node-pty";
+import { createRequire } from "node:module";
+import type { IPty, spawn } from "node-pty";
 import { filterEnv, type EnvPolicy } from "./env.ts";
+import { matchPattern, MATCH_BUDGET_MS } from "./matcher.ts";
 import { stripEscapes, truncatePtyOutput, type OutputFormat } from "./output.ts";
+
+/** node-pty is a native addon; load it on first spawn so Pi startup does not pay for it. */
+const lazySpawn: typeof spawn = (...args) => (createRequire(import.meta.url)("node-pty") as typeof import("node-pty")).spawn(...args);
 
 /** Output buffer cap per session (UTF-16 code units, ~2 MiB of ASCII). Oldest output is dropped first. */
 export const MAX_BUFFER_CHARS = 2 * 1024 * 1024;
@@ -35,10 +40,14 @@ export interface ManagerOptions {
 	timers?: { set(callback: () => void, ms: number): unknown; clear(handle: unknown): void };
 	/** PTY factory seam (tests). Defaults to node-pty spawn. */
 	spawnPty?: typeof spawn;
+	/** Pure matcher seam for deterministic unit clocks; production uses an owned worker. */
+	matchPattern?: typeof matchPattern;
 }
 
 /** Longest tail of unread output examined by waitFor, bounding regex cost. */
 const MATCH_WINDOW_CHARS = 256 * 1024;
+/** Minimum pause before re-running waitFor when new output arrived during a failed match. */
+const MATCH_DEBOUNCE_MS = 50;
 
 export interface DroppedRange { from: number; to: number }
 
@@ -147,6 +156,11 @@ function abortError(signal: AbortSignal): Error {
 export class PtySessionManager {
 	private readonly sessions = new Map<string, PtySession>();
 	private nextId = 0;
+	private closing = false;
+	private readonly readAbort = new AbortController();
+	private stopping?: Promise<{ retained: string[]; errors: string[] }>;
+	private readonly matches = new Set<Promise<boolean>>();
+	private readonly matcher: typeof matchPattern;
 	private readonly maxSessions: number;
 	private readonly maxBufferChars: number;
 	private readonly retentionMs: number;
@@ -162,10 +176,11 @@ export class PtySessionManager {
 		this.killWaitMs = options.killWaitMs ?? 2_000;
 		this.now = options.now ?? Date.now;
 		this.timers = options.timers ?? { set: (callback, ms) => setTimeout(callback, ms), clear: handle => clearTimeout(handle as NodeJS.Timeout) };
-		this.spawnPty = options.spawnPty ?? spawn;
+		this.spawnPty = options.spawnPty ?? lazySpawn;
+		this.matcher = options.matchPattern ?? matchPattern;
 	}
 
-	/** Drop exited sessions past retention; if still at capacity, drop the oldest exited ones. */
+	/** Reclamation never sacrifices unread output merely to admit a new session. */
 	/** Free native handles of an exited session being forgotten (node-pty keeps them until kill()). */
 	private dispose(id: string): void {
 		const session = this.sessions.get(id);
@@ -180,17 +195,20 @@ export class PtySessionManager {
 		}
 		if (needSlot) {
 			for (const [id, session] of this.sessions) {
-				if (this.sessions.size < this.maxSessions) break;
-				if (session.state === "exited") this.dispose(id);
+				if (this.sessions.size < this.maxSessions) return;
+				if (session.state !== "exited") continue;
+				const unread = session.bufStart + session.buffer.length > session.readPos || session.drop !== undefined;
+				if (!unread) this.dispose(id);
 			}
 		}
 	}
 
 	spawn(command: string, args: string[], options: SpawnOptions, defaultCwd: string): { sessionId: string; pid: number; target: string; transport: "local" | "wsl" | "ssh" } {
+		if (this.closing) throw new Error("PTY manager is shutting down; new sessions are not admitted");
 		checkSize(options.cols, MAX_COLS, "cols");
 		checkSize(options.rows, MAX_ROWS, "rows");
 		this.reclaim(true);
-		if (this.sessions.size >= this.maxSessions) throw new Error(`PTY session limit reached (${this.maxSessions}); kill an existing session first`);
+		if (this.sessions.size >= this.maxSessions) throw new Error(`PTY session limit reached (${this.maxSessions}); unread exited output is retained. Use pty_read to drain an exited session or pty_kill to explicitly release an existing session first`);
 		const pty = this.spawnPty(command, args, {
 			name: "xterm-256color",
 			cols: options.cols ?? 100,
@@ -233,7 +251,11 @@ export class PtySessionManager {
 	}
 
 	write(sessionId: string, data: string): void {
-		this.requireSession(sessionId).pty.write(data);
+		const session = this.requireSession(sessionId);
+		if (session.state === "exited") {
+			throw new Error(`PTY session ${sessionId} has exited${session.exitInfo ? ` (exitCode ${session.exitInfo.exitCode})` : ""}; input was not sent. Use pty_read to drain remaining output, pty_kill to release it, or pty_spawn a new session.`);
+		}
+		session.pty.write(data);
 	}
 
 	/** Appends output, advances the cursor and enforces the ring buffer (oldest output dropped first). */
@@ -241,7 +263,10 @@ export class PtySessionManager {
 		session.buffer += data;
 		session.lastDataAt = this.now();
 		if (session.buffer.length > this.maxBufferChars) {
-			let overflow = session.buffer.length - this.maxBufferChars;
+			// Trim in batches: cut down to (max - slack) so a full buffer is copied once per `slack` characters instead of per chunk.
+			// The retained size never exceeds the maximum; small test-sized buffers use no slack and stay exact.
+			const slack = this.maxBufferChars >= 64 * 1024 ? Math.floor(this.maxBufferChars / 16) : 0;
+			let overflow = session.buffer.length - (this.maxBufferChars - slack);
 			if ((session.buffer.charCodeAt(overflow) & 0xfc00) === 0xdc00) overflow++; // do not start on a lone low surrogate
 			session.buffer = session.buffer.slice(overflow);
 			session.bufStart += overflow;
@@ -266,6 +291,8 @@ export class PtySessionManager {
 	 */
 	async readEx(sessionId: string, options: ReadOptions): Promise<ReadSnapshot> {
 		const session = this.requireSession(sessionId);
+		options = { ...options, signal: options.signal ? AbortSignal.any([options.signal, this.readAbort.signal]) : this.readAbort.signal };
+		if (options.signal?.aborted) throw abortError(options.signal);
 		const end = () => session.bufStart + session.buffer.length;
 		if (options.since !== undefined && (!Number.isInteger(options.since) || options.since < 0 || options.since > end())) {
 			throw new Error(`since must be a cursor between 0 and ${end()} (the latest cursor); use a cursor from an earlier pty_read.`);
@@ -321,15 +348,36 @@ export class PtySessionManager {
 	/** Waits a fixed time (cut short if the process exits); abortable. */
 	async pause(sessionId: string, ms: number, signal?: AbortSignal): Promise<void> {
 		const session = this.requireSession(sessionId);
-		await this.waitFor(session, Math.min(Math.max(ms, 0), MAX_WAIT_MS), signal, undefined, undefined);
+		await this.waitFor(session, Math.min(Math.max(ms, 0), MAX_WAIT_MS), signal, undefined, session.exitWaiters);
 	}
 
 	private async waitMatch(session: PtySession, pattern: RegExp, from: number, deadline: number, signal?: AbortSignal): Promise<boolean> {
+		let retryAt = 0;
 		for (;;) {
+			if (retryAt !== 0 && deadline <= this.now()) return false;
+			// Every failed attempt is throttled, including data arriving just after it finished.
+			// Exit wakes the debounce early so final buffered output can still be examined.
+			if (retryAt > this.now()) {
+				await this.waitFor(session, Math.min(retryAt - this.now(), Math.max(0, deadline - this.now())), signal, undefined, session.exitWaiters);
+				if (deadline <= this.now()) return false;
+			}
 			const begin = Math.max(from, session.bufStart);
 			let window = session.buffer.slice(begin - session.bufStart);
 			if (window.length > MATCH_WINDOW_CHARS) window = window.slice(-MATCH_WINDOW_CHARS);
-			if (pattern.test(stripEscapes(window))) return true;
+			const generation = session.bufStart + session.buffer.length;
+			const remainingBudget = deadline - this.now();
+			const pending = this.matcher(pattern, stripEscapes(window), signal, remainingBudget > 0 ? remainingBudget : MATCH_BUDGET_MS);
+			this.matches.add(pending);
+			let matched: boolean;
+			try { matched = await pending; }
+			catch (error) {
+				if (!signal?.aborted && remainingBudget > 0 && this.now() >= deadline && error instanceof Error && /worker budget/.test(error.message)) return false;
+				throw error;
+			} finally { this.matches.delete(pending); }
+			if (matched) return true;
+			retryAt = this.now() + MATCH_DEBOUNCE_MS;
+			// Output may arrive while the worker is running; do not miss its notification.
+			if (session.bufStart + session.buffer.length !== generation && deadline > this.now()) continue;
 			const remaining = deadline - this.now();
 			if (session.state === "exited" || remaining <= 0) return false;
 			await this.waitFor(session, remaining, signal, session.dataWaiters, session.exitWaiters);
@@ -407,20 +455,25 @@ export class PtySessionManager {
 		}));
 	}
 
-	shutdown(): void {
-		for (const session of this.sessions.values()) {
-			try {
-				session.pty.kill(process.platform === "win32" ? undefined : "SIGHUP");
-			} catch {
-				// The OS has already reaped this child.
-			}
-			session.state = "exited";
-			session.exitedAt ??= this.now();
-			session.exitInfo ??= { exitCode: -1 };
-			this.notify(session.dataWaiters);
-			this.notify(session.exitWaiters);
-		}
-		this.sessions.clear();
+	shutdown(): Promise<{ retained: string[]; errors: string[] }> {
+		if (this.stopping) return this.stopping;
+		this.closing = true;
+		this.readAbort.abort(new Error("PTY manager shutting down; session exit is not yet confirmed"));
+		const work = (async () => {
+			await Promise.allSettled([...this.matches]); // includes worker termination
+			const errors: string[] = [];
+			await Promise.all([...this.sessions.keys()].map(async id => {
+				try {
+					const result = await this.kill(id);
+					if (!result.released) errors.push(`PTY ${id} termination unconfirmed; ownership retained`);
+				} catch (error) { errors.push(error instanceof Error ? error.message : String(error)); }
+			}));
+			// No fabricated exit event or registry.clear(): only confirmed exits release ownership.
+			return { retained: [...this.sessions.keys()], errors };
+		})();
+		this.stopping = work;
+		void work.then(() => { if (this.stopping === work) this.stopping = undefined; });
+		return work;
 	}
 
 	private requireSession(sessionId: string): PtySession {
@@ -451,6 +504,10 @@ export class PtySessionManager {
 		onExit?: () => void,
 	): Promise<void> {
 		if (signal?.aborted) return Promise.reject(abortError(signal));
+		if (session.exitInfo) {
+			onExit?.();
+			return Promise.resolve();
+		}
 
 		return new Promise<void>((resolve, reject) => {
 			let settled = false;

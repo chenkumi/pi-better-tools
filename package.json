@@ -3,7 +3,7 @@
     "version": "0.1.0",
     "private": true,
     "license": "MIT",
-    "description": "A single Pi package integrating subagents, shell, precise file, web, scheduler, note, GPT speed, JSON Schema delivery and cross-platform PTY extensions.",
+    "description": "A single Pi package integrating subagents, shell, precise file, web, note, GPT speed, JSON Schema delivery and cross-platform PTY extensions.",
     "type": "module",
     "keywords": [
         "pi-package",
@@ -27,11 +27,11 @@
         "modules/web-tools/src",
         "modules/web-tools/schemas",
         "modules/web-tools/examples",
-        "modules/scheduler/src",
-        "modules/scheduler/dist",
-        "modules/scheduler/package.json",
         "modules/note-tools/extensions",
         "modules/note-tools/src",
+        "modules/pi-runtime/src",
+        "modules/monitor/src",
+        "modules/monitor/package.json",
         "modules/gpt-speed/extensions",
         "modules/gpt-speed/src",
         "modules/json-schema/extensions",
@@ -39,6 +39,17 @@
         "modules/pty-terminal/src",
         "modules/pty-terminal/README.md",
         "modules/pty-terminal/LICENSE",
+        "modules/schedule-prompt/src",
+        "modules/blackhole/index.ts",
+        "modules/blackhole/package.json",
+        "modules/blackhole/src",
+        "!modules/blackhole/src/**/*.test.ts",
+        "modules/blackhole/CHANGELOG.md",
+        "modules/blackhole/example-config.json",
+        "modules/blackhole/llms.txt",
+        "modules/blackhole/docs",
+        "modules/schedule-prompt/README.md",
+        "modules/schedule-prompt/LICENSE",
         "README.md",
         "LICENSE",
         "THIRD_PARTY_NOTICES.md",
@@ -52,18 +63,20 @@
             "./modules/file-tools/src/index.ts",
             "./modules/subagents/src/index.ts",
             "./modules/web-tools/src/index.ts",
-            "./modules/scheduler/src/index.ts",
             "./modules/note-tools/src/index.ts",
+            "./modules/pi-runtime/src/index.ts",
+            "./modules/monitor/src/index.ts",
             "./modules/gpt-speed/src/index.ts",
             "./modules/json-schema/src/index.ts",
-            "./modules/pty-terminal/src/index.ts"
+            "./modules/pty-terminal/src/index.ts",
+            "./modules/schedule-prompt/src/index.ts",
+            "./node_modules/pi-open-tui/extensions/open-tui/index.ts",
+            "./modules/blackhole/src/index.ts",
+            "./node_modules/@ff-labs/pi-fff/src/index.ts"
         ],
         "prompts": [
             "./modules/subagents/prompts"
         ]
-    },
-    "bin": {
-        "pi-scheduler": "./modules/scheduler/dist/runner.js"
     },
     "scripts": {
         "build": "node scripts/run-checks.mjs build",
@@ -74,7 +87,6 @@
         "test:cross": "node scripts/run-checks.mjs cross",
         "test:browser": "node scripts/run-checks.mjs browser",
         "test:package": "node scripts/package-smoke.mjs",
-        "test:matrix": "node scripts/package-smoke.mjs --host 0.99.1 --host 0.99.2 --host 1.0.0",
         "check": "npm run build && npm run typecheck && npm test && npm run test:integration && npm run test:package",
         "pty:install": "node modules/pty-terminal/src/install.mjs",
         "browser:install": "playwright install chromium --no-shell",
@@ -87,17 +99,21 @@
         "node-pty@1.2.0-beta.14": true
     },
     "dependencies": {
+        "@ff-labs/pi-fff": "0.11.0",
         "@mozilla/readability": "0.6.0",
         "croner": "10.0.1",
         "diff": "9.0.0",
         "ipaddr.js": "2.5.0",
         "jsdom": "30.1.1",
+        "nanoid": "5.1.16",
         "node-pty": "1.2.0-beta.14",
+        "pi-open-tui": "0.3.11",
         "playwright": "1.63.0",
         "proper-lockfile": "4.1.2",
         "turndown": "7.2.4",
         "turndown-plugin-gfm": "1.0.2",
         "ulid": "3.0.2",
+        "ws": "8.22.0",
         "zod": "4.6.5"
     },
     "peerDependencies": {
@@ -108,17 +124,18 @@
         "typebox": "*"
     },
     "devDependencies": {
-        "@earendil-works/pi-agent-core": "1.0.0",
-        "@earendil-works/pi-ai": "1.0.0",
-        "@earendil-works/pi-coding-agent": "1.0.0",
-        "@earendil-works/pi-tui": "1.0.0",
+        "@earendil-works/pi-agent-core": "1.1.0",
+        "@earendil-works/pi-ai": "1.1.0",
+        "@earendil-works/pi-coding-agent": "1.1.0",
+        "@earendil-works/pi-tui": "1.1.0",
         "@types/jsdom": "^27.0.0",
         "@types/node": "22.19.19",
         "@types/proper-lockfile": "^4.1.4",
         "@types/turndown": "^5.0.5",
+        "@types/ws": "8.18.1",
         "tsx": "^4.20.6",
         "typebox": "1.3.27",
         "typescript": "5.9.3",
-        "vitest": "^4.1.9"
+        "vitest": "4.0.18"
     }
 }

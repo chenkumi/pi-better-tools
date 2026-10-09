@@ -8,6 +8,7 @@ import { Check } from "typebox/value";
 import { validateToolArguments } from "@earendil-works/pi-ai";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import registerSubagent, { normalizeDispatch } from "../extensions/subagent/index.ts";
+import { messageHarness } from "./fixtures/message-harness.ts";
 import { displayTitle, isValidTitle } from "../extensions/subagent/title.ts";
 import { compactResult, emptyUsage, formatParentResults } from "../extensions/subagent/result.ts";
 
@@ -22,16 +23,17 @@ after(async () => {
 const child = fileURLToPath(new URL("./fixtures/managed-native.mjs", import.meta.url));
 async function setup(scenario = "normal") {
 	const root = await mkdtemp(join(tmpdir(), "pi-subagent-title-"));
-	let tool: any;
+	let tool: any, messageTool: any;
+	const messages = messageHarness();
 	const invocations: string[][] = [];
-	registerSubagent({ registerTool(t: any) { tool = t; }, on() {} } as any, {
+	registerSubagent({ sendMessage: messages.sendMessage, registerMessageRenderer() {}, registerTool(t: any) { if (t.name === "subagent") tool = t; if (t.name === "subagent_message") messageTool = t; }, on() {} } as any, {
 		debugLog: false, sessionRootDir: join(root, "managed"),
 		invocation(args) { invocations.push([...args]); return { command: process.execPath, args: [child, scenario, ...args] }; },
 	});
 	const model = { provider: "offline-fixture", id: "model", reasoning: false };
 	const ctx: any = { cwd: root, hasUI: false, isProjectTrusted: () => false, model, thinkingLevel: "off",
 		sessionManager: { getSessionId: () => "parent" }, modelRegistry: { find: () => model, getAll: () => [model] } };
-	return { root, tool, ctx, invocations };
+	return { root, tool, messageTool, messages, ctx, invocations };
 }
 const theme: any = { fg: (_key: string, text: string) => text, bold: (text: string) => text };
 const renderResult = (tool: any, result: any, expanded = false, width = 80) => tool.renderResult(result, { expanded, isPartial: true }, theme, {}).render(width).join("\n");
@@ -42,7 +44,7 @@ test("title schema and runtime accept up to 50 Unicode code points and reject in
 	assert.equal(h.tool.parameters.properties.title.description, "用50字內描述這個subagent要做甚麼事");
 	for (const title of ["調查登入流程", "字".repeat(50), "🙂".repeat(50), "👩‍💻".repeat(16), "e\u0301".repeat(25), "👍🏽".repeat(25)]) {
 		assert.equal(isValidTitle(title), true);
-		for (const args of [{ agent: "worker", task: "work", title }, { tasks: [{ agent: "worker", task: "work", title }] }, { chain: [{ agent: "worker", task: "work", title }] }, { resume: "id", task: "work", title }]) {
+		for (const args of [{ agent: "worker", task: "work", title }, { tasks: [{ agent: "worker", task: "work", title }] }, { chain: [{ agent: "worker", task: "work", title }] }]) {
 			assert.equal(Check(h.tool.parameters, args), true);
 			const validated = validateToolArguments(h.tool, { type: "toolCall", id: "title", name: "subagent", arguments: args });
 			assert.doesNotThrow(() => normalizeDispatch(validated));
@@ -50,7 +52,7 @@ test("title schema and runtime accept up to 50 Unicode code points and reject in
 	}
 	for (const title of ["", "   ", null, 7, "\x1b[2J", "字".repeat(51), "🙂".repeat(51), "👩‍💻".repeat(17), "e\u0301".repeat(26), "👍🏽".repeat(26), "e" + "\u0301".repeat(4096)]) {
 		assert.equal(isValidTitle(title), false);
-		for (const args of [{ agent: "worker", task: "work", title }, { tasks: [{ agent: "worker", task: "work", title }] }, { chain: [{ agent: "worker", task: "work", title }] }, { resume: "id", task: "work", title }]) {
+		for (const args of [{ agent: "worker", task: "work", title }, { tasks: [{ agent: "worker", task: "work", title }] }, { chain: [{ agent: "worker", task: "work", title }] }]) {
 			const outcome = await h.tool.execute("invalid", args, undefined, undefined, h.ctx);
 			assert.equal(outcome.isError, true); assert.equal(outcome.details.errorCode, "INVALID_DISPATCH");
 		}
@@ -113,9 +115,10 @@ test("resume accepts a fresh display title without altering saved identity/confi
 	const prior = first.details.results[0];
 	const path = join(h.root, "managed", prior.subagentSessionId, "manifest.json");
 	const config = JSON.parse(await readFile(path, "utf8")).config;
-	const second = await h.tool.execute("next", { resume: prior.subagentSessionId, task: "choose B", title: "套用方案B" }, undefined, undefined, h.ctx);
+	const args = { subagentSessionId: prior.subagentSessionId, message: "choose B", title: "套用方案B" };
+	const second = await h.messages.message(h.messageTool, "next", args, h.ctx);
 	assert.equal(second.isError, undefined, JSON.stringify(second.content));
-	assert.equal(second.details.results[0].title, "套用方案B"); assert.equal(prior.title, "查明問題");
+	assert.match(h.messageTool.renderCall(args, theme, {}).render(120).join("\n"), /套用方案B/); assert.equal(prior.title, "查明問題");
 	assert.equal(second.details.results[0].subagentSessionId, prior.subagentSessionId);
 	assert.deepEqual(JSON.parse(await readFile(path, "utf8")).config, config);
 	assert.equal(JSON.parse(second.details.results[0].output).previousUsers, 1);

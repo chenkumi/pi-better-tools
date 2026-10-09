@@ -1,4 +1,13 @@
-import { z } from "zod";
+import { createRequire } from "node:module";
+import { validationPool } from "./validation-pool.ts";
+export { VALIDATION_BUDGET_MS } from "./validation-pool.ts";
+import { assertSafeSchemaPattern } from "./pattern-policy.ts";
+
+import type { ZodType } from "zod";
+
+/** zod is heavy and only needed once structured output is requested; load it synchronously on first use, not at Pi startup. */
+let zodModule: typeof import("zod") | undefined;
+const loadZod = () => (zodModule ??= createRequire(import.meta.url)("zod") as typeof import("zod"));
 
 /**
  * JSON Schema -> zod 4 validator.
@@ -11,7 +20,7 @@ export interface CompiledSchema {
   /** The caller's schema, reused as the `json_output` tool parameters. */
   jsonSchema: Record<string, unknown>;
   /** Returns undefined when `data` is valid, otherwise a short human-readable reason. */
-  validate(data: unknown): string | undefined;
+  validate(data: unknown, signal?: AbortSignal): string | undefined | Promise<string | undefined>;
 }
 
 const UNSUPPORTED_KEYWORDS = new Set([
@@ -30,7 +39,7 @@ const TYPE_SPECIFIC_KEYWORDS = new Set([
 ]);
 
 /** Keywords whose values are a single subschema, a subschema list, or a name -> subschema map. */
-const SUBSCHEMA = new Set(["items", "additionalProperties", "contains", "propertyNames"]);
+const SUBSCHEMA = new Set(["items", "additionalItems", "additionalProperties", "contains", "propertyNames"]);
 const SUBSCHEMA_LIST = new Set(["allOf", "anyOf", "oneOf", "prefixItems"]);
 const SUBSCHEMA_MAP = new Set(["properties", "patternProperties", "$defs", "definitions"]);
 
@@ -43,6 +52,8 @@ function audit(node: unknown, path: string): void {
   for (const keyword of Object.keys(node)) {
     if (UNSUPPORTED_KEYWORDS.has(keyword)) throw new Error(`unsupported JSON Schema keyword "${keyword}" at ${path}`);
   }
+  if ("pattern" in node) assertSafeSchemaPattern(node.pattern, `${path}/pattern`);
+  if (isRecord(node.patternProperties)) for (const name of Object.keys(node.patternProperties)) assertSafeSchemaPattern(name, `${path}/patternProperties`);
   const reference = node.$ref;
   if (reference !== undefined) {
     if (typeof reference !== "string" || !reference.startsWith("#")) throw new Error(`only local $ref values ("#...") are supported at ${path}`);
@@ -54,6 +65,17 @@ function audit(node: unknown, path: string): void {
   if ("type" in node) {
     const types = Array.isArray(node.type) ? node.type : [node.type];
     if (!types.every((name) => typeof name === "string" && ["object", "array", "string", "number", "integer", "boolean", "null"].includes(name))) throw new Error(`"type" at ${path} must be a JSON Schema type name or an array of them`);
+  }
+  if ("enum" in node || "const" in node) {
+    // Zod's enum/const branch returns early: sibling validation is not intersected.
+    const sibling = Object.keys(node).find(key => TYPE_SPECIFIC_KEYWORDS.has(key) || SUBSCHEMA_LIST.has(key) || key === "$ref" || (key === "const" && "enum" in node));
+    if (sibling) throw new Error(`"${sibling}" at ${path} cannot be combined with enum/const (sibling constraints would be ignored)`);
+    if ("type" in node) {
+      const types = Array.isArray(node.type) ? node.type : [node.type];
+      const values = "enum" in node ? node.enum as unknown[] : [node.const];
+      const matches = (value: unknown, type: unknown) => type === "null" ? value === null : type === "array" ? Array.isArray(value) : type === "object" ? isRecord(value) : type === "integer" ? typeof value === "number" && Number.isInteger(value) : typeof value === type;
+      if (!values.every(value => types.some(type => matches(value, type)))) throw new Error(`"type" at ${path} cannot conflict with enum/const values`);
+    }
   }
   const constrains = Object.keys(node).find((keyword) => TYPE_SPECIFIC_KEYWORDS.has(keyword));
   const anchored = "type" in node || "$ref" in node || "enum" in node || "const" in node;
@@ -70,6 +92,18 @@ function audit(node: unknown, path: string): void {
   }
 }
 
+/** Detect patterns only in schema positions (not annotation/default/enum data). */
+function usesPattern(node: unknown): boolean {
+  if (!isRecord(node)) return false;
+  if ("pattern" in node || "patternProperties" in node) return true;
+  for (const [key, value] of Object.entries(node)) {
+    if (SUBSCHEMA.has(key) && (Array.isArray(value) ? value.some(usesPattern) : usesPattern(value))) return true;
+    if (SUBSCHEMA_LIST.has(key) && Array.isArray(value) && value.some(usesPattern)) return true;
+    if (SUBSCHEMA_MAP.has(key) && isRecord(value) && Object.values(value).some(usesPattern)) return true;
+  }
+  return false;
+}
+
 /** Parse and compile a JSON Schema document whose root is `type: "object"`. Throws Error with a user-facing message. */
 export function compileSchema(text: string): CompiledSchema {
   let parsed: unknown;
@@ -82,9 +116,9 @@ export function compileSchema(text: string): CompiledSchema {
   if (parsed.type !== "object") throw new Error('schema root must declare "type": "object"');
   audit(parsed, "#");
 
-  let validator: z.ZodType;
+  let validator: ZodType;
   try {
-    validator = z.fromJSONSchema(parsed as never);
+    validator = loadZod().z.fromJSONSchema(parsed as never);
   } catch (error) {
     throw new Error(`schema cannot be compiled: ${error instanceof Error ? error.message : String(error)}`);
   }
@@ -95,10 +129,13 @@ export function compileSchema(text: string): CompiledSchema {
     throw new Error(`schema cannot be compiled: ${error instanceof Error ? error.message : String(error)}`);
   }
 
+  const isolated = usesPattern(parsed);
   const { $schema: _ignored, ...jsonSchema } = parsed;
   return {
     jsonSchema,
-    validate(data) {
+    validate(data, signal) {
+      if (isolated) return validationPool.validate(parsed, data, signal);
+      if (signal?.aborted) return "Validation cancelled";
       const result = validator.safeParse(data);
       if (result.success) return undefined;
       return result.error.issues.slice(0, 5).map((issue) => `${issue.path.length ? issue.path.join(".") : "(root)"}: ${issue.message}`).join("; ");

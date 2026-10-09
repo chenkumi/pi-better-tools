@@ -1,3 +1,11 @@
+/** Called only at owned managed-child spawn sites (new/resume/ready-query).
+ * Keep identity explicit, not inferred from transport, cwd, or session files.
+ * The child consumes the guard environment before tools can spawn grandchildren.
+ */
+export function buildManagedChildEnvironment(expected: { id: string; cwd: string; startupPath: string; [key: string]: unknown }): NodeJS.ProcessEnv {
+	return { ...process.env, PI_SUBAGENTS_GUARD: JSON.stringify({ ...expected, shellMode: "foreground-v1" }) };
+}
+
 export type SessionPersistence =
 	| { kind: "new"; sessionDir: string; sessionId: string }
 	| { kind: "resume"; sessionDir: string; sessionFile: string };

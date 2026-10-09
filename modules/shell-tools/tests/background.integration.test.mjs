@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { after, before, test } from 'node:test';
 import extension from '../extensions/timeout-ms.ts';
+import { SHELL_WIDGET_KEY } from '../src/live-widget.ts';
 import { createPiFixture } from './helpers/pi-fixture.mjs';
 
 let fixture, heartbeat;
@@ -14,20 +15,26 @@ after(() => { clearInterval(heartbeat); fixture?.cleanup(); });
 const names = process.platform === 'win32' ? ['bash', 'powershell'] : ['bash'];
 
 function fakeHost(cwd) {
-  const tools = new Map(), handlers = new Map(), messages = [];
+  const tools = new Map(), handlers = new Map(), messages = [], widgets = new Map(), statuses = new Map(), commands = new Map(), renderers = new Map();
+  const theme = { fg: (_, text) => text, bg: (_, text) => text, getBgAnsi: () => '' };
   let resolveCompletion;
   let settings = { shellCommandPrefix: 'export BG_PREFIX=effective' };
   const pi = {
     registerTool(tool) { tools.set(tool.name, tool); },
+    registerCommand(name, definition) { commands.set(name, definition); },
+    registerMessageRenderer(type, renderer) { assert.equal(typeof renderer, 'function'); renderers.set(type, renderer); },
     on(event, handler) { handlers.set(event, handler); },
     getSettings() { return settings; },
     sendMessage(message, options) { messages.push({ message, options }); resolveCompletion?.({ message, options }); },
   };
   extension(pi);
-  const ctx = { cwd, sessionManager: { getSessionId: () => 'fake-owner', getSessionFile: () => undefined }, model: { provider: 'fake', id: 'fake' }, thinkingLevel: 'off' };
+  assert.deepEqual([...renderers.keys()].sort(), ['background-runtime-recovery-shell', 'shell-job-completed']);
+  const ctx = { cwd, mode: 'tui', hasUI: true, isIdle: () => true, hasPendingMessages: () => false, ui: { setStatus(key, value) { if (value) statuses.set(key, value); else statuses.delete(key); }, setWidget(key, value) { if (value) widgets.set(key, value); else widgets.delete(key); } }, sessionManager: { getSessionId: () => 'fake-owner', getSessionFile: () => undefined }, model: { provider: 'fake', id: 'fake' }, thinkingLevel: 'off' };
   handlers.get('session_start')({}, ctx);
   return {
-    tools, messages, ctx,
+    tools, messages, ctx, widgets, statuses,
+    panel: () => widgets.get(SHELL_WIDGET_KEY)?.({}, theme).render(100).join('\n') ?? statuses.get(SHELL_WIDGET_KEY) ?? '',
+    expand() { void commands.get('background-jobs').handler('shell', ctx); },
     setSettings: value => { settings = value; },
     execute: (name, input, signal) => tools.get(name).execute('fake-call', input, signal, undefined, ctx),
     completion: () => new Promise(resolve => { resolveCompletion = resolve; }),
@@ -76,8 +83,12 @@ test('real local shells return readable receipts, allow foreground work, detach 
       const accepted = await host.execute(name, { command: nodeCommand(name, script), background: true }, turn.signal);
       assert.match(accepted.content[0].text, /read log tail/i);
       assert.match(accepted.content[0].text, /shell_job_status\/cancel not selected/);
-      assert.ok(accepted.content[0].text.length < 260);
+      const notice = 'Background job accepted; its outcome will be reported when it finishes.\n';
+      assert.ok(accepted.content[0].text.startsWith(notice));
+      assert.ok(accepted.content[0].text.slice(notice.length).length < 260, 'the existing receipt payload remains slim');
       const receipt = accepted.structuredContent;
+      assert.equal(host.widgets.has(SHELL_WIDGET_KEY), false, 'collapsed work uses footer status only'); assert.match(host.panel(), /Shell：1/); assert.equal(host.panel().split('\n').length, 1); assert.ok(!host.panel().includes('gate.cjs')); host.expand();
+      assert.match(host.panel(), /1 active/); assert.match(host.panel(), new RegExp(name)); assert.match(host.panel(), /gate.cjs/);
       host.setSettings({ shellCommandPrefix: 'export BG_PREFIX=changed-after-receipt' });
       assert.equal(receipt.status, 'running');
       assert.ok(!('exit_code' in receipt));
@@ -96,6 +107,8 @@ test('real local shells return readable receipts, allow foreground work, detach 
       assert.equal(foreground.structuredContent.exit_code, 0);
       fs.writeFileSync(gate, 'release');
       const notification = await completion;
+      assert.equal(host.widgets.has(SHELL_WIDGET_KEY), false, 'completion removes the live widget before followUp');
+      assert.equal(host.statuses.has(SHELL_WIDGET_KEY), false, 'completion also clears the footer summary');
       assert.deepEqual(notification.options, { triggerTurn: true, deliverAs: 'followUp' });
       const finalResult = await host.execute('shell_job_status', { jobId: receipt.jobId });
       const final = finalResult.structuredContent;
@@ -133,6 +146,7 @@ test('real shell cancellation and every shutdown reason terminate accepted work 
         assert.ok(!('exitCode' in final));
       } else {
         await host.shutdown(reason);
+        assert.equal(host.widgets.has(SHELL_WIDGET_KEY), false, 'all shutdown reasons clear the live widget');
         assert.equal(host.messages.length, 0);
         assert.equal(fs.existsSync(receipt.liveLogPath), false);
       }

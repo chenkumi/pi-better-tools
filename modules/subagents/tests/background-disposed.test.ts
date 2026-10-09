@@ -13,7 +13,10 @@ test("disposed-owner notification throws fail closed, abort work and suppress la
 		interaction(0, { kind: "query_result" }); ended(0, {}, "aborted"); finish();
 	});
 	await done;
+	await jobs.shutdown(); // Actual job.finally settlement, not the runner's earlier callback.
 	assert.equal(notifications, 1, "no callback retries against a disposed context");
+	assert.deepEqual(jobs.notificationEvidence().events.map(event => event.phase), ["callback_attempted", "callback_threw", "suppressed", "suppressed"]);
+	assert.ok(jobs.notificationEvidence().events.every(event => event.hostAcknowledgment === "unknown"));
 	assert.throws(() => jobs.get(receipt.jobId, "owner", "/cwd"), /NOT_FOUND/);
 	assert.throws(() => jobs.submit("owner", "/cwd", epoch, ["worker"], async () => {}), /RUNTIME_CLOSED/);
 	await jobs.shutdown();

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, it } from "node:test";
 import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
@@ -53,6 +53,18 @@ describe("COMPAT-001 shared path adapter", () => {
     assert.equal(normalizeToolPath("~"), homedir());
     assert.equal(resolveToolPath("~/child.txt", cwd), join(homedir(), "child.txt"));
     assert.equal(resolveToolPath("~\\child.txt", cwd), join(homedir(), "child.txt"));
+  });
+
+  it("MH1 preserves the @ convention for missing files and supports explicit literal creation", async () => {
+    await inWorkspace(async root => {
+      assert.equal(resolveToolPath("@types/new.d.ts", root), join(root, "types", "new.d.ts"));
+      const call = toolsAt(root);
+      await call("write", { path: "./@types/new.d.ts", content: "literal", expectedHash: "missing" });
+      assert.equal(await readFile(join(root, "@types", "new.d.ts"), "utf8"), "literal");
+      assert.equal(resolveToolPath("@types/new.d.ts", root), join(root, "@types", "new.d.ts"));
+      // An existing parent alone intentionally does not change the missing-file convention.
+      assert.equal(resolveToolPath("@types/other.d.ts", root), join(root, "types", "other.d.ts"));
+    });
   });
 
   it("prefers an existing literal path over the @ / unicode-space rewrite", async () => {
@@ -180,6 +192,17 @@ describe("subagent live transcript rename recovery", () => {
         assert.equal(error.payload.code, "FILE_NOT_FOUND"); return true;
       });
     });
+  });
+
+  it("recognizes uppercase ULIDs and preserves legacy lowercase ULID/UUID paths", async () => {
+    for (const id of ["01M45CZJS2J8X53WC4ECPYJGE4", sessionId, "12345678-1234-1234-1234-123456789abc"]) {
+      const path = resolve("subagent-sessions", id, "runs", "01M45CZJS2VTQ8KQXQBPD8ECSF", "transcript.jsonl.partial");
+      const original = new FileToolError("FILE_NOT_FOUND", "missing");
+      let probes = 0;
+      const result = await hintMissingSubagentLog(original, path, async () => { probes++; return { isFile: () => true }; });
+      assert.equal(probes, 1);
+      assert.ok(result.payload.recovery?.includes(JSON.stringify(join(dirname(path), "transcript.jsonl"))));
+    }
   });
 
   it("does not guess ordinary .partial files, malformed IDs, or other filenames", async () => {

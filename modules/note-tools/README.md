@@ -17,11 +17,11 @@
 
 ## 行為
 
-- 以 Pi 的 `ctx.cwd` 為根，必要時建立 `<type>/` 目錄，新增 `<type>/<TYPE>-<UTC 時間戳>[-<slug>].md`，例如 `plan/PLAN-20261001T043000123Z-部署計畫.md`（緊湊 UTC 格式 `YYYYMMDDTHHmmssSSSZ`，保留毫秒、固定寬度及時間排序；既有筆記不更名）。
-- 檔名仍由系統自動產生，不接受使用者指定路徑或檔名；slug 僅由內容衍生：取第一個 Markdown 標題（無則首個非空行），NFKC 正規化後保留字母／數字（含中文）、其餘連續字元轉單一 `-`、英文轉小寫、去頭尾 `-`，最多 40 個 code point（不切斷 surrogate pair）。無有效 slug（純標點、僅符號／emoji）或結果為 Windows 保留名稱（CON、PRN、AUX、NUL、COM1–9、LPT1–9）時退回純時間戳檔名。slug 不含路徑分隔、`..`、禁用字元或結尾點／空白。
+- 以 Pi 的 `ctx.cwd` 為根，必要時建立 `<type>/` 目錄，新增 `<type>/<TYPE>-<UTC 時間戳>.md`，例如 `plan/PLAN-20261008T060625729Z.md`（緊湊 UTC 格式 `YYYYMMDDTHHmmssSSSZ`，保留毫秒、固定寬度及時間排序；既有筆記不更名）。
+- 檔名由系統自動產生，只含分類及時間戳，不附加內容標題或 slug，也不接受使用者指定路徑或檔名。
 - 內容原樣寫入，不加標題、frontmatter 或模板；含孤立 UTF-16 surrogate 的內容會被拒絕。
-- 以 exclusive-create 建立，不覆寫既有檔案；檔名碰撞時時間戳加 1 毫秒重試（slug 不變），最多 1000 次，超過則回報 `NOTE_FILENAME_COLLISION`。
-- 回傳文字只含一個路徑：`Saved note: <相對路徑> (relative to cwd; use read/edit on this path to change it)`，不重複絕對路徑（絕對路徑在 `details.path`）；`structuredContent` 為 `{ type, path, relativePath }`（`path` 為絕對路徑，`relativePath` 使用 `/`）。
+- 以 exclusive-create 建立，不覆寫既有檔案；檔名碰撞時時間戳加 1 毫秒重試，最多 1000 次（刻意保留此規則；僅碰撞時可能比呼叫時刻晚最多 999 毫秒，檔名時間戳不是精確的寫入時間證明），超過則回報 `NOTE_FILENAME_COLLISION`。
+- 回傳文字只含一個路徑：`Saved note: <相對路徑> (relative to cwd; use read/edit on this path to change it)`，不含絕對路徑；`details`、`structuredContent` 與輸出 schema 皆只含 `{ relativePath }`（`relativePath` 相對於 cwd、使用 `/`）。
 - 寫入開始前會檢查取消；開始寫入後會完成該次寫入。
 - 若 `<cwd>/<type>` 是指向工作目錄外的 symlink／junction，回報 `NOTE_DIRECTORY_ESCAPE` 並拒絕寫入（以 realpath 驗證）。
 - 空白或僅空白字元的內容回報 `NOTE_EMPTY`，訊息指示模型補上完整文件後重呼叫，不建立任何檔案。
@@ -30,7 +30,7 @@
 
 ## TUI 顯示
 
-呼叫顯示分類與內容首行摘要，不帶入整份 Markdown；結果顯示儲存相對路徑，展開時另顯示絕對路徑。錯誤／部分結果有文字提示。Renderer 只調整顯示，不修改回傳 content、details 或 structuredContent。
+呼叫顯示分類與內容首行摘要，不帶入整份 Markdown；結果只顯示儲存相對路徑，展開時也不顯示絕對路徑。錯誤／部分結果有文字提示。Renderer 只調整顯示，不修改回傳 content、details 或 structuredContent。
 
 ## 設定
 

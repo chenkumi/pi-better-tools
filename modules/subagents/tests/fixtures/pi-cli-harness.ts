@@ -1,19 +1,34 @@
 import { spawn } from "node:child_process";
+import { StringDecoder } from "node:string_decoder";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 /** Shared offline actual-CLI launcher. All callers own isolated cwd/config and finally cleanup. */
-export async function invokeCli(cli: string, args: string[], cwd: string, env: Record<string, string | undefined>, capture?: string, stdoutLimit = 64 * 1024 * 1024) {
+export async function invokeCli(cli: string, args: string[], cwd: string, env: Record<string, string | undefined>, capture?: string, stdoutLimit = 64 * 1024 * 1024, rpcPrompt?: string) {
 	if (capture) { await mkdir(capture, { recursive: true }); await writeFile(join(capture, "argv.json"), JSON.stringify({ executable: process.execPath, args: [cli, ...args], cwd }, null, 2)); }
 	console.log(`[progress] Starting real CLI invocation in ${cwd}`);
 	const actual = await new Promise<{ code: number | null; pid?: number; stdout: string; stderr: string }>((done, reject) => {
-		const proc = spawn(process.execPath, [cli, ...args], { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
+		const proc = spawn(process.execPath, [cli, ...args], { cwd, env, stdio: [rpcPrompt === undefined ? "ignore" : "pipe", "pipe", "pipe"] });
 		const stdout: Buffer[] = [], stderr: Buffer[] = []; let outBytes = 0, errBytes = 0, failure: Error | undefined, killTimer: NodeJS.Timeout | undefined;
 		const stop = (message: string) => { if (failure) return; failure = new Error(message); proc.kill("SIGTERM"); killTimer = setTimeout(() => { if (proc.exitCode === null && proc.signalCode === null) proc.kill("SIGKILL"); }, 5000); };
 		const deadline = setTimeout(() => stop("CLI integration exceeded 60 seconds"), 60000);
 		const heartbeat = setInterval(() => console.log(`[progress] CLI pid=${proc.pid}: ${outBytes} stdout bytes`), 10000);
 		const cleanup = () => { clearTimeout(deadline); clearInterval(heartbeat); if (killTimer) clearTimeout(killTimer); };
-		proc.stdout.on("data", (chunk: Buffer) => { outBytes += chunk.length; if (outBytes > stdoutLimit) stop("CLI stdout capture capacity exceeded"); else stdout.push(chunk); });
+		const decoder = new StringDecoder("utf8"); let buffer = "", resultObserved = false;
+		if (rpcPrompt !== undefined) proc.stdin!.write(JSON.stringify({ id: "offline-parent-prompt", type: "prompt", message: rpcPrompt }) + "\n");
+		proc.stdout.on("data", (chunk: Buffer) => {
+			outBytes += chunk.length; if (outBytes > stdoutLimit) stop("CLI stdout capture capacity exceeded"); else stdout.push(chunk);
+			if (rpcPrompt === undefined) return;
+			buffer += decoder.write(chunk); let end: number;
+			while ((end = buffer.indexOf("\n")) >= 0) {
+				const line = buffer.slice(0, end); buffer = buffer.slice(end + 1); if (!line.trim()) continue;
+				try {
+					const event = JSON.parse(line), message = event.message;
+					if (event.type === "message_end" && ((message?.toolName === "subagent_message" && message.isError) || (message?.customType === "subagent_background" && message.details?.kind === "task_result"))) resultObserved = true;
+					if (event.type === "agent_settled" && resultObserved) proc.stdin!.end();
+				} catch (error) { stop(`Invalid offline RPC framing: ${String(error)}`); }
+			}
+		});
 		proc.stderr.on("data", (chunk: Buffer) => { const keep = chunk.subarray(0, Math.max(0, 64 * 1024 - errBytes)); errBytes += keep.length; if (keep.length) stderr.push(keep); });
 		proc.stdout.on("error", e => stop(String(e))); proc.stderr.on("error", e => stop(String(e)));
 		proc.on("error", e => { cleanup(); reject(e); });

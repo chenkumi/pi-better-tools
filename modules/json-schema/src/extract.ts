@@ -30,12 +30,14 @@ function balancedEnd(text: string, start: number, limit = text.length): number |
 export const MAX_SCAN_ATTEMPTS = 64;
 export const MAX_SCAN_LENGTH = 1_000_000;
 
-export function extractJson(text: string): { value: unknown } | undefined {
+/** Every JSON document found in `text`, in order of preference: whole text, fenced blocks, then balanced {...} / [...] scans. */
+export function extractJsonCandidates(text: string): Array<{ value: unknown }> {
+  const found: Array<{ value: unknown }> = [];
   const whole = tryParse(text.trim());
-  if (whole) return whole;
+  if (whole) found.push(whole);
   for (const block of text.matchAll(/```(?:json)?[ \t]*\r?\n([\s\S]*?)```/gi)) {
     const parsed = tryParse(block[1].trim());
-    if (parsed) return parsed;
+    if (parsed) found.push(parsed);
   }
   let attempts = 0;
   for (let index = 0; index < text.length; index++) {
@@ -44,7 +46,12 @@ export function extractJson(text: string): { value: unknown } | undefined {
     const end = balancedEnd(text, index, Math.min(text.length, index + MAX_SCAN_LENGTH));
     if (end === undefined) continue;
     const parsed = tryParse(text.slice(index, end));
-    if (parsed) return parsed;
+    if (parsed) found.push(parsed);
   }
-  return undefined;
+  return found;
+}
+
+/** The first JSON document found; use `extractJsonCandidates` when the caller must validate each in turn. */
+export function extractJson(text: string): { value: unknown } | undefined {
+  return extractJsonCandidates(text)[0];
 }

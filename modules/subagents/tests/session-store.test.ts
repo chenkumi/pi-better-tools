@@ -19,15 +19,16 @@ async function setup() {
 	const config = { ...await snapshotConfig(agent, "user", cwd, "offline/model", "off", false), childTrusted: false };
 	const owner = { parentSessionId: "parent", parentCwd: cwd };
 	const session = await ManagedSession.allocate(root, owner, config);
+	assert.match(session.id, /^[0-9A-HJKMNP-TV-Z]{26}$/);
 	return { temp, root, cwd, agent, config, owner, session };
 }
 async function prepare(session: ManagedSession, key: string, existing = false) {
-	const taskId = ulid().toLowerCase(); await session.acquire(taskId);
+	const taskId = ulid().toUpperCase(); await session.acquire(taskId);
 	if (existing) await session.validateCheckpoint();
 	await session.begin(taskId, key, "task", active);
 	const file = join(session.directory, "pi", "native.jsonl"), start = session.manifest.checkpoint?.leafId ?? "";
 	let leaf = start;
-	const entry = (type: string, extra: any) => { const id = ulid().toLowerCase(); const e = { type, id, parentId: leaf || null, timestamp: new Date().toISOString(), ...extra }; leaf = id; return e; };
+	const entry = (type: string, extra: any) => { const id = ulid().toUpperCase(); const e = { type, id, parentId: leaf || null, timestamp: new Date().toISOString(), ...extra }; leaf = id; return e; };
 	const user = { role: "user", content: "task", timestamp: 1 };
 	const assistant = { role: "assistant", content: [{ type: "text", text: "done" }], stopReason: "stop", timestamp: 2 };
 	const entries = existing ? [] : [{ type: "session", version: 3, id: session.id, cwd: session.manifest.config.cwd }, entry("model_change", { provider: "offline", modelId: "model" }), entry("thinking_level_change", { thinkingLevel: "off" })];
@@ -38,13 +39,32 @@ async function prepare(session: ManagedSession, key: string, existing = false) {
 	return { file, segment, digest, taskId };
 }
 
-test("API-01 normalizes exactly four modes and rejects conflicts before I/O", () => {
-	for (const [params, mode] of [[{ agent: "worker", task: "work" }, "single"], [{ tasks: [{ agent: "worker", task: "work" }] }, "parallel"], [{ chain: [{ agent: "worker", task: "work" }] }, "chain"], [{ resume: ulid().toLowerCase(), task: "decision" }, "resume"]] as const) assert.equal(normalizeDispatch(params), mode);
-	for (const key of ["agent", "tasks", "chain", "resumable", "provider", "model", "thinkingLevel", "cwd", "agentScope", "confirmProjectAgents"]) assert.throws(() => normalizeDispatch({ resume: ulid().toLowerCase(), task: "x", [key]: false }), /INVALID_DISPATCH/);
-	for (const params of [{}, { tasks: [] }, { agent: "worker", task: " " }, { agent: "worker", task: "x", chain: [] }, { tasks: [{ resume: ulid().toLowerCase(), task: "x" }] }, { chain: [{ agent: "worker", task: "x", resumable: true }] }]) assert.throws(() => normalizeDispatch(params), /INVALID_DISPATCH/);
+for (const id of ["01m45czjs2j8x53wc4ecpyjge4", "12345678-1234-1234-1234-123456789abc"]) {
+	test(`legacy session identity remains unchanged through resolve and commit: ${id}`, async () => {
+		const s = await setup();
+		try {
+			const directory = join(s.root, id);
+			await fs.promises.rename(s.session.directory, directory);
+			await writeFile(join(directory, "manifest.json"), JSON.stringify({ ...s.session.manifest, id }));
+			const legacy = await ManagedSession.resolve(s.root, id, s.owner);
+			assert.equal(legacy.id, id);
+			const run = await prepare(legacy, "legacy");
+			await legacy.commit(run.segment, run.digest, {}, active); await legacy.release();
+			const resumed = await ManagedSession.resolve(s.root, id, s.owner);
+			await resumed.assertResumable(); await resumed.validateCheckpoint();
+			assert.equal(resumed.id, id);
+		} finally { await rm(s.temp, { recursive: true, force: true }); }
+	});
+}
+
+test("API-01 normalizes exactly three create modes and rejects conflicts before I/O", () => {
+	for (const [params, mode] of [[{ agent: "worker", task: "work" }, "single"], [{ tasks: [{ agent: "worker", task: "work" }] }, "parallel"], [{ chain: [{ agent: "worker", task: "work" }] }, "chain"]] as const) assert.equal(normalizeDispatch(params), mode);
+	assert.throws(() => normalizeDispatch({ resume: ulid().toUpperCase(), task: "decision" }), /resume was removed.*subagent_message/);
+	for (const key of ["agent", "tasks", "chain", "resumable", "provider", "model", "thinkingLevel", "cwd", "agentScope", "confirmProjectAgents"]) assert.throws(() => normalizeDispatch({ resume: ulid().toUpperCase(), task: "x", [key]: false }), /INVALID_DISPATCH/);
+	for (const params of [{}, { tasks: [] }, { agent: "worker", task: " " }, { agent: "worker", task: "x", chain: [] }, { tasks: [{ resume: ulid().toUpperCase(), task: "x" }] }, { chain: [{ agent: "worker", task: "x", resumable: true }] }]) assert.throws(() => normalizeDispatch(params), /INVALID_DISPATCH/);
 });
 test("ARG-01 preserves exclude/@file for managed creation and continuation only", () => {
-	for (const persistence of [{ kind: "new", sessionDir: "/managed/pi", sessionId: ulid().toLowerCase() }, { kind: "resume", sessionDir: "/managed/pi", sessionFile: "/managed/pi/exact.jsonl" }] as const) {
+	for (const persistence of [{ kind: "new", sessionDir: "/managed/pi", sessionId: ulid().toUpperCase() }, { kind: "resume", sessionDir: "/managed/pi", sessionFile: "/managed/pi/exact.jsonl" }] as const) {
 		const args = buildSubagentPiArgs({ persistence, taskPath: "/task", model: "provider/model", thinkingLevel: "high" });
 		assert.equal(args.at(-1), "@/task"); assert.equal(args[args.indexOf("--exclude-tools") + 1], "subagent,subagent_status,subagent_cancel,subagent_message");
 		assert.equal(args.includes("--no-session"), false);
@@ -53,7 +73,7 @@ test("ARG-01 preserves exclude/@file for managed creation and continuation only"
 	}
 });
 test("API-03 compact result and visible parent text retain continuation identity", () => {
-	const id = ulid().toLowerCase(), result = compactResult({ taskId: ulid().toLowerCase(), agent: "worker", agentSource: "bundled", task: "x", status: "completed", exitCode: 0, output: "done", usage: emptyUsage(), subagentSessionId: id, canResume: true });
+	const id = ulid().toUpperCase(), result = compactResult({ taskId: ulid().toUpperCase(), agent: "worker", agentSource: "bundled", task: "x", status: "completed", exitCode: 0, output: "done", usage: emptyUsage(), subagentSessionId: id, canResume: true });
 	assert.equal(result.subagentSessionId, id); assert.match(withLogPath(result), new RegExp(id));
 });
 test("VIEW-05 user chunks are bounded, lossless, explicit and surrogate-safe", async () => {
@@ -83,7 +103,7 @@ test("STORE/COMMIT durable resolve, append only, duplicate preserves ready", asy
 		const resumed = await ManagedSession.resolve(s.root, s.session.id, s.owner);
 		const second = await prepare(resumed, "call-two", true); await resumed.commit(second.segment, second.digest, {}, active); await resumed.release();
 		const after = await readFile(resumed.logPath); assert.ok(after.length > before.length); assert.deepEqual(after.subarray(0, before.length), before);
-		const duplicate = await ManagedSession.resolve(s.root, resumed.id, s.owner), taskId = ulid().toLowerCase(); await duplicate.acquire(taskId); await duplicate.validateCheckpoint();
+		const duplicate = await ManagedSession.resolve(s.root, resumed.id, s.owner), taskId = ulid().toUpperCase(); await duplicate.acquire(taskId); await duplicate.validateCheckpoint();
 		await assert.rejects(duplicate.begin(taskId, "call-two", "intentional duplicate", active), /DUPLICATE_DISPATCH/);
 		await duplicate.blocked("DUPLICATE_DISPATCH", {}, active); await duplicate.release();
 		assert.equal(JSON.parse(await readFile(join(resumed.directory, "manifest.json"), "utf8")).state, "ready");
@@ -106,13 +126,27 @@ test("foreign lock owner rejects commit and blocked publication before writes", 
 test("LOCK-01/02 exclusive filesystem lock and nonce owner", async () => {
 	const s = await setup();
 	try {
-		await s.session.acquire(ulid().toLowerCase());
+		await s.session.acquire(ulid().toUpperCase());
 		const other = await ManagedSession.resolve(s.root, s.session.id, s.owner);
-		await assert.rejects(other.acquire(ulid().toLowerCase()), /SESSION_BUSY/);
+		await assert.rejects(other.acquire(ulid().toUpperCase()), /SESSION_BUSY/);
 		await assert.rejects(other.assertResumable(), /SESSION_BUSY/);
 		await other.release(); await stat(join(s.session.directory, "writer.lock"));
 		const lock = join(s.session.directory, "writer.lock", "owner.json"); const owner = JSON.parse(await readFile(lock, "utf8"));
 		await writeFile(lock, JSON.stringify({ ...owner, nonce: "foreign" })); await assert.rejects(s.session.release(), /ownership changed/);
+	} finally { await rm(s.temp, { recursive: true, force: true }); }
+});
+test("LOCK-03 same-pid lock without a registered in-process owner is stale; a live owner stays busy", async () => {
+	const s = await setup();
+	try {
+		await s.session.acquire(ulid().toUpperCase());
+		const other = await ManagedSession.resolve(s.root, s.session.id, s.owner);
+		await assert.rejects(other.assertResumable(), /SESSION_BUSY/);
+		await s.session.release();
+		// An orphaned lock file written by this pid whose nonce this process never registered (abandoned owner).
+		const lockDir = join(s.session.directory, "writer.lock");
+		await mkdir(lockDir);
+		await writeFile(join(lockDir, "owner.json"), JSON.stringify({ nonce: "orphan", taskId: ulid().toUpperCase(), pid: process.pid, createdAt: new Date().toISOString() }));
+		await assert.rejects(other.assertResumable(), /SESSION_BLOCKED/, "stale lock is recognised (no checkpoint, so blocked rather than busy)");
 	} finally { await rm(s.temp, { recursive: true, force: true }); }
 });
 for (const kind of ["model-change", "owner", "partial", "traversal", "foreign-segment", "native-edit", "prefix-edit", "wrong-id", "truncated", "unsupported", "symlink", "metadata-size", "source-change", "trust-change", "cwd-missing"] as const) {
@@ -132,7 +166,7 @@ for (const kind of ["model-change", "owner", "partial", "traversal", "foreign-se
 					await assert.rejects(s.session.commit(first.segment, first.digest, {}, active), /CONFIG_CHANGED/); return;
 				}
 				if (kind === "foreign-segment") { await assert.rejects(s.session.commit(join(s.temp, "other"), first.digest, {}, active), /current run/); return; }
-				if (kind === "wrong-id") { const text = await readFile(first.file, "utf8"); await writeFile(first.file, text.replace(s.session.id, ulid().toLowerCase())); await assert.rejects(s.session.commit(first.segment, first.digest, {}, active), /header identity/); return; }
+				if (kind === "wrong-id") { const text = await readFile(first.file, "utf8"); await writeFile(first.file, text.replace(s.session.id, ulid().toUpperCase())); await assert.rejects(s.session.commit(first.segment, first.digest, {}, active), /header identity/); return; }
 				if (kind === "truncated") { await appendFile(first.file, "{"); await assert.rejects(s.session.commit(first.segment, first.digest, {}, active), /incomplete/); return; }
 				await s.session.commit(first.segment, first.digest, {}, active); await s.session.release();
 				const resume = await ManagedSession.resolve(s.root, s.session.id, s.owner);
@@ -150,7 +184,7 @@ for (const kind of ["model-change", "owner", "partial", "traversal", "foreign-se
 test("COMMIT-01 initial intent failure retains lock and does not spawn or publish ready", async (t) => {
 	const s = await setup();
 	try {
-		const id = ulid().toLowerCase(); await s.session.acquire(id);
+		const id = ulid().toUpperCase(); await s.session.acquire(id);
 		const rename = fs.promises.rename.bind(fs.promises);
 		t.mock.method(fs.promises, "rename", async (from: any, to: any) => {
 			if (String(to).endsWith("run.json")) throw new Error("injected initial intent");

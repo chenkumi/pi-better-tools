@@ -7,7 +7,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { buildSubagentPiArgs } from "../extensions/subagent/child-args.ts";
 
-const persistence = { kind: "new" as const, sessionDir: "/managed/pi", sessionId: ulid().toLowerCase() };
+const persistence = { kind: "new" as const, sessionDir: "/managed/pi", sessionId: ulid().toUpperCase() };
 
 function optionValue(args: string[], option: string): string | undefined {
 	const index = args.indexOf(option);

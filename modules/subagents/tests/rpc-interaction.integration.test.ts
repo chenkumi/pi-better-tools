@@ -19,8 +19,11 @@ async function fixture() {
 			getAll: () => [{ provider: "subagent-test", id: "fixture", reasoning: false }] } } as unknown as ExtensionContext;
 	await mkdir(join(root, "config"));
 	await writeFile(join(root, "config/settings.json"), JSON.stringify({ extensions: [provider], defaultTools: ["barrier", "forbidden"], compaction: { enabled: false }, cacheWarming: "off", defaultProjectTrust: "never" }));
-	registerSubagent({ registerTool(tool) { tools.set(tool.name, tool); }, on(name, handler) { handlers.set(name, handler); }, sendMessage(message, options) {
-		notices.push({ ...message.details as any, options }); for (const notify of waiters.splice(0)) notify();
+	registerSubagent({ registerMessageRenderer() {}, registerTool(tool) { tools.set(tool.name, tool); }, on(name, handler) { handlers.set(name, handler); }, sendMessage(message, options) {
+		const details = message.details as any;
+		assert.equal(message.display, details.kind !== 'log_ready');
+		assert.deepEqual(options, { triggerTurn: details.kind !== 'log_ready', deliverAs: 'followUp' });
+		notices.push({ ...details, options }); for (const notify of waiters.splice(0)) notify();
 	} } as ExtensionAPI, { debugLog: false, sessionRootDir: join(root, "managed"), invocation: args => ({ command: process.execPath, args: [launcher, root, resolve(cli!), ...args] }) });
 	let calls = 0;
 	const execute = (name: string, args: any, context = ctx) => tools.get(name)!.execute(`${name}-${++calls}`, args, undefined, undefined, context);
@@ -42,16 +45,16 @@ test("RPC control and queries: literal canonical steering, stale safe prefix, no
 	try {
 		const prime = await f.execute("subagent", { agent: "worker", task: "prime" }); assert.equal(prime.isError, undefined, JSON.stringify(prime.content));
 		const session = (prime.details as any).results[0].subagentSessionId;
-		const accepted = await f.execute("subagent", { resume: session, task: "interactive", background: true }); assert.equal(accepted.isError, undefined);
+		const accepted = await f.execute("subagent_message", { subagentSessionId: session, message: "interactive" }); assert.equal(accepted.isError, undefined);
 		const { jobId, tasks } = (accepted.details as any).background; const taskId = tasks[0].taskId;
 		const ready = JSON.parse(await readFile(await f.file("barrier-ready.json"), "utf8"));
 		await f.notice(n => n.kind === "log_ready" && n.tasks[0].canMessage);
 		const before = await readFile(ready.sessionFile, "utf8");
 		for (const args of [{ jobId, taskId: "wrong", mode: "control", message: "wrong" }, { jobId: "wrong", taskId, mode: "query", message: "wrong" }]) assert.equal((await f.execute("subagent_message", args)).isError, true);
-		const denied = await f.execute("subagent_message", { jobId, taskId, mode: "query", message: "wrong owner" }, { ...f.ctx, sessionManager: { getSessionId: () => "other" } } as any); assert.equal(denied.isError, true);
+		const denied = await f.execute("subagent_message", { subagentSessionId: tasks[0].subagentSessionId, mode: "query", message: "wrong owner" }, { ...f.ctx, sessionManager: { getSessionId: () => "other" } } as any); assert.equal(denied.isError, true);
 		const literal = "/skill:literal\n@file\nDo not replace literal input.";
-		const control = await f.execute("subagent_message", { jobId, taskId, mode: "control", message: literal }); assert.equal((control.details as any).status, "accepted");
-		const query = await f.execute("subagent_message", { jobId, taskId, mode: "query", message: "progress?" }); assert.equal((query.details as any).status, "accepted"); assert.equal(query.usage, undefined);
+		const control = await f.execute("subagent_message", { subagentSessionId: tasks[0].subagentSessionId, mode: "control", message: literal }); assert.equal((control.details as any).status, "accepted");
+		const query = await f.execute("subagent_message", { subagentSessionId: tasks[0].subagentSessionId, mode: "query", message: "progress?" }); assert.equal((query.details as any).status, "accepted"); assert.equal(query.usage, undefined);
 		const answer = await f.notice(n => n.kind === "query_result" && n.interaction.queryId === (query.details as any).queryId);
 		assert.equal(answer.interaction.status, "completed", JSON.stringify(answer.interaction)); assert.equal(answer.interaction.asOf.stale, true);
 		assert.deepEqual(answer.interaction.asOf.pendingToolCallIds, ["main-barrier"]); assert.equal(answer.interaction.asOf.sourceLeafId, ready.leafId);
@@ -61,12 +64,12 @@ test("RPC control and queries: literal canonical steering, stale safe prefix, no
 		assert.equal(await readFile(ready.sessionFile, "utf8"), before, "query and queued control must not change canonical leaf/file");
 		const status = await f.execute("subagent_status", { jobId }); assert.ok(["accepted", "queued"].includes((status.details as any).tasks[0].controls[0].status));
 		for (const question of ["emit-tool", "fail-query"]) {
-			const submitted = await f.execute("subagent_message", { jobId, taskId, mode: "query", message: question });
+			const submitted = await f.execute("subagent_message", { subagentSessionId: tasks[0].subagentSessionId, mode: "query", message: question });
 			const failed = await f.notice(n => n.kind === "query_result" && n.interaction.queryId === (submitted.details as any).queryId);
 			assert.equal(failed.interaction.status, "failed"); assert.equal(failed.interaction.usage.totalTokens, 12);
 			assert.match(failed.interaction.error, question === "emit-tool" ? /QUERY_TOOLS_FORBIDDEN/ : /offline query failure/);
 		}
-		const streamed = await f.execute("subagent_message", { jobId, taskId, mode: "query", message: "stream-tool" });
+		const streamed = await f.execute("subagent_message", { subagentSessionId: tasks[0].subagentSessionId, mode: "query", message: "stream-tool" });
 		await f.file("query-tool-aborted");
 		const streamedResult = await f.notice(n => n.kind === "query_result" && n.interaction.queryId === (streamed.details as any).queryId);
 		assert.equal(streamedResult.interaction.status, "failed"); assert.match(streamedResult.interaction.error, /QUERY_TOOLS_FORBIDDEN/);
@@ -77,15 +80,25 @@ test("RPC control and queries: literal canonical steering, stale safe prefix, no
 		assert.equal(applied.interaction.status, "applied"); assert.ok(applied.interaction.userOrdinal > 0);
 		const complete = await f.notice(n => n.kind === "task_result"); assert.equal(complete.status, "completed", JSON.stringify(complete));
 		assert.equal(complete.tasks[0].result.usage.totalTokens, 24, "query usage is not main usage"); assert.equal(complete.tasks[0].result.canResume, true);
+		const displayQuery = complete.tasks[0].queries.find((entry: any) => entry.queryId === (query.details as any).queryId);
+		assert.deepEqual(displayQuery.asOf, answer.interaction.asOf, "completion display retains the original query snapshot");
+		assert.equal(displayQuery.cleanupPending, false, "completion display retains explicit cleanup evidence");
 		const after = await readFile(ready.sessionFile, "utf8"); const native = after.trim().split("\n").map(line => JSON.parse(line));
 		const controls = native.filter(e => e.type === "message" && e.message.role === "user" && JSON.stringify(e.message.content).includes("Delegated user control"));
 		assert.equal(controls.length, 1); assert.equal(controls[0].message.content[0].text, controlText((control.details as any).messageId, literal));
 		assert.equal(after.includes("Literal parent query"), false); assert.equal(after.includes("offline query answer"), false);
 		assert.equal(JSON.parse(await readFile(join(f.root, "managed", session, "manifest.json"), "utf8")).state, "ready");
 		await assert.rejects(stat(join(f.root, "managed", session, "writer.lock")), { code: "ENOENT" });
-		assert.equal((await f.execute("subagent_message", { jobId, taskId, mode: "control", message: "late" })).isError, true);
-		const resumed = await f.execute("subagent", { resume: session, task: "resume verified digest" }); assert.equal(resumed.isError, undefined, JSON.stringify(resumed.content));
-		assert.equal((resumed.details as any).results[0].canResume, true);
+		const late = await f.execute("subagent_message", { subagentSessionId: session, mode: "query", message: "late" });
+		assert.equal(late.isError, undefined); assert.equal((late.details as any).action, "query");
+		const lateAnswer = await f.notice(n => n.kind === "query_result" && n.interaction.queryId === (late.details as any).queryId);
+		assert.equal(lateAnswer.interaction.status, "completed", JSON.stringify(lateAnswer));
+		assert.equal(lateAnswer.interaction.cleanupEvidence.originalLeaseReleased, true);
+		assert.equal(await readFile(ready.sessionFile, "utf8"), after, "ready query does not change the completed original conversation");
+		const resumed = await f.execute("subagent_message", { subagentSessionId: session, message: "resume verified digest" }); assert.equal(resumed.isError, undefined, JSON.stringify(resumed.content));
+		assert.equal((resumed.details as any).action, "resume");
+		const resumedDone = await f.notice(n => n.kind === "task_result" && n.jobId === (resumed.details as any).jobId);
+		assert.equal(resumedDone.tasks[0].result.canResume, true);
 	} finally { await f.close(); }
 	console.log("[progress] Verified literal controls, query isolation and managed resume");
 });
@@ -95,13 +108,13 @@ test("RPC cancellation reaches an active query API and rejects settled target me
 	try {
 		const result = await f.execute("subagent", { agent: "worker", task: "interactive", background: true });
 		const { jobId, tasks } = (result.details as any).background; await f.file("barrier-ready.json"); await f.notice(n => n.kind === "log_ready" && n.tasks[0].canMessage);
-		const query = await f.execute("subagent_message", { jobId, taskId: tasks[0].taskId, mode: "query", message: "hold-query" }); await f.file("query-capture.json");
+		const query = await f.execute("subagent_message", { subagentSessionId: tasks[0].subagentSessionId, mode: "query", message: "hold-query" }); await f.file("query-capture.json");
 		const cancel = await f.execute("subagent_cancel", { jobId }); assert.equal((cancel.details as any).cancelRequested, true);
 		await f.file("query-aborted");
 		const complete = await f.notice(n => n.kind === "task_result"); assert.equal(complete.status, "aborted", JSON.stringify(complete));
 		const answer = await f.notice(n => n.kind === "query_result" && n.interaction.queryId === (query.details as any).queryId);
 		assert.equal(answer.interaction.status, "aborted"); assert.ok(answer.interaction.usageUnknown || answer.interaction.usage?.totalTokens === 12);
-		assert.equal((await f.execute("subagent_message", { jobId, taskId: tasks[0].taskId, mode: "query", message: "late" })).isError, true);
+		assert.equal((await f.execute("subagent_message", { subagentSessionId: tasks[0].subagentSessionId, mode: "query", message: "late" })).isError, true);
 	} finally { await f.close(); }
 	console.log("[progress] Verified active query cancellation and settled target rejection");
 });
@@ -111,12 +124,12 @@ test("owner session replacement cancels active query API and suppresses old-gene
 	try {
 		const result = await f.execute("subagent", { agent: "worker", task: "interactive", background: true });
 		const { jobId, tasks } = (result.details as any).background; await f.file("barrier-ready.json"); await f.notice(n => n.kind === "log_ready" && n.tasks[0].canMessage);
-		await f.execute("subagent_message", { jobId, taskId: tasks[0].taskId, mode: "query", message: "hold-query" }); await f.file("query-capture.json");
+		await f.execute("subagent_message", { subagentSessionId: tasks[0].subagentSessionId, mode: "query", message: "hold-query" }); await f.file("query-capture.json");
 		const before = f.notices.length;
 		await f.handlers.get("session_start")!({}, { ...f.ctx, sessionManager: { getSessionId: () => "replacement-owner" } });
 		await stat(join(f.root, "query-aborted")); assert.equal(f.notices.length, before, "old query/task callbacks must not notify replacement owner");
 		assert.equal((await f.execute("subagent_status", { jobId })).isError, true);
-		assert.equal((await f.execute("subagent_message", { jobId, taskId: tasks[0].taskId, mode: "query", message: "stale" })).isError, true);
+		assert.equal((await f.execute("subagent_message", { subagentSessionId: tasks[0].subagentSessionId, mode: "query", message: "stale" })).isError, true);
 	} finally { await f.close(); }
 	console.log("[progress] Verified owner replacement cleanup and callback suppression");
 });
@@ -128,9 +141,9 @@ test("RPC transformed controls are delivery_unknown while handled hooks are not 
 		const { jobId, tasks } = (result.details as any).background; const taskId = tasks[0].taskId;
 		const ready = JSON.parse(await readFile(await f.file("barrier-ready.json"), "utf8"));
 		await f.notice(n => n.kind === "log_ready" && n.tasks[0].canMessage);
-		const transformed = await f.execute("subagent_message", { jobId, taskId, mode: "control", message: "transform-control" });
+		const transformed = await f.execute("subagent_message", { subagentSessionId: tasks[0].subagentSessionId, mode: "control", message: "transform-control" });
 		await f.file("control-transformed");
-		const handled = await f.execute("subagent_message", { jobId, taskId, mode: "control", message: "handled-control" });
+		const handled = await f.execute("subagent_message", { subagentSessionId: tasks[0].subagentSessionId, mode: "control", message: "handled-control" });
 		const consumed = await f.notice(n => n.kind === "control_result" && n.interaction.messageId === (handled.details as any).messageId);
 		assert.equal(consumed.interaction.status, "not_applied"); assert.match(consumed.interaction.error, /input handler consumed/);
 		await writeFile(join(f.root, "release"), "continue");

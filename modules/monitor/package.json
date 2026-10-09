@@ -1,0 +1,9 @@
+{
+  "name": "pi-better-tools-monitor",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Project-native owner-scoped Monitor v1; root dependencies and Pi 1.1.0 are authoritative.",
+  "pi": { "extensions": ["./src/index.ts"] }
+}

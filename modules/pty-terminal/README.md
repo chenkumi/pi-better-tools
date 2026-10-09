@@ -5,14 +5,14 @@
 ## 工具
 
 - `pty_spawn`：`{ command, args?, target?, cwd?, env?, cols?, rows? }`；`target` 預設 `local`，回傳 sessionId、本機 transport pid、target、transport。
-- `pty_write`：`{ sessionId, data?, keys?, readAfterMs?, format? }`。`data` 支援 `\\x03`、`\\r`、`\\t` 等控制字元；`keys` 為具名按鍵陣列（Enter、Tab、Shift-Tab、Esc、Space、Backspace、Delete、Insert、Up/Down/Left/Right、Home、End、PageUp、PageDown、F1–F12、Ctrl-A..Ctrl-Z；不分大小寫，亦接受 `Ctrl+C`、`C-c`、Return、Escape 等別名），於 `data` 之後依序送出，兩者至少需一個；未知按鍵名回錯並列出支援清單，且在寫入任何內容前驗證。`readAfterMs`（0–60000）寫入後固定等待該毫秒再 drain 並一起回傳輸出（同 `pty_read` 格式；無輸出回 `ok`）；等待被取消時輸入已送出，session 保留。
+- `pty_write`：`{ sessionId, data?, keys?, readAfterMs?, format? }`。`data` 支援 `\\x03`、`\\r`、`\\t` 等控制字元，字面反斜線寫成 `\\\\` 或 `\\x5c`（例如 `C:\\\\new`；單趟解碼，不會二次解碼）；對已結束的 session 寫入會明確報錯且不送出；`keys` 為具名按鍵陣列（Enter、Tab、Shift-Tab、Esc、Space、Backspace、Delete、Insert、Up/Down/Left/Right、Home、End、PageUp、PageDown、F1–F12、Ctrl-A..Ctrl-Z；不分大小寫，亦接受 `Ctrl+C`、`C-c`、Return、Escape 等別名），於 `data` 之後依序送出，兩者至少需一個；未知按鍵名回錯並列出支援清單，且在寫入任何內容前驗證。`readAfterMs`（0–60000）寫入後等待該毫秒（transport exit 時提早返回，已退出時不另等）再 drain 並一起回傳輸出（同 `pty_read` 格式；無輸出回 `ok`）；等待被取消時輸入已送出，session 保留。
 - `pty_read`：`{ sessionId, timeoutMs?, waitFor?, settleMs?, format?, since? }`。預設 drain pending output 並等待 1000ms（上限 60000ms，`pty_wait_exit` 同）；每次輸出最多 2000 行／50KiB，超量部分留在 buffer，下次可繼續讀取，內容末尾提示剩餘字元數。
-  - `waitFor`：JavaScript RegExp 原始碼（不含斜線／flags，multiline，最長 200 字元，拒絕 `(a+)+` 類巢狀量詞），對**已剝除 ANSI** 的未讀輸出比對，出現即返回；`settleMs` 為「安靜多久視為完成」（兩者併用時先匹配再等安靜）。皆受總逾時 `timeoutMs` 限制（設定 `waitFor`／`settleMs` 且未給 `timeoutMs` 時預設 5000）；逾時會在輸出後標示 `waitFor not matched before timeout`，輸出仍保留未讀。無效 regex 回可操作錯誤。取消只中止等待，session 與輸出保留。
-  - `format`：`raw`（預設，保留控制碼）或 `text`（剝除 CSI／OSC／DCS 等 ANSI 控制碼；不做螢幕快照或游標還原）。截斷點不會落在 escape 序列中間；`text` 只計可見位元組，結尾尚未完整的序列會留待下次讀取（session 結束後才丟棄）。緩衝中只剩未完整序列時，預設讀取會繼續等到 `timeoutMs`，不會立即回傳空內容（設定 `waitFor`／`settleMs` 時依其條件返回，可能回空內容並保留該片段）；`raw` 不受影響。
+  - `waitFor`：JavaScript RegExp 原始碼（不含斜線／flags，multiline，最長 200 字元，拒絕 `(a+)+` 類巢狀量詞），對**已剝除 ANSI** 的未讀輸出比對，出現即返回；`settleMs` 為「安靜多久視為完成」（兩者併用時先匹配再等安靜）。皆受總逾時 `timeoutMs` 限制（設定 `waitFor`／`settleMs` 且未給 `timeoutMs` 時預設 5000）；逾時會在輸出後標示 `waitFor not matched before timeout`，輸出仍保留未讀。無效 regex 回可操作錯誤。比對在可終止 worker 執行（最多 16 個，單次最多 1000ms，預算從 worker 完成模組載入並回報 ready 後才開始計算（不是 thread online），另有 5 秒啟動上限，故小 `timeoutMs` 不會因啟動時間誤報逾時，整體讀取可能略超出 `timeoutMs` 一個 worker 啟動時間；比對失敗後的重試至少間隔 50ms 合併輸出（亦涵蓋失敗完成後才到達的輸出），正值讀取期限可進一步縮短，期限耗盡不再啟動新的 worker；transport exit 可提早喚醒以檢查最後輸出；`timeoutMs: 0` 仍允許一次有界比對）。比對容量／計算期限失敗明確報錯；讀取期限耗盡回 timeout，取消／shutdown 會終止 worker，名額在終止確認後才歸還。取消只中止等待，session 與輸出保留。
+  - `format`：`raw`（預設，保留控制碼）或 `text`（剝除 CSI／OSC／DCS 等 ANSI 控制碼；不做螢幕快照或游標還原）。截斷點不會落在 escape 序列中間；`text` 只計可見位元組，結尾尚未完整的序列會留待下次讀取（session 結束後才丟棄）。緩衝中只剩未完整序列時，預設讀取會繼續等到 `timeoutMs`，不會立即回傳空內容（設定 `waitFor`／`settleMs` 時依其條件返回，可能回空內容並保留該片段）；`raw` 不受影響。單一完整 escape 序列若本身超過 50KiB 回傳上限，會明示丟棄並推進 cursor，避免每次讀取零進度；其他可回傳內容仍保留。
   - cursor：每個 session 的輸出帶單調遞增 cursor（UTF-16 字元數），輸出後以 `[cursor a-b]` 標示本次內容範圍。`since` 從該 cursor 重讀仍在 buffer 內的輸出，**不 drain**（預設仍是讀取即清空）；`since` 早於 buffer 起點時回報 `dropped` 範圍，超過最新 cursor 則報錯。ring buffer 保留已讀與未讀輸出（共 2 Mi 字元）；溢出導致未讀輸出遺失時，下次輸出開頭標示 `[pty-terminal: N earlier characters were dropped (cursor a-b) ...]`。
   - 回傳瘦身：模型可見文字只含輸出與必要註記（cursor、`session exited`、waitFor 逾時）；target 為 local、signal 為 0、錯誤中已有的欄位等預設值不輸出；`pty_spawn` 只回 `sessionId`（非 local 才加 `target`），PID／transport 等完整資料與 renderer 細節放在 `details`。
 - `pty_resize`：調整 terminal cols/rows。
-- `pty_wait_exit`：回傳 transport exitCode，等待逾時回傳 `exitCode: -1` 並附 `timedOut: true`（shutdown 造成的 -1 不含此欄位）；SSH exit 255 可能是連線錯誤而非遠端結束碼，結果會附 `note` 警語。未知 target 錯誤會列出已設定（經宿主 trust 過濾後）的 target 名稱，不含 host／cwd 等值。分工：一次性指令用 shell、長時間背景執行用 shell background job，需持續輸入的互動程式／TUI 才用 PTY；PTY 無結構化 exit code。
+- `pty_wait_exit`：回傳 transport exitCode，等待逾時回傳 `exitCode: -1` 並附 `timedOut: true`；SSH exit 255 可能是連線錯誤而非遠端結束碼，結果會附 `note` 警語。未知 target 錯誤會列出已設定（經宿主 trust 過濾後）的 target 名稱，不含 host／cwd 等值。分工：一次性指令用 shell、長時間背景執行用 shell background job，需持續輸入的互動程式／TUI 才用 PTY；PTY 無結構化 exit code。
 - `pty_kill`：終止本機 transport；POSIX 預設 SIGHUP，僅接受 SIGHUP／SIGINT／SIGQUIT／SIGTERM／SIGKILL，逾時（2 秒）未結束會升級為 SIGKILL；Windows 使用 backend 無 signal 的終止操作（signal 參數不適用）。只有 transport 確認已結束才釋放 session（結果 `released: true`）；kill 失敗或仍在執行時保留 session（可重試，shutdown 仍可清理），不再吞掉錯誤。
 - `pty_list`：列出本 session 保留的 active/exited PTY 與 target。
 
@@ -71,7 +71,7 @@
 
 ## 安裝及驗證
 
-從根目錄執行 `npm ci --ignore-scripts`，再明確執行 `npm run pty:install`（只 rebuild node-pty 的 native setup；無預編譯支援時需本機編譯工具）。使用符合根 manifest 的 Node 與 Pi 1.0.0 開發基準。原來源採用的 `node-pty` 1.2.0-beta.14 保留為固定 runtime dependency，未宣稱 beta 等同 stable 或所有 OS/architecture 都已實測。
+從根目錄執行 `npm ci --ignore-scripts`，再明確執行 `npm run pty:install`（只 rebuild node-pty 的 native setup；無預編譯支援時需本機編譯工具）。使用符合根 manifest 的 Node 與 Pi 1.1.0 開發基準。原來源採用的 `node-pty` 1.2.0-beta.14 保留為固定 runtime dependency，未宣稱 beta 等同 stable 或所有 OS/architecture 都已實測。
 
 根 manifest 的 npm 12 `allowScripts` 只允許固定 `node-pty@1.2.0-beta.14`，未允許任意 dependency scripts。`pty:install` 用目前 npm CLI／Node subprocess（無 shell）重建此套件，僅移除 npm run 帶入的 `npm_config_allow_scripts`（含大小寫變體），讓 project policy 生效；保留其他設定／環境，不修改使用者全域 npm 設定。一般 consumer 安裝須自行核可其 project 的 native setup；dependency 的 policy 不代表 parent project 自動核可。
 
@@ -83,4 +83,4 @@
 
 任意指令以 target 使用者權限執行；不是 OS sandbox。WSL 可存取 Windows 掛載檔案，SSH 可改遠端專案。GitHub 同步、commit/push/pull 不自動執行；跨平台測試前自行確認同一 commit 及乾淨 working tree，各平台自行安裝 dependencies。
 
-`session_shutdown`（含 reload）清理本機 PTY，關閉 transport 不保證遠端 descendants/背景程序停止；不呼叫 `wsl --shutdown`。建立 session 不等於 SSH/WSL 握手或命令成功，必須 read 輸出及 wait_exit。操作取消不自動關閉持續 session；需要時明確 kill。每個 session 輸出為 ring buffer（2 Mi 字元），超過時丟棄最舊內容，下次 `pty_read` 開頭會標示被丟棄的字元數；同時最多 16 個 session（超過 spawn 失敗；已 exited 的 session 會讓位），cols 最大 500、rows 最大 200；已 exited 且未釋放的 session 於結束 10 分鐘後自動回收。
+`session_shutdown`（含 reload）中止讀取並等待比對 worker 終止，沿用 `pty_kill` 的確認與升級路徑；僅確認 transport exit 才釋放 ownership，不虛構 exitCode。kill 失敗／未確認退出會保留 registry 並回報 shutdown 錯誤（可重試 kill），shutdown 開始後不再接受 spawn。關閉 transport 不保證遠端 descendants/背景程序停止；不呼叫 `wsl --shutdown`。建立 session 不等於 SSH/WSL 握手或命令成功，必須 read 輸出及 wait_exit。操作取消不自動關閉持續 session；需要時明確 kill。每個 session 輸出為 ring buffer（2 Mi 字元），超過時丟棄最舊內容（為避免每個 chunk 複製整個 buffer，超過上限時一次修剪到上限的 15/16，保留量永不超過 2 Mi 字元），下次 `pty_read` 開頭會標示被丟棄的字元數；同時最多 16 個 session（超過 spawn 失敗；只有輸出與 drop 通知皆已讀完的 exited session 才會因滿載而讓位；未讀 exited session 保留，須先用 pty_read drain 或明確 pty_kill release，不能以新增 session 靜默丟棄），cols 最大 500、rows 最大 200；已 exited 且未釋放的 session 於結束 10 分鐘後自動回收。

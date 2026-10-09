@@ -9,38 +9,62 @@ export interface InteractionNotice { kind: "control_result" | "query_result"; [k
 export interface ControlReceipt { messageId: string; status: "accepted" | "queued" | "applied" | "not_applied" | "delivery_unknown"; timestamp?: unknown; userOrdinal?: number; error?: string }
 export interface QueryReceipt { queryId: string; status: "accepted" | "completed" | "failed" | "aborted"; [key: string]: unknown }
 
+export interface RpcObservation {
+	event: "queued" | "write_started" | "write_completed" | "write_failed" | "response" | "rejected" | "protocol_error" | "unmatched_response" | "deadline" | "transport_closed";
+	id?: string;
+	command?: string;
+	elapsedMs: number;
+	deadlineMs?: number;
+	success?: boolean;
+}
+
 /** Bounded correlation and callback-based stdin backpressure. All stdout parsing
  * stays in the existing continuously-drained runner, not a second line reader. */
 export class RpcPipe {
-	private pending = new Map<string, { type: string; resolve: (value: any) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+	private pending = new Map<string, { type: string; startedAt: number; resolve: (value: any) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
 	private writing: Promise<void> = Promise.resolve();
 	private bytes = 0;
 	private closed = false;
-	constructor(private readonly proc: ChildProcess) { proc.stdin?.on("error", error => this.dispose(error)); }
+	constructor(private readonly proc: ChildProcess, private readonly observer?: (event: RpcObservation) => void) { proc.stdin?.on("error", error => this.dispose(error)); }
+	private observe(event: RpcObservation["event"], id?: string, command?: string, startedAt = performance.now(), extra: Partial<RpcObservation> = {}) {
+		// No params, response payloads, child error text or unmatched IDs enter diagnostics.
+		try { this.observer?.({ event, ...(id ? { id } : {}), ...(command ? { command } : {}), elapsedMs: Math.max(0, Math.round(performance.now() - startedAt)), ...extra }); } catch { /* diagnostics cannot affect transport */ }
+	}
 	request(type: string, params: Record<string, unknown> = {}): Promise<any> {
 		if (this.closed || !this.proc.stdin || this.proc.stdin.destroyed) return Promise.reject(new Error("RPC_CLOSED: child transport is closed"));
-		const id = ulid().toLowerCase(); const data = JSON.stringify({ ...params, id, type }) + "\n";
+		const id = ulid().toUpperCase(); const data = JSON.stringify({ ...params, id, type }) + "\n";
+		const startedAt = performance.now();
 		const bytes = Buffer.byteLength(data, "utf8");
-		if (this.pending.size >= 16 || bytes > MAX_RPC_BYTES || this.bytes + bytes > MAX_RPC_BYTES) return Promise.reject(new Error("RPC_CAPACITY: bounded command queue exceeded"));
+		if (this.pending.size >= 16 || bytes > MAX_RPC_BYTES || this.bytes + bytes > MAX_RPC_BYTES) return Promise.reject(new Error("RPC_CAPACITY: Request not accepted: capacity limit reached. Bounded command queue exceeded"));
 		this.bytes += bytes;
 		const response = new Promise<any>((resolve, reject) => {
-			const timer = setTimeout(() => { this.pending.delete(id); reject(new Error(`RPC_DEADLINE: ${type} response not received`)); }, REQUEST_DEADLINE_MS);
-			this.pending.set(id, { type, resolve, reject, timer });
+			const timer = setTimeout(() => { this.pending.delete(id); this.observe("deadline", id, type, startedAt, { deadlineMs: REQUEST_DEADLINE_MS }); reject(new Error(`RPC_DEADLINE: ${type} response not received`)); }, REQUEST_DEADLINE_MS);
+			this.pending.set(id, { type, startedAt, resolve, reject, timer });
+			this.observe("queued", id, type, startedAt, { deadlineMs: REQUEST_DEADLINE_MS });
 		});
 		this.writing = this.writing.then(() => new Promise<void>((resolve, reject) => {
 			if (this.closed || !this.proc.stdin || this.proc.stdin.destroyed) { reject(new Error("RPC_CLOSED")); return; }
-			this.proc.stdin.write(data, error => error ? reject(error) : resolve());
+			this.observe("write_started", id, type, startedAt);
+			this.proc.stdin.write(data, error => {
+				this.observe(error ? "write_failed" : "write_completed", id, type, startedAt);
+				if (error) reject(error); else resolve();
+			});
 		})).catch(error => { this.dispose(error instanceof Error ? error : new Error(String(error))); }).finally(() => { this.bytes -= bytes; });
 		return response;
 	}
 	accept(event: Record<string, unknown>): boolean {
 		if (event.type !== "response") return false;
 		if (typeof event.id !== "string") throw new Error("RPC_PROTOCOL: uncorrelated response");
-		const request = this.pending.get(event.id); if (!request) return true;
+		const request = this.pending.get(event.id); if (!request) { this.observe("unmatched_response"); return true; }
 		this.pending.delete(event.id); clearTimeout(request.timer);
-		if (event.command !== request.type || typeof event.success !== "boolean") request.reject(new Error("RPC_PROTOCOL: response command mismatch"));
-		else if (!event.success) request.reject(new Error(typeof event.error === "string" ? event.error : "RPC command rejected"));
-		else request.resolve(event.data);
+		if (event.command !== request.type || typeof event.success !== "boolean") {
+			this.observe("protocol_error", event.id, request.type, request.startedAt);
+			request.reject(new Error("RPC_PROTOCOL: response command mismatch"));
+		} else {
+			this.observe(event.success ? "response" : "rejected", event.id, request.type, request.startedAt, { success: event.success });
+			if (!event.success) request.reject(new Error(typeof event.error === "string" ? event.error : "RPC command rejected"));
+			else request.resolve(event.data);
+		}
 		return true;
 	}
 	async end() {
@@ -55,7 +79,7 @@ export class RpcPipe {
 	}
 	dispose(error = new Error("RPC_CLOSED: child exited")) {
 		this.closed = true;
-		for (const request of this.pending.values()) { clearTimeout(request.timer); request.reject(error); }
+		for (const [id, request] of this.pending) { clearTimeout(request.timer); this.observe("transport_closed", id, request.type, request.startedAt); request.reject(error); }
 		this.pending.clear();
 	}
 }
@@ -68,8 +92,8 @@ export class RpcInteraction {
 	private running = false;
 	private closed = false;
 	private cancelled = false;
-	constructor(private readonly proc: ChildProcess, private readonly token: string, private readonly model: string, private readonly notify: (notice: InteractionNotice) => void) {
-		this.pipe = new RpcPipe(proc);
+	constructor(private readonly proc: ChildProcess, private readonly token: string, private readonly model: string, private readonly notify: (notice: InteractionNotice) => void, observer?: (event: RpcObservation) => void) {
+		this.pipe = new RpcPipe(proc, observer);
 		proc.on("message", input => this.receive(input));
 		proc.once("close", () => this.transportClosed());
 	}
@@ -80,8 +104,8 @@ export class RpcInteraction {
 	control(message: string) {
 		validateInteraction(message);
 		if (!this.isRunning) throw new Error("TASK_NOT_RUNNING: wait for ready and use resume");
-		if (this.controls.size >= 32) throw new Error("CONTROL_CAPACITY: at most 32 controls per invocation");
-		const receipt: ControlReceipt = { messageId: ulid().toLowerCase(), status: "accepted" };
+		if (this.controls.size >= 32) throw new Error("CONTROL_CAPACITY: Request not accepted: capacity limit reached. At most 32 controls per invocation");
+		const receipt: ControlReceipt = { messageId: ulid().toUpperCase(), status: "accepted" };
 		const record = { receipt, text: controlText(receipt.messageId, message), sent: false };
 		this.controls.set(receipt.messageId, record);
 		this.tail = this.tail.then(async () => {
@@ -112,12 +136,13 @@ export class RpcInteraction {
 			this.emit({ kind: "control_result", ...record.receipt }); record.text = ""; break;
 		}
 	}
-	query(message: string) {
+	query(message: string, queryId = ulid().toUpperCase()) {
 		validateInteraction(message);
 		if (!this.isRunning) throw new Error("TASK_NOT_RUNNING: queries require an active RPC child");
 		if (!this.proc.connected || typeof this.proc.send !== "function") throw new Error("QUERY_TRANSPORT_UNAVAILABLE: child IPC is disconnected");
-		if (activeQueries >= 8 || [...this.queries.values()].filter(q => q.active).length >= 2 || this.queries.size >= 32) throw new Error("QUERY_CAPACITY: at most 8 process-wide, 2 active and 32 retained queries per task");
-		const receipt: QueryReceipt = { queryId: ulid().toLowerCase(), status: "accepted" };
+		if (activeQueries >= 8 || [...this.queries.values()].filter(q => q.active).length >= 2 || this.queries.size >= 32) throw new Error("QUERY_CAPACITY: Request not accepted: capacity limit reached. At most 8 process-wide, 2 active and 32 retained queries per task");
+		if (!/^[0-9A-HJKMNP-TV-Z]{26}$/.test(queryId) || this.queries.has(queryId)) throw new Error("INVALID_MESSAGE: query identity must be a fresh internal uppercase ULID");
+		const receipt: QueryReceipt = { queryId, status: "accepted" };
 		let finish!: () => void; const done = new Promise<void>(resolve => { finish = resolve; });
 		const timer = setTimeout(() => this.expireQuery(receipt.queryId), REQUEST_DEADLINE_MS);
 		this.queries.set(receipt.queryId, { receipt, active: true, done, finish, timer }); activeQueries++;
@@ -156,8 +181,9 @@ export class RpcInteraction {
 			// its independent usage/asOf, never the mainline or host accounting.
 			if (result.usage !== undefined) {
 				Object.assign(query.receipt, { usage: result.usage, usageUnknown: false, ...(result.asOf !== undefined ? { asOf: result.asOf } : {}) });
-				this.emit({ kind: "query_result", ...query.receipt, lateUsage: true });
 			}
+			// Cleanup evidence matters even without usage (including actual child close).
+			this.emit({ kind: "query_result", ...query.receipt, ...(result.usage !== undefined ? { lateUsage: true } : {}) });
 		}
 	}
 	cancelQueries() {

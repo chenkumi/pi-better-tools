@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { Socket } from 'node:net';
 import { TLSSocket } from 'node:tls';
 import test from 'node:test';
-import { extractHtml, MAX_EXTRACTED_BYTES, MAX_HTML_BYTES } from '../../src/fetch/extract.js';
+import { Worker } from 'node:worker_threads';
+import { extractHtml, extractHtmlIsolated, MAX_EXTRACTED_BYTES, MAX_HTML_BYTES, MAX_EXTRACTION_WORKERS, prewarmExtractionWorker, shutdownExtractionWorkers } from '../../src/fetch/extract.js';
 import { isPublicAddress, NetworkPolicy, parseWebUrl } from '../../src/fetch/network.js';
 import { certificateOrEmpty, installPlaywrightTlsCompatibility } from '../../src/fetch/playwright-tls-compat.js';
 import { exceedsResponseLimit, FetchQueue, FetchService, MAX_RESPONSE_BYTES } from '../../src/fetch/service.js';
@@ -159,4 +160,137 @@ test('pre-abort, default private-network rejection, and close do not require bro
   } finally { await service.close(); }
   await service.close();
   await assert.rejects(service.fetch({ url: 'https://example.org/' }), /CLOSED:/);
+});
+
+test('NetworkPolicy resolves each hostname once per validation cache and caches failures', async () => {
+  let lookups = 0;
+  const policy = new NetworkPolicy(false, async () => { lookups++; return [{ address: '8.8.8.8' }]; });
+  const cache = new Map();
+  await policy.validate('https://example.org/a', cache);
+  await policy.validate('https://example.org/b', cache);
+  await Promise.all([policy.validate('https://example.org/c', cache), policy.validate('https://other.example/', cache)]);
+  assert.equal(lookups, 2);
+  await policy.validate('https://example.org/a');
+  assert.equal(lookups, 3, 'no cache supplied means no memoization');
+  let blocked = 0;
+  const bad = new NetworkPolicy(false, async () => { blocked++; return [{ address: '10.0.0.1' }]; });
+  const badCache = new Map();
+  for (let i = 0; i < 2; i++) await assert.rejects(bad.validate('https://rebind.example/', badCache), /NETWORK_BLOCKED:/);
+  assert.equal(blocked, 1);
+});
+
+test('assertConnectedAddress rejects non-public, missing and rebound peer addresses', () => {
+  const policy = new NetworkPolicy();
+  policy.assertConnectedAddress('8.8.8.8');
+  policy.assertConnectedAddress('2606:4700:4700::1111');
+  for (const address of ['127.0.0.1', '10.1.2.3', '169.254.169.254', '::1', 'fe80::1', '::ffff:127.0.0.1', undefined, '']) {
+    assert.throws(() => policy.assertConnectedAddress(address), /^Error: NETWORK_BLOCKED:/, String(address));
+  }
+  new NetworkPolicy(true).assertConnectedAddress('127.0.0.1');
+});
+
+test('isolated extraction matches the synchronous result and maps worker errors safely', async () => {
+  const signal = new AbortController().signal;
+  const isolated = await extractHtmlIsolated(article, 'https://example.org/path/page', 'markdown', 'main', signal);
+  assert.deepEqual(isolated, extractHtml(article, 'https://example.org/path/page', 'markdown', 'main'));
+  await assert.rejects(extractHtmlIsolated('<script>1</script>', 'https://example.org/', 'text', 'auto', signal), /^Error: EMPTY_CONTENT:/);
+  await assert.rejects(extractHtmlIsolated('x'.repeat(MAX_HTML_BYTES + 1), 'https://example.org/', 'text', 'auto', signal), /^Error: TOO_LARGE:/);
+});
+
+test('reused workers keep lifecycle handlers without accumulating job listeners', async (t) => {
+  const postedBy: Worker[] = [];
+  const postMessage = Worker.prototype.postMessage;
+  t.mock.method(Worker.prototype, 'postMessage', function (this: Worker, ...args: Parameters<Worker['postMessage']>) {
+    postedBy.push(this);
+    assert.equal(this.listenerCount('exit'), 2, 'lifecycle and current-job exit handlers must both survive acquisition');
+    assert.equal(this.listenerCount('error'), 2);
+    return postMessage.apply(this, args);
+  });
+  for (let i = 0; i < 12; i++) {
+    const result = await extractHtmlIsolated(`<main>Job ${i}</main>`, 'https://example.org/', 'text', 'main', new AbortController().signal);
+    assert.equal(result.content, `Job ${i}`);
+    const worker = postedBy.at(-1)!;
+    assert.equal(worker.listenerCount('exit'), 1);
+    assert.equal(worker.listenerCount('error'), 1);
+    assert.equal(worker.listenerCount('message'), 0);
+  }
+  assert.equal(new Set(postedBy).size, 1, 'successful jobs should reuse the warm worker');
+});
+
+test('isolated extraction is terminated by abort and leaves the main thread free', async (t) => {
+  const already = new AbortController();
+  already.abort(new Error('CANCELLED: Fetch was cancelled.'));
+  await assert.rejects(extractHtmlIsolated(article, 'https://example.org/', 'text', 'auto', already.signal), /^Error: CANCELLED:/);
+  // Warm the actual worker before cancellation so this is not merely a startup-abort test.
+  await extractHtmlIsolated('<main>warm</main>', 'https://example.org/', 'text', 'main', new AbortController().signal);
+  let terminations = 0;
+  const terminate = Worker.prototype.terminate;
+  t.mock.method(Worker.prototype, 'terminate', function (this: Worker) { terminations++; return terminate.call(this); });
+  // Valid-sized markup keeps parsing busy; only TIMEOUT (not TOO_LARGE) satisfies the assertion.
+  const heavy = '<p>' + 'word <b>bold</b> '.repeat(250_000) + '</p>';
+  assert.ok(Buffer.byteLength(heavy) < MAX_HTML_BYTES);
+  const controller = new AbortController();
+  const pending = extractHtmlIsolated(heavy, 'https://example.org/', 'text', 'auto', controller.signal);
+  setImmediate(() => controller.abort(new Error('TIMEOUT: Fetch deadline exceeded.')));
+  await assert.rejects(pending, /^Error: TIMEOUT:/);
+  assert.equal(terminations, 1, 'abort must terminate the busy worker, not just reject its promise');
+  const recovered = await extractHtmlIsolated('<main>Recovered</main>', 'https://example.org/', 'text', 'main', new AbortController().signal);
+  assert.equal(recovered.content, 'Recovered');
+});
+
+test('retiring workers retain capacity until actual exit and shutdown also reaps active workers', async (t) => {
+  await shutdownExtractionWorkers();
+  const terminate = Worker.prototype.terminate;
+  const releaseTerminations: Array<() => void> = [];
+  let failFirstTermination!: () => void;
+  t.mock.method(Worker.prototype, 'terminate', function (this: Worker) {
+    return new Promise<number>((resolve, reject) => {
+      if (releaseTerminations.length === 0) failFirstTermination = () => reject(new Error('Injected termination failure'));
+      let released = false;
+      releaseTerminations.push(() => {
+        if (released) return;
+        released = true;
+        terminate.call(this).then(resolve, reject);
+      });
+    });
+  });
+  t.after(async () => {
+    const cleanup = shutdownExtractionWorkers();
+    for (const release of releaseTerminations) release();
+    await cleanup;
+  });
+  for (let i = 0; i < MAX_EXTRACTION_WORKERS; i++) {
+    const controller = new AbortController();
+    const pending = extractHtmlIsolated('<main>Cancelled job</main>', 'https://example.org/', 'text', 'main', controller.signal);
+    controller.abort(new Error('CANCELLED: Test cancelled.'));
+    await assert.rejects(pending, /^Error: CANCELLED:/);
+  }
+  assert.equal(releaseTerminations.length, MAX_EXTRACTION_WORKERS);
+  failFirstTermination();
+  await Promise.resolve();
+  // Failed terminate is not evidence of exit either: the first worker must still own its slot.
+  // Repeated retries and prewarming must not create more threads while terminate is outstanding.
+  for (let i = 0; i < MAX_EXTRACTION_WORKERS; i++) {
+    prewarmExtractionWorker();
+    await assert.rejects(extractHtmlIsolated('<main>Retry</main>', 'https://example.org/', 'text', 'main', new AbortController().signal), /^Error: BUSY:/);
+  }
+  let closed = false;
+  const shutdown = shutdownExtractionWorkers().then(() => { closed = true; });
+  await Promise.resolve();
+  assert.equal(closed, false, 'shutdown must wait for real termination, not merely the abort rejection');
+  assert.equal(releaseTerminations.length, MAX_EXTRACTION_WORKERS, 'retiring a worker again must not duplicate terminate');
+  for (const release of releaseTerminations) release();
+  await shutdown;
+  assert.equal(closed, true);
+
+  // No abort on this job: shutdown itself must find and terminate the active worker.
+  const active = extractHtmlIsolated('<main>Active job</main>', 'https://example.org/', 'text', 'main', new AbortController().signal);
+  const activeRejected = assert.rejects(active, /^Error: FETCH_FAILED:/);
+  const activeShutdown = shutdownExtractionWorkers();
+  assert.equal(releaseTerminations.length, MAX_EXTRACTION_WORKERS + 1);
+  await assert.rejects(extractHtmlIsolated('<main>During shutdown</main>', 'https://example.org/', 'text', 'main', new AbortController().signal), /^Error: BUSY:/);
+  releaseTerminations.at(-1)!();
+  await Promise.all([activeShutdown, activeRejected]);
+  const recovered = await extractHtmlIsolated('<main>Capacity released</main>', 'https://example.org/', 'text', 'main', new AbortController().signal);
+  assert.equal(recovered.content, 'Capacity released');
 });

@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { createHash } from "node:crypto";
+import type { ExtensionAPI, ExtensionContext, SessionHeader, SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { AssistantMessage, ThinkingLevel } from "@earendil-works/pi-ai";
 import { safeSnapshot, validateInteraction, messageText, MAX_INTERACTION_BYTES, MAX_QUERY_REPLY_BYTES } from "./query-snapshot.ts";
 
@@ -27,7 +28,24 @@ export default function (pi: ExtensionAPI) {
 			const header = ctx.sessionManager.getHeader(); if (!header) throw new Error("QUERY_IDENTITY: missing canonical header");
 			// All state is captured synchronously before any provider await. No hooks,
 			// resource loader or tool execution enter this disposable model request.
-			const snapshot = safeSnapshot(header, ctx.sessionManager.getEntries(), ctx.sessionManager.getLeafId(), ctx.getSystemPrompt());
+			let snapshot;
+			if (expected.readyQuerySnapshot) {
+				// Replay the immutable committed copy, not startup hooks' changes to
+				// the disposable working copy and never the original managed file.
+				const captured = expected.readyQuerySnapshot;
+				const file = fs.openSync(captured.path, "r");
+				let bytes: Buffer;
+				try {
+					const buffer = Buffer.alloc(8 * 1024 * 1024 + 1); let length = 0;
+					while (length < buffer.length) { const read = fs.readSync(file, buffer, length, buffer.length - length, null); if (!read) break; length += read; }
+					bytes = buffer.subarray(0, length);
+					if (length > 8 * 1024 * 1024 || createHash("sha256").update(bytes).digest("hex") !== captured.hash) throw new Error("QUERY_CHECKPOINT_CHANGED: committed query copy changed");
+				} finally { fs.closeSync(file); }
+				const records = new TextDecoder("utf-8", { fatal: true }).decode(bytes).trim().split("\n").map(line => JSON.parse(line));
+				const savedHeader = records.shift();
+				if (savedHeader?.type !== "session" || savedHeader.version !== 3 || savedHeader.id !== expected.id || savedHeader.cwd !== expected.cwd || savedHeader.parentSession !== undefined) throw new Error("QUERY_IDENTITY: committed query header mismatch");
+				snapshot = safeSnapshot(savedHeader as SessionHeader, records as SessionEntry[], captured.leafId, ctx.getSystemPrompt());
+			} else snapshot = safeSnapshot(header, ctx.sessionManager.getEntries(), ctx.sessionManager.getLeafId(), ctx.getSystemPrompt());
 			asOf = snapshot.asOf;
 			const messages = [...snapshot.messages,
 				{ role: "system" as const, content: "This is a disposable read-only query about the captured delegated conversation, not a continuation of its task. Answer only the query using visible evidence. No tools are available; do not emit tool calls. Explain snapshot staleness and do not claim unseen work completed.", toolsAdded: [], timestamp: Date.now() },
@@ -68,6 +86,7 @@ export default function (pi: ExtensionAPI) {
 			void query(value.queryId, value.message, context);
 		} catch (error) { reply({ type: "query_result", queryId: value.queryId, status: "failed", error: error instanceof Error ? error.message : String(error) }); }
 	};
+	pi.on("before_agent_start", () => { if (expected.readyQuerySnapshot) throw new Error("QUERY_MAINLINE_FORBIDDEN: disposable ready query cannot prompt or steer the task"); });
 	pi.on("session_start", (_event, ctx) => { context = ctx; closed = false; process.on("message", receive); });
 	pi.on("session_shutdown", () => {
 		closed = true; context = undefined; process.off("message", receive);

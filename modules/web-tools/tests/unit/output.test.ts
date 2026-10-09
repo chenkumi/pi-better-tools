@@ -5,6 +5,7 @@ import { dirname } from 'node:path';
 import { clip, toolOutput, MAX_INLINE_BYTES, MAX_INLINE_LINES, MAX_STRUCTURED_BYTES } from '../../src/output.ts';
 import { Check } from 'typebox/value';
 import { fetchOutputSchema, searchOutputSchema } from '../../src/tool-schemas.ts';
+import { FetchService } from '../../src/fetch/service.js';
 
 test('Unicode byte clipping and terminal control cleanup', async () => {
   assert.equal(clip('中😀文', 7, 10), '中😀');
@@ -19,6 +20,10 @@ test('long output is bounded and readable; POSIX mode is not a Windows ACL asser
   try {
     assert.ok(Buffer.byteLength(result.content[0]!.text) <= MAX_INLINE_BYTES);
     assert.ok(result.content[0]!.text.split('\n').length <= MAX_INLINE_LINES);
+    assert.equal(await readFile(result.details.fullOutputPath!, 'utf8'), text);
+    // L12: shutdown must preserve the documented full-output path for later read calls.
+    const service = new FetchService({ channel: 'chromium', timeoutMs: 1000, maxConcurrency: 1, idleTimeoutMs: 1000 });
+    await service.close();
     assert.equal(await readFile(result.details.fullOutputPath!, 'utf8'), text);
     const file = await stat(result.details.fullOutputPath!);
     assert.ok(file.isFile());

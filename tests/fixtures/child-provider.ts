@@ -21,9 +21,7 @@ export default function (pi: ExtensionAPI) {
       const edit = await call('edit', { path: 'child.txt', expectedHash: (read.details as any).sha256, edits: [{ oldText: 'alpha', newText: 'BETA' }] });
       assert.match(text(edit), /FILE_EDIT_SUCCESS/);
       assert.match(text(await call(shellName, { command: process.platform === 'win32' ? "Write-Output 'CHILD_SHELL_OK'" : "printf 'CHILD_SHELL_OK'", timeoutMs: 20000 })), /CHILD_SHELL_OK/);
-      const status = JSON.parse(text(await call('schedule_status', {})));
-      assert.ok(['standby', 'host'].includes(status.runtime.role), 'ordinary subagent preserves existing scheduler election policy');
-      const data = { child: true, noRecursiveSubagent: true, nestedFileAndShell: true, schedulerRole: status.runtime.role, cwd: ctx.cwd };
+      const data = { child: true, noRecursiveSubagent: true, nestedFileAndShell: true, cwd: ctx.cwd };
       return { content: [{ type: 'text', text: JSON.stringify(data) }], details: data };
     } });
   pi.registerProvider('integration-offline', { baseUrl: 'http://127.0.0.1:1/never-contacted', apiKey: 'offline-dummy', api: 'integration-offline-api',
@@ -34,7 +32,7 @@ export default function (pi: ExtensionAPI) {
       setImmediate(() => {
         try {
           if (!parent) {
-            assert.ok(!getCurrentTools(context.messages).some(t => t.name === 'subagent'));
+            assert.ok(!getCurrentTools(context.messages).some(t => ['subagent', 'subagent_message', 'subagent_status', 'subagent_cancel'].includes(t.name)), 'child must not inherit invocation-starting or parent-management tools');
             assert.ok(!getCurrentTools(context.messages).some(t => t.name === 'goal'), 'managed child cannot inherit goal mutation/continuation');
           }
           const prior = [...context.messages].reverse().find((m: any) => m.role === 'toolResult');
@@ -44,7 +42,7 @@ export default function (pi: ExtensionAPI) {
           else if (parent && nth === 2) {
             assert.ok(prior && !prior.isError, text(prior));
             const first = (prior as any).details.results[0]; assert.equal(first.canResume, true);
-            call = { id: 'integrated-resume', name: 'subagent', arguments: { resume: first.subagentSessionId, task: 'Resume saved offline history; report native continuation without repeating file mutations.' } };
+            call = { id: 'integrated-resume', name: 'subagent_message', arguments: { subagentSessionId: first.subagentSessionId, message: 'Resume saved offline history; report native continuation without repeating file mutations.' } };
           } else if (!parent && nth === 1 && userTurns === 1) call = { id: 'child-probe', name: 'integration_probe', arguments: {} };
           stream.push({ type: 'start', partial: message });
           if (call) {

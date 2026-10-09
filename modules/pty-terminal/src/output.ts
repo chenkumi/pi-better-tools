@@ -94,6 +94,7 @@ export function truncatePtyOutput(output: string, options: TruncateOptions = {})
 	let run = 0; // start of the pending visible run (text format)
 	let visible = "";
 	let held = false;
+	let discarded = 0;
 
 	while (i < length) {
 		const code = output.charCodeAt(i);
@@ -110,6 +111,13 @@ export function truncatePtyOutput(output: string, options: TruncateOptions = {})
 				continue;
 			}
 			const unitBytes = utf8Length(output, i, i + unit);
+			if (unitBytes > MAX_OUTPUT_BYTES) {
+				// One indivisible escape can never fit any response. Explicitly drop it
+				// rather than returning the same zero-progress remainder forever.
+				visible += output.slice(run, i);
+				i += unit; run = i; discarded += unit;
+				continue;
+			}
 			if (bytes + unitBytes > MAX_OUTPUT_BYTES) break;
 			bytes += unitBytes;
 			i += unit;
@@ -127,7 +135,7 @@ export function truncatePtyOutput(output: string, options: TruncateOptions = {})
 		i += width;
 	}
 
-	const body = text ? visible + output.slice(run, i) : output.slice(0, i);
+	const body = visible + output.slice(run, i) + (discarded ? `\n[PTY output: discarded ${discarded} characters of oversized escape sequences to advance the cursor]` : "");
 	if (i === length) return { content: body, truncated: false, remainder: "" };
 	if (held) return { content: body, truncated: false, remainder: output.slice(i) };
 	return {

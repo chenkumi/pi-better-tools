@@ -25,6 +25,58 @@ test("RPC correlation checks IDs/commands and enforces bounded outstanding reque
 		await assert.rejects(pipe.request("get_state"), /CAPACITY/); pipe.dispose(); await Promise.all(pending);
 	} finally { pipe.dispose(); h.proc.emit("close"); h.proc.stdin.destroy(); }
 });
+test("RPC diagnostics observe write and matching response without retaining command parameters", async () => {
+	const h = child(), events: any[] = [], diagnostics = new EventEmitter();
+	const writeCompleted = once(diagnostics, "write_completed");
+	const pipe = new RpcPipe(h.proc, event => { events.push(event); if (event.event === "write_completed") diagnostics.emit("write_completed"); });
+	try {
+		const written = h.nextCommand(); const result = pipe.request("prompt", { message: "SECRET_TASK_PAYLOAD" }); const command = await written;
+		await writeCompleted; // Writable completion is a separate observable event, not a microtask count.
+		pipe.accept({ type: "response", id: "unknown", command: "prompt", success: true, data: "SECRET_REPLY" });
+		pipe.accept({ type: "response", id: command.id, command: "prompt", success: true, data: { disposition: "started" } });
+		assert.deepEqual(await result, { disposition: "started" });
+		assert.ok(events.some(event => event.event === "queued" && event.deadlineMs === 30000));
+		assert.ok(events.some(event => event.event === "write_started" && event.id === command.id));
+		assert.ok(events.some(event => event.event === "write_completed" && event.id === command.id));
+		assert.ok(events.some(event => event.event === "unmatched_response" && event.id === undefined));
+		assert.ok(events.some(event => event.event === "response" && event.id === command.id && event.success === true));
+		assert.doesNotMatch(JSON.stringify(events), /SECRET_TASK_PAYLOAD|SECRET_REPLY/);
+	} finally { pipe.dispose(); h.proc.emit("close"); h.proc.stdin.destroy(); }
+});
+test("RPC diagnostics cannot affect correlation or transport disposal when the observer throws", async () => {
+	const h = child(); let observed = 0;
+	const pipe = new RpcPipe(h.proc, () => { observed++; throw new Error("observer failure"); });
+	try {
+		const written = h.nextCommand(); const result = pipe.request("get_state"); const command = await written;
+		pipe.accept({ type: "response", id: command.id, command: "get_state", success: true, data: { sessionId: "verified" } });
+		assert.deepEqual(await result, { sessionId: "verified" });
+		const pending = pipe.request("get_entries"); const rejected = assert.rejects(pending, /RPC_CLOSED/);
+		pipe.dispose(); await rejected;
+		assert.ok(observed > 0);
+	} finally { pipe.dispose(); h.proc.emit("close"); h.proc.stdin.destroy(); }
+});
+test("RPC deadline diagnostics preserve the 30000 ms budget and do not revive expired responses", async t => {
+	const realTimeout = globalThis.setTimeout, realClear = globalThis.clearTimeout;
+	const timers: Array<{ callback: () => void; cleared: boolean }> = [], events: any[] = [];
+	t.mock.method(globalThis, "setTimeout", ((callback: () => void, ms: number, ...args: any[]) => {
+		if (ms !== 30000) return realTimeout(callback, ms, ...args);
+		const timer = { callback, cleared: false }; timers.push(timer); return timer;
+	}) as any);
+	t.mock.method(globalThis, "clearTimeout", ((timer: any) => {
+		if (timers.includes(timer)) timer.cleared = true; else realClear(timer);
+	}) as any);
+	const h = child(), pipe = new RpcPipe(h.proc, event => events.push(event));
+	try {
+		const written = h.nextCommand(), pending = pipe.request("get_state");
+		const rejected = assert.rejects(pending, /RPC_DEADLINE: get_state response not received/);
+		assert.equal(timers.length, 1); assert.equal(h.commands.length, 0, "budget starts before write/ready");
+		const command = await written; timers[0].callback(); await rejected;
+		assert.ok(events.some(event => event.event === "deadline" && event.id === command.id && event.deadlineMs === 30000));
+		pipe.accept({ type: "response", id: command.id, command: "get_state", success: true, data: { sessionId: "too late" } });
+		assert.equal(events.at(-1).event, "unmatched_response");
+		assert.equal(events.some(event => event.event === "response"), false, "expiry has no matched reply and cannot revive");
+	} finally { pipe.dispose(); h.proc.emit("close"); h.proc.stdin.destroy(); t.mock.restoreAll(); }
+});
 test("literal controls are FIFO; queued acknowledgements never count as applied", async () => {
 	const h = child(); const notices: any[] = []; const handle = new RpcInteraction(h.proc, "token", "offline/model", notice => notices.push(notice)); handle.start();
 	try {

@@ -61,8 +61,8 @@ async function isolated(name:string,fn:(root:string,out:string)=>Promise<void>){
 }
 for(const logical of [false,true])test(`P0 actual CLI new/exact-file resume (${logical?"virtual":"physical"})`,{skip:!cli&&"Set PI_SUBAGENTS_TEST_CLI; skipped is not a pass",timeout:240000},async()=>isolated(logical?"virtual":"physical",async(root,out)=>{
  const version=await new Promise<string>((done,reject)=>{const p=spawn(process.execPath,[resolve(cli!),"--version"],{stdio:["ignore","pipe","pipe"],env:{...process.env,PI_CODING_AGENT_DIR:join(root,"config"),PI_OFFLINE:"1"}});let s="";p.stdout.on("data",b=>s+=b);p.on("error",reject);p.on("close",code=>code===0?done(s.trim()):reject(Error(`version exit ${code}`)));});assert.equal(version,expectedPiVersion);await save(join(out,"host.json"),{version,node:process.version,platform:process.platform,cli});
- const anchorId=ulid().toLowerCase();const anchor=await invoke(root,"anchor","anchor",["--session-id",anchorId],["--model","p0-offline/physical","--thinking","off"],"P0 picker anchor");success(anchor);
- const id=ulid().toLowerCase(),dir=join(root,"config/subagent-sessions",id,"pi");await mkdir(dir,{recursive:true});
+ const anchorId=ulid().toUpperCase();const anchor=await invoke(root,"anchor","anchor",["--session-id",anchorId],["--model","p0-offline/physical","--thinking","off"],"P0 picker anchor");success(anchor);
+ const id=ulid().toUpperCase(),dir=join(root,"config/subagent-sessions",id,"pi");await mkdir(dir,{recursive:true});
  const model=logical?"p0-router/logical":"p0-offline/physical";
  const fixed=["--model",model,"--thinking","high"];
  const first=await invoke(root,"new","new",["--session-dir",dir,"--session-id",id],fixed);success(first);

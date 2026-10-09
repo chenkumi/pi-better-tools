@@ -12,8 +12,8 @@ export const MAX_NATIVE_BYTES = 128 * 1024 * 1024;
 export const MAX_SESSION_DISK_BYTES = 512 * 1024 * 1024;
 export const MAX_SESSION_FILES = 10_000;
 const MAX_NATIVE_ENTRIES = 16_384;
-// New IDs are lowercase ULIDs; legacy lowercase UUIDs stay valid so existing sessions can resume.
-const SESSION_ID = /^(?:[0-9a-hjkmnp-tv-z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
+// New IDs are uppercase ULIDs; legacy lowercase ULIDs/UUIDs remain valid without rewriting identity.
+const SESSION_ID = /^(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-hjkmnp-tv-z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 export type SessionState = "new" | "running" | "committing" | "ready" | "blocked";
 export class SessionError extends Error {
 	readonly code: string;
@@ -106,7 +106,7 @@ async function readJson(file: string): Promise<any> { return JSON.parse(await re
 async function atomicJson(file: string, value: unknown, active: () => boolean = () => true): Promise<void> {
 	const text = JSON.stringify(value, null, 2) + "\n";
 	if (Buffer.byteLength(text) > MAX_METADATA_BYTES) fail("METADATA_UNSUPPORTED", "Serialized metadata exceeds capacity");
-	const temp = `${file}.${ulid().toLowerCase()}.partial`;
+	const temp = `${file}.${ulid().toUpperCase()}.partial`;
 	const handle = await fs.promises.open(temp, "wx", 0o600);
 	try { await handle.writeFile(text); await handle.sync(); } finally { await handle.close(); }
 	if (!active()) fail("COMMIT_FAILED", "I/O deadline elapsed before metadata publish");
@@ -226,6 +226,12 @@ async function inspectNative(file: string, id: string, cwd: string, since: numbe
 	} finally { stream.destroy(); }
 }
 
+/** Nonces of writer locks held by this process; a same-pid lock whose nonce is absent here has no live in-process owner. */
+// Keep ownership across extension reloads / duplicate loader instances in this process.
+const lockRegistryKey = Symbol.for("pi-better-tools.subagents.live-writer-locks");
+const lockRegistry = globalThis as typeof globalThis & { [lockRegistryKey]?: Set<string> };
+const liveLockNonces = lockRegistry[lockRegistryKey] ??= new Set<string>();
+
 export class ManagedSession {
 	private lock?: WriterLock;
 	private run?: RunIntent;
@@ -242,7 +248,7 @@ export class ManagedSession {
 	}
 	static async allocate(root: string, owner: SessionOwner, config: SavedConfig): Promise<ManagedSession> {
 		await fs.promises.mkdir(root, { recursive: true, mode: 0o700 }); root = await fs.promises.realpath(root);
-		const id = ulid().toLowerCase(), directory = path.join(root, id), timestamp = new Date().toISOString();
+		const id = ulid().toUpperCase(), directory = path.join(root, id), timestamp = new Date().toISOString();
 		await fs.promises.mkdir(directory, { mode: 0o700 });
 		await fs.promises.mkdir(path.join(directory, "pi"), { mode: 0o700 });
 		await fs.promises.mkdir(path.join(directory, "runs"), { mode: 0o700 });
@@ -252,7 +258,7 @@ export class ManagedSession {
 		return new ManagedSession(root, directory, manifest);
 	}
 	static async resolve(root: string, id: string, owner: SessionOwner): Promise<ManagedSession> {
-		if (!SESSION_ID.test(id)) fail("INVALID_DISPATCH", "resume requires a complete lowercase session ID (ULID or legacy UUID), not a path or partial ID");
+		if (!SESSION_ID.test(id)) fail("INVALID_DISPATCH", "resume requires a complete session ID (uppercase ULID or legacy lowercase ULID/UUID), not a path or partial ID");
 		try { root = await fs.promises.realpath(root); } catch { return fail("SESSION_NOT_FOUND", id); }
 		const directory = path.join(root, id);
 		let m: unknown;
@@ -262,14 +268,51 @@ export class ManagedSession {
 		if (m.owner.parentSessionId !== owner.parentSessionId || m.owner.parentCwd !== owner.parentCwd) fail("OWNER_MISMATCH", "Continuation belongs to a different parent session/cwd");
 		return new ManagedSession(root, directory, m);
 	}
-	/** A lock is stale only when its recorded owner pid (another process) is provably gone. */
+	/** A lock is stale only when its recorded owner pid is provably gone, or it is ours (same pid) but no live in-process owner registered its nonce. */
 	private async lockIsStale(): Promise<boolean> {
 		try {
 			const file = path.join(this.directory, "writer.lock", "owner.json");
 			await contained(this.root, file);
 			const owner = await readJson(file);
-			return record(owner) && Number.isSafeInteger(owner.pid) && owner.pid > 0 && owner.pid !== process.pid && !pidAlive(owner.pid);
+			return record(owner) && Number.isSafeInteger(owner.pid) && owner.pid > 0 && (owner.pid === process.pid ? typeof owner.nonce === "string" && !liveLockNonces.has(owner.nonce) : !pidAlive(owner.pid));
 		} catch { return false; }
+	}
+	/** Exclusive read lease using the existing writer fence. Unlike acquire(),
+	 * query never recovers stale ownership, truncates files or publishes state. */
+	async acquireQueryLease(taskId: string): Promise<void> {
+		if (!SESSION_ID.test(taskId)) fail("INVALID_DISPATCH", "Invalid internal query ID");
+		await contained(this.root, this.directory);
+		const lockDir = path.join(this.directory, "writer.lock");
+		try { await fs.promises.mkdir(lockDir, { mode: 0o700 }); }
+		catch (error) { if ((error as NodeJS.ErrnoException).code === "EEXIST") fail("SESSION_BUSY", "Writer/read lease exists; query never takes over or recovers a writer"); throw error; }
+		this.lock = { nonce: ulid().toUpperCase(), taskId, pid: process.pid, createdAt: new Date().toISOString() };
+		liveLockNonces.add(this.lock.nonce);
+		try { await atomicJson(path.join(lockDir, "owner.json"), this.lock); }
+		catch (error) {
+			await fs.promises.rm(lockDir, { recursive: true }); liveLockNonces.delete(this.lock.nonce); this.lock = undefined;
+			throw error;
+		}
+	}
+	/** Read exactly the verified checkpoint, bounded independently of the larger
+	 * continuation file policy. Caller holds the lease until actual owned cleanup. */
+	async readQuerySnapshot(): Promise<Buffer> {
+		await this.assertLock();
+		await this.validateCheckpoint();
+		const limit = 8 * 1024 * 1024, cp = this.manifest.checkpoint!;
+		if (cp.nativeBytes > limit) fail("SNAPSHOT_CAPACITY", "Query checkpoint exceeds 8 MiB");
+		const file = path.join(this.directory, this.manifest.nativeFile!);
+		await contained(this.root, file);
+		const handle = await fs.promises.open(file, "r");
+		try {
+			const buffer = Buffer.alloc(cp.nativeBytes + 1); let length = 0;
+			while (length < buffer.length) {
+				const { bytesRead } = await handle.read(buffer, length, buffer.length - length, null);
+				if (!bytesRead) break; length += bytesRead;
+			}
+			if (length !== cp.nativeBytes || sha256(buffer.subarray(0, length)) !== cp.nativeSha256) fail("CHECKPOINT_MISMATCH", "Query checkpoint changed during capture");
+			await this.assertLock();
+			return buffer.subarray(0, length);
+		} finally { await handle.close(); }
 	}
 	async assertResumable(): Promise<void> {
 		try { await fs.promises.lstat(path.join(this.directory, "writer.lock")); }
@@ -296,12 +339,13 @@ export class ManagedSession {
 				if ((e as any).code !== "EEXIST") throw e;
 				if (attempt > 0 || !(await this.lockIsStale())) return fail("SESSION_BUSY", "Writer lock exists; no automatic takeover");
 				// Atomic rename elects a single winner when several processes find the same dead owner.
-				const stale = `${lockDir}.stale-${ulid().toLowerCase()}`;
+				const stale = `${lockDir}.stale-${ulid().toUpperCase()}`;
 				try { await fs.promises.rename(lockDir, stale); await fs.promises.rm(stale, { recursive: true, force: true }); recovered = true; }
 				catch (renameError) { if ((renameError as any).code !== "ENOENT") throw renameError; }
 			}
 		}
-		this.lock = { nonce: ulid().toLowerCase(), taskId, pid: process.pid, createdAt: new Date().toISOString() };
+		this.lock = { nonce: ulid().toUpperCase(), taskId, pid: process.pid, createdAt: new Date().toISOString() };
+		liveLockNonces.add(this.lock.nonce);
 		await atomicJson(path.join(lockDir, "owner.json"), this.lock);
 		if (recovered && !(await this.rollbackToCheckpoint(() => true))) {
 			await this.release().catch(() => undefined);
@@ -366,7 +410,7 @@ export class ManagedSession {
 		if (!this.lock) return;
 		const owner = await readJson(path.join(this.directory, "writer.lock", "owner.json"));
 		if (owner.nonce !== this.lock.nonce) fail("SESSION_BUSY", "Writer lock ownership changed; not releasing");
-		await fs.promises.rm(path.join(this.directory, "writer.lock"), { recursive: true }); this.lock = undefined;
+		await fs.promises.rm(path.join(this.directory, "writer.lock"), { recursive: true }); liveLockNonces.delete(this.lock.nonce); this.lock = undefined;
 	}
 	async validateCheckpoint(): Promise<void> {
 		const m = await readJson(path.join(this.directory, "manifest.json")); validateManifest(m, this.id); this.manifest = m;

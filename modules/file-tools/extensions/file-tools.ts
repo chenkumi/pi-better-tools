@@ -23,6 +23,7 @@ import {
 import { resolveToolPath } from "../src/path-utils.js";
 import { findUniqueSkillFallbackPath } from "../src/skill-paths.js";
 import { hintMissingSubagentLog } from "../src/subagent-log-paths.js";
+import { registerSearchTools } from "../src/search-tools.js";
 
 const HASH_PATTERN = `^(missing|[a-fA-F0-9]{${SHA256_TOKEN_LENGTH}}|[a-fA-F0-9]{64})$`;
 const strictObject = { additionalProperties: false } as const;
@@ -447,11 +448,11 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
     promptGuidelines: [
       "Use read before edit to obtain the latest 32-character SHA-256 version token as expectedHash and the exact text. Omit lineRange when oldText is unique; use lineRange only to disambiguate or limit the search scope.",
       "When copying oldText from read output, omit the '<line>│' display prefix because it is metadata, not file content.",
-      "To search file contents use shell rg, then read the relevant range with offset/limit.",
       "If read reports READ_CONTINUATION, continue with the supplied nextOffset before assuming the file was fully inspected.",
       "A missing live subagent transcript may include a same-directory final-path recovery hint. Retry that path explicitly; missing logs do not prove job completion.",
     ],
     parameters: readSchema,
+    outputSchema: builtinRead.outputSchema,
     constrainedSampling: { type: "json_schema", strict: "prefer" },
     prepareArguments: prepareWithFailureLogging(debugLog, "read", prepareReadArguments),
     renderCall: builtinRead.renderCall,
@@ -513,6 +514,7 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
           : result.text;
         return {
           content: [{ type: "text", text }],
+          structuredContent: text,
           details: {
             ...result.details,
             ...(autoCorrected ? { pathAutoCorrected: true, requestedPath: params.path } : {}),
@@ -654,4 +656,6 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
       });
     },
   });
+
+  registerSearchTools(pi);
 }

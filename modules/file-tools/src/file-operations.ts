@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { ulid } from "ulid";
 import { constants as fsConstants } from "node:fs";
 import { access, link, lstat, mkdir, open, readFile, rename, rmdir, stat, unlink } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { Worker } from "node:worker_threads";
 import { createDiffFeedback } from "./diff-runner.js";
 import { FileToolError, abortIfRequested, classifyFsError } from "./errors.js";
@@ -108,6 +108,8 @@ interface MutationSnapshot {
   buffer?: Buffer;
   hash?: string;
   mode?: number;
+  /** size:mtimeMs:ino at snapshot time; a cheap last-moment check, never a substitute for the hash. */
+  fingerprint?: string;
 }
 
 interface RegexMatch {
@@ -308,8 +310,11 @@ function collectLiteralMatches(
 }
 
 const REGEX_WORKER_SOURCE = String.raw`
-const { parentPort, workerData } = require("node:worker_threads");
+const { parentPort } = require("node:worker_threads");
+let cachedText = "";
+parentPort.on("message", (workerData) => {
 try {
+  if (workerData.text !== undefined) cachedText = workerData.text;
   parentPort.postMessage({ type: "started" });
   const expression = new RegExp(workerData.pattern, workerData.flags + "g");
   const matches = [];
@@ -317,7 +322,7 @@ try {
   let tooMany = false;
   let tooLarge = false;
   while (true) {
-    const match = expression.exec(workerData.text);
+    const match = expression.exec(cachedText);
     if (match === null) break;
     const captures = Array.prototype.slice.call(match, 1);
     const groups = match.groups;
@@ -335,9 +340,9 @@ try {
     }
     if (match[0] === "") {
       const index = expression.lastIndex;
-      if (expression.unicode && index < workerData.text.length) {
-        const first = workerData.text.charCodeAt(index);
-        const second = index + 1 < workerData.text.length ? workerData.text.charCodeAt(index + 1) : 0;
+      if (expression.unicode && index < cachedText.length) {
+        const first = cachedText.charCodeAt(index);
+        const second = index + 1 < cachedText.length ? cachedText.charCodeAt(index + 1) : 0;
         expression.lastIndex += first >= 0xD800 && first <= 0xDBFF && second >= 0xDC00 && second <= 0xDFFF ? 2 : 1;
       } else {
         expression.lastIndex += 1;
@@ -354,7 +359,14 @@ try {
 } catch (error) {
   parentPort.postMessage({ type: "invalid", message: error instanceof Error ? error.message : String(error) });
 }
+});
 `;
+
+/** Scoped to one edit validation: no idle workers or retained file data after the call. */
+interface RegexSession {
+  worker?: Worker;
+  text?: string;
+}
 
 function validateRegexConfiguration(pattern: string, flags: string, displayPath: string, editIndex: number): void {
   if (pattern.length > MAX_REGEX_PATTERN_LENGTH) {
@@ -389,7 +401,8 @@ async function collectRegexMatches(
   displayPath: string,
   editIndex: number,
   timeoutMs: number,
-  signal?: AbortSignal,
+  signal: AbortSignal | undefined,
+  session: RegexSession,
 ): Promise<RegexMatch[]> {
   validateRegexConfiguration(pattern, flags, displayPath, editIndex);
   abortIfRequested(signal);
@@ -402,24 +415,23 @@ async function collectRegexMatches(
   }
 
   return new Promise<RegexMatch[]>((resolve, reject) => {
-    const worker = new Worker(REGEX_WORKER_SOURCE, {
-      eval: true,
-      workerData: {
-        text,
-        pattern,
-        flags,
-        maxMatches: MAX_REGEX_MATCHES,
-        maxPayloadBytes: MAX_EDIT_RESULT_BYTES,
-      },
-    });
+    const worker = session.worker ??= new Worker(REGEX_WORKER_SOURCE, { eval: true });
     let settled = false;
     let timer: ReturnType<typeof setTimeout>;
-    const finish = (action: () => void) => {
+    const finish = (action: () => void, keepWorker = false) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
-      void worker.terminate().then(action, action);
+      const complete = () => {
+        worker.removeListener("message", onMessage);
+        worker.removeListener("error", onError);
+        worker.removeListener("exit", onExit);
+        action();
+      };
+      if (keepWorker) complete();
+      // Keep the guarded error listener until termination completes, including abort/error races.
+      else void worker.terminate().then(complete, complete);
     };
     const onAbort = () => finish(() => reject(new FileToolError("OPERATION_ABORTED", "The edit operation was aborted.", {
       path: displayPath,
@@ -435,19 +447,14 @@ async function collectRegexMatches(
     // execution budget restarts when the worker reports it began, bounded by a start-up grace.
     timer = setTimeout(onTimeout, timeoutMs + REGEX_STARTUP_GRACE_MS);
 
-    signal?.addEventListener("abort", onAbort, { once: true });
-    if (signal?.aborted) {
-      onAbort();
-      return;
-    }
-    worker.on("message", (message: { type?: string; matches?: RegexMatch[]; count?: number; message?: string }) => {
+    const onMessage = (message: { type?: string; matches?: RegexMatch[]; count?: number; message?: string }) => {
       if (message.type === "started") {
         if (!settled) {
           clearTimeout(timer);
           timer = setTimeout(onTimeout, timeoutMs);
         }
       } else if (message.type === "matches" && Array.isArray(message.matches)) {
-        finish(() => resolve(message.matches!));
+        finish(() => resolve(message.matches!), true);
       } else if (message.type === "too_many") {
         finish(() => reject(new FileToolError("TOO_MANY_MATCHES", `edits[${editIndex}] exceeded the match limit.`, {
           path: displayPath,
@@ -468,21 +475,40 @@ async function collectRegexMatches(
           recovery: "Correct the ECMAScript regular expression and retry.",
         })));
       }
-    });
-    worker.once("error", (error) => finish(() => reject(new FileToolError("IO_ERROR", `Regex worker failed: ${error.message}`, {
+    };
+    const onError = (error: Error) => finish(() => reject(new FileToolError("IO_ERROR", `Regex worker failed: ${error.message}`, {
       path: displayPath,
       editIndex,
       recovery: "Retry the operation or use literal oldText.",
-    }))));
-    worker.once("exit", (code) => {
-      if (!settled && code !== 0) {
+    })));
+    const onExit = (code: number) => {
+      if (!settled) {
         finish(() => reject(new FileToolError("IO_ERROR", `Regex worker exited with code ${code}.`, {
           path: displayPath,
           editIndex,
           recovery: "Retry the operation or use literal oldText.",
         })));
       }
-    });
+    };
+    worker.on("message", onMessage);
+    worker.once("error", onError);
+    worker.once("exit", onExit);
+    signal?.addEventListener("abort", onAbort, { once: true });
+    if (signal?.aborted) {
+      onAbort();
+      return;
+    }
+    // Reuse the previous search scope without cloning it again. A changed lineRange sends a
+    // fresh independent string, preserving anchors/lookaround and template prefix/suffix rules.
+    try {
+      worker.postMessage({
+        ...(session.text === text ? {} : { text }),
+        pattern, flags, maxMatches: MAX_REGEX_MATCHES, maxPayloadBytes: MAX_EDIT_RESULT_BYTES,
+      });
+      session.text = text;
+    } catch (error) {
+      onError(error instanceof Error ? error : new Error(String(error)));
+    }
   });
 }
 
@@ -763,6 +789,10 @@ export async function readTextFile(
   }
 }
 
+function statFingerprint(fileStat: { size: number; mtimeMs: number; ino: number | bigint }): string {
+  return `${fileStat.size}:${fileStat.mtimeMs}:${fileStat.ino}`;
+}
+
 async function readMutationSnapshot(absolutePath: string, displayPath: string): Promise<MutationSnapshot> {
   try {
     const fileStat = await lstat(absolutePath);
@@ -810,7 +840,7 @@ async function readMutationSnapshot(absolutePath: string, displayPath: string): 
       throw error;
     }
     assertInputSize(buffer.length, displayPath);
-    return { exists: true, buffer, hash: sha256(buffer), mode: fileStat.mode };
+    return { exists: true, buffer, hash: sha256(buffer), mode: fileStat.mode, fingerprint: statFingerprint(fileStat) };
   } catch (error) {
     if (error instanceof FileToolError) throw error;
     const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
@@ -853,13 +883,36 @@ function verifyExpectedHash(current: MutationSnapshot, expectedHash: string | un
   }
 }
 
-async function verifySnapshotUnchanged(absolutePath: string, displayPath: string, snapshot: MutationSnapshot): Promise<void> {
+async function verifySnapshotUnchanged(absolutePath: string, displayPath: string, snapshot: MutationSnapshot): Promise<MutationSnapshot> {
   const latest = await readMutationSnapshot(absolutePath, displayPath);
   if (snapshot.exists !== latest.exists || snapshot.hash !== latest.hash) {
     throw new FileToolError("STALE_FILE", "The file changed while the operation was being prepared; refusing to commit.", {
       path: displayPath,
       expectedHash: snapshot.exists ? shortenHash(snapshot.hash) : "missing",
       actualHash: latest.exists ? shortenHash(latest.hash) : "missing",
+      recovery: "Read the file again and retry the operation.",
+    });
+  }
+  return latest;
+}
+
+/**
+ * Last check immediately before rename: the hash was verified from a full re-read, so re-stat the
+ * target and refuse if size/mtime/inode moved while that read was in flight. This only narrows the
+ * unavoidable check-then-rename window; the hash comparison above is unchanged.
+ */
+async function verifyFingerprintUnchanged(absolutePath: string, displayPath: string, latest: MutationSnapshot): Promise<void> {
+  if (!latest.exists || latest.fingerprint === undefined) return;
+  let current: string | undefined;
+  try {
+    current = statFingerprint(await lstat(absolutePath));
+  } catch {
+    current = undefined;
+  }
+  if (current !== latest.fingerprint) {
+    throw new FileToolError("STALE_FILE", "The file changed immediately before commit; refusing to overwrite it.", {
+      path: displayPath,
+      expectedHash: shortenHash(latest.hash),
       recovery: "Read the file again and retry the operation.",
     });
   }
@@ -898,18 +951,30 @@ async function syncHandle(handle: Awaited<ReturnType<typeof open>>): Promise<voi
   }
 }
 
-async function renameWithRetry(from: string, to: string, signal?: AbortSignal): Promise<void> {
-  const attempts = process.platform === "win32" ? 5 : 1;
+// Windows sharing violations (antivirus/indexer/search) can hold a file for seconds: total backoff ~3.1s.
+const WINDOWS_RENAME_ATTEMPTS = 12;
+const WINDOWS_RENAME_MAX_DELAY_MS = 500;
+const RENAME_RETRY_CODES = new Set(["EPERM", "EBUSY", "EACCES"]);
+
+async function renameWithRetry(
+  from: string,
+  to: string,
+  signal?: AbortSignal,
+  beforeRetry?: () => Promise<void>,
+): Promise<void> {
+  const attempts = process.platform === "win32" ? WINDOWS_RENAME_ATTEMPTS : 1;
   for (let attempt = 1; ; attempt++) {
     try {
       await rename(from, to);
       return;
     } catch (error) {
       const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
-      // Windows reports transient sharing violations (antivirus/indexer) as EPERM/EBUSY.
-      if (attempt >= attempts || (code !== "EPERM" && code !== "EBUSY")) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 20 * attempt));
+      // Windows reports transient sharing violations (antivirus/indexer) as EPERM/EBUSY/EACCES.
+      if (attempt >= attempts || typeof code !== "string" || !RENAME_RETRY_CODES.has(code)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, Math.min(50 * attempt, WINDOWS_RENAME_MAX_DELAY_MS)));
       abortIfRequested(signal);
+      // The file may have changed while we waited; the hash check must hold for every attempt.
+      await beforeRetry?.();
     }
   }
 }
@@ -942,7 +1007,7 @@ async function atomicWrite(
   abortIfRequested(signal);
   const directory = dirname(absolutePath);
   const createdRoot = await mkdir(directory, { recursive: true });
-  const temporaryPath = `${absolutePath}.pi-file-tools-${process.pid}-${ulid().toLowerCase()}.tmp`;
+  const temporaryPath = join(directory, `.pi-ft-${ulid().toUpperCase()}.tmp`);
   let temporaryHandle: Awaited<ReturnType<typeof open>> | undefined;
   let temporaryCreated = false;
   let committed = false;
@@ -958,10 +1023,16 @@ async function atomicWrite(
     await temporaryHandle.close();
     temporaryHandle = undefined;
     abortIfRequested(signal);
-    await verifySnapshotUnchanged(absolutePath, displayPath, snapshot);
+    const verified = await verifySnapshotUnchanged(absolutePath, displayPath, snapshot);
     abortIfRequested(signal);
     if (snapshot.exists) {
-      await renameWithRetry(temporaryPath, absolutePath, signal);
+      await verifyFingerprintUnchanged(absolutePath, displayPath, verified);
+      abortIfRequested(signal);
+      await renameWithRetry(temporaryPath, absolutePath, signal, async () => {
+        const retried = await verifySnapshotUnchanged(absolutePath, displayPath, snapshot);
+        await verifyFingerprintUnchanged(absolutePath, displayPath, retried);
+        abortIfRequested(signal);
+      });
       committed = true;
     } else {
       const staleError = () => new FileToolError("STALE_FILE", "The target path appeared during file creation; refusing to replace it.", {
@@ -1072,7 +1143,8 @@ async function collectOperationMatches(
   displayPath: string,
   editIndex: number,
   regexDeadline: number,
-  signal?: AbortSignal,
+  signal: AbortSignal | undefined,
+  session: RegexSession,
 ): Promise<RegexMatch[]> {
   if (edit.oldText !== undefined) {
     return collectLiteralMatches(content, normalizeLf(edit.oldText), displayPath, editIndex);
@@ -1085,6 +1157,7 @@ async function collectOperationMatches(
     editIndex,
     regexDeadline - Date.now(),
     signal,
+    session,
   );
 }
 
@@ -1094,6 +1167,22 @@ async function validateEdits(
   edits: EditOperation[],
   displayPath: string,
   signal?: AbortSignal,
+): Promise<MatchedEdit[]> {
+  const session: RegexSession = {};
+  try {
+    return await validateEditsWithSession(view, map, edits, displayPath, signal, session);
+  } finally {
+    await session.worker?.terminate();
+  }
+}
+
+async function validateEditsWithSession(
+  view: NormalizedView,
+  map: LineMap,
+  edits: EditOperation[],
+  displayPath: string,
+  signal: AbortSignal | undefined,
+  session: RegexSession,
 ): Promise<MatchedEdit[]> {
   const matched: MatchedEdit[] = [];
   let changedReplacementBytes = 0;
@@ -1173,14 +1262,14 @@ async function validateEdits(
       ? view.text.slice(rangeStart, lineContentEnd(map, lineRange.end - 1))
       : view.text;
     const regexDeadline = Math.min(deadline, Date.now() + REGEX_TIMEOUT_MS);
-    let operationMatches = await collectOperationMatches(rangeContent, edit, displayPath, editIndex, regexDeadline, signal);
+    let operationMatches = await collectOperationMatches(rangeContent, edit, displayPath, editIndex, regexDeadline, signal, session);
     assertEditDeadline(deadline, displayPath, editIndex);
 
     if (operationMatches.length === 0) {
       let candidates: RegexMatch[] = [];
       if (lineRange && rangeContent.length !== view.text.length) {
         const candidateRegexDeadline = Math.min(deadline, Date.now() + REGEX_TIMEOUT_MS);
-        candidates = await collectOperationMatches(view.text, edit, displayPath, editIndex, candidateRegexDeadline, signal);
+        candidates = await collectOperationMatches(view.text, edit, displayPath, editIndex, candidateRegexDeadline, signal, session);
       }
       assertEditDeadline(deadline, displayPath, editIndex);
       if (lineRange && edit.oldText !== undefined && candidates.length === 1) {

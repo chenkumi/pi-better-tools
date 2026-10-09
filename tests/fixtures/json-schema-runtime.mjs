@@ -45,7 +45,7 @@ async function run(name, scenario, extra = [], expected = { name: 'Acme', count:
       child.on('error', error => { clearTimeout(timer); clearTimeout(escalation); reject(error); });
       child.on('close', (code, signal) => {
         clearTimeout(timer); clearTimeout(escalation);
-        if (timedOut) reject(new Error(`${name} timed out (owned child exited; code=${code}, signal=${signal})`));
+        if (timedOut) reject(new Error(`${name} timed out (owned child exited; code=${code}, signal=${signal}); stdout=${stdout.slice(-8000)}; stderr=${stderr.slice(-8000)}`));
         else resolve({ code, signal, stdout, stderr });
       });
     });

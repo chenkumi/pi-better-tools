@@ -52,7 +52,7 @@ export async function writeSubagentDebugFailure(
 	await fs.chmod(logsDir, 0o700);
 	const createdAt = (options.now ?? new Date()).toISOString();
 	const timestamp = createdAt.replace(/[:.]/gu, "-");
-	const filePath = path.join(logsDir, `${timestamp}-${failure.taskId}-${ulid().toLowerCase()}.json`);
+	const filePath = path.join(logsDir, `${timestamp}-${failure.taskId}-${ulid().toUpperCase()}.json`);
 	const record = {
 		version: 1,
 		createdAt,

@@ -9,10 +9,15 @@ import {
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { Text } from "@earendil-works/pi-tui";
+import { Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { stripVTControlCharacters } from "node:util";
 
 import { ShellJobs, compactJob, idleTimeoutMessage } from "../src/background-jobs.js";
+import { registerBackgroundLifecycleGuidance } from "../src/background-guidance.js";
+import { registerApiInterruptionRenderer } from "../src/api-interruption-renderer.js";
+import { isManagedForegroundChild } from "../src/managed-child.js";
+import { createShellMonitorPublisher } from "../src/monitor-publisher.js";
+import { renderShellCompletion, renderShellJobResult } from "../src/completion-renderer.js";
 
 /** Polling a running job repeats this text each time; keep it short (full tail stays in structuredContent). */
 const RUNNING_TAIL_CHARS = 2000;
@@ -26,20 +31,36 @@ import {
 const display = (text: string, limit: number) => stripVTControlCharacters(text.slice(0, limit))
   .replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/g, "");
 
+const COMMAND_PREVIEW_ROWS = 5;
+
+/** A Text subclass preserves the host's setText/reuse contract and timing state. */
+class ShellCommandPreview extends Text {
+  omission = "...";
+
+  override render(width: number): string[] {
+    if (width <= 0) return [];
+    const rows = super.render(width);
+    if (rows.length <= COMMAND_PREVIEW_ROWS) return rows;
+    // Count actual wrapped terminal rows; the omission row is inside the budget.
+    return [...rows.slice(0, COMMAND_PREVIEW_ROWS - 1), truncateToWidth(this.omission, width)];
+  }
+}
+
 const parameters = Type.Object({
   command: Type.String({ description: "Shell command to execute" }),
   background: Type.Optional(Type.Boolean({ description: "Run as a background job: returns a receipt at once and wakes this session on completion. Cancelled on quit, reload or session replacement." })),
   timeoutMs: Type.Optional(
     Type.Integer({
       description:
-        "Idle (stall) timeout in ms: the command is killed after this long with no stdout/stderr output; any output resets it. Omit for no timeout. Not a total time limit: continuous output never times out, while quiet long commands (sleep, silent builds) are killed.",
+        "Idle (stall) timeout in ms: the command is killed after this long with no stdout/stderr output; any output resets it. The timer starts when the command is launched, so process startup counts toward the first output: use a generous value (several seconds). Omit for no timeout. Not a total time limit: continuous output never times out, while quiet long commands (sleep, silent builds) are killed.",
       minimum: 1,
       maximum: MAX_TIMEOUT_MS,
     }),
   ),
 }, { additionalProperties: false });
 
-function withIdleTimeout(operations: BashOperations): BashOperations {
+/** Internal pure-operation seam for deterministic timing/cancellation regression tests. */
+export function withIdleTimeout(operations: BashOperations): BashOperations {
   return {
     async exec(command, cwd, { onData, signal, timeout, env }) {
       if (timeout === undefined) {
@@ -83,7 +104,10 @@ function withIdleTimeout(operations: BashOperations): BashOperations {
 }
 
 const STALLED = /Command timed out after (\S+) seconds/;
-const stalledMessage = (message: string) => message.replace(STALLED, (_m, seconds: string) => idleTimeoutMessage(seconds));
+const stalledMessage = (message: string, foregroundOnly = false) => message.replace(STALLED, (_m, seconds: string) => {
+  const text = idleTimeoutMessage(seconds);
+  return foregroundOnly ? text.replace(/ Use background:true separately if you want asynchronous execution\./, "") : text;
+});
 
 const receiptSchema = Type.Object({
   jobId: Type.String(), status: Type.Literal("running"), liveLogPath: Type.String(),
@@ -108,13 +132,14 @@ function registerTimeoutMsOverride(
   name: "bash" | "powershell",
   createBase: typeof createBashToolDefinition | typeof createPowerShellToolDefinition,
   createConfiguredBase: (ctx: ExtensionContext, wrap?: (ops: BashOperations) => BashOperations) => ReturnType<typeof createBashToolDefinition>,
-  jobs: ShellJobs,
+  jobs: ShellJobs | undefined,
+  foregroundOnly = false,
 ) {
   // Keep the built-in renderer and tool metadata. Execution recreates the
   // built-in definition with the current session's cwd and shell settings.
   const base = createBase(process.cwd());
 
-  const timeoutGuideline = `For ${name}, timeoutMs is an idle timeout in milliseconds, not seconds and not a total limit; it resets whenever the command writes to stdout or stderr (20000 = stop after 20 seconds without output). Omit it for no timeout; quiet long commands should omit it or use background:true.`;
+  const timeoutGuideline = `For ${name}, timeoutMs is an idle timeout in milliseconds, not seconds and not a total limit; it resets whenever the command writes to stdout or stderr (20000 = stop after 20 seconds without output). The timer starts at launch, before the first output, so avoid very small values. If the command is expected to remain quiet, omit or increase timeoutMs. ${foregroundOnly ? "" : "Use background:true separately if you want asynchronous execution; background mode keeps the same idle timeout."}`;
   const platformNote = name === "bash"
     ? "On Windows bash needs Git Bash (or shellPath) and applies shellCommandPrefix."
     : "Windows only; shellCommandPrefix is not applied.";
@@ -128,9 +153,11 @@ function registerTimeoutMsOverride(
     // Override the schema, not the user's loadout. Pi activates this tool only
     // when selected by defaults, --tools, or setActiveTools().
     defaultActive: false,
-    description: `${descriptionWithoutOldTimeout} timeoutMs is an idle timeout in ms. background:true returns a jobId/liveLogPath receipt (no exit code) and reports completion automatically; shell_job_status/cancel need explicit selection. ${platformNote}`,
-    parameters,
-    outputSchema: Type.Union([base.outputSchema!, receiptSchema]),
+    description: foregroundOnly
+      ? `${descriptionWithoutOldTimeout} timeoutMs is an idle timeout in ms. Commands run synchronously until completion. ${platformNote}`
+      : `${descriptionWithoutOldTimeout} timeoutMs is an idle timeout in ms. background:true returns a jobId/liveLogPath receipt (no exit code) and reports completion automatically; shell_job_status/cancel need explicit selection. ${platformNote}`,
+    parameters: foregroundOnly ? Type.Omit(parameters, ["background"], { additionalProperties: false }) : parameters,
+    outputSchema: foregroundOnly ? base.outputSchema! : Type.Union([base.outputSchema!, receiptSchema]),
     promptGuidelines: [...(base.promptGuidelines ?? []), timeoutGuideline],
     renderCall: base.renderCall && ((args, theme, context) => {
       const timeoutMs = args?.timeoutMs;
@@ -139,7 +166,27 @@ function registerTimeoutMsOverride(
       const renderArgs = timeoutMs === undefined
         ? args
         : { ...args, timeout: timeoutMsToRenderSeconds(timeoutMs) };
-      return base.renderCall!(renderArgs, theme, context);
+      const preview = context.lastComponent instanceof ShellCommandPreview
+        ? context.lastComponent
+        : new ShellCommandPreview("", 0, 0);
+      const timeout = (renderArgs as { timeout?: unknown } | undefined)?.timeout;
+      const timeoutSuffix = typeof timeout === "number" && Number.isFinite(timeout) && timeout > 0
+        ? ` (timeout ${timeout}s)` : "";
+      const omission = `...${timeoutSuffix}`;
+      preview.omission = theme?.fg("muted", omission) ?? omission;
+      return base.renderCall!(renderArgs, theme, { ...context, lastComponent: preview });
+    }),
+    renderResult: base.renderResult && ((result, options, theme, context) => {
+      const receipt = result.structuredContent as { jobId?: unknown; status?: unknown; liveLogPath?: unknown } | undefined;
+      if (!options.isPartial && !result.isError && !context.isError && receipt?.status === "running" && typeof receipt.jobId === "string" && typeof receipt.liveLogPath === "string") {
+        // Receipt latency is not background job duration. Do not change the host's synchronous renderer.
+        context.state.endedAt ??= Date.now();
+        if (context.state.interval) { clearInterval(context.state.interval); context.state.interval = undefined; }
+        const text = result.content.filter(part => part.type === "text").map(part => part.text).join("\n");
+        const timing = typeof context.state.startedAt === "number" ? `\nAccepted in ${((context.state.endedAt - context.state.startedAt) / 1000).toFixed(1)}s` : "";
+        return new Text(theme.fg("muted", display(text, 8192) + timing), 0, 0);
+      }
+      return base.renderResult!(result as Parameters<NonNullable<typeof base.renderResult>>[0], options, theme, context);
     }),
     async execute(toolCallId, input, signal, onUpdate, ctx) {
       const startedAt = performance.now();
@@ -160,6 +207,9 @@ function registerTimeoutMsOverride(
       };
       try {
         if (!ctx) throw new Error("Pi did not provide the shell tool execution context");
+        // Presence is rejected, even false/undefined, including direct execute
+        // calls that bypass host schema validation. No settings/backend/spawn yet.
+        if (foregroundOnly && "background" in input) throw new Error("Managed subagent Shell is foreground-only; background is not accepted.");
         // Schema validation can be skipped when AJV is unavailable, so reject the
         // legacy seconds field explicitly instead of silently running unbounded.
         if ((input as { timeout?: unknown }).timeout !== undefined) {
@@ -167,11 +217,12 @@ function registerTimeoutMsOverride(
             `${name} no longer accepts timeout (seconds); use timeoutMs in milliseconds, e.g. 20000 for 20 seconds.`,
           );
         }
-        if (input.background !== undefined && typeof input.background !== "boolean") throw new Error("background must be a boolean");
+        const backgroundInput = (input as { background?: unknown }).background;
+        if (backgroundInput !== undefined && typeof backgroundInput !== "boolean") throw new Error("background must be a boolean");
         if (typeof input.command !== "string") throw new Error("command must be a string");
         const timeout = timeoutMsToSeconds(input.timeoutMs);
         const command = input.command;
-        const background = input.background === true;
+        const background = backgroundInput === true;
         // Snapshot effective shell settings before accepting, rather than reading
         // a later turn's overrides when the deferred runner starts.
         let jobWrap: ((ops: BashOperations) => BashOperations) | undefined;
@@ -188,13 +239,14 @@ function registerTimeoutMsOverride(
           } catch (error) {
             if (background) await logFailure({ kind: "exception", error });
             if (error instanceof Error && input.timeoutMs !== undefined) {
-              const stalled = stalledMessage(error.message);
+              const stalled = stalledMessage(error.message, foregroundOnly);
               if (stalled !== error.message) throw new Error(stalled, { cause: error });
             }
             throw error;
           }
         };
         if (background) {
+          if (!jobs) throw new Error("Managed subagent Shell is foreground-only");
           const receipt = jobs.submit(ctx, name, toolCallId, signal, run, command);
           // The receipt names only what this loadout can actually do.
           let canQuery = false;
@@ -202,7 +254,7 @@ function registerTimeoutMsOverride(
           const next = canQuery
             ? "Progress: shell_job_status or read log tail. Completion is auto-reported."
             : "Progress: read log tail. Completion is auto-reported (shell_job_status/cancel not selected).";
-          return { content: [{ type: "text", text: `job ${receipt.jobId} running\nlog ${receipt.liveLogPath}\n${next}` }], details: undefined, structuredContent: receipt };
+          return { content: [{ type: "text", text: `Background job accepted; its outcome will be reported when it finishes.\njob ${receipt.jobId} running\nlog ${receipt.liveLogPath}\n${next}` }], details: undefined, structuredContent: receipt };
         }
         return await run(signal);
       } catch (error) {
@@ -210,7 +262,7 @@ function registerTimeoutMsOverride(
         // The host formats `timeout:<s>` as an absolute-timeout message, but
         // here it means an output stall. Make the message accurate.
         if (input.timeoutMs !== undefined && error instanceof Error) {
-          const stalled = stalledMessage(error.message);
+          const stalled = stalledMessage(error.message, foregroundOnly);
           if (stalled !== error.message) throw new Error(stalled, { cause: error });
         }
         throw error;
@@ -220,9 +272,24 @@ function registerTimeoutMsOverride(
 }
 
 export default function (pi: ExtensionAPI) {
+  const foregroundOnly = isManagedForegroundChild();
+  if (foregroundOnly) {
+    registerApiInterruptionRenderer(pi);
+    registerShells(pi, undefined, true);
+    return;
+  }
+  registerBackgroundLifecycleGuidance(pi);
+  registerApiInterruptionRenderer(pi);
+  pi.registerMessageRenderer("shell-job-completed", renderShellCompletion);
   const jobs = new ShellJobs(pi);
-  pi.on("session_start", (_event, ctx) => { jobs.start(ctx); });
-  pi.on("session_shutdown", () => jobs.shutdown());
+  const monitorPublisher = createShellMonitorPublisher(jobs);
+  pi.on("session_start", (_event, ctx) => { monitorPublisher.stop(); jobs.start(ctx); monitorPublisher.start(ctx); });
+  pi.on("agent_start", (_event, ctx) => { jobs.setAgentActive(ctx, true); });
+  pi.on("agent_settled", (_event, ctx) => { jobs.setAgentActive(ctx, false); jobs.flushWhenIdle(ctx); });
+  pi.on("session_compact", (_event, ctx) => { jobs.flushWhenIdle(ctx); });
+  pi.on("session_compact_failed", (_event, ctx) => { jobs.flushWhenIdle(ctx); });
+  pi.on("session_tree", (_event, ctx) => { jobs.flushWhenIdle(ctx); });
+  pi.on("session_shutdown", event => { monitorPublisher.stop(); return jobs.shutdown(event.reason); });
   const jobFields = {
     jobId: Type.String(), status: Type.String(), tool: Type.String(), toolCallId: Type.String(), command: Type.String(),
     startedAt: Type.String(), elapsedMs: Type.Number(), logBytes: Type.Number(), cancelRequested: Type.Boolean(),
@@ -246,10 +313,12 @@ export default function (pi: ExtensionAPI) {
       renderCall(args, theme) {
         return new Text(theme.fg("toolTitle", `Shell job ${action} ${display(typeof args?.jobId === "string" ? args.jobId : action === "status" ? "(list)" : "…", 64)}`), 0, 0);
       },
-      renderResult(result, { expanded, isPartial }, theme) {
-        const text = result.content.filter(part => part.type === "text").map(part => part.text).join("\n");
-        const caveat = action === "cancel" ? "Cancellation is a request; process-tree termination not confirmed.\n" : "";
-        return new Text(theme.fg("muted", `${isPartial ? "Pending…\n" : ""}${caveat}${display(text, expanded ? 8192 : 512)}`), 0, 0);
+      renderResult(result, options, theme, context) {
+        const component = renderShellJobResult(result, options, theme, context)!;
+        const status = (result.structuredContent as { status?: string } | undefined)?.status;
+        if (action !== "cancel" || result.isError || !status || status === "running" || status === "cancelling") return component;
+        const notice = new Text(theme.fg("dim", "Job already finished; no new cancellation was requested. The existing outcome is unchanged."), 0, 0);
+        return { invalidate() { component.invalidate(); notice.invalidate(); }, render(width) { return [...notice.render(width), ...component.render(width)].slice(0, 300); } };
       },
       async execute(_id, input, _signal, _onUpdate, ctx) {
         const result = action === "status" && input.jobId === undefined
@@ -258,17 +327,22 @@ export default function (pi: ExtensionAPI) {
         // Model text is compacted; structuredContent keeps the full schema-compatible result.
         const text = "jobs" in result
           ? JSON.stringify(result.jobs.map(j => ({ jobId: j.jobId, status: j.status, command: j.command.slice(0, 80), elapsedMs: j.elapsedMs, ...(j.exitCode !== undefined ? { exitCode: j.exitCode } : {}), ...(j.error ? { error: j.error } : {}) })))
-          : JSON.stringify(compactJob(result, { output: action === "status", outputLimit: result.status === "running" || result.status === "cancelling" ? RUNNING_TAIL_CHARS : undefined })) + (action === "cancel" && result.status === "cancelling" ? "\nCancel requested; completion is auto-reported." : "");
+          : JSON.stringify(compactJob(result, { output: action === "status", outputLimit: result.status === "running" || result.status === "cancelling" ? RUNNING_TAIL_CHARS : undefined })) + (action === "cancel" ? result.status === "cancelling" ? "\nCancellation requested; waiting for cleanup. Exit of all descendant processes is not confirmed." : "\nJob already finished; no new cancellation was requested. The existing outcome is unchanged." : "");
         return { content: [{ type: "text", text }], details: undefined, structuredContent: result };
       },
     });
   }
+  registerShells(pi, jobs);
+}
+
+function registerShells(pi: ExtensionAPI, jobs?: ShellJobs, foregroundOnly = false) {
   registerTimeoutMsOverride(
     pi,
     "bash",
     createBashToolDefinition,
     (ctx, wrap) => createConfiguredBashDefinition(pi, ctx, wrap),
     jobs,
+    foregroundOnly,
   );
   registerTimeoutMsOverride(
     pi,
@@ -280,5 +354,6 @@ export default function (pi: ExtensionAPI) {
       operations: wrap(withIdleTimeout(createLocalPowerShellOperations())),
     }),
     jobs,
+    foregroundOnly,
   );
 }

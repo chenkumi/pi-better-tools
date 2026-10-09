@@ -35,7 +35,7 @@ function markerCommand(name, marker) {
     : `Set-Content -LiteralPath '${marker.replace(/'/g, "''")}' -Value forbidden`;
 }
 
-test("package loader replaces only the timeout contract and preserves upstream metadata", { timeout }, async () => {
+test("package loader preserves upstream metadata and host rendering except accepted background timing", { timeout }, async () => {
   // Do not apply a registry allowlist: inspect the inactive PowerShell definition on Unix too.
   const { session, resourceLoader, cwd } = await fixture.createSession({ defaultTools: shellNames });
   assert.equal(resourceLoader.getExtensions().extensions.length, 1);
@@ -56,7 +56,36 @@ test("package loader replaces only the timeout contract and preserves upstream m
     assert.deepEqual(definition.constrainedSampling, builtin.constrainedSampling);
     assert.equal(typeof definition.renderCall, "function");
     assert.equal(typeof definition.renderResult, "function");
-    assert.equal(definition.renderResult.toString(), builtin.renderResult.toString());
+    // The authorized background receipt timing needs a wrapper, not function identity.
+    // Prove exact host rendering for every delegation branch with isolated contexts.
+    const receipt = { content: [{ type: "text", text: "Background job accepted" }], structuredContent: { jobId: "fixture-job", status: "running", liveLogPath: "/existing/log" } };
+    const palette = { fg: (_color, value) => value };
+    const renderCases = [
+      { result: { content: [{ type: "text", text: "Synchronous output" }] } },
+      { result: receipt, partial: true },
+      { result: { ...receipt, isError: true } },
+      { result: receipt, contextError: true },
+      { result: { content: [{ type: "text", text: "Admission rejected" }], isError: true }, contextError: true },
+    ];
+    for (const sample of renderCases) for (const width of [80, 200]) {
+      const options = { expanded: true, isPartial: sample.partial === true };
+      const context = () => ({ state: { startedAt: 1000, endedAt: 1250 }, invalidate() {}, showImages: false, isError: sample.contextError === true });
+      const adaptedContext = context(), builtinContext = context();
+      try {
+        assert.deepEqual(
+          definition.renderResult(sample.result, options, palette, adaptedContext).render(width),
+          builtin.renderResult(sample.result, options, palette, builtinContext).render(width),
+          `${name} host delegation parity at width ${width}`,
+        );
+      } finally {
+        // Partial renderers own timers; dispose them explicitly without fixed sleeps.
+        if (adaptedContext.state.interval) clearInterval(adaptedContext.state.interval);
+        if (builtinContext.state.interval) clearInterval(builtinContext.state.interval);
+      }
+    }
+    const accepted = definition.renderResult(receipt, { expanded: true, isPartial: false }, palette, { state: { startedAt: 1000, endedAt: 1250 } }).render(80).join("\n");
+    assert.match(accepted, /Accepted in 0\.3s/);
+    assert.doesNotMatch(accepted, /Took/);
     assert.equal(definition.promptSnippet, builtin.promptSnippet);
     for (const guideline of builtin.promptGuidelines ?? []) {
       assert.ok(definition.promptGuidelines.includes(guideline));
@@ -373,7 +402,9 @@ test("codemode nested parallel shell calls use timeoutMs and structured return d
 });
 
 test("real codemode returns the background receipt branch without invented exit data", { timeout }, async () => {
-  const { session } = await shellSession({ codemode: true, tools: ["bash", "codemode"] });
+  // Background journal requires disk persistence; execute() supplies the canonical
+  // issuing assistant call. Other synchronous probes retain their memory-only scope.
+  const { session } = await shellSession({ codemode: true, persistentSession: true, tools: ["bash", "codemode"] });
   try {
     const result = await fixture.execute(session, "codemode", {
       // This schema probe uses only Bash builtins. Descendant process-tree
@@ -385,6 +416,8 @@ test("real codemode returns the background receipt branch without invented exit 
     assert.match(text(result), /running/);
     assert.match(text(result), /liveLogPath/);
     assert.ok(!text(result).includes("exit_code"));
+    const saved = fs.readFileSync(session.sessionManager.getSessionFile(), "utf8").trim().split("\n").map(JSON.parse);
+    assert.ok(saved.some(e => e.type === "custom" && e.customType === "pi-better-tools-background-state" && e.data.kind === "shell"));
   } finally {
     // Reload dispatches session_shutdown and cancels the accepted job. No model
     // provider is called, and no wait/sleep is needed to keep the job running.

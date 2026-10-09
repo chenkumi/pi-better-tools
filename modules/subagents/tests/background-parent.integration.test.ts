@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { fileURLToPath } from "node:url";
+import { renderBackgroundResult } from "../extensions/subagent/background-renderer.ts";
 import { RpcPipe } from "../extensions/subagent/rpc.ts";
 import { killProcessTree } from "../extensions/subagent/concurrency.ts";
 const cli = process.env.PI_SUBAGENTS_TEST_CLI;
@@ -58,6 +59,12 @@ test("real parent RPC host resumes automatically after background completion, af
 		const result = JSON.parse(text(notification)); assert.equal(result.status, "completed", JSON.stringify(result)); const session = result.tasks[0].subagentSessionId;
 		assert.equal(JSON.parse(await readFile(join(root, "managed", session, "manifest.json"), "utf8")).state, "ready"); await assert.rejects(stat(join(root, "managed", session, "writer.lock")), { code: "ENOENT" });
 		assert.equal(result.tasks[0].result.usage.totalTokens, 24);
+		assert.equal(result.tasks[0].result.output, "main complete", "model notification keeps final summary after >8KiB progress");
+		assert.match(notification.details.tasks[0].result.output, /^Early progress/);
+		assert.equal(notification.details.tasks[0].result.outputTruncated, true);
+		assert.ok(Buffer.byteLength(notification.details.tasks[0].result.output) <= 8192);
+		const collapsed = renderBackgroundResult({ content: [{ type: "text", text: text(notification) }], details: notification.details } as any, { expanded: false, isPartial: false }, { fg: (_color: string, text: string) => text } as any, {} as any).render(200).join("\n");
+		assert.match(collapsed, /main complete/); assert.doesNotMatch(collapsed, /Early progress/);
 		assert.equal(events.filter(e => e.type === "message_end" && e.message.role === "assistant" && text(e.message) === "parent automatic follow-up").length, 1);
 		await pipe.end(); const [code] = await exit; assert.equal(code, 0, diagnostics); t.signal.removeEventListener("abort", killed);
 	} finally { pipe?.dispose(); if (proc?.pid && proc.exitCode === null && proc.signalCode === null) killProcessTree(proc, "SIGKILL", { spawn }); await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }); }

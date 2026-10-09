@@ -3,8 +3,9 @@ import { convertToLlm, serializeConversation, type ExtensionAPI, type ExtensionC
 import { Type } from "typebox";
 import { ulid } from "ulid";
 import { writeJsonFile, writeJsonStdout } from "../src/delivery.ts";
-import { extractJson } from "../src/extract.ts";
+import { extractJsonCandidates } from "../src/extract.ts";
 import { compileSchema, type CompiledSchema } from "../src/schema.ts";
+import { validationPool } from "../src/validation-pool.ts";
 
 const TOOL = "json_output";
 const PREFIX = "pi-json-schema:";
@@ -26,6 +27,8 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
   let prompts = 0;
   let accepted: { data: unknown; text: string } | undefined;
   let lastText = "";
+  // Original content of each suppressed assistant message, in turn order (not just the final text).
+  let suppressedContent: unknown[][] = [];
   /** The model that actually answered; a virtual router model cannot be called directly. */
   let answeredBy: { provider: string; id: string } | undefined;
   let transcript: unknown[] = [];
@@ -72,9 +75,9 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
       description: "Submit the final structured result. Call this exactly once, as the LAST step after all other work is done; the arguments themselves are the result (not wrapped in another object) and must match the required schema. Do not also answer in prose.",
       promptSnippet: "Submit the final structured result",
       parameters: Type.Unsafe(schema.jsonSchema),
-      async execute(_id: string, params: unknown) {
+      async execute(_id: string, params: unknown, signal?: AbortSignal) {
         const data = clone(params);
-        const reason = schema!.validate(data);
+        const reason = await schema!.validate(data, signal);
         if (reason !== undefined) throw new Error(`${TOOL} arguments do not match the schema: ${reason}`);
         const text = JSON.stringify(data);
         if (accepted && accepted.text !== text) {
@@ -99,6 +102,7 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
     // must not be judged "conflicting" against a result submitted for the previous one.
     accepted = undefined;
     lastText = "";
+    suppressedContent = [];
     return { action: "continue" as const };
   });
 
@@ -113,6 +117,7 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
     }
     if (message.content.some((block) => block.type === "toolCall")) return;
     lastText = message.content.filter((block) => block.type === "text").map((block) => block.text ?? "").join("\n");
+    suppressedContent.push(clone(message.content) as unknown[]);
     // The host prints the final assistant text to stdout; a structured-output run keeps that stream free of prose
     // (it carries only the JSON result in stdout mode).
     return { message: { ...message, content: message.content.filter((block) => block.type !== "text") } as never };
@@ -120,15 +125,26 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
 
   pi.on("agent_end", (event) => {
     if (!active) return;
-    transcript = [...transcript, ...event.messages];
+    // Restore the exact original blocks, preserving thinking/text order without duplicating text
+    // when the host supplies the original message rather than its message_end replacement.
+    const messages = [...event.messages] as Array<{ role?: string; content?: Array<{ type?: string }> }>;
+    let restored = 0;
+    for (let index = 0; index < messages.length && restored < suppressedContent.length; index++) {
+      const message = messages[index];
+      if (message.role !== "assistant" || !Array.isArray(message.content) || message.content.some(block => block.type === "toolCall")) continue;
+      messages[index] = { ...message, content: suppressedContent[restored++] as Array<{ type?: string }> };
+    }
+    suppressedContent = [];
+    transcript = [...transcript, ...messages];
     // An upstream error or abort is a failed run; never try to recover a result from it.
     const last = [...event.messages].reverse().find((message) => (message as { role?: string }).role === "assistant") as { stopReason?: string; errorMessage?: string } | undefined;
     if (last && (last.stopReason === "error" || last.stopReason === "aborted")) fail(last.errorMessage || `model request ${last.stopReason}`);
   });
 
   async function recover(ctx: ExtensionContext): Promise<unknown | undefined> {
-    const fromText = extractJson(lastText);
-    if (fromText && schema!.validate(fromText.value) === undefined) return fromText.value;
+    for (const candidate of extractJsonCandidates(lastText)) {
+      if (await schema!.validate(candidate.value) === undefined) return candidate.value;
+    }
     if (!pi.getActiveTools().includes(TOOL)) {
       fail(`no valid result was produced and ${TOOL} is not an active tool, so extraction is not allowed`);
       return undefined;
@@ -145,7 +161,7 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
         systemPrompt: `You extract structured data. Call ${TOOL} once with a result that matches its schema, using only facts from the conversation.`,
         messages: [{ role: "user", content: [{ type: "text", text: `Extract the final result from this conversation.\n\n<conversation>\n${conversation}\n</conversation>` }], timestamp: Date.now() }],
         tools: [{ name: TOOL, description: "Submit the final structured result.", parameters: Type.Unsafe(schema!.jsonSchema) }],
-      } as never, { signal: AbortSignal.timeout(FALLBACK_TIMEOUT_MS), cacheRetention: "none", sessionId: ulid().toLowerCase() } as never);
+      } as never, { signal: AbortSignal.timeout(FALLBACK_TIMEOUT_MS), cacheRetention: "none", sessionId: ulid().toUpperCase() } as never);
     } catch (error) {
       fail(`extraction request failed: ${error instanceof Error ? error.message : String(error)}`);
       return undefined;
@@ -158,16 +174,19 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
       if (block.type === "toolCall") {
         if (block.name !== TOOL) { fail(`extraction call used an unexpected tool "${block.name}"`); return undefined; }
         const data = clone(block.arguments);
-        const reason = schema!.validate(data);
+        const reason = await schema!.validate(data);
         if (reason === undefined) return data;
         fail(`extraction result does not match the schema: ${reason}`);
         return undefined;
       }
     }
     const text = (reply.content as Array<{ type: string; text?: string }>).filter((block) => block.type === "text").map((block) => block.text ?? "").join("\n");
-    const extracted = extractJson(text);
-    const reason = extracted ? schema!.validate(extracted.value) : "no JSON found in the extraction response";
-    if (extracted && reason === undefined) return extracted.value;
+    const candidates = extractJsonCandidates(text);
+    let reason: string | undefined = "no JSON found in the extraction response";
+    for (const candidate of candidates) {
+      reason = await schema!.validate(candidate.value);
+      if (reason === undefined) return candidate.value;
+    }
     fail(`extraction result is unusable: ${reason}`);
     return undefined;
   }
@@ -177,17 +196,19 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
     process.off("SIGHUP", cancel);
     if (!active || !schema || finalized) return;
     finalized = true;
-    // Let any signal listeners already queued by this tick run first: a terminated run delivers nothing.
-    await new Promise<void>((done) => setImmediate(done));
-    if (cancelled && failure === undefined) process.stderr.write(`${PREFIX} terminated before the result was delivered\n`);
-    if (cancelled || failure !== undefined) return;
     try {
+      // Let any signal listeners already queued by this tick run first: a terminated run delivers nothing.
+      await new Promise<void>((done) => setImmediate(done));
+      if (cancelled && failure === undefined) process.stderr.write(`${PREFIX} terminated before the result was delivered\n`);
+      if (cancelled || failure !== undefined) return;
       const data = accepted ? accepted.data : await recover(ctx);
       if (cancelled || failure !== undefined || data === undefined) return;
       if (outputPath === undefined) await writeJsonStdout(data);
       else await writeJsonFile(outputPath, data);
     } catch (error) {
       fail(`could not deliver the result: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      await validationPool.close();
     }
   });
 }

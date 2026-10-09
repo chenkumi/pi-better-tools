@@ -7,19 +7,14 @@ import { Type } from 'typebox';
 
 const packageRoot = resolve(process.argv[2]);
 const expectedVersion = process.argv[3];
-assert.ok(['0.99.1', '0.99.2', '1.0.0'].includes(expectedVersion), 'Specify an audited host release');
+assert.equal(expectedVersion, '1.1.0', 'Only the pinned Pi 1.1.0 host is supported');
 const host = process.env.PI_BETTER_TOOLS_HOST;
 const sdk = await import(host ? pathToFileURL(join(host, 'dist/index.js')).href : '@earendil-works/pi-coding-agent');
 const ai = await import(host ? pathToFileURL(join(host, '../pi-ai/dist/index.js')).href : '@earendil-works/pi-ai');
 assert.equal(sdk.VERSION, expectedVersion);
 sdk.initTheme('dark', false);
-// Audited release-specific expectations; 0.99.2 already changed reload and hidden snippets,
-// while pending-name restoration was added in 1.0.0. Never collapse these into one version gate.
-const contracts = {
-  '0.99.1': { reloadDefaults: false, pendingTools: false, hiddenSnippets: false },
-  '0.99.2': { reloadDefaults: true, pendingTools: false, hiddenSnippets: true },
-  '1.0.0': { reloadDefaults: true, pendingTools: true, hiddenSnippets: true },
-}[expectedVersion];
+// Pi 1.1.0 contract: reload applies defaultTools, restores pending tool names and hides declaration snippets.
+const contracts = { reloadDefaults: true, pendingTools: true, hiddenSnippets: true };
 const manifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
 const home = homedir(), agentDir = join(home, '.pi/agent'), cwd = join(home, 'workspace');
 assert.equal(resolve(process.env.PI_CODING_AGENT_DIR), resolve(agentDir));
@@ -84,7 +79,7 @@ async function fixture(options = {}) {
       'session_tree', 'model_select', 'thinking_level_select']) {
       pi.on(name, async event => {
         observedHooks.add(event.type);
-        trace.push({ type: name, role: event.message?.role, tool: event.toolName, model: event.model, api: event.api, provider: event.provider });
+        trace.push({ type: name, role: event.message?.role, tool: event.toolName, model: event.model, api: event.api, provider: event.provider, durationMs: event.durationMs, aborted: event.aborted });
         if (name === 'thinking_level_select') resolveThinking?.(event);
         if (name === 'before_agent_start') observedPrompt = structuredClone(event.systemPromptOptions);
         if (name === 'provider_stream_event') { await new Promise(resolve => setImmediate(resolve)); deliveredStreams++; }
@@ -104,6 +99,8 @@ async function fixture(options = {}) {
     ...(options.exclude ? { excludeTools: options.exclude } : {}) });
   try {
     await session.bindExtensions({ mode: 'json', onError: event => errors.push(event.error) });
+    const monitor = loader.getExtensions().extensions.find(extension => extension.tools.has('monitor_start')); assert.ok(monitor);
+    for (const name of ['monitor_start', 'monitor_status', 'monitor_stop']) { assert.equal(monitor.tools.get(name).definition.defaultActive, false); assert.ok(!session.getActiveToolNames().includes(name)); }
     if (options.restored) {
       // The SDK factory supplies an initial loadout. Exercise transcript restoration through its
       // public tree-navigation API, not private fields or an assumed factory restore path.
@@ -138,7 +135,7 @@ async function fixture(options = {}) {
       finally { session.dispose(); }
       const final = session.messages.filter(message => message.role === 'assistant').at(-1);
       if (final) assert.equal(final.stopReason, 'stop', final.errorMessage);
-      assert.deepEqual(errors, [], 'extension hook errors'); await assert.rejects(stat(join(agentDir, 'pi-scheduler/runner.lock.lock')), { code: 'ENOENT' });
+      assert.deepEqual(errors, [], 'extension hook errors');
     } };
 }
 async function check(name, options, action) {
@@ -156,7 +153,8 @@ async function check(name, options, action) {
 try {
   await check('defaultTools additions follow the audited release reload contract', {}, async f => {
     assert.deepEqual(selectedBase(f.session), defaultFiles);
-    await writeSettings(['read', 'bash']); await f.session.reload();
+    await writeSettings(['read', 'bash', 'monitor_status']); await f.session.reload();
+    assert.ok(f.session.getActiveToolNames().includes('monitor_status'));
     assert.deepEqual(selectedBase(f.session), contracts.reloadDefaults ? ['bash', ...defaultFiles] : defaultFiles);
     assert.deepEqual(f.lifecycle, ['start:startup', 'shutdown:reload', 'start:reload']);
     assert.equal(f.calls(), 0);
@@ -171,12 +169,31 @@ try {
   for (const [name, options, expected] of [
     ['explicit read-only selection survives defaultTools reload', { tools: ['read'] }, ['read']],
     ['noTools all survives defaultTools reload', { noTools: 'all' }, []],
-    ['excluded shells and note stay excluded after defaultTools reload', { exclude: ['bash', 'powershell', 'note'] }, defaultFiles],
+    ['excluded shells and note stay excluded after defaultTools reload', { exclude: ['bash', 'powershell', 'note', 'monitor_start', 'monitor_status', 'monitor_stop'] }, defaultFiles],
   ]) await check(name, options, async f => {
-    await writeSettings(['read', 'bash', 'powershell', 'note']); await f.session.reload();
+    await writeSettings(['read', 'bash', 'powershell', 'note', 'monitor_start', 'monitor_status', 'monitor_stop']); await f.session.reload();
     assert.deepEqual(selectedBase(f.session), expected);
-    for (const toolName of ['bash', 'powershell', 'note']) assert.ok(!f.session.getActiveToolNames().includes(toolName), toolName);
+    for (const toolName of ['bash', 'powershell', 'note', 'monitor_start', 'monitor_status', 'monitor_stop']) assert.ok(!f.session.getActiveToolNames().includes(toolName), toolName);
     if (options.tools || options.noTools) assert.deepEqual(f.session.getCallableToolNames().sort(), expected);
+  });
+  await check('search overrides are selectable without changing defaults', { tools: ['grep', 'find', 'ls'] }, async f => {
+    assert.deepEqual(selectedBase(f.session), ['find', 'grep', 'ls']);
+    const fileExtension = f.loader.getExtensions().extensions.find(extension => extension.tools.has('grep'));
+    assert.ok(fileExtension);
+    for (const name of ['grep', 'find', 'ls']) {
+      assert.equal(fileExtension.tools.get(name).definition.defaultActive, false);
+      assert.equal(typeof fileExtension.tools.get(name).definition.renderResult, 'function');
+    }
+    await f.session.reload();
+    assert.deepEqual(selectedBase(f.session), ['find', 'grep', 'ls']);
+    assert.equal(f.calls(), 0);
+  });
+  await check('excluded search overrides remain unavailable after reload', { defaults: ['read', 'grep', 'find', 'ls'], exclude: ['grep', 'find', 'ls'] }, async f => {
+    assert.deepEqual(selectedBase(f.session), defaultFiles);
+    await f.session.reload();
+    assert.deepEqual(selectedBase(f.session), defaultFiles);
+    for (const name of ['grep', 'find', 'ls']) assert.ok(!f.session.getCallableToolNames().includes(name));
+    assert.equal(f.calls(), 0);
   });
   await check('restored delayed tool activates only after registration', { restored: ['read', 'fixture_late'] }, async f => {
     assert.ok(!f.session.getActiveToolNames().includes('fixture_late'));
@@ -203,7 +220,13 @@ try {
     f.session.setActiveToolsByName(['read', 'subagent', 'web_fetch', 'fixture_orchestrator']);
     await f.session.prompt('OFFLINE_PROMPT_COMPOSITION', { expandPromptTemplates: false });
     const prompt = f.observedPrompt(); assert.ok(prompt);
-    assert.equal(Boolean(prompt.toolSnippets.read), !contracts.hiddenSnippets);
+    // Pi 1.1 keeps the registry metadata and filters declarations/rules via hiddenTools.
+    assert.ok(prompt.toolSnippets.read);
+    assert.deepEqual([...prompt.hiddenTools].sort(), ['read', 'subagent', 'web_fetch']);
+    assert.doesNotMatch(f.session.systemPrompt, /\n- read: Read file contents/);
+    assert.doesNotMatch(f.session.systemPrompt, /When copying oldText from read output/);
+    assert.doesNotMatch(f.session.systemPrompt, /\n- subagent: Delegate tasks/);
+    assert.doesNotMatch(f.session.systemPrompt, /\n- web_fetch: Retrieve rendered/);
     const serialized = JSON.stringify(prompt);
     assert.match(serialized, /subagent agent catalog/); assert.match(serialized, /OpenAI native web_search/);
     assert.ok(f.session.getCallableToolNames().includes('read')); assert.ok(f.session.getCallableToolNames().includes('subagent'));
@@ -221,6 +244,9 @@ try {
     assert.ok(index('agent_start') < index('turn_start')); assert.ok(index('tool_execution_start') < index('tool_call'));
     assert.ok(index('tool_execution_end') < index('message_start', event => event.role === 'toolResult'));
     assert.ok(index('agent_before_settle') < index('agent_settled'));
+    const toolEnd = f.trace.find(event => event.type === 'tool_execution_end');
+    assert.ok(Number.isFinite(toolEnd.durationMs) && toolEnd.durationMs >= 0);
+    assert.equal(f.trace.find(event => event.type === 'agent_settled').aborted, false);
     const streams = f.trace.filter(event => event.type === 'provider_stream_event');
     assert.equal(streams.length, 2); for (const event of streams) assert.deepEqual({ api: event.api, provider: event.provider, model: event.model }, { api: model.api, provider: model.provider, model: model.id });
     assert.ok(f.session.messages.some(message => message.role === 'toolResult' && JSON.stringify(message).includes('OFFLINE_READ_MARKER')));

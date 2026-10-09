@@ -11,6 +11,18 @@ test("completed assistant stop reasons describe a message, not the entire sessio
 	assert.equal(isTerminalAssistantStopReason(undefined), false);
 });
 
+test("async stdout counter bounds a record split across many chunks and resets per line", async () => {
+	const state: { buffer: string; finished: boolean; bufferBytes?: number } = { buffer: "", finished: false };
+	const lines: string[] = [];
+	const processLine = async (line: string) => { lines.push(line); };
+	for (let i = 0; i < 4; i++) assert.equal(await consumeStdoutChunkAsync(state, "é".repeat(100), 1000, processLine), false);
+	assert.equal(state.bufferBytes, 800);
+	assert.equal(await consumeStdoutChunkAsync(state, "x".repeat(200) + "\nok\n", 1000, processLine), false);
+	assert.deepEqual(lines.map((line) => line.length), [600, 2]);
+	assert.equal(state.bufferBytes, 0);
+	assert.equal(await consumeStdoutChunkAsync(state, "y".repeat(1001), 1000, processLine), true);
+});
+
 test("stdout after a terminal record is discarded without applying the safety limit", () => {
 	const state = { buffer: "", finished: false };
 	const lines: string[] = [];

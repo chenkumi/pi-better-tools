@@ -106,7 +106,7 @@ for (const [scenario, mode, debugLog = true] of cases) {
 				const logText = await readFile(result.logPath, "utf8");
 				const log = logText.trim().split("\n").map((line) => JSON.parse(line));
 				assert.ok(log.every(entry => ["user", "assistant", "tool_call", "tool_result"].includes(entry.type)));
-				assert.match(result.subagentSessionId, /^[0-9a-z]{26}$/);
+				assert.match(result.subagentSessionId, /^[0-9A-HJKMNP-TV-Z]{26}$/);
 				assert.equal(result.canResume, !isFailure);
 				const manifest = JSON.parse(await readFile(join(directory, "manifest.json"), "utf8"));
 				assert.equal(manifest.state, isFailure ? "blocked" : "ready");

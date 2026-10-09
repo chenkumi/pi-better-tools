@@ -31,11 +31,15 @@ export class Semaphore {
 	}
 }
 
-/** Best-effort process-tree termination. Windows POSIX signals only reach the direct child, so use taskkill /T there. */
+/**
+ * Best-effort process-tree termination. Windows POSIX signals only reach the direct child, so use taskkill /T there.
+ * On POSIX the child is spawned detached (its own process group), so the whole group is signalled via kill(-pid);
+ * if that fails the direct child is signalled. Neither path proves the tree has stopped.
+ */
 export function killProcessTree(
 	proc: { pid?: number; kill(signal?: NodeJS.Signals): boolean },
 	signal: NodeJS.Signals,
-	deps: { platform?: NodeJS.Platform; spawn: (command: string, args: string[], options: { stdio: "ignore"; windowsHide: true }) => { on(event: "error", listener: () => void): unknown; unref?(): void } },
+	deps: { platform?: NodeJS.Platform; killGroup?: (pid: number, signal: NodeJS.Signals) => void; spawn: (command: string, args: string[], options: { stdio: "ignore"; windowsHide: true }) => { on(event: "error", listener: () => void): unknown; unref?(): void } },
 ): void {
 	if ((deps.platform ?? process.platform) === "win32" && typeof proc.pid === "number") {
 		try {
@@ -43,6 +47,10 @@ export function killProcessTree(
 			killer.on("error", () => { try { proc.kill(signal); } catch { /* already gone */ } });
 			killer.unref?.();
 		} catch { /* fall back to the direct child below */ }
+	}
+	else if (typeof proc.pid === "number" && proc.pid > 0 && (deps.platform ?? process.platform) !== "win32") {
+		try { (deps.killGroup ?? ((pid, sig) => process.kill(-pid, sig)))(proc.pid, signal); return; }
+		catch { /* no such group (not detached) or already gone: fall back to the direct child */ }
 	}
 	try { proc.kill(signal); } catch { /* already gone */ }
 }

@@ -17,10 +17,10 @@ test('real SDK hook ordering, reload selection, pending tools and prompt composi
       { cwd: home, env: isolatedEnv(home), timeoutMs: 210000 });
     const result = JSON.parse(output.trim().split('\n').at(-1));
     assert.equal(result.hostVersion, expectedVersion); assert.equal(result.status, 'passed');
-    assert.equal(result.cases.length, 12); assert.equal(new Set(result.cases.map(item => item.name)).size, 12);
+    assert.equal(result.cases.length, 14); assert.equal(new Set(result.cases.map(item => item.name)).size, 14);
     assert.ok(result.cases.every(item => item.status === 'passed'));
     assert.equal(result.hooksObserved.length, 21); assert.equal(new Set(result.hooksObserved).size, 21);
-    await writeFile(join(root, 'plan/evidence/pi-100-hooks-runtime.json'), JSON.stringify(result, null, 2) + '\n');
+    await writeFile(join(root, 'plan/evidence/pi-110-hooks-runtime.json'), JSON.stringify(result, null, 2) + '\n');
   } finally {
     try { await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
     finally { clearInterval(heartbeat); }

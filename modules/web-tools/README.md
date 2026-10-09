@@ -96,7 +96,7 @@ Brave 使用 Web Search endpoint；Exa 使用 Search endpoint（`type: "auto"`�
 ```
 
 - 等待 DOMContentLoaded 與有界限的內容就緒，不依賴 networkidle。
-- 以 Readability 擷取正文，必要時回退 main／body，並回報實際使用的 extraction。
+- 以 Readability 擷取正文，必要時回退 main／body，並回報實際使用的 extraction。JSDOM／Readability 解析在可終止的 worker thread（`src/fetch/extract-worker.mjs`，1 GiB heap 上限）內執行，不阻塞主執行緒；取消、逾時或 shutdown 時直接 terminate worker；完成的 worker 最多保留 2 個、閒置 30 秒後回收（冷啟動載入 jsdom 約需數秒，首次 fetch 時與瀏覽器啟動並行預熱）。HTML 位元組上限在送進 worker 前亦檢查；活動 worker 保持 Node event loop 存活，只有閒置 worker 才 unref；啟動／執行失敗與退出均移出 pool，重用時保留生命週期監聽器並清除單次 job 監聽器。活動／閒置／終止中的 worker 合計最多 6 個，取消不先釋放名額，必須等實際 exit 或 terminate 完成；名額滿時回報 BUSY。shutdown 會停止新 worker、終止並等待所有活動／閒置／終止中的 worker；若終止失敗，不假裝 worker 已退出或提前重用其名額。
 - 移除 script、導覽等非正文元素，保留程式碼、列表、表格與安全的絕對連結。
 - 每次呼叫使用獨立 browser context，cookies／storage 不共用；browser 共用並於閒置後回收。取消只影響該次抓取，session shutdown／reload 時清理 browser。
 - 回傳 title、URL、HTTP status 與警告（模型可見文字不含取得時間，仍在 data）；不是 AI 摘要。`Final URL` 行僅在與請求 URL 不同時顯示（`data.finalUrl` 永遠保留）。
@@ -130,7 +130,7 @@ Brave 使用 Web Search endpoint；Exa 使用 Search endpoint（`type: "auto"`�
 
 ## 輸出限制
 
-- 工具 content 上限 24 KiB／1000 行（含截斷提示）；頁面抽取內容超過 1 MiB 時截斷並加上警告（不再失敗），格式化結果 2 MiB，原始／渲染 HTML 5 MiB；每個代理回應（含子資源）以 content-length 與實際 body 大小限制 10 MiB，超過即阻擋；media／font 子資源不抓取。Playwright 會先在 Node 緩衝完整 body，此上限限制交給瀏覽器的內容，不是傳輸期間的記憶體峰值。
+- 工具 content 上限 24 KiB／1000 行（含截斷提示）；頁面抽取內容超過 1 MiB 時截斷並加上警告（不再失敗），格式化結果 2 MiB，原始／渲染 HTML 5 MiB；每個代理回應（含子資源）以 content-length 與實際 body 大小限制 10 MiB，超過即阻擋；media／font／image／stylesheet 子資源不抓取（直接 abort；抽取不渲染也不套用 CSS）。Playwright 會先在 Node 緩衝完整 body，此上限限制交給瀏覽器的內容，不是傳輸期間的記憶體峰值。
 - 超長結果存於 OS temp 的 `pi-web-tools-*` 目錄並回傳絕對路徑，可用 `read` 分頁讀取；POSIX 檔案為 `0600`，Windows 依賴使用者 profile／temp 的 ACL。暫存檔不會在 shutdown 時刪除，亦可能被 OS 清理。
 - 兩個工具宣告 `outputSchema`：`{ text, data?, dataOmitted, truncated, fullOutputPath? }`；structuredContent 超過 64 KiB 時省略 `data` 並設 `dataOmitted`。
 - Playwright 會先緩衝網路回應再檢查大小，這些限制不是總流量或峰值記憶體上限。
@@ -142,6 +142,6 @@ Brave 使用 Web Search endpoint；Exa 使用 Search endpoint（`type: "auto"`�
 - 主頁面 redirect 以 abort 後重新 goto 處理，redirect 回應上的 Set-Cookie 不會寫入 browser cookie jar（已知限制）；子資源 redirect 同樣由 Node 端手動追蹤。
 - context 關閉設有 5 秒上限，逾時仍會釋放佇列名額，瀏覽器由 idle／shutdown 清理。
 - 為逐跳驗證 redirect，網路請求經 Playwright context request 取回後交給 browser；部分重新導向子資源的相對 URL 語意可能與一般瀏覽不同。
-- 不是完整安全沙箱：DNS 檢查與實際連線之間仍有 DNS rebinding 競態（Playwright `route.fetch` 不提供固定已驗證 IP 的連線選項，因此未實作 IP pinning），且 Chromium 會執行遠端 JavaScript；高敏感環境需以 OS／container 控制 egress。不適合作為公開或多租戶抓取服務。
+- 不是完整安全沙箱：DNS 檢查與實際連線各自解析，仍有 DNS rebinding 競態。Playwright `route.fetch` 不提供固定已驗證 IP 的連線選項，因此未實作 IP pinning；已加入事後緩解：每個 `route.fetch` 回應在交給瀏覽器前，以 `APIResponse.serverAddr()` 檢查實際連線的對端位址，非公開或缺少位址即 fail closed（`NETWORK_BLOCKED`），每個 redirect 跳點都檢查。此緩解只能阻止回應內容被使用，惡意 DNS 仍可能讓請求本身已送達內部位址（盲 SSRF，例如帶副作用的 GET/POST）；完整防護仍需 OS／container egress 控制。同一次 fetch 內每個 hostname 僅做一次 DNS 檢查（結果含失敗皆快取），實際連線位址則逐回應檢查，且 Chromium 會執行遠端 JavaScript；高敏感環境需以 OS／container 控制 egress。不適合作為公開或多租戶抓取服務。
 - 頁面與搜尋內容是不可信的外部資料，清理 HTML 不能消除 prompt injection；網頁與搜尋結果會進入 Pi 對話並傳送給模型供應商。
 - Pi 的 offline 設定不等於阻擋本模組的網路；如需阻擋請使用 OS／container 網路政策。

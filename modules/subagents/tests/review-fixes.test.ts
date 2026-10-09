@@ -79,9 +79,23 @@ test("killProcessTree adds taskkill /T /F only on win32 and keeps the direct kil
 	assert.deepEqual(calls, [["taskkill", "/pid", "4242", "/T", "/F"]]);
 	assert.deepEqual(signals, ["SIGTERM"]);
 	calls.length = 0;
-	killProcessTree(proc, "SIGTERM", { platform: "linux", spawn: spawnFn });
+	killProcessTree(proc, "SIGTERM", { platform: "linux", killGroup() {}, spawn: spawnFn });
 	killProcessTree({ kill: proc.kill }, "SIGKILL", { platform: "win32", spawn: spawnFn });
 	assert.deepEqual(calls, []);
+});
+
+test("killProcessTree signals the POSIX process group and falls back to the direct child", () => {
+	const groups: Array<[number, string]> = [];
+	const signals: string[] = [];
+	const spawnFn = () => { throw new Error("taskkill must not run on POSIX"); };
+	const proc = { pid: 4242, kill(signal?: string) { signals.push(String(signal)); return true; } };
+	killProcessTree(proc, "SIGTERM", { platform: "linux", killGroup: (pid, signal) => { groups.push([pid, signal]); }, spawn: spawnFn });
+	assert.deepEqual(groups, [[4242, "SIGTERM"]]);
+	assert.deepEqual(signals, [], "a delivered group signal already covers the direct child");
+	killProcessTree(proc, "SIGKILL", { platform: "linux", killGroup() { throw Object.assign(new Error("no group"), { code: "ESRCH" }); }, spawn: spawnFn });
+	assert.deepEqual(signals, ["SIGKILL"]);
+	killProcessTree({ kill: proc.kill }, "SIGTERM", { platform: "linux", killGroup() { throw new Error("must not be called without a pid"); }, spawn: spawnFn });
+	assert.deepEqual(signals, ["SIGKILL", "SIGTERM"]);
 });
 
 test("getPiInvocation honours the explicit PI_SUBAGENTS_PI_CLI override", () => {
@@ -140,12 +154,12 @@ async function setup() {
 	return { temp, root, owner, session: await ManagedSession.allocate(root, owner, config) };
 }
 async function prepare(session: ManagedSession, key: string, existing = false) {
-	const taskId = ulid().toLowerCase(); await session.acquire(taskId);
+	const taskId = ulid().toUpperCase(); await session.acquire(taskId);
 	if (existing) await session.validateCheckpoint();
 	await session.begin(taskId, key, "task", active);
 	const file = join(session.directory, "pi", "native.jsonl");
 	let leaf = session.manifest.checkpoint?.leafId ?? "";
-	const entry = (type: string, extra: any) => { const id = ulid().toLowerCase(); const e = { type, id, parentId: leaf || null, timestamp: new Date().toISOString(), ...extra }; leaf = id; return e; };
+	const entry = (type: string, extra: any) => { const id = ulid().toUpperCase(); const e = { type, id, parentId: leaf || null, timestamp: new Date().toISOString(), ...extra }; leaf = id; return e; };
 	const user = { role: "user", content: "task", timestamp: 1 };
 	const assistant = { role: "assistant", content: [{ type: "text", text: "done" }], stopReason: "stop", timestamp: 2 };
 	const entries = existing ? [] : [{ type: "session", version: 3, id: session.id, cwd: session.manifest.config.cwd }, entry("model_change", { provider: "offline", modelId: "model" }), entry("thinking_level_change", { thinkingLevel: "off" })];
@@ -172,7 +186,7 @@ test("failed or cancelled continuation rolls a previously ready session back to 
 		assert.equal((await stat(first.file)).size, checkpoint.nativeBytes);
 		assert.equal((await stat(resumed.logPath)).size, checkpoint.readableCommittedBytes);
 		const again = await ManagedSession.resolve(s.root, s.session.id, s.owner);
-		await again.assertResumable(); await again.acquire(ulid().toLowerCase()); await again.validateCheckpoint(); await again.release();
+		await again.assertResumable(); await again.acquire(ulid().toUpperCase()); await again.validateCheckpoint(); await again.release();
 	} finally { await rm(s.temp, { recursive: true, force: true }); }
 });
 
@@ -211,12 +225,12 @@ test("a writer lock owned by a dead pid is taken over and rolled back; a live fo
 		if (process.ppid) { // a live foreign process still blocks takeover
 			const other = await live;
 			await assert.rejects(other.assertResumable(), /SESSION_BUSY/);
-			await assert.rejects(other.acquire(ulid().toLowerCase()), /SESSION_BUSY/);
+			await assert.rejects(other.acquire(ulid().toUpperCase()), /SESSION_BUSY/);
 		}
 		await writeFile(ownerFile, JSON.stringify({ ...owner, pid: dead }));
 		const recovering = await ManagedSession.resolve(s.root, s.session.id, s.owner);
 		await recovering.assertResumable();
-		await recovering.acquire(ulid().toLowerCase());
+		await recovering.acquire(ulid().toUpperCase());
 		await recovering.validateCheckpoint();
 		assert.equal(recovering.manifest.state, "ready");
 		await recovering.release();

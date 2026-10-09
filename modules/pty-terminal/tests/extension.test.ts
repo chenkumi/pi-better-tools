@@ -98,7 +98,14 @@ test("write keys + waitFor/format/since work end to end on a real PTY, with slim
 	assert.equal(JSON.parse((await tools.get("pty_list").execute("l", {})).content[0].text)[0].sessionId, sessionId);
 
 	const written = await tools.get("pty_write").execute("w", { sessionId, data: "hi", keys: ["Enter"], readAfterMs: 0 });
-	assert.ok(["ok", "received:hi"].some(text => written.content[0].text.includes(text)));
+	// A zero-delay drain may contain the terminal's input echo before the
+	// child reply. The reply is independently required by waitFor below.
+	assert.ok(["ok", "received:hi", "hi\r\n"].some(text => written.content[0].text.includes(text)), JSON.stringify(written));
+	assert.equal(written.details.sessionId, sessionId);
+	if (written.content[0].text !== "ok") {
+		assert.equal(typeof written.details.cursor.from, "number");
+		assert.ok(written.details.cursor.to > written.details.cursor.from);
+	}
 	const out = await read({ waitFor: "received:hi", timeoutMs: 20_000, since: cursor });
 	assert.match(out.content[0].text, /received:hi/);
 	assert.equal(typeof cursor, "number");

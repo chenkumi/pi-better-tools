@@ -58,7 +58,7 @@ test(`packaged extension with real Pi ${hostVersion} loader`, { timeout: 120000 
     assert.deepEqual(loaded.errors, []);
     assert.equal(loaded.extensions.length, 1);
     const definitions = [...loaded.extensions[0].tools.values()].map(tool => tool.definition);
-    assert.deepEqual(definitions.map(tool => tool.name), ["read", "write", "edit"]);
+    assert.deepEqual(definitions.map(tool => tool.name), ["read", "write", "edit", "grep", "find", "ls"]);
     const context = { cwd: workspace };
     const direct = async (name, args, signal) => {
       const definition = definitions.find(tool => tool.name === name);
@@ -68,8 +68,14 @@ test(`packaged extension with real Pi ${hostVersion} loader`, { timeout: 120000 
 
     await t.test("declares advisory annotations without changing output contracts", () => {
       assert.deepEqual(definitions[0].annotations, { readOnlyHint: true, openWorldHint: false });
-      for (const tool of definitions.slice(1)) assert.deepEqual(tool.annotations, { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false });
-      assert.ok(definitions.every(tool => tool.outputSchema === undefined && (tool.exposure ?? "direct") === "direct"));
+      for (const tool of definitions.slice(1, 3)) assert.deepEqual(tool.annotations, { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false });
+      assert.ok(definitions[0].outputSchema);
+      assert.ok(definitions.slice(1).every(tool => tool.outputSchema === undefined));
+      assert.ok(definitions.every(tool => (tool.exposure ?? "direct") === "direct"));
+      for (const tool of definitions.slice(3)) {
+        assert.equal(tool.defaultActive, false);
+        assert.deepEqual(tool.annotations, { readOnlyHint: true, openWorldHint: false });
+      }
     });
 
     await t.test("packed read/write/edit and diff worker resolve URL and Windows shell targets", async () => {
@@ -95,10 +101,14 @@ test(`packaged extension with real Pi ${hostVersion} loader`, { timeout: 120000 
       await writeFile(join(workspace, "pixel.png"), tinyPng());
       const image = await direct("read", { path: "pixel.png" });
       assert.ok(image.content.some(block => block.type === "image" && block.mimeType === "image/png"));
+      assert.equal(text.structuredContent, textOf(text));
+      assert.equal(image.structuredContent.type, "image");
+      assert.equal(image.structuredContent.mimeType, "image/png");
+      assert.equal(image.structuredContent.data, image.content.find(block => block.type === "image").data);
     });
 
     const advanced = typeof sdk.createCodemodeExtension === "function";
-    if (["0.99.1", "0.99.2", "1.0.0"].includes(hostVersion)) assert.equal(advanced, true, `Pi ${hostVersion} must execute the advanced probes, not silently skip them`);
+    if (hostVersion === "1.1.0") assert.equal(advanced, true, `Pi ${hostVersion} must execute the advanced probes, not silently skip them`);
     const events = [];
     let tools;
     let parallelSuccess;
@@ -170,6 +180,39 @@ test(`packaged extension with real Pi ${hostVersion} loader`, { timeout: 120000 
       const ops = createFileOps();
       extractFileOpsFromMessage({ role: "toolResult", nestedCalls: record.calls }, ops);
       assert.deepEqual(computeFileLists(ops), { readFiles: ["bm.txt"], modifiedFiles: [] });
+    });
+
+    await t.test("QuickJS codemode receives a read image block usable by image()", { skip: !advanced }, async () => {
+      const { executeCodemode } = await hostModule("extensions/codemode/execute.js");
+      const result = await executeCodemode("image-parent", { code: 'const r = await tools.read({ path: "pixel.png" }); text({ type: r.type, mimeType: r.mimeType }); image(r);' }, undefined, undefined, {
+        cwd: workspace, tools, sessionManager: { getBranch: () => [] },
+        executeTool: (name, args, options) => runner.execute("image-parent", name, args, options),
+      });
+      assert.notEqual(result.isError, true);
+      assert.match(textOf(result), /"type":"image"/);
+      assert.ok(result.content.some(block => block.type === "image" && block.mimeType === "image/png"));
+    });
+
+    await t.test("packed search overrides retain cwd, context, ignore rules and error propagation", async () => {
+      await mkdir(join(workspace, ".git"));
+      await writeFile(join(workspace, ".gitignore"), "ignored.txt\n");
+      await writeFile(join(workspace, "ignored.txt"), "SEARCH_MARKER\n");
+      await writeFile(join(workspace, "search.txt"), "before\nSEARCH_MARKER\nafter\n");
+      const grep = await direct("grep", { pattern: "search_marker", ignoreCase: true, context: 1 });
+      assert.match(textOf(grep), /search\.txt:2: SEARCH_MARKER/);
+      assert.match(textOf(grep), /before/);
+      assert.match(textOf(grep), /after/);
+      assert.doesNotMatch(textOf(grep), /ignored\.txt/);
+      const find = await direct("find", { pattern: "*.txt" });
+      assert.match(textOf(find), /search\.txt/);
+      assert.doesNotMatch(textOf(find), /ignored\.txt/);
+      const ls = await direct("ls", {});
+      assert.match(textOf(ls), /ignored\.txt/); // ls lists entries, not gitignore filtering.
+      await assert.rejects(direct("grep", { pattern: "[" }));
+      for (const name of ["grep", "find", "ls"]) {
+        const args = { path: "missing", ...(name === "grep" ? { pattern: "x" } : name === "find" ? { pattern: "*" } : {}) };
+        await assert.rejects(direct(name, args));
+      }
     });
 
     await t.test("built-in read and custom edit renderers preserve model-visible content", { skip: !advanced }, async () => {

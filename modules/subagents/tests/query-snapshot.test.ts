@@ -4,7 +4,7 @@ import { ulid } from "ulid";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { controlText, pendingTools, safeSnapshot, validateInteraction } from "../extensions/subagent/query-snapshot.ts";
 
-const header = { type: "session" as const, version: 3, id: ulid().toLowerCase(), cwd: process.cwd(), timestamp: "2026-10-05T00:00:00.000Z" };
+const header = { type: "session" as const, version: 3, id: ulid().toUpperCase(), cwd: process.cwd(), timestamp: "2026-10-05T00:00:00.000Z" };
 function entries(messages: any[]) { return messages.map((message, index) => ({ type: "message" as const, id: `entry-${index}`, parentId: index ? `entry-${index - 1}` : null, timestamp: header.timestamp, message })); }
 const call = { role: "assistant", content: [{ type: "toolCall", id: "call-1", name: "write", arguments: {} }], stopReason: "toolUse", timestamp: 2 };
 const result = { role: "toolResult", toolCallId: "call-1", toolName: "write", content: [{ type: "text", text: "done" }], timestamp: 3 };

@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+import { lstat, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -190,4 +193,114 @@ test("a command warns once when a trusted project setting will override the save
 	h.ctx.isProjectTrusted = () => false; h.notices.length = 0;
 	await h.emit("session_start"); await h.command("normal");
 	assert.equal(h.notices.some(n => n.type === "warning"), false);
+});
+
+test("a lock held briefly by another process is retried instead of dropping the setting", async t => {
+	const h = await harness(t); await h.save(h.globalPath, { theme: "keep" });
+	const script = `const l=require("proper-lockfile");const r=l.lockSync(process.argv[1],{realpath:false});process.stdout.write("held");setTimeout(()=>{r();},80);`;
+	const child = spawn(process.execPath, ["-e", script, h.globalPath], { stdio: ["ignore", "pipe", "inherit"], cwd: process.cwd() });
+	const exited = new Promise(resolve => child.once("exit", resolve));
+	await new Promise<void>((resolve, reject) => { child.once("error", reject); child.once("exit", () => reject(new Error("lock holder exited early"))); child.stdout.once("data", () => resolve()); });
+	await h.command("fast");
+	await exited;
+	assert.deepEqual(h.notices.filter(n => n.type === "warning"), []);
+	assert.equal(JSON.parse(await readFile(h.globalPath, "utf8"))["pi-gpt-speed"].mode, "fast");
+});
+
+test("transient ELOCKED retries synchronously and merges settings after lock acquisition", async t => {
+	const h = await harness(t); await h.save(h.globalPath, { theme: "before" });
+	const original = lockfile.lockSync;
+	let attempts = 0;
+	const waits: number[] = [];
+	t.mock.method(Atomics, "wait", (_array: unknown, _index: number, _value: number, ms: number) => { waits.push(ms); return "timed-out"; });
+	t.mock.method(lockfile, "lockSync", (path: string, options: Parameters<typeof original>[1]) => {
+		attempts++;
+		if (attempts <= 2) throw Object.assign(new Error("busy"), { code: "ELOCKED" });
+		fs.writeFileSync(h.globalPath, JSON.stringify({ theme: "updated by other owner" }));
+		return original(path, options);
+	});
+	await h.command("fast");
+	assert.equal(attempts, 3);
+	assert.deepEqual(waits, [20, 20]);
+	assert.deepEqual(h.notices.filter(n => n.type === "warning"), []);
+	assert.deepEqual(JSON.parse(await readFile(h.globalPath, "utf8")), { theme: "updated by other owner", "pi-gpt-speed": { mode: "fast" } });
+	assert.equal(lockfile.checkSync(h.globalPath, { realpath: false }), false);
+});
+
+test("lock retries stop after ten attempts and do not retry non-contention errors", async t => {
+	const h = await harness(t); await h.save(h.globalPath, { theme: "keep" });
+	const waits: number[] = [];
+	t.mock.method(Atomics, "wait", (_array: unknown, _index: number, _value: number, ms: number) => { waits.push(ms); return "timed-out"; });
+	for (const [code, expectedAttempts] of [["ELOCKED", 10], ["EACCES", 1]] as const) {
+		let attempts = 0;
+		const mock = t.mock.method(lockfile, "lockSync", () => { attempts++; throw Object.assign(new Error(code), { code }); });
+		waits.length = 0; h.notices.length = 0;
+		await h.command("fast");
+		mock.mock.restore();
+		assert.equal(attempts, expectedAttempts);
+		assert.deepEqual(waits, Array(expectedAttempts - 1).fill(20));
+		assert.equal(h.notices.filter(n => n.type === "warning").length, 1);
+		assert.deepEqual(JSON.parse(await readFile(h.globalPath, "utf8")), { theme: "keep" });
+		assert.deepEqual(await readdir(join(h.globalPath, "..")), ["settings.json"]);
+	}
+});
+
+test("saving keeps a symlinked settings file and the original permissions", async t => {
+	const h = await harness(t);
+	const real = join(h.root, "real-settings.json");
+	await writeFile(real, JSON.stringify({ theme: "keep" }), { mode: 0o640 });
+	await mkdir(join(h.globalPath, ".."), { recursive: true });
+	try { await symlink(real, h.globalPath); } catch (error) { t.skip(`symlink unavailable: ${(error as Error).message}`); return; }
+	await h.command("fast");
+	assert.ok((await lstat(h.globalPath)).isSymbolicLink());
+	assert.deepEqual(JSON.parse(await readFile(real, "utf8")), { theme: "keep", "pi-gpt-speed": { mode: "fast" } });
+	if (process.platform !== "win32") assert.equal((await stat(real)).mode & 0o777, 0o640);
+});
+
+test("settings realpath and stat errors fail closed instead of replacing settings", async t => {
+	const h = await harness(t); await h.save(h.globalPath, { theme: "keep" });
+	for (const name of ["realpathSync", "statSync"] as const) {
+		const original = fs[name];
+		const mock = t.mock.method(fs, name, (...args: unknown[]) => {
+			if (args[0] === h.globalPath) throw Object.assign(new Error(`${name} denied`), { code: "EACCES" });
+			return (original as (...args: unknown[]) => unknown)(...args);
+		});
+		syncBuiltinESMExports();
+		t.after(() => { mock.mock.restore(); syncBuiltinESMExports(); });
+		h.notices.length = 0;
+		try {
+			await h.command("fast");
+			assert.equal(h.notices.filter(n => n.type === "warning").length, 1);
+			assert.deepEqual(JSON.parse(await readFile(h.globalPath, "utf8")), { theme: "keep" });
+			assert.deepEqual(await readdir(join(h.globalPath, "..")), ["settings.json"]);
+		} finally { mock.mock.restore(); syncBuiltinESMExports(); }
+	}
+});
+
+test("a dangling settings symlink is not replaced", async t => {
+	const h = await harness(t);
+	const missing = join(h.root, "missing-settings.json");
+	await mkdir(join(h.globalPath, ".."), { recursive: true });
+	try { await symlink(missing, h.globalPath); } catch (error) { t.skip(`symlink unavailable: ${(error as Error).message}`); return; }
+	await h.command("fast");
+	assert.ok((await lstat(h.globalPath)).isSymbolicLink());
+	await assert.rejects(readFile(missing), { code: "ENOENT" });
+	assert.equal(h.notices.filter(n => n.type === "warning").length, 1);
+	assert.deepEqual(await readdir(join(h.globalPath, "..")), ["settings.json"]);
+});
+
+test("permission restoration is not filtered by the process umask", async t => {
+	const h = await harness(t); await h.save(h.globalPath, { theme: "keep" });
+	const chmod = t.mock.method(fs, "chmodSync");
+	syncBuiltinESMExports();
+	t.after(() => { chmod.mock.restore(); syncBuiltinESMExports(); });
+	const previous = process.umask(0o077);
+	try {
+		const mode = (await stat(h.globalPath)).mode & 0o777;
+		await h.command("fast");
+		assert.equal(chmod.mock.callCount(), 1);
+		assert.equal(chmod.mock.calls[0].arguments[1], mode);
+		if (process.platform !== "win32") assert.equal((await stat(h.globalPath)).mode & 0o777, mode);
+		assert.deepEqual(h.notices.filter(n => n.type === "warning"), []);
+	} finally { process.umask(previous); }
 });

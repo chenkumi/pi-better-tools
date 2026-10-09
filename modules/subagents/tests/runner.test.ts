@@ -10,10 +10,12 @@ import { mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import test, { beforeEach } from "node:test";
+import test, { beforeEach, mock } from "node:test";
 import { emitManagedHeader, fixtureAgentPath, installManagedBoundary, managedRunMetadata } from "./fixtures/managed-boundary.ts";
 beforeEach(installManagedBoundary);
 import registerSubagent, { expandChainTask, runSingleAgent, SUBAGENT_INACTIVITY_TIMEOUT_MS, type RunnerRuntime } from "../extensions/subagent/index.ts";
+import { resultSummary } from "../extensions/subagent/result.ts";
+import { ManagedSession } from "../extensions/subagent/session-store.ts";
 import { SubsessionWriter, callAlias } from "../extensions/subagent/subsession-log.ts";
 import { getSubagentDebugLogDir, writeSubagentDebugFailure } from "../extensions/subagent/debug-log.ts";
 
@@ -22,8 +24,16 @@ const fixture = fileURLToPath(new URL("./fixtures/child.mjs", import.meta.url));
 
 async function run(scenario: string, task = "test", controller?: AbortController, onUpdate?: (partial: any) => void, inactivityTimeoutMs?: number, debugLog = false, extraRuntime: Partial<RunnerRuntime> = {}) {
 	const root = await mkdtemp(join(tmpdir(), "pi-runner-test-"));
+	let ownedSettlement: Promise<void> = Promise.resolve();
 	let taskPath: string | undefined;
 	let promptPath: string | undefined;
+	let acknowledgeDeletion!: () => void;
+	const deleted = new Promise<void>(resolve => { acknowledgeDeletion = resolve; });
+	const actualRm = fs.promises.rm;
+	const observeRm = mock.method(fs.promises, "rm", async (...args: Parameters<typeof actualRm>) => {
+		await actualRm(...args);
+		if (taskPath && String(args[0]) === dirname(taskPath)) acknowledgeDeletion();
+	});
 	try {
 		const result = await runSingleAgent(
 			root,
@@ -39,6 +49,7 @@ async function run(scenario: string, task = "test", controller?: AbortController
 				debugLogDir: join(root, "debug-logs"),
 				inactivityTimeoutMs,
 				...extraRuntime,
+				onOwnedSettlement(settlement) { ownedSettlement = settlement; extraRuntime.onOwnedSettlement?.(settlement); },
 				invocation(args) {
 					assert.equal(args[args.indexOf("--exclude-tools") + 1], "subagent,subagent_status,subagent_cancel,subagent_message");
 					assert.ok(args.join(" ").length < 4000);
@@ -50,7 +61,11 @@ async function run(scenario: string, task = "test", controller?: AbortController
 				},
 			},
 		);
+		await ownedSettlement;
 		if (taskPath) {
+			// Aborted requests stop waiting for cleanup, not its actual owned I/O.
+			// Keep all deletion assertions but observe real rm settlement first.
+			await deleted;
 			await assert.rejects(stat(taskPath), { code: "ENOENT" });
 			await assert.rejects(stat(promptPath!), { code: "ENOENT" });
 			await assert.rejects(stat(dirname(taskPath)), { code: "ENOENT" });
@@ -63,8 +78,93 @@ async function run(scenario: string, task = "test", controller?: AbortController
 		const debugRecords = await Promise.all(debugFiles.map(async (file) => JSON.parse(await readFile(join(root, "debug-logs", file), "utf8"))));
 		return { result, log, metadata, spawned: Boolean(taskPath), debugRecords };
 	} finally {
-		await rm(root, { recursive: true, force: true });
+		await ownedSettlement;
+		observeRm.mock.restore();
+		await fs.promises.rm(root, { recursive: true, force: true });
 	}
+}
+
+test("helper teardown waits for actual owner write and late managed release before invocation", async t => {
+	const controller = new AbortController();
+	let releaseWrite!: () => void;
+	const writeBarrier = new Promise<void>(resolve => { releaseWrite = resolve; });
+	let session: ManagedSession | undefined, writeSettled = false, released = false;
+	const open = fs.promises.open, release = ManagedSession.prototype.release, actualRm = fs.promises.rm;
+	t.mock.method(fs.promises, "open", async (...args: Parameters<typeof open>) => {
+		const handle = await open(...args);
+		if (String(args[0]).includes("owner.json.") && String(args[0]).endsWith(".partial")) {
+			const write = handle.writeFile.bind(handle);
+			t.mock.method(handle, "writeFile", async (...values: Parameters<typeof handle.writeFile>) => {
+				controller.abort(); await writeBarrier;
+				await write(...values); writeSettled = true;
+			});
+		}
+		return handle;
+	});
+	t.mock.method(ManagedSession.prototype, "release", async function (this: ManagedSession) {
+		session = this; await release.call(this); released = true;
+	});
+	let root: string | undefined;
+	t.mock.method(fs.promises, "rm", async (...args: Parameters<typeof actualRm>) => {
+		if (/pi-runner-test-[^\\/]+$/.test(String(args[0]))) {
+			root = String(args[0]);
+			assert.ok(writeSettled && released, "root teardown overlapped actual owner write / late release");
+		}
+		return actualRm(...args);
+	});
+	try {
+		const { result, spawned } = await run("normal", "test", controller, () => {}, undefined, false, {
+			onResourceStats() { setImmediate(releaseWrite); },
+		});
+		assert.equal(spawned, false);
+		assert.equal(result.status, "aborted");
+		assert.equal(result.stopReason, "aborted");
+		assert.doesNotMatch(result.errorMessage ?? "", /no stdout or stderr/);
+	} finally {
+		releaseWrite();
+		// The red path must not delete the root while the injected write is live.
+		if (!released) await new Promise<void>(resolve => {
+			const original = ManagedSession.prototype.release;
+			t.mock.method(ManagedSession.prototype, "release", async function (this: ManagedSession) { await original.call(this); resolve(); });
+		});
+		t.mock.restoreAll();
+		if (root) await actualRm(root, { recursive: true, force: true });
+	}
+});
+
+for (const scenario of ["large-head", "aggregate-cap", "length", "retry-recovery", "empty-final", "error", "aborted", "stale-after-tool", "stale-after-retry"] as const) {
+	test(`terminal summary: ${scenario}`, async t => {
+		const terminal = (text: string, stopReason = "stop") => ({ type: "message_end", message: { role: "assistant", content: [{ type: "thinking", thinking: "private" }, { type: "text", text: "\n  \n" }, { type: "text", text }], stopReason, ...(stopReason === "error" || stopReason === "aborted" ? { errorMessage: "authoritative diagnostic" } : {}) } });
+		t.mock.method(childProcess, "spawn", (_command, args: readonly string[], options: any) => {
+			const stdout = new PassThrough(), stderr = new PassThrough();
+			const proc = Object.assign(new EventEmitter(), { stdout, stderr, exitCode: null, signalCode: null, kill() { return true; } });
+			setImmediate(() => {
+				emitManagedHeader(stdout, args, options.cwd);
+				const emit = (event: unknown) => stdout.write(JSON.stringify(event) + "\n");
+				emit(terminal("Early progress\n" + "p".repeat(scenario === "aggregate-cap" ? 750000 : 9000), "toolUse"));
+				if (scenario === "aggregate-cap") { emit(terminal("p".repeat(750000), "toolUse")); emit(terminal("p".repeat(750000), "toolUse")); }
+				if (scenario === "retry-recovery" || scenario.startsWith("stale-")) {
+					emit(terminal("Stale terminal")); emit({ type: "auto_retry_start" }); emit({ type: "agent_start" });
+				}
+				if (scenario === "stale-after-tool") emit(terminal("New tool progress", "toolUse"));
+				else if (!scenario.startsWith("stale-")) emit(terminal(scenario === "empty-final" ? "\n " : "完成🙂 Final conclusion\nDetail is not the conclusion.", scenario === "length" ? "length" : scenario === "error" || scenario === "aborted" ? scenario : "stop"));
+				// Match the audited Pi 1.0.0 listener order: successful recovery ends after message_end.
+				if (scenario === "retry-recovery") emit({ type: "auto_retry_end", success: true, attempt: 1 });
+				emit({ type: "agent_settled" }); stdout.end(); stderr.end(); proc.emit("close", 0, null);
+			});
+			return proc;
+		});
+		syncBuiltinESMExports();
+		try {
+			const { result, log } = await run("normal");
+			if (scenario.startsWith("stale-")) { assert.equal(result.status, "failed"); assert.doesNotMatch(resultSummary(result, 512), /Stale terminal|Early progress|New tool progress/); }
+			else if (scenario === "error" || scenario === "aborted") { assert.equal(result.status, scenario === "error" ? "failed" : "aborted"); assert.equal(resultSummary(result, 512), "authoritative diagnostic"); }
+			else { assert.equal(result.status, "completed", result.errorMessage); assert.equal(resultSummary(result, 512), scenario === "empty-final" ? "No final assistant text was returned." : "完成🙂 Final conclusion"); }
+			assert.match(result.output, /Early progress/);
+			if (scenario === "aggregate-cap") { assert.doesNotMatch(result.output, /Final conclusion/); assert.ok(Buffer.byteLength(result.output) <= 2 * 1024 * 1024); assert.ok(log.some(record => record.type === "assistant" && record.content.includes("Final conclusion"))); }
+			assert.ok(Buffer.byteLength(resultSummary(result, 8)) <= 8);
+		} finally { t.mock.restoreAll(); syncBuiltinESMExports(); }
+	});
 }
 
 test("chain substitutions retain all dollar replacement sequences literally", () => {
@@ -103,7 +203,7 @@ test("tool execution reads canonical settings on each call and logs failures onl
 	try {
 		await fs.promises.mkdir(agentDir);
 		let tool: ToolDefinition | undefined;
-		registerSubagent({ registerTool(definition) { tool = definition; }, on() {} } as ExtensionAPI, {
+		registerSubagent({ registerMessageRenderer() {}, registerTool(definition) { tool = definition; }, on() {} } as ExtensionAPI, {
 			settingsAgentDir: agentDir, sessionRootDir: join(root, "managed"), debugLogDir: logsDir,
 			invocation(args) {
 				if (!succeed) throw new Error("injected settings dispatch failure");
@@ -163,7 +263,7 @@ for (const mode of ["parallel", "chain"] as const) {
 			await fs.promises.mkdir(agentDir);
 			await fs.promises.writeFile(join(agentDir, "settings.json"), JSON.stringify({ "pi-subagents": { debugLog: true } }));
 			let tool: ToolDefinition | undefined;
-			registerSubagent({ registerTool(definition) { tool = definition; }, on() {} } as ExtensionAPI, {
+			registerSubagent({ registerMessageRenderer() {}, registerTool(definition) { tool = definition; }, on() {} } as ExtensionAPI, {
 				settingsAgentDir: agentDir, sessionRootDir: join(root, "managed"), debugLogDir: logsDir,
 				invocation() { throw new Error("injected mode dispatch failure"); },
 			});
@@ -229,7 +329,7 @@ test("captured assistant content remains memory bounded and oversized output is 
 	const { result } = await run("large-retained-output");
 	assert.equal(result.status, "completed");
 	assert.equal(result.exitCode, 0);
-	assert.match(result.output, /\[Output truncated/);
+	assert.match(result.output, /\[Only part of the result is retained here\./);
 	assert.ok(Buffer.byteLength(result.output, "utf8") <= 2 * 1024 * 1024);
 });
 
@@ -288,15 +388,10 @@ test("a child that lingers after agent_settled is terminated after a short grace
 
 test("parent abort wins when it precedes inactivity timeout", async () => {
 	const controller = new AbortController();
-	const abortTimer = setTimeout(() => controller.abort(), 50);
-	try {
-		const { result } = await run("silent", "test", controller, () => {}, 500);
-		assert.equal(result.status, "aborted");
-		assert.equal(result.stopReason, "aborted");
-		assert.doesNotMatch(result.errorMessage ?? "", /no stdout or stderr/);
-	} finally {
-		clearTimeout(abortTimer);
-	}
+	const { result } = await run("silent", "test", controller, () => {}, 500, false, { onLiveLog() { controller.abort(); } });
+	assert.equal(result.status, "aborted");
+	assert.equal(result.stopReason, "aborted");
+	assert.doesNotMatch(result.errorMessage ?? "", /no stdout or stderr/);
 });
 
 test("timeout wins over a later abort while termination is pending", { timeout: 10000 }, async (t) => {
@@ -419,7 +514,7 @@ test("parallel timeout is isolated and chain timeout stops later steps", async (
 	syncBuiltinESMExports();
 	try {
 		let tool: ToolDefinition | undefined;
-		registerSubagent({ registerTool(definition) { tool = definition; }, on() {} } as ExtensionAPI, { debugLog: false, sessionRootDir: join(root, "managed"), inactivityTimeoutMs: 30, forceKillDelayMs: 20 });
+		registerSubagent({ registerMessageRenderer() {}, registerTool(definition) { tool = definition; }, on() {} } as ExtensionAPI, { debugLog: false, sessionRootDir: join(root, "managed"), inactivityTimeoutMs: 30, forceKillDelayMs: 20 });
 		const ctx = {
 			cwd: root,
 			hasUI: false,
@@ -534,7 +629,7 @@ test("single, parallel, and chain aggregate live progress without leaking it int
 	syncBuiltinESMExports();
 	try {
 		let tool: ToolDefinition | undefined;
-		registerSubagent({ registerTool(definition) { tool = definition; }, on() {} } as ExtensionAPI, { debugLog: false, sessionRootDir: join(root, "managed") });
+		registerSubagent({ registerMessageRenderer() {}, registerTool(definition) { tool = definition; }, on() {} } as ExtensionAPI, { debugLog: false, sessionRootDir: join(root, "managed") });
 		const ctx = {
 			cwd: root,
 			hasUI: false,
@@ -546,6 +641,10 @@ test("single, parallel, and chain aggregate live progress without leaking it int
 		const single = await tool!.execute("single-call", { agent: "worker", task: "single" }, undefined, (update) => singleUpdates.push(update), ctx);
 		assert.ok(singleUpdates.some((update) => update.details.progress?.[0]?.entries?.some((entry: any) => entry.kind === "tool" && entry.status === "request")));
 		assert.equal(single.details.progress, undefined);
+		assert.equal((single.structuredContent as any).results[0].summary, "final-1");
+		assert.equal(single.details.results[0].output, "working-1\n\nfinal-1", "aggregate content remains intact");
+		const collapsed = (tool as any).renderResult(single, { expanded: false, isPartial: false }, { fg: (_color: string, text: string) => text, bold: (text: string) => text }, {}).render(200).join("\n");
+		assert.match(collapsed, /final-1/); assert.doesNotMatch(collapsed, /working-1/);
 
 		const parallelUpdates: any[] = [];
 		const parallel = await tool!.execute("parallel-call", { tasks: [
@@ -578,13 +677,13 @@ test("single, parallel, and chain aggregate live progress without leaking it int
 			.renderResult(synthetic, { expanded, isPartial: true }, theme, {})
 			.render(42)
 			.map((line: string) => line.replace(/\x1b\[[0-9;]*m/g, "").trimEnd())
-			.filter((line: string) => /^\[(request|completed|failed)\]/.test(line));
+			.filter((line: string) => /^Tool (request|completed|failed):/.test(line));
 		for (const expanded of [false, true]) {
 			const lines = progressLines(expanded);
 			assert.equal(lines.length, 3);
-			assert.match(lines[0], /^\[request\] very-long-tool\(.*…\)$/);
-			assert.equal(lines[1], '[completed] read({"path":"README.md"})');
-			assert.equal(lines[2], '[failed] powershell({"command":"exit 1"})');
+			assert.match(lines[0], /^Tool request: very-long-tool\(.*…\)$/);
+			assert.equal(lines[1], 'Tool completed: read({"path":"README.md"})');
+			assert.match(lines[2], /^Tool failed: powershell\(.*…\)$/); // Named state consumes more columns; arguments still obey the 42-column budget.
 			assert.ok(lines.every((line: string) => visibleWidth(line) <= 42));
 			assert.equal(lines.join("\n").includes("running-"), false);
 			assert.equal(lines.join("\n").includes("done-"), false);
@@ -676,7 +775,7 @@ for (const mixedModes of [false, true]) {
 			await fs.promises.mkdir(agentsDir, { recursive: true });
 			await fs.promises.writeFile(join(agentsDir, "local.md"), "---\nname: local\ndescription: test\n---\nTest agent");
 			let tool: ToolDefinition | undefined;
-			registerSubagent({ registerTool(definition) { tool = definition; }, on() {} } as ExtensionAPI, { debugLog: false, sessionRootDir: join(root, "managed") });
+			registerSubagent({ registerMessageRenderer() {}, registerTool(definition) { tool = definition; }, on() {} } as ExtensionAPI, { debugLog: false, sessionRootDir: join(root, "managed") });
 			const confirm = t.mock.fn(async () => false);
 			const createLog = t.mock.method(SubsessionWriter, "create", async () => { throw new Error("unexpected log creation"); });
 			const createTemp = t.mock.method(fs.promises, "mkdtemp", async () => { throw new Error("unexpected runner temp directory"); });
@@ -697,6 +796,37 @@ for (const mixedModes of [false, true]) {
 				assert.equal(confirm.mock.callCount(), 0);
 				assert.equal(createLog.mock.callCount(), 0);
 				assert.equal(createTemp.mock.callCount(), 0);
+				assert.equal(spawnMock.mock.callCount(), 0);
+			} finally {
+				t.mock.restoreAll();
+				syncBuiltinESMExports();
+			}
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+}
+
+for (const withUi of [false, true]) {
+	test(`untrusted project agent ignores confirmProjectAgents=false (${withUi ? "UI asks and denial cancels" : "no UI refuses"})`, async (t) => {
+		const root = await mkdtemp(join(tmpdir(), "pi-trust-test-"));
+		try {
+			const agentsDir = join(root, CONFIG_DIR_NAME, "agents");
+			await fs.promises.mkdir(agentsDir, { recursive: true });
+			await fs.promises.writeFile(join(agentsDir, "local.md"), "---\nname: local\ndescription: test\n---\nTest agent");
+			let tool: ToolDefinition | undefined;
+			registerSubagent({ registerMessageRenderer() {}, registerTool(definition) { tool = definition; }, on() {} } as ExtensionAPI, { debugLog: false, sessionRootDir: join(root, "managed") });
+			const confirm = t.mock.fn(async () => false);
+			const spawnMock = t.mock.method(childProcess, "spawn", () => { throw new Error("unexpected child spawn"); });
+			syncBuiltinESMExports();
+			try {
+				const result = await tool!.execute("untrusted", { agentScope: "project", agent: "local", task: "test", confirmProjectAgents: false }, undefined, undefined, {
+					cwd: root, hasUI: withUi, isProjectTrusted: () => false, ...(withUi ? { ui: { confirm } } : {}),
+					sessionManager: { getSessionId: () => "test-session" },
+				} as unknown as ExtensionContext);
+				assert.equal(result.isError, true);
+				assert.match(result.content[0].text, withUi ? /Canceled: project-local agents not approved/ : /Refused: project-local agents \(local\)/);
+				assert.equal(confirm.mock.callCount(), withUi ? 1 : 0);
 				assert.equal(spawnMock.mock.callCount(), 0);
 			} finally {
 				t.mock.restoreAll();

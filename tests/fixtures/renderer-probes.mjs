@@ -11,12 +11,13 @@ export function assertToolRenderers(definitions, cwd) {
   const textResult = (text, details, structuredContent) => ({ content: [{ type: 'text', text }], details, ...(structuredContent ? { structuredContent } : {}) });
   function render(definition, result, expanded = false, isError = false, isPartial = false, args = {}) {
     const before = JSON.stringify(result);
+    // Match Pi 1.0.0 ToolExecutionComponent: error state is carried by context only.
     const component = definition.renderResult({ content: result.content, details: result.details }, { expanded, isPartial }, theme, { ...contexts(args), expanded, isError });
     assert.ok(component && typeof component.render === 'function', `${definition.name}: renderer must return a component`);
     let text = '';
     for (const width of [12, 24, 80]) {
       const lines = component.render(width);
-      if (definition.name.startsWith('pty_') || ['note', 'web_fetch', 'web_search', 'schedule_create', 'schedule_update', 'schedule_status', 'schedule_cancel', 'schedule_delete', 'shell_job_status', 'shell_job_cancel', 'subagent_status', 'subagent_cancel', 'subagent_message'].includes(definition.name)) {
+      if (definition.name.startsWith('pty_') || ['note', 'web_fetch', 'web_search', 'shell_job_status', 'shell_job_cancel', 'subagent_status', 'subagent_cancel', 'subagent_message'].includes(definition.name)) {
         assert.doesNotMatch(lines.join('\n'), /\x1b\[2J|\x1b\]|[\x07\x80-\x9f\u202a-\u202e\u2066-\u2069]/, `${definition.name}: unsafe display controls`);
       }
       for (const line of lines) assert.ok(visibleWidth(line) <= width, `${definition.name}: line exceeds width ${width}: ${line}`);
@@ -61,44 +62,13 @@ export function assertToolRenderers(definitions, cwd) {
   assert.equal(render(byName('read'), read), '', 'successful compact read retains builtin behavior');
   assert.match(render(byName('read'), read, true, false, false, { path: 'test.txt' }), /hello/);
 
-  const saved = { type: 'report', relativePath: 'report/REPORT-20261003T072258503Z.md', path: `${cwd}/report/REPORT-20261003T072258503Z.md` };
-  const note = textResult(`Saved note: ${saved.relativePath}\nAbsolute path: ${saved.path}`, saved, saved);
-  assert.match(render(byName('note'), note), /Saved report:/);
+  const saved = { relativePath: 'report/REPORT-20261003T072258503Z.md' };
+  const note = textResult(`Saved note: ${saved.relativePath}`, saved, saved);
+  assert.match(render(byName('note'), note), /Saved note:/);
   assert.ok(render(byName('note'), note).includes(saved.relativePath));
-  assert.match(render(byName('note'), note, true), /Absolute path:/);
+  assert.doesNotMatch(render(byName('note'), note, true), /Absolute path:/);
   const call = byName('note').renderCall({ type: 'report', content: '# Title\n' + 'PRIVATE_BODY'.repeat(10000) }, theme, contexts({})).render(80).join('\n');
   assert.match(call, /Title/); assert.ok(!call.includes('PRIVATE_BODY'));
-
-  const schedule = { id: 'schedule-1', revision: 2, title: '測試排程', state: 'active', mode: 'independent', cwd,
-    nextRun: '2099-01-01T00:00:00.000Z', timing: { kind: 'once', expression: '2099-01-01T00:00:00Z', timezone: 'UTC' }, prompt: 'Future job only' };
-  for (const name of ['schedule_create', 'schedule_update']) {
-    const value = { schedule, runtime: { role: 'host', requiresOpenApp: true } }, result = textResult(JSON.stringify(value), value);
-    const compact = render(byName(name), result), expanded = render(byName(name), result, true);
-    assert.match(compact, /revision 2/); assert.match(compact, /2099-01-01/); assert.match(compact, /Timezone: UTC/);
-    assert.ok(!compact.includes('"schedule"')); assert.match(expanded, /Future job only/);
-  }
-  const status = { now: '2026-10-03T07:22:58.503Z', timezone: 'UTC', total: 1, offset: 0, schedules: [schedule],
-    runs: [{ runId: 'run-1', scheduleId: 'schedule-1', status: 'orphaned', endedAt: '2026-10-03T07:30:00.000Z', error: 'owner unknown' }], runtime: { role: 'standby', sessionError: 'restore failed', independent: { lastError: 'RUNNER_TEST_FAILURE', retention: { logCleanupError: 'CLEANUP_TEST_FAILURE' } } } };
-  assert.match(render(byName('schedule_status'), textResult(JSON.stringify(status), status)), /Host: standby/);
-  assert.match(render(byName('schedule_status'), textResult(JSON.stringify(status), undefined), true), /orphaned/);
-  assert.match(render(byName('schedule_status'), textResult(JSON.stringify(status), status)), /restore failed/);
-  assert.match(render(byName('schedule_status'), textResult(JSON.stringify(status), status)), /RUNNER_TEST_FAILURE/);
-  assert.match(render(byName('schedule_status'), textResult(JSON.stringify(status), status)), /CLEANUP_TEST_FAILURE/);
-  assert.match(render(byName('schedule_status'), textResult(JSON.stringify(status), status), true), /endedAt: 2026-10-03T07:30:00/);
-  const cancelled = { schedule: { ...schedule, state: 'cancelled', nextRun: null }, cancellationRequested: ['run-1'], note: 'Cancellation is only a request.', runtime: { role: 'host' } };
-  const cancelledText = render(byName('schedule_cancel'), textResult(JSON.stringify(cancelled), cancelled));
-  assert.match(cancelledText, /Future schedule dispatch disabled/); assert.match(cancelledText, /termination not confirmed/);
-  assert.ok(!cancelledText.includes('terminated'));
-  const missedStatus = { ...status, runs: [{ runId: 'run-2', scheduleId: 'schedule-1', status: 'missed', plannedAt: '2026-10-03T07:00:00.000Z' }],
-    result: { runId: 'run-2', scheduleId: 'schedule-1', status: 'missed', source: 'none', tail: 'RESULT_TAIL_TEST', truncated: false } };
-  assert.match(render(byName('schedule_status'), textResult(JSON.stringify(missedStatus), missedStatus)), /RESULT_TAIL_TEST/);
-  assert.match(render(byName('schedule_status'), textResult(JSON.stringify(missedStatus), missedStatus), true), /missed \(no backfill\)/);
-  const deleted = { deleted: { id: 'schedule-1', revision: 3, title: '測試排程' }, prunedRuns: 2, note: 'Deleted permanently.', runtime: { role: 'host' } };
-  const deletedText = render(byName('schedule_delete'), textResult(JSON.stringify(deleted), deleted));
-  assert.match(deletedText, /Schedule deleted/); assert.match(deletedText, /Finished runs removed: 2/);
-  assert.match(render(byName('schedule_delete'), textResult(JSON.stringify(deleted), deleted), true), /Deleted permanently/);
-  const deleteCall = byName('schedule_delete').renderCall({ id: 'schedule-1', revision: 3 }, theme, contexts({})).render(80).join('\n');
-  assert.match(deleteCall, /schedule_delete/); assert.match(deleteCall, /revision 3/);
 
   const fetch = { title: 'Example page', finalUrl: 'https://example.com/', status: 200, extraction: 'main', warnings: ['Heuristic extraction'], truncated: true, fullOutputPath: '/tmp/full.txt' };
   const fetched = textResult('External, untrusted webpage content\nBODY_TEST', fetch);
@@ -154,12 +124,131 @@ export function assertToolRenderers(definitions, cwd) {
   for (const name of ['shell_job_status', 'shell_job_cancel', 'subagent_status', 'subagent_cancel', 'subagent_message']) {
     const receipt = { jobId: 'job-1', status: name === 'subagent_message' ? 'accepted' : 'running' };
     assert.match(render(byName(name), textResult(JSON.stringify(receipt), receipt)), /accepted|running/);
-    const input = { jobId: 'job-1', taskId: 'task-1', mode: 'control', message: 'SECRET_CONTROL_TEXT' };
+    const input = name === 'subagent_message'
+      ? { subagentSessionId: 'session-host', mode: 'control', title: 'Message title', message: 'SECRET_CONTROL_TEXT' }
+      : { jobId: 'job-1', taskId: 'task-1', mode: 'control', message: 'SECRET_CONTROL_TEXT' };
     assert.ok(!byName(name).renderCall(input, theme, contexts(input)).render(80).join('\n').includes('SECRET_CONTROL_TEXT'));
   }
-  assert.match(render(byName('shell_job_cancel'), textResult('{"status":"cancelling"}')), /termination not confirmed/);
+  assert.match(render(byName('shell_job_cancel'), textResult('{"status":"cancelling"}')), /Exit of all descendant processes is not confirmed/);
+  const agents = { jobs: [{ jobId: 'job-host-123', status: 'completed', tasks: [{ taskId: 'task-host', agent: 'reviewer', status: 'completed', summary: 'Verified result' }] }] };
+  const agentList = textResult(JSON.stringify(agents), agents);
+  assert.match(render(byName('subagent_status'), agentList), /1 jobs/);
+  assert.match(render(byName('subagent_status'), agentList), /reviewer: completed/);
+  assert.match(render(byName('subagent_status'), agentList), /Verified result/);
+  assert.match(render(byName('subagent_status'), agentList, true), /task-host/);
+  assert.match(render(byName('subagent_cancel'), textResult('unchanged', { ...agents.jobs[0], cancelRequested: true })), /exit of all descendant processes is not confirmed/);
+  for (const status of ['accepted', 'queued', 'applied', 'not_applied', 'delivery_unknown']) for (const expanded of [false, true]) {
+    const shown = render(byName('subagent_message'), textResult('unchanged', { status, messageId: 'control-host' }), expanded);
+    assert.match(shown, new RegExp(`Control: ${status}`));
+    assert.doesNotMatch(shown, /accepted\/queued is not applied|Awaiting application/i);
+    if (status === 'accepted' || status === 'queued') {
+      assert.match(shown, new RegExp(`○ Control: ${status}`));
+      assert.match(shown, status === 'accepted' ? /Control message accepted; waiting to be added to the subagent conversation\./ : /Control message queued; waiting to be added to the subagent conversation\./);
+      assert.doesNotMatch(shown, /✗|! Control|✓ Control/);
+    } else assert.doesNotMatch(shown, /waiting to be added/);
+    if (status === 'applied') assert.match(shown, /✓ Control: applied/);
+    if (status === 'not_applied') assert.match(shown, /✗ Control: not_applied/);
+    if (status === 'delivery_unknown') assert.match(shown, /! Control: delivery_unknown/);
+  }
+  const messageTool = byName('subagent_message');
+  assert.equal(messageTool.parameters.properties.title.maxLength, 50);
+  const stableControl = { action: 'control', mode: 'control', status: 'accepted', subagentSessionId: 'session-host', jobId: 'job-host', taskId: 'task-host', messageId: 'control-host' };
+  const stableShown = render(messageTool, textResult(JSON.stringify(stableControl), stableControl), true);
+  assert.match(stableShown, /Control: accepted/);
+  assert.match(stableShown, /session-host/, 'expanded new interaction includes stable session identity');
+  assert.match(stableShown, /Action: control/);
+  const stableQuery = { ...stableControl, action: 'query', mode: 'query', queryId: 'query-host' };
+  delete stableQuery.messageId;
+  const queryShown = render(messageTool, textResult(JSON.stringify(stableQuery), stableQuery), true);
+  assert.match(queryShown, /Query: accepted/); assert.match(queryShown, /Action: query/); assert.match(queryShown, /session-host/);
+  const stableResume = { action: 'resume', mode: 'control', subagentSessionId: 'session-host', status: 'accepted', jobId: 'next-job', taskId: 'next-task',
+    background: { jobId: 'next-job', status: 'queued', cancelRequested: false, tasks: [{ taskId: 'next-task', agent: 'worker', status: 'queued', subagentSessionId: 'session-host', logPending: true }] } };
+  for (const expanded of [false, true]) {
+    const shown = render(messageTool, textResult(JSON.stringify(stableResume), stableResume), expanded);
+    assert.match(shown, /Resume instruction accepted/); assert.match(shown, /not completed/);
+    assert.doesNotMatch(shown, /Control: accepted|✓/);
+    if (expanded) { assert.match(shown, /Action: resume/); assert.match(shown, /next-task/); assert.match(shown, /session-host/); }
+  }
+  const rejection = { subagentSessionId: 'session-host', mode: 'control', status: 'rejected', errorCode: 'SESSION_BUSY', observedState: 'finalizing', nextAction: 'Wait for task_result/cleanup. Do not replay accepted controls.', error: 'Session is finalizing; message not accepted.' };
+  for (const mode of ['control', 'query']) for (const expanded of [false, true]) for (const withDetails of [false, true]) {
+    const rejected = { ...rejection, mode };
+    const rejectedShown = render(messageTool, textResult(JSON.stringify(rejected), withDetails ? rejected : undefined), expanded, true);
+    assert.match(rejectedShown, /! (?:Query|Message) not accepted/); assert.doesNotMatch(rejectedShown, /✗ Subagents error|✓/);
+    assert.match(rejectedShown, /Reason code: SESSION_BUSY/); assert.match(rejectedShown, /Observed state: finalizing/);
+    assert.match(rejectedShown, /Do not replay accepted controls/); assert.match(rejectedShown, /session-host/);
+    assert.doesNotMatch(rejectedShown, /Insufficient result data|Resume instruction accepted|Control: accepted|Query: accepted/);
+  }
+  assert.match(render(messageTool, textResult('ACTUAL_HOST_ERROR', undefined), false, true), /✗ Subagents error/);
   const largeBackground = textResult('UNTRUSTED_MARKER\u001b[2J\u0007\u202e' + 'x'.repeat(20000));
   const boundedBackground = render(byName('subagent_status'), largeBackground, true);
   assert.match(boundedBackground, /UNTRUSTED_MARKER/); assert.ok(boundedBackground.length < 9000);
   console.log(`[renderers] ${definitions.length} loader definitions verified: calls/results, partial/error/legacy, widths 12/24/80, output unchanged.`);
+}
+
+export function assertMessageRenderers(extensions) {
+  const renderers = new Map(extensions.flatMap(e => [...e.messageRenderers]));
+  const backgrounds = { toolSuccessBg: '\x1b[48;5;22m', toolErrorBg: '\x1b[48;5;52m', toolPendingBg: '\x1b[48;5;58m' };
+  const theme = { fg: (_key, text) => `\x1b[32m${text}\x1b[0m`, getBgAnsi: key => backgrounds[key], bg: (key, text) => backgrounds[key] + text + '\x1b[49m' };
+  const shell = { jobId: 'host-job', status: 'completed', exitCode: 0, elapsedMs: 1200,
+    command: 'npm test 測試😀', output: 'Error: expected test', outputTail: '\u001b[32mfinal success\u001b[0m', outputTruncated: true, log: '/isolated/log' };
+  const messages = [
+    { customType: 'shell-job-completed', content: 'Untrusted data\n' + JSON.stringify([shell]), details: { jobs: [Object.fromEntries(Object.entries(shell).filter(([key]) => !['output', 'outputTail'].includes(key)))] } },
+    { customType: 'scheduled_prompt', content: 'unchanged', details: { jobId: 'host-job', jobName: '測試😀', prompt: 'original prompt', mode: 'subagent_done', output: 'OK\u001b[2J\u0007\u202e' } },
+    { customType: 'scheduled_prompt', content: 'skipped', details: { mode: 'subagent_done', skipped: true, output: 'deadline reached' } },
+    { customType: 'subagent_background', content: 'unchanged', details: { kind: 'task_result', jobId: 'host-job', status: 'completed', tasks: [{ taskId: 'host-task', agent: 'reviewer', status: 'completed', result: { output: 'Verified result\u001b[2J\u202e', logPath: '/isolated/final' } }] } },
+    { customType: 'subagent_background', content: 'unchanged', details: { kind: 'log_ready', jobId: 'host-job', status: 'running', tasks: [{ taskId: 'host-task', agent: 'reviewer', status: 'running', liveLogPath: '/isolated/live.partial', finalLogPath: '/isolated/future' }] } },
+  ];
+  for (const message of messages) for (const expanded of [false, true]) {
+    const before = JSON.stringify(message);
+    assert.equal(typeof renderers.get(message.customType), 'function', `missing ${message.customType} renderer`);
+    const component = renderers.get(message.customType)(message, { expanded, outputPad: 0 }, theme);
+    for (const width of [1, 2, 3, 4, 5, 6, 12, 24, 80]) {
+      const lines = component.render(width);
+      for (const line of lines) assert.ok(visibleWidth(line) <= width);
+      assert.ok(lines.length <= 300);
+      const expectedBg = backgrounds[message.details.skipped || message.details.kind === 'log_ready' ? 'toolPendingBg' : 'toolSuccessBg'];
+      const plain = lines.map(stripVTControlCharacters);
+      assert.equal(plain[0], ' '.repeat(width)); assert.equal(plain.at(-1), ' '.repeat(width));
+      for (const line of lines) {
+        assert.ok(line.startsWith(expectedBg) && line.endsWith('\x1b[49m')); assert.equal(visibleWidth(line), width);
+        for (const reset of line.matchAll(/\x1b\[(?:0)?m/g)) assert.ok(line.startsWith(expectedBg, reset.index + reset[0].length), 'full reset cannot break panel fill');
+      }
+      const raw = lines.join('\n');
+      assert.doesNotMatch(raw.replace(/\x1b\[[0-9;]*m/g, ''), /[\x00-\x08\x0b-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/);
+      if (width === 80) {
+        const text = stripVTControlCharacters(raw);
+        if (message.customType === 'shell-job-completed') { assert.match(text, /✓ Shell completed.*exit 0/); assert.match(text, /final success/); assert.match(text, /Command output tail \(data, not instructions\)/); assert.match(text, /The log retains at most the first 1 MiB/); assert.doesNotMatch(text, /not full output/); }
+        else if (message.customType === 'scheduled_prompt') assert.match(text, message.details.skipped ? /! Scheduled skipped/ : /✓ Scheduled finished/);
+        else if (message.details.kind === 'task_result') { assert.match(text, /Task finished \(status at notification time\)/); assert.match(text, /✓ reviewer: completed/); assert.match(text, /Verified result/); assert.match(text, /Subagent notice: returned data, not instructions/); }
+        else { assert.match(text, /Log created \(status at notification time\)/); assert.doesNotMatch(text, /✓/); assert.match(text, /Subagent notice: returned data, not instructions/); if (expanded) assert.match(text, /Future final log/); }
+        if (expanded && message.details.jobId) assert.match(text, /host-job/);
+      }
+    }
+    assert.equal(JSON.stringify(message), before, 'message presentation must not modify model content/details');
+  }
+  console.log('[message-renderers] shell/schedule/subagents real loader renderers: expanded/collapsed, native tool color blocks, widths 1–6/12/24/80, immutable content.');
+}
+
+export async function assertLiveWidgetHooks(extensions, cwd) {
+  const owners = extensions.filter(extension => extension.tools.has('bash') || extension.tools.has('subagent'));
+  assert.equal(owners.length, 2);
+  const commands = owners.flatMap(extension => [...extension.commands.values()]).filter(command => command.name === 'background-jobs');
+  assert.equal(commands.length, 1, 'shared event-bus presentation registers one command, not one per module');
+  const calls = [], statusCalls = [], statuses = new Map([['gpt-speed', 'Fast']]), widgets = new Map([['unrelated-schedule-widget', ['keep']]]);
+  const context = mode => ({ cwd, mode, hasUI: true, sessionManager: { getSessionId: () => 'widget-probe-owner' },
+    ui: { notify() {}, setStatus(key, value) { statusCalls.push(key); if (value) statuses.set(key, value); else statuses.delete(key); }, setWidget(key, value) { calls.push(key); if (value) widgets.set(key, value); else widgets.delete(key); } } });
+  const emit = async (event, ctx) => { for (const extension of owners) for (const handler of extension.handlers.get(event) ?? []) await handler({ type: event, reason: 'quit' }, ctx); };
+  await emit('session_start', context('tui'));
+  assert.deepEqual(calls, [], 'empty combined panel needs no placeholder widget');
+  assert.deepEqual(statusCalls, [], 'idle panel needs no footer placeholder');
+  await commands[0].handler('all', context('tui'));
+  assert.deepEqual([...widgets.keys()], ['unrelated-schedule-widget'], 'empty live widgets must be hidden without removing another module widget');
+  await emit('session_shutdown', context('tui'));
+  assert.deepEqual([...statuses], [['gpt-speed', 'Fast']], 'leave unrelated footer status untouched');
+  for (const mode of ['rpc', 'json', 'print']) {
+    calls.length = 0; statusCalls.length = 0; await emit('session_start', context(mode)); await emit('session_shutdown', context(mode));
+    assert.deepEqual(calls, [], `no terminal widgets in ${mode}, even if dialogs are supported`);
+    assert.deepEqual(statusCalls, [], `no footer statuses in ${mode}`);
+  }
+  console.log('[live-widgets] real loader hooks: shared command/key, idle footer/widget hiding, other statuses preserved, shutdown, TUI-only binding, no tool/provider work.');
 }

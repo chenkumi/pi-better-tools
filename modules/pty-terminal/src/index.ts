@@ -77,11 +77,11 @@ export default function (pi: ExtensionAPI) {
 		name: "pty_write",
 		...ptyRenderers("write"),
 		label: "PTY write",
-		description: "Write input to a PTY session: data (control escapes such as \\x03 for Ctrl+C, \\r for Enter, \\t for Tab) and/or keys (named keys, sent after data). Optional readAfterMs waits that long after writing, then drains and returns output like pty_read.",
+		description: "Write input to a PTY session: data (control escapes such as \\x03 for Ctrl+C, \\r for Enter, \\t for Tab; write \\\\ or \\x5c for a literal backslash, e.g. C:\\\\new or C:\\x5cnew; a lone backslash before r/n/f/t/v/x/u is otherwise decoded) and/or keys (named keys, sent after data). Optional readAfterMs waits that long after writing, then drains and returns output like pty_read.",
 		promptSnippet: "pty_write: send text or named keys to a PTY session",
 		parameters: Type.Object({
 			sessionId: Type.String({ description: "PTY session id returned by pty_spawn." }),
-			data: Type.Optional(Type.String({ description: "Text to write. Control escapes supported: \\xNN, \\uXXXX, \\r, \\n, \\t, \\f, \\v." })),
+			data: Type.Optional(Type.String({ description: "Text to write. Control escapes supported: \\xNN, \\uXXXX, \\r, \\n, \\t, \\f, \\v; use \\\\ or \\x5c for a literal backslash (single-pass decoding)." })),
 			keys: Type.Optional(Type.Array(Type.String(), { description: `Named keys sent in order after data: ${KEY_NAMES.join(", ")}.` })),
 			readAfterMs: Type.Optional(Type.Integer({ minimum: 0, maximum: MAX_WAIT_MS, description: `Wait this many ms after writing, then drain and return output (max ${MAX_WAIT_MS}). Omit to only write.` })),
 			format: formatParameter,
@@ -195,7 +195,8 @@ export default function (pi: ExtensionAPI) {
 		},
 	});
 
-	pi.on("session_shutdown", () => {
-		sessions.shutdown();
+	pi.on("session_shutdown", async () => {
+		const result = await sessions.shutdown();
+		if (result.retained.length) throw new Error(`PTY shutdown incomplete: ${result.errors.join("; ")}. Local transport exit remains unconfirmed.`);
 	});
 }

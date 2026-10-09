@@ -89,7 +89,7 @@ export async function writeFailureDebugLog(record, options = {}) {
       signal.throwIfAborted();
       // One unique file per failure avoids append interleaving and overwrites
       // across concurrent tools, sessions, and processes. No input forms a path.
-      const logPath = join(directory, `${timestamp.replace(/[:.]/g, "-")}-${ulid().toLowerCase()}.json`);
+      const logPath = join(directory, `${timestamp.replace(/[:.]/g, "-")}-${ulid().toUpperCase()}.json`);
       await writeFile(logPath, payload, { encoding: "utf8", flag: "wx", mode: 0o600, signal });
       return logPath;
     } catch (error) {

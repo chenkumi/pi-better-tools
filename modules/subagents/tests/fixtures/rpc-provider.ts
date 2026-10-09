@@ -41,7 +41,7 @@ export default function (pi: ExtensionAPI) {
 			const finish = (error?: string) => { if (error) { message.stopReason = options?.signal?.aborted ? "aborted" : "error"; message.errorMessage = error; stream.push({ type: "error", reason: message.stopReason, error: message }); } else { stream.push({ type: "start", partial: message }); stream.push({ type: "done", reason: message.stopReason, message }); } stream.end(); };
 			setImmediate(() => {
 				if (pi.getActiveTools().includes("subagent")) {
-					if (!context.messages.some(m => m.role === "toolResult" && m.toolName === "subagent")) { message.content = [{ type: "toolCall", id: "parent-dispatch", name: "subagent", arguments: { agent: "worker", task: "interactive", background: true } }]; message.stopReason = "toolUse"; }
+					if (!context.messages.some(m => m.role === "toolResult" && m.toolName === "subagent")) { message.content = [{ type: "toolCall", id: "parent-dispatch", name: "subagent", arguments: { agent: "worker", task: "interactive summary-head", background: true } }]; message.stopReason = "toolUse"; }
 					else message.content = [{ type: "text", text: context.messages.some(m => text(m).includes('"kind":"task_result"')) ? "parent automatic follow-up" : "parent idle" }];
 					finish(); return;
 				}
@@ -69,7 +69,7 @@ export default function (pi: ExtensionAPI) {
 					finish(); return;
 				}
 				const prime = question === "prime" || question.includes("Task: prime\n"); const hasResult = context.messages.some(m => m.role === "toolResult" && m.toolName === "barrier");
-				if (!prime && !hasResult) { message.content = [{ type: "thinking", thinking: "private", thinkingSignature: "opaque-main-call" }, { type: "toolCall", id: "main-barrier", name: "barrier", arguments: {} }]; message.stopReason = "toolUse"; }
+				if (!prime && !hasResult) { message.content = [{ type: "thinking", thinking: "private", thinkingSignature: "opaque-main-call" }, ...(question.includes("summary-head") ? [{ type: "text", text: "Early progress\n" + "p".repeat(9000) }] : []), { type: "toolCall", id: "main-barrier", name: "barrier", arguments: {} }]; message.stopReason = "toolUse"; }
 				else message.content = [{ type: "thinking", thinking: "private", thinkingSignature: "opaque-prime" }, { type: "text", text: prime ? "primed" : "main complete" }];
 				finish();
 			});

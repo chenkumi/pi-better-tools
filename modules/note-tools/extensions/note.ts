@@ -12,26 +12,6 @@ const displayText = (value: unknown, max = 2000) => typeof value === "string"
 /** Generous UTF-8 byte cap for one note (a note is a document, not a data dump). */
 export const MAX_NOTE_BYTES = 8 * 1024 * 1024;
 
-/** Max slug length in Unicode code points (never splits a surrogate pair). */
-export const MAX_SLUG_CODE_POINTS = 40;
-const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[0-9\u00b9\u00b2\u00b3]|lpt[0-9\u00b9\u00b2\u00b3])$/;
-
-/**
- * Derive a filename slug from the content only: first Markdown heading, else first non-empty line.
- * Keeps letters/numbers (incl. CJK), turns everything else into single hyphens, lowercases.
- * Returns "" when no safe slug exists (caller falls back to a timestamp-only name).
- */
-export function deriveSlug(content: string): string {
-  const lines = content.replace(/^\uFEFF/, "").split(/\r\n?|\n/);
-  const heading = lines.map(line => /^ {0,3}#{1,6}[ \t]+(.*)$/.exec(line)?.[1]).find(text => text !== undefined && /[\p{L}\p{N}]/u.test(text));
-  const source = heading ?? lines.find(line => line.trim() !== "") ?? "";
-  const normalized = source.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}\p{M}]+/gu, "-").replace(/^-+|-+$/g, "");
-  const slug = Array.from(normalized).slice(0, MAX_SLUG_CODE_POINTS).join("").replace(/-+$/g, "");
-  // A name without any letter/number, or a Windows device name, is not a usable slug.
-  if (!/[\p{L}\p{N}]/u.test(slug) || WINDOWS_RESERVED.test(slug)) return "";
-  return slug;
-}
-
 const noteTypes = ["plan", "issue", "research", "report", "task"] as const;
 
 export const noteTool = defineTool({
@@ -39,7 +19,7 @@ export const noteTool = defineTool({
   label: "Note",
   description:
     "Save a NEW Markdown document as plan, issue, research, report or task. Required for such documents: do NOT use write and do NOT choose a file name or folder. " +
-    "The tool picks <cwd>/<type>/TYPE-YYYYMMDDTHHmmssSSSZ[-title-slug].md (UTC; slug derived from the content title), never overwrites, and returns the path; send the complete document in one call. " +
+    "The tool picks <cwd>/<type>/TYPE-YYYYMMDDTHHmmssSSSZ.md (UTC; no title suffix), never overwrites, and returns the path; send the complete document in one call. " +
     "Use it when asked to write down, record, save or log such a document, or when finished work deserves a record. Not for source code or existing files: to change a note afterwards use read/edit on the returned path.",
   promptSnippet: "Save a new plan/issue/research/report/task Markdown document; file name is auto-generated and the saved path is returned.",
   promptGuidelines: [
@@ -51,8 +31,6 @@ export const noteTool = defineTool({
     content: Type.String({ description: "The full Markdown document, including a title heading, written verbatim. Do not include a file name." }),
   }, { additionalProperties: false }),
   outputSchema: Type.Object({
-    type: StringEnum(noteTypes),
-    path: Type.String(),
     relativePath: Type.String(),
   }, { additionalProperties: false }),
   renderCall(args, theme) {
@@ -60,14 +38,13 @@ export const noteTool = defineTool({
     const title = displayText(args?.content, 300).split("\n").find(line => line.trim())?.replace(/^#+\s*/, "").slice(0, 100) || "";
     return new Text(`${theme.fg("toolTitle", theme.bold("note"))} ${theme.fg("accent", type)}${title ? ` · ${theme.fg("muted", title)}` : ""}`, 0, 0);
   },
-  renderResult(result, { expanded, isPartial }, theme, context) {
+  renderResult(result, { isPartial }, theme, context) {
     const text = result.content.filter(block => block.type === "text").map(block => block.text).join("\n");
     if (context.isError) return new Text(theme.fg("error", `Note failed\n${displayText(text)}`), 0, 0);
     if (isPartial) return new Text(theme.fg("muted", "Saving note…"), 0, 0);
-    const saved = result.details as Partial<{ type: string; path: string; relativePath: string }> | undefined;
+    const saved = result.details as Partial<{ relativePath: string }> | undefined;
     const path = displayText(saved?.relativePath);
-    return new Text(theme.fg("success", path ? `Saved ${displayText(saved?.type, 20)}: ${path}` : displayText(text) || "Note result unavailable") +
-      (expanded && saved?.path ? `\n${theme.fg("muted", `Absolute path: ${displayText(saved.path)}`)}` : ""), 0, 0);
+    return new Text(theme.fg("success", path ? `Saved note: ${path}` : displayText(text) || "Note result unavailable"), 0, 0);
   },
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
     // Also protect direct/programmatic callers that bypass the host's schema validation.
@@ -89,11 +66,10 @@ export const noteTool = defineTool({
     if (inside === "" || inside.startsWith("..") || isAbsolute(inside)) {
       throw new Error(`NOTE_DIRECTORY_ESCAPE: ${params.type}/ resolves outside the workspace; refusing to write.`);
     }
-    const slug = deriveSlug(params.content);
     const timestamp = Date.now();
     for (let attempt = 0; attempt < 1000; attempt++) {
       const stamp = new Date(timestamp + attempt).toISOString().replace(/[-:.]/g, "");
-      const filename = `${params.type.toUpperCase()}-${stamp}${slug ? `-${slug}` : ""}.md`;
+      const filename = `${params.type.toUpperCase()}-${stamp}.md`;
       const path = join(directory, filename);
       try {
         await withFileMutationQueue(path, async () => {
@@ -114,7 +90,7 @@ export const noteTool = defineTool({
         if (error && typeof error === "object" && "code" in error && error.code === "EEXIST") continue;
         throw error;
       }
-      const saved = { type: params.type, path, relativePath: `${params.type}/${filename}` };
+      const saved = { relativePath: `${params.type}/${filename}` };
       return {
         content: [{ type: "text", text: `Saved note: ${saved.relativePath} (relative to cwd; use read/edit on this path to change it)` }],
         details: saved,

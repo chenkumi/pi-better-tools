@@ -14,7 +14,7 @@ export const fixtureAgentPath = fileURLToPath(new URL("../../agents/worker.md", 
 export function emitManagedHeader(stdout: Writable, args: readonly string[], cwd: string) {
 	assert.equal(args.includes("--no-session"), false);
 	const id = args[args.indexOf("--session-id") + 1];
-	assert.match(id, /^[0-9a-z]{26}$/);
+	assert.match(id, /^[0-9A-HJKMNP-TV-Z]{26}$/);
 	stdout.write(JSON.stringify({ type: "session", version: 3, id, cwd: realpathSync.native(cwd) }) + "\n");
 }
 export async function managedRunMetadata(root: string, result: { subagentSessionId?: string; taskId: string; logPath?: string; canResume?: boolean }) {

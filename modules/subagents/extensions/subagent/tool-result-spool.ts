@@ -202,7 +202,7 @@ export class ToolResultSpool {
 			const entry: JournalEntry = { version: 1, sequence: ++this.sequence, key: toolResultKey(record) };
 			const data = JSON.stringify({ ...entry, record });
 			if (Buffer.byteLength(data, "utf8") > MAX_RECORD_BYTES) throw new Error("Oversized tool spool record");
-			const temporary = path.join(this.directory, `${entry.key}.${entry.sequence}.${ulid().toLowerCase()}.partial`);
+			const temporary = path.join(this.directory, `${entry.key}.${entry.sequence}.${ulid().toUpperCase()}.partial`);
 			await fs.promises.writeFile(temporary, data, { flag: "wx", mode: 0o600 });
 			// Journal first: an append failure leaves the old record AND the candidate intact.
 			// A rename failure leaves a harmless unmatched version in the journal. No rollback

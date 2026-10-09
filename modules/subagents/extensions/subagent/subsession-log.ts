@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { ulid } from "ulid";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { renameWithRetry } from "./session-store.ts";
 
 export type SubsessionStatus = "completed" | "failed" | "aborted";
 
@@ -322,7 +323,7 @@ export class SubsessionWriter {
 
 	private constructor(handle: fs.promises.FileHandle, options: SubsessionWriterOptions) {
 		this.handle = handle;
-		this.taskId = options.taskId ?? ulid().toLowerCase();
+		this.taskId = options.taskId ?? ulid().toUpperCase();
 		this.formatVersion = options.formatVersion ?? 1;
 		const sessionDir = SubsessionWriter.directory(options, this.taskId);
 		this.partialPath = path.join(sessionDir, this.formatVersion === 2 ? "transcript.jsonl.partial" : `${this.taskId}.jsonl.partial`);
@@ -336,7 +337,7 @@ export class SubsessionWriter {
 	}
 
 	static async create(options: SubsessionWriterOptions): Promise<SubsessionWriter> {
-		const taskId = options.taskId ?? ulid().toLowerCase();
+		const taskId = options.taskId ?? ulid().toUpperCase();
 		const sessionDir = SubsessionWriter.directory(options, taskId);
 		await fs.promises.mkdir(sessionDir, { recursive: true, mode: 0o700 });
 		const handle = await fs.promises.open(path.join(sessionDir, options.formatVersion === 2 ? "transcript.jsonl.partial" : `${taskId}.jsonl.partial`), "wx", 0o600);
@@ -346,7 +347,7 @@ export class SubsessionWriter {
 				try { await fs.promises.writeFile(path.join(sessionDir, "run.json"), JSON.stringify({ version: 2, taskId,
 					parentSessionId: options.parentSessionId, parentToolCallId: options.parentToolCallId, agent: options.agent,
 					agentSource: options.agentSource, requestHash: createHash("sha256").update(options.task).digest("hex"), cwd: options.cwd, model: options.model, state: "running" }), { flag: "wx", mode: 0o600 }); }
-				catch (error) { await handle.close(); throw error; }
+				catch (error) { writer.fail(error); await writer.closeHandle(); throw error; }
 			}
 			return writer;
 		}
@@ -434,11 +435,20 @@ export class SubsessionWriter {
 	abandon(reason: string): Promise<void> {
 		this.fail(reason);
 		this.finalized = true;
-		return this.writeChain.then(() => this.closeHandle());
+		const abandonment = this.writeChain.then(() => this.closeHandle());
+		// Some owners cannot await until their IoGate becomes idle. Observe immediately,
+		// without converting the rejecting ownership barrier into a successful close.
+		void abandonment.catch(() => {});
+		return abandonment;
 	}
 
 	private closeHandle(): Promise<void> {
-		this.closing ??= this.handle.close().catch((error) => { this.fail(error); });
+		this.closing ??= Promise.resolve().then(() => this.handle.close()).catch((error) => {
+			const diagnostic = `Writer close failed: ${errorToString(error)}`;
+			this.writeError = this.writeError ? `${this.writeError}; ${diagnostic}` : diagnostic;
+			this.wake();
+			throw new Error(this.writeError);
+		});
 		return this.closing;
 	}
 
@@ -460,10 +470,11 @@ export class SubsessionWriter {
 			});
 		}
 		await this.writeChain;
-		await this.closeHandle();
+		try { await this.closeHandle(); }
+		catch { return { error: this.writeError }; } // Keep finalize's structured error contract.
 		if (this.writeError) return { error: this.writeError };
 		try {
-			await fs.promises.rename(this.partialPath, this.finalPath);
+			await renameWithRetry(this.partialPath, this.finalPath);
 			return this.writeError ? { error: this.writeError } : { logPath: this.finalPath };
 		} catch (error) {
 			return { error: this.fail(error) };

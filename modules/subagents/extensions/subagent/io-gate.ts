@@ -5,6 +5,7 @@ export class IoGate {
 	private readonly controller = new AbortController();
 	private waiting = 0;
 	private pending = 0;
+	private readonly idleWaiters = new Set<() => void>();
 	private readonly timeoutMs: number;
 	onWaitingChange: (count: number) => void = () => {};
 
@@ -13,6 +14,18 @@ export class IoGate {
 	}
 	get stopped(): boolean { return this.controller.signal.aborted; }
 	get pendingOperations(): number { return this.pending; }
+	/** Actual completion barrier, deliberately unaffected by stop()/waiting deadlines. */
+	whenIdle(): Promise<void> {
+		if (this.pending === 0) return Promise.resolve();
+		return new Promise(resolve => { this.idleWaiters.add(resolve); });
+	}
+	private completed(): void {
+		this.pending--;
+		if (this.pending === 0) {
+			for (const resolve of this.idleWaiters) resolve();
+			this.idleWaiters.clear();
+		}
+	}
 	stop(reason: Error): void { if (!this.stopped) this.controller.abort(reason); }
 	private notify(): void { try { this.onWaitingChange(this.waiting); } catch { /* host callbacks must not escape */ } }
 
@@ -38,7 +51,7 @@ export class IoGate {
 			this.controller.signal.addEventListener("abort", aborted, { once: true });
 			if (this.stopped) aborted();
 			// Keep a rejection handler even after abort/timeout; never close/delete live I/O resources.
-			actual.then((value) => { this.pending--; finish(true, value); }, (error) => { this.pending--; finish(false, error); });
+			actual.then((value) => { this.completed(); finish(true, value); }, (error) => { this.completed(); finish(false, error); });
 		});
 	}
 }

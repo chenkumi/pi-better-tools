@@ -33,7 +33,7 @@ test("debug logs use the requested pi-shell-tools namespace and contain diagnost
   const f = fixture(t, enabled);
   const file = await writeFailureDebugLog(record(), { homeDir: f.homeDir });
   assert.equal(path.dirname(file), f.logsDir);
-  assert.match(path.basename(file), /^\d{4}-\d{2}-\d{2}T.*-[0-9a-z]{26}\.json$/);
+  assert.match(path.basename(file), /^\d{4}-\d{2}-\d{2}T.*-[0-9A-HJKMNP-TV-Z]{26}\.json$/);
   const value = JSON.parse(fs.readFileSync(file, "utf8"));
   assert.equal(value.schemaVersion, 1);
   assert.equal(value.project, "pi-shell-tools");

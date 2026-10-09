@@ -1,7 +1,7 @@
 import { performance } from 'node:perf_hooks';
 import { chromium, type Browser, type BrowserContext, type Route } from 'playwright';
-import { extractHtml, MAX_HTML_BYTES, type ContentFormat, type ExtractionMode } from './extract.js';
-import { NetworkPolicy, parseWebUrl } from './network.js';
+import { extractHtmlIsolated, MAX_HTML_BYTES, prewarmExtractionWorker, shutdownExtractionWorkers, type ContentFormat, type ExtractionMode } from './extract.js';
+import { NetworkPolicy, parseWebUrl, type ValidationCache } from './network.js';
 import { installPlaywrightTlsCompatibility } from './playwright-tls-compat.js';
 
 export type FetchOptions = {
@@ -178,10 +178,15 @@ export class FetchService {
       if (input.format !== undefined && !['markdown', 'text'].includes(input.format)) throw new Error('INVALID_INPUT: Unsupported content format.');
       if (input.extraction !== undefined && !['auto', 'main', 'body'].includes(input.extraction)) throw new Error('INVALID_INPUT: Unsupported extraction mode.');
       if (input.waitForSelector !== undefined && (!input.waitForSelector.trim() || input.waitForSelector.length > 2048)) throw new Error('INVALID_INPUT: Selector must contain between 1 and 2048 characters.');
+      // One DNS validation per hostname within this fetch (the connected address is still checked per response).
+      const validated: ValidationCache = new Map();
+      const validate = (value: string) => this.policy.validate(value, validated);
       const requestedUrl = parseWebUrl(input.url).href;
       release = await this.queue.acquire(localSignal);
       checkAbort(localSignal);
-      await abortable(this.policy.validate(requestedUrl), localSignal);
+      await abortable(validate(requestedUrl), localSignal);
+      // Loading jsdom in a fresh worker takes seconds; warm one while the browser starts/navigates.
+      prewarmExtractionWorker();
       const browser = await abortable(this.getBrowser(), localSignal);
       // A context can finish creating after cancellation. Its creating promise owns
       // late cleanup; the caller still receives cancellation without waiting for it.
@@ -203,12 +208,13 @@ export class FetchService {
         let response: Awaited<ReturnType<Route['fetch']>> | undefined;
         try {
           checkAbort(localSignal);
-          // Media and fonts are never needed for text extraction; do not fetch them at all.
-          if (!mainNavigation && ['media', 'font'].includes(request.resourceType())) {
+          // Media, fonts, images and stylesheets are never needed for text extraction (it never
+          // renders or applies CSS); do not fetch them at all.
+          if (!mainNavigation && ['media', 'font', 'image', 'stylesheet'].includes(request.resourceType())) {
             await route.abort('blockedbyclient').catch(() => {});
             return;
           }
-          await abortable(this.policy.validate(request.url()), localSignal);
+          await abortable(validate(request.url()), localSignal);
           // Chromium/Playwright skips user routes on redirect hops, even after
           // fulfill(). Never give the browser a redirect response. Main redirects
           // become a fresh goto below; subresources are followed manually.
@@ -220,11 +226,14 @@ export class FetchService {
             // Playwright buffers before exposing the response: these limits bound
             // accepted HTML, not peak browser/network memory consumption.
             response = await route.fetch({ url: target, method, postData, headers: requestHeaders, maxRedirects: 0, timeout: remaining() });
+            // DNS-rebinding mitigation: the pre-flight lookup and this connection resolve separately,
+            // so verify the address actually connected to before anything is handed to the browser.
+            this.policy.assertConnectedAddress((await response.serverAddr())?.ipAddress);
             const location = response.headers().location;
             if (!(response.status() >= 300 && response.status() < 400 && location)) break;
             if (hop >= 19) throw new Error('NETWORK_ERROR: Too many redirects.');
             const destination = new URL(location, target).href;
-            await abortable(this.policy.validate(destination), localSignal);
+            await abortable(validate(destination), localSignal);
             if (mainNavigation) {
               if (method !== 'GET' && method !== 'HEAD') throw new Error('UNSUPPORTED_CONTENT: Redirected form navigation is not supported.');
               navigationRedirect = destination;
@@ -302,7 +311,7 @@ export class FetchService {
       const status = response?.status() ?? 0;
       if (status < 200 || status >= 400 || status === 204 || status === 205) throw new Error(`HTTP_ERROR: Page returned no successful document (HTTP ${status}).`);
       const finalUrl = page.url();
-      await abortable(this.policy.validate(finalUrl), localSignal);
+      await abortable(validate(finalUrl), localSignal);
       const html = await abortable(page.evaluate((maxBytes) => {
         const html = document.documentElement?.outerHTML ?? '';
         // Bound the serialized value crossing the browser protocol as well.
@@ -310,7 +319,7 @@ export class FetchService {
         return html;
       }, MAX_HTML_BYTES), localSignal);
       if (html === null) throw new Error('TOO_LARGE: Rendered HTML exceeds the 5 MiB limit.');
-      const extracted = extractHtml(html, finalUrl, input.format, input.extraction);
+      const extracted = await extractHtmlIsolated(html, finalUrl, input.format, input.extraction, localSignal);
       remaining();
       return { url: input.url, finalUrl, status, fetchedAt: new Date().toISOString(), ...extracted, warnings: [...extracted.warnings, ...warnings] };
     } catch (error) {
@@ -340,6 +349,7 @@ export class FetchService {
     this.closed = true;
     if (this.idleTimer) clearTimeout(this.idleTimer);
     for (const controller of this.operations) controller.abort(new Error('CLOSED: Fetch service is closed.'));
+    const workersClosed = shutdownExtractionWorkers();
     this.closePromise = (async () => {
       const browser = this.browser;
       this.browser = undefined;
@@ -347,6 +357,7 @@ export class FetchService {
       // A pending shared launch must also be reaped, rather than orphaned.
       await this.launching?.catch(() => {});
       await Promise.all(this.closingBrowsers);
+      await workersClosed;
     })();
     return this.closePromise;
   }

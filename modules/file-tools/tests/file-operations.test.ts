@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, symlink, truncate, writeFile } from "node:fs/promises";
+import fsPromises, { mkdir, mkdtemp, readFile, readdir, rm, symlink, truncate, utimes, writeFile } from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
+import { Worker } from "node:worker_threads";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
@@ -60,6 +62,212 @@ describe("SHA-256 version tokens", () => {
     assert.equal(prepareEditArguments({ path: "x", expectedHash: token, edits: edit }).expectedHash, token);
     assert.equal(prepareWriteArguments({ path: "x", content: "content", expectedHash: fullHash }).expectedHash, fullHash);
     assert.equal(prepareEditArguments({ path: "x", expectedHash: fullHash, edits: edit }).expectedHash, fullHash);
+  });
+});
+
+describe("checklist atomic commit regressions", () => {
+  it("M10 writes and replaces a long basename without leaking temporary files", async () => {
+    const name = `${"x".repeat(220)}.txt`;
+    const path = join(directory, name);
+    const created = await writeTextFile(path, name, "before", "missing");
+    assert.equal(created.created, true);
+    await writeTextFile(path, name, "after", created.sha256);
+    assert.equal(await readFile(path, "utf8"), "after");
+    assert.deepEqual(await readdir(directory), [name]);
+  });
+
+  it("L7 rejects different full hashes even when their compact prefix matches", async () => {
+    const path = join(directory, "hash.txt");
+    await writeFile(path, "before");
+    const hash = sha256("before");
+    const wrongFullHash = hash.slice(0, 63) + (hash[63] === "0" ? "1" : "0");
+    await expectFileError(() => writeTextFile(path, "hash.txt", "after", wrongFullHash), "STALE_FILE");
+    await expectFileError(() => editTextFile(path, "hash.txt", [{ oldText: "before", newText: "after" }], wrongFullHash), "STALE_FILE");
+    assert.equal(await readFile(path, "utf8"), "before");
+  });
+
+  it("L5 rejects a change between the final hash read and rename", async t => {
+    const path = join(directory, "race.txt");
+    await writeFile(path, "before");
+    const originalLstat = fsPromises.lstat;
+    let checks = 0;
+    t.mock.method(fsPromises, "lstat", async (...args: Parameters<typeof originalLstat>) => {
+      if (++checks === 3) await writeFile(path, "external change");
+      return originalLstat(...args);
+    });
+    syncBuiltinESMExports();
+    try {
+      await expectFileError(() => writeTextFile(path, "race.txt", "after"), "STALE_FILE");
+      assert.equal(await readFile(path, "utf8"), "external change");
+      assert.deepEqual(await readdir(directory), ["race.txt"]);
+    } finally {
+      t.mock.restoreAll();
+      syncBuiltinESMExports();
+    }
+  });
+
+  it("L5 honors cancellation during the last stat check before commit", async t => {
+    const path = join(directory, "abort-commit.txt");
+    await writeFile(path, "before");
+    const controller = new AbortController();
+    const originalLstat = fsPromises.lstat;
+    let checks = 0;
+    t.mock.method(fsPromises, "lstat", async (...args: Parameters<typeof originalLstat>) => {
+      const result = await originalLstat(...args);
+      if (++checks === 3) controller.abort();
+      return result;
+    });
+    syncBuiltinESMExports();
+    try {
+      await expectFileError(() => writeTextFile(path, "abort-commit.txt", "after", undefined, controller.signal), "OPERATION_ABORTED");
+      assert.equal(await readFile(path, "utf8"), "before");
+      assert.deepEqual(await readdir(directory), ["abort-commit.txt"]);
+    } finally {
+      t.mock.restoreAll();
+      syncBuiltinESMExports();
+    }
+  });
+
+  if (process.platform === "win32") {
+    it("M10 retries sharing violations including EACCES without weakening stale detection", async t => {
+      const path = join(directory, "retry.txt");
+      await writeFile(path, "before");
+      const originalRename = fsPromises.rename;
+      const originalStat = await fsPromises.stat(path);
+      let attempts = 0;
+      t.mock.method(fsPromises, "rename", async (...args: Parameters<typeof originalRename>) => {
+        attempts++;
+        // Same size and restored mtime: only a full hash can detect this external write.
+        await writeFile(path, "OTHERS");
+        await utimes(path, originalStat.atime, originalStat.mtime);
+        throw Object.assign(new Error("sharing violation"), { code: "EACCES" });
+      });
+      syncBuiltinESMExports();
+      try {
+        await expectFileError(() => writeTextFile(path, "retry.txt", "after"), "STALE_FILE");
+        assert.equal(attempts, 1, "must refuse before attempting another rename");
+        assert.equal(await readFile(path, "utf8"), "OTHERS");
+        assert.deepEqual(await readdir(directory), ["retry.txt"]);
+      } finally {
+        t.mock.restoreAll();
+        syncBuiltinESMExports();
+      }
+    });
+
+    it("M10 succeeds after transient sharing violations and L5 checks every retry", async t => {
+      const path = join(directory, "retry-success.txt");
+      await writeFile(path, "before");
+      const originalRename = fsPromises.rename;
+      const originalLstat = fsPromises.lstat;
+      let attempts = 0;
+      let checks = 0;
+      t.mock.method(fsPromises, "rename", async (...args: Parameters<typeof originalRename>) => {
+        if (++attempts < 3) throw Object.assign(new Error("sharing violation"), { code: attempts === 1 ? "EBUSY" : "EACCES" });
+        return originalRename(...args);
+      });
+      t.mock.method(fsPromises, "lstat", async (...args: Parameters<typeof originalLstat>) => {
+        checks++;
+        return originalLstat(...args);
+      });
+      syncBuiltinESMExports();
+      try {
+        await writeTextFile(path, "retry-success.txt", "after");
+        assert.equal(attempts, 3);
+        assert.equal(checks, 7, "initial snapshot plus hash/fingerprint checks for all three attempts");
+        assert.equal(await readFile(path, "utf8"), "after");
+        assert.deepEqual(await readdir(directory), ["retry-success.txt"]);
+      } finally {
+        t.mock.restoreAll();
+        syncBuiltinESMExports();
+      }
+    });
+  }
+});
+
+describe("checklist diff commit policy", () => {
+  it("M11 refuses to commit when the diff worker reports a timeout", async t => {
+    const path = join(directory, "diff-timeout.txt");
+    await writeFile(path, "before");
+    const originalOn = Worker.prototype.on;
+    t.mock.method(Worker.prototype, "on", function(this: Worker, event: string, listener: (...args: unknown[]) => void) {
+      const result = originalOn.call(this, event, listener);
+      if (event === "message") queueMicrotask(() => this.emit("message", { type: "error", code: "OPERATION_TIMEOUT" }));
+      return result;
+    });
+    try {
+      const error = await expectFileError(() => editTextFile(path, "diff-timeout.txt", [{ oldText: "before", newText: "after" }]), "OPERATION_TIMEOUT");
+      assert.match(error.payload.message, /no edit was committed/);
+      assert.equal(await readFile(path, "utf8"), "before");
+      assert.deepEqual(await readdir(directory), ["diff-timeout.txt"]);
+    } finally { t.mock.restoreAll(); }
+  });
+});
+
+describe("checklist regex session regressions", () => {
+  it("L6 reuses one worker and one text clone for successive whole-file regex edits", async t => {
+    const path = join(directory, "reuse.txt");
+    await writeFile(path, "alpha\nbeta\ngamma\n");
+    const original = Worker.prototype.postMessage;
+    const requests: Array<{ id: number; hasText: boolean }> = [];
+    t.mock.method(Worker.prototype, "postMessage", function(this: Worker, value: unknown) {
+      const request = value as { pattern?: string; text?: string };
+      if (request.pattern !== undefined) requests.push({ id: this.threadId, hasText: Object.hasOwn(request, "text") });
+      return original.call(this, value);
+    });
+    try {
+      await editTextFile(path, "reuse.txt", [
+        { regex: "^alpha$", regexFlags: "m", newText: "A" },
+        { regex: "^beta$", regexFlags: "m", newText: "B" },
+        { regex: "^gamma$", regexFlags: "m", newText: "G" },
+      ]);
+      assert.equal(await readFile(path, "utf8"), "A\nB\nG\n");
+      assert.equal(requests.length, 3);
+      assert.equal(new Set(requests.map(request => request.id)).size, 1);
+      assert.deepEqual(requests.map(request => request.hasText), [true, false, false]);
+    } finally { t.mock.restoreAll(); }
+  });
+
+  it("L6 tears down an aborted reused worker without committing partial replacements", async t => {
+    const path = join(directory, "abort-reuse.txt");
+    await writeFile(path, "alpha beta");
+    const controller = new AbortController();
+    const original = Worker.prototype.postMessage;
+    let requests = 0;
+    let reused: Worker | undefined;
+    t.mock.method(Worker.prototype, "postMessage", function(this: Worker, value: unknown) {
+      if ((value as { pattern?: string }).pattern !== undefined && ++requests === 2) {
+        reused = this;
+        queueMicrotask(() => controller.abort());
+      }
+      return original.call(this, value);
+    });
+    try {
+      await expectFileError(() => editTextFile(path, "abort-reuse.txt", [
+        { regex: "alpha", newText: "A" }, { regex: "beta", newText: "B" },
+      ], undefined, controller.signal), "OPERATION_ABORTED");
+      assert.equal(requests, 2);
+      assert.equal(reused?.threadId, -1, "the reused worker must finish termination before returning");
+      assert.equal(await readFile(path, "utf8"), "alpha beta");
+    } finally { t.mock.restoreAll(); }
+    await editTextFile(path, "abort-reuse.txt", [{ regex: "beta", newText: "B" }]);
+    assert.equal(await readFile(path, "utf8"), "alpha B");
+  });
+
+  it("L6 refreshes changed scopes without sharing anchors, lastIndex or captures", async () => {
+    const path = join(directory, "scope.txt");
+    await writeFile(path, "outside\nalpha\nbeta\n");
+    await editTextFile(path, "scope.txt", [
+      { regex: "^(alpha)$", newText: "$1-A", replacementMode: "template", lineRange: { start: 2, end: 2 } },
+      { regex: "^(beta)$", newText: "$1-B", replacementMode: "template", lineRange: { start: 3, end: 3 } },
+      { regex: "^outside", newText: "O" },
+    ]);
+    assert.equal(await readFile(path, "utf8"), "O\nalpha-A\nbeta-B\n");
+    const before = await readFile(path, "utf8");
+    const failure = await expectFileError(() => editTextFile(path, "scope.txt", [
+      { regex: "^alpha-A$", newText: "wrong", lineRange: { start: 1, end: 1 }, regexFlags: "m" },
+    ]), "TEXT_NOT_FOUND_IN_RANGE");
+    assert.deepEqual(failure.payload.candidateRanges, [{ start: 2, end: 2 }]);
+    assert.equal(await readFile(path, "utf8"), before);
   });
 });
 
@@ -888,7 +1096,7 @@ describe("read skill path fallback", () => {
 describe("extension registration and argument preparation", () => {
   it("registers read, write, and edit overrides with custom edit rendering", () => {
     const { tools } = registerFileToolsForTest();
-    assert.deepEqual(tools.map((tool) => tool.name), ["read", "write", "edit"]);
+    assert.deepEqual(tools.map((tool) => tool.name), ["read", "write", "edit", "grep", "find", "ls"]);
     const edit = tools.find((tool) => tool.name === "edit");
     assert.equal(typeof edit?.prepareArguments, "function");
     assert.equal(typeof edit?.renderCall, "function");
@@ -901,7 +1109,9 @@ describe("extension registration and argument preparation", () => {
     assert.match(guidelines, /regexFlags='m'.*bare inline flag.*\(\?m\)/);
     assert.match(guidelines, /replaceAll=true/);
     assert.match(guidelines, /sha256After[^.]*expectedHash/);
-    assert.match(readGuidelines, /shell rg.*offset\/limit/);
+    assert.doesNotMatch(readGuidelines, /shell rg|fffind|ffgrep/);
+    assert.match(readGuidelines, /Use read before edit/);
+    assert.match(readGuidelines, /READ_CONTINUATION.*nextOffset/);
     assert.ok((edit?.promptGuidelines as string[]).some((guideline) => guideline.includes("regexFlags") && guideline.includes("never pass g")));
     assert.ok((edit?.promptGuidelines as string[]).some((guideline) => guideline.includes("unique whole-file literal match") && guideline.includes("do not use this fallback")));
   });

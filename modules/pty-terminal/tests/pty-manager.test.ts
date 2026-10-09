@@ -34,8 +34,12 @@ test("buffered output does not prematurely settle waitForExit; abort and shutdow
 	const pending = manager.read(sessionId, 10000, controller.signal);
 	controller.abort(new Error("cancelled")); await assert.rejects(pending, /cancelled/);
 	const read = manager.read(sessionId, 10000); const exit = manager.waitForExit(sessionId, 10000);
-	manager.shutdown(); await read; const shutdownExit = await exit; assert.equal(shutdownExit.exitCode, -1); assert.equal(shutdownExit.timedOut, undefined); assert.deepEqual(manager.list(), []);
-	manager.shutdown();
+	const readStopped = assert.rejects(read, /shutting down/);
+	await manager.shutdown(); await readStopped;
+	const shutdownExit = await exit;
+	assert.equal(shutdownExit.timedOut, undefined); // real backend exit, not a fabricated -1
+	assert.equal(typeof shutdownExit.exitCode, "number"); assert.deepEqual(manager.list(), []);
+	await manager.shutdown();
 });
 test("SSH exit 255 carries a connection-error note; other exits do not", async t => {
 	const manager = new PtySessionManager(); t.after(() => manager.shutdown());
@@ -68,8 +72,12 @@ test("session count and terminal size are capped; exited sessions are reclaimed"
 	await manager.waitForExit(second.sessionId, 10000);
 	assert.equal(manager.list().length, 1);
 	clock = 5000; assert.deepEqual(manager.list(), []);
-	// An exited session also yields its slot to a new spawn.
-	const third = manager.spawn(process.execPath, exitNow, {}, process.cwd()); await manager.waitForExit(third.sessionId, 10000);
+	// An exited session yields its slot only after all output (including native terminal setup) was drained.
+	const third = manager.spawn(process.execPath, ["-e", "process.stdout.write('KEEP');process.exit(0)"], {}, process.cwd());
+	await manager.waitForExit(third.sessionId, 10000);
+	assert.throws(() => manager.spawn(process.execPath, exitNow, {}, process.cwd()), /unread exited output is retained/);
+	assert.match(await manager.read(third.sessionId, 0), /KEEP/);
+	assert.equal(manager.list()[0].bufferedBytes, 0);
 	const fourth = manager.spawn(process.execPath, exitNow, {}, process.cwd());
 	assert.notEqual(fourth.sessionId, third.sessionId);
 });

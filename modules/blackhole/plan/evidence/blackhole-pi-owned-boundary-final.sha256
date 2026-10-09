@@ -1,0 +1,6 @@
+7ea68e5d8629d901745471830be8bf2614a0205168309d517fe2b673dac25c0b *scripts/run-checks.mjs
+fa85621941b054a571e5bf1cd516ef6c7374db00e2fd063a52d579c4f0e0d2f8 *scripts/blackhole-tests.mjs
+b9dedc6e2babb08981c88c5711f0193d83485d14f03d703fc049a0c049a98d09 *modules/file-tools/scripts/test-process.mjs
+574a898be714ebd77813990a77ea9b5752a52a074aae712018ab0ac5aa5db96a *package.json
+570e16cddf81f6aef2b1db0231f4f6af2f8c840868759e9f28f38ce45a5caf3c *package-lock.json
+0ba5c847b4fd2fd838f71ea84885b9f3a4f15d9bf4b5493e2e88a41d1507e20b *node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js

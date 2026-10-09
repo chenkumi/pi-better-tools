@@ -41,16 +41,11 @@ test(`pi ${version}: normalized annotation-only URLs are lost; newer stream hook
   await processResponsesStream(events() as unknown as Parameters<typeof processResponsesStream>[0], output, createAssistantMessageEventStream(), model, options);
   assert.ok(JSON.stringify(output).includes(explicitUrl));
   assert.ok(!JSON.stringify(output).includes(hiddenUrl), 'If pi starts preserving annotations, update guidance and this probe.');
-  if (['0.99.1', '0.99.2', '1.0.0'].includes(version)) {
-    assert.equal(callbackEvents, 4);
-    assert.equal(sources.length, 1);
-    assert.equal(sources[0]!.responseId, 'resp_test');
-    assert.equal(sources[0]!.sources[0]!.url, hiddenUrl);
-    assert.equal(sources[0]!.citations[0]!.url, hiddenUrl);
-    assert.ok(!JSON.stringify(sources).includes('SECRET_QUERY'));
-  } else {
-    assert.equal(version, '0.85.1', 'Add an explicit version contract before claiming support.');
-    assert.equal(callbackEvents, 0);
-    assert.deepEqual(sources, []);
-  }
+  assert.equal(version, '1.1.0', 'Add an explicit version contract before claiming support.');
+  assert.equal(callbackEvents, 4);
+  assert.equal(sources.length, 1);
+  assert.equal(sources[0]!.responseId, 'resp_test');
+  assert.equal(sources[0]!.sources[0]!.url, hiddenUrl);
+  assert.equal(sources[0]!.citations[0]!.url, hiddenUrl);
+  assert.ok(!JSON.stringify(sources).includes('SECRET_QUERY'));
 });

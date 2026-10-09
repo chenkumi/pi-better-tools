@@ -4,36 +4,36 @@ import { compileSchema } from "../src/schema.ts";
 
 const obj = (properties: Record<string, unknown>, extra: Record<string, unknown> = {}) => JSON.stringify({ type: "object", properties, ...extra });
 
-test("validates types, required, bounds, enums and formats", () => {
+test("validates types, required, bounds, enums and formats", async () => {
   const schema = compileSchema(obj({ a: { type: "string", minLength: 2 }, n: { type: "integer", minimum: 0 }, k: { enum: ["x", "y"] }, e: { type: "string", format: "email" } }, { required: ["a"] }));
-  assert.equal(schema.validate({ a: "ok", n: 1, k: "x", e: "a@b.co" }), undefined);
-  assert.match(schema.validate({ n: 1 })!, /a/);
-  assert.ok(schema.validate({ a: "x" }));
-  assert.ok(schema.validate({ a: "ok", n: 1.5 }));
-  assert.ok(schema.validate({ a: "ok", k: "z" }));
-  assert.ok(schema.validate({ a: "ok", e: "nope" }));
+  assert.equal(await schema.validate({ a: "ok", n: 1, k: "x", e: "a@b.co" }), undefined);
+  assert.match((await schema.validate({ n: 1 }))!, /a/);
+  assert.ok(await schema.validate({ a: "x" }));
+  assert.ok(await schema.validate({ a: "ok", n: 1.5 }));
+  assert.ok(await schema.validate({ a: "ok", k: "z" }));
+  assert.ok(await schema.validate({ a: "ok", e: "nope" }));
 });
 
-test("additionalProperties, arrays, anyOf and local $ref are enforced", () => {
+test("additionalProperties, arrays, anyOf and local $ref are enforced", async () => {
   const strict = compileSchema(obj({ a: { type: "string" } }, { additionalProperties: false }));
-  assert.equal(strict.validate({ a: "x" }), undefined);
-  assert.ok(strict.validate({ a: "x", b: 1 }));
+  assert.equal(await strict.validate({ a: "x" }), undefined);
+  assert.ok(await strict.validate({ a: "x", b: 1 }));
   const list = compileSchema(obj({ l: { type: "array", items: { type: "string" }, minItems: 1, uniqueItems: true } }));
-  assert.equal(list.validate({ l: ["a"] }), undefined);
-  assert.ok(list.validate({ l: [] }));
-  assert.ok(list.validate({ l: ["a", "a"] }));
+  assert.equal(await list.validate({ l: ["a"] }), undefined);
+  assert.ok(await list.validate({ l: [] }));
+  assert.ok(await list.validate({ l: ["a", "a"] }));
   const union = compileSchema(obj({ v: { anyOf: [{ type: "string" }, { type: "number" }] } }));
-  assert.equal(union.validate({ v: 1 }), undefined);
-  assert.ok(union.validate({ v: true }));
+  assert.equal(await union.validate({ v: 1 }), undefined);
+  assert.ok(await union.validate({ v: true }));
   const ref = compileSchema(JSON.stringify({ type: "object", $defs: { s: { type: "string" } }, properties: { r: { $ref: "#/$defs/s" } } }));
-  assert.equal(ref.validate({ r: "x" }), undefined);
-  assert.ok(ref.validate({ r: 1 }));
+  assert.equal(await ref.validate({ r: "x" }), undefined);
+  assert.ok(await ref.validate({ r: 1 }));
 });
 
-test("validation does not rewrite data (defaults are not injected)", () => {
+test("validation does not rewrite data (defaults are not injected)", async () => {
   const schema = compileSchema(obj({ d: { type: "string", default: "z" } }));
   const data: Record<string, unknown> = {};
-  assert.equal(schema.validate(data), undefined);
+  assert.equal(await schema.validate(data), undefined);
   assert.deepEqual(data, {});
 });
 

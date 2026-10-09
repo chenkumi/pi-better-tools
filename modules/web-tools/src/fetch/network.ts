@@ -3,8 +3,10 @@ import ipaddr from 'ipaddr.js';
 
 export type AddressResolver = (hostname: string) => Promise<readonly { address: string }[]>;
 
-/** Defense in depth, NOT a sandbox: Chromium resolves independently, so DNS rebinding,
- * browser background traffic and non-HTTP transports require OS/network isolation. */
+/** Defense in depth, NOT a sandbox: the pre-flight lookup and the real connection resolve independently
+ * (DNS rebinding), so the connected peer address is re-checked after the fact (see assertConnectedAddress),
+ * but the request itself may already have been sent. Browser background traffic and non-HTTP transports
+ * require OS/network isolation. */
 export function isPublicAddress(address: string): boolean {
   try {
     if (address.includes('%')) return false;
@@ -33,13 +35,25 @@ export function parseWebUrl(value: string): URL {
   return url;
 }
 
+/** Per-fetch memo of hostname checks so one page's subresources resolve each host once. */
+export type ValidationCache = Map<string, Promise<void>>;
+
 export class NetworkPolicy {
   constructor(
     private readonly allowPrivateNetwork = false,
     private readonly resolve: AddressResolver = (hostname) => lookup(hostname, { all: true, verbatim: true }),
   ) {}
 
-  async validate(value: string): Promise<URL> {
+  /** Reject a connection whose actual remote address (Playwright `serverAddr()`) is not public.
+   * A missing address fails closed: it cannot be shown to be public. */
+  assertConnectedAddress(address: string | undefined): void {
+    if (this.allowPrivateNetwork) return;
+    if (!address || !isPublicAddress(address)) {
+      throw new Error('NETWORK_BLOCKED: The connection reached a non-public address. Private and local addresses cannot be fetched; use a public URL.');
+    }
+  }
+
+  async validate(value: string, cache?: ValidationCache): Promise<URL> {
     const url = parseWebUrl(value);
     if (this.allowPrivateNetwork) return url;
     const hostname = url.hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
@@ -50,6 +64,16 @@ export class NetworkPolicy {
       if (!isPublicAddress(hostname)) throw new Error('NETWORK_BLOCKED: Non-public addresses are not allowed. Private and local addresses cannot be fetched; use a public URL.');
       return url;
     }
+    let check = cache?.get(hostname);
+    if (!check) {
+      check = this.checkResolved(hostname);
+      cache?.set(hostname, check);
+    }
+    await check;
+    return url;
+  }
+
+  private async checkResolved(hostname: string): Promise<void> {
     let addresses: readonly { address: string }[];
     try { addresses = await this.resolve(hostname); } catch {
       throw new Error('NETWORK_ERROR: Could not resolve the destination.');
@@ -57,6 +81,5 @@ export class NetworkPolicy {
     if (!addresses.length || addresses.some(({ address }) => !isPublicAddress(address))) {
       throw new Error('NETWORK_BLOCKED: Every resolved address must be public. Private and local addresses cannot be fetched; use a public URL.');
     }
-    return url;
   }
 }

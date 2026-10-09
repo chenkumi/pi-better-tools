@@ -62,16 +62,16 @@ export function isFailedResult(result: CompactSubagentResult): boolean {
 }
 
 export function getResultOutput(result: CompactSubagentResult): string {
-	if (!isFailedResult(result)) return result.output || "(no output)";
-	if (result.output && result.errorMessage) return `${result.output}\n\nError: ${result.errorMessage}`;
-	return result.output || result.errorMessage || "(no output)";
+	if (!isFailedResult(result)) return result.output || "No assistant text was returned.";
+	if (result.output && result.errorMessage) return `${result.output}\n\n${result.status === "aborted" ? "Stop reason" : "Error"}: ${result.errorMessage}`;
+	return result.output || result.errorMessage || "No assistant text was returned.";
 }
 
 export function withLogPath(result: CompactSubagentResult, output = getResultOutput(result)): string {
-	if (result.subagentSessionId) output += `\n\nSubagent session: ${result.subagentSessionId} (${result.canResume ? "ready to resume" : "not resumable"})`;
+	if (result.subagentSessionId) output += `\n\nSubagent session: ${result.subagentSessionId}\n${result.status === "running" ? "Running; resume is unavailable while this task is active." : result.canResume ? "Resume available: a verified conversation checkpoint is ready." : "Resume is currently unavailable for this result."}`;
 	if (result.logPath) return `${output}\n\nSubsession log: ${result.logPath}`;
 	if (result.logError) return `${output}\n\nSubsession log unavailable: ${result.logError}`;
-	return output;
+	return `${output}\n\n${result.status === "running" ? "Subsession log is being created." : "No subsession log path was provided for this result."}`;
 }
 
 export function formatParentTaskOutput(result: CompactSubagentResult, label?: string): string {
@@ -84,7 +84,7 @@ export function formatParentResults(
 	mode: "single" | "parallel" | "chain",
 	results: CompactSubagentResult[],
 ): string {
-	if (results.length === 0) return "(no output)";
+	if (results.length === 0) return "No assistant text was returned.";
 	if (mode === "single") return withLogPath(results[0]);
 	return results
 		.map((result) =>
@@ -153,6 +153,21 @@ export function compactResult(input: CompactSubagentResult & Record<string, unkn
 		...(errorMessage ? { errorMessage } : {}),
 		...(step === undefined ? {} : { step }),
 	};
+}
+
+// Invocation-only metadata: not serialized, not a managed storage/public schema field.
+const summaries = new WeakMap<object, string>();
+export function hasResultSummary(result: object): boolean { return summaries.has(result); }
+export function retainResultSummary(result: object, summary: string): void { summaries.set(result, firstLineSummary(summary, 512)); }
+export function copyResultSummary<T extends object>(source: object, target: T): T {
+	if (summaries.has(source)) summaries.set(target, summaries.get(source)!);
+	return target;
+}
+export function resultSummary(result: { output?: unknown; errorMessage?: unknown; error?: unknown }, maxBytes: number): string {
+	const retained = summaries.get(result);
+	// Old saved results have no terminal metadata: retain their historical first-line view.
+	const text = retained ?? (typeof result.output === "string" && result.output ? result.output : typeof result.errorMessage === "string" ? result.errorMessage : typeof result.error === "string" ? result.error : "");
+	return firstLineSummary(text, maxBytes);
 }
 
 /** First non-empty line of an output, bounded to maxBytes of UTF-8 (the conclusion line by the bundled output contract). */

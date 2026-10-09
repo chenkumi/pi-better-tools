@@ -1,5 +1,5 @@
 import { ulid } from "ulid";
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import lockfile from "proper-lockfile";
 import { getAgentDir, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -45,16 +45,62 @@ function storedMode(settings: Record<string, unknown>): SpeedMode | undefined {
 	return mode === "normal" || mode === "fast" || mode === "ultrafast" ? mode : undefined;
 }
 
+const LOCK_ATTEMPTS = 10;
+const LOCK_RETRY_MS = 20;
+const sleepSync = (ms: number) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+/** Like the host settings manager: a few short retries while another process holds the lock. */
+function lockWithRetry(path: string): () => void {
+	for (let attempt = 1; ; attempt++) {
+		try { return lockfile.lockSync(path, { realpath: false }); }
+		catch (error) {
+			if (asObject(error)?.code !== "ELOCKED" || attempt >= LOCK_ATTEMPTS) throw error;
+			sleepSync(LOCK_RETRY_MS);
+		}
+	}
+}
+
+/** Windows may transiently lock the target; retry the rename briefly. */
+function renameWithRetry(from: string, to: string): void {
+	for (let attempt = 1; ; attempt++) {
+		try { return renameSync(from, to); }
+		catch (error) {
+			const code = asObject(error)?.code;
+			if ((code !== "EPERM" && code !== "EBUSY" && code !== "EACCES") || attempt >= LOCK_ATTEMPTS) throw error;
+			sleepSync(LOCK_RETRY_MS);
+		}
+	}
+}
+
 /** Share Pi's settings lock; read/merge/write synchronously so no same-process await holds it. */
 function persistMode(path: string, mode: SpeedMode): void {
 	mkdirSync(dirname(path), { recursive: true });
-	const release = lockfile.lockSync(path, { realpath: false });
-	const temp = `${path}.${ulid().toLowerCase()}.tmp`;
+	// Follow a symlinked settings.json so the rename replaces its target, not the link itself.
+	let target: string;
+	try { target = realpathSync(path); }
+	catch (error) {
+		if (asObject(error)?.code !== "ENOENT") throw error;
+		// ENOENT may be a dangling symlink, not a new file. Never replace that link.
+		try {
+			if (lstatSync(path).isSymbolicLink()) throw error;
+		} catch (statError) {
+			if (statError === error || asObject(statError)?.code !== "ENOENT") throw statError;
+		}
+		target = join(realpathSync(dirname(path)), "settings.json");
+	}
+	const release = lockWithRetry(target);
+	const temp = `${target}.${ulid().toUpperCase()}.tmp`;
 	try {
-		const settings = readSettings(path);
+		// Read permissions under the same lock as the settings, not before waiting for it.
+		let fileMode = 0o600;
+		try { fileMode = statSync(target).mode & 0o777; }
+		catch (error) { if (asObject(error)?.code !== "ENOENT") throw error; }
+		const settings = readSettings(target);
 		settings[SETTINGS_KEY] = { ...asObject(settings[SETTINGS_KEY]), mode };
-		writeFileSync(temp, `${JSON.stringify(settings, null, 2)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
-		renameSync(temp, path);
+		writeFileSync(temp, `${JSON.stringify(settings, null, 2)}\n`, { encoding: "utf8", flag: "wx", mode: fileMode });
+		// Creation mode is filtered by umask; explicitly restore an existing file's permissions.
+		chmodSync(temp, fileMode);
+		renameWithRetry(temp, target);
 	} finally {
 		try { rmSync(temp, { force: true }); }
 		finally { release(); }

@@ -1,5 +1,6 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { FileToolError } from "./errors.js";
@@ -14,14 +15,25 @@ export function getFileToolsConfigPath(agentDir = process.env.PI_CODING_AGENT_DI
   return join(agentDir, "settings.json");
 }
 
-export function loadFileToolsGlobalConfig(agentDir?: string): FileToolsGlobalConfig {
+/**
+ * Loads `pi-file-tools.debugLog`. A missing file or key means `false`; an unreadable or invalid
+ * settings file degrades to `false` with a warning so the extension still loads.
+ */
+export function loadFileToolsGlobalConfig(
+  agentDir?: string,
+  warn: (message: string) => void = (message) => process.emitWarning(message, { code: "PI_FILE_TOOLS_SETTINGS" }),
+): FileToolsGlobalConfig {
   const configPath = getFileToolsConfigPath(agentDir);
+  const degrade = (reason: string): FileToolsGlobalConfig => {
+    warn(`${reason} pi-file-tools debug logging is disabled (debugLog=false).`);
+    return { debugLog: false };
+  };
   let source: string;
   try {
     source = readFileSync(configPath, "utf8");
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return { debugLog: false };
-    throw error;
+    return degrade(`Could not read Pi global settings at ${configPath}: ${error instanceof Error ? error.message : String(error)}.`);
   }
 
   let parsed: unknown;
@@ -29,25 +41,47 @@ export function loadFileToolsGlobalConfig(agentDir?: string): FileToolsGlobalCon
     // Match Pi's settings loader, which tolerates a UTF-8 BOM (common from Windows editors/PowerShell).
     parsed = JSON.parse(source.startsWith("﻿") ? source.slice(1) : source);
   } catch (error) {
-    throw new Error(`Invalid JSON in Pi global settings at ${configPath}: ${error instanceof Error ? error.message : String(error)}`);
+    return degrade(`Invalid JSON in Pi global settings at ${configPath}: ${error instanceof Error ? error.message : String(error)}.`);
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error(`Pi global settings at ${configPath} must contain a JSON object.`);
+    return degrade(`Pi global settings at ${configPath} must contain a JSON object.`);
   }
   const projectConfig = (parsed as Record<string, unknown>)[FILE_TOOLS_PROJECT_NAME];
   if (projectConfig === undefined) return { debugLog: false };
   if (!projectConfig || typeof projectConfig !== "object" || Array.isArray(projectConfig)) {
-    throw new Error(`Pi global settings property "${FILE_TOOLS_PROJECT_NAME}" at ${configPath} must be an object.`);
+    return degrade(`Pi global settings property "${FILE_TOOLS_PROJECT_NAME}" at ${configPath} must be an object.`);
   }
   const debugLog = (projectConfig as Record<string, unknown>).debugLog;
   if (debugLog !== undefined && typeof debugLog !== "boolean") {
-    throw new Error(`Pi global settings property "${FILE_TOOLS_PROJECT_NAME}.debugLog" at ${configPath} must be a boolean.`);
+    return degrade(`Pi global settings property "${FILE_TOOLS_PROJECT_NAME}.debugLog" at ${configPath} must be a boolean.`);
   }
   return { debugLog: debugLog ?? false };
 }
 
+const REDACTED_REQUEST_KEYS = new Set(["content", "oldText", "newText", "regex", "edits", "rangePreview"]);
+
+function redactString(value: string): { redacted: true; length: number; sha256: string } {
+  return { redacted: true, length: value.length, sha256: createHash("sha256").update(value, "utf8").digest("hex") };
+}
+
+/** Replaces recognized file/edit payload strings with length + SHA-256 in failure logs. */
+export function redactRequestForLog(value: unknown, key?: string, depth = 0): unknown {
+  if (typeof value === "string") return key !== undefined && REDACTED_REQUEST_KEYS.has(key) ? redactString(value) : value;
+  if (value === null || typeof value !== "object") return value;
+  // Invalid requests can be deeper than the accepted schema. Never pass an unvisited subtree
+  // through to JSON.stringify, where nested content (or a cycle) could leak into the log.
+  if (depth > 8) return { redacted: true, reason: "depth_limit" };
+  if (Array.isArray(value)) return value.map((item) => redactRequestForLog(item, key, depth + 1));
+  return Object.fromEntries(Object.entries(value).map(([entryKey, entry]) => [entryKey, redactRequestForLog(entry, entryKey, depth + 1)]));
+}
+
 function describeError(error: unknown): Record<string, unknown> {
-  if (error instanceof FileToolError) return { ...error.payload };
+  if (error instanceof FileToolError) {
+    const payload = redactRequestForLog(error.payload) as Record<string, unknown>;
+    // RegExp syntax diagnostics quote the full pattern even when the request itself is redacted.
+    if (error.payload.code === "INVALID_REGEX") payload.message = redactString(error.payload.message);
+    return payload;
+  }
   if (error instanceof Error) {
     return { status: "error", name: error.name, message: error.message, stack: error.stack };
   }
@@ -59,7 +93,7 @@ function createFailureRecord(tool: string, toolCallId: string, request: unknown,
     timestamp: new Date().toISOString(),
     tool,
     toolCallId,
-    request,
+    request: redactRequestForLog(request),
     result: describeError(error),
   };
 }
