@@ -6,7 +6,11 @@ import { isolatedEnv } from '../tests/helpers/environment.mjs';
 import { runCommand } from '../modules/file-tools/scripts/test-process.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const home = await mkdtemp(join(tmpdir(), 'pi-blackhole-unit-'));
+const args = process.argv.slice(2);
+const suiteArg = args[0]?.startsWith('--suite=') ? args.shift() : '--suite=all';
+const suite = suiteArg.slice('--suite='.length);
+if (!['unit', 'integration', 'all'].includes(suite)) throw new Error(`Unknown Blackhole test suite: ${suite}`);
+const home = await mkdtemp(join(tmpdir(), `pi-blackhole-${suite}-`));
 try {
   const env = isolatedEnv(home);
   await mkdir(env.PI_CODING_AGENT_DIR, { recursive: true });
@@ -15,9 +19,10 @@ try {
   delete env.PI_CODING_AGENT_DIR;
   delete env.PI_AGENT_DIR;
   env.PI_BLACKHOLE_UNIT_ISOLATED = '1';
+  env.PI_BLACKHOLE_TEST_SUITE = suite;
   // Keep the source runner and aliases; permit file filters for repair evidence.
   const output = await runCommand('blackhole upstream Vitest', process.execPath,
-    ['node_modules/vitest/vitest.mjs', 'run', '--root', 'modules/blackhole', '--maxWorkers=2', ...process.argv.slice(2)],
+    ['node_modules/vitest/vitest.mjs', 'run', '--root', 'modules/blackhole', ...args],
     { cwd: root, env, timeoutMs: 600000 });
   process.stdout.write(output);
 } finally {

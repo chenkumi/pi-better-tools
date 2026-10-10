@@ -16,6 +16,7 @@ import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:f
 import { dirname, join, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { getExtensionsDir } from "./paths.js";
+import { isProjectLayerAdmitted } from "../core/project-trust.js";
 
 export { getExtensionsDir } from "./paths.js";
 
@@ -517,7 +518,7 @@ export function loadConfig<T extends object>(
   config = mergeFn(config, readConfig<Partial<T>>(filename, dir) ?? ({} as Partial<T>));
 
   // Layer 2: project-local
-  if (opts.cwd) {
+  if (opts.cwd && isProjectLayerAdmitted(opts.cwd)) {
     const projectDir = join(opts.cwd, ".pi");
     config = mergeFn(config, readConfig<Partial<T>>(filename, projectDir) ?? ({} as Partial<T>));
   }

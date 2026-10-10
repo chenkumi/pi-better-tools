@@ -1,5 +1,5 @@
 import { mkdir, open, realpath, rm } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { StringEnum } from "@earendil-works/pi-ai";
 import { defineTool, withFileMutationQueue, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
@@ -63,7 +63,8 @@ export const noteTool = defineTool({
     // <cwd>/<type> may be a pre-existing symlink/junction; refuse to write outside the workspace.
     const [realCwd, realDirectory] = await Promise.all([realpath(ctx.cwd), realpath(directory)]);
     const inside = relative(realCwd, realDirectory);
-    if (inside === "" || inside.startsWith("..") || isAbsolute(inside)) {
+    // Compare whole path segments: a directory literally named "..archive" is inside the workspace, "../x" is not.
+    if (inside === "" || inside === ".." || inside.startsWith(".." + sep) || isAbsolute(inside)) {
       throw new Error(`NOTE_DIRECTORY_ESCAPE: ${params.type}/ resolves outside the workspace; refusing to write.`);
     }
     const timestamp = Date.now();

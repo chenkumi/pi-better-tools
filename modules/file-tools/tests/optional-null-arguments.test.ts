@@ -27,38 +27,8 @@ function registeredTools(): Array<Record<string, unknown>> {
 }
 
 describe("search overrides and Pi 1.1 read output", () => {
-  const theme = { fg: (_color: string, text: string) => text, bold: (text: string) => text };
-  it("limits collapsed grep to five logical lines without losing warnings or model content", () => {
-    const tool = registeredTools().find(tool => tool.name === "grep") as any;
-    assert.ok(tool, "grep override registered");
-    const result = { content: [{ type: "text", text: Array.from({ length: 20 }, (_, i) => `match-${i + 1}`).join("\n") }], details: { matchLimitReached: 20, linesTruncated: true } };
-    const before = JSON.stringify(result);
-    const context = { showImages: false, isError: false, state: {}, args: {}, cwd: process.cwd() };
-    const collapsed = tool.renderResult(result, { expanded: false, isPartial: false }, theme, context).render(120).join("\n");
-    assert.match(collapsed, /match-5/);
-    assert.doesNotMatch(collapsed, /match-6/);
-    assert.match(collapsed, /15 more lines/);
-    assert.match(collapsed, /20 matches limit/);
-    assert.match(collapsed, /some lines truncated/);
-    const expanded = tool.renderResult(result, { expanded: true, isPartial: false }, theme, context).render(120).join("\n");
-    assert.match(expanded, /match-20/);
-    assert.equal(JSON.stringify(result), before);
-    const narrow = tool.renderResult(result, { expanded: false, isPartial: true }, theme, context).render(12);
-    assert.ok(narrow.length > 0);
-
-    // Real grep appends a blank line plus a text notice when its match limit is hit.
-    // Preview counts content lines, not matches; the separate details warning survives.
-    const limitedText = "a.txt:1:first\na.txt:2:second\na.txt:3:third\na.txt:4:fourth\n\n[4 matches limit reached. Use limit=8 for more, or refine pattern]";
-    const limited = { content: [{ type: "text", text: limitedText }], details: { matchLimitReached: 4 } };
-    const limitedBefore = JSON.stringify(limited);
-    const limitedCollapsed = tool.renderResult(limited, { expanded: false, isPartial: false }, theme, context).render(160).join("\n");
-    assert.match(limitedCollapsed, /a.txt:4:fourth/);
-    assert.match(limitedCollapsed, /1 more lines/);
-    assert.match(limitedCollapsed, /4 matches limit/);
-    assert.doesNotMatch(limitedCollapsed, /Use limit=8/);
-    const limitedExpanded = tool.renderResult(limited, { expanded: true, isPartial: false }, theme, context).render(160).join("\n");
-    assert.match(limitedExpanded, /Use limit=8/);
-    assert.equal(JSON.stringify(limited), limitedBefore);
+  it("registers only read/write/edit/ls, leaving grep/find to host or FFF", () => {
+    assert.deepEqual(registeredTools().map(tool => tool.name), ["read", "write", "edit", "ls"]);
   });
 
   it("returns precise read text as structuredContent and normalizes search optional arguments", async () => {
@@ -75,9 +45,8 @@ describe("search overrides and Pi 1.1 read output", () => {
       const read = await invoke("read", { path: "sample.txt" });
       assert.ok(tools.find(tool => tool.name === "read").outputSchema);
       assert.equal(read.structuredContent, read.content[0].text);
-      for (const name of ["grep", "find", "ls"]) {
-        const args = name === "grep" ? { pattern: "needle", path: null, glob: null, ignoreCase: null, literal: null, context: null, limit: null }
-          : name === "find" ? { pattern: "*.txt", path: null, limit: null } : { path: null, limit: null };
+      for (const name of ["ls"]) {
+        const args = { path: null, limit: null };
         const tool = tools.find(tool => tool.name === name);
         const prepared = tool.prepareArguments(args);
         assert.equal(prepared.path, undefined);
@@ -96,7 +65,7 @@ function invalidArgument(action: () => unknown): void {
 describe("strict provider optional-null compatibility", () => {
   it("normalizes null optionals for every registered tool without mutating caller arguments", () => {
     const tools = registeredTools();
-    assert.deepEqual(tools.map((tool) => tool.name), ["read", "write", "edit", "grep", "find", "ls"]);
+    assert.deepEqual(tools.map((tool) => tool.name), ["read", "write", "edit", "ls"]);
     const strictValidators = new Map(tools.map((tool) => {
       const [providerTool] = convertResponsesTools([tool], {
         strict: null,

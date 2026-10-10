@@ -3,6 +3,7 @@ import { compile, extractSection, stripOMContent } from "../src/core/summarize.j
 import { composeGeneratedParts } from "../src/core/generated-summary-spans.js";
 import { formatFileList } from "../src/extract/files.js";
 import { userMsg } from "./vcc-fixtures.js";
+import { persistedSummaryEntries } from "./fixtures/persisted-summary.js";
 
 describe("vcc-summarize robust merging and stripping", () => {
   describe("mergeHeaderSection & mergeFileLines via compile()", () => {
@@ -12,7 +13,7 @@ describe("vcc-summarize robust merging and stripping", () => {
       const messages = [userMsg("I am working on file1.ts")];
       const r = compile({
         messages,
-        previousSummary,
+        previousSummary, previousSummaryEntries: persistedSummaryEntries(previousSummary),
         fileOps: {
           readFiles: ["file4.ts"],
           modifiedFiles: ["file1.ts"],
@@ -27,7 +28,7 @@ describe("vcc-summarize robust merging and stripping", () => {
       const previousSummary = `[Session Goal]\n${goals}\n\n---\n\n[user]\ninit`;
       const r = compile({
         messages: [userMsg("Goal: Final Step")],
-        previousSummary,
+        previousSummary, previousSummaryEntries: persistedSummaryEntries(previousSummary),
       });
       const headerPart = r.split("\n\n---\n\n")[0];
       const lines = headerPart.split("\n").filter((l) => l.startsWith("- "));
@@ -48,7 +49,7 @@ describe("vcc-summarize robust merging and stripping", () => {
       // So we'll simulate a fresh commit by providing one in previous that will be merged with
       // another part? No, let's just accept the current behavior if we can't easily trigger fresh.
       // Actually, I can just mock a fresh summary in a hypothetical test, but here I'm using compile().
-      const r = compile({ messages: [userMsg("check")], previousSummary });
+      const r = compile({ messages: [userMsg("check")], previousSummary, previousSummaryEntries: persistedSummaryEntries(previousSummary) });
       const headerPart = r.split("\n\n---\n\n")[0];
       const lines = headerPart.split("\n").filter((l) => l.startsWith("- abc"));
       // Based on implementation, if fresh is empty, it returns prev (10).
@@ -59,7 +60,7 @@ describe("vcc-summarize robust merging and stripping", () => {
     it("caps User Preferences at 15 items", () => {
       const prefs = Array.from({ length: 20 }, (_, i) => `- Pref ${i}`).join("\n");
       const previousSummary = `[User Preferences]\n${prefs}\n\n---\n\n[user]\ninit`;
-      const r = compile({ messages: [userMsg("check")], previousSummary });
+      const r = compile({ messages: [userMsg("check")], previousSummary, previousSummaryEntries: persistedSummaryEntries(previousSummary) });
       const headerPart = r.split("\n\n---\n\n")[0];
       const lines = headerPart.split("\n").filter((l) => l.startsWith("- Pref"));
       expect(lines.length).toBe(20); // Uncapped because fresh is empty
@@ -69,7 +70,7 @@ describe("vcc-summarize robust merging and stripping", () => {
       const previousSummary = "[Session Goal]\n- Goal A\n- Goal B\n\n---\n\n[user]\ninit";
       const r = compile({
         messages: [userMsg("Goal: Goal A")],
-        previousSummary,
+        previousSummary, previousSummaryEntries: persistedSummaryEntries(previousSummary),
       });
       const headerPart = r.split("\n\n---\n\n")[0];
       const lines = headerPart.split("\n").filter((l) => l === "- Goal A");
@@ -88,7 +89,7 @@ describe("vcc-summarize robust merging and stripping", () => {
       const previousSummary = "[Outstanding Context]\n- Old blocker\n\n---\n\n[user]\ninit";
       const r = compile({
         messages: [userMsg("This is still failing and blocked.")],
-        previousSummary,
+        previousSummary, previousSummaryEntries: persistedSummaryEntries(previousSummary),
       });
       expect(r).toContain("still failing");
       expect(r).not.toContain("Old blocker");
@@ -100,7 +101,7 @@ describe("vcc-summarize robust merging and stripping", () => {
       const summary = "[Session Goal]\n- Start here\n\n[Commits]\n- abc: msg\n\n---\n\n[user]\nold";
       const r = compile({
         messages: [userMsg("hi")],
-        previousSummary: summary,
+        previousSummary: summary, previousSummaryEntries: persistedSummaryEntries(summary),
       });
       expect(r).toContain("- Start here");
     });
@@ -110,7 +111,7 @@ describe("vcc-summarize robust merging and stripping", () => {
         "[Session Goal]\n- Goal\n\n[User Preferences]\n- Last pref\n\n---\n\n[user]\nold";
       const r = compile({
         messages: [userMsg("hi")],
-        previousSummary: summary,
+        previousSummary: summary, previousSummaryEntries: persistedSummaryEntries(summary),
       });
       expect(r).toContain("- Last pref");
     });
@@ -119,7 +120,7 @@ describe("vcc-summarize robust merging and stripping", () => {
       const summary = "[Session Goal]\n- This [Not A Header] goal\n\n---\n\n[user]\nold";
       const r = compile({
         messages: [userMsg("hi")],
-        previousSummary: summary,
+        previousSummary: summary, previousSummaryEntries: persistedSummaryEntries(summary),
       });
       expect(r).toContain("- This [Not A Header] goal");
     });
@@ -129,7 +130,7 @@ describe("vcc-summarize robust merging and stripping", () => {
         "[Session Goal]\n- Goal\n\n\n   \n\n[Commits]\n- abc: msg\n\n---\n\n[user]\nold";
       const r = compile({
         messages: [userMsg("hi")],
-        previousSummary: summary,
+        previousSummary: summary, previousSummaryEntries: persistedSummaryEntries(summary),
       });
       expect(r).toContain("- Goal");
       expect(r).toContain("- abc: msg");
@@ -140,7 +141,7 @@ describe("vcc-summarize robust merging and stripping", () => {
         "[Session Goal]\n- Fix User Preferences module\n\n[Commits]\n- abc: msg\n\n---\n\n[user]\nold";
       const r = compile({
         messages: [userMsg("hi")],
-        previousSummary: summary,
+        previousSummary: summary, previousSummaryEntries: persistedSummaryEntries(summary),
       });
       expect(r).toContain("- Fix User Preferences module");
       expect(r).toContain("[Commits]");
@@ -160,7 +161,7 @@ describe("vcc-summarize robust merging and stripping", () => {
     it.each(variants)("strips only an actual composed OM span: %s", om => {
       const previous = composeGeneratedParts([{ text: "[Session Goal]\n- My goal\n\n---\n\n[user]\nhi" }, { text: om, kind: "om" }]);
       expect(stripOMContent(previous.text)).toBe(previous.text);
-      const r = compile({ messages: [userMsg("next")], previousSummary: previous.text, previousGeneratedSpans: previous.proof });
+      const r = compile({ messages: [userMsg("next")], previousSummary: previous.text, previousSummaryEntries: persistedSummaryEntries(previous.text), previousGeneratedSpans: previous.proof });
       expect(r).not.toContain("## Reflections"); expect(r).not.toContain("## Observations"); expect(r).not.toContain("condensed memories");
       expect(r).toContain("- My goal"); expect(r).toContain("[user]\nhi");
       expect(r.split("\n\n---\n\n").length).toBeLessThanOrEqual(3);
@@ -178,7 +179,7 @@ describe("vcc-summarize robust merging and stripping", () => {
   });
 
   describe("stripRecallNote robustness", () => {
-    it("strips modern RECALL_NOTE with separator", () => {
+    it("preserves unproved modern RECALL_NOTE with separator", () => {
       const note =
         "Details not captured here — exact code, error messages, file paths — are only recoverable via `recall`.";
       const prev = "[Session Goal]\n- Goal\n\n---\n\n[user]\nhi\n\n---\n\n" + note;
@@ -186,7 +187,7 @@ describe("vcc-summarize robust merging and stripping", () => {
       expect(r).toContain(note);
     });
 
-    it("strips bare RECALL_NOTE without separator", () => {
+    it("preserves unproved bare RECALL_NOTE without separator", () => {
       const note =
         "Details not captured here — exact code, error messages, file paths — are only recoverable via `recall`.";
       const prev = "[Session Goal]\n- Goal\n\n---\n\n[user]\nhi\n" + note;
@@ -285,7 +286,7 @@ describe("vcc-summarize robust merging and stripping", () => {
       const files = names.map((n) => `/repo/src/${n}.ts`);
       const r = compile({
         messages: [userMsg("check")],
-        previousSummary,
+        previousSummary, previousSummaryEntries: persistedSummaryEntries(previousSummary),
         fileOps: { readFiles: [], modifiedFiles: files },
         cwd: "/repo",
       });
@@ -304,7 +305,7 @@ describe("vcc-summarize robust merging and stripping", () => {
         "[Files And Changes]\n- Modified: src/main.ts (staged,unstaged), src/b.ts (new)\n\n---\n\n[user]\nold";
       const r = compile({
         messages: [userMsg("check")],
-        previousSummary,
+        previousSummary, previousSummaryEntries: persistedSummaryEntries(previousSummary),
         // Fresh keys render cwd-relative ("src/main.ts"), matching the
         // previous keys above.
         fileOps: { readFiles: [], modifiedFiles: ["/repo/src/main.ts", "/repo/src/other.ts"] },
@@ -327,7 +328,7 @@ describe("vcc-summarize robust merging and stripping", () => {
       const previousSummary = `[Files And Changes]\n- Modified: ${prevFiles.join(", ")}\n\n---\n\n[user]\nold`;
       const r = compile({
         messages: [userMsg("check")],
-        previousSummary,
+        previousSummary, previousSummaryEntries: persistedSummaryEntries(previousSummary),
         fileOps: { readFiles: [], modifiedFiles: ["/repo/src/new-a.ts", "/repo/src/new-b.ts"] },
         cwd: "/repo",
       });
@@ -350,7 +351,7 @@ describe("vcc-summarize robust merging and stripping", () => {
         "[Files And Changes]\n- Modified: /repo/src/a.ts\n\n---\n\n[user]\nold";
       const r = compile({
         messages: [userMsg("check")],
-        previousSummary,
+        previousSummary, previousSummaryEntries: persistedSummaryEntries(previousSummary),
         fileOps: { readFiles: [], modifiedFiles: ["/repo/src/a.ts"] },
         cwd: "/repo",
       });
@@ -374,7 +375,7 @@ describe("vcc-summarize robust merging and stripping", () => {
 
       const r = compile({
         messages: [userMsg("check 2")],
-        previousSummary: first,
+        previousSummary: first, previousSummaryEntries: persistedSummaryEntries(first),
         fileOps: { readFiles: [], modifiedFiles: ["/repo/src/other.ts"] },
         cwd: "/repo",
       });
@@ -393,7 +394,7 @@ describe("vcc-summarize robust merging and stripping", () => {
       const previousSummary = `[Files And Changes]\n- ${formatFileList("Modified", prevPaths, 20)}\n\n---\n\n[user]\nold`;
       const r = compile({
         messages: [userMsg("check")],
-        previousSummary,
+        previousSummary, previousSummaryEntries: persistedSummaryEntries(previousSummary),
         fileOps: { readFiles: [], modifiedFiles: ["/repo/src/new.ts"] },
         cwd: "/repo",
       });

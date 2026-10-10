@@ -1,3 +1,4 @@
+import { persistedSummaryEntries } from "./fixtures/persisted-summary.js";
 import { describe, it, expect, afterAll } from "vitest";
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -218,6 +219,7 @@ describe("compile merge keeps only fresh git annotations", () => {
     const freshInput = {
       messages,
       previousSummary: prev,
+      previousSummaryEntries: persistedSummaryEntries(prev),
       fileOps: { readFiles: [], modifiedFiles: ["/repo/src/both.ts", "/repo/src/newly-staged.ts"] },
       gitTags: normalizedTags([
         ["/repo/src/both.ts", "staged"],

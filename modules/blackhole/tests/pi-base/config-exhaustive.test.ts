@@ -9,6 +9,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { setProjectTrustForTests } from "../../src/core/project-trust.js";
 import {
   deepMerge,
   deleteConfig,
@@ -26,6 +27,7 @@ function setupDirs(label: string) {
   const projectDir = join(tmp, "project");
   mkdirSync(globalDir, { recursive: true });
   mkdirSync(join(projectDir, ".pi"), { recursive: true });
+  setProjectTrustForTests(projectDir, true);
   return {
     globalDir,
     projectDir,

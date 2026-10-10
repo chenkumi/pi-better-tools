@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdirSync, rmSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { setProjectTrustForTests } from "../src/core/project-trust.js";
 
 const testDir = join(tmpdir(), `pi-blackhole-append-config-${Date.now()}`);
 const writeConfig = (data: unknown) => {
@@ -12,6 +13,7 @@ const writeConfig = (data: unknown) => {
 
 beforeEach(() => {
   process.env.PI_CODING_AGENT_DIR = testDir;
+  setProjectTrustForTests(testDir, true);
   mkdirSync(testDir, { recursive: true });
 });
 afterEach(() => {

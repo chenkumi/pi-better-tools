@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { compile } from "../src/core/summarize.js";
+import { persistedSummaryEntries } from "./fixtures/persisted-summary.js";
 import { composeGeneratedParts, type GeneratedSummaryProof } from "../src/core/generated-summary-spans.js";
 import { userMsg, assistantText, assistantWithToolCall } from "./vcc-fixtures.js";
 
@@ -48,10 +49,11 @@ describe("compile", () => {
     expect(r).toContain("Next step");
   });
 
-  it("outstanding context is volatile (fresh only)", () => {
+  it("proven old Blackhole outstanding context is volatile (fresh only)", () => {
     const previousSummary = "[Outstanding Context]\n- old blocker\n\n---\n\n[user]\nhi";
     const r = compile({
       previousSummary,
+      previousSummaryEntries: persistedSummaryEntries(previousSummary),
       messages: [userMsg("continue")],
     });
     expect(r).not.toContain("old blocker");
@@ -65,6 +67,7 @@ describe("compile", () => {
     const previousSummary = `[Session Goal]\n- goal\n\n---\n\n${longTranscript}`;
     const r = compile({
       previousSummary,
+      previousSummaryEntries: persistedSummaryEntries(previousSummary),
       messages: [userMsg("latest")],
     });
     expect(r).toContain("earlier lines omitted");

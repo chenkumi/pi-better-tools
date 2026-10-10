@@ -12,12 +12,14 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { OverlayHandle } from "@earendil-works/pi-tui";
 import { renderScheduledMessage } from "./ui/message-renderer.js";
 import { CronScheduler } from "./scheduler.js";
+import { isProjectTrusted } from "./trust.js";
 import { loadSettings, type ScheduleSettings, saveSettings } from "./settings.js";
 import { CronStorage } from "./storage.js";
 import { createCronTool } from "./tool.js";
 import { runAddFlow } from "./ui/add-flow.js";
 import { CronWidget } from "./ui/cron-widget.js";
 import { JobsView } from "./ui/jobs-view.js";
+import { runJobsMenu } from "./ui/jobs-menu.js";
 
 export default async function (pi: ExtensionAPI) {
   let storage: CronStorage;
@@ -27,27 +29,44 @@ export default async function (pi: ExtensionAPI) {
   // widget read via closure so toggles take effect without re-registering.
   let settings: ScheduleSettings = {};
   const isWidgetVisible = () => settings.widgetVisible !== false;
+  // Project schedules (.pi/schedule-prompts*.json) are admitted only for a trusted project (see initializeSession).
+  let admitted = false;
+  const requireAdmitted = () => {
+    if (!admitted) {
+      throw new Error("Scheduled prompts are unavailable: this project is not trusted, so project schedules are not loaded. Trust the project and restart or reload.");
+    }
+  };
 
   // Register custom message renderer for scheduled prompts
   pi.registerMessageRenderer("scheduled_prompt", renderScheduledMessage);
 
   // Register the tool once with getter functions
   const tool = createCronTool(
-    () => storage,
-    () => scheduler,
+    () => { requireAdmitted(); return storage; },
+    () => { requireAdmitted(); return scheduler; },
     () => settings.defaultJobScope ?? "session",
   );
   pi.registerTool(tool);
 
   // --- Session initialization ---
 
-  const initializeSession = (ctx: any) => {
+  const initializeSession = async (ctx: any) => {
     // Idempotent: tear down any prior instance before creating a new one.
     // Without this, every `session_start` (fires on reload/resume/fork too, not
     // only on fresh startup) leaks a live croner timer into the event loop,
     // accumulating duplicate fires for every recurring job over time.
-    cleanupSession(ctx);
+    await cleanupSession(ctx);
 
+    admitted = false;
+    if (!isProjectTrusted(ctx)) {
+      // No project jobs, no project settings, no timers, no widget for an untrusted project.
+      settings = {};
+      storage = undefined as unknown as CronStorage;
+      scheduler = undefined as unknown as CronScheduler;
+      widget = undefined as unknown as CronWidget;
+      return;
+    }
+    admitted = true;
     settings = loadSettings(ctx.cwd);
     storage = new CronStorage(ctx.cwd);
     scheduler = new CronScheduler(storage, pi, ctx);
@@ -58,24 +77,32 @@ export default async function (pi: ExtensionAPI) {
       if (isWidgetVisible()) widget.show(ctx);
     } catch (error) {
       // Partial startup also owns timers/listeners and must roll them back.
-      cleanupSession(ctx);
+      await cleanupSession(ctx);
       throw error;
     }
   };
 
-  const cleanupSession = (ctx: any) => {
+  const cleanupSession = async (ctx: any) => {
+    const stopping = scheduler;
     try {
-      scheduler?.stop();
+      // Stops admission and aborts in-flight children; drain then waits for their awaited session_shutdown/dispose.
+      stopping?.stop();
     } finally {
       if (widget) {
         try { widget.hide(ctx); } finally { widget.destroy(); }
+      }
+    }
+    if (stopping) {
+      const { pending, cleanupFailures } = await stopping.drain();
+      if (pending > 0 || cleanupFailures.length > 0) {
+        console.error(`[pi-schedule-prompt] child cleanup unconfirmed: pending=${pending} failures=${JSON.stringify(cleanupFailures)}`);
       }
     }
   };
 
   const autoCleanupDisabledJobs = (ctx: any) => {
     // Only sweep our own (or unbound) disabled jobs — never another session's.
-    if (!storage) return;
+    if (!admitted || !storage) return;
     const mySessionId = ctx.sessionManager.getSessionId();
     const disabledJobs = storage
       .getAllJobs()
@@ -95,14 +122,14 @@ export default async function (pi: ExtensionAPI) {
     if (event.reason !== "startup") {
       try { autoCleanupDisabledJobs(ctx); }
       catch (error) { console.error("Scheduled prompt optional cleanup failed:", error); }
-      finally { cleanupSession(ctx); }
+      finally { await cleanupSession(ctx); }
     }
-    initializeSession(ctx);
+    await initializeSession(ctx);
   });
 
   pi.on("session_shutdown", async (_event, ctx) => {
     // Teardown is mandatory even when optional persistence cleanup fails.
-    try { autoCleanupDisabledJobs(ctx); } finally { cleanupSession(ctx); }
+    try { autoCleanupDisabledJobs(ctx); } finally { await cleanupSession(ctx); }
   });
 
   // --- Register /schedule-prompt command ---
@@ -110,6 +137,10 @@ export default async function (pi: ExtensionAPI) {
   pi.registerCommand("schedule-prompt", {
     description: "Manage scheduled prompts interactively",
     handler: async (_args, ctx) => {
+      if (!admitted) {
+        ctx.ui.notify("Scheduled prompts are unavailable: this project is not trusted.", "warning");
+        return;
+      }
       const mySessionId = ctx.sessionManager.getSessionId();
 
       const action = await ctx.ui.select("Scheduled Prompts", ["Jobs", "Settings"]);
@@ -117,6 +148,11 @@ export default async function (pi: ExtensionAPI) {
 
       switch (action) {
         case "Jobs": {
+          if (ctx.mode !== "tui") {
+            // ctx.ui.custom() returns undefined outside the TUI; use dialogs the RPC protocol supports.
+            await runJobsMenu(ctx, storage, scheduler, settings, mySessionId);
+            break;
+          }
           // Hide the Jobs overlay while the add flow's dialogs are open —
           // otherwise it sits on top of them and steals input.
           let jobsOverlay: OverlayHandle | undefined;

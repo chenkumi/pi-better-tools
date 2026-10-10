@@ -1096,7 +1096,7 @@ describe("read skill path fallback", () => {
 describe("extension registration and argument preparation", () => {
   it("registers read, write, and edit overrides with custom edit rendering", () => {
     const { tools } = registerFileToolsForTest();
-    assert.deepEqual(tools.map((tool) => tool.name), ["read", "write", "edit", "grep", "find", "ls"]);
+    assert.deepEqual(tools.map((tool) => tool.name), ["read", "write", "edit", "ls"]);
     const edit = tools.find((tool) => tool.name === "edit");
     assert.equal(typeof edit?.prepareArguments, "function");
     assert.equal(typeof edit?.renderCall, "function");

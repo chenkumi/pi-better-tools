@@ -83,6 +83,7 @@ function createMockEnvironment() {
   function makeHandlerArgs(overrides: Record<string, unknown> = {}) {
     const base = {
       cwd: testRoot,
+      mode: "tui",
       sessionManager: {
         getBranch: vi.fn(() => []),
         getSessionId: vi.fn(() => "test-session"),
@@ -162,13 +163,13 @@ describe("/blackhole command", () => {
   it("refreshes runtime config after saving settings", async () => {
     const { pi, runtime, handlerMap, makeHandlerArgs } = createMockEnvironment();
     vi.mocked(openConfigFlow).mockImplementationOnce(async (params: any) => {
-      await params.save({ retainedToolOutputMaxTokens: 9_000 }, "global");
+      await params.save({ observeAfterTokens: 9_000 }, "global");
     });
     registerPiVccCommand(pi as any, runtime as any);
 
     await handlerMap.get("blackhole")!("settings", makeHandlerArgs());
 
-    expect(runtime.config.retainedToolOutputMaxTokens).toBe(9_000);
+    expect(runtime.config.observeAfterTokens).toBe(9_000);
   });
 
   it("calls ctx.compact with PI_VCC_COMPACT_INSTRUCTION", async () => {

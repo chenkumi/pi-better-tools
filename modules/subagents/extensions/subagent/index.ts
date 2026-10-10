@@ -1437,9 +1437,9 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 				projectAgentsDir: null,
 				results: [],
 			});
-			if (params.provider && !provider) return { content: [{ type: "text", text: "Invalid provider: it must not be blank." }], details: emptyDetails("single") };
-			if (provider && !requestedModel) return { content: [{ type: "text", text: "provider requires model. Supply a bare model ID with provider, or use model: provider/model." }], details: emptyDetails("single") };
-			if (provider && requestedModel?.includes("/")) return { content: [{ type: "text", text: "Use either provider + a bare model ID, or a provider/model value for model; do not provide both." }], details: emptyDetails("single") };
+			if (params.provider && !provider) return { content: [{ type: "text", text: "Invalid provider: it must not be blank." }], details: emptyDetails("single"), isError: true };
+			if (provider && !requestedModel) return { content: [{ type: "text", text: "provider requires model. Supply a bare model ID with provider, or use model: provider/model." }], details: emptyDetails("single"), isError: true };
+			if (provider && requestedModel?.includes("/")) return { content: [{ type: "text", text: "Use either provider + a bare model ID, or a provider/model value for model; do not provide both." }], details: emptyDetails("single"), isError: true };
 
 			const discovery = discoverAgents(ctx.cwd, agentScope);
 			const agents = discovery.agents;
@@ -1485,8 +1485,9 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 					return { content: [{ type: "text", text: `Refused: project-local agents (${projectAgents.map((agent) => agent.name).join(", ")}) are repo-controlled and this project is not trusted; without a UI they cannot be approved. Next: trust the project in Pi or use agentScope "user".` }], details: makeDetails(mode)([]), isError: true };
 				}
 				if (projectAgents.length > 0) {
-					const approved = await ctx.ui.confirm("Run project-local agents?", `Agents: ${projectAgents.map((agent) => agent.name).join(", ")}\nSource: ${discovery.projectAgentsDir ?? "(unknown)"}\n\nProject agents are repo-controlled. Only continue for trusted repositories.`);
-					if (!approved) {
+					const approved = await ctx.ui.confirm("Run project-local agents?", `Agents: ${projectAgents.map((agent) => agent.name).join(", ")}\nSource: ${discovery.projectAgentsDir ?? "(unknown)"}\n\nProject agents are repo-controlled. Only continue for trusted repositories.`, { signal });
+					// A late approval after the tool was aborted must never dispatch.
+					if (!approved || signal?.aborted) {
 						const canceled = new AbortController();
 						canceled.abort();
 						const mode: SubagentDetails["mode"] = hasChain ? "chain" : hasTasks ? "parallel" : "single";

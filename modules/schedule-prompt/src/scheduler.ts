@@ -2,6 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { Cron } from "croner";
 import { deadlineState, normalizeEndAt } from "./deadline.js";
 import type { CronStorage } from "./storage.js";
+import { isProjectTrusted } from "./trust.js";
 import { runSubagentOnce, type SubagentResult } from "./subagent.js";
 import type { CronChangeEvent, CronJob, CronJobType } from "./types.js";
 
@@ -42,6 +43,12 @@ export class CronScheduler {
   private runningSubagentJobs = new Set<string>();
   /** Exception only for this scheduler's once auto-disable during an admitted run. */
   private autoDisabledOnceJobs = new Set<string>();
+  /** Admission is closed by stop(); reopened only by an explicit start(). */
+  private closed = false;
+  /** Accepted child runs (initializing or running) that shutdown must drain. */
+  private childRuns = new Set<Promise<void>>();
+  /** Children whose awaited session_shutdown/dispose did not succeed; kept so the failure is never silently lost. */
+  private cleanupFailures: Array<{ jobId: string; error: string }> = [];
   private readonly storage: CronStorage;
   private readonly pi: ExtensionAPI;
   private readonly ctx: ExtensionContext;
@@ -61,6 +68,9 @@ export class CronScheduler {
    * until the cron next fires. Other sessions' (and unbound jobs') flags are theirs to manage.
    */
   start(): void {
+    // Project jobs are only admitted for a trusted project; no timers otherwise.
+    if (!isProjectTrusted(this.ctx)) return;
+    this.closed = false;
     const mySessionId = this.ctx.sessionManager.getSessionId();
     for (const job of this.storage.getAllJobs()) {
       if (!CronScheduler.isLoadedFor(job, mySessionId)) continue;
@@ -84,6 +94,8 @@ export class CronScheduler {
    * Stop all scheduled jobs
    */
   stop(): void {
+    // Stop admission first: a timer callback already queued must not start new work.
+    this.closed = true;
     // Stop all cron jobs
     for (const cron of this.jobs.values()) {
       cron.stop();
@@ -108,6 +120,32 @@ export class CronScheduler {
     this.activeSubagents.clear();
     this.runningSubagentJobs.clear();
     this.autoDisabledOnceJobs.clear();
+  }
+
+  /**
+   * Wait for accepted child runs (initializing or running; stop() already aborted them) to finish their
+   * awaited teardown. Bounded so a wedged child cannot block host shutdown; whatever is still pending or
+   * failed to clean up is reported and kept in `cleanupFailures` rather than treated as confirmed.
+   */
+  async drain(timeoutMs = 10_000): Promise<{ pending: number; cleanupFailures: Array<{ jobId: string; error: string }> }> {
+    const pending = [...this.childRuns];
+    if (pending.length > 0) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        Promise.allSettled(pending),
+        new Promise<void>((resolve) => { timer = setTimeout(resolve, timeoutMs); }),
+      ]);
+      if (timer) clearTimeout(timer);
+    }
+    const stillPending = this.childRuns.size;
+    if (stillPending > 0) {
+      this.cleanupFailures.push({ jobId: "*", error: `${stillPending} child run(s) did not finish cleanup within ${timeoutMs}ms` });
+    }
+    return { pending: stillPending, cleanupFailures: [...this.cleanupFailures] };
+  }
+
+  getCleanupFailures(): ReadonlyArray<{ jobId: string; error: string }> {
+    return this.cleanupFailures;
   }
 
   /**
@@ -394,6 +432,7 @@ export class CronScheduler {
     // Re-read before firing — closure-captured `job` is stale if storage was
     // edited mid-tick (removed, disabled, or `session` rebound by hand-edit).
     // Fire with the fresh copy so hand-edited prompt/model apply too.
+    if (this.closed || !isProjectTrusted(this.ctx)) return false;
     const fresh = this.storage.getJob(scheduled.id);
     if (!fresh?.enabled) return false;
     if (!CronScheduler.isLoadedFor(fresh, this.ctx.sessionManager.getSessionId())) return false;
@@ -505,7 +544,7 @@ export class CronScheduler {
     this.activeSubagents.add(controller);
     this.runningSubagentJobs.add(job.id);
 
-    void (async () => {
+    const run = (async () => {
       try {
         let result: SubagentResult;
         try {
@@ -520,6 +559,10 @@ export class CronScheduler {
               return !!fresh && (fresh.enabled || admittedOnce) &&
                 CronScheduler.isLoadedFor(fresh, this.ctx.sessionManager.getSessionId()) && this.checkDeadline(fresh);
             });
+          if (result.cleanupError) {
+            this.cleanupFailures.push({ jobId: job.id, error: result.cleanupError });
+            console.error(`Scheduled child cleanup unconfirmed for job ${job.id}: ${result.cleanupError}`);
+          }
         } finally {
           this.activeSubagents.delete(controller);
           this.runningSubagentJobs.delete(job.id);
@@ -577,6 +620,7 @@ export class CronScheduler {
                   prompt: job.prompt,
                   mode: "subagent_done",
                   model,
+                  ...(notify && { notify: true }),
                   output: outputSnippet,
                 },
               },
@@ -608,6 +652,7 @@ export class CronScheduler {
                   prompt: job.prompt,
                   mode: "subagent_error",
                   model,
+                  ...(notify && { notify: true }),
                   error: errorSnippet,
                 },
               },
@@ -623,6 +668,8 @@ export class CronScheduler {
         console.error(`Subagent completion handler failed for job ${job.id}:`, error);
       }
     })();
+    this.childRuns.add(run);
+    void run.finally(() => this.childRuns.delete(run));
     return true;
   }
 

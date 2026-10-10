@@ -31,7 +31,8 @@ import { buildRetainedToolOutputProjection } from "../core/tool-output-budget.js
 import { buildGlobalIndexById, loadGlobalIndexById } from "../core/global-indices.js";
 import { loadGitFileTags } from "../extract/git-status.js";
 import { collectFilesTouched } from "../extract/file-touch.js";
-import { notificationEvidenceSummary, stripNotificationEvidence, notificationEvidenceMetadata, EVIDENCE_METADATA_KEY } from "../core/notification-evidence.js";
+import { notificationEvidenceSummary, notificationEvidenceMetadata, EVIDENCE_METADATA_KEY } from "../core/notification-evidence.js";
+import { SUMMARY_FORMAT_KEY, summaryFormatProof, type SummaryFormatProof } from "../core/summary-format.js";
 
 export const PI_VCC_COMPACT_INSTRUCTION = "__pi_vcc__";
 
@@ -533,14 +534,15 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI, omRuntime: Runtime) 
     // annotations) outside a repo or if git fails.
     const gitTags = loadGitFileTags(ctx.cwd ?? process.cwd());
     let summaryProof: GeneratedSummaryProof | undefined;
+    let formatProof: SummaryFormatProof | undefined;
     const previousProof = ownedSummaryProof(preparation.previousSummary, branchEntries);
-    const previous = previousProof && preparation.previousSummary !== undefined
-      ? stripGeneratedSpans(preparation.previousSummary, previousProof)
-      : stripNotificationEvidence(preparation.previousSummary, branchEntries);
     const summary = compile({
       messages,
-      previousSummary: previous,
+      previousSummary: preparation.previousSummary,
+      previousGeneratedSpans: previousProof,
+      previousSummaryEntries: branchEntries,
       onGeneratedSpans: proof => { summaryProof = proof; },
+      onSummaryFormat: proof => { formatProof = proof; },
       fileOps,
       sourceIndices,
       touchMessages: agentMessages,
@@ -775,6 +777,7 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI, omRuntime: Runtime) 
       compaction: {
         summary: fallbackSummary,
         details: { ...details, "om.folded": omDetails,
+          [SUMMARY_FORMAT_KEY]: summaryFormatProof(fallbackSummary, details.version === 2 ? "literal-brief-v1" : formatProof?.layout ?? "literal-v1"),
           [GENERATED_SPANS_KEY]: { version: 1, summary: composed.proof, ...(details.version === 2 && trailingProof ? { trailing: trailingProof } : {}) },
           ...(pendingFlush ? { [PENDING_FLUSH_KEY]: pendingFlush } : {}),
           ...(evidenceMetadata ? { [EVIDENCE_METADATA_KEY]: evidenceMetadata } : {}),

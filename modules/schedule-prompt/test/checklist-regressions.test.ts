@@ -15,7 +15,7 @@ import { runSubagentOnce } from "../src/subagent.js";
 const actualFs = await vi.importActual<typeof import("fs")>("fs");
 const seed = (partial: Partial<CronJob> = {}): CronJob => ({ id: "j", name: "demo", schedule: "1s", prompt: "p", enabled: true, type: "interval", intervalMs: 1000, createdAt: "", runCount: 0, ...partial });
 const makePi = () => ({ sendMessage: vi.fn(), sendUserMessage: vi.fn(), events: { emit: vi.fn(), on: vi.fn(() => () => {}) } }) as any;
-const ctx = { sessionManager: { getSessionId: () => "s" } } as any;
+const ctx = { isProjectTrusted: () => true, sessionManager: { getSessionId: () => "s" } } as any;
 let cwd: string;
 let storage: CronStorage;
 let scheduler: CronScheduler | undefined;
@@ -140,7 +140,7 @@ describe("scheduler checklist regressions", () => {
   });
   it("L18: an unavailable session id cannot clear an unbound peer's running status", () => {
     storage.addJob(seed({ lastStatus: "running" }));
-    scheduler = new CronScheduler(storage, makePi(), { sessionManager: { getSessionId: () => undefined } } as any);
+    scheduler = new CronScheduler(storage, makePi(), { isProjectTrusted: () => true, sessionManager: { getSessionId: () => undefined } } as any);
     scheduler.start();
     expect(storage.getJob("j")?.lastStatus).toBe("running");
   });
@@ -158,7 +158,7 @@ it("M6: coalesces change bursts, reads no disk during render, and cancels pendin
   const read = vi.spyOn(storage, "getAllJobs");
   const widget = new CronWidget(storage, scheduler, pi, () => true, "s");
   const onChange = pi.events.on.mock.calls[0][1];
-  widget.show({ ui });
+  widget.show({ mode: "tui", ui });
   for (let n = 0; n < 50; n++) onChange();
   expect(read).toHaveBeenCalledTimes(1);
   await vi.advanceTimersByTimeAsync(100);
@@ -178,7 +178,7 @@ it("M6: a deferred refresh storage error is contained and hides stale state", as
   const pi = makePi(), ui = { setWidget: vi.fn() };
   scheduler = new CronScheduler(storage, pi, ctx);
   const widget = new CronWidget(storage, scheduler, pi, () => true, "s");
-  widget.show({ ui });
+  widget.show({ mode: "tui", ui });
   vi.spyOn(storage, "getAllJobs").mockImplementation(() => { throw new Error("store unreadable"); });
   pi.events.on.mock.calls[0][1]();
   await vi.advanceTimersByTimeAsync(100);

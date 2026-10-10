@@ -1,0 +1,57 @@
+import assert from 'node:assert/strict';
+import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import * as sdk from '@earendil-works/pi-coding-agent';
+import { Agent } from '@earendil-works/pi-agent-core';
+import { createAssistantMessageEventStream } from '@earendil-works/pi-ai';
+import { ConfigManager } from '../../src/pi-base/config-manager.ts';
+import { clearSessionConfig } from '../../src/pi-base/config.ts';
+const dir=process.env.PI_CODING_AGENT_DIR, cwd=join(dir,'work'); await mkdir(cwd,{recursive:true}); process.chdir(cwd); await writeFile(join(dir,'auth.json'),'{}');
+const settings=sdk.SettingsManager.inMemory({packages:[],compaction:{enabled:false},retry:{enabled:false},cacheWarming:'off',enableInstallTelemetry:false});
+const loader=new sdk.DefaultResourceLoader({cwd,agentDir:dir,settingsManager:settings,noExtensions:true,noSkills:true,noThemes:true,noContextFiles:true,noPromptTemplates:true}); await loader.reload();
+const modelRuntime=await sdk.ModelRuntime.create({authPath:join(dir,'auth.json'),modelsPath:null,allowModelNetwork:false,refreshOnCreate:false});
+let calls=0, fetchCalls=0; globalThis.fetch=async()=>{fetchCalls++;throw Error('OFFLINE_FETCH_FORBIDDEN');}; const agent=new Agent({convertToLlm:sdk.convertToLlm,streamFn:()=>{calls++;return createAssistantMessageEventStream();}});
+const sm=sdk.SessionManager.create(cwd,join(dir,'sessions')); const session=new sdk.AgentSession({agent,cwd,resourceLoader:loader,modelRuntime,settingsManager:settings,sessionManager:sm,baseToolsOverride:{},initialActiveToolNames:[]}); await session.bindExtensions({mode:'json',uiContext:{notify(){}}});
+const baseline={memory:false,compaction:'manual',model:{provider:'baseline',id:'baseline'}};
+const opts={id:'branch-review',label:'branch-review',defaults:baseline,fields:()=>[],configDir:dir}; const make=()=>new ConfigManager(opts); let config=make();
+const ctx={cwd,sessionManager:sm,hasUI:true,ui:{notify(){}}}, append=(type,data)=>sm.appendCustomEntry(type,data), resolveConfig=(c=config,context=ctx)=>c.resolveHostSession(baseline,context,append);
+try {
+  sm.appendMessage({role:'user',content:'prior persisted task',timestamp:1}); const p=sm.appendCustomEntry('navigation-anchor',{});
+  assert.deepEqual(resolveConfig(),baseline); const desired={memory:true,compaction:'auto',model:{provider:'session',id:'session'}}; config.save(desired,'session',cwd); const c=sm.getLeafId(); const before=await readFile(sm.getSessionFile(),'utf8');
+  assert.deepEqual(resolveConfig(),desired); await session.navigateTree(p,{summarize:false}); assert.deepEqual(resolveConfig(),baseline,'Warm saved-record C must not authorize pre-save P');
+  clearSessionConfig('session-config-branch-review',cwd,sm.getSessionId(),p); assert.deepEqual(resolveConfig(make()),baseline,'Fresh resolver with full-history C must not authorize P');
+  console.log('Starting cold-process full-history/current-branch probe...');
+  const cold=await promisify(execFile)(process.execPath,['--import','tsx',fileURLToPath(new URL('./rereview-navigation-cold-host.mjs',import.meta.url)),sm.getSessionFile(),p,c],{cwd:fileURLToPath(new URL('../../../../',import.meta.url)),env:process.env,timeout:30000}); console.log(cold.stdout); assert.match(cold.stdout,/"coldProcess":true/);
+  const sibling=sm.appendCustomEntry('navigation-sibling',{}); assert.deepEqual(resolveConfig(),baseline,'Sibling excludes record C');
+  await session.navigateTree(c,{summarize:false}); assert.deepEqual(resolveConfig(),desired,'Returning to actual record restores exact setting');
+  await session.reload(); assert.deepEqual(resolveConfig(make()),desired,'Reload restores only current record');
+  for(const member of ['getBranch','getLeafId','getEntries']) {
+    const failing=new Proxy(sm,{get(target,key){if(key===member)return()=>{throw Error('Synthetic lookup failure');};const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;}});
+    assert.deepEqual(resolveConfig(config,{...ctx,sessionManager:failing}),baseline,member+' failure must not reuse authority');
+    assert.deepEqual(resolveConfig(),desired);
+  }
+  assert.deepEqual(resolveConfig(config,{...ctx,cwd:join(cwd,'other')}),baseline,'Same session ID at another cwd is not owner');
+  config.initSession('FOREIGN_INIT',p,sm.getEntries()); assert.deepEqual(resolveConfig(),desired,'Foreign/stale direct init cannot replace host identity');
+  const navigating=new ConfigManager({...opts,diagnostics:()=>['SYNCHRONOUS_WARNING_NAVIGATION']});
+  assert.deepEqual(navigating.resolveHostSession(baseline,{...ctx,ui:{notify(){sm.branch(p);}}},append),baseline,'Warning callback navigation reprojects the final public branch');
+  sm.branch(c); assert.deepEqual(resolveConfig(),desired); sm.resetLeaf(); assert.deepEqual(resolveConfig(),baseline,'Reset leaf revokes saved record');
+  const empty=sdk.SessionManager.create(cwd,join(dir,'empty')); assert.deepEqual(resolveConfig(config,{...ctx,sessionManager:empty}),baseline,'Empty new session has no previous authority');
+  let denyPending=false, pendingAppends=0; const pending=new ConfigManager(opts), pendingCtx={...ctx,sessionManager:empty};
+  const appendPending=(type,data)=>{if(denyPending)throw Error('PENDING_APPEND_REFUSED'); pendingAppends++; empty.appendCustomEntry(type,data);};
+  pending.resolveHostSession(baseline,pendingCtx,appendPending); pending.save(desired,'session',cwd);
+  assert.deepEqual(pending.resolveHostSession(baseline,pendingCtx,appendPending),desired,'Genuinely unsaved owner-keyed pending configuration is retained');
+  empty.appendMessage({role:'assistant',content:[{type:'text',text:'materialized fixture'}],api:'openai-responses',provider:'offline',model:'fixture',stopReason:'stop',timestamp:1,usage:{input:0,output:0,cacheRead:0,cacheWrite:0,totalTokens:0,cost:{input:0,output:0,cacheRead:0,cacheWrite:0,total:0}}});
+  denyPending=true; assert.throws(()=>pending.resolveHostSession(baseline,pendingCtx,appendPending),/PENDING_APPEND_REFUSED/);
+  denyPending=false; assert.deepEqual(pending.resolveHostSession(baseline,pendingCtx,appendPending),desired); assert.equal(pendingAppends,1,'Only successfully persisted pending record is acknowledged');
+  assert.deepEqual(pending.resolveHostSession(baseline,pendingCtx,appendPending),desired); assert.equal(pendingAppends,1);
+  const diagnostics=new ConfigManager({...opts,id:'warning-review',diagnostics:()=>['BOUNDED_WARNING']}); let warningCalls=0;
+  diagnostics.resolveHostSession(baseline,{...pendingCtx,hasUI:false,ui:{notify(){throw Error('NO_UI_MUST_NOT_NOTIFY');}}},appendPending);
+  assert.doesNotThrow(()=>diagnostics.resolveHostSession(baseline,{...pendingCtx,ui:{notify(){throw Error('NOTIFY_REFUSED');}}},appendPending));
+  diagnostics.resolveHostSession(baseline,{...pendingCtx,ui:{notify(){warningCalls++;}}},appendPending); diagnostics.resolveHostSession(baseline,{...pendingCtx,ui:{notify(){warningCalls++;}}},appendPending); assert.equal(warningCalls,1);
+  const bounded={config:baseline,warnings:Array.from({length:513},(_,i)=>({scope:'global',message:'EVICTION_'+i}))}; let delivered=0; diagnostics.notifyWarnings(bounded,()=>delivered++); diagnostics.notifyWarnings({config:baseline,warnings:[bounded.warnings[0]]},()=>delivered++); assert.equal(delivered,514); assert.equal(diagnostics._notifiedWarnings.size,512);
+  assert.ok((await readFile(sm.getSessionFile(),'utf8')).startsWith(before),'Navigation/config resolution never rewrites prior JSONL'); assert.equal(calls,0); assert.equal(fetchCalls,0);
+  console.log(JSON.stringify({navigationContract:true,modelStreamCalls:calls,actualExternalFetchCalls:fetchCalls,warm:true,coldProcess:true,sibling,returned:true,lookupFailures:3,pendingAppends,noUI:true,notifyFailureRetry:true,warningCap:512}));
+} finally {session.dispose();}

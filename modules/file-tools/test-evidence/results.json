@@ -1,0 +1,33 @@
+{
+    "date":  "2026-10-08",
+    "platform":  "win32",
+    "node":  "v26.8.1",
+    "targeted":  {
+                     "log":  "checklist-targeted-final.log",
+                     "skipped":  0,
+                     "failed":  0,
+                     "passed":  21
+                 },
+    "module":  {
+                   "stagesPassed":  4,
+                   "log":  "module-final.log",
+                   "integration":  {
+                                       "host":  "Pi 1.0.0",
+                                       "skipped":  0,
+                                       "failed":  0,
+                                       "passed":  8
+                                   },
+                   "tooling":  {
+                                   "skipped":  0,
+                                   "failed":  0,
+                                   "passed":  16
+                               },
+                   "unit":  {
+                                "skipReason":  "Existing POSIX-only /c and /mnt/c normalization case on Windows",
+                                "skipped":  1,
+                                "failed":  0,
+                                "passed":  244
+                            },
+                   "stagesTotal":  4
+               }
+}

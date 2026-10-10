@@ -1,4 +1,6 @@
+import { realpathSync } from "node:fs";
 import { createRequire } from "node:module";
+import { resolve } from "node:path";
 import type { IPty, spawn } from "node-pty";
 import { filterEnv, type EnvPolicy } from "./env.ts";
 import { matchPattern, MATCH_BUDGET_MS } from "./matcher.ts";
@@ -29,7 +31,25 @@ export interface KillResult {
 	note: string;
 }
 
+/**
+ * Sessions whose shutdown could not confirm transport exit. They outlive the manager (Pi drops the old extension
+ * instance when shutdown throws) so a later instance for the same canonical owner cwd can list and retry kill.
+ * In-process only; entries are never fabricated as exited and never imply a remote process tree stopped.
+ */
+export type OrphanRegistry = Map<string, { owner: string; session: unknown }>;
+const ORPHANS_KEY = Symbol.for("pi-better-tools.pty-terminal.orphans");
+/** Process-wide registry shared across extension reloads (module instances are not reused by reload). */
+export function sharedOrphanRegistry(): OrphanRegistry {
+	const holder = globalThis as unknown as Record<symbol, OrphanRegistry | undefined>;
+	return (holder[ORPHANS_KEY] ??= new Map());
+}
+function canonicalOwner(cwd: string): string {
+	try { return realpathSync.native(cwd); } catch { return resolve(cwd); }
+}
+
 export interface ManagerOptions {
+	/** Opt-in: retained sessions at shutdown are parked here, and recover() re-adopts them for the same owner cwd. */
+	orphans?: OrphanRegistry;
 	maxSessions?: number;
 	maxBufferChars?: number;
 	exitedRetentionMs?: number;
@@ -110,6 +130,8 @@ export interface PtySessionSummary {
 	droppedChars: number;
 	/** Monotonic cursor just after the latest output. */
 	cursor: number;
+	/** True when this session survived a failed shutdown and was re-adopted; local transport exit is still unconfirmed. */
+	recovered?: true;
 }
 
 interface PtySession {
@@ -119,6 +141,9 @@ interface PtySession {
 	target: string;
 	transport: "local" | "wsl" | "ssh";
 	pty: IPty;
+	/** Canonical cwd of the Pi workspace that spawned the session; the only owner allowed to recover it. */
+	owner: string;
+	recovered?: true;
 	state: SessionState;
 	/** Retained output (read and unread); buffer[0] has cursor bufStart. Cursors count UTF-16 units and only grow. */
 	buffer: string;
@@ -168,8 +193,10 @@ export class PtySessionManager {
 	private readonly now: () => number;
 	private readonly timers: NonNullable<ManagerOptions["timers"]>;
 	private readonly spawnPty: typeof spawn;
+	private readonly orphans?: OrphanRegistry;
 
 	constructor(options: ManagerOptions = {}) {
+		this.orphans = options.orphans;
 		this.maxSessions = options.maxSessions ?? MAX_SESSIONS;
 		this.maxBufferChars = options.maxBufferChars ?? MAX_BUFFER_CHARS;
 		this.retentionMs = options.exitedRetentionMs ?? EXITED_RETENTION_MS;
@@ -221,9 +248,11 @@ export class PtySessionManager {
 			},
 		});
 
-		const id = `pty-${process.pid}-${++this.nextId}`;
+		let id = `pty-${process.pid}-${++this.nextId}`;
+		while (this.sessions.has(id) || this.orphans?.has(id)) id = `pty-${process.pid}-${++this.nextId}`; // recovered sessions keep their ids
 		const session: PtySession = {
 			id,
+			owner: canonicalOwner(defaultCwd),
 			pid: pty.pid,
 			target: options.target ?? "local",
 			transport: options.transport ?? "local",
@@ -452,7 +481,27 @@ export class PtySessionManager {
 			bufferedBytes: Buffer.byteLength(session.buffer.slice(session.readPos - session.bufStart)),
 			droppedChars: session.drop ? session.drop.to - session.drop.from : 0,
 			cursor: session.bufStart + session.buffer.length,
+			...(session.recovered ? { recovered: true as const } : {}),
 		}));
+	}
+
+	/**
+	 * Re-adopts sessions parked by a previous (shut down) manager for the same canonical owner cwd. Other owners' entries
+	 * are left untouched. Adoption does not change liveness: state comes from the transport's own exit events.
+	 */
+	recover(ownerCwd: string): string[] {
+		if (!this.orphans || this.closing) return [];
+		const owner = canonicalOwner(ownerCwd);
+		const adopted: string[] = [];
+		for (const [id, entry] of [...this.orphans]) {
+			if (entry.owner !== owner || this.sessions.has(id)) continue;
+			const session = entry.session as PtySession;
+			this.orphans.delete(id);
+			session.recovered = true;
+			this.sessions.set(id, session);
+			adopted.push(id);
+		}
+		return adopted;
 	}
 
 	shutdown(): Promise<{ retained: string[]; errors: string[] }> {
@@ -468,8 +517,11 @@ export class PtySessionManager {
 					if (!result.released) errors.push(`PTY ${id} termination unconfirmed; ownership retained`);
 				} catch (error) { errors.push(error instanceof Error ? error.message : String(error)); }
 			}));
-			// No fabricated exit event or registry.clear(): only confirmed exits release ownership.
-			return { retained: [...this.sessions.keys()], errors };
+			// No fabricated exit event or registry.clear(): only confirmed exits release ownership. With a recovery registry
+			// the surviving sessions are parked (not dropped) so the next instance for the same owner can retry kill.
+			const retained = [...this.sessions.keys()];
+			if (this.orphans) for (const [id, session] of [...this.sessions]) { this.orphans.set(id, { owner: session.owner, session }); this.sessions.delete(id); }
+			return { retained, errors };
 		})();
 		this.stopping = work;
 		void work.then(() => { if (this.stopping === work) this.stopping = undefined; });

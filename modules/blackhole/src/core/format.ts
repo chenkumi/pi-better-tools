@@ -48,12 +48,22 @@ export const capBrief = (text: string): string => {
   return `...(${omitted} earlier lines omitted)\n\n${clean.join("\n")}`;
 };
 
+/** Unknown prior prose is not a schema. Retain both boundaries without header-based cuts. */
+export const capLiteralBrief = (text: string): string => {
+  const lines = text.split("\n");
+  if (lines.length <= BRIEF_MAX_LINES) return text;
+  const half = BRIEF_MAX_LINES / 2;
+  return [...lines.slice(0, half), `...(${lines.length - BRIEF_MAX_LINES} middle literal lines omitted; use recall for omitted text)`, ...lines.slice(-half)].join("\n");
+};
+
 export const RECALL_NOTE =
   "The conversation before this point has been compacted into the summary above. " +
   "Details not captured here — exact code, error messages, file paths — are only recoverable via `recall`. " +
   "Use `recall` to search the session history. Do not redo work already completed.";
 
-export const formatSummary = (data: SectionData): string => {
+/** Actual writer composition, not a layout inferred from transcript markers. */
+export interface SummaryComposition { headers: string; brief: string; text: string }
+export const formatSummaryComposition = (data: SectionData): SummaryComposition => {
   const headerParts = [
     section("Session Goal", data.sessionGoal),
     section("Files And Changes", data.filesAndChanges),
@@ -62,18 +72,10 @@ export const formatSummary = (data: SectionData): string => {
     section("User Preferences", data.userPreferences),
   ].filter(Boolean);
 
-  const parts: string[] = [];
-  if (headerParts.length > 0) {
-    parts.push(headerParts.join("\n\n"));
-  }
-  if (data.briefTranscript) {
-    parts.push(capBrief(data.briefTranscript));
-  }
-
-  if (parts.length === 0) return "";
-
-  // NOTE: RECALL_NOTE is appended by compile(), not here.
-  // It is appended once by `compile()` at the very end, after merge-with-previous,
-  // to avoid the note compounding inside the brief transcript across compactions.
-  return wrapLongLines(parts.join("\n\n---\n\n"));
+  const headers = wrapLongLines(headerParts.join("\n\n"));
+  const brief = data.briefTranscript ? wrapLongLines(capBrief(data.briefTranscript)) : "";
+  // RECALL_NOTE is appended once by compile(), after merge-with-previous.
+  return { headers, brief, text: [headers, brief].filter(Boolean).join("\n\n---\n\n") };
 };
+
+export const formatSummary = (data: SectionData): string => formatSummaryComposition(data).text;

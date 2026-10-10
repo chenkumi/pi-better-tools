@@ -12,14 +12,19 @@ import { normalize } from "./normalize";
 import { filterNoise } from "./filter-noise";
 import { buildSections } from "./build-sections";
 import { formatFileList } from "../extract/files";
-import { formatSummary, capBrief, RECALL_NOTE, wrapLongLines } from "./format";
+import { formatSummaryComposition, type SummaryComposition, capBrief, capLiteralBrief, RECALL_NOTE, wrapLongLines } from "./format";
+import { ownedSummaryLayout, summaryFormatProof, type SummaryLayout, type SummaryFormatProof } from "./summary-format.js";
 import { generatedSpan, generatedSummaryProof, generatedSection, stripGeneratedSpans, type GeneratedSummaryProof } from "./generated-summary-spans.js";
+import { stripNotificationEvidence } from "./notification-evidence.js";
 
 export interface CompileInput {
   messages: Message[];
   previousSummary?: string;
   previousGeneratedSpans?: GeneratedSummaryProof;
+  /** Canonical current branch, not a caller-supplied ownership boolean. */
+  previousSummaryEntries?: readonly any[];
   onGeneratedSpans?: (proof: GeneratedSummaryProof) => void;
+  onSummaryFormat?: (proof: SummaryFormatProof) => void;
   fileOps?: FileOps;
   /**
    * Raw (pre-convertToLlm) session messages for file-touch attribution.
@@ -135,13 +140,13 @@ const briefOf = (text: string): string => {
 const mergeHeaderSection = (header: string, prev: string, fresh: string): string => {
   // Outstanding Context is volatile -- always use fresh only
   if (header === "Outstanding Context") return fresh;
-  if (!prev) return fresh;
-  if (!fresh) return prev;
-
-  // Files And Changes: merge by category (Modified/Created/Read), dedup paths
+  // File callers pass the whole proven prefix; scope it before empty-side
+  // handling, or a headerless fresh brief duplicates unrelated old sections.
   if (header === "Files And Changes") {
     return mergeFileLines(extractSection(prev, header), extractSection(fresh, header));
   }
+  if (!prev) return fresh;
+  if (!fresh) return prev;
 
   // Session Goal, User Preferences: line-level dedup, cap
   const isClean = (l: string) =>
@@ -342,37 +347,36 @@ const mergeBriefTranscript = (prev: string, fresh: string): string => {
   return prev + "\n\n" + fresh;
 };
 
-const mergePrevious = (prev: string, fresh: string): string => {
-  // Unstructured native/legacy text has no Blackhole section authority. Preserve
-  // it literally (within the existing brief budget), not discard it while parsing.
-  if (!HEADER_NAMES.some(header => sectionOf(prev, header))) return capBrief(prev + SEPARATOR + fresh);
-  // Merge header sections
+const mergePrevious = (prev: string, fresh: SummaryComposition, layout: SummaryLayout | undefined): SummaryComposition => {
+  // Headers are data until the true latest persisted writer/format proves them.
+  // Fresh authority comes from the writer's actual composition, never markers
+  // in its brief or an assumption that the previous layout applies to it.
+  if (!layout) {
+    const literal = capLiteralBrief(prev);
+    return { headers: fresh.headers, brief: [fresh.brief, literal].filter(Boolean).join(SEPARATOR), text: fresh.text ? fresh.text + SEPARATOR + literal : literal };
+  }
+  const prevHeaders = prev.split(SEPARATOR, 1)[0], freshHeaders = fresh.headers;
+  // Merge only the proven structured prefix, never quoted headers in the body.
   const headers = HEADER_NAMES.map((header) => {
     // Files And Changes must NOT use sectionOf — it rejoins continuation lines
     // and destroys the multi-line list format needed for correct merge parsing.
     // Pass full summaries; mergeFileLines extracts the section itself.
     if (header === "Files And Changes") {
-      return mergeHeaderSection(header, prev, fresh);
+      return mergeHeaderSection(header, prevHeaders, freshHeaders);
     }
-    const freshSec = sectionOf(fresh, header);
-    const prevSec = sectionOf(prev, header);
+    const freshSec = sectionOf(freshHeaders, header);
+    const prevSec = sectionOf(prevHeaders, header);
     return mergeHeaderSection(header, prevSec, freshSec);
   }).filter(Boolean);
 
   // Merge brief transcript
   const prevBrief = briefOf(prev);
-  const freshBrief = briefOf(fresh);
+  const freshBrief = fresh.brief;
   const mergedBrief = mergeBriefTranscript(prevBrief, freshBrief);
 
-  const parts: string[] = [];
-  if (headers.length > 0) {
-    parts.push(headers.join("\n\n"));
-  }
-  if (mergedBrief) {
-    parts.push(capBrief(mergedBrief));
-  }
-
-  return parts.join(SEPARATOR);
+  const headerText = headers.join("\n\n");
+  const brief = mergedBrief ? (layout === "literal-brief-v1" ? capLiteralBrief(mergedBrief) : capBrief(mergedBrief)) : "";
+  return { headers: headerText, brief, text: [headerText, brief].filter(Boolean).join(SEPARATOR) };
 };
 
 const compileFresh = (
@@ -380,7 +384,7 @@ const compileFresh = (
     CompileInput,
     "messages" | "fileOps" | "sourceIndices" | "touchMessages" | "cwd" | "gitTags"
   >,
-): string => {
+): SummaryComposition => {
   const blocks = filterNoise(normalize(input.messages, input.sourceIndices));
   const data = buildSections({
     blocks,
@@ -389,7 +393,7 @@ const compileFresh = (
     cwd: input.cwd,
     gitTags: input.gitTags,
   });
-  return formatSummary(data);
+  return formatSummaryComposition(data);
 };
 
 /** Build one fresh immutable VCC segment. It never reads an older summary. */
@@ -400,19 +404,23 @@ export const compileSegment = (
   >,
 ): string => {
   const fresh = compileFresh(input);
-  return fresh ? wrapLongLines(fresh) : "";
+  return fresh.text ? wrapLongLines(fresh.text) : "";
 };
 
 export const compile = (input: CompileInput): string => {
   const fresh = compileFresh(input);
-  const prev = input.previousSummary ? stripGeneratedSpans(input.previousSummary, input.previousGeneratedSpans) : undefined;
-  const merged = prev ? mergePrevious(prev, fresh) : fresh;
-  if (!merged) return "";
+  const prev = input.previousSummary ? (input.previousGeneratedSpans
+    ? stripGeneratedSpans(input.previousSummary, input.previousGeneratedSpans)
+    : stripNotificationEvidence(input.previousSummary, input.previousSummaryEntries ?? []) ?? input.previousSummary) : undefined;
+  const previousLayout = ownedSummaryLayout(input.previousSummary, input.previousSummaryEntries);
+  const merged = prev ? mergePrevious(prev, fresh, previousLayout) : fresh;
+  if (!merged.text) return "";
   // Only this composition owns the new footer. Never strip freshly merged
   // transcript paragraphs based on marker text or OM-looking headers.
-  const body = wrapLongLines(merged), footer = wrapLongLines(RECALL_NOTE);
+  const body = wrapLongLines(merged.text), footer = wrapLongLines(RECALL_NOTE);
   const summary = body + SEPARATOR + footer;
   input.onGeneratedSpans?.(generatedSummaryProof(summary, [generatedSpan(summary, "recall", body.length + SEPARATOR.length, footer.length)]));
+  input.onSummaryFormat?.(summaryFormatProof(summary, !merged.headers ? "literal-v1" : prev && previousLayout !== "structured-v1" ? "literal-brief-v1" : "structured-v1"));
   return summary;
 };
 

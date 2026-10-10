@@ -34,6 +34,8 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
   let transcript: unknown[] = [];
   let failure: string | undefined;
   let cancelled = false;
+  /** Final agent_settled.aborted of the latest high-level run (a host cancel needs no signal or aborted message). */
+  let runAborted = false;
   let finalized = false;
   let toolRegistered = false;
   const cancel = () => { cancelled = true; };
@@ -103,11 +105,19 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
     accepted = undefined;
     lastText = "";
     suppressedContent = [];
+    runAborted = false;
     return { action: "continue" as const };
   });
 
+  // Observe only: the settled event is notification-only, so never ask for another turn here. The last run decides delivery.
+  pi.on("agent_settled", (event) => {
+    if (!active) return;
+    runAborted = (event as { aborted?: boolean }).aborted === true;
+  });
+
   pi.on("message_end", (event) => {
-    if (!active || failure !== undefined) return;
+    // Keep suppressing prose after a sticky failure too: stdout carries only the JSON line, or nothing.
+    if (!active) return;
     const message = event.message as { provider?: string; model?: string; role?: string; content?: Array<{ type: string; text?: string }>; stopReason?: string; errorMessage?: string };
     if (message.role !== "assistant" || !Array.isArray(message.content)) return;
     if (message.provider && message.model) answeredBy = { provider: message.provider, id: message.model };
@@ -200,6 +210,7 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
       // Let any signal listeners already queued by this tick run first: a terminated run delivers nothing.
       await new Promise<void>((done) => setImmediate(done));
       if (cancelled && failure === undefined) process.stderr.write(`${PREFIX} terminated before the result was delivered\n`);
+      if (runAborted && failure === undefined) fail("the host cancelled the run before the result was delivered");
       if (cancelled || failure !== undefined) return;
       const data = accepted ? accepted.data : await recover(ctx);
       if (cancelled || failure !== undefined || data === undefined) return;

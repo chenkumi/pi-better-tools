@@ -8,6 +8,8 @@
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { Runtime } from "../om/runtime.js";
+import { join } from "node:path";
+import { isProjectLayerAdmitted, recordProjectTrust } from "../core/project-trust.js";
 import {
   PI_VCC_COMPACT_INSTRUCTION,
   notifyMigrationReminder,
@@ -25,6 +27,18 @@ const manualRefusalMessage = (reason: "already_compacted" | "too_small"): string
   reason === "already_compacted"
     ? "blackhole: already compacted — nothing new to compact since the last summary"
     : "blackhole: nothing to compact yet — Pi's keep-recent budget still covers this branch";
+
+function nonTuiSettingsText(runtime: Runtime, ctx: any, globalDir: string): string {
+  const trusted = isProjectLayerAdmitted(ctx.cwd);
+  const c = runtime.config as unknown as Record<string, unknown>;
+  return [
+    "blackhole settings: the interactive settings UI is only available in the TUI.",
+    `Current: compaction=${String(c.compaction)}, memory=${String(c.memory)}.`,
+    `Global config: ${join(globalDir, "pi-blackhole-config.json")}`,
+    `Project config: ${trusted ? join(ctx.cwd ?? "", ".pi", "pi-blackhole-config.json") : "ignored (project not trusted)"}`,
+    "Supported here: /blackhole om-on, /blackhole om-off, /blackhole-memory status; edit the JSON file for other keys.",
+  ].join("\n");
+}
 
 export const registerPiVccCommand = (pi: ExtensionAPI, runtime: Runtime) => {
   const prefixMatch = (value: string, prefix: string): boolean => {
@@ -66,6 +80,7 @@ export const registerPiVccCommand = (pi: ExtensionAPI, runtime: Runtime) => {
       // but a command can be the first thing that runs in a session — load the
       // config before the first read so a configured `compaction: "manual"`
       // session does not fall back to DEFAULTS.
+      recordProjectTrust(ctx.cwd, ctx);
       runtime.ensureConfig(ctx.cwd ?? process.cwd(), (msg) => ctx.ui.notify(msg, "warning"));
       const sessionId = ctx.sessionManager.getSessionId();
 
@@ -75,7 +90,18 @@ export const registerPiVccCommand = (pi: ExtensionAPI, runtime: Runtime) => {
         // Open the config overlay ("configure" kept as a hidden alias)
         const { openBlackholeSettings, config, GLOBAL_CONFIG_DIR } =
           await import("../pi-base/blackhole-settings.js");
-        await openBlackholeSettings(ctx);
+        // ctx.ui.custom only runs component factories in the TUI. RPC resolves undefined without
+        // invoking the factory, so never open custom UI elsewhere; answer with supported text (D20).
+        if (ctx.mode !== "tui") {
+          ctx.ui.notify(nonTuiSettingsText(runtime, ctx, GLOBAL_CONFIG_DIR), "info");
+          return;
+        }
+        try {
+          await openBlackholeSettings(ctx);
+        } catch (error) {
+          ctx.ui.notify(`Settings UI failed: ${(error as Error)?.message ?? String(error)}`, "error");
+          return;
+        }
         const resolved = config.loadWithWarnings(ctx.cwd, GLOBAL_CONFIG_DIR);
         config.notifyWarnings(resolved, message => ctx.ui.notify(message, "warning"));
         runtime.config = resolved.config;
@@ -83,6 +109,10 @@ export const registerPiVccCommand = (pi: ExtensionAPI, runtime: Runtime) => {
         return;
       }
       if (trimmed === "changelog") {
+        if (ctx.mode !== "tui") {
+          ctx.ui.notify("blackhole changelog: the changelog viewer is only available in the TUI.", "info");
+          return;
+        }
         const { openChangelogView } = await import("../changelog/changelog.js");
         await openChangelogView(ctx);
         return;
@@ -92,51 +122,34 @@ export const registerPiVccCommand = (pi: ExtensionAPI, runtime: Runtime) => {
         await handleCleanup(ctx);
         return;
       }
-      if (trimmed === "om-off") {
+      if (trimmed === "om-off" || trimmed === "om-on") {
+        const memory = trimmed === "om-on";
         const { config, GLOBAL_CONFIG_DIR } = await import("../pi-base/blackhole-settings.js");
+        let saved = true;
         try {
-          config.save(
-            { ...config.load(ctx.cwd, GLOBAL_CONFIG_DIR), memory: false },
-            "global",
-            ctx.cwd,
-            GLOBAL_CONFIG_DIR,
-          );
-          const resolved = config.loadWithWarnings(ctx.cwd, GLOBAL_CONFIG_DIR);
-        config.notifyWarnings(resolved, message => ctx.ui.notify(message, "warning"));
-        runtime.config = resolved.config;
-          ctx.ui.notify(
-            "Observational memory disabled. Use /blackhole om-on to re-enable.",
-            "info",
-          );
+          // Patch only `memory` in the global file; never write merged defaults/project/env values (D21).
+          config.patchScope({ memory }, "global", ctx.cwd, GLOBAL_CONFIG_DIR);
         } catch {
+          saved = false;
+        }
+        if (!saved) {
+          // Nothing was persisted. Apply the fallback for real so the message is true.
+          runtime.config = { ...runtime.config, memory };
           ctx.ui.notify(
             "Failed to save config — the config file may be read-only (e.g., managed by Nix). " +
-              "Runtime state updated for this session only.",
+              "Applied to this session's runtime only; it is not persisted and may be overridden by " +
+              "env/session settings on the next reload.",
             "warning",
           );
+          return;
         }
-        return;
-      }
-      if (trimmed === "om-on") {
-        const { config, GLOBAL_CONFIG_DIR } = await import("../pi-base/blackhole-settings.js");
-        try {
-          config.save(
-            { ...config.load(ctx.cwd, GLOBAL_CONFIG_DIR), memory: true },
-            "global",
-            ctx.cwd,
-            GLOBAL_CONFIG_DIR,
-          );
-          const resolved = config.loadWithWarnings(ctx.cwd, GLOBAL_CONFIG_DIR);
+        const resolved = config.loadWithWarnings(ctx.cwd, GLOBAL_CONFIG_DIR);
         config.notifyWarnings(resolved, message => ctx.ui.notify(message, "warning"));
         runtime.config = resolved.config;
-          ctx.ui.notify("Observational memory enabled.", "info");
-        } catch {
-          ctx.ui.notify(
-            "Failed to save config — the config file may be read-only (e.g., managed by Nix). " +
-              "Runtime state updated for this session only.",
-            "warning",
-          );
-        }
+        ctx.ui.notify(
+          memory ? "Observational memory enabled." : "Observational memory disabled. Use /blackhole om-on to re-enable.",
+          "info",
+        );
         return;
       } // Warn if input starts with a known subcommand but isn't an exact match.
       // Prevents "/blackhole configure foo" from silently becoming a follow-up.

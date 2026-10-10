@@ -1,11 +1,11 @@
 # File Tools
 
-覆寫 Pi 內建的 `read`、`write`、`edit`、`grep`、`find`、`ls` 六個工具。前三者提供行號、版本雜湊、精確比對與原子寫入；搜尋／目錄工具沿用 Pi 1.1.0 的公開 factory。權限、activation 與 hook 仍由 Pi 負責，工具 annotations 只是提示，不是授權。
+覆寫 Pi 內建的 `read`、`write`、`edit`、`ls` 四個工具。前三者提供行號、版本雜湊、精確比對與原子寫入；`ls` 沿用 Pi 1.1.0 的公開 factory。File Tools 不再註冊 `grep`／`find`，留給宿主或 FFF override；原五行 grep 預覽包裝亦已移除。權限、activation 與 hook 仍由 Pi 負責，工具 annotations 只是提示，不是授權。
 
 ## 共通行為
 
 - `read/write/edit` 路徑：相對路徑（相對 cwd）、絕對路徑、開頭 `@`、家目錄展開、`file://` URL。Windows 另接受 `/C/...`、`/mnt/C/...`、`/cygdrive/C/...`；格式錯誤的 URL 會被拒絕。開頭 `@` 沿用 Pi 路徑慣例：字面檔案已存在時優先使用，否則剝除 `@`（父目錄存在亦同）。建立字面 `@types/foo.d.ts` 請用 `./@types/foo.d.ts` 或絕對路徑，避免建立到 `types/`；此慣例未改變。
-- `read/write/edit` schema 為 strict（不允許未宣告欄位）；`grep/find/ls` 保留宿主 schema。選填欄位傳 `null` 等同省略；必填欄位仍拒絕 `null`。
+- `read/write/edit` schema 為 strict（不允許未宣告欄位）；`ls` 保留宿主 schema。選填欄位傳 `null` 等同省略；必填欄位仍拒絕 `null`。
 - `read/write/edit` 檔案上限 50 MiB；文字須為合法 UTF-8（否則 `INVALID_ENCODING`）。
 - 版本雜湊：32 字元 SHA-256 token（SHA-256 前 128 bit，十六進位），亦接受 64 字元完整 SHA-256。
 - `read/write/edit` 對同一檔案的操作透過 Pi 的 file mutation queue 排序；搜尋／目錄工具沿用宿主唯讀行為，不提供多檔案快照一致性。
@@ -26,6 +26,7 @@
 - 輸出以單行 `[FILE_METADATA] {"path":...,"sha256":...}` 開頭，其後每行為 `<絕對行號>│<內容>`；前綴是中介資料，不可複製進 `edit.oldText`（此規則只在 `promptGuidelines`，結果不再附 `[LINE_PREFIX]` 說明行）。`sha256` 為版本 token。讀取整檔時只有 `path`、`sha256`；只讀部分範圍時另有 `lines`（`"起-迄"`，無輸出為 `"none"`）與 `total`（總行數）。完整的 `path`／`sha256`／`totalLines`／`lineStart`／`lineEnd`／`truncation` 仍在 `details`。
 - 單次最多 2000 行／50 KiB；被截斷或受 `limit` 限制時附 `[READ_CONTINUATION] nextOffset=...; totalLines=...; reason=...`。過長而被略過的行以 `reason=oversized_line_skipped` 標示。
 - 圖片（PNG／JPEG／GIF／WebP／BMP，以檔頭判斷）交由 Pi 內建圖片附件行為處理。以檔頭判斷不等於完整驗證圖片。
+- 圖片委派給宿主 read 時帶入公開的有效設定 `images.autoResize`（`pi.getSettings()`，呼叫時讀取，預設 true，與宿主原生 read 一致）；provider 的 image limits 仍來自轉送的 `ctx.model`。回歸測試：`tests/image-autoresize.integration.test.mjs`（真實 Pi CLI，大型 PNG，autoResize true／false）。
 - 同步 Pi 1.1.0 的 `outputSchema/structuredContent`：codemode `tools.read()` 在文字檔回傳相同的行號／metadata 字串；圖片回傳 `{ type: "image", data, mimeType, note }`，可直接 `image(await tools.read(...))`。模型 content／附件保留，不用 details 冒充結果。
 - 若路徑不存在，且為 `<skill 目錄>/SKILL.md`，並唯一對應到已載入的 skill 檔，會自動更正為該路徑，並在輸出加入 `[SKILL_PATH_AUTO_CORRECTED]`。
 - 背景 subagent 的 managed `subagent-sessions/<ULID 或舊 UUID>/runs/<taskId>/transcript.jsonl.partial` 若回報 `FILE_NOT_FOUND`，會檢查同目錄 `transcript.jsonl`：存在時僅指引明確改讀、不自動替換；兩者皆不存在時提示等待完成通知。權限／probe 錯誤保留，缺失不代表工作已完成。完成通知中的 conversation aggregate `logPath` 與 run-local 行數不同，不可沿用 offset。
@@ -34,15 +35,12 @@
 { "path": "src/app.ts", "offset": 1, "limit": 200 }
 ```
 
-## `grep`／`find`／`ls`
+## `ls`
 
-- 同名工具由本專案註冊，執行仍委派給 host 的 `createGrepToolDefinition`／`createFindToolDefinition`／`createLsToolDefinition`；執行 cwd 使用 `ctx.cwd`，保留 schema、ignore rules、context、limits、取消與錯誤傳遞。這不是來源實作複製或新的搜尋引擎。
-- `grep` 沿用 ripgrep：`pattern` 必填，選填 `path/glob/ignoreCase/literal/context/limit`；預設最多 100 matches／50 KiB、長行最多 500 字元，context 行額外計入 bytes。
-- `find` 沿用 fd：`pattern` 必填，選填 `path/limit`；預設最多 1000 results／50 KiB，尊重 ignore rules。
-- `ls` 選填 `path/limit`；預設最多 500 entries／50 KiB，字母排序、目錄加 `/`、包含 dotfiles，**不**依 gitignore 過濾。
-- 三者設定 `defaultActive:false`：覆寫不額外啟用工具；已選用的 `defaultTools`、`--tools`、排除與 no-tools 仍由 Pi 決定。不呼叫 `setActiveTools` 或修改 settings。
-- `grep` 收合預覽從宿主 15 個邏輯輸出行改成 **5**；原始 content 的內部空白行／文字 notices 亦計入 5 行（不是 5 matches）；renderer 額外的 header、剩餘行數／展開提示與 details 截斷警告另計，窄終端折行可能更多。展開顯示完整已回傳結果，模型內容／details 不變；`find/ls` renderer 完全沿用宿主。
-- 搜尋工具沒有 `[FILE_TOOL_ERROR]` 格式與 file-tools debugLog 攔截，沿用宿主原始錯誤契約。
+- 同名工具執行委派 host `createLsToolDefinition`，使用 `ctx.cwd`，保留 schema、limits、renderer、取消與錯誤傳遞。
+- 選填 `path/limit`；預設最多 500 entries／50 KiB，字母排序、目錄加 `/`、包含 dotfiles，不依 gitignore 過濾。
+- `defaultActive:false`，不呼叫 `setActiveTools` 或修改 settings；選取／排除由 Pi 控制。選填 null 仍正規化為省略。
+- `grep`／`find` 的參數、內容與 renderer 不再由 File Tools 包裝；FFF override 使用 FFF schema，非宿主 schema 的別名。
 
 ## `write`
 
@@ -131,3 +129,11 @@
 ```
 
 啟用後，失敗的 `read`／`write`／`edit`（含參數驗證失敗）會以 JSON Lines 附加到 `~/.pi/logs/pi-file-tools/YYYY-MM-DD.jsonl`，每筆含時間、工具、toolCallId、請求與結構化錯誤。請求中的 `content`、`oldText`、`newText`、`regex`、字串形式的 `edits` 及錯誤中的 `rangePreview`、`INVALID_REGEX` 診斷訊息（可能回顯 regex）只記錄長度與 SHA-256（`{ redacted, length, sha256 }`），不保留全文；超深無效請求的子樹會遮罩，不直接寫出未檢查的內容。路徑與其他欄位原樣保留，日誌無保留期限，請妥善保管。寫入日誌失敗不會遮蔽原始錯誤。
+
+## 與 @ff-labs/pi-fff 的共存
+
+File Tools 在 manifest 中先於 pi-fff 載入，但不再佔用 `grep`／`find`。全域 `<agentDir>/pi-fff.json` 設定 `{"mode":"override"}` 後，兩個搜尋工具由 FFF 提供；不修改第三方實作、版本或其他使用者設定。`/fff-mode override` 可切換目前 session 的模式，需 `/reload`，且不改全域檔案；已保存的 session mode 可優先於全域設定。若 resume 後仍非 override，先執行該命令再 reload，或建立新 session。FFF 預設的 tools-and-ui／tools-only 仍可用；不將所有使用者自動改為 override。
+
+`tests/fff-override-conflict.integration.test.mjs` 已從 TODO 升為正式回歸：真實 Pi／manifest順序／原生 FFF，確認 startup 及 reload 的 provider、active/callable、別名停用與實際搜尋結果，無 fake finder。
+
+pi-fff 0.11.0 上游缺陷以 `known-upstream` `todo` 測試保留（`tests/fff-aux-capacity.integration.test.mjs`：aux finder 並發超過 MAX_AUX；`tests/fff-shutdown-fence.integration.test.mjs`：shutdown 後才 resolve 的 finder 仍被發布且未 destroy）。這些測試使用 SDK 邊界的 fake finder，不載入原生 DLL。FFF 測試因 file-tools 模組 `test:integration` 為固定清單而不會被自動探索，需直接以 `node --import tsx --test modules/file-tools/tests/fff-*.integration.test.mjs` 執行。

@@ -27,7 +27,8 @@ import {
 } from "../core/unified-config.js";
 import { effectivePresets } from "../om/model-budget.js";
 import { openChangelogView } from "../changelog/changelog.js";
-import { piOwnedSettingsWarning } from "../core/pi-owned-settings.js";
+import { piOwnedSettingsWarning, canonicalPersistedSettings, IGNORED_CONTROL_KEYS } from "../core/pi-owned-settings.js";
+import type { Field } from "./settings/types.js";
 
 const CONFIG_FILENAME = "pi-blackhole-config.json";
 
@@ -41,10 +42,11 @@ export const config = new ConfigManager<UnifiedConfig>({
   filename: CONFIG_FILENAME,
   configDir: GLOBAL_CONFIG_DIR,
   defaults: DEFAULTS,
+  canonicalizePersisted: canonicalPersistedSettings,
   scopes: { global: true, project: true, session: true },
   sessionConfig: { entryType: "session-config-pi-blackhole" },
 
-  fields: (cfg) => [
+  fields: (cfg) => ([
     // ── Compaction ──
     {
       key: "compaction",
@@ -422,7 +424,9 @@ export const config = new ConfigManager<UnifiedConfig>({
       description: "Write structured JSONL debug logs to agent directory",
       value: cfg.debugLog,
     },
-  ],
+  ] as Field[]).map(field => IGNORED_CONTROL_KEYS.some(key => key === field.key)
+    ? { key: field.key, type: "readonly" as const, label: `${field.label} (compatibility only)`, description: field.description, value: `${(cfg as unknown as Record<string, unknown>)[field.key] ?? "not set"} — ignored by Pi-owned compaction`, hint: "Read compatibility only. Explicit user save removes this ignored control; load/reload never rewrites it." }
+    : field),
 
   /**
    * Validate raw loaded data, apply legacy migration, clamp numeric fields,

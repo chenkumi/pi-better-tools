@@ -52,6 +52,8 @@ export interface RuntimeGeneration {
   readonly generation: number;
   readonly sessionIdentity: string | undefined;
   readonly signal: AbortSignal;
+  /** Leaf of the branch the work was started on; appends require it to still be an ancestor of the live leaf. */
+  readonly branchLeafId?: string | null;
 }
 
 export type CursorState = "initial" | "recorded" | "empty" | "error" | "skipped" | "not_due";
@@ -259,12 +261,26 @@ export class Runtime {
    * The returned RuntimeGeneration carries a generation number,
    * session identity, and an AbortSignal that fires on session change.
    */
-  captureGeneration(sessionIdentity: string | undefined): RuntimeGeneration {
+  captureGeneration(sessionIdentity: string | undefined, branchLeafId?: string | null): RuntimeGeneration {
     return {
       generation: this.generation,
       sessionIdentity,
       signal: this.lifecycleController.signal,
+      branchLeafId,
     };
+  }
+
+  /**
+   * Same-session tree navigation (session_before_tree / session_tree) keeps the session id, so the
+   * session generation cannot revoke branch-A workers. Start a new branch epoch: abort in-flight
+   * workers and invalidate captured generations. Ordinary conversation progress never calls this.
+   */
+  advanceBranchEpoch(): void {
+    if (this.disposed) return;
+    this.lifecycleController.abort();
+    this.lifecycleController = new AbortController();
+    this.generation += 1;
+    this.clearCompactionTimer();
   }
 
   /**

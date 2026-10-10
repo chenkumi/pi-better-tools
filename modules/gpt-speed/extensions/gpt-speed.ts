@@ -1,11 +1,13 @@
 import { ulid } from "ulid";
 import { chmodSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import lockfile from "proper-lockfile";
 import { getAgentDir, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 export type SpeedMode = "normal" | "fast" | "ultrafast";
-type SpeedModel = Pick<NonNullable<ExtensionContext["model"]>, "provider" | "id">;
+type SpeedModel = Pick<NonNullable<ExtensionContext["model"]>, "provider" | "id"> & { api?: string };
+/** Documented `api` of virtual catalog entries (docs/virtual-models.md); the physical route is not exposed to extensions. */
+const VIRTUAL_MODEL_API = "pi-virtual";
 const SETTINGS_KEY = "pi-gpt-speed";
 const STATUS_KEY = "gpt-speed";
 const MODEL_PATTERN = /^gpt-(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?-(luna|terra|sol|astra)$/;
@@ -13,7 +15,8 @@ const LABELS = { normal: "Normal", fast: "Fast", ultrafast: "Ultrafast" } as con
 
 /** Versions are major/minor components, not decimals: 5.10 >= 5.6; 6 means 6.0. */
 export function effectiveSpeedMode(mode: SpeedMode, model: SpeedModel | undefined): SpeedMode {
-	if (mode === "normal" || !model || !["openai", "openai-codex"].includes(model.provider)) return "normal";
+	// A virtual model's name says nothing about the physical model that receives the request; never inject for it.
+	if (mode === "normal" || !model || model.api === VIRTUAL_MODEL_API || !["openai", "openai-codex"].includes(model.provider)) return "normal";
 	const match = MODEL_PATTERN.exec(model.id);
 	// JS $ also matches before a trailing newline; require an exact full ID.
 	if (!match || match[0] !== model.id) return "normal";
@@ -75,6 +78,15 @@ function renameWithRetry(from: string, to: string): void {
 /** Share Pi's settings lock; read/merge/write synchronously so no same-process await holds it. */
 function persistMode(path: string, mode: SpeedMode): void {
 	mkdirSync(dirname(path), { recursive: true });
+	// Pi's FileSettingsStorage locks the lexical settings path with realpath=false. Use the same lock identity
+	// (resolved before any symlink target) so a symlinked settings.json cannot split the two writers' locks.
+	const release = lockWithRetry(resolve(path));
+	try {
+		persistLocked(path, mode);
+	} finally { release(); }
+}
+
+function persistLocked(path: string, mode: SpeedMode): void {
 	// Follow a symlinked settings.json so the rename replaces its target, not the link itself.
 	let target: string;
 	try { target = realpathSync(path); }
@@ -88,7 +100,6 @@ function persistMode(path: string, mode: SpeedMode): void {
 		}
 		target = join(realpathSync(dirname(path)), "settings.json");
 	}
-	const release = lockWithRetry(target);
 	const temp = `${target}.${ulid().toUpperCase()}.tmp`;
 	try {
 		// Read permissions under the same lock as the settings, not before waiting for it.
@@ -102,8 +113,7 @@ function persistMode(path: string, mode: SpeedMode): void {
 		chmodSync(temp, fileMode);
 		renameWithRetry(temp, target);
 	} finally {
-		try { rmSync(temp, { force: true }); }
-		finally { release(); }
+		rmSync(temp, { force: true });
 	}
 }
 

@@ -52,7 +52,8 @@ Get prompted to do something once at a specific time:
 
 ### Enhanced Pi Features
 
-- ✓ **Live widget** below editor showing active schedules (auto-hides when empty)
+- ✓ **Live widget** below editor showing active schedules (auto-hides when empty; TUI only — RPC/print modes create no widget or timer, and `/schedule-prompt` Jobs uses select dialogs there)
+- ✓ **Trusted projects only**: project jobs and project settings are not loaded or started for an untrusted project
 - ✓ **Human-readable display**: "every minute", "daily at 9:00" instead of raw cron expressions
 - ✓ **Status tracking**: next run, last run, execution count, errors, prompt preview
 - ✓ **Flexible scheduling**: 6-field cron, intervals (5m, 1h), relative time (+10s), ISO timestamps

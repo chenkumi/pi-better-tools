@@ -103,10 +103,13 @@ export function withIdleTimeout(operations: BashOperations): BashOperations {
   };
 }
 
-const STALLED = /Command timed out after (\S+) seconds/;
-const stalledMessage = (message: string, foregroundOnly = false) => message.replace(STALLED, (_m, seconds: string) => {
+// The host appends its own diagnostic as the LAST status line (`appendStatus`: output + blank line + status). Only that trailing
+// line is rewritten; identical text earlier in the command output is user data and must stay verbatim. Once rewritten the
+// message no longer matches, so applying this at several catch layers is idempotent.
+const STALLED = /(^|\n)Command timed out after (\S+) seconds\s*$/;
+const stalledMessage = (message: string, foregroundOnly = false) => message.replace(STALLED, (_m, lead: string, seconds: string) => {
   const text = idleTimeoutMessage(seconds);
-  return foregroundOnly ? text.replace(/ Use background:true separately if you want asynchronous execution\./, "") : text;
+  return lead + (foregroundOnly ? text.replace(/ Use background:true separately if you want asynchronous execution\./, "") : text);
 });
 
 const receiptSchema = Type.Object({

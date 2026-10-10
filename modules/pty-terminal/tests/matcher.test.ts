@@ -89,3 +89,26 @@ test("worker capacity stays held until confirmed termination after result, abort
 		assert.equal(await read, true, "capacity is reusable only after all owned workers exit");
 	}
 });
+
+test("terminate rejection keeps capacity held, preserves the match result, and releases once when exit is later confirmed", async () => {
+	const workers: EventEmitter[] = [];
+	const failing = () => {
+		const time = clock();
+		const worker = new EventEmitter();
+		workers.push(worker);
+		const options: MatcherOptions = { timers: time.timers, createWorker: () => Object.assign(worker, { terminate: () => Promise.reject(new Error("terminate failed")) }) as unknown as Worker };
+		return { worker, options };
+	};
+	const attempts = Array.from({ length: 16 }, failing);
+	const results = attempts.map(a => matchPattern(/a/, "a", undefined, 100, a.options));
+	for (const a of attempts) { a.worker.emit("message", { ready: true }); a.worker.emit("message", { matched: true }); }
+	assert.deepEqual(await Promise.all(results), Array(16).fill(true), "terminate failure must not overwrite the original outcome");
+	await assert.rejects(matchPattern(/a/, "a", undefined, 100, failing().options), /capacity exhausted/, "unconfirmed workers keep capacity");
+	attempts[0].worker.emit("exit", 0); attempts[0].worker.emit("exit", 0); // duplicate exit must not double-release
+	const fresh = failing(); const next = matchPattern(/a/, "a", undefined, 100, fresh.options);
+	fresh.worker.emit("message", { ready: true }); fresh.worker.emit("message", { matched: true });
+	assert.equal(await next, true);
+	await assert.rejects(matchPattern(/a/, "a", undefined, 100, failing().options), /capacity exhausted/, "only one slot was freed");
+	for (const a of attempts.slice(1)) a.worker.emit("exit", 0);
+	fresh.worker.emit("exit", 0);
+});

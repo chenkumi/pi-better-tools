@@ -332,7 +332,7 @@ describe("Env overrides", () => {
 // ── Tests: saveUnifiedConfig atomic write ─────────────────────────────────
 
 describe("saveUnifiedConfig — atomic write", () => {
-  it("saves config with atomic temp+rename pattern", async () => {
+  it("saves active policy canonically without persisting ignored cut controls", async () => {
     const { saveUnifiedConfig, loadUnifiedConfig } = await import("../src/core/unified-config.js");
     const result = saveUnifiedConfig({
       compaction: "manual",
@@ -343,7 +343,8 @@ describe("saveUnifiedConfig — atomic write", () => {
     // Verify saved to disk
     const disk = JSON.parse(readFileSync(configPath(), "utf-8"));
     expect(disk.compaction).toBe("manual");
-    expect(disk.tailBehavior).toBe("minimal");
+    expect(disk).not.toHaveProperty("tailBehavior");
+    expect(disk).not.toHaveProperty("midRunCompaction");
 
     // Verify load reads it back
     const config = loadUnifiedConfig(testDir);

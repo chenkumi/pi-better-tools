@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
+import { setProjectTrustForTests } from "../core/project-trust.js";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { homedir, tmpdir } from "node:os";
@@ -123,6 +124,7 @@ let tempDir: string;
 
 beforeEach(() => {
   tempDir = mkdtempSync(join(tmpdir(), "config-manager-test-"));
+  setProjectTrustForTests(tempDir, true);
 });
 
 afterEach(() => {
@@ -1204,7 +1206,7 @@ describe("ConfigManager._ensureSession()", () => {
       const sessionFile = join(tempDir, "recovery.jsonl");
       const appendEntry = vi.fn((type: string, data: unknown) => {
         // Actually append to the JSONL so parseSessionEntries can find it
-        const line = JSON.stringify({ type: "custom", customType: type, data }) + "\n";
+        const line = JSON.stringify({ type: "custom", id: "recovered-record", parentId: "leaf-1", timestamp: "2026-10-09T00:00:00.000Z", customType: type, data }) + "\n";
         writeFileSync(sessionFile, readFileSync(sessionFile, "utf-8") + line);
       });
       const ctx = makeCtx({
@@ -1240,10 +1242,12 @@ describe("ConfigManager._ensureSession()", () => {
 
       // Fresh manager: initSession with the entry
       const mgr2 = createManager({ sessionConfig: true });
-      mgr2.initSession("sid-recovery", "leaf-1", entries);
+      mgr2.initSession("sid-recovery", "recovered-record", entries);
       // initSession recovery writes to process.cwd(); load must match
       expect(mgr2.load(process.cwd(), tempDir).threshold).toBe(3);
       expect(mgr2.load(process.cwd(), tempDir).enabled).toBe(true);
+      mgr2.initSession("sid-recovery", "leaf-1", entries);
+      expect(mgr2.load(process.cwd(), tempDir).threshold).toBe(5); // C cannot authorize its pre-save parent P.
     });
 
     // ── flush→reset→save ────────────────────────────────────────────────

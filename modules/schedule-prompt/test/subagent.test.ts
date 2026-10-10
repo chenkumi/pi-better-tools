@@ -207,7 +207,7 @@ describe("runSubagentOnce", () => {
       abort: vi.fn(),
       subscribe: vi.fn(() => vi.fn()),
       prompt: vi.fn().mockResolvedValue(undefined),
-      messages: [],
+      messages: [{ role: "assistant", stopReason: "stop", content: [{ type: "text", text: "done" }] }],
       bindExtensions: vi.fn(),
     };
   }

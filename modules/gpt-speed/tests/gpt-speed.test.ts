@@ -30,6 +30,9 @@ for (const id of ["gpt-5.5-sol", "gpt-5-sol", "gpt-4.99-sol", "gpt-5.4", "gpt-6-
 		for (const mode of ["fast", "ultrafast"] as const) assert.equal(effectiveSpeedMode(mode, model(id)), "normal");
 	});
 }
+test("virtual selected model never activates (its physical route is unknown), even if named like a GPT model", () => {
+	for (const mode of ["fast", "ultrafast"] as const) assert.equal(effectiveSpeedMode(mode, { ...model("gpt-5.7-astra"), api: "pi-virtual" }), "normal");
+});
 test("unsupported providers and absent model never activate", () => {
 	for (const provider of ["anthropic", "custom-openai", "azure-openai", "offline"]) {
 		assert.equal(effectiveSpeedMode("ultrafast", model("gpt-6-sol", provider)), "normal");

@@ -40,7 +40,10 @@ describe("session_start/session_tree synchronous settings resilience", () => {
     expect(handler).not.toMatch(/\basync\b|\bawait\b|\bimport\s*\(|\.then\s*\(/);
     expect(handler).not.toMatch(/\bsetTimeout\b|\bsetInterval\b|\bqueueMicrotask\b|\bvoid\b/);
     expect(handler).toMatch(/const resolveSessionSettings\s*=\s*\([^)]*\)\s*=>\s*\{/);
-    expect(handler).toContain("ctx.ui?.notify?.");
+    expect(handler).toContain("ctx.hasUI === true");
+    expect(handler).toContain('typeof ctx.ui?.notify === "function"');
+    expect(handler).toContain('ctx.ui.notify(message, "warning")');
+    expect(handler).not.toContain("ctx.ui?.notify?.");
   });
 
   test("the old detached migration import is absent, not an unhandled rejection", () => {

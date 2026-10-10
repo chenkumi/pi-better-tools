@@ -24,7 +24,7 @@ const countOccurrences = (haystack: string, needle: string): number =>
   haystack.split(needle).length - 1;
 
 describe("append rebase surgery", () => {
-  it("mergePrevious collapses duplicate lines, caps section growth, and keeps exactly one recall note", () => {
+  it("unproved accumulated legacy prose preserves duplicate bullets, OM quotations and literal recall text", () => {
     // A messy accumulated summary: duplicated bullets, an over-cap goal
     // section, a stale OM block after the recall note — exactly what long
     // accumulated chains produce.
@@ -71,18 +71,14 @@ describe("append rebase surgery", () => {
       fileOps,
     });
 
-    // Duplicates collapse to one line each.
-    expect(countOccurrences(complete, "ship the parser fix")).toBe(1);
-    expect(countOccurrences(complete, "abc1234 fix parser")).toBe(1);
-    // Cap: only the first 8 Session Goal lines survive; later ones dropped.
-    expect(countOccurrences(complete, "goal line 09")).toBe(0);
-    expect(countOccurrences(complete, "goal line 10")).toBe(0);
-    expect(complete).toContain("goal line 01");
-    // Stale OM block never leaks into the merged summary.
-    expect(complete).not.toContain("## Observations");
-    expect(complete).not.toContain("stale observation content");
-    // Exactly one mutable recall note, still attached for the fallback role.
-    expect(countOccurrences(complete, RECALL)).toBe(1);
+    // No persisted writer identity or generated span proves this hand-written
+    // legacy block. Do not forge new proof to authorize its deletion.
+    expect(complete).toContain(messyPrev);
+    expect(countOccurrences(complete, "ship the parser fix")).toBe(2);
+    expect(complete).toContain("goal line 09"); expect(complete).toContain("goal line 10");
+    expect(complete).toContain("## Observations"); expect(complete).toContain("stale observation content");
+    // One literal old quotation plus this composition's new generated footer.
+    expect(countOccurrences(complete, RECALL)).toBe(2);
   });
 
   it("/blackhole rebase folds S1+S2+S3 into one clean chain-start segment with the mutable suffix stripped", () => {

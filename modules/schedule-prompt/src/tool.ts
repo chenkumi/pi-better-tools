@@ -8,6 +8,48 @@ import type { CronStorage } from "./storage.js";
 import type { CronJob, CronJobType, CronToolDetails, } from "./types.js";
 import { CronToolParams } from "./types.js";
 
+function entryText(entry: any): string {
+  const content = entry?.message?.content;
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content.map((c: any) => (c?.type === "text" ? c.text ?? "" : "")).join("");
+}
+
+/**
+ * True when the current model turn was started by this extension.
+ *
+ * Provenance comes from the persisted entries of the current branch (oldest-first), not a text heuristic:
+ * - inline job: the scheduler appends a `custom_message` entry (customType "scheduled_prompt", no `mode`) and then
+ *   delivers the prompt as the user message; the marker therefore sits after the previous user message and its
+ *   `details.prompt` equals the text of the current (latest) user message;
+ * - notifying child job: a `subagent_done`/`subagent_error` marker with `details.notify` triggers a turn with no
+ *   user message, so such a marker after the latest user message marks the current turn.
+ * Older scheduled runs behind a later user message never match, so they do not block unrelated turns.
+ */
+export function isInScheduledExecution(sessionManager: { getBranch?: () => any[]; getEntries?: () => any[] }): boolean {
+  const branch = (sessionManager.getBranch ?? sessionManager.getEntries)?.call(sessionManager) ?? [];
+  const isUser = (e: any) => e?.type === "message" && e.message?.role === "user";
+  const isMarker = (e: any) => e?.type === "custom_message" && e.customType === "scheduled_prompt";
+  let latest = -1;
+  let previous = -1;
+  for (let i = branch.length - 1; i >= 0; i--) {
+    if (!isUser(branch[i])) continue;
+    if (latest < 0) latest = i;
+    else { previous = i; break; }
+  }
+  for (let i = latest + 1; i < branch.length; i++) {
+    const e = branch[i];
+    if (isMarker(e) && e.details?.notify === true && /^subagent_(done|error)$/.test(e.details?.mode ?? "")) return true;
+  }
+  if (latest < 0) return false;
+  const prompt = entryText(branch[latest]);
+  for (let i = previous + 1; i < branch.length; i++) {
+    const e = branch[i];
+    if (i !== latest && isMarker(e) && !e.details?.mode && typeof e.details?.prompt === "string" && e.details.prompt === prompt) return true;
+  }
+  return false;
+}
+
 /**
  * Create the schedule_prompt tool definition.
  * `getDefaultScope` is a getter so live setting toggles affect the next `add`.
@@ -29,20 +71,12 @@ export function createCronTool(
       const scheduler = getScheduler();
       
       // Prevent recursive scheduling from within scheduled prompts
-      if (params.action === "add") {
-        const entries = ctx.sessionManager.getEntries();
-        const recentEntries = entries.slice(-10); // Check last 10 entries
-        const hasScheduledPrompt = recentEntries.some(
-          (entry) => entry.type === "custom" && entry.customType === "scheduled_prompt"
+      if (params.action === "add" && isInScheduledExecution(ctx.sessionManager)) {
+        throw new Error(
+          "Cannot create scheduled prompts from within a scheduled prompt execution. This prevents infinite loops."
         );
-        
-        if (hasScheduledPrompt) {
-          throw new Error(
-            "Cannot create scheduled prompts from within a scheduled prompt execution. This prevents infinite loops."
-          );
-        }
       }
-      
+
       const action = params.action;
       const details: CronToolDetails = {
         action,
@@ -338,6 +372,8 @@ export function createCronTool(
       } catch (error) {
         details.error = error instanceof Error ? error.message : String(error);
         return {
+          // Machine-visible failure: the host/model must not see a rejected request as a successful tool call.
+          isError: true,
           content: [
             {
               type: "text",

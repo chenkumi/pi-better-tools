@@ -198,7 +198,7 @@ function openSelector(
   const entries = buildSelectorEntries(params, includeDisplayAll, extraEntries);
   const { ctx } = params;
 
-  return new Promise<ScopeSelectorResult>((resolve) => {
+  return new Promise<ScopeSelectorResult>((resolve, reject) => {
     // Wrap in a factory matching ctx.ui.custom<T>'s expected signature.
     const factory = (
       tui: TUI,
@@ -219,10 +219,18 @@ function openSelector(
       });
       return component;
     };
-    void ctx.ui.custom<void>(factory, {
+    // Settle on every custom() outcome. Hosts without TUI components (RPC) resolve without running
+    // the factory; a rejected custom() must surface instead of leaving this promise pending (D20).
+    const shown = ctx.ui.custom<void>(factory, {
       overlay: true,
       overlayOptions: modalOverlay(),
-    });
+    }) as Promise<void> | undefined;
+    if (shown && typeof shown.then === "function") {
+      shown.then(
+        () => resolve({ kind: "cancel" }),
+        (error: unknown) => reject(error),
+      );
+    }
   });
 }
 
@@ -364,6 +372,10 @@ async function openEditMode(params: ConfigFlowParams, scope: string): Promise<vo
     try {
       await params.resetScope(scope as "global" | "project" | "session");
       const fresh = params.layerValues(scope as "global" | "project" | "env" | "session");
+      // Save reads this buffer, not the rendered body. A Reset must revoke
+      // stale nonempty values here as well or the next Save undoes the reset.
+      for (const key of Object.keys(currentValues)) delete currentValues[key];
+      Object.assign(currentValues, fresh);
       activeEditBody?.setValues(fresh);
       dirtyKeys.clear();
       inspection = params.inspect();
@@ -395,7 +407,15 @@ async function openEditMode(params: ConfigFlowParams, scope: string): Promise<vo
 
     try {
       await params.deleteScope(scope as "global" | "project" | "session");
+      // File deletion may silently refuse unlink; do not discard dirty edits
+      // until the authoritative scope source actually reports file absence.
+      if ((scope === "global" || scope === "project") && params.scopeSources().find(source => source.scope === scope)?.exists) {
+        throw new Error(`Failed to delete the ${scopeLabel} config file.`);
+      }
       const fresh = params.layerValues(scope as "global" | "project" | "env" | "session");
+      // Save uses this buffer, not body rows. Replace it exactly as Reset does.
+      for (const key of Object.keys(currentValues)) delete currentValues[key];
+      Object.assign(currentValues, fresh);
       activeEditBody?.setValues(fresh);
       dirtyKeys.clear();
       inspection = params.inspect();

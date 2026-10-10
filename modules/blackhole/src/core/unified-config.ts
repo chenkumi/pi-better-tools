@@ -7,7 +7,8 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { piOwnedSettingsWarning } from "./pi-owned-settings.js";
+import { isProjectLayerAdmitted } from "./project-trust.js";
+import { piOwnedSettingsWarning, canonicalPersistedSettings } from "./pi-owned-settings.js";
 import {
   applyEnvOverrides,
   CACHE_RETENTION_VALUES,
@@ -777,8 +778,10 @@ export function loadUnifiedConfig(cwd: string, onWarn?: WarnFn): UnifiedConfig {
     const settingsRaw = settingsResult.data;
     if (settingsResult.error && onWarn) onWarn(settingsResult.error);
     const omRaw = settingsRaw?.["pi-blackhole"] ?? settingsRaw?.["observational-memory"];
+    // Project layers are admitted only when the host reported the project trusted (D01).
+    const projectAdmitted = isProjectLayerAdmitted(cwd);
     const projectSettingsPath = join(cwd, ".pi", "settings.json");
-    const projectResult = readJson(projectSettingsPath);
+    const projectResult = projectAdmitted ? readJson(projectSettingsPath) : { data: null, error: null };
     const projectRaw = projectResult.data;
     if (projectResult.error && onWarn) onWarn(projectResult.error);
     const projectOmRaw = projectRaw?.["pi-blackhole"] ?? projectRaw?.["observational-memory"];
@@ -793,7 +796,7 @@ export function loadUnifiedConfig(cwd: string, onWarn?: WarnFn): UnifiedConfig {
 
   // Project-local override: <cwd>/.pi/pi-blackhole-config.json
   const projectConfigPath = join(cwd, ".pi", CONFIG_FILE);
-  const projectResult = readJson(projectConfigPath);
+  const projectResult = isProjectLayerAdmitted(cwd) ? readJson(projectConfigPath) : { data: null, error: null };
   const projectRaw = projectResult.data;
   if (projectResult.error && onWarn) onWarn(projectResult.error);
   if (projectRaw && isRecord(projectRaw)) {
@@ -926,7 +929,7 @@ export function saveUnifiedConfig(settings: Partial<UnifiedConfig>): boolean {
     if (existingResult.error) {
       console.warn("blackhole: overwriting corrupt config file at " + path);
     }
-    const next = { ...existing, ...settings };
+    const next = canonicalPersistedSettings({ ...existing, ...settings });
     writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`);
     return true;
   } catch {
@@ -956,7 +959,7 @@ export function saveUnifiedConfigScoped(
     if (existingResult.error) {
       console.warn("blackhole: overwriting corrupt config file at " + path);
     }
-    const next = { ...existing, ...settings };
+    const next = canonicalPersistedSettings({ ...existing, ...settings });
     writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`);
     return true;
   } catch {
@@ -979,7 +982,7 @@ export function scaffoldConfig(): void {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 
     if (!existsSync(path)) {
-      writeFileSync(path, `${JSON.stringify(DEFAULTS, null, 2)}\n`);
+      writeFileSync(path, `${JSON.stringify(canonicalPersistedSettings(DEFAULTS as unknown as Record<string, unknown>), null, 2)}\n`);
     }
   } catch (e) {
     console.error("blackhole: config scaffold failed", e);

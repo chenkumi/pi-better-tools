@@ -1,6 +1,30 @@
 # Migration Guide — Old Config to New Config
 
-This document explains how to migrate from the legacy pi-vcc config keys to the new unified config surface. Migration is **automatic** — old config files continue to work without changes. This document covers what changed and how to update existing configs explicitly.
+## Current Pi Better Tools migration (Pi 1.1.0)
+
+Pi owns all trigger timing, manual/overflow lifecycle, retained cuts, persistence and retries. Blackhole only replaces the summary through public session_before_compact. BH auto/manual/off/engine choices govern summary participation, never disable Pi auto/overflow or select an aggressive tail. See CONFIG.md; the historical upstream guide below is not the local timing/cut contract.
+
+### Safe ignored-control cleanup
+
+- Load/read/reload remains read-compatible and diagnostic, without rewriting existing settings or historical JSONL.
+- Fresh scaffold/current example and explicit global/project/session saves omit compactAfterPreset, compactAfterTokens, compactAfterRatio, compactReserveTokens, midRunCompaction, tailBehavior, retainedToolOutputMaxTokens.
+- Only explicit user save removes these seven proven ignored controls from an existing target layer. Settings rows are readonly compatibility explanations; no value picker writes them back.
+- Preserve unknown keys, untouched nested model metadata, user compactAfterPresets definitions and effective memory/debug/recall/output budgets. Definitions are archived compatibility data, not Pi triggers.
+- debug, sessionFallback and fullFoldAlways are active controls, not cleanup targets. Memory defaults and configured models/fallbacks are unchanged. Do not bulk-delete passive/noAutoCompact/overrideDefaultCompaction: exact alias conversion, canonical-key precedence, false values and env/session overrides require separate review.
+- A file cleanup does not remove explicit legacy environment/session inputs or historical branch records; their warnings may remain. A compatibility warning is not a failed extension mount.
+- Back up existing personal config and get explicit authorization before physical cleanup. Never alter Pi settings/auth/schedules or old JSONL as part of this migration.
+
+A current summary-participation patch (merge only with user approval; do not replace the full document):
+
+```json
+{ "compaction": "auto", "compactionEngine": "blackhole" }
+```
+
+To change native timing/cuts, use Pi's own compaction.enabled/reserveTokens/keepRecentTokens and exact model overrides with separate approval. /blackhole-memory and X show public context/capacity or unknown; native trigger budget is explicitly unknown rather than inferred from obsolete presets. A warmed pre-save cache or full-history sibling cannot authorize session settings: actual current-branch record ancestry is required.
+
+## Historical upstream migration reference (0.5.12)
+
+The remainder preserves upstream old→new explanations. Its auto-trigger/aggressive-tail examples and automatic alias conversions are historical, **not instructions for generating current local config**. No old timing/cut key in those examples should be copied into a new scaffold or current example.
 
 ## What Changed
 

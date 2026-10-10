@@ -83,6 +83,8 @@ export class CronWidget {
 
   show(ctx: any): void {
     this.ctx = ctx;
+    // Component widgets and the refresh timer only exist for the TUI; RPC/print/json hosts ignore them.
+    if (ctx.mode !== "tui") return;
 
     // One storage read per show()/refresh() (cron:change or the 30s tick), none per render.
     this.cachedJobs = this.loadedJobs();

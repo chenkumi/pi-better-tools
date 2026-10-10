@@ -24,6 +24,8 @@
 - 回傳文字只含一個路徑：`Saved note: <相對路徑> (relative to cwd; use read/edit on this path to change it)`，不含絕對路徑；`details`、`structuredContent` 與輸出 schema 皆只含 `{ relativePath }`（`relativePath` 相對於 cwd、使用 `/`）。
 - 寫入開始前會檢查取消；開始寫入後會完成該次寫入。
 - 若 `<cwd>/<type>` 是指向工作目錄外的 symlink／junction，回報 `NOTE_DIRECTORY_ESCAPE` 並拒絕寫入（以 realpath 驗證）。
+  路徑比較以完整 segment 進行（`..`、`..` + 分隔符、絕對路徑才算逃逸），因此指向工作區內名為 `..archive` 之類目錄的 junction 會被接受。
+- 已知限制（威脅模型）：realpath 檢查與 `open(..., "wx")` 之間，外部寫入者若替換祖先目錄為指向工作區外的 junction，檔案可能建立在區外；host 的 mutation queue 不鎖外部 writer。此為已知限制，不宣稱防禦 TOCTOU；`tests/note-toctou.integration.test.mjs` 以 `todo` 記錄期望行為（不使 CI 變紅）。
 - 空白或僅空白字元的內容回報 `NOTE_EMPTY`，訊息指示模型補上完整文件後重呼叫，不建立任何檔案。
 - 內容上限 8 MiB（UTF-8 位元組），超過回報 `NOTE_TOO_LARGE`；寫入中途失敗（例如磁碟已滿）時，會盡力刪除本次建立的殘缺檔案後再回報錯誤。
 - 本工具僅負責新增；後續讀取或修改請用檔案工具（read／edit／write）操作回傳的路徑。

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { runCommand } from '../../modules/file-tools/scripts/test-process.mjs';
 
 import { isolatedEnv } from '../helpers/environment.mjs';
+import { provisionRipgrep } from '../helpers/test-tools.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
@@ -25,6 +26,7 @@ for (const mode of ['full', 'read-only', 'no-tools', 'exclude', 'brave', 'exa', 
   test(`all manifest extensions: ${mode}`, { timeout: 180000 }, async () => {
     const home = await mkdtemp(join(tmpdir(), 'pi-better-tools-test-'));
     try {
+      if (!['read-only', 'no-tools'].includes(mode)) await provisionRipgrep(home);
       const output = await runCommand(`all-modules ${mode}`, process.execPath, [join(root, 'tests/fixtures/smoke.mjs'), root, mode], { cwd: home, env: isolatedEnv(home), timeoutMs: 150000 });
       const result = JSON.parse(output.trim().split('\n').at(-1));
       assert.equal(result.loaded, true); assert.equal(result.extensions, expectedExtensions); assert.equal(result.prompts, 3);

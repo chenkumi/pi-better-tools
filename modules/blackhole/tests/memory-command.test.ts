@@ -292,8 +292,9 @@ describe("/blackhole-memory command", () => {
     });
 
     const msg = (ui.notify as any).mock.calls[0][0] as string;
-    expect(msg).toContain("Passive:");
-    expect(msg).toContain("automatic memory workers and auto-compaction disabled");
+    expect(msg).toContain("Legacy passive compatibility input");
+    expect(msg).toContain("Pi timing is unchanged");
+    expect(msg).not.toContain("auto-compaction disabled");
   });
 
   it("shows in-flight indicators when consolidation is running", async () => {
@@ -409,7 +410,7 @@ describe("/blackhole-memory command", () => {
     expect(msg).toContain("Usage:");
   });
 
-  it("manual mode shows manual marker and preamble cap info", async () => {
+  it("Blackhole manual summary participation does not label Pi compaction timing manual", async () => {
     const { pi, runtime, handlerMap } = createMockEnvironment();
     runtime.config.compaction = "manual";
     registerMemoryCommand(pi as any, runtime as any);
@@ -426,11 +427,13 @@ describe("/blackhole-memory command", () => {
     });
 
     const msg = (ui.notify as any).mock.calls[0][0] as string;
-    expect(msg).toContain("[manual]");
+    expect(msg).toContain("Pi-owned");
+    expect(msg).toContain("native trigger budget unknown");
+    expect(msg).not.toMatch(/Compaction:.*\[manual\]/);
     // Pending section and Preamble cap only show when pending data exists on disk
   });
 
-  it("status shows the context-window-derived threshold with its basis (issue #60)", async () => {
+  it("status does not infer native trigger budgets from a legacy ratio or selected model", async () => {
     const { pi, runtime, handlerMap, buildBranch } = createMockEnvironment();
     runtime.config.compactAfterTokens = undefined; // derived mode
     runtime.config.compactAfterRatio = 0.65;
@@ -451,11 +454,11 @@ describe("/blackhole-memory command", () => {
     });
 
     const msg = (ui.notify as any).mock.calls[0][0] as string;
-    expect(msg).toContain("triggers at 130,000");
-    expect(msg).toContain("65% of 200,000-token window");
+    expect(msg).toContain("Pi-owned"); expect(msg).toContain("context usage unknown");
+    expect(msg).not.toContain("triggers at 130,000"); expect(msg).not.toContain("65% of 200,000-token window");
   });
 
-  it("status shows the preset-curve threshold with its basis (window curve)", async () => {
+  it("status does not advertise a legacy preset as Pi's native trigger", async () => {
     const { pi, runtime, handlerMap, buildBranch } = createMockEnvironment();
     // No numeric knob: the built-in default preset curve governs out of the box.
     runtime.config.compactAfterTokens = undefined;
@@ -479,7 +482,7 @@ describe("/blackhole-memory command", () => {
     });
 
     const msg = (ui.notify as any).mock.calls[0][0] as string;
-    expect(msg).toContain("triggers at 149,482");
-    expect(msg).toContain("75% of 200,000-token window (preset: default)");
+    expect(msg).toContain("Pi-owned"); expect(msg).toContain("native trigger budget unknown");
+    expect(msg).not.toContain("triggers at 149,482"); expect(msg).not.toContain("preset: default");
   });
 });

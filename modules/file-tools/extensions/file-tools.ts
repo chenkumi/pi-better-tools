@@ -495,7 +495,10 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
         }
         const imageMime = detectImageMime(buffer);
         if (imageMime) {
+          // The host's native read receives the effective images.autoResize setting; mirror it (read at call time, default true).
+          // Provider image limits still come from ctx.model, which is forwarded unchanged below.
           const imageRead = createReadToolDefinition(ctx.cwd, {
+            autoResizeImages: pi.getSettings().images?.autoResize ?? true,
             operations: {
               access: async () => undefined,
               readFile: async () => buffer,

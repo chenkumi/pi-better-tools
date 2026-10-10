@@ -100,7 +100,12 @@ async function fixture(options = {}) {
   try {
     await session.bindExtensions({ mode: 'json', onError: event => errors.push(event.error) });
     const monitor = loader.getExtensions().extensions.find(extension => extension.tools.has('monitor_start')); assert.ok(monitor);
-    for (const name of ['monitor_start', 'monitor_status', 'monitor_stop']) { assert.equal(monitor.tools.get(name).definition.defaultActive, false); assert.ok(!session.getActiveToolNames().includes(name)); }
+    for (const name of ['monitor_start', 'monitor_status', 'monitor_stop']) {
+      assert.equal(monitor.tools.get(name).definition.defaultActive, true);
+      const expectedActive = !options.noTools && (!options.tools || options.tools.includes(name)) && !options.exclude?.includes(name);
+      assert.equal(session.getActiveToolNames().includes(name), expectedActive, `Monitor selection fence: ${name}`);
+      assert.equal(session.getCallableToolNames().includes(name), expectedActive, `Monitor callable fence: ${name}`);
+    }
     if (options.restored) {
       // The SDK factory supplies an initial loadout. Exercise transcript restoration through its
       // public tree-navigation API, not private fields or an assumed factory restore path.
@@ -153,6 +158,12 @@ async function check(name, options, action) {
 try {
   await check('defaultTools additions follow the audited release reload contract', {}, async f => {
     assert.deepEqual(selectedBase(f.session), defaultFiles);
+    for (const name of ['monitor_start', 'monitor_status', 'monitor_stop', 'ffgrep', 'fffind']) {
+      assert.ok(f.session.getActiveToolNames().includes(name), `default activation without defaultTools: ${name}`);
+      assert.ok(f.session.getCallableToolNames().includes(name));
+    }
+    f.session.setActiveToolsByName(f.session.getActiveToolNames().filter(name => name !== 'monitor_status'));
+    assert.ok(!f.session.getActiveToolNames().includes('monitor_status'), 'manual deactivation applies to the current loadout');
     await writeSettings(['read', 'bash', 'monitor_status']); await f.session.reload();
     assert.ok(f.session.getActiveToolNames().includes('monitor_status'));
     assert.deepEqual(selectedBase(f.session), contracts.reloadDefaults ? ['bash', ...defaultFiles] : defaultFiles);
@@ -176,11 +187,12 @@ try {
     for (const toolName of ['bash', 'powershell', 'note', 'monitor_start', 'monitor_status', 'monitor_stop']) assert.ok(!f.session.getActiveToolNames().includes(toolName), toolName);
     if (options.tools || options.noTools) assert.deepEqual(f.session.getCallableToolNames().sort(), expected);
   });
-  await check('search overrides are selectable without changing defaults', { tools: ['grep', 'find', 'ls'] }, async f => {
+  await check('host search and File Tools ls are selectable without changing defaults', { tools: ['grep', 'find', 'ls'] }, async f => {
     assert.deepEqual(selectedBase(f.session), ['find', 'grep', 'ls']);
-    const fileExtension = f.loader.getExtensions().extensions.find(extension => extension.tools.has('grep'));
+    const fileExtension = f.loader.getExtensions().extensions.find(extension => extension.tools.has('ls'));
     assert.ok(fileExtension);
-    for (const name of ['grep', 'find', 'ls']) {
+    assert.ok(!fileExtension.tools.has('grep')); assert.ok(!fileExtension.tools.has('find'));
+    for (const name of ['ls']) {
       assert.equal(fileExtension.tools.get(name).definition.defaultActive, false);
       assert.equal(typeof fileExtension.tools.get(name).definition.renderResult, 'function');
     }

@@ -28,7 +28,7 @@ let pi: any;
 let release: () => void;
 let reached: Promise<void>;
 let terminal: Promise<void>;
-const ctx = { cwd: "/isolated-mocked-workspace", sessionManager: { getSessionId: () => "s" }, modelRegistry: { find: () => MODEL, getAvailable: () => [MODEL] } } as any;
+const ctx = { cwd: "/isolated-mocked-workspace", isProjectTrusted: () => true, sessionManager: { getSessionId: () => "s" }, modelRegistry: { find: () => MODEL, getAvailable: () => [MODEL] } } as any;
 
 function setup(stage: "reload" | "create" | "bind", endAt: string | undefined = END, once = false) {
   let entered!: () => void;

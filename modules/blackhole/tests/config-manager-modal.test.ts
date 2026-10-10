@@ -21,8 +21,10 @@ vi.mock("../src/pi-base/settings/config-flow.js", () => ({
 }));
 
 import { ConfigManager } from "../src/pi-base/config-manager.js";
+import { setProjectTrustForTests } from "../src/core/project-trust.js";
 
 const testDir = join(tmpdir(), `pi-blackhole-modal-test-${Date.now()}`);
+setProjectTrustForTests(testDir, true);
 
 const DEFAULTS = {
   compaction: "auto",
@@ -117,25 +119,20 @@ describe("window-derived threshold fields in the settings modal (issue #60)", ()
 
     expect(ratio).toBeDefined();
     expect(reserve).toBeDefined();
-    // Unset values surface as 0 (the modal's "off" convention), not hidden.
-    expect(ratio.value).toBe(0);
-    expect(ratio.min).toBe(0);
-    expect(ratio.max).toBe(1);
-    expect(reserve.value).toBe(0);
-    expect(reserve.min).toBe(0);
-    expect(reserve.max).toBe(2_000_000);
+    // Compatibility rows are informational, never editable native budgets.
+    expect(ratio.type).toBe("readonly"); expect(reserve.type).toBe("readonly");
+    expect(ratio.value).toContain("not set"); expect(reserve.value).toContain("not set");
+    expect(ratio).not.toHaveProperty("min"); expect(reserve).not.toHaveProperty("max");
 
     // Configured values surface verbatim for editing.
     base.compactAfterRatio = 0.65;
     base.compactReserveTokens = 32_768;
     const setFields = config.opts.fields(base as never);
-    expect(setFields.find((f: { key: string }) => f.key === "compactAfterRatio").value).toBe(0.65);
-    expect(setFields.find((f: { key: string }) => f.key === "compactReserveTokens").value).toBe(
-      32_768,
-    );
+    expect(setFields.find((f: { key: string }) => f.key === "compactAfterRatio").value).toContain("0.65 — ignored");
+    expect(setFields.find((f: { key: string }) => f.key === "compactReserveTokens").value).toContain("32768 — ignored");
   });
 
-  it("persists ratio/reserve edits through ConfigManager.save (keys are DEFAULTS members)", async () => {
+  it("explicit save never regenerates ignored ratio/reserve controls from compatibility DEFAULTS", async () => {
     // Regression: ConfigManager.save() diffs against Object.keys(DEFAULTS), so
     // the window-derived knobs must be DEFAULTS members or a UI edit would be
     // silently dropped and never reach the config file.
@@ -157,8 +154,8 @@ describe("window-derived threshold fields in the settings modal (issue #60)", ()
     const written = JSON.parse(
       readFileSync(join(cfgDir, "pi-blackhole-config.json"), "utf8"),
     ) as Record<string, unknown>;
-    expect(written.compactAfterRatio).toBe(0.65);
-    expect(written.compactReserveTokens).toBe(32_768);
+    expect(written).not.toHaveProperty("compactAfterRatio");
+    expect(written).not.toHaveProperty("compactReserveTokens");
 
     // Untouched knobs are NOT written as 0 — only real edits land in the file.
     const cfg2 = { ...DEFAULTS } as Record<string, unknown>;
@@ -214,6 +211,7 @@ describe("workerAttemptTimeoutMs persistence (0e1b110)", () => {
 
     const projDir = join(testDir, "pi-blackhole-wat-proj");
     mkdirSync(projDir, { recursive: true });
+    setProjectTrustForTests(projDir, true);
 
     config.save({ ...DEFAULTS, workerAttemptTimeoutMs: 20_000 }, "project", projDir);
 
@@ -222,7 +220,7 @@ describe("workerAttemptTimeoutMs persistence (0e1b110)", () => {
 });
 
 describe("preset-curve select + hand-edited preset definitions (window curve)", () => {
-  it("exposes the compactAfterPreset select with built-in + user preset names", async () => {
+  it("exposes compactAfterPreset only as readonly compatibility information", async () => {
     const { config } = await import("../src/pi-base/blackhole-settings.js");
     const { DEFAULTS } = await import("../src/core/unified-config.js");
 
@@ -230,10 +228,9 @@ describe("preset-curve select + hand-edited preset definitions (window curve)", 
     const fields = config.opts.fields(base as never);
     const select = fields.find((f: { key: string }) => f.key === "compactAfterPreset");
     expect(select).toBeDefined();
-    expect(select.type).toBe("enum");
-    // Built-in "default" preset is always offered; default value governs.
-    expect(select.options).toContain("default");
-    expect(select.value).toBe("default");
+    expect(select.type).toBe("readonly");
+    expect(select).not.toHaveProperty("options");
+    expect(select.value).toContain("default — ignored");
 
     // A user-added preset name joins the options (same merge the resolver uses).
     base.compactAfterPresets = {
@@ -241,7 +238,7 @@ describe("preset-curve select + hand-edited preset definitions (window curve)", 
     };
     const fields2 = config.opts.fields(base as never);
     const select2 = fields2.find((f: { key: string }) => f.key === "compactAfterPreset");
-    expect(select2.options).toEqual(["default", "early-1m"]);
+    expect(select2.type).toBe("readonly"); expect(select2).not.toHaveProperty("options");
   });
 
   it("compactAfterPresets is NOT a DEFAULTS member (save() must carry it verbatim)", async () => {
@@ -249,7 +246,7 @@ describe("preset-curve select + hand-edited preset definitions (window curve)", 
     expect(Object.keys(DEFAULTS)).not.toContain("compactAfterPresets");
   });
 
-  it("persists a knob edit whose definition exists in the file; definitions survive verbatim", async () => {
+  it("explicit save cleans an ignored preset selector while preserving user definitions verbatim", async () => {
     const { config } = await import("../src/pi-base/blackhole-settings.js");
     const { DEFAULTS } = await import("../src/core/unified-config.js");
     const { writeFileSync, readFileSync } = await import("node:fs");
@@ -273,7 +270,7 @@ describe("preset-curve select + hand-edited preset definitions (window curve)", 
     config.save(modalCfg as never, "global", undefined, cfgDir);
 
     const written = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
-    expect(written.compactAfterPreset).toBe("early-1m");
+    expect(written).not.toHaveProperty("compactAfterPreset");
     // The hand-edited definition is preserved byte-for-byte (no normalization).
     expect(written.compactAfterPresets).toEqual(defs);
   });
@@ -306,7 +303,7 @@ describe("preset-curve select + hand-edited preset definitions (window curve)", 
 
     const written = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
     expect(written.compactAfterPresets).toEqual(v2);
-    expect(written.compactAfterRatio).toBe(0.5);
+    expect(written).not.toHaveProperty("compactAfterRatio");
   });
 });
 

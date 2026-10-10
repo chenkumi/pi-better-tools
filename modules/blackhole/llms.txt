@@ -1,8 +1,8 @@
 # pi-blackhole: Agent Setup Guide
 
-docs/CONFIG.md is the authoritative source for configuration. Always check it first before relying on summaries from this file.
+docs/CONFIG.md is the authoritative source for this Pi Better Tools integration (Pi 1.1.0). Pi alone owns compaction timing, cuts, persistence and retries; Blackhole supplies summaries through session_before_compact. This guide is adapted from the upstream 0.5.12 setup interview, not permission to edit personal files or configure worker models. Get explicit approval before existing-config writes and preserve backups, unknown/model metadata and active worker/debug/recall/output settings. Never rewrite an existing file or JSONL merely because of load/reload or a compatibility warning.
 
-pi-blackhole is a Pi extension that replaces Pi's costly LLM-based compaction with a fast, deterministic algorithm — and adds a durable memory layer that survives across compactions. Three background workers (observer, reflector, dropper) run during the session to extract facts, distill stable reflections, and prune old observations — all using cheap/free models, never the expensive session model unless necessary.
+pi-blackhole is a Pi extension that replaces Pi's costly LLM-based compaction with a fast, deterministic algorithm — and adds a durable memory layer that survives across compactions. When memory is enabled, three potentially billed background workers (observer, reflector, dropper) extract facts and maintain observations; use only explicitly authorized models and fallback policy. This guide does not verify model prices.
 
 **One config file. Install and forget, or tune to taste.**
 
@@ -60,14 +60,14 @@ src/
 │   ├── model-budget.ts        # effectiveContextWindow() — context window override resolution order
 │   ├── debug-log.ts           # Debug logging (rotation, format)
 │   ├── retryable-error.ts     # Regex patterns for retryable error detection
-│   ├── compaction-trigger.ts  # Auto-compaction trigger on agent_end — wait loop, idle polling, session identity checks
+│   ├── compaction-trigger.ts  # Historical detached trigger implementation; NOT registered by this integration
 │   └── ledger/
 │       ├── index.ts           # Core OM operations: folding, projection, coverage markers, observation/reflection queries
 │       ├── types.ts           # Entry, Observation, Reflection, coverage-marker entry schemas
 │       ├── fold.ts            # Ledger folding — compaction-safe observation pool management
 │       └── recall.ts          # Ledger index for reverse recall lookup (OM→recall coupling)
 └── hooks/
-    └── before-compact.ts      # The join point: vcc compile() + OM projection injection + ownCut/branch cutting logic
+    └── before-compact.ts      # Public Pi preparation → compile() + bounded OM/evidence; never choose an independent cut
 ```
 
 Then inspect the user's environment:
@@ -120,32 +120,19 @@ Each question below has:
 - **Agent context** (what you need to know and why this matters) — this is for you, not the user
 - **User-facing statement** (quoted, what you actually say to the user)
 
-### Question 1: Compaction mode
+### Question 1: Blackhole summary participation
 
-**Agent context:** This is the single most impactful decision. Three modes control when and how compaction fires. The key conceptual model:
+These choices never control Pi's threshold/final/manual/overflow timing. Native budgets are Pi's compaction.enabled/reserveTokens/keepRecentTokens and exact provider/model overrides, not Blackhole knobs.
 
-| Mode | Auto-compact | `/compact` (Pi built-in) | `/blackhole` |
-|------|:---:|:---:|:---:|
-| `"auto"` | blackhole fires at threshold | blackhole handles | blackhole handles |
-| `"manual"` | skipped | Pi handles | blackhole handles |
-| `"off"` | skipped (Pi handles) | Pi handles | blackhole handles |
+| BH mode | Pi-started ordinary summaries | Explicit /blackhole |
+|---|---|---|
+| auto + blackhole engine | Blackhole summary/OM/evidence | Public native request with Blackhole summary |
+| manual or off | Pi summary | Public native request with Blackhole summary |
+| auto + pi-default engine | Pi summary | Blackhole alias still available |
 
-**`compaction: "off"` does NOT block `/blackhole`** — explicit `/blackhole` always uses the blackhole pipeline regardless of mode. This is intentional: even in Off mode, the user can type `/blackhole` to get the structured summary once in a while.
+> Would you like Blackhole to supply structured summaries whenever Pi compacts, or only when you explicitly use /blackhole? Neither choice disables Pi auto or overflow recovery. Memory workers are an independent, potentially billed choice; shall they remain enabled?
 
-If user picks Off, ask separately whether they also want to disable memory (`memory: false`). In Off mode, workers still run by default (memory extraction continues). Some users want Off specifically to stop compaction but keep observations flowing.
-
-**User-facing statement:**
-
-> pi-blackhole has three modes for compaction (compressing old conversation to save context space):
->
-> - **Auto** — install and forget. Compaction fires automatically when enough conversation accumulates. The trigger auto-scales to your model's context window (default preset curve: fires at ~90% full on a 32k model, ~80% at 128k, ~40% on a 1M-class model), so there's nothing to tune. The extension handles everything. Best for most people.
-> - **Manual** — compaction only happens when you type `/blackhole`. You control when context gets compressed. Observations still accumulate in the background automatically. Good if you want to decide the right moment to compress.
-> - **Off** — Pi handles compaction normally. pi-blackhole only activates when you explicitly use `/blackhole`. Workers still run unless you also disable memory. Useful if you mainly want the memory features without changing how compaction works.
->
-> Which fits how you work?
-
-**If Auto or Manual:** proceed to Question 2.
-**If Off, follow-up:** "Do you also want to disable the background memory workers entirely? That stops fact extraction and reflection synthesis. `/blackhole` would still run, but without memory content — just the structured summary."
+Do not describe manual/off as disabling native compaction. An explicit alias consumes Pi's authoritative preparation and can be refused/cancelled by Pi; pending OM admission is not commit.
 
 ### Question 2: Model selection
 
@@ -198,57 +185,15 @@ So when the user says "I want to use Qwen 3 Next via OpenRouter", you should che
 
 After user chooses, examine what's available and propose specific models. The table in Stage 3 has good defaults.
 
-### Question 3: Context size
+### Question 3: Context capacity and worker budgets
 
-**Agent context:** The context window matters for (1) the auto-compaction trigger and (2) optional manual sizing. Out of the box the trigger follows the built-in `default` preset curve and needs **no numeric config key**: it fires at `floor(window × ratio)` — 0.90 of a 32,768-token window, 0.80 at 131,072, 0.70 at 262,144, 0.40 at 1,048,576 (piecewise-linear between anchors; 32k → ~29,491, 128k → ~104,857). The OM worker thresholds (`observeAfterTokens`, `reflectAfterTokens`, `observerChunkMaxTokens`, `observationsPoolMaxTokens`, `reflectorInputMaxTokens`, `dropperInputMaxTokens`) are independent **fixed defaults** (below) and do NOT auto-scale with the window.
+Ask for the registered model's actual capacity only when sizing memory-worker input/output budgets. Do not invent a Blackhole trigger, preset curve, fixed percentage or keep-tail policy. Native effective settings and that operation's preparation govern compaction; public getContextUsage can report tokens/capacity, but capacity is not the trigger budget. Status may honestly say native trigger budget unknown.
 
-The window must be *known* for any window-derived behavior to target reality: resolution order is per-model `contextWindow` override → Pi's model registry → 128k fallback. If the user's main model is a local/custom provider Pi's registry may not know, capture the window here so the config carries a `contextWindow` override on the matching model entry — otherwise the curve/ratio resolves against 128k and may never fire on a small window.
+> If you want to tune the memory workers, what capacity does your registered worker model support? Their source chunk, observation/reflection output and prompt budgets are separate from Pi's native compaction settings. We can keep the existing worker values unchanged during migration.
 
-The interaction with Pi's own threshold: Pi has `keepRecentTokens` (~20k tokens kept by default). Blackhole's auto-compaction threshold is independent — it's the *trigger* point, not the *keep* point. When blackhole's trigger fires, `tailBehavior` determines what's kept visible.
+### Question 4 (optional): Summary engine and display
 
-**Scaling rationale (only when pinning fixed numbers):** if the user wants a fixed trigger instead of the curve, pin `compactAfterTokens` at roughly 60-70% of the model's window and scale the worker budgets from it as below — 30-40% headroom for system prompts, tool definitions, and the summary itself. The observer chunk is capped at half of that so it never floods itself; the reflector/dropper budgets match `compactAfterTokens` because they need to see all accumulated observations plus summaries.
-
-**User-facing statement:**
-
-> What's the context window of your main conversation model? Blackhole's auto-compaction now sizes itself to that window out of the box (the default preset curve fires at ~90% full on a 32k window, ~80% at 128k, ~40% on 1M-class windows — as long as Pi knows the window), so nothing needs tuning. I mainly ask so I can record your model's window in the config when Pi doesn't already know it, and offer fixed thresholds sized to your model if you prefer them.
->
-> Standard model classes (used only if you want fixed numeric thresholds instead of the auto curve):
-> - **Small models** (~32-64k context)
-> - **Medium models** (~128k — GPT-4o, Claude Sonnet, Gemini Pro)
-> - **Large models** (~200k+ — Claude Opus, Gemini Ultra, big local models)
->
-> Tell me your model name and its context window.
-
-### Question 4 (optional): Compaction engine behavior
-
-**Agent context:** `compactionEngine` controls *who* handles the compaction *content* and *timing*. Only matters when `compaction: "auto"`. For `"manual"`/`"off"`, the engine field is irrelevant because blackhole's hook lets Pi handle everything except `/blackhole`.
-
-The interaction matrix:
-| `compaction` | `compactionEngine` | Auto-trigger | `/compact` | `/blackhole` |
-|---|---|---|---|---|
-| auto | blackhole | blackhole fires at threshold | blackhole handles | blackhole handles |
-| auto | pi-default | trigger skips (Pi decides when) | Pi handles | blackhole handles |
-| manual | (any) | skipped | Pi handles | blackhole handles |
-| off | (any) | skipped | Pi handles | blackhole handles |
-
-`tailBehavior` controls how much stays visible after compaction. Only applies when `compactionEngine: "blackhole"`:
-- `"minimal"` (default) — aggressive: keep only the last user message. Everything before gets compiled and removed from view.
-- `"pi-default"` — gentle: use Pi's `firstKeptEntryId`, respects Pi's `keepRecentTokens` (~20k tokens kept visible).
-
-Both `/blackhole` and auto-triggered default to `"minimal"`. Set explicitly to `"pi-default"` for a gentler cut.
-
-`showPreCompactionMessage` (default `true`) is the visual companion to the cut: after a successful blackhole compaction, blackhole appends a **display-only** copy of the newest assistant output the cut removed, so the terminal keeps showing the answer instead of jumping straight to the compaction card. It is a plain `custom` session entry — never sent to the model, never a memory source, and it leaves the cut, summary, and threshold untouched. Cap: 16 KiB, text only (no tool output, thinking, or images). Nothing is copied when the newest dropped text is already retained.
-
-**User-facing statement:**
-
-> One more thing: who should handle the actual compaction?
->
-> - **Blackhole engine (default):** pi-blackhole generates a structured summary with sections (goals, files changed, preferences, etc.) AND injects your durable memories. Everything in one compact block. This is the full experience.
-> - **Pi default engine:** Pi writes its own free-form summary. pi-blackhole only activates when you type `/blackhole`. Useful if you prefer Pi's summarization style and only want blackhole for the memory features.
->
-> This only matters if you chose Auto mode. In Manual or Off mode, it doesn't change anything — Pi handles `/compact` and blackhole handles `/blackhole` regardless.
->
-> Blackhole engine (full structured + memories) or Pi default (free-form)?
+blackhole keeps algorithmic summaries plus bounded OM/evidence; pi-default delegates ordinary summaries to Pi. Neither changes timing or cuts. showPreCompactionMessage keeps its existing bounded, edited/kept-ID-aware display-only copy (16 KiB); it never enters provider context. Keep this and memory/debug/recall/output settings unless the user specifically changes them.
 
 ---
 
@@ -267,19 +212,15 @@ Based on interview answers, build the config object. Write it to:
   // ── Compaction mode ──
   "compaction": "auto",           // "auto" | "manual" | "off"
   "compactionEngine": "blackhole", // "blackhole" | "pi-default" — irrelevant for manual/off
-  "tailBehavior": "minimal",      // "minimal" (last user msg only, default) | "pi-default" (Pi's gentler cut)
   "showPreCompactionMessage": true, // display-only copy of the newest dropped assistant output (16 KiB cap); never enters context or memory
-  "retainedToolOutputMaxTokens": 20000, // 0 = disabled
   "recallResponseMaxChars": 48000,      // recall response cap in chars (~12k tokens); 0 = unbounded
-  "compactAfterPreset": "default", // auto-compaction threshold curve: fires at floor(window × ratio), 0.90 @ 32k → 0.40 @ 1M. No numeric threshold key is needed out of the box
-  // Optional numeric pins instead of the curve: "compactAfterRatio": 0.65 or "compactReserveTokens": 32768,
-  // or "compactAfterTokens": <fixed value> — any explicit value except exactly 81000 (that is legacy residue and is dropped)
+  // No ignored Blackhole timing/cut controls in newly generated config.
 
   // ── Memory ──
   "memory": true,                 // false = no workers, no memory injection
   "sessionFallback": true,        // false = skip worker when all configured models fail, don't use main model
   "fullFoldAlways": true,         // false = early reflections/drops don't survive first compaction until pool fills
-  "statusBar": true,              // false = hide footer token gauges (O/P/X) + worker events
+  "statusBar": true,              // O/P memory gauges, Pi-owned context/unknown native budget, worker events
   "showWorkerNotifications": true, // false = quiet: hide routine observer/reflector/dropper progress toasts (warnings, errors and compaction notices always show)
 
   // ── Base model (shared fallback for all workers) ──
@@ -295,7 +236,7 @@ Based on interview answers, build the config object. Write it to:
   "reflectorFallbackModels": [ ... ],
   "dropperFallbackModels":   [ ... ],
 
-  // ── OM worker thresholds (fixed defaults — independent of the auto-compaction curve) ──
+  // ── OM worker thresholds (independent of Pi-native compaction) ──
   "observeAfterTokens": 15000,         // observer cadence (default)
   "reflectAfterTokens": 25000,         // reflector + dropper cadence (default)
   "observerChunkMaxTokens": 40000,     // max conversation chunk sent to observer per run
@@ -332,34 +273,9 @@ Each model entry supports these fields:
 - It's available again on the next pipeline run (no persisted cooldown)
 - Useful for testing or when you don't want cooldown state to persist across restarts
 
-### Context size presets (for fixed numeric thresholds only)
+### Worker budget sizing is not native timing
 
-The default setup needs none of this: auto-compaction's preset curve scales the trigger with the model's window, and the worker thresholds have fixed defaults (the ~128k column below) that need no sizing. Use this table when the user wants **fixed numeric thresholds** — a pinned `compactAfterTokens` and worker budgets sized to a specific model class. Then match `compactAfterTokens` to ~65% of the model's context window and scale the rest proportionally:
-
-| Setting | ~128k model (default) | ~64k model (low) | ~200k+ model (high) |
-|---------|:---------------------:|:-----------------:|:-------------------:|
-| `compactAfterTokens` | 80000 | 30000 | 180000 |
-| `observeAfterTokens` | 15000 | 5000 | 20000 |
-| `reflectAfterTokens` | 25000 | 10000 | 40000 |
-| `observerChunkMaxTokens` | 40000 | 15000 | 80000 |
-| `observationsPoolMaxTokens` | 20000 | 8000 | 40000 |
-| `reflectorInputMaxTokens` | 80000 | 30000 | 160000 |
-| `dropperInputMaxTokens` | 80000 | 30000 | 160000 |
-
-Sizing formula (for non-standard context windows — fixed pins only):
-```
-compactAfterTokens:        round(model_context * 0.65,     nearest_1000)
-observeAfterTokens:        round(compactAfterTokens / 5.4, nearest_1000)
-reflectAfterTokens:        round(compactAfterTokens / 3.2, nearest_1000)
-observerChunkMaxTokens:    round(compactAfterTokens / 2,   nearest_1000)
-observationsPoolMaxTokens: round(compactAfterTokens / 4,   nearest_1000)
-reflectorInputMaxTokens:   round(compactAfterTokens,       nearest_1000)
-dropperInputMaxTokens:     round(compactAfterTokens,       nearest_1000)
-```
-
-The ratios are the same as the default 128k presets — scale linearly. The default presets are slightly hand-tuned from pure math for cost-efficiency (observer threshold is raised a bit, reflector similarly). For custom sizes, the formulas above are a good starting point; the user can tune from there.
-
-> **Never pin exactly 81000.** A `compactAfterTokens` of exactly 81000 is reserved: the loader treats it as legacy scaffold residue (the old flat default) and drops it, so the preset curve governs instead of your pin. For a ~128k model use e.g. 80000, or write no fixed threshold at all and let the default curve size the trigger.
+Keep observeAfterTokens/reflectAfterTokens, source chunk, pool/output and worker prompt budgets as independent OM settings. Do not derive new writes from the obsolete compaction curve or pin compactAfterTokens/compactAfterRatio/compactReserveTokens/compactAfterPreset. Existing compactAfterPresets definitions are compatibility data preserved by explicit saves, not a new-config recommendation. Native Pi budgets are configured separately and require user approval; never change Pi settings as part of Blackhole migration.
 
 ### Fallback chain strategy
 
@@ -370,7 +286,7 @@ The ratios are the same as the default 128k presets — scale linearly. The defa
 
 ### Good default model picks
 
-These are known to work well as of mid-2025. Provider/model availability changes — check what the user has access to. All listed here are free-tier.
+Historical upstream examples only, not verified current availability, pricing or recommendations. Do not apply these model IDs or promise free usage during migration. Use the user's explicitly authorized registered models; do not configure paid workers merely to test settings.
 
 | Role | Provider | Model | Thinking | Why |
 |------|----------|-------|----------|-----|
@@ -395,7 +311,6 @@ If the user doesn't want per-worker tuning, just set `model` — all workers fal
 {
   "compaction": "auto",
   "compactionEngine": "blackhole",
-  "tailBehavior": "minimal",
   "showPreCompactionMessage": true,
   "memory": true,
   "model": { "provider": "openrouter", "id": "google/gemma-4-31b-it:free" },
@@ -440,14 +355,14 @@ Tell the user:
 
 A trailing comma, truncated write, or sync conflict causes the config to be rejected:
 - Yellow warning shown in the TUI
-- `/blackhole configure` overlay shows a red error banner and blocks Ctrl+S
-- The runtime falls back to defaults but model configs (`observerModel`, etc.) are preserved from the last valid read
+- The overlay may show defaults; a file save could overwrite the unreadable document
+- Repair JSON before saving; do not claim unknown/model fields were recoverable from an unreadable file
 
 Fix the JSON directly in the file, then reopen the overlay.
 
 ### Config saves preserve unknown keys
 
-The overlay only manages the keys it knows about (compaction, engine, tail behavior, token thresholds, booleans). Model configs (`observerModel`, fallback arrays) are preserved on save because they're not in the overlay's field list. However, if the file has **invalid JSON**, the overlay blocks save entirely — it won't overwrite the file.
+Explicit saves preserve unknown fields, untouched nested model metadata and user preset definitions while omitting seven proven ignored controls: compactAfterPreset, compactAfterTokens, compactAfterRatio, compactReserveTokens, midRunCompaction, tailBehavior, retainedToolOutputMaxTokens. These controls are readonly compatibility rows, never native-budget pickers. Read/load/reload do not canonicalize existing files or old JSONL. debug/sessionFallback/fullFoldAlways, memory and recall/output budgets remain active and must not be bulk-deleted. Invalid JSON must be repaired before any file save.
 
 ### Legacy migration
 
@@ -459,7 +374,7 @@ If the user has an old config from pi-vcc or pi-observational-memory, it's auto-
 | `noAutoCompact: true` | `compaction: "manual"` |
 | `passive: true` | `compaction: "off"` + `memory: false` |
 
-Old keys are **removed from the in-memory copy** after migration. The on-disk file is unchanged until you write a new config. A migration reminder notification appears (max 2 times per session) until the user saves with the new keys via `/blackhole configure`.
+Pure legacy inputs may map in memory when canonical keys are absent; mixed canonical/false/env/session semantics must be reviewed before explicit conversion. Reading never rewrites disk. The seven-key ignored-control cleanup is not bulk deletion of passive/noAutoCompact/overrideDefaultCompaction. Diagnostics are delivered/deduplicated by namespace/cwd/session/message in a 512-entry bounded set; missing UI or notify failure can retry. Warnings may still come from explicit environment/session settings after a file cleanup.
 
 **Legacy fallback sources** (checked when the unified config file doesn't exist, in order):
 - `~/.pi/agent/pi-vcc-config.json` — old pi-vcc standalone config
@@ -513,7 +428,7 @@ The config parser ignores unknown keys. Users can add `_notes` (array of strings
 ```json
 {
   "_comment": "Tuned for my Cerebras + OpenRouter free model setup",
-  "_notes": ["auto mode, minimal tail", "observer: fast extraction via openrouter"]
+  "_notes": ["Pi-owned timing and cuts; BH summaries", "existing observer model preserved"]
 }
 ```
 
@@ -572,7 +487,7 @@ These are processed in `loadUnifiedConfig()` in `unified-config.ts`. The passive
 
 **Do not touch `auth.json`.** It contains API keys. Never read it, never reference it.
 
-**Do not pin `compactAfterTokens` above what the model can handle — and never write exactly 81000.** The default preset curve auto-scales the trigger to the model's window (a 32k model fires at ~29,491 ≈ 90% full; a 1M-class window at ~0.40), so a numeric pin is only needed when the user wants a fixed threshold — then keep it well under the window, because the compaction summary + retained tail + system prompt must still fit. Two traps: (1) if Pi doesn't know the model's window (local/custom providers), the curve resolves against the 128k fallback and can fire too late (or never) on a small model — set a `contextWindow` override on the model entry; (2) exactly `81000` is reserved as legacy scaffold residue and is silently dropped, so pin a deliberate value like 80000 or 83000 instead.
+**Do not regenerate ignored timing/cut controls.** New scaffold, current example and explicit saves must omit the seven controls listed above. An old value is read-compatible diagnostic data, never authority to run a Blackhole trigger or change native retained context. Use only public Pi operation budgets or an explicit unknown label; do not guess private SDK/default percentages.
 
 **Do not set model fields without `provider` and `id`.** Both are required. Setting just one — e.g. `{ "provider": "openrouter" }` without an `id` — silently ignores the entire model block. The parser checks both are non-empty strings. Same for fallback array entries: invalid entries (missing provider or id) are filtered out silently.
 

@@ -1,8 +1,8 @@
 /**
  * Guards example-config.json against drift from DEFAULTS.
  *
- * The file advertises itself as `_all_settings_in_one_file`, so every DEFAULTS
- * key must appear in it. The completeness assertion compares the real set
+ * The file advertises itself as `_all_settings_in_one_file`, so every supported
+ * canonical DEFAULTS key must appear; read-only legacy controls must not. The completeness assertion compares the real set
  * difference to an empty array - it cannot pass by accident when a key is
  * missing, because the diff IS the assertion.
  */
@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import { describe, expect, it } from "vitest";
 import { DEFAULTS } from "../src/core/unified-config.js";
+import { canonicalPersistedSettings, IGNORED_CONTROL_KEYS } from "../src/core/pi-owned-settings.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -49,9 +50,10 @@ const ZERO_MEANS_UNSET: ReadonlySet<string> = new Set([
 ]);
 
 describe("example-config.json completeness", () => {
-  it("lists every DEFAULTS key except the deliberately-unset ones", () => {
+  it("lists every supported canonical DEFAULTS key and refuses ignored control regeneration", () => {
     const present = new Set(Object.keys(readExampleConfig()).filter((key) => !key.startsWith("_")));
-    const missing = Object.keys(DEFAULTS).filter((key) => !present.has(key));
+    const missing = Object.keys(canonicalPersistedSettings(DEFAULTS as unknown as Record<string, unknown>)).filter((key) => !present.has(key));
+    for (const key of IGNORED_CONTROL_KEYS) expect(present.has(key), `Ignored control ${key} must not regenerate`).toBe(false);
     expect(missing).toEqual([...DELIBERATELY_UNSET]);
   });
 

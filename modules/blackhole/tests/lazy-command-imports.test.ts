@@ -73,6 +73,7 @@ async function fixture() {
   let command: any;
   const ctx = {
     cwd: process.cwd(),
+    mode: "tui",
     sessionManager: { getSessionId: () => "test", getBranch: () => [] },
     compact: vi.fn(),
     ui: { notify: vi.fn() },

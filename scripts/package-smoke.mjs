@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { parsePackManifest, runCommand, runNpm } from '../modules/file-tools/scripts/test-process.mjs';
 import { isolatedEnv } from '../tests/helpers/environment.mjs';
+import { provisionRipgrep, resolveRipgrep } from '../tests/helpers/test-tools.mjs';
 import { runChildSmoke } from '../tests/helpers/child-smoke.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -79,6 +80,7 @@ function checkContents(pack) {
   }
 }
 try {
+  const rg = await record('prerequisite:rg', () => resolveRipgrep());
   await record('build', () => runNpm('package build', ['run', 'build'], { cwd: root, timeoutMs: 180000 }));
   await record('pack:dry-run', async () => {
     const pack = parsePackManifest(await runNpm('package dry-run', ['pack', '--dry-run', '--ignore-scripts', '--json'], { cwd: root, timeoutMs: 120000, quiet: true }), rootManifest);
@@ -290,6 +292,7 @@ try {
       await copyFile(join(root, 'tests/fixtures/renderer-probes.mjs'), join(temp, 'renderer-probes.mjs'));
       for (const mode of ['full', 'read-only', 'no-tools', 'exclude', 'brave', 'exa', 'invalid']) {
         const home = join(temp, `home-${mode}`); await mkdir(home);
+        if (!['read-only', 'no-tools'].includes(mode)) await record(`${version}:${mode}:rg`, () => provisionRipgrep(home, { source: rg }));
         await record(`${version}:${mode}`, () => runCommand(`production Pi ${version} ${mode}`, process.execPath, [fixture, packageRoot, mode], { cwd: home, env: { ...isolatedEnv(home), PI_BETTER_TOOLS_HOST: host }, timeoutMs: 150000 }));
       }
       await record(`${version}:managed-child`, () => runChildSmoke({ home: join(temp, 'home-managed-child'), host, packageRoot, evidence: join(evidence, `package-${version}-managed-child.jsonl`) }));

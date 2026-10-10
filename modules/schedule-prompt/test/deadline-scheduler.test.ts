@@ -19,7 +19,7 @@ let storage: CronStorage;
 let scheduler: CronScheduler;
 let pi: any;
 const mockRun = vi.mocked(runSubagentOnce);
-const ctx = { sessionManager: { getSessionId: () => "s" } } as any;
+const ctx = { isProjectTrusted: () => true, sessionManager: { getSessionId: () => "s" } } as any;
 function install(overrides: Partial<CronJob> = {}) {
   const job = seed(overrides);
   storage.addJob(job);

@@ -71,7 +71,7 @@ try {
   assert.equal(new Set(names).size, names.length, 'no duplicate tool registration');
   assert.equal(names.includes('goal'), false, 'removed Goal tool must not register');
   assert.equal(loaded.extensions.some(e => e.commands.has('goal')), false, 'removed Goal command must not register');
-  for (const name of monitorNames) { assert.ok(names.includes(name)); assert.equal(definitions.find(d => d.name === name).defaultActive, false); }
+  for (const name of monitorNames) { assert.ok(names.includes(name)); assert.equal(definitions.find(d => d.name === name).defaultActive, true); }
   for (const name of ptyNames) assert.ok(names.includes(name));
   assert.ok(definitions.find(d => d.name === 'pty_spawn').parameters.properties.target);
   const note = definitions.find(d => d.name === 'note');
@@ -113,10 +113,9 @@ try {
   assert.ok(shell.parameters.properties.timeoutMs); assert.equal(shell.parameters.properties.timeout, undefined);
   assert.equal(shell.defaultActive, false);
   assert.ok(definitions.find(d => d.name === 'read').outputSchema);
-  for (const name of ['grep', 'find', 'ls']) {
-    assert.ok(names.includes(name));
-    assert.equal(definitions.find(d => d.name === name).defaultActive, false);
-  }
+  assert.ok(names.includes('ls')); assert.equal(definitions.find(d => d.name === 'ls').defaultActive, false);
+  const fileExtension = loaded.extensions.find(e => resolve(e.path) === resolve(packageRoot, './modules/file-tools/src/index.ts'));
+  assert.deepEqual([...fileExtension.tools.keys()], ['read', 'write', 'edit', 'ls']);
   assert.equal(shell.parameters.properties.background.type, 'boolean');
   for (const name of ['shell_job_status', 'shell_job_cancel']) assert.equal(definitions.find(d => d.name === name).defaultActive, false);
   const modelRuntime = await sdk.ModelRuntime.create({ authPath: join(agentDir, 'auth.json'), modelsPath: null, allowModelNetwork: false, refreshOnCreate: false });
@@ -160,7 +159,7 @@ try {
     const tool = session.agent.state.tools.find(t => t.name === name); assert.ok(tool, `active tool ${name}`);
     // Direct tool execution bypasses host argument preparation; apply the registered contract explicitly.
     const definition = definitions.find(d => d.name === name);
-    const prepared = definition.prepareArguments ? await definition.prepareArguments(args) : args;
+    const prepared = definition?.prepareArguments ? await definition.prepareArguments(args) : args;
     return tool.execute(`smoke-${name}`, prepared, signal ?? AbortSignal.timeout(20000), undefined);
   };
   if (active.includes('subagent')) {

@@ -96,9 +96,9 @@ Shell 與 Subagents 會在 `startup`／`resume`／`reload` 載入 session 時，
 | PTY Terminal | `pty_spawn/write/read/resize/wait_exit/kill/list` | `target` 預設 local；named WSL／SSH targets；session 綁定 target，關閉 transport 不保證遠端背景程序停止 |
 | Schedule Prompt | `schedule_prompt`；`/schedule-prompt` | 排程週期／一次性 prompt（cron、ISO、`+10s`、`5m`）；可指定 `model` 以 in-process 背景 session 執行。資料存於 `<cwd>/.pi/schedule-prompts.json`，設定於 `<cwd>/.pi/schedule-prompts-settings.json`（全域 `<agentDir>/schedule-prompts-settings.json` 為手動預設）；預設綁定建立它的 session。僅 session 存活期間觸發，不是 OS 排程或 daemon |
 | Shell Tools | 覆寫 `bash`、`powershell`；`shell_job_status/cancel` | 同步預設；`background:true` 立即回 jobId／liveLogPath；`timeoutMs` 仍為輸出停滯期限；管理工具需額外選取；PowerShell 僅原生 Windows |
-| File Tools | 覆寫 `read`、`write`、`edit`、`grep`、`find`、`ls` | 絕對行號、32 字元 hash、精準 literal／regex、原子寫入、diff worker；搜尋沿用宿主，grep 收合預覽 5 行 |
+| File Tools | 覆寫 `read`、`write`、`edit`、`ls` | 絕對行號、32 字元 hash、精準 literal／regex、原子寫入、diff worker；`grep/find` 不再由本模組註冊，可由 FFF override 提供 |
 | Web Tools | `web_fetch`；條件式 REST `web_search`；`/web-tools status`、`/web-tools sources` | OpenAI／Codex 原生搜尋預設啟用、無實驗開關或警告，不註冊同名 function tool；Brave／Exa 要明確設定；無登入／CAPTCHA bypass／PDF |
-| Monitor | `monitor_start/status/stop` | 四來源：command stdout、WS text、readonly shell_job/subagent_job；明確選取才啟用，總期限預設5分鐘；不是daemon／PTY／sandbox |
+| Monitor | `monitor_start/status/stop` | 四來源：command stdout、WS text、readonly shell_job/subagent_job；三工具預設啟用（仍受宿主工具限制），總期限預設5分鐘；不是daemon／PTY／sandbox |
 | Note Tools | `note` | `{ type, content }`；自動分類、產生純時間戳檔名（`TYPE-<UTC 時間戳>.md`，不附加標題），只新增 Markdown 檔案並回報單一相對路徑，不覆寫 |
 | GPT Speed | `/fast`、`/ultrafast`、`/normal` | GPT >= 5.6 的 luna／terra／sol／astra pattern；Ultrafast 在 luna／terra 降為 Fast；TUI 顯示實際速度 |
 | Pi Runtime | `/runtime-recovery status`、`on`、`off`、`/runtime-recover <澄清>` | 每個可識別使用者任務最多 2 次診斷恢復；明確輸入錯誤可自動續行，cyber／policy／未知錯誤須人工 review 與 UI 確認；不啟用工具或更換模型 |
@@ -116,7 +116,7 @@ Pi **1.0.0** 預設 fullscreen TUI；本專案不自動修改 UI 設定，需要
 
 根四個 Pi 開發套件／lockfile 升至 1.1.0；runtime 仍使用宿主 peers，不自動更新個人 Pi 安裝或設定。`read` 新增宿主相容的 `outputSchema/structuredContent`：codemode 讀文字仍取得本專案行號／metadata 字串，讀圖片取得可交給 `image()` 的 image block。Shell 繼續沿用宿主內容 renderer，取得 recorded `durationMs` 等修正；API 中斷卡片 resolver 重建 default Box 時沿用宿主 `outputPad`。1.1.0 的 hidden tool 仍保留 `toolSnippets` metadata，由 `hiddenTools` 過濾實際宣告／rules；SDK 回歸檢查實際 system prompt 不洩漏隱藏工具。本節更新目前支援基準，其他 1.0.0 描述保留原功能導入背景，不代表仍維護舊版。
 
-file-tools 同名註冊 `grep/find/ls`，保留宿主搜尋、schema、ignore rules、limits、取消與 hook 語意；三者 `defaultActive:false`，不因 extension 載入額外啟用。使用 `--tools` 明確選取時請列入需要的名稱。`grep` 收合從 15 改為 5 個邏輯結果行（標頭／提示／警告及窄終端折行另計），展開與模型結果不縮減；`find/ls` 沿用宿主 renderer。詳見 [File Tools](modules/file-tools/README.md)。
+file-tools 只保留 `ls` 搜尋／目錄包裝（`defaultActive:false`），不再註冊 `grep/find` 或提供五行 grep 預覽。需要 FFF 同名搜尋時，在全域 `<agentDir>/pi-fff.json` 設 `{"mode":"override"}`；FFF 提供 `grep/find` 的自己的 schema／renderer。`/fff-mode override` 加 `/reload` 切換當前 session，已保存的 session mode 可能優先於全域設定。不修改第三方套件或全員設定；未選 override 時 host 原生搜尋仍可選用。詳見 [File Tools](modules/file-tools/README.md)。
 
 ### 工具 TUI 顯示
 
@@ -198,7 +198,7 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 
 ### Monitor v1
 
-入口 `modules/monitor/src/index.ts`，三工具預設 inactive；managed child 完全不註冊並拒絕直接 execute。`monitor_start` 支援 command stdout、WebSocket text、既有 Shell/Subagent readonly job snapshots；`monitor_status`／`monitor_stop` 只操作本 session/canonical cwd/generation。總期限預設5分鐘、上限30分鐘（不是Shell輸出停滯timeout）；4 active、32 retained、固定 byte/rate/buffer bounds。WS預設公網wss，private與ws需本URL分別opt-in；驗證後DNS pin、TLS/SNI、禁redirect/compression、16KiB preallocation cap；root direct `ws@8.22.0`。Job停止只清timer，不取消原工作／query模型；command stderr僅診斷、stdin ignored。Legacy WSL stdin transport拒絕，不偷偷換shell。
+入口 `modules/monitor/src/index.ts`，三工具 `defaultActive:true`，不需加入 `defaultTools`，explicit allowlist／exclude／no-tools／手動停用仍有效；managed child 完全不註冊並拒絕直接 execute。`monitor_start` 支援 command stdout、WebSocket text、既有 Shell/Subagent readonly job snapshots；`monitor_status`／`monitor_stop` 只操作本 session/canonical cwd/generation。總期限預設5分鐘、上限30分鐘（不是Shell輸出停滯timeout）；4 active、32 retained、固定 byte/rate/buffer bounds。WS預設公網wss，private與ws需本URL分別opt-in；驗證後DNS pin、TLS/SNI、禁redirect/compression、16KiB preallocation cap；root direct `ws@8.22.0`。Job停止只清timer，不取消原工作／query模型；command stderr僅診斷、stdin ignored。Legacy WSL stdin transport拒絕，不偷偷換shell。
 
 `wakeAgent` 預設true；false仍提交display custom `monitor_event`但不要求turn。Busy由agent_start/agent_settled維持，ordered data／bounded batches，submitted不代表host ack／persisted；cancel/exit不代表source close／descendants cleanup，reload不恢復或重播。完整schema／limits／Blackhole producer交接與驗證邊界見 [Monitor README](modules/monitor/README.md)。Blackhole allowlist接線另由父agent協調，未因此宣稱壓縮共存已通過。
 
@@ -225,7 +225,9 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 
 本地入口 `modules/blackhole/src/index.ts` 轉接 0.5.12 原 factory，保留 `/blackhole`、`recall`、記憶與原生 compaction 流程。修正 `getBranch()` 掃描方向：Pi 回傳 oldest-first，現在從成功的 compaction entry 往較舊訊息掃描。`showPreCompactionMessage: true` 時，最新被省略且未 aborted 的 assistant 文字會保存為 `[Previous output — display only]` 副本（最多 16 KiB），resume 可讀回並顯示；不增加模型訊息，不改 tail 保留界線。
 
-現行 Blackhole **只替換 Pi 已啟動的原生摘要**：Pi 控制 threshold／reserve、auto／manual／overflow 時點、preparation、cut／tokensBefore、persist／rebuild、retry／cancel；允許 Pi 在 final 後原生 threshold 壓縮及 callback replay，不修改 Pi。舊 `midRunCompaction`／`tailBehavior: "minimal"`／BH threshold 自選 timing/cut 描述只屬歷史，不能控制現行保留邊界。已被 Pi native tail 保留的最新 final 不新建 display 副本；只有真的被切掉的最新 assistant 文字可保存 plain custom，零模型投影。歷史 raw entries 不刪除，但 resume 不是完整歷史視圖，也不回填舊缺失副本。設定／採用與 filters 見 [configuration](docs/configuration.md) 和 [migration](docs/migration.md)。根 `npm run test:module -- blackhole` 沿用 Vitest 與離線 Pi 1.1.0 exact native preparation/cut、兩種 retained/dropped final、persist／resume／renderer probes；不是付費模型或人工 TUI 驗證。新 Pi-owned source仍需獨立review與父agent固定source根驗收，不能以fixture green宣稱已採用／release。
+現行 Blackhole **只替換 Pi 已啟動的原生摘要**：Pi 控制 threshold／reserve、auto／manual／overflow 時點、preparation、cut／tokensBefore、persist／rebuild、retry／cancel；允許 Pi 在 final 後原生 threshold 壓縮及 callback replay，不修改 Pi。舊 `midRunCompaction`／`tailBehavior: "minimal"`／BH threshold 自選 timing/cut 描述只屬歷史，不能控制現行保留邊界。已被 Pi native tail 保留的最新 final 不新建 display 副本；只有真的被切掉的最新 assistant 文字可保存 plain custom，零模型投影。歷史 raw entries 不刪除，但 resume 不是完整歷史視圖，也不回填舊缺失副本。設定／採用與 filters 見 [configuration](docs/configuration.md) 和 [migration](docs/migration.md)。根 `npm run test:module -- blackhole` 沿用 Vitest 與離線 Pi 1.1.0 exact native preparation/cut、兩種 retained/dropped final、persist／resume／renderer probes；不是付費模型或人工 TUI 驗證。固定快照的 core／settings-migration 已分別取得限定靜態接受（`report/REPORT-20261009T193032883Z.md`／`report/REPORT-20261009T200405430Z.md`，皆 0 critical／0 warning）；reviewer 沒有重跑測試，也不代表所有來源全面安全、採用或 release。
+
+新 scaffold／明確 Save 不再生成七個 ignored timing/cut controls；舊檔載入只讀、診斷相容，UI 只顯示 readonly 說明。有效 memory/debug、模型／fallback 與未改 metadata 保留；Pi context capacity 不等於可推算的 compaction trigger，未知 budget 明示 unknown。Session branch authority、Reset／Delete→Save buffer 與 warning delivery 邊界見 [configuration](docs/configuration.md)／[migration](docs/migration.md)，沒有自動修改個人設定或歷史 JSONL。
 
 ### Blackhole 通知 evidence 與穩定引用
 
@@ -311,6 +313,12 @@ npm run test:package      # 真實 tarball + 乾淨 production install；需要 
 npm run sources:verify    # 匯入來源／本地適配雜湊
 npm pack                 # prepack 會執行 build（目前為 no-op）
 ```
+
+Blackhole 保留 Vitest runner，但 `npm test` 只跑 unit；`tests/integration/**` 的 native probes 由 `test:integration`／`test:module -- blackhole` 的 `blackhole:native-vitest` 階段序列執行。Unit 仍為 10 秒，`pi-owned` 每案另有 30 秒子行程預算與 45 秒外層收尾預算；不修改產品 timeout 或測試斷言。手動篩選可用 `node scripts/blackhole-tests.mjs --suite=unit <filter>`／`--suite=integration <filter>`；未指定 suite 仍執行全部案例。
+
+Cross／production smoke 的 grep 前置需求是可執行的 ripgrep：在 PATH 安裝 `rg`，或明確設定測試用環境變數 `PI_BETTER_TOOLS_TEST_RG` 指向 binary。測試驗證版本後只複製 binary 到各自隔離的 `agentDir/bin`，記錄版本／來源／SHA-256；不下載、不修改個人設定，缺少時明確失敗，不 skip 或移除 grep 斷言。此變數只由測試 helper 讀取，不是 Pi runtime 設定。
+
+若已安裝依賴缺檔，先停止使用該 repository `node_modules` 的行程，再於根目錄執行 `npm ci --ignore-scripts`、`npm run pty:install` 乾淨重建；不要新增直接 dependency 掩蓋不完整安裝。執行中的 Pi 若正使用此目錄，可先在隔離 workspace 驗證，稍後再重建原目錄。
 
 跨平台測試：Subagent transcript 位置以 `realpath` 驗證（包括 macOS `/var`／`/private/var` alias）；依遠端已授權的測試精簡移除大型 shell／stress probes，不宣稱仍有該項覆蓋。Web debug-log 解析明確的 Windows 絕對磁碟／UNC 路徑，其餘依宿主 cwd basename 正規化，保留 POSIX 檔名中的反斜線語意。Windows-only 平台測試仍另行標示 skip，不能算通過。
 

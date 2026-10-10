@@ -17,7 +17,7 @@ function setup(seed: CronJob[] = []) {
     updateJob: vi.fn((id: string, partial: Partial<CronJob>) => Object.assign(jobs.get(id)!, partial)),
   } as any;
   const scheduler = { addJob: vi.fn(), updateJob: vi.fn(), getNextRun: () => null } as any;
-  const ctx = { ui: { input: vi.fn(), select: vi.fn(), confirm: vi.fn().mockResolvedValue(true), notify: vi.fn(), setWidget: vi.fn() } } as any;
+  const ctx = { ui: { input: vi.fn(), select: vi.fn(), confirm: vi.fn().mockResolvedValue(true), notify: vi.fn(), setWidget: vi.fn() }, mode: "tui" } as any;
   return { storage, scheduler, ctx };
 }
 const seed = (overrides: Partial<CronJob> = {}): CronJob => ({ id: "j", name: "demo", enabled: false, type: "interval", schedule: "5m", prompt: "p", createdAt: "", runCount: 0, endAt: END, ...overrides });

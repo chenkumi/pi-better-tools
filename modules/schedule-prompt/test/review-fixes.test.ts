@@ -10,7 +10,7 @@ import { CronWidget } from "../src/ui/cron-widget.js";
 vi.mock("../src/subagent.js", () => ({ runSubagentOnce: vi.fn() }));
 
 const makePi = () => ({ sendMessage: vi.fn(), sendUserMessage: vi.fn(), events: { emit: vi.fn(), on: vi.fn(() => () => {}) } }) as any;
-const ctxFor = (id = "s") => ({ cwd: "/tmp", modelRegistry: {}, sessionManager: { getSessionId: () => id } }) as any;
+const ctxFor = (id = "s") => ({ cwd: "/tmp", isProjectTrusted: () => true, modelRegistry: {}, sessionManager: { getSessionId: () => id } }) as any;
 const job = (o: Partial<CronJob> = {}): CronJob =>
   ({ id: "j", name: "demo", schedule: "5m", prompt: "p", enabled: true, type: "interval", intervalMs: 300000, createdAt: "", runCount: 0, ...o }) as CronJob;
 
@@ -159,7 +159,7 @@ describe("widget (M6)", () => {
     const j = job({ type: "cron", schedule: "0 * * * * *" });
     const st = { getAllJobs: vi.fn(() => [j]), getJob: vi.fn(() => j) } as any;
     const sched = { getNextRun: vi.fn(() => null) } as any;
-    const ctx = { ui: { setWidget: vi.fn() } };
+    const ctx = { mode: "tui", ui: { setWidget: vi.fn() } };
     const w = new CronWidget(st, sched, makePi(), () => true, "s");
     w.show(ctx);
     const theme = new Proxy({}, { get: () => (a: any, b?: any) => (typeof a === "string" && b === undefined ? a : b ?? a) });

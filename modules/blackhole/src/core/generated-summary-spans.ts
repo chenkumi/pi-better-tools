@@ -26,10 +26,14 @@ export function composeGeneratedParts(parts: Array<{ text: string; kind?: Genera
   return { text, proof: generatedSummaryProof(text, spans) };
 }
 export function validGeneratedProof(text: string, proof: any): proof is GeneratedSummaryProof {
-  if (proof?.version !== 1 || proof.sourceGeneration !== digest(text) || !Array.isArray(proof.spans) || proof.spans.length > 8) return false;
+  if (typeof proof !== "object" || proof === null || Array.isArray(proof) || proof.version !== 1 || typeof proof.sourceGeneration !== "string" || !/^[a-f0-9]{64}$/.test(proof.sourceGeneration) || proof.sourceGeneration !== digest(text) || !Array.isArray(proof.spans) || proof.spans.length > 8) return false;
+  // Persisted JSON is untrusted. Validate every element before dereferencing in sort.
+  for (const span of proof.spans) {
+    if (typeof span !== "object" || span === null || Array.isArray(span) || !["recall", "om", "evidence"].includes(span.kind) || !Number.isSafeInteger(span.offset) || !Number.isSafeInteger(span.length) || span.offset < 0 || span.length < 1 || !Number.isSafeInteger(span.offset + span.length) || span.offset + span.length > text.length || typeof span.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(span.sha256) || digest(text.slice(span.offset, span.offset + span.length)) !== span.sha256) return false;
+  }
   let end = 0;
   for (const span of [...proof.spans].sort((a, b) => a.offset - b.offset)) {
-    if (!["recall", "om", "evidence"].includes(span?.kind) || !Number.isSafeInteger(span.offset) || !Number.isSafeInteger(span.length) || span.offset < end || span.length < 1 || span.offset + span.length > text.length || digest(text.slice(span.offset, span.offset + span.length)) !== span.sha256) return false;
+    if (span.offset < end) return false;
     end = span.offset + span.length;
   }
   return true;
@@ -40,6 +44,7 @@ export function ownedSummaryProof(text: string | undefined, entries: readonly an
   const latest = [...entries].reverse().find(e => e.type === "compaction");
   if (latest?.details?.compactor !== "blackhole") return;
   const metadata = latest.details[GENERATED_SPANS_KEY];
+  if (typeof metadata !== "object" || metadata === null || Array.isArray(metadata) || metadata.version !== 1) return;
   const proof = text === latest.summary ? metadata?.summary : text === latest.details.trailingSummary ? metadata?.trailing : undefined;
   return validGeneratedProof(text, proof) ? proof : undefined;
 }

@@ -1,5 +1,8 @@
 {
   "schemaVersion": 1,
+  "fffOverrideHandoff": { "date": "2026-10-10", "scope": "User-authorized removal of File Tools grep/find registration and five-line renderer; retain read/write/edit/ls. Personal FFF config explicitly set to override; no package-load settings migration or third-party code/version/lock change.", "tests": "Former D13 TODO is a real Pi/native FFF startup/reload ownership and search regression; schema/registration tests adapted to four tools. Standalone packaged host search probes and default-mode manifest smoke retained.", "history": "Older six-tool/grep-preview/override-conflict descriptions are superseded, not erased; refresh only changed-file active fingerprints and preserve previous hashes. Group evidence and remaining skips/TODOs in plan." },
+  "monitorDefaultActivation": { "date": "2026-10-10", "scope": "User-requested defaultActive:true for monitor_start/status/stop; remove ffgrep/fffind from personal defaultTools without changing third-party defaults. Prior inactive descriptions are historical and superseded.", "policy": "No forced loadout, sources or timers at registration; host allowlist/exclude/no-tools/manual deactivation and explicit managed-child fences retained. Only changed-file fingerprints refreshed; prior hashes preserved.", "validation": "Owning module and cross results recorded separately in plan; no whole-release or provider certification." },
+  "validationPrerequisiteRepair": { "date": "2026-10-10", "plan": "plan/PLAN-20261010T024045227Z.md", "scope": "Test infrastructure only: Blackhole unit/native discovery split without dropping cases, serial native probes, pi-owned existing process helper30s/termination8s/outer45s; isolated real rg for source/production smoke.", "policy": "Unit10s, assertions/runtime/trust/versions unchanged; no skip/download/real settings writes. Existing lockfile clean-install resolves missing jsdom dependencies. Prior active fingerprints retained; unrelated dirty files/historical records not re-signed.", "validation": "Actual red/green and grouped outcomes recorded in plan; not a release pass." },
   "monitorReentryRepairRound": { "date": "2026-10-09", "reviewFinding": "report/REPORT-20261009T131356545Z.md:R1/P3", "evidence": "plan/evidence/monitor-reentry-20261009-v1", "changedMonitorPaths": ["modules/monitor/src/core.ts", "modules/monitor/tests/review-core.test.ts", "modules/monitor/README.md"], "inventory": "Only corresponding three Monitor native hashes refreshed with previous hashes retained; Runtime/B1/new timing/source imports not re-signed. Cumulative B1 inventory/check completed separately before this repair.", "policy": "Selected snapshots remain queued/charged and cannot be coalesced in synchronous send; successful selected identities count submitted. Sync throw retains identity/bytes/reservation until legal retry, unreserved latest snapshots alone coalesce, cursor commits only on success. Same bounded attempts/caps/TTL/shutdown fences, no asynchronous unknown replay or acknowledgment claim.", "validation": "Fresh targeted30/30 plus owning Monitor module3/3 stages (typecheck,32unit,14integration), zero skips; old full package23/23 and root/cross/unit runs are historical. No new full-root unit/typecheck/cross/integration/package/check/provider runs.", "acceptance": "Repair awaits independent re-review; prior adapter/root static acceptance does not approve new core. No latest-source release, Blackhole timing or Monitor/Runtime/retry/overflow coexistence claim." },
   "cumulativeB1ConsumerReview": { "date": "2026-10-09", "reviewAnchor": "report/REPORT-20261009T131232388Z.md", "historicalHandoff": "report/REPORT-20261009T113256860Z.md", "rootRecordSnapshot": { "path": "plan/evidence/monitor-review-root-20261009/source-after.json", "at": "2026-10-09T12:58:50.574Z" }, "reconcileEvidence": "plan/evidence/b1-cumulative-inventory-20261009T131430178Z/reconcile-before.json", "fullHashEqualityCheckedAt": "2026-10-09T13:14:30.178Z", "scope": ["modules/blackhole/src/core/brief.ts", "modules/blackhole/src/core/build-sections.ts", "modules/blackhole/src/core/content.ts", "modules/blackhole/src/core/drill-down.ts", "modules/blackhole/src/core/search-entries.ts", "modules/blackhole/src/extract/files.ts", "modules/blackhole/tests/recall-search-robust.test.ts", "modules/blackhole/tests/vcc-file-touch.test.ts", "modules/blackhole/tests/vcc-normalize-edge.test.ts", "modules/blackhole/tests/vcc-normalize.test.ts", "modules/blackhole/src/core/file-results.ts", "modules/blackhole/tests/note-file-results.test.ts"], "inventoryPolicy": "Exactly ten existing active records updated, originalSha256 and prior hash/reason preserved, plus two added helper/test records. Current raw-byte full SHA256 equaled new review's twelve exact candidates. New acceptance, not recovered/backfilled historical full-hash acceptance; LF-only history is previous metadata, current semantic/fixture migration explicit. Later target drift blocks; never auto-sign latest or promise permanent freeze.", "acceptance": "New twelve-file limited static acceptance,0 must-fix/0 warning; reviewer did not rerun tests. Existing nine-delta/history, alias probe/Windows8.3, README, request timing source/tests, Monitor allowlist, Runtime metadata and immutable sources.json excluded. No whole-B1/root release/latest-source green or Monitor/Runtime/retry/overflow coexistence certification." },
   "monitorReviewRepairs": { "date": "2026-10-09", "reviewReports": ["report/REPORT-20261009T121355130Z.md", "report/REPORT-20261009T121049416Z.md"], "evidence": "plan/evidence/monitor-review-20261009", "scope": "Distinct actual-close terminal update/no replay; round-robin and byte-blocked-head priority with full JSON32event/32KiB/30s caps; strict direct status inputs; capacity/startup/reentry/wake and real preflight; positive job snapshot fencing and revoke-before-shutdown; actual trust-aware command settings/cancel/close. Known URL echoes retained as bounded untrusted data, not universal secret scrubbing.", "acceptance": "Worker repair/test provenance only; two parent-assigned independent re-reviews pending, no latest whole-root/release or Blackhole coexistence claim." },
@@ -94,6 +97,54 @@
       "modules/subagents/tests/message-routing.integration.test.ts": "4850bb8b337897c4aa55f4001f78afde501b95cae2a82b91980f3398a8874ce8"
     },
     "addedFiles": [
+    { "path": "modules/blackhole/src/core/project-trust.ts", "sha256": "f3dd2d237c6cd85d4ddf8507d00d5cfd01423ef75bd7cc936c24766d36a2b3fe", "reason": "Defect-repair round 2026-10-10 project-trust admission helper: only an explicit isProjectTrusted()===true grants project layers; unknown/throwing fails closed." },
+    { "path": "modules/blackhole/tests/d01-project-trust.integration.test.mjs", "sha256": "3b06698a483f78e8f86c018428b6b3af8ad2f3b5473961f18fcf281cd9ce18db", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/blackhole/tests/d03-branch-epoch.integration.test.mjs", "sha256": "47511225cd49c5fe01f8fab03b8e79aea34c70b123c96aad9bd1c36886fd8e3a", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/blackhole/tests/d20-settings-non-tui.integration.test.mjs", "sha256": "3bd78431856340aeff5c27b71461083978c3be72315d3478d62dfe593df48244", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/blackhole/tests/d21-om-off-global-patch.integration.test.mjs", "sha256": "a686d18ee8c5bf93a9ec6533b68584fb00c262e72840db45b1ca4cf207eb3f72", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/blackhole/tests/fixtures/real-host.mjs", "sha256": "1d7ef34e62040da71789c9e161a11cfabf1e34069868d2afbfc7cc7e74bdc626", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/blackhole/tests/h01-duplicate-summary-upstream.integration.test.mjs", "sha256": "f3ea67cfe9454f2003ae4763610aeb974e1a318e15933c9e9d8cde0277168a90", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/blackhole/tests/h01-wrong-receipt-safe-failure.test.ts", "sha256": "0ec2c951fbc6ec6cd49a5d37122cd6ea19ef30c0e0e6718c2e17138e904f07a2", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/blackhole/tests/om-toggle-patch.test.ts", "sha256": "0253cc433dc87e90c7a5a62dcad2dda7e6c52207cd42f8a1831d4275dcd0f643", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/blackhole/tests/project-trust.test.ts", "sha256": "94da1a600d3a18529dd677110832fae7653223a0f7221894923e3db02a061f0c", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/file-tools/tests/fff-aux-capacity.integration.test.mjs", "sha256": "a51790d8956843cfddd83e3fb719f46dc3cfb7f47bee89662e2477466b8faf9c", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/file-tools/tests/fff-override-conflict.integration.test.mjs", "fffOverridePreviousSha256": "7f72227681a89262bac94ebd3b8d0a1dc30974bcf8c84580546e1c5eaa533a2a", "sha256": "d8ce297e9dacbb03670161a31316d2be4a2bb29770029947f07eb2f63591065d", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/file-tools/tests/fff-shutdown-fence.integration.test.mjs", "sha256": "352bc50ceffaf139e138fea5683cebc315fb3609d866a663b9d8a94deb633e51", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/file-tools/tests/image-autoresize.integration.test.mjs", "sha256": "0f306fa5a59bd0158bbd31b8bc6bbb001ddf98921c211ee7fd9f1440fc406c42", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/gpt-speed/tests/settings-lock-simulated-child.mjs", "sha256": "053548cc1bdbcd527b3dbb4b2f86d7b80cd4497f20638b573d62e718117136e1", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/gpt-speed/tests/settings-lock.integration.test.mjs", "sha256": "f145f95c1cea46460eed32db873a1f5b87d22cc300ebaad4bab9cb15007c8701", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/gpt-speed/tests/virtual-route.integration.test.mjs", "sha256": "3cf0c57d4bcbb41cb830bdbb7b9ba8421235d5f53ae8503f621fdeb08f69abf6", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/json-schema/tests/final-abort.integration.test.mjs", "sha256": "9d48beb4e904de6af5f85fd0e3c5c6acb260bb3fc3f615f7dc45c1f05acc68c4", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/json-schema/tests/retry-stdout.integration.test.mjs", "sha256": "f84eb929ecbc9eb06ef9b7b965b4458bbe7d89925492b5b7e8a26c2885523eca", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/monitor/tests/command-authorization.integration.test.mjs", "sha256": "5c9b1c9422ede8ed321828797dee1ef6715feaf27bfb79d049841bd8a877b22c", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/note-tools/tests/note-host.integration.test.mjs", "sha256": "7849d90cf90e336fd15afa5a2d63beb97e6a5b4026c79f94eae113073a3a222f", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/note-tools/tests/note-toctou.integration.test.mjs", "sha256": "b060aeba043fda379c5682ec079078a5c568fdf2ec454bddda4783cfc7d5a37e", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/pty-terminal/tests/matcher-terminate-failure.integration.test.mjs", "sha256": "ec96d4738bf64b157bd278b2016021e1c94e2f1f05688a40e2421c2bf4b66e23", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/pty-terminal/tests/shutdown-recovery.integration.test.mjs", "sha256": "68e025d69b49c8f080ed2df2cfe1c5ecd94c77d350d5d89c214b401219256f16", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/schedule-prompt/src/trust.ts", "sha256": "e35a3a679ed80853363b58a9b55483ddef07e44a372d9d936647f852d1f0a864", "reason": "Defect-repair round 2026-10-10 project-trust admission helper: only an explicit isProjectTrusted()===true grants project layers; unknown/throwing fails closed." },
+    { "path": "modules/schedule-prompt/src/ui/jobs-menu.ts", "sha256": "afcdc58d9ca0f402c48ec2b9bc5870b3a6f016fee95b208944af13e5b63c2035", "reason": "Defect-repair round 2026-10-10 D10: non-TUI /schedule-prompt Jobs view using supported select/confirm dialogs." },
+    { "path": "modules/schedule-prompt/test/admission-provenance.test.ts", "sha256": "54391b91c68d7ff4fb6e8d6f5c91da5002d928dedaff6031f9fb48d1deac33e3", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/schedule-prompt/tests/_harness.mjs", "sha256": "8822e3505ecee1b87028a0de857d02f02b008252f3dd7a6f89c706353eef6d86", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/schedule-prompt/tests/_probe.ts", "sha256": "cfacb7a601a1157893cacd6b9d4a770dee14efcc8342de6a6787878fa3f29e04", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/schedule-prompt/tests/d02.integration.test.mjs", "sha256": "9c3d6af820d7f1156572939c444e7c652f35a07efac82b02bd0e751f6bf71d74", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/schedule-prompt/tests/d04.integration.test.mjs", "sha256": "ee954a387b4929686cb1a5674c13c331c1e70bb89e0d334e672b9ceef004ff67", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/schedule-prompt/tests/d06.integration.test.mjs", "sha256": "a43b60b4b605d391a78b6047de9346bb20c3de52ea5692beb8a7af102a6ac0e2", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/schedule-prompt/tests/d08.integration.test.mjs", "sha256": "96f52405fedcb589d50313e54af9cb76c0d12827c5730d3df4a5c4db197f4f7b", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/schedule-prompt/tests/d09.integration.test.mjs", "sha256": "95df7df59a22294beeb49e75d3305dbf054b2902b8efaba5e0af9ebe5eff5ccb", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/schedule-prompt/tests/d10.integration.test.mjs", "sha256": "a1192fa7b2c14dc677c5941aa1d38e113900f4a08abc2114693e5b6a607f4799", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/schedule-prompt/tests/stdout-clean.integration.test.mjs", "sha256": "e78758a4e1682b72c830e708fe32b42cd8174fcb9f4ad04fb245390b484c8493", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/schedule-prompt/vitest.config.ts", "sha256": "b051ce010acfa0de9f2ed71f48cc5938865ef9c419e4e15c31a9d7cd8a60b99e", "reason": "Defect-repair round 2026-10-10: keep vitest from scanning node:test files under tests/." },
+    { "path": "modules/shell-tools/tests/fixtures/timeout-diagnostics-host.mjs", "sha256": "dae7f90c311f8c253c77ae65809aa1c0300751c2c244992bdd0577572fd67bff", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/shell-tools/tests/timeout-diagnostics.integration.test.mjs", "sha256": "525bc8a81b4f960ce7494cb8414c0e515db706a1c94d65b0516fc318107064b0", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/subagents/tests/approval-and-ready-query.integration.test.mjs", "sha256": "9aaafe0aa71954a8433f19c39a9d99efb47faf5c671fddf6f002c7e859def39b", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "modules/subagents/tests/provider-model-rejection.integration.test.mjs", "sha256": "a1c75c56b87e868440548707ce85ca1a4b67d585a6b3ce98847090ed1b1efb3c", "reason": "Defect-repair round 2026-10-10 regression test/fixture for the reported defect (report/REPORT-20261009T211201258Z.md); todo cases document known limits." },
+    { "path": "tests/helpers/regression/abort-before-settle.ts", "sha256": "937198ed80ae8c8dec9e764b30768e068df33f1c28e1f16fe247d13dd0c68dbf", "reason": "Defect-repair round 2026-10-10 shared offline real-host/CLI test helper (isolated home, scripted provider, no real credentials)." },
+    { "path": "tests/helpers/regression/d22-probe.mjs", "sha256": "9a6a0ea6c42b29d30b1ca4502b84f68f078d331d62626d5229f4405cb6473919", "reason": "Defect-repair round 2026-10-10 shared offline real-host/CLI test helper (isolated home, scripted provider, no real credentials)." },
+    { "path": "tests/helpers/regression/fake-fff-sdk.mjs", "sha256": "92b22ae0bef99b151747f84d5c380d07cba23a7ce451e9de3b103f3fe0f56277", "reason": "Defect-repair round 2026-10-10 shared offline real-host/CLI test helper (isolated home, scripted provider, no real credentials)." },
+    { "path": "tests/helpers/regression/host-r.mjs", "sha256": "ad3c3350dadf0da66a842b240062f2113e58e4746eee6a56f76e74b66d970358", "reason": "Defect-repair round 2026-10-10 shared offline real-host/CLI test helper (isolated home, scripted provider, no real credentials)." },
+    { "path": "tests/helpers/regression/host.mjs", "sha256": "0b1fa5358266ff27408ce849426172ba7abe23b8884262f76dd0943ab5399558", "reason": "Defect-repair round 2026-10-10 shared offline real-host/CLI test helper (isolated home, scripted provider, no real credentials)." },
+    { "path": "tests/helpers/regression/run-cli.mjs", "sha256": "845149425e96b3c80a26b35496e5d47ea6f2439fe779c79fa9c2130246e08ad8", "reason": "Defect-repair round 2026-10-10 shared offline real-host/CLI test helper (isolated home, scripted provider, no real credentials)." },
+    { "path": "tests/helpers/regression/scripted-provider.ts", "sha256": "eaa7e03b7ab82a4eaa2b243531cf5274a10a27c4564c6e2b3475f43c460ffaec", "reason": "Defect-repair round 2026-10-10 shared offline real-host/CLI test helper (isolated home, scripted provider, no real credentials)." },
       "modules/subagents/extensions/subagent/ready-query.ts",
       "modules/subagents/extensions/subagent/message-rejection.ts",
       "modules/subagents/tests/ready-query-snapshot.integration.test.ts",
@@ -521,22 +572,24 @@
     ]
   },
   "files": [
+    { "path": "modules/schedule-prompt/test/cron-widget.test.ts", "originalSha256": "ee152b83b497bdb983b036f5337350fb9899b84fecddcab04123e78e26dbabb1", "sha256": "1081d1ffdd6086925af6358da6b2f5e72365251a0bfc96679c83f9e7956bfbeb", "reason": "Defect-repair round 2026-10-10 test-double update only, assertions not weakened: add mode tui to the widget context because show() is now TUI-gated (D10)." },
+    { "path": "modules/schedule-prompt/test/subagent.test.ts", "originalSha256": "289079386ef11d3307580e63f3c30b557dbbd7024a8bd065e2aa163a6b946cac", "sha256": "b2f7bbc8b89f677ff09d88248d59fe9c21584df0eada1b20bcb4287b90c8c965", "reason": "Defect-repair round 2026-10-10 test-double update only, assertions not weakened: fake session gains an assistant message because empty child outcomes are now classified as failures (D09)." },
     {
       "path": "modules/file-tools/tests/optional-null-arguments.test.ts",
       "originalSha256": "10c5c56b0b7bb1e8e0e4ca0d03d6255b77ad0bc80bc3883b1cb8648df4d8e885",
-      "sha256": "999ee4deabdbac6c28cee6bf713988ae94a425e7d2e5df100e2eed54fb8c7e49",
+      "fffOverridePreviousSha256": "999ee4deabdbac6c28cee6bf713988ae94a425e7d2e5df100e2eed54fb8c7e49", "sha256": "e22638abf66333e18be5d4da644fdee653c29a06752b3a81b4a4f3f0d1035c3d",
       "reason": "Pi 1.1.0 six-tool registration, nullable search/activation metadata and five-line display immutability plus read structured text regression. Actual search subprocesses belong to packaged integration, not unit tests."
     },
     {
       "path": "modules/schedule-prompt/src/index.ts",
       "originalSha256": "f26e2ea7471568f9d39aa8fba61c748e216dd6a3617a51500136cdfacecda3be",
-      "sha256": "c365fcfebbfcf5397a98750197e271dbc98e5c6b9a124c301f50d8f13c420f87",
+      "defectRepairPreviousSha256": "c365fcfebbfcf5397a98750197e271dbc98e5c6b9a124c301f50d8f13c420f87", "sha256": "f244b99a505f57eb3b30a1b7a8dceb55bd31513256921b16b710f9f601674032",
       "reason": "2026-10-07 local expandable completion renderer; replaces single-line formatting without changing lifecycle/registration/tools."
     },
     {
       "path": "modules/schedule-prompt/README.md",
       "originalSha256": "ced07505c568d66ebe0c3ef5251fdb505a7574bce46538fdae07403f7038175d",
-      "sha256": "cf296d91b207b52f40ad7a1e6d081a6d6c451f828e6c066d37e51754458fa647",
+      "defectRepairPreviousSha256": "cf296d91b207b52f40ad7a1e6d081a6d6c451f828e6c066d37e51754458fa647", "sha256": "d5b8ce0137bbfad230845fbf43a869042e0077b99012fd35cd276afb964b5a9b",
       "reason": "2026-10-07 local endAt contract, usage/UI examples, trigger-not-cancellation limitations, compatibility and integrated test commands. Upstream identity preserved. 2026-10-08 current local snapshot review: M5-M7/L14-L19: user-authorized local third-party adaptation for terminal skipped-once error, widget snapshot/coalescing, owner-token fail-closed locking/corruption reread, job shape validation, locked fresh counters and session recovery boundary; v1 paths/schema/identity/license retained, not upstream-identical. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "checklistReviewPreviousSha256": "87fd01d7183ecf52371e96ae8faad4ce5eeeed8e03ab662d9f965f30ab78be3e",
       "checklistReviewBaselineSha256": "f732f9901394c2640edc25c8b61ba7455455135b5f3b5e414f3995a7a9bd4df9",
@@ -546,7 +599,7 @@
     {
       "path": "modules/schedule-prompt/CHANGELOG.md",
       "originalSha256": "b56ca95f7e7a43b4ee1a718e0c13735f67b0c712397ba29596ab4d1a012bea48",
-      "sha256": "eb1a055be0406f2a5ade38c9ed84bb24cb48dedd0f621b31ccd13070be87420e",
+      "defectRepairPreviousSha256": "eb1a055be0406f2a5ade38c9ed84bb24cb48dedd0f621b31ccd13070be87420e", "sha256": "a54654c0180ecb68939caa50766ecf49f3870f69705a3893aa3fbdebd60b7638",
       "reason": "2026-10-07 explicitly local deadline feature, not an upstream release."
     },
     {
@@ -558,7 +611,7 @@
     {
       "path": "modules/schedule-prompt/src/tool.ts",
       "originalSha256": "3a18e44804dbccbe6d6dd47277f32df4593e1f170fff4e5374c3fd81828a0131",
-      "sha256": "653b53ee1753dbbcbe110fed17b348f0325df115e02aa7fba2670c7ae3870587",
+      "defectRepairPreviousSha256": "653b53ee1753dbbcbe110fed17b348f0325df115e02aa7fba2670c7ae3870587", "sha256": "600cb1bf2d24fbba5ba7e42156d8896c0e219e3495ac135b30664d84898461f8",
       "reason": "2026-10-07 normalize/validate add and merged update deadlines, explicit-null clearing, enable guard and cutoff render/result display. No implicit re-enable."
     },
     {
@@ -576,7 +629,7 @@
     {
       "path": "modules/schedule-prompt/src/ui/cron-widget.ts",
       "originalSha256": "772c5e2317088538a5348d103c00196c3f3089bb45689f3ea482af5bb90ac6e8",
-      "sha256": "a43b39de20928612b6cf3d03e4cda93cfe9771a4d5d27843af0b5f412c5107d1",
+      "defectRepairPreviousSha256": "a43b39de20928612b6cf3d03e4cda93cfe9771a4d5d27843af0b5f412c5107d1", "sha256": "c00e0ace9e948cf0534897487d403c7100fd23f9f77ff89622b6437858eae2aa",
       "reason": "2026-10-07 show configured cutoff/derived expiration separately from execution status, retaining existing wrapped widget layout. 2026-10-08 current local snapshot review: M5-M7/L14-L19: user-authorized local third-party adaptation for terminal skipped-once error, widget snapshot/coalescing, owner-token fail-closed locking/corruption reread, job shape validation, locked fresh counters and session recovery boundary; v1 paths/schema/identity/license retained, not upstream-identical. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "checklistReviewPreviousSha256": "4f4ba77979e17ebbec6591c6c72d5c110964a156b05a41d1a06717593fc69eef",
       "checklistReviewBaselineSha256": "3aea609057b1c91a694f5cdcda5f45aa61d7453f066bf7dbfb6fefc5f4a1b7b3",
@@ -695,7 +748,7 @@
       "originalSha256": "ea332aa731a69d182bb1e4f6361ba82455beda04a880019cf663a6d1cf97727f",
       "childShellPreviousSha256": "89cd0ac11f71c5675d72748530b47b7517056f5d96d9741d4113bf132bcbab28",
       "childShellAdaptation": "2026-10-09 explicit managed child same-name foreground definitions, strict background rejection before execution settings/backend/spawn, parent background unchanged; opt-in diagnostics preserved.",
-      "sha256": "df95cb879efb4e2b0085eb035414b4e94c32534e5b127bad819e701ec65d20b7", "monitorV1InitialSha256": "3ba99f168af48979c30741cfac7d4366a750ac30cef96da85edb5346ce5b5c88", "monitorPreviousSha256": "0542b52a4de62368afd215d1faa5b7eb41a56bb05dd037e5b93558b3ba54376d", "monitorAdaptation": "Readonly capability lifecycle only; existing execution unchanged.",
+      "defectRepairPreviousSha256": "df95cb879efb4e2b0085eb035414b4e94c32534e5b127bad819e701ec65d20b7", "sha256": "0b545d3fab3e394cdec364b79ff3d68f5c1b484672eeb27b691af7f995425b53", "monitorV1InitialSha256": "3ba99f168af48979c30741cfac7d4366a750ac30cef96da85edb5346ce5b5c88", "monitorPreviousSha256": "0542b52a4de62368afd215d1faa5b7eb41a56bb05dd037e5b93558b3ba54376d", "monitorAdaptation": "Readonly capability lifecycle only; existing execution unchanged.",
       "notificationBatchingPreviousSha256": "68724130f8ece9cdd806f2b7e65137230d1d1ab695978388ca55f95212e8ce43",
       "reason": "Earlier baseline was LF normalization only; immutable import remains unchanged. Current 2026-10-05 async adaptation is intentional behavior/schema extension: user-authorized background boolean, real acceptance receipt output schema, lazy job registry, host execution/settings/idle timeout preserved; optional management tools, session lifecycle hooks and bounded pure management renderers. 2026-10-06 local adaptation (shell-tools): background job status/list fields and jobId-less listing, tail ring buffer, MAX_RAW_CAPTURE_BYTES 8192, cancel race fix, compactJob text slimming, timeoutMs description, receipt decided dynamically via getActiveTools. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: L28-L30: existing bounded directory removal retry/dead-owner sweep and startup-inclusive idle-timeout documentation verified with module typecheck/unit/integration; per-output owner/generation fence retained as safety-relevant negligible overhead. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: L28-L30 existing protections preserved; additionally user-authorized informational background notice/output wording now explains returned data is not instructions and not an error label, without changing payload/schema, authoritative outcomes, cancellation or followUp delivery; corresponding TUI/agent notification regressions reviewed. English comparison-table messages now distinguish acceptance latency, authoritative cancellation with nonzero exit, notification versus disk-log retention, terminal cancel no-op, capacity refusal and retained-history errors; status/cancel TUI uses bounded named fields. Idle-timeout hint separates background execution from the unchanged timeout timer; (timeout 20s), synchronous host rendering, schema, trust and lifecycle preserved. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: L28-L30 existing protections preserved; additionally user-authorized informational background notice/output wording now explains returned data is not instructions and not an error label, without changing payload/schema, authoritative outcomes, cancellation or followUp delivery; corresponding TUI/agent notification regressions reviewed. English comparison-table messages now distinguish acceptance latency, authoritative cancellation with nonzero exit, notification versus disk-log retention, terminal cancel no-op, capacity refusal and retained-history errors; status/cancel TUI uses bounded named fields. Idle-timeout hint separates background execution from the unchanged timeout timer; (timeout 20s), synchronous host rendering, schema, trust and lifecycle preserved. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 authorized session-load background reconciliation: payload-free versioned journal before allocation/runner admission; persistent-conversation fence; bounded same-owner/cwd inventory and active-branch evidence dedup; neutral model-visible triggerTurn:false notices; no restart, child resume, control replay, lock/native mutation or process-tree termination claim.",
       "previousAsyncRecordedSha256": "bdda9dfa68bd0a9ba4522d4bae127b1b911d70c500833a77611a10591b65cfd2",
@@ -708,7 +761,7 @@
     {
       "path": "modules/file-tools/tests/file-operations.test.ts",
       "originalSha256": "0b5cc95d9d5dd0a9572f94857513358f2619a5f726afd0b64564ae98a147058a",
-      "sha256": "27359b4c7ed58665541ec208cb9787d57f3569a842a2116d095a74676173b821",
+      "fffOverridePreviousSha256": "27359b4c7ed58665541ec208cb9787d57f3569a842a2116d095a74676173b821", "sha256": "72b22b9f57705da0bda10faf2009bae83d86772b4ecb3762ffda45bac7df947b",
       "reason": "User-requested duplicate removal: outside-range duplicate retained in stronger search-window test; identical plain failure fallback retained in error-display.test.ts. No unique argument/rendering or mutation assertions removed. 2026-10-06 local adaptation (file-tools): read/edit/write return slimming (no LINE_PREFIX, single-line metadata, compactPatch, no write details), error recovery points to shell, description/schema/guidelines de-duplicated. Assertions kept or tightened; not a source-identical copy. 2026-10-07 user-requested prompt cleanup: remove the shell-rg search directive without adding FFF-specific instructions; retain read-before-edit and continuation guidelines, update registration assertions and documentation. 2026-10-08 current local snapshot review: MH1/M10-M11/L5-L9: current short temp names/bounded Windows retries, full-hash plus final stat stale fences, request-local regex reuse, diagnostic payload redaction and settings fallback reviewed; @ convention/diff fail-closed and metadata/TOCTOU limitations retained.",
       "checklistReviewPreviousSha256": "9e061515c8209d16237acea03a65bdcdcb8da4a1ba1454f3c061dd64d5b07cb0",
       "checklistReviewBaselineSha256": "9e061515c8209d16237acea03a65bdcdcb8da4a1ba1454f3c061dd64d5b07cb0",
@@ -741,7 +794,7 @@
     {
       "path": "modules/pty-terminal/src/index.ts",
       "originalSha256": "0f5c5096cfe08026d756ddb62ecfa8fb68cbf8867284c9a8bbd885e2ee1b3304",
-      "sha256": "90b9c87f5dde617cb0dc8e2474b383df01d69a8b0725b4281362523fef0b8153",
+      "defectRepairPreviousSha256": "90b9c87f5dde617cb0dc8e2474b383df01d69a8b0725b4281362523fef0b8153", "sha256": "5f950224054730a00cb3bf0e4a9a50c314a3f780466c862cd5b87cf559ec682b",
       "preMergeRecordedSha256": "d775b8a2ba803316f86ff7ab5bb9a0a5c9657b6083e8f44918e91ef374d71b88",
       "reason": "Owner-requested integration: optional local-default named target, trust-aware effective settings, pre-spawn abort, transport caveats; preserve seven source tool names and host selection. Merge wires pure renderers only. Fetched pre-renderer LF blob c46f567e96e6e04e21c1847100916af88509d1f9f602430947bc72d2bf68472e reconstructs the earlier recorded CRLF hash exactly. 2026-10-06 local adaptation (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: MH2/M14-M15/L24-L27: retry debounce/deadline, ready compute budget, single-pass escapes, unread admission protection, buffer slack, exited-write refusal and exit-aware pause reviewed; held-until-termination workers and target trust retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "checklistReviewPreviousSha256": "916f78c89fe17a94ff2e34c0cbad0ba90643c477b4a4415a8cb47654f8414315",
@@ -752,7 +805,7 @@
     {
       "path": "modules/pty-terminal/src/pty-manager.ts",
       "originalSha256": "3ffd62eaf69145ed1974702e29371f059a1004e19ea740ac6d5862dc0bd13287",
-      "sha256": "9b49de8504e2be6275e4b041cb7478987cdd6445dfd2c884a8968553cf31190a",
+      "defectRepairPreviousSha256": "9b49de8504e2be6275e4b041cb7478987cdd6445dfd2c884a8968553cf31190a", "sha256": "251302d3af77c15d95d70769ef060a9d0cde0c43f8845dc3530062505890a574",
       "preMergeRecordedSha256": "3cc4f0ab9b8c580a043a65bbf737398a9711d0cda06ffdb1a26e9b3f5885822c",
       "reason": "Attach target/transport metadata and local PID semantics; Windows node-pty cannot take POSIX signals, use signal-free kill; settle cleanup waiters and prevent buffered output from prematurely finishing exit wait. Git LF normalization only in this merge: fetched bytes exactly reconstruct previous recorded CRLF hash; no runtime edits. 2026-10-06 local adaptation (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts. Assertions kept or tightened; not a source-identical copy. Startup-latency change: node-pty is loaded lazily on the first spawn via createRequire instead of a static import; the spawnPty test seam is unchanged. 2026-10-08 current local snapshot review: MH2/M14-M15/L24-L27: retry debounce/deadline, ready compute budget, single-pass escapes, unread admission protection, buffer slack, exited-write refusal and exit-aware pause reviewed; held-until-termination workers and target trust retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "checklistReviewPreviousSha256": "e6ab9ef1ed054fd7c9d986e6d8b4a55ad82f91845c2de5cc4114b10eb64a4847",
@@ -779,7 +832,7 @@
     {
       "path": "modules/pty-terminal/README.md",
       "originalSha256": "376b39ee2aaed1b440a186ab4fdb1012f783449536d66b31eca3841f2baf835d",
-      "sha256": "794c6d759821c8ee5af39fd68f04fe57d76cd4b8d8060263ce760473c32db833",
+      "defectRepairPreviousSha256": "794c6d759821c8ee5af39fd68f04fe57d76cd4b8d8060263ce760473c32db833", "sha256": "2d9d5b848d315bf327b79b77af9b44aeac922baebda87a5e1b3e1c8e3bc6583a",
       "reason": "Replace standalone install/publishing guidance with root integration, target schema, SSH/WSL prerequisites, native dependency setup, security and actual test boundaries; preserve source identity/port attribution. Document presentation-only PTY previews and caveats, pinned npm 12 native-script policy and npm-run env adapter; consumer parent project must approve its own setup. 2026-10-06 local adaptation (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: MH2/M14-M15/L24-L27: retry debounce/deadline, ready compute budget, single-pass escapes, unread admission protection, buffer slack, exited-write refusal and exit-aware pause reviewed; held-until-termination workers and target trust retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "checklistReviewPreviousSha256": "1d6d339f2490c1c1eda4d0df664af9e63ab1fc60053a8fb7dd68e12da1543e3a",
       "checklistReviewBaselineSha256": "a7ff5bb88e977345b320489380be04cf81475df7ac42d6f64298bc5490cd0969",
@@ -789,7 +842,7 @@
     {
       "path": "modules/file-tools/extensions/file-tools.ts",
       "originalSha256": "3a55b1b953cb2406b8326684d701826e907fca0324d179afea7ecc4cd01d739f",
-      "sha256": "9ffead25ddb5ed05f6ab8f9c60ac14c5668fdd35ae8c066928728b41aa00d737",
+      "defectRepairPreviousSha256": "9ffead25ddb5ed05f6ab8f9c60ac14c5668fdd35ae8c066928728b41aa00d737", "sha256": "bc861afcadfccffe4a9dbd8e097d5914aa1bc8395151ec4b4444b772d53a5025",
       "reason": "Wire builtin read/write calls and successful read/image presentation; custom error and write-success summaries. Tool schemas/content/details/structuredContent and file execution are unchanged. 2026-10-05 async adaptation: Advisory recovery only for missing managed run partial logs, no target substitution or permission/completion inference. 2026-10-06 local adaptation (file-tools): read/edit/write return slimming (no LINE_PREFIX, single-line metadata, compactPatch, no write details), error recovery points to shell, description/schema/guidelines de-duplicated. Assertions kept or tightened; not a source-identical copy. 2026-10-07 user-requested prompt cleanup: remove the shell-rg search directive without adding FFF-specific instructions; retain read-before-edit and continuation guidelines, update registration assertions and documentation.",
       "previousAsyncRecordedSha256": "afbb6aa93ff9cf2f3c759b0cba20df1df7136d6b977bf0f85169036e396448d6"
     },
@@ -838,7 +891,7 @@
     {
       "path": "modules/file-tools/README.md",
       "originalSha256": "eb24c5848998f3383cd7eed92ab8c6adf2ceb8fdf895ea280bc7af71777e7f8a",
-      "sha256": "67c8306b2c8cb99a04a464cd077d3f623a6f8f6265309e6fa0f92e6fcfe82793",
+      "defectRepairPreviousSha256": "67c8306b2c8cb99a04a464cd077d3f623a6f8f6265309e6fa0f92e6fcfe82793", "fffOverridePreviousSha256": "2f1e921fe4ab43a59e115cd32011ed9ea9adb20689f8bf2e386504c79cf82df5", "sha256": "194c6fdbc33e7cffdabd454db69568e122367f766949c9e2eaf71eb511f41d16",
       "preChangeSha256": "73c29be3446a5d371d2ae07c5f66bd5198a9f343c417f0bd7a060ad23b5d258d",
       "historicalDeltaAudit": "unavailable",
       "localSnapshotReview": "2026-10-03: pre-change local README inspected against schema, mutation queue and settings; pre-change bytes match initial commit f14b837.\n2026-10-08 current local snapshot review: MH1/M10-M11/L5-L9: current short temp names/bounded Windows retries, full-hash plus final stat stale fences, request-local regex reuse, diagnostic payload redaction and settings fallback reviewed; @ convention/diff fail-closed and metadata/TOCTOU limitations retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
@@ -850,7 +903,7 @@
     {
       "path": "modules/web-tools/README.md",
       "originalSha256": "39be626cf45a2409a02bf8caeea9585188413776a1b6c8d456664fa909ebf71c",
-      "sha256": "7eea18b746c052f2907cf2c292e63abc17797639636f82259901dccae1364b39",
+      "defectRepairPreviousSha256": "7eea18b746c052f2907cf2c292e63abc17797639636f82259901dccae1364b39", "sha256": "7caaee9a2347b06d2b8a57f015dd63ecdf1095994eef18fafcc1e34dd39dc371",
       "preChangeSha256": "5f5f1d8c15836abe56ea10966bf83517d9e780adb620765c4bc5c53aa758fdc8",
       "historicalDeltaAudit": "unavailable",
       "localSnapshotReview": "2026-10-03: complete pre-change README inspected against local Web config/provider/network/browser contracts; pre-change bytes match initial commit f14b837.\n2026-10-08 current local snapshot review: H2/M12-M13/L10-L13: current peer-address post-response mitigation (not IP pinning), bounded terminable extraction worker ownership, unnecessary-resource blocking and per-fetch DNS memo reviewed; documented fail-closed/retention/context-close policies retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
@@ -878,7 +931,7 @@
       "originalSha256": "4bba69600d0ea3da3d29bb7b7d6e092a15422fb8b6dc8fb3b9ad390dbc92e4f1",
       "childShellPreviousSha256": "4679812c513f614028d047f5fb21c23f53def679d13302ac0b7db1d9653f1bb9",
       "childShellAdaptation": "2026-10-09 owned new/resume spawn uses explicit environment builder; admission/trust/writer/recursion and parent background contracts preserved.",
-      "sha256": "bee09c200c8bc2d393aad3b904b652455bf63679212205cd8f5cf903bdb080e3", "monitorPreviousSha256": "1bd4d3a3e67de7b87bc46e963a5433f9c23c02c658dc7b984a9c192898b3ade4", "monitorAdaptation": "Readonly capability lifecycle; accepted child admission/guard/execution unchanged.",
+      "defectRepairPreviousSha256": "bee09c200c8bc2d393aad3b904b652455bf63679212205cd8f5cf903bdb080e3", "sha256": "3677435090cf119f61af6b0518290f708905a7ef7093a07eabac6f3d654f374c", "monitorPreviousSha256": "1bd4d3a3e67de7b87bc46e963a5433f9c23c02c658dc7b984a9c192898b3ade4", "monitorAdaptation": "Readonly capability lifecycle; accepted child admission/guard/execution unchanged.",
       "reason": "User-authorized resumable-only change: always allocate managed sessions, require guard/log/native checkpoint, remove opt-in and ephemeral metadata branch, retain bounded diagnostics in managed runs; consolidate bounded tool-result identities without changing output limits. User-requested model/thinking preflight: descriptions require user/skill opt-in; initial dispatch resolves registered model then validates thinking, ignoring invalid overrides in favor of defaults. Thinking schema accepts strings to permit unknown-level fallback; resume and child lifecycle/guard remain strict. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted. 2026-10-05 async adaptation: Background acceptance/status/cancel/control/query, verified RPC identity, canonical logging, managed commit before followUp completion, owner/generation shutdown fences. 2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: H1/M1-M4/L1-L4: current project-agent admission, held child permits/writer locks, process-group cancellation, rename retry, late I/O ownership and protocol accounting reviewed; intentional bounded spool/backpressure/checkpoint integrity retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: H1/M1-M4/L1-L4 preserved; additional M4 fix keeps actual FileHandle.close rejection as an ownership barrier, preserves primary/close diagnostics and structured finalize errors, observes abandon rejection immediately, and requires writerCloseConfirmed before normal release/rollback. Normal/late/late-create red-green regressions reviewed. User-authorized TUI/model notice wording now describes delegated data as not instructions and not an error label; queued/accepted presentation is neutral, statuses/schema/trust/followUp unchanged. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: H1/M1-M4/L1-L4 preserved; additional M4 fix keeps actual FileHandle.close rejection as an ownership barrier, preserves primary/close diagnostics and structured finalize errors, observes abandon rejection immediately, and requires writerCloseConfirmed before normal release/rollback. Normal/late/late-create red-green regressions reviewed. User-authorized TUI/model notice wording now describes delegated data as not instructions and not an error label; queued/accepted presentation is neutral, statuses/schema/trust/followUp unchanged. Authorized English comparison-table messages now clarify control/query completion scope, snapshots/late usage, capacity refusal, agent search scope and per-tool progress; foreground resume/log/aborted labels and truncation hints reflect available data without changing ownership or runner outcomes. Offline resume-provider and cross renderer fixtures follow the new English checkpoint/control labels. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 user-authorized RPC startup diagnostics: bounded best-effort command/write/correlation observers, token-bound allowlisted guard milestones and child runtime versions, frozen failure-time observations separate from cleanup, stage-specific unknown-cause guidance, event/timer-injected privacy and guard-authority regressions. No changed deadline/retry/status/schema/trust/ownership or managed/debug persistence version; original causes remain primary.\n2026-10-08 user-approved session-addressed messaging: create-only subagent, actual managed IDs at acceptance (OQ1=A), stable-session message routing to live control or guarded asynchronous continuation, explicit busy/blocked/refusal guidance, live-only query, admission and writer ownership safeguards, migrated contracts and regression fixtures. No credential/settings/history rewrite, deadline changes, unknown-delivery retry or source refresh. This records current local bytes, not unavailable historical equivalence. 2026-10-08 authorized session-load background reconciliation: payload-free versioned journal before allocation/runner admission; persistent-conversation fence; bounded same-owner/cwd inventory and active-branch evidence dedup; neutral model-visible triggerTurn:false notices; no restart, child resume, control replay, lock/native mutation or process-tree termination claim.",
       "previousAsyncRecordedSha256": "9ccd2f8bd71ade79ac61292d95b463f089a32129fd79c5569101608cc7706d08",
       "checklistReviewPreviousSha256": "b18b3a356855f4d1daaf40bde87dd8e376df9da102389177a4bb47b9026a3976",
@@ -970,7 +1023,7 @@
       "originalSha256": "279147070b436c428835ab950c632deea983a13d5e940c3205ea7b7c7f9bf4cf",
       "childShellPreviousSha256": "68e1307bb6b9ecc065d2b3c1fdc40cb6fde519b7a10e497fc24d097a587fe6c4",
       "childShellAdaptation": "2026-10-09 foreground child marker/load order, same-object exclusive raw Buffer startup lease and strict metadata checkpoints, non-atomic/no hard-allocation/no sandbox limits; preserve parent reviewer native note-only reporting contract.",
-      "sha256": "aba27efebfbc481bac2e81bfa529a35cd51c2d9d4a59647816888a71b01a8358",
+      "defectRepairPreviousSha256": "aba27efebfbc481bac2e81bfa529a35cd51c2d9d4a59647816888a71b01a8358", "sha256": "51b420fb0ae3b1a55217e3e2ab0e90c147e0e974520943ede14530933d4ab5b9",
       "previousRejectedTuiSha256": "bdd1c25ab276cb1150338f9638020e3d05813e32070c8276c225ca5b1641c7c1",
       "rejectedTuiAdaptation": "2026-10-08 document rejection diagnostic rendering, actual Pi 1.0.0 context error contract and historical JSON fallback; original model reply/admission and no-replay policy unchanged.",
       "reason": "Document mandatory managed persistence, removed parameter, storage paths, unchanged resume guard and explicit mock/native/CLI test boundaries. Document user/skill-only model/thinking overrides, exact registry parsing policy and model-first invalid-selection fallback defaults and limitations. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted. 2026-10-05 async adaptation: User-authorized session-owned background/control/query implementation or offline regression contract adaptation; synchronous defaults and existing safety assertions retained. 2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy. 2026-10-06 Pi 1.0.0-only support: README states background interaction and outputSchema verification against Pi 1.0.0 only; hash re-recorded on the LF working tree. 2026-10-08 current local snapshot review: H1/M1-M4/L1-L4: current project-agent admission, held child permits/writer locks, process-group cancellation, rename retry, late I/O ownership and protocol accounting reviewed; intentional bounded spool/backpressure/checkpoint integrity retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: H1/M1-M4/L1-L4 preserved; additional M4 fix keeps actual FileHandle.close rejection as an ownership barrier, preserves primary/close diagnostics and structured finalize errors, observes abandon rejection immediately, and requires writerCloseConfirmed before normal release/rollback. Normal/late/late-create red-green regressions reviewed. User-authorized TUI/model notice wording now describes delegated data as not instructions and not an error label; queued/accepted presentation is neutral, statuses/schema/trust/followUp unchanged. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: H1/M1-M4/L1-L4 preserved; additional M4 fix keeps actual FileHandle.close rejection as an ownership barrier, preserves primary/close diagnostics and structured finalize errors, observes abandon rejection immediately, and requires writerCloseConfirmed before normal release/rollback. Normal/late/late-create red-green regressions reviewed. User-authorized TUI/model notice wording now describes delegated data as not instructions and not an error label; queued/accepted presentation is neutral, statuses/schema/trust/followUp unchanged. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: H1/M1-M4/L1-L4 preserved; additional M4 fix keeps actual FileHandle.close rejection as an ownership barrier, preserves primary/close diagnostics and structured finalize errors, observes abandon rejection immediately, and requires writerCloseConfirmed before normal release/rollback. Normal/late/late-create red-green regressions reviewed. User-authorized TUI/model notice wording now describes delegated data as not instructions and not an error label; queued/accepted presentation is neutral, statuses/schema/trust/followUp unchanged. Authorized English comparison-table messages now clarify control/query completion scope, snapshots/late usage, capacity refusal, agent search scope and per-tool progress; foreground resume/log/aborted labels and truncation hints reflect available data without changing ownership or runner outcomes. Offline resume-provider and cross renderer fixtures follow the new English checkpoint/control labels. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 user-authorized RPC startup diagnostics: bounded best-effort command/write/correlation observers, token-bound allowlisted guard milestones and child runtime versions, frozen failure-time observations separate from cleanup, stage-specific unknown-cause guidance, event/timer-injected privacy and guard-authority regressions. No changed deadline/retry/status/schema/trust/ownership or managed/debug persistence version; original causes remain primary.\n2026-10-08 user-approved session-addressed messaging: create-only subagent, actual managed IDs at acceptance (OQ1=A), stable-session message routing to live control or guarded asynchronous continuation, explicit busy/blocked/refusal guidance, live-only query, admission and writer ownership safeguards, migrated contracts and regression fixtures. No credential/settings/history rewrite, deadline changes, unknown-delivery retry or source refresh. This records current local bytes, not unavailable historical equivalence. 2026-10-08 authorized session-load background reconciliation: payload-free versioned journal before allocation/runner admission; persistent-conversation fence; bounded same-owner/cwd inventory and active-branch evidence dedup; neutral model-visible triggerTurn:false notices; no restart, child resume, control replay, lock/native mutation or process-tree termination claim.",
@@ -984,13 +1037,13 @@
     {
       "path": "modules/file-tools/package.json",
       "originalSha256": "5ac4d162dd21b29a6535d50210ae9955b3bc65ad1861ce913b101dce1e1583f6",
-      "sha256": "c7ce11268fa01396f0565bb22b8bcdee1adbe3b1cbd3ab29f18ffb8132b57a43",
+      "defectRepairPreviousSha256": "c7ce11268fa01396f0565bb22b8bcdee1adbe3b1cbd3ab29f18ffb8132b57a43", "sha256": "06d6a963fcf5410f68c6f0e00ce3509b47c69ab72186f28b797d2d76c9a918a0",
       "reason": "Project owner confirmed MIT licensing; user later requested uniform src/index.ts public entries. Update local manifest entry; serialize test files with --test-concurrency=1 while preserving source identity, tsx runner, every remaining assertion/deadline and original import hash."
     },
     {
       "path": "modules/file-tools/tests/packaged-runtime.test.mjs",
       "originalSha256": "aa96c409bd82795d03cc5903ec63c76b84fbb1cb5850a2a03355d3a32d40c6cc",
-      "sha256": "7575a8a5a11d117dfc80ed66b486977a6e8186039b86588aa0318c69a5c16e05",
+      "defectRepairPreviousSha256": "7575a8a5a11d117dfc80ed66b486977a6e8186039b86588aa0318c69a5c16e05", "fffOverridePreviousSha256": "2f6176275212f7ac56280f9d46eb34e0946d23708702b01ef5339b6035d86dc8", "sha256": "58d168fdf1b47e5515915b9ca05997c85f1c8bffff99d137bbe4c3dc49532e1a",
       "preMergeRecordedSha256": "78f3b63cb59458fbd3cbeb9057a4012d55fc33e032cb65a0b6c1d109a7ddc703",
       "mergeNormalization": "Fetched LF bytes exactly reconstruct the earlier recorded CRLF hash; no test edits this merge.",
       "reason": "Resolve the development regression dependency link against the integration root; production smoke independently installs real dependencies without links. Pi 1.0.0 upgrade: require advanced annotation, nested pipeline, codemode and renderer probes on Pi 1.0.0 (the only supported host; older-host matrix verification was removed) instead of skipping the new host. Strict single-package legacy-array/npm-12-keyed parsing retains identity and resource assertions; merge also preserves relative archive filename plus cwd for Windows GNU tar. Pi 1.0.0 is the only supported host: the advanced-probe requirement now asserts on 1.0.0 only (0.99.x verification removed)."
@@ -1068,7 +1121,7 @@
       "originalSha256": "8f9a194e5960d5a4f01ea3fe8fe92ec6d74a60301b3b8f4926f547a6c6bd3956",
       "childShellPreviousSha256": "c3ec888327f681c1dfb6f1fc2cf0798aa59fa868a2510bf3b8cb819806e7eee6",
       "childShellAdaptation": "2026-10-09 parent/child Shell, explicit marker, raw-byte startup lease and discrete non-atomic checkpoint limits; diagnostics I/O and non-sandbox boundary.",
-      "sha256": "0a87080508b1316a006b65a29ecbbb89251168c51fd9e70e0b4062a11e67b24b",
+      "defectRepairPreviousSha256": "0a87080508b1316a006b65a29ecbbb89251168c51fd9e70e0b4062a11e67b24b", "sha256": "62a463b29820f2fd109652d505f67e8860f58591c543b9ff64e7afe735de1cb2",
       "notificationBatchingPreviousSha256": "496539ba1fb125f18cb6fa1e517345023195e4a8e73665cb8d037b82d8911cf7",
       "reason": "User-requested UUID→ULID: documentation updated for ULID identifiers (legacy UUID noted where still accepted). 2026-10-05 async adaptation: User-authorized session-owned background/control/query implementation or offline regression contract adaptation; synchronous defaults and existing safety assertions retained. 2026-10-06 local adaptation (shell-tools): background job status/list fields and jobId-less listing, tail ring buffer, MAX_RAW_CAPTURE_BYTES 8192, cancel race fix, compactJob text slimming, timeoutMs description, receipt decided dynamically via getActiveTools. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: L28-L30: existing bounded directory removal retry/dead-owner sweep and startup-inclusive idle-timeout documentation verified with module typecheck/unit/integration; per-output owner/generation fence retained as safety-relevant negligible overhead. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: L28-L30 existing protections preserved; additionally user-authorized informational background notice/output wording now explains returned data is not instructions and not an error label, without changing payload/schema, authoritative outcomes, cancellation or followUp delivery; corresponding TUI/agent notification regressions reviewed. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: L28-L30 existing protections preserved; additionally user-authorized informational background notice/output wording now explains returned data is not instructions and not an error label, without changing payload/schema, authoritative outcomes, cancellation or followUp delivery; corresponding TUI/agent notification regressions reviewed. English comparison-table messages now distinguish acceptance latency, authoritative cancellation with nonzero exit, notification versus disk-log retention, terminal cancel no-op, capacity refusal and retained-history errors; status/cancel TUI uses bounded named fields. Idle-timeout hint separates background execution from the unchanged timeout timer; (timeout 20s), synchronous host rendering, schema, trust and lifecycle preserved. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 authorized session-load background reconciliation: payload-free versioned journal before allocation/runner admission; persistent-conversation fence; bounded same-owner/cwd inventory and active-branch evidence dedup; neutral model-visible triggerTurn:false notices; no restart, child resume, control replay, lock/native mutation or process-tree termination claim.",
       "previousAsyncRecordedSha256": "4cf1899449bd49eded5204b56f79c4d5162c9cbf0f0f604577841a0a7ea30a5d",
@@ -1156,7 +1209,7 @@
     {
       "path": "modules/file-tools/tests/path-image-regressions.test.ts",
       "originalSha256": "133ca940994db8223c3222beef086c60777b77e3924405dec3087177cf1c8bca",
-      "sha256": "80c8923b37864eaac9dd7d3257a57f3e856ff6995c144eb1d90f4e1ce57d42f6",
+      "defectRepairPreviousSha256": "80c8923b37864eaac9dd7d3257a57f3e856ff6995c144eb1d90f4e1ce57d42f6", "sha256": "9fd8a3e5410fa5c096ef7c0fb820c054824d4e45c976af3d36266a50d1c518f1",
       "reason": "2026-10-05 async adaptation: Four missing-live-log guidance regressions preserve all existing path/image assertions. 2026-10-06 local adaptation (file-tools): read/edit/write return slimming (no LINE_PREFIX, single-line metadata, compactPatch, no write details), error recovery points to shell, description/schema/guidelines de-duplicated. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: MH1/M10-M11/L5-L9: current short temp names/bounded Windows retries, full-hash plus final stat stale fences, request-local regex reuse, diagnostic payload redaction and settings fallback reviewed; @ convention/diff fail-closed and metadata/TOCTOU limitations retained.",
       "checklistReviewPreviousSha256": "20f5db3c53ef4ff4dbcf4641bdd2b5cdf0caecbd1dd8e6229715d816f0d1ced9",
       "checklistReviewBaselineSha256": "20f5db3c53ef4ff4dbcf4641bdd2b5cdf0caecbd1dd8e6229715d816f0d1ced9",
@@ -1231,13 +1284,13 @@
     {
       "path": "modules/schedule-prompt/src/subagent.ts",
       "originalSha256": "34113cf23da4a267ce52db43413301b43b4000151d128e760121013a479e39b0",
-      "sha256": "c46154694c17a3113db1a7e3011debb18f81d810ec84e09c71f990ca65079abc",
+      "defectRepairPreviousSha256": "c46154694c17a3113db1a7e3011debb18f81d810ec84e09c71f990ca65079abc", "sha256": "a21d28521fd74912312dc928eb623c9309c87becd92447f3c6716cb370b00bea",
       "reason": "Pi 1.0.0: createAgentSession takes modelRuntime instead of the removed modelRegistry (host ModelRuntime reused behind ctx.modelRegistry when reachable, else the SDK default). 2026-10-06 stability review: always dispose() the in-process session; 30 minute run timeout; assistant stopReason \"error\" is a failure rather than an empty success; the child never loads this extension (its session_start would start a second scheduler re-firing shared jobs). Model resolution, tool allowlist and abort handling unchanged; source tests pass unmodified. 2026-10-07 endAt review fix: optional internal prompt-admission callback after asynchronous initialization and immediately before prompt(); skipped setup disposes/unsubscribes without a model prompt. No force cancellation of started prompts."
     },
     {
       "path": "modules/schedule-prompt/src/scheduler.ts",
       "originalSha256": "45248380ae20289aeda2a807e7d88bb31bc5441e1f691173309d448849613a00",
-      "sha256": "a8f8d1c0b104cfdbf442227a5d8375c2669e7248a85a9fe5ee1ef5746af1560e",
+      "defectRepairPreviousSha256": "a8f8d1c0b104cfdbf442227a5d8375c2669e7248a85a9fe5ee1ef5746af1560e", "sha256": "b4d3551938f1fdedf30137926777b5b437272c1899436abcc2531c9d298973c1",
       "reason": "2026-10-06 stability review: timer delays capped at 2^31-1 ms (Node clamps larger values to 1 ms, so a 30d interval flooded prompts); far-future one-shots re-arm in hops; timer entry points (fire) catch every error so a storage write failure cannot crash the host; one-shot jobs are disabled only after they actually fired; executeJob fires the freshly re-read job; a model job never overlaps its own previous run and at most 4 subagent runs are active. Source tests pass unmodified. 2026-10-07 local endAt: independent segmented deadline timers, fresh dispatch/pre-delivery checks, conditional expiration, cleanup on updates/stop, next-run cutoff filtering; already-started work completes without re-enabling expired jobs. Runner receives a fresh deadline guard after async initialization; skipped setup restores previous status without changing run/last-run statistics or notifying the parent, and only this scheduler's per-run once auto-disable can retain admission while disabled; explicit update/remove/stop and run completion clear that exception. Disabled recurring jobs cannot start after their deadline is merely extended/cleared without enable. 2026-10-08 current local snapshot review: M5-M7/L14-L19: user-authorized local third-party adaptation for terminal skipped-once error, widget snapshot/coalescing, owner-token fail-closed locking/corruption reread, job shape validation, locked fresh counters and session recovery boundary; v1 paths/schema/identity/license retained, not upstream-identical. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "checklistReviewPreviousSha256": "00235d0e0dd39d9b2b9ada57ad81d965e209f11adab3b1aff57e94e134ab1e3c",
       "checklistReviewBaselineSha256": "d4fef14127f425570947303bd6ed01f8600c21be0baa24ca0d2d2a9159d29bb5",
@@ -1282,7 +1335,7 @@
       "localSnapshotReview": "2026-10-08 current local snapshot review: M5-M7/L14-L19: user-authorized local third-party adaptation for terminal skipped-once error, widget snapshot/coalescing, owner-token fail-closed locking/corruption reread, job shape validation, locked fresh counters and session recovery boundary; v1 paths/schema/identity/license retained, not upstream-identical. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "historicalDeltaAudit": "unavailable",
       "reason": "2026-10-08 current local snapshot review: M5-M7/L14-L19: user-authorized local third-party adaptation for terminal skipped-once error, widget snapshot/coalescing, owner-token fail-closed locking/corruption reread, job shape validation, locked fresh counters and session recovery boundary; v1 paths/schema/identity/license retained, not upstream-identical. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
-      "sha256": "e35d1b1fd55738eae179e9aac6996a60fb2cfdd73e9f3e8b53c443d8151ccf5f"
+      "defectRepairPreviousSha256": "e35d1b1fd55738eae179e9aac6996a60fb2cfdd73e9f3e8b53c443d8151ccf5f", "sha256": "4726e6b76aedde43fdaec0e8467a6a9f5207b1bb97a3b4e6b89876b0f373efa8"
     },
     {
       "path": "modules/subagents/extensions/subagent/io-gate.ts",
@@ -1321,7 +1374,7 @@
       "localSnapshotReview": "2026-10-08 current local snapshot review: H2/M12-M13/L10-L13: current peer-address post-response mitigation (not IP pinning), bounded terminable extraction worker ownership, unnecessary-resource blocking and per-fetch DNS memo reviewed; documented fail-closed/retention/context-close policies retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "historicalDeltaAudit": "unavailable",
       "reason": "2026-10-08 current local snapshot review: H2/M12-M13/L10-L13: current peer-address post-response mitigation (not IP pinning), bounded terminable extraction worker ownership, unnecessary-resource blocking and per-fetch DNS memo reviewed; documented fail-closed/retention/context-close policies retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
-      "sha256": "8fb13a781dd152bafed1b6f2727a98609dd2b91ba1edd3a4607154ea34881526"
+      "defectRepairPreviousSha256": "8fb13a781dd152bafed1b6f2727a98609dd2b91ba1edd3a4607154ea34881526", "sha256": "64ef6a125cf7182c0009339550628025aaa5c058945c238663a50e968f87a8ec"
     },
     {
       "path": "modules/web-tools/tests/unit/output.test.ts",
@@ -1358,7 +1411,7 @@
       "originalSha256": "b3bda6e0f0e1d9c88e25ccc096473fe79c44ac3652962832406da1b8cc3d3d0e",
       "notificationEvidencePreviousSha256": "3c5752acadad2802a26f09bf7deaac174edf4a03045f586c4e6668549469f098",
       "notificationEvidenceAdaptation": "2026-10-09 document allowlisted persisted notifications, stable e refs, details-only structural authority, verified summary provenance, evidence-only scanner and truthful partial/tiny-budget limits; not unchanged upstream copy.",
-      "b1ReviewPreviousSha256": "a4b00078daeade312fa0e163aab0ccd6316904ea3fae25e5c4945b77e652af76", "sha256": "54abb9a13d5d14449c54f4b2f6253e549a810da53a71dab9dc807a0080345998",
+      "b1ReviewPreviousSha256": "a4b00078daeade312fa0e163aab0ccd6316904ea3fae25e5c4945b77e652af76", "piOwnedSummaryMigrationPreviousSha256": "54abb9a13d5d14449c54f4b2f6253e549a810da53a71dab9dc807a0080345998", "piOwnedSummaryMigrationAdaptation": "Current local ownership/config/migration overlay and Review4 Delete/Save postconditions; upstream identity, MIT credits and historical text retained. See blackholePiOwnedSummaryMigrationReview; not upstream-identical or whole-source safety certification.", "defectRepairPreviousSha256": "8dca3c57c2caae7caf8cd288c104f41be069f53eec83f7fb8218db92cca6bd3d", "validationRepairPreviousSha256": "965b04abf18ba60c0daa476048f0e73a6b6bcbe09935314b50f06a3ed2bc792e", "sha256": "b265a04e890dc28f0925b9bb2c12956c09049e35246b564d63a006a3115c2d8e", "validationRepairAdaptation": "2026-10-10 unit/native grouping and process budgets documentation only.",
       "previousTestHarnessRepairSha256": "91ae8a69279d7ac7c8c8bcc5326b159fee8687881cf3a839e6eeeaaf30887f0c",
       "previousNotificationEvidenceReason": "Add local installation, behavior, regression and verification boundary above unchanged upstream documentation. Normalize source CRLF working-tree bytes to repository-required LF; semantic content unchanged by this normalization. Subsequent 2026-10-09 semantic adaptation: document isolated unit passive allowlist, relative-only import alias, portable fixtures, EROFS injection and worker invocation barriers.",
       "reason": "2026-10-09 authorized local notification-evidence consumer adaptation, beyond earlier LF import normalization; exact behavior documented in notificationEvidenceAdaptation and blackholeNotificationEvidence. Immutable original/history preserved, not an upstream-identical copy.",
@@ -1374,7 +1427,7 @@
     {
       "path": "modules/blackhole/src/hooks/cosmetic-output.ts",
       "originalSha256": "11e2f2892da04137074d2d9cd529d178586ae1c4b2ab6655df92198043d06163",
-      "sha256": "1dd5fa5d7afbc4dce235041441f8e529773d8e6b65fe18b4de9a5d508b3858d9",
+      "piOwnedSummaryMigrationPreviousSha256": "1dd5fa5d7afbc4dce235041441f8e529773d8e6b65fe18b4de9a5d508b3858d9", "piOwnedSummaryMigrationAdaptation": "Display copy respects native kept IDs and operation/current canonical edits; null/recovery omission never resurrected, replacement effective text only, raw history unchanged and zero LLM copy projection.", "sha256": "17cc1afaef142e3d9cdeb2545a9c7370c70a93234c641f93ea495ebfd34f7233",
       "reason": "Fix oldest-first host getBranch traversal: scan backwards from compaction with the existing bounded scan, retained/aborted filters, byte cap and display-only payload. Red-first chronological regression proves bug and green fix. Normalize source CRLF working-tree bytes to repository-required LF; semantic content unchanged by this normalization.",
       "previousLfNormalizationSha256": "f2231e6dce6345cfbd2ea62bee4bea421a1b0fa3cbc79761882eff614f3e1208"
     },
@@ -1406,7 +1459,7 @@
     {
       "path": "modules/blackhole/docs/CONFIG.md",
       "originalSha256": "62c2eaa1d8cdc61cb8d87e25d25832c2fb54931dcd4b278b5c09828795cdb7cc",
-      "sha256": "9735b53eff852650c9bcd7be09c8f52dfb50c1aa99835ec65aa6804e0a88740b",
+      "piOwnedSummaryMigrationPreviousSha256": "9735b53eff852650c9bcd7be09c8f52dfb50c1aa99835ec65aa6804e0a88740b", "piOwnedSummaryMigrationAdaptation": "Pi-owned operation budgets/summary-only participation, canonical seven ignored controls, branch-record authority, supported Reset/Delete/Save buffers and UI warning delivery; limited reviews in blackholePiOwnedSummaryMigrationReview.", "sha256": "b117801c56412f326355490a3c08f049ae5322200cb19efc582b2ddeff4dcc10",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -1418,7 +1471,7 @@
     {
       "path": "modules/blackhole/docs/MIGRATION-GUIDE.md",
       "originalSha256": "061a21ebb85b6d936a2a11d435000523d8c7959f74320120d07c6dcc412e4ec0",
-      "sha256": "534e626ef1d90b2e6cce16b762275101498263dd37f45947d23baafdfec93e23",
+      "piOwnedSummaryMigrationPreviousSha256": "534e626ef1d90b2e6cce16b762275101498263dd37f45947d23baafdfec93e23", "piOwnedSummaryMigrationAdaptation": "Current local explicit-save/readonly-load migration overlay; seven inactive controls omitted without bulk-deleting active/unknown data; historical upstream guide retained, not a new timing/adoption recipe.", "sha256": "eea085b4ec1971b478badb865bfd12bae972aa40b7368bd5c5d806207e0741c9",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -1450,7 +1503,7 @@
       "originalSha256": "95167445828f5d2f17ea4bd46aeae6e91094472f7c1ddb4a37dc91a3581a3df5",
       "notificationEvidencePreviousSha256": "3ce40a1795cb9e23788423c75a03ea9863e1b65c5edd4b9d6e1a26531050f74d",
       "notificationEvidenceAdaptation": "2026-10-09 selected/raw/summary completeness, public scalar display versus details authority, metadata span carry/strip without backfill, dedicated scanner versus legacy paths, exact-body paging and unavailable tiny-cap diagnostics; no producer lifecycle certification.",
-      "b1ReviewPreviousSha256": "8ea0baee583fcdc1d741c1f9a6edfed071b0dd1f338f0b53e6df816819c41c2b", "sha256": "acadd5d19e309ed8e24a54f01d32e7be56201bf3b92988f29814d2579f77c97b",
+      "b1ReviewPreviousSha256": "8ea0baee583fcdc1d741c1f9a6edfed071b0dd1f338f0b53e6df816819c41c2b", "piOwnedSummaryMigrationPreviousSha256": "acadd5d19e309ed8e24a54f01d32e7be56201bf3b92988f29814d2579f77c97b", "piOwnedSummaryMigrationAdaptation": "Cumulative Pi-owned summary/evidence/proof limitations documentation; fixed Review4 source336 identity, unchanged from Review3, inheriting prior limited scope rather than claiming a new full-doc safety review.", "sha256": "be4084f5caf93ab98f5a5c9f83f885f2dc5fde1a450d1c33bfb8a7b901e3c5b6",
       "previousNotificationEvidenceReason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change.",
       "reason": "2026-10-09 authorized local notification-evidence consumer adaptation, beyond earlier LF import normalization; exact behavior documented in notificationEvidenceAdaptation and blackholeNotificationEvidence. Immutable original/history preserved, not an upstream-identical copy."
     },
@@ -1463,19 +1516,19 @@
     {
       "path": "modules/blackhole/example-config.json",
       "originalSha256": "c614e39e77cec84efde98b69de25e1d46c4c95bb0865cac6d136d05fbe435741",
-      "sha256": "45c3caee67f7939aa63303bc466c644b391618e181f07028d73b0d946ca9d50a",
+      "piOwnedSummaryMigrationPreviousSha256": "45c3caee67f7939aa63303bc466c644b391618e181f07028d73b0d946ca9d50a", "piOwnedSummaryMigrationAdaptation": "Current example no longer generates ignored timing/cut controls or preset definitions; effective memory/debug/models/fallbacks preserved. Limited migration review, not user config edits.", "sha256": "34ebf7da4a8487b02cc3fe1bbf31b5d85275ca84f8f2d3f18b941a40b54de36a",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
       "path": "modules/blackhole/index.ts",
       "originalSha256": "e776fe6126d4e23ec48658a94f0e6385ee7c02becf8b137517470707d192fda1",
-      "sha256": "4765cc3fd691352bd9b766657b7be89423b28a79de3f756dd63c4b8943770e63",
+      "piOwnedSummaryMigrationPreviousSha256": "4765cc3fd691352bd9b766657b7be89423b28a79de3f756dd63c4b8943770e63", "piOwnedSummaryMigrationAdaptation": "Factory removes Blackhole private inline/automatic trigger wiring; public hasUI warning gate and final branch reprojection. Cumulative summary-only and migration limited reviews, not full factory security certification.", "defectRepairPreviousSha256": "037d493cc377a0b173694845cbff37812935a094c15064b74909a6c5d7fefa18", "sha256": "cb0c2cbf12b16bd208bdb8407d51bad854ce3d927b427188ef44be1833013432",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
       "path": "modules/blackhole/llms.txt",
       "originalSha256": "e7772916d2a5a0a4358de22210ed6db3ea60a9f1ef94bf11aeee4f94c231cc05",
-      "sha256": "dcd837b0bb762b44d6b74dc0247ef54df0ca5553b7cb2ac4c7d3cdec9f8f3b8e",
+      "piOwnedSummaryMigrationPreviousSha256": "dcd837b0bb762b44d6b74dc0247ef54df0ca5553b7cb2ac4c7d3cdec9f8f3b8e", "piOwnedSummaryMigrationAdaptation": "Current local interview guidance uses Pi-owned budgets and canonical inactive-control cleanup; upstream/historical sections distinguished, no before-request adoption setting.", "sha256": "097cfd4e84dce4a576f1a097edbc50902677d588943e09946e86fbb591cb7ecd",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -1511,13 +1564,13 @@
     {
       "path": "modules/blackhole/src/commands/memory.ts",
       "originalSha256": "9dd426df957e0ddf54e443465671cb10516346c2441edd630cd6cd5957d6bd99",
-      "sha256": "911797b6657cde91ab400089f08f4d8b29f25e41bf7c39f26c4dcbb5e6c90541",
+      "piOwnedSummaryMigrationPreviousSha256": "911797b6657cde91ab400089f08f4d8b29f25e41bf7c39f26c4dcbb5e6c90541", "piOwnedSummaryMigrationAdaptation": "Memory status consumes public native context/capacity or unknown; capacity is not a compaction trigger and obsolete BH budgets do not impersonate Pi thresholds.", "sha256": "95117c486de4744e469e826ca82c4b15058b2246ddf9271529c9a4573d91cf90",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
       "path": "modules/blackhole/src/commands/pi-vcc.ts",
       "originalSha256": "c5b7008fb903fcba97e5573c59c8d82cdef55e71b1b5ba844ed9e75b2f9a2918",
-      "sha256": "9d2b1ebd372963e970a98a211ba9ef8f6bae16ef9414497e4886d55fc7569158",
+      "piOwnedSummaryMigrationPreviousSha256": "9d2b1ebd372963e970a98a211ba9ef8f6bae16ef9414497e4886d55fc7569158", "piOwnedSummaryMigrationAdaptation": "Explicit /blackhole public native request alias; no command-side private preflight/flush or new trigger. Earlier Pi-owned scope inherited at exact Review4 unchanged snapshot.", "defectRepairPreviousSha256": "2a3a7e96a31c9c67805c7a8354f98e3066ef2c2c5d9f10d92e72055b8906c5ac", "sha256": "c2f6ea615ba15585fbb170d949b4b6ad549ecc879fb3488fa1b5f9f48c4935ac",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -1587,7 +1640,7 @@
     {
       "path": "modules/blackhole/src/core/format.ts",
       "originalSha256": "317a27345e0936dd5cab94911bb67777aaa8deb9308bab42013c29562c9695fb",
-      "sha256": "788b8f003c990dbb724da21a5bfb18eed1c8b15c69ccc4d7432917ffc5ecf2c7",
+      "piOwnedSummaryMigrationPreviousSha256": "788b8f003c990dbb724da21a5bfb18eed1c8b15c69ccc4d7432917ffc5ecf2c7", "piOwnedSummaryMigrationAdaptation": "Actual fresh structured-header/brief composition, headerless/quoted body preservation and bounded head/tail brief omission; core Review3 limited S1 acceptance, not lossless history.", "sha256": "043cf10dbb21cdc1aff402e2764c73e428d0e312170ca94704e3f7002a750847",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -1681,7 +1734,7 @@
     {
       "path": "modules/blackhole/src/core/summarize.ts",
       "originalSha256": "37d863ac4fd93ef1868054384745b00f1b52df4efd69f2f6d83f5149b31e2d53",
-      "sha256": "680430171f54f02c6bb51ec30e754b7bf8001168c46c90eee45198200018bc4c",
+      "piOwnedSummaryMigrationPreviousSha256": "680430171f54f02c6bb51ec30e754b7bf8001168c46c90eee45198200018bc4c", "piOwnedSummaryMigrationAdaptation": "Native preparation-only summary, separate persisted writer/format and generated-span authority; actual fresh composition fixes headerless loss and Files empty-side duplication without weakening exact caps. Limited core acceptance.", "sha256": "42825cc121d748d86318e1ead546dc0f1cc3839b0a644fc797abf66b77eaad83",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -1699,7 +1752,7 @@
     {
       "path": "modules/blackhole/src/core/unified-config.ts",
       "originalSha256": "42f354206bd2c48c26943167516908b38ddb9a727e3f73d737b220a4f889a521",
-      "sha256": "c1a33b038484b0e3336aa6cf66050ec7d25e9c415fa3cd79b8483778aa8c78ad",
+      "piOwnedSummaryMigrationPreviousSha256": "c1a33b038484b0e3336aa6cf66050ec7d25e9c415fa3cd79b8483778aa8c78ad", "piOwnedSummaryMigrationAdaptation": "PASSIVE once then explicit env/session and pure validation; readonly legacy diagnostics and canonical current writes omit exactly seven ignored controls while preserving effective/unknown metadata.", "defectRepairPreviousSha256": "c24b4ab6550db4ee0f6acf1503a6c997d381e8ce62f31fc91ab52e19623d6887", "sha256": "c33d2c15399e5ca2e26a80897bc7b0d89bd94f5381da2e4afb103bd60e3947b8",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -1750,7 +1803,7 @@
       "originalSha256": "ae812589f93e1c5d45c0dc5f5d6ad4c035e5a3d0ab7be951e4cd08ca19bae738",
       "notificationEvidencePreviousSha256": "910e44fc74934293e0317eb914ac4ea94976e820043ff4dae0bde915ca5337ab",
       "notificationEvidenceAdaptation": "2026-10-09 structural evidence summary and optional actual insertion span/digest/refs provenance for fallback/append trailing; verified-only carry/strip isolates heuristics. No timing/tail change or legacy compaction backfill.",
-      "sha256": "f3c4165cc250e224c14035ab73badb9d85087c906b338dc6e2de0cc446762742",
+      "piOwnedSummaryMigrationPreviousSha256": "f3c4165cc250e224c14035ab73badb9d85087c906b338dc6e2de0cc446762742", "piOwnedSummaryMigrationAdaptation": "Public summary-only hook preserves native preparation cut/tokens and eligible edits; composition/proof, pending admission-versus-persist receipt and native fallback invalidation integration. Limited cumulative reviews, not transactional erasure.", "sha256": "c94f3ed202d3a6b131e6e30acfc92fea986c84ec42376223feaecb336260b1ab",
       "previousNotificationEvidenceReason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change.",
       "reason": "2026-10-09 authorized local notification-evidence consumer adaptation, beyond earlier LF import normalization; exact behavior documented in notificationEvidenceAdaptation and blackholeNotificationEvidence. Immutable original/history preserved, not an upstream-identical copy."
     },
@@ -1877,7 +1930,7 @@
     {
       "path": "modules/blackhole/src/om/consolidation.ts",
       "originalSha256": "9732c25bc6209e859aaf18d9ffead4e9d1699920c951a0159f65a6225d7ef110",
-      "sha256": "29a6b0d39f4de9aee4fcfb02b539f3b953b0e56766cc13d527df9f68fbb3fe6b",
+      "defectRepairPreviousSha256": "29a6b0d39f4de9aee4fcfb02b539f3b953b0e56766cc13d527df9f68fbb3fe6b", "sha256": "41e8e6f79b816159553e546aaf8e035e709e60620575c18a2e477752d2c31d2b",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -1931,7 +1984,7 @@
     {
       "path": "modules/blackhole/src/om/ledger/projection.ts",
       "originalSha256": "aa577fc28f5c7fb9ac1198feaaefbdae00f5ad413e07092355d2ab63fabf6c92",
-      "sha256": "62031eea49fd7f9e4b0f0273eb86727dfb0ab57e517a1f1a04c208ccc8eeb5b0",
+      "piOwnedSummaryMigrationPreviousSha256": "62031eea49fd7f9e4b0f0273eb86727dfb0ab57e517a1f1a04c208ccc8eeb5b0", "piOwnedSummaryMigrationAdaptation": "Explicit active sourced edits invalidate affected stale observations/supporting reflections with checkpoint carry-forward; source outside window is not redaction. No unproved transitive selective erase or full-history cleanup.", "sha256": "161609e819919dad1ccb1c6b618013a97f422e1c0b9aa526c9fb9b263ddd35c4",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -1949,7 +2002,7 @@
     {
       "path": "modules/blackhole/src/om/ledger/types.ts",
       "originalSha256": "8612846e2fcf68325db640e752751bd70bcf2e64449574062f4d1fd0b3f135bd",
-      "sha256": "b15248190adb7da3001dee0fcfb70067d130859c5460675f045740a7e24503a7",
+      "piOwnedSummaryMigrationPreviousSha256": "b15248190adb7da3001dee0fcfb70067d130859c5460675f045740a7e24503a7", "piOwnedSummaryMigrationAdaptation": "State-only sourced invalidation checkpoint schema supporting Pi-owned summaries; earlier limited scope at exact fixed snapshot, not a new full ledger safety review.", "sha256": "0bb24afdd4d7261803b52c893ff137192899a66aafd11f728ae8f93f822d3ff7",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -1961,7 +2014,7 @@
     {
       "path": "modules/blackhole/src/om/pending.ts",
       "originalSha256": "094e797519ee903b4ad6016ef35c047a3494d27079498ef4ba70cf383be2454c",
-      "sha256": "76677881f26e2eb917e9c641dabe9f17f298cfcc6ad8a76a3e92fe22bf892392",
+      "piOwnedSummaryMigrationPreviousSha256": "76677881f26e2eb917e9c641dabe9f17f298cfcc6ad8a76a3e92fe22bf892392", "piOwnedSummaryMigrationAdaptation": "Pending flush admission and persisted identity/branch/snapshot cleanup fences; refusal/cancel/changed batch/unlink failures do not acknowledge buffer cleanup. Existing OM gaps remain.", "sha256": "741b2580980e42e34052c93354f453fc906ca5078130fb62f078e6dce8bc0662",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -1991,7 +2044,7 @@
     {
       "path": "modules/blackhole/src/om/runtime.ts",
       "originalSha256": "673902b66f2209160cd9af0d9744e630935a83ec5625d1ec560291c098e1caf2",
-      "sha256": "1d0101aa009a765f96d935d38a21e64ea9a525346479276c67960bf5488198a3",
+      "defectRepairPreviousSha256": "1d0101aa009a765f96d935d38a21e64ea9a525346479276c67960bf5488198a3", "sha256": "734b3079b54e4df4af13e39fe637400b4176b0bfd750d11a22629a5a47fa2c81",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -2003,7 +2056,7 @@
     {
       "path": "modules/blackhole/src/om/status-bar.ts",
       "originalSha256": "bbc9f6687de3df0a19272b36c6062eaba2f238358393aa908247d1bc53b414c7",
-      "sha256": "2de9a181dfda2dc2e97be96a44676233a8b074a3bcf938d020d0fd5185004c65",
+      "piOwnedSummaryMigrationPreviousSha256": "2de9a181dfda2dc2e97be96a44676233a8b074a3bcf938d020d0fd5185004c65", "piOwnedSummaryMigrationAdaptation": "Public context/capacity-or-unknown X gauge; no legacy preset ratio or guessed native trigger budget. Limited migration/UI contract, not threshold ownership.", "sha256": "b5cdcb3cc7e031ac8457e793a2bec9ea96ae3e90e1bff65d1fcaa3c7b7bbb601",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -2021,20 +2074,20 @@
     {
       "path": "modules/blackhole/src/pi-base/blackhole-settings.ts",
       "originalSha256": "addf303117981d40893d2e82d5d68866f26cee753d295a20651b44c122d02a90",
-      "sha256": "0ec0a5602aa8ce3652bb58feb2058a8b276ad200d8c5b5434888044fe42e067f",
+      "piOwnedSummaryMigrationPreviousSha256": "0ec0a5602aa8ce3652bb58feb2058a8b276ad200d8c5b5434888044fe42e067f", "piOwnedSummaryMigrationAdaptation": "Ignored legacy controls become readonly compatibility rows; effective settings remain editable/preserved. New scaffold/canonical-save contract only, not Pi trigger pickers.", "sha256": "4ba9851c0a10ce6202357ab0dae9d3f1741b8e8fed45000f90a9e767676aa24a",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
       "path": "modules/blackhole/src/pi-base/config-manager.test.ts",
       "originalSha256": "f0c7cce2b2b48f22a955d7852849623614cbcd93fa3b8175a8f1a7c4a38e3902",
-      "sha256": "692ab8050f4f6e8a21aba30e628bb0775ee11ded5c9cd605a2982f4294a019c4",
+      "piOwnedSummaryMigrationPreviousSha256": "692ab8050f4f6e8a21aba30e628bb0775ee11ded5c9cd605a2982f4294a019c4", "piOwnedSummaryMigrationAdaptation": "Config scaffold/canonical explicit saves, preservation and supported branch/diagnostic regression adaptation under limited settings review; prior reason retained as history.", "defectRepairPreviousSha256": "25db273eaef8e046c0bfdd3ef8190ddbacd253c17f2388581e755d2f72b2c2c2", "sha256": "c39b3dd307f3744aae26feeb499e2ca0c5c12c11ad22a9965537312f8f8adc80",
       "previousTestHarnessRepairSha256": "147746fee4d6d8a02042b90c74bb44cf43af1979a3b3d8616839337edf65a7c6",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change. Subsequent 2026-10-09 semantic test adaptation: portable tmpdir/join fixtures and expected paths; mock only the modeled temp boundary for isolated-HOME refusal probe, retaining false/no-write guard assertions and unchanged runtime guard."
     },
     {
       "path": "modules/blackhole/src/pi-base/config-manager.ts",
       "originalSha256": "ad8d702bc8c676b6ef7cda9893cdb0c6a925098628eda192ac1a9fddb8fbb51c",
-      "sha256": "fd3f3fc05d372f8fe592c68791a2e7f6553d8066a6d2a6585003461f5c1fc0f1",
+      "piOwnedSummaryMigrationPreviousSha256": "fd3f3fc05d372f8fe592c68791a2e7f6553d8066a6d2a6585003461f5c1fc0f1", "piOwnedSummaryMigrationAdaptation": "Canonical seven-key writes preserving unknown/model extras; actual saved-record ancestry and append-only empty reset/delete, genuine pending retention, public hasUI delivery-based dedup/navigation reprojection. Supported-chain postconditions, not arbitrary-writer atomicity.", "defectRepairPreviousSha256": "d2fca612b3fcccfd0ce06b2cfc84f1f182ae5a77eabfec5b8faf420824152be0", "sha256": "86cb18e5093bad2da912589e336b64779b1f3759704c9e53fdcb7e73da2e727a",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -2046,7 +2099,7 @@
     {
       "path": "modules/blackhole/src/pi-base/config.ts",
       "originalSha256": "8dfe7d0da1d78372d4d2e9e6183b0e77e0dc5f10fd38a280ce446d58ea71e11f",
-      "sha256": "8519092a2a1b89bfe5e84318de19eae43ac1635aac8ac168a5f18950de800a34",
+      "defectRepairPreviousSha256": "8519092a2a1b89bfe5e84318de19eae43ac1635aac8ac168a5f18950de800a34", "sha256": "5a1bb6609a94fd8a4d7449938366c1ec5c3f80db5bde9b1a50f75eed0da67f5d",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -2106,14 +2159,14 @@
     {
       "path": "modules/blackhole/src/pi-base/settings/config-flow.test.ts",
       "originalSha256": "d3a8f029eb6b1c86da452ecdf68368c9fd2adc7188a6a0f650693d58f75bb28e",
-      "sha256": "0e88a82a6fdee69499b6df5198ee6c75ac80c5731ff3747420e339695dbe40dd",
+      "defectRepairPreviousSha256": "0e88a82a6fdee69499b6df5198ee6c75ac80c5731ff3747420e339695dbe40dd", "sha256": "0d7f3376ba81286ed05f6ecdaa77d3ef6bc1510734622545c528f46cfc3e2315",
       "previousTestHarnessRepairSha256": "dff06d1229a6eb45c907282f95a19e89c38aae95892a8606a9271255f52cd8f9",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change. Subsequent 2026-10-09 semantic test adaptation: native tmpdir/join fixtures and stricter full notification path equality rather than POSIX-only prefix matching."
     },
     {
       "path": "modules/blackhole/src/pi-base/settings/config-flow.ts",
       "originalSha256": "01472b0995b383200125dc5c07d98ee2fdadd0028162116645fb46ea3fbdf9fd",
-      "sha256": "29330a1c3e7afd14b1b555a658886a1be5863e3af57a0966861e05d289361db7",
+      "piOwnedSummaryMigrationPreviousSha256": "29330a1c3e7afd14b1b555a658886a1be5863e3af57a0966861e05d289361db7", "piOwnedSummaryMigrationAdaptation": "Successful Reset/Delete replaces full Save buffer with fresh layers; observable existing-file refusal prevents false refresh and preserves dirty edits. Review4 adds only eight production lines over accepted Review3 flow; limited W1/W2/W3 static acceptance.", "defectRepairPreviousSha256": "229b61c5a8f10f4ad2a4223ee13303a01e106493613075160debd50dd61a12d1", "sha256": "674f4c8516fc7e0e3651a3a46ccd9a292c58c11879361a65b47aa14f69165b8f",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -2362,31 +2415,31 @@
     {
       "path": "modules/blackhole/tests/append-before-compact.test.ts",
       "originalSha256": "e3f8f68531f57561cac0b343515799778afca0a8bbe9ccde8050326e32ac5f80",
-      "sha256": "9dc666e41097cbe2879518158d5aebd55a2ae2f9383dd36957df3a2dc83bc389",
+      "piOwnedSummaryMigrationPreviousSha256": "9dc666e41097cbe2879518158d5aebd55a2ae2f9383dd36957df3a2dc83bc389", "piOwnedSummaryMigrationAdaptation": "Migrate existing before-hook fixture to real native preparation/retention authority, preserve append safety assertions rather than obsolete BH-selected cut.", "sha256": "16fa42164267e349304a5c97a60987b30ea2632c40ad5e73df58a3689f092dd9",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
       "path": "modules/blackhole/tests/append-config.test.ts",
       "originalSha256": "904e107d73ced1a63509a708f32e1e9a59d4f3777ddb254ad177246a3a272450",
-      "sha256": "3b329ff8949978d2f20aeb081cdc4212c6eb3d53671c789d777e2960a02663b8",
+      "defectRepairPreviousSha256": "3b329ff8949978d2f20aeb081cdc4212c6eb3d53671c789d777e2960a02663b8", "sha256": "2332f054c27dcfc731c382095fdd222dc5593bcabcd56c00e231f3c147af3ebc",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
       "path": "modules/blackhole/tests/append-rebase-surgery.test.ts",
       "originalSha256": "38e123c4bf9dc210eafef2ad20edeac6029de14d3cde0fe1a478bc68a5f6c5ce",
-      "sha256": "6117660be25fb2ba43d5ffe8552257520dd2842609cc733507f50d5d6471a904",
+      "piOwnedSummaryMigrationPreviousSha256": "6117660be25fb2ba43d5ffe8552257520dd2842609cc733507f50d5d6471a904", "piOwnedSummaryMigrationAdaptation": "Native-cut append/rebase fixture and trusted previous-generation boundaries; no resurrection of aggressive conversation-tail ownership.", "sha256": "0d4df5dacbf388b758ac9117dad0dab428ade0863527c189c967895c87a2625b",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
       "path": "modules/blackhole/tests/auto-compact-permutations.test.ts",
       "originalSha256": "302802a67af941a0ece6af30c28c6835e2256e32fb8490a6f4119551ca4be1f7",
-      "sha256": "3df75ea8b9d21c1b781cde73eaab279ae5ca14bdf9a9c8d3acd7d11d92da94a6",
+      "piOwnedSummaryMigrationPreviousSha256": "3df75ea8b9d21c1b781cde73eaab279ae5ca14bdf9a9c8d3acd7d11d92da94a6", "piOwnedSummaryMigrationAdaptation": "Native compaction operation permutations replace obsolete BH-selected auto/cut assumptions; inherited Pi-owned fixture migration, no new automatic trigger.", "sha256": "20438330d2a265af59e1eea35489a2ce310140fbe29307df7c9bb1425424065c",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
       "path": "modules/blackhole/tests/blackhole-command.test.ts",
       "originalSha256": "60140b0f19ae0c2703f8ae1dd59234d2656a135452ecf35a6521944cff59b46f",
-      "sha256": "1c7d79c51325dc876aac42e7f33447c951907499d0024a737be2d0d061d0a786",
+      "piOwnedSummaryMigrationPreviousSha256": "1c7d79c51325dc876aac42e7f33447c951907499d0024a737be2d0d061d0a786", "piOwnedSummaryMigrationAdaptation": "Actual public native alias origin/callback/retention and corrected readonly settings expectations; existing command assertions adapted to Pi-owned summary contract.", "defectRepairPreviousSha256": "94b77e62a74e257e2f07cea89d6dd999a352fe4d3581b83870d6ca2241d88b3e", "sha256": "5e62de1ce025186dca29bd7787738056f5ee2de7cb851eb2601ae69c85b3e97e",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -2410,7 +2463,7 @@
     {
       "path": "modules/blackhole/tests/compact-failed.test.ts",
       "originalSha256": "a56c9aab7eab17e1f1423968251ade438720eb43327cd645b72f7c5e552c3d09",
-      "sha256": "63824d993bac042ff519926d9e088c5135b2733b1128d21dc3523745741a92d8",
+      "piOwnedSummaryMigrationPreviousSha256": "63824d993bac042ff519926d9e088c5135b2733b1128d21dc3523745741a92d8", "piOwnedSummaryMigrationAdaptation": "Native preparation/failure fixture migration retains cancellation/error invariants, not obsolete empty compact-all cut expectations.", "sha256": "a7a7e015510276e917521c9bbfcf3033496cb34e64dcea9cb6f3a01158d999b2",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -2440,7 +2493,7 @@
     {
       "path": "modules/blackhole/tests/config-manager-modal.test.ts",
       "originalSha256": "cc51e6319b41d5757e99ff0e14bb122a7c6ce7634ee0150039ef354eb51959be",
-      "sha256": "6eb86873f347dc27b812f950843788e40b3a1781f8e8390a92226f1344548c50",
+      "piOwnedSummaryMigrationPreviousSha256": "6eb86873f347dc27b812f950843788e40b3a1781f8e8390a92226f1344548c50", "piOwnedSummaryMigrationAdaptation": "Supported settings modal precedence, readonly inactive-control and canonical save regression adaptation; previous history retained.", "defectRepairPreviousSha256": "26c59d4241c12bbf018e7dacefd48f0a7bfd2bde9783270a90f46f06b2bc627c", "sha256": "f43147388aeb3a78dcaae0919ebba9cab2e22878c5ed74d2ca05aa06f54e4b1e",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -2452,7 +2505,7 @@
     {
       "path": "modules/blackhole/tests/config-simplification.test.ts",
       "originalSha256": "914989898c85926797e995fbb525af4625f0a7283f8bc25642206f8eca5968ba",
-      "sha256": "359848833001aa801e500878c39b77434c1dbcd4aa9f16d6537c0e11c64b43e0",
+      "piOwnedSummaryMigrationPreviousSha256": "359848833001aa801e500878c39b77434c1dbcd4aa9f16d6537c0e11c64b43e0", "piOwnedSummaryMigrationAdaptation": "Summary-only config/canonical scaffold expectations preserve active and legacy semantic controls, not old timing knob generation.", "sha256": "8feb8cd9369bcecf4ebebfd35af10af4b1503174dd6ec973aa935265f224af12",
       "previousTestHarnessRepairSha256": "b84809d8fc833ecd2ce6bd8a40199da42923a15c526f9bf6c3f85c9b9ff5b2d6",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change. Subsequent 2026-10-09 semantic test adaptation: inject filesystem EROFS instead of platform-dependent chmod/root skip, preserve false/no-throw contracts and add unchanged-file, actual-write and diagnostic assertions."
     },
@@ -2532,7 +2585,7 @@
     {
       "path": "modules/blackhole/tests/example-config-completeness.test.ts",
       "originalSha256": "520f99b9b2ee1b7a041d512669a2f1257a24b869c19017d9721b145de93126bb",
-      "sha256": "f36a9277b942902a9f407bd3ed701c2ade6e7267f5f3df4ee06b8aaea11d8953",
+      "piOwnedSummaryMigrationPreviousSha256": "f36a9277b942902a9f407bd3ed701c2ade6e7267f5f3df4ee06b8aaea11d8953", "piOwnedSummaryMigrationAdaptation": "Current example completeness distinguishes inactive seven controls and non-generated historical preset definitions from effective memory/model defaults.", "sha256": "98319ce3ca4a984d3d69a15331ae9c8782072d1fb56df352f52d61220a62c2ee",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -2580,7 +2633,7 @@
     {
       "path": "modules/blackhole/tests/index-factory.test.ts",
       "originalSha256": "696836e6fa044e606a7a81d4276c0632a4629ddfb1e37033c733953109869490",
-      "sha256": "44733d01cb3953df852894e2e49b36f3b6665388c1896eca4fe56808aab8bc53",
+      "piOwnedSummaryMigrationPreviousSha256": "44733d01cb3953df852894e2e49b36f3b6665388c1896eca4fe56808aab8bc53", "piOwnedSummaryMigrationAdaptation": "Factory regression verifies removed private inline/automatic trigger installation; keeps public summary hook rather than fake trigger guarantees.", "sha256": "d49c899b667f29c482c4b2d1c5b266ac0d65bdaa2a3fb816a521a6be01d79d9d",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -2604,7 +2657,7 @@
     {
       "path": "modules/blackhole/tests/lazy-command-imports.test.ts",
       "originalSha256": "87f6bd07dd18b2ef746de3fee0279b35aa6d6d772cc654241985157d90f31e6e",
-      "sha256": "23b5f716ef7e0ed0cdef1decb2e8ade03d46e4e929e0684c77e911501a060696",
+      "piOwnedSummaryMigrationPreviousSha256": "23b5f716ef7e0ed0cdef1decb2e8ade03d46e4e929e0684c77e911501a060696", "piOwnedSummaryMigrationAdaptation": "Lazy command import fixture migration for public Pi-owned native alias; inherited exact snapshot, no new runtime import manager.", "defectRepairPreviousSha256": "e6e882c262f79dafae104242a0e8447d8274ed26f007a3185ecfd146d839b71f", "sha256": "777f66e6ec588339027046bd5adafe2295d08d196487e536f1c289e3d8add972",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -2622,7 +2675,7 @@
     {
       "path": "modules/blackhole/tests/memory-command.test.ts",
       "originalSha256": "fca3015c454228a3636da60f18b50d5a9b6226e4a416bc0ff4f281a2a49771a5",
-      "sha256": "5876f0e786a32289bc10eb345837ec477ed4bb8f5e9b51473d8b46ea28f18e5f",
+      "piOwnedSummaryMigrationPreviousSha256": "5876f0e786a32289bc10eb345837ec477ed4bb8f5e9b51473d8b46ea28f18e5f", "piOwnedSummaryMigrationAdaptation": "Public context/capacity and unknown native trigger status assertions; keeps effective memory controls and existing command behavior.", "sha256": "e07b2e75641bcf4b6c9d8590f6d93572dcd58dec26a1ca256f134d4547207acb",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -2695,7 +2748,7 @@
     {
       "path": "modules/blackhole/tests/pi-base/config-exhaustive.test.ts",
       "originalSha256": "d9cfc1cce048035588a4fdae3ea8978ec3158f2caa34a4fbbddca3697c7d7e7a",
-      "sha256": "212a141cec20152205415098dfacd6169bda73e7f10946e57ce2a23f12e6c73f",
+      "defectRepairPreviousSha256": "212a141cec20152205415098dfacd6169bda73e7f10946e57ce2a23f12e6c73f", "sha256": "fca624c1607cc1020ca8fe77ff957459bf045b0380d4a6a92285396e96acead0",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -2884,7 +2937,7 @@
     {
       "path": "modules/blackhole/tests/session-start-resilience.test.ts",
       "originalSha256": "d747ca67fda8eb0790ac7720fe224f1311703180ed7d11866eb41eaa2da038d7",
-      "sha256": "1003d098f42b21110463b9475b252ac9798a22ba8b35b89a27ae862739555867",
+      "piOwnedSummaryMigrationPreviousSha256": "1003d098f42b21110463b9475b252ac9798a22ba8b35b89a27ae862739555867", "piOwnedSummaryMigrationAdaptation": "Supported session startup/settings diagnostic and readonly migration expectations; source recovery behavior not widened into arbitrary-writer durability.", "sha256": "8f3eeec363322a33d7e5a41af002aadec2cca4d4538d77702b72865828e214c8",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -2902,7 +2955,7 @@
     {
       "path": "modules/blackhole/tests/status-bar.test.ts",
       "originalSha256": "d99e560d6d8c21145b1c24811de8df46cdafa8622bb6ae0543069019f7114cda",
-      "sha256": "438ad5cf8209e9a2a63fc8173f84b44e592d96e6be375cad9857b62d8aad8e41",
+      "piOwnedSummaryMigrationPreviousSha256": "438ad5cf8209e9a2a63fc8173f84b44e592d96e6be375cad9857b62d8aad8e41", "piOwnedSummaryMigrationAdaptation": "X public capacity/unknown budget presentation regressions, not legacy threshold ratios; effective memory-gauge semantics preserved.", "sha256": "d9e5242af96cebca2f0a0a82162e14389196e93b674f16c3f885ee9c98610e1d",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -2914,7 +2967,7 @@
     {
       "path": "modules/blackhole/tests/summary-global-indices.test.ts",
       "originalSha256": "a8329d7c9c7f9b9d62754313aedeaedf77d39b2041c5e97953abd1f69c744344",
-      "sha256": "657e8ebf0b47411ab373e42ee0c48ce556dc5e4ea7d00398a545666df12f2619",
+      "piOwnedSummaryMigrationPreviousSha256": "657e8ebf0b47411ab373e42ee0c48ce556dc5e4ea7d00398a545666df12f2619", "piOwnedSummaryMigrationAdaptation": "Summary-index fixture now supplies native preparation/authoritative cut; keeps global recall reference invariants without compact-all assumptions.", "sha256": "043fc98970c63cb4c5465a6323db343de1ab1dd4654ddebb3afdee5b06cc691a",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -2944,7 +2997,7 @@
     {
       "path": "modules/blackhole/tests/vcc-before-compact-hook.test.ts",
       "originalSha256": "df05f5ec202b2ac9aebbb09daa87ba091360ad6c4566da72e4823aa7cccddb0d",
-      "sha256": "f4a648b5802adc18810427c3bbf16d96d8d4118cde94847ea9caf0ed8b53aed9",
+      "piOwnedSummaryMigrationPreviousSha256": "f4a648b5802adc18810427c3bbf16d96d8d4118cde94847ea9caf0ed8b53aed9", "piOwnedSummaryMigrationAdaptation": "Existing hook fixture migrates to actual native preparation authority and exact cut/tokens while preserving source/evidence safety assertions.", "sha256": "81387ed9d638c0884b76cdb716a74dc3478564cdd90c461981a910b209ea1d0f",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -2968,13 +3021,13 @@
     {
       "path": "modules/blackhole/tests/vcc-compile-append.test.ts",
       "originalSha256": "cbb2a686911089d1ea2fc71196bbd55007a236d9210bf8a30dfa67535f7a3532",
-      "sha256": "db48167034c5070fac6bb48766bb522125cd14a286a706faa5868a4e7ac3c5ad",
+      "piOwnedSummaryMigrationPreviousSha256": "db48167034c5070fac6bb48766bb522125cd14a286a706faa5868a4e7ac3c5ad", "piOwnedSummaryMigrationAdaptation": "Append compile regression adapts trusted previous-generation versus literal native/unknown policy; preserved negative scope and exact retention, not wider erase authority.", "sha256": "ce502b13df02c404663743f4c50759a17f92ea9bd5f72937197d4da884d54b4b",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
       "path": "modules/blackhole/tests/vcc-compile.test.ts",
       "originalSha256": "364acc682e4a169b6a6dadd66d87be6e8450ddd823881253e5dbe53c36971448",
-      "sha256": "0cc10433d8cae70307e5ec2a9bf8398f080d74fab4215b168c85c505256fd0fc",
+      "piOwnedSummaryMigrationPreviousSha256": "0cc10433d8cae70307e5ec2a9bf8398f080d74fab4215b168c85c505256fd0fc", "piOwnedSummaryMigrationAdaptation": "Native preparation/summary composition fixture migration and literal unproved previous text assertions; not forged proof or relaxed safety expectations.", "sha256": "014a762b52e623846ca21fb3516e4c7dd9282e885d6739673170053632b76de3",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -3035,7 +3088,7 @@
     {
       "path": "modules/blackhole/tests/vcc-git-status-annotation.test.ts",
       "originalSha256": "69b139d48ecc98e04b0309a5daba39f638d173308bf17128d28cb02b11a41b0c",
-      "sha256": "d46add8b5219d7aee06be2cf8a1d5a54f75506db96b0e6c4cdb948be6d812147",
+      "piOwnedSummaryMigrationPreviousSha256": "d46add8b5219d7aee06be2cf8a1d5a54f75506db96b0e6c4cdb948be6d812147", "piOwnedSummaryMigrationAdaptation": "Summary-format/writer-aware commit annotation fixture migration, preserves current File/B1 invariants rather than claiming upstream-identical copy.", "sha256": "d3e4cd57ae31f9bd2d22f24bce74c8aab89953878e1cbf6450b295c08a8e811a",
       "previousTestHarnessRepairSha256": "d5536fedbaf7713a01808fc8a65c02d2b4c018429ad64f78dfeebcec7fe29609",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change. Subsequent 2026-10-09 semantic test adaptation: injected maps match producer slash-normalized key contract while fileOps retain native Windows paths; real Git assertions use Git canonical repo root to account for Windows 8.3 TEMP aliases, retaining tag/fail-closed/foreign-env assertions."
     },
@@ -3122,7 +3175,7 @@
     {
       "path": "modules/blackhole/tests/vcc-summarize-robust.test.ts",
       "originalSha256": "dffd3047dfbeda735abe5109155b5c2e52a52761ffcba6f3f15ff4814ca017e8",
-      "sha256": "c2931f632ad251122da37b20ad42470116b24bf04daa3b9a2a4f8bb46aa06997",
+      "piOwnedSummaryMigrationPreviousSha256": "c2931f632ad251122da37b20ad42470116b24bf04daa3b9a2a4f8bb46aa06997", "piOwnedSummaryMigrationAdaptation": "Core S1/Files merge regressions retain unproved text and exact caps/counts, native preparation and fresh composition; accepted limited core static repair, not broad legacy semantic conversion.", "sha256": "28d2c0de7597f5018f0bccd413e83b4f080df26d32429a90ecd4c0c2daa56923",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -3164,7 +3217,7 @@
     {
       "path": "modules/blackhole/vitest.config.ts",
       "originalSha256": "95d076f0cb3648966ee1bebaf6c10ceee37211034b53923fae7b6a1b44baf9d8",
-      "sha256": "cd21f9b2e6f0c0dbc51cee1a92f098c55c29795bef5e585967a9fdc8ad3f0eac",
+      "validationRepairPreviousSha256": "cd21f9b2e6f0c0dbc51cee1a92f098c55c29795bef5e585967a9fdc8ad3f0eac", "sha256": "9164aad7c4c66c66df6372516cb0708a4950c93fdb18dd9f940eae8c60b91ce3", "validationRepairAdaptation": "2026-10-10 explicit unit/native/all discovery with serial native worker; aliases/setup/default excludes/unit10s retained.",
       "previousTestHarnessRepairSha256": "7644b5e5ff47f98dc51dca067b9caafdc3608dcc3cf0ab2825811e5b8c10c12f",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change. Subsequent 2026-10-09 semantic test adaptation: setup audited pure-config passive contracts and limit .js rewriting to relative source imports; absolute host file URLs remain intact. No test exclusion or deadline changes."
     }
@@ -3184,6 +3237,9 @@
     }
   ],
   "addedFiles": [
+    { "path": "tests/helpers/test-tools.mjs", "sha256": "7d71bcf2e94b2897d8def8dc441025b33376ef1249837a072bf3249d699bad8c", "reason": "2026-10-10 test-only rg resolution/version validation and isolated exclusive binary copy; no download, settings/credentials reads, runtime dependency or skip." },
+    { "path": "tests/unit/test-tools.test.mjs", "sha256": "900b02ad21a4ad84689175c48581384bfb8ec43d464bbd46c2410c6f8dfe523e", "reason": "2026-10-10 injected-probe rg prerequisite regressions: PATH casing, explicit override refusal, missing binary, symlink resolution, exclusive isolated copy and preserved source." },
+    { "path": "modules/blackhole/tests/test-groups.test.ts", "sha256": "f9e100a4168ac866488c2fe5c7832d0a3e003b88967b07cc99987781c5bbd020", "reason": "2026-10-10 red/green unit/native/all discovery contract and invalid-suite refusal; no host process or timing waits." },
     { "path": "modules/blackhole/src/core/file-results.ts", "sha256": "23ffdc1812d43cac9aa35ecda73107e3ff4a01e99969c543f51dd63f34e37006", "reason": "B1 semantic helper: shared unique-ID/same-name/call-before-result/explicit-false correlation, confined successful Note returned path and modern File result classification with legacy compatibility. New twelve-file static acceptance REPORT-20261009T131232388Z with full raw-byte hash equality, not historical restoration or filesystem/timing/alias approval." },
     { "path": "modules/blackhole/tests/note-file-results.test.ts", "sha256": "4223faea1457219438a7723362acae6d54f5d00f96379e74ec1fd8580d4f7e53", "reason": "B1 eleven-case regression fixture: correlation/negative attempts/native seeds, actual/noop details, retry versus retained errors, stored arguments/fixture hashes, no live Note read and UTF8/display/search-prefix/paging. New twelve-file static acceptance REPORT-20261009T131232388Z with full raw-byte hash equality; no new Blackhole test run or timing/alias acceptance." },
     { "path": "modules/shell-tools/tests/monitor-exec.integration.test.mjs", "sha256": "c586a3ba83a9b3fa8454b05c7c2817a05304a500f5bc1d32c1f733bc65404efb", "reason": "Review actual offline Pi trust-aware normalized settings/pre-abort/cancel/actual-close adapter acceptance; no sleeps/providers." },
@@ -3216,14 +3272,14 @@
     { "path": "modules/subagents/tests/child-startup-receipt-races.test.ts", "sha256": "eb71484ddd90d2fe4ba8e9ea31825b8de26d96bbb8001ebc4ebe1a4c216414d5", "reason": "2026-10-09 24 deterministic initial/reload phase faults; descriptor/path/bytes/metadata, readonly/fd-close/no-false-lease assertions, no sleeps." },
     { "path": "modules/subagents/tests/child-startup-bytes.integration.test.mjs", "sha256": "14fc7168518c0f65a0acae96417b70e9a195110eb2f4a314b1a6d5eccd69fe9d", "reason": "2026-10-09 actual isolated Pi1.1.0 Unicode positives/invalid rawUTF8 admission0-close1 preserving bytes." },
     { "path": "modules/subagents/tests/reviewer-note-contract.test.ts", "sha256": "cfd57a0db485ea8987d1b2a5d46a52ea14ead20b7be1e34e96974321412d093c", "reason": "2026-10-09 parent-owned reviewer tool/native note-only reporting and blocked/no-fallback static contract; not sandbox enforcement." },
-    { "path": "modules/blackhole/src/core/notification-evidence.ts", "sha256": "dd02a6e09b8da43890ad1bfc482848d4bdc3b984dfe321fdba5786a476c401a7", "reason": "2026-10-09 allowlisted custom_message, details-only structural authority, opaque-ID partial/recovery relations, actual-span summary provenance/query booleans/stable e refs; no producer lifecycle change." },
+    { "path": "modules/blackhole/src/core/notification-evidence.ts", "piOwnedSummaryMigrationPreviousSha256": "dd02a6e09b8da43890ad1bfc482848d4bdc3b984dfe321fdba5786a476c401a7", "piOwnedSummaryMigrationAdaptation": "Native-cut/null-edit evidence skeleton and canonical replacement authority, generated-span proof rather than unproved markers; cumulative limited source scope inherited, producer lifecycle not certified.", "sha256": "0350afc878fd30448125bd7986fc92c60b784e07944557a2dccda50920f12750", "reason": "2026-10-09 allowlisted custom_message, details-only structural authority, opaque-ID partial/recovery relations, actual-span summary provenance/query booleans/stable e refs; no producer lifecycle change." },
     { "path": "modules/blackhole/src/core/notification-evidence-scan.ts", "sha256": "e06e6e2d3a71e20e10383d4fd49f8f5010d17d3e1a44d5c72a61086cc4aaa3dc", "reason": "2026-10-09 evidence-only preparse64KiB line/chunk,32MiB read/100000 lines/finally-close, distinct incomplete reasons; legacy scanner unchanged." },
-    { "path": "modules/blackhole/tests/notification-evidence.test.ts", "sha256": "fe363c91cb18e4353b1c4212efdb3ce1c7e94667438948539f50acea36c0d4b1", "reason": "2026-10-09 host-shaped allowlist/stable refs/authority/recovery/verified carry/scope/budget regressions." },
+    { "path": "modules/blackhole/tests/notification-evidence.test.ts", "piOwnedSummaryMigrationPreviousSha256": "fe363c91cb18e4353b1c4212efdb3ce1c7e94667438948539f50acea36c0d4b1", "piOwnedSummaryMigrationAdaptation": "Canonical native-cut/edit notification evidence regression migrations; existing allowlist, details authority and bounded negative assertions preserved.", "sha256": "63a06c8b4d471f97512768299c061e1c149cb7bf15a80301fa8660c732e46e1f", "reason": "2026-10-09 host-shaped allowlist/stable refs/authority/recovery/verified carry/scope/budget regressions." },
     { "path": "modules/blackhole/tests/notification-evidence-review.test.ts", "sha256": "c129593f6996d887e66e2a98f7297882e81f310012b27dc94895e6d3a6a71eb7", "reason": "2026-10-09 A1-A6 authority/opaque IDs/recovery/provenance spans/scanner bounds/delivered-body paging regressions." },
     { "path": "modules/blackhole/tests/notification-evidence-warning.test.ts", "sha256": "9a556f664f083066052eb02b8f4d78b7481478174fa3deedb609f2c7bc891d45", "reason": "2026-10-09 R1 root/nested details boolean authority and R2 bounded unavailable selected diagnostics at1/50/200/0." },
     { "path": "modules/blackhole/tests/notification-evidence-scan.test.ts", "sha256": "1f5a3886dc99c9e71d003336e860889b5eba752d4219e2cab376c84c59fe0710", "reason": "2026-10-09 exact65536 line/cross-chunk CRLF/EOF/actual descriptor close on exceptions; supplementary tests, scanner source unchanged this follow-up." },
     { "path": "modules/blackhole/tests/integration/notification-evidence.test.ts", "sha256": "c758f4ff8a2c66a4889b2a36bf4a98ca68c4d65a8215fa841e9c869a7f61dc3b", "reason": "2026-10-09 source Vitest isolated default/append compact-persist-resume-recall-successive consumer probes; not producer lifecycle certification." },
-    { "path": "modules/blackhole/tests/fixtures/notification-evidence-host.mjs", "sha256": "646838f580747c62ca7fabd0a3b4d77635631a553682d521b008ee623373d746", "reason": "2026-10-09 actual Pi1.1.0 eight notices/opaque snapshots/mixed recovery/late flags/forged-body/stable old#N/successive default-append provenance; isolated passive zero provider." },
+    { "path": "modules/blackhole/tests/fixtures/notification-evidence-host.mjs", "piOwnedSummaryMigrationPreviousSha256": "646838f580747c62ca7fabd0a3b4d77635631a553682d521b008ee623373d746", "piOwnedSummaryMigrationAdaptation": "Offline actual-host notification default/append probes migrate to exact native cut/preparation while retaining evidence, recall, persistence and no external-call assertions.", "sha256": "3a00999bc82dcde3ad92d205f0c71be2a037adf116e240b65f9d040731bc6668", "reason": "2026-10-09 actual Pi1.1.0 eight notices/opaque snapshots/mixed recovery/late flags/forged-body/stable old#N/successive default-append provenance; isolated passive zero provider." },
     { "path": "modules/shell-tools/tests/notification-batching.test.mjs", "sha256": "248944e589c554a99325cb7dbec3e54825e3c18b64ccfa3526558d9edf881fd9", "reason": "2026-10-09 pure lifecycle batching/retention, manual SDK-state liveness, reentry and ownership regressions; event barriers, no sleep/provider." },
     { "path": "modules/shell-tools/tests/notification-batching.integration.test.mjs", "sha256": "ebfe8215a61a4bbd3d5aa7cf6a6798ddb6da2f343ded5c98a3bed47ac1e60ba5", "reason": "2026-10-09 isolated actual Pi 1.1.0 normal/queued/aborted one-batch probes, owned by Shell integration group." },
     { "path": "modules/shell-tools/tests/fixtures/notification-batching-host.mjs", "sha256": "8b0a21cc572856813fea2d6e0d05a9bd10abca90d126ac39bded9244e55f9bf9", "reason": "2026-10-09 real production Shell factory/SDK hooks and local backend; journal terminal barriers, synthetic offline stream, network forbidden, five mixed results preserved in one persisted/model-visible batch." },
@@ -3267,12 +3323,12 @@
     },
     {
       "path": "modules/file-tools/src/search-tools.ts",
-      "sha256": "27fa07ff18d1003103b5b891f564ec4e2c4ff2b9686b2c19674273bf532203b9",
+      "fffOverridePreviousSha256": "27fa07ff18d1003103b5b891f564ec4e2c4ff2b9686b2c19674273bf532203b9", "sha256": "511800847bc791d37cd45433c150caa4176db72355cf523cec12af550c364fc2",
       "reason": "Pi 1.1.0 user-requested search overrides: public host delegation, defaultActive:false, readonly annotations, optional-null normalization and display-only five-line grep preview."
     },
     {
       "path": "tests/fixtures/sdk-hooks.mjs",
-      "sha256": "f1a72efb24fd7e545b1dad946a96d6b76ec03a4ce20a52301e1fe2d0ea703758", "monitorPreviousSha256": "8c75ebec3fea1e6664d780c7a6a9b0ddf9574ca7d6c922df032a19de5ed9f1b6", "monitorAdaptation": "Inactive/reload/exclusion Monitor probes with existing fourteen SDK cases.",
+      "monitorDefaultActivePreviousSha256": "f1a72efb24fd7e545b1dad946a96d6b76ec03a4ce20a52301e1fe2d0ea703758", "fffOverridePreviousSha256": "a53f3c6361cb170d53aab2602fbcab0e049a45163f254df9f08074585dd3f471", "sha256": "c260e6a00d87d45b858f0e5fc5069f435e643cd5677dd6a153bcf01e948a640d", "monitorPreviousSha256": "8c75ebec3fea1e6664d780c7a6a9b0ddf9574ca7d6c922df032a19de5ed9f1b6", "monitorAdaptation": "Inactive/reload/exclusion Monitor probes with existing fourteen SDK cases.",
       "previousVersionToken": "35e5f94b07a61f81cc4ac6ed14eb85e6",
       "reason": "Pin existing offline host contract to Pi 1.1.0 without relaxing assertions; add search selection/exclusion/reload, durationMs and agent_settled.aborted checks. Earlier root snapshot hashes remain historical."
     },
@@ -3293,7 +3349,7 @@
     },
     {
       "path": "modules/pty-terminal/src/matcher.ts",
-      "sha256": "5f5ca2e61da2a74cd0d076c73d7019f829090a831d497e399fefe5e0177cf850",
+      "defectRepairPreviousSha256": "5f5ca2e61da2a74cd0d076c73d7019f829090a831d497e399fefe5e0177cf850", "sha256": "ef773b417d27f4f382f310ff588c5b963e8b8048f8b178da4cd61475b654ee0f",
       "reason": "2026-10-07 BUG004 terminable regex workers, budget/abort/capacity, permits held until termination. 2026-10-08 current local snapshot review: MH2/M14-M15/L24-L27: retry debounce/deadline, ready compute budget, single-pass escapes, unread admission protection, buffer slack, exited-write refusal and exit-aware pause reviewed; held-until-termination workers and target trust retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "checklistReviewPreviousSha256": "e05a1f90f1de0ee2ae43d63621718bb8bb025307381c50183c56f9ab6d147c60",
       "checklistReviewBaselineSha256": "82bb04b11224ff9fe5ae728247b622b83df9b7d0edeffa35bd58256a49aff779",
@@ -3335,7 +3391,7 @@
     },
     {
       "path": "modules/schedule-prompt/test/stability-fixes.test.ts",
-      "sha256": "0bb84c00b602b5540ba2130e631e46c01dc60ffe9a7e0286770f5af8478dd730",
+      "defectRepairPreviousSha256": "0bb84c00b602b5540ba2130e631e46c01dc60ffe9a7e0286770f5af8478dd730", "sha256": "d4598bc7ec46e8bdb7f54990698663794eb811612a1dda9b5c2fdc4f5b9c321f",
       "reason": "2026-10-07 BUG006-008 read/quarantine failure byte preservation, teardown despite cleanup failure and timer-free cron validation; fs mocks use importActual. 2026-10-08 current local snapshot review: M5-M7/L14-L19: user-authorized local third-party adaptation for terminal skipped-once error, widget snapshot/coalescing, owner-token fail-closed locking/corruption reread, job shape validation, locked fresh counters and session recovery boundary; v1 paths/schema/identity/license retained, not upstream-identical. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "checklistReviewPreviousSha256": "45d18126f7303f351dd4cba8c57222d2e4822ba40e991070a20275c2b69f576c",
       "checklistReviewBaselineSha256": "62291d7110ae6973dfa5be4755de5888226a61d1f4f08defe7f3ac6d47887e7b",
@@ -3424,7 +3480,7 @@
     },
     {
       "path": "modules/schedule-prompt/test/deadline-subagent.test.ts",
-      "sha256": "742701289c0ec3d35e3cdfbdb592c3b4067d0d15b39fc181f2fc9d924176def0",
+      "defectRepairPreviousSha256": "742701289c0ec3d35e3cdfbdb592c3b4067d0d15b39fc181f2fc9d924176def0", "sha256": "9e937f37b93e68bed5375b348ea59e4ee52afaec8a10b60cec035c8a3bdd88de",
       "reason": "2026-10-07 independent-review regression: actual scheduler and runner, mocked SDK only, controlled reload/create/bind initialization crossing cutoff; deadlines changed during setup, once auto-disable, no prompt/stats/notify on skipped setup, disposal/unsubscribe and in-flight completion; disabled recurring jobs are not implicitly admitted when endAt changes, and manual once disable revokes its per-run auto-disable exception."
     },
     {
@@ -3442,12 +3498,12 @@
     },
     {
       "path": "modules/schedule-prompt/test/deadline-scheduler.test.ts",
-      "sha256": "c841e52766c735c4c4c1ce33358d9ec93d3c81965ccc4c86cad364fcec6a88b4",
+      "defectRepairPreviousSha256": "c841e52766c735c4c4c1ce33358d9ec93d3c81965ccc4c86cad364fcec6a88b4", "sha256": "57d48be041ce89509d5e377d73f9c49049ce0da0314ae19aa189c5286151fdf8",
       "reason": "2026-10-07 local fake-clock scheduler edges, clock jumps, deadline update/peer changes, resource cleanup, storage/listener failure and in-flight completion; no paid providers."
     },
     {
       "path": "modules/schedule-prompt/test/deadline-ui.test.ts",
-      "sha256": "63dfe8d02cbb4cd237ffe0ae857e87c3babca578f694fe27b8e323929aa109d5",
+      "defectRepairPreviousSha256": "63dfe8d02cbb4cd237ffe0ae857e87c3babca578f694fe27b8e323929aa109d5", "sha256": "8e5079e18a1b2ce9d8708b5370d619a03615aea7c88e43342df3f620d9cfcd83",
       "reason": "2026-10-07 local add-flow cancellation/retry/confirmation and enable/display/narrow-width UI contract regressions."
     },
     {
@@ -3523,7 +3579,7 @@
     },
     {
       "path": "tests/fixtures/smoke.mjs",
-      "sha256": "eedace5f2fafd8443fd044c9c4836cb8a47e94c27d441ffd15efd11c49ba195d",
+      "monitorDefaultActivePreviousSha256": "eedace5f2fafd8443fd044c9c4836cb8a47e94c27d441ffd15efd11c49ba195d", "fffOverridePreviousSha256": "e5c748496187f311809bd306fe1a7bd33fb3f081c2b04fd997e6407116aa385f", "sha256": "7b89cde9eb3c605c6fd57f535a64aa0b407bf828f0c7708a9a5dedfce141b967",
       "monitorPreviousSha256": "d68c632101f534218e28089d187349924154b461edef427b62f8f46f539a2362",
       "monitorReason": "Native Monitor adds three inactive tools and twelve-local/fourteen-total manifest assertions; accepted existing probes unchanged.",
       "piRuntimePreviousSha256": "5cf84bcff66ebbf80b4df7f1b6927bdc4019e653b3832cd04b641c7e01582cb1",
@@ -3786,12 +3842,12 @@
     },
     {
       "path": "modules/schedule-prompt/test/subagent-runtime.test.ts",
-      "sha256": "0ad01645edd898adc12ea4eb910dafa2efd99038991032db813cd6e09857d53e",
+      "defectRepairPreviousSha256": "0ad01645edd898adc12ea4eb910dafa2efd99038991032db813cd6e09857d53e", "sha256": "b34fcca35ed50e8a86838d6bf42d8e7dc4d470bf71a09290c49faf63c07ce3aa",
       "reason": "Vitest regression for the Pi 1.0 modelRuntime hand-off (host runtime reused, default fallback, no modelRegistry option). No real provider or credentials."
     },
     {
       "path": "modules/schedule-prompt/test/stability-scheduler.test.ts",
-      "sha256": "fc5d9e7d3a1a1cb3dc98a27764921d00c2bb87ab16b51836c573f60cda9e9152",
+      "defectRepairPreviousSha256": "fc5d9e7d3a1a1cb3dc98a27764921d00c2bb87ab16b51836c573f60cda9e9152", "sha256": "e19c0d503f2187f9e4e436528d1c0b483d0d1d0a635aacf5f8684b8cfd1d5df5",
       "reason": "Fake-timer vitest regressions: oversized interval/one-shot timer limits, timer callbacks containing storage failures, one-shot kept enabled when not fired, per-job overlap and concurrency cap. 2026-10-08 current local snapshot review: M5-M7/L14-L19: user-authorized local third-party adaptation for terminal skipped-once error, widget snapshot/coalescing, owner-token fail-closed locking/corruption reread, job shape validation, locked fresh counters and session recovery boundary; v1 paths/schema/identity/license retained, not upstream-identical. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "checklistReviewPreviousSha256": "81cee275a75f56e1f7540ace57b2f6b6e4fb2e04e8b12e64d0d7498f69bd36cb",
       "checklistReviewBaselineSha256": "fc5d9e7d3a1a1cb3dc98a27764921d00c2bb87ab16b51836c573f60cda9e9152",
@@ -3815,7 +3871,7 @@
       "path": "modules/pty-terminal/tests/matcher.test.ts",
       "localSnapshotReview": "2026-10-08 current local snapshot review: MH2/M14-M15/L24-L27: retry debounce/deadline, ready compute budget, single-pass escapes, unread admission protection, buffer slack, exited-write refusal and exit-aware pause reviewed; held-until-termination workers and target trust retained.",
       "reason": "2026-10-08 current local snapshot review: MH2/M14-M15/L24-L27: retry debounce/deadline, ready compute budget, single-pass escapes, unread admission protection, buffer slack, exited-write refusal and exit-aware pause reviewed; held-until-termination workers and target trust retained.",
-      "sha256": "a7900b61f375684a8e5eea8864598538e7950c81eb56aaaef39ad9d165dd5d8c"
+      "defectRepairPreviousSha256": "a7900b61f375684a8e5eea8864598538e7950c81eb56aaaef39ad9d165dd5d8c", "sha256": "bb25f7448d53bff073a66d6f3b1c2530f1decffa445568e2f7c2ba787feaa621"
     },
     {
       "path": "modules/pty-terminal/tests/session-lifecycle.test.ts",
@@ -3828,14 +3884,14 @@
       "path": "modules/schedule-prompt/test/checklist-regressions.test.ts",
       "localSnapshotReview": "2026-10-08 current local snapshot review: M5-M7/L14-L19: user-authorized local third-party adaptation for terminal skipped-once error, widget snapshot/coalescing, owner-token fail-closed locking/corruption reread, job shape validation, locked fresh counters and session recovery boundary; v1 paths/schema/identity/license retained, not upstream-identical.",
       "reason": "2026-10-08 current local snapshot review: M5-M7/L14-L19: user-authorized local third-party adaptation for terminal skipped-once error, widget snapshot/coalescing, owner-token fail-closed locking/corruption reread, job shape validation, locked fresh counters and session recovery boundary; v1 paths/schema/identity/license retained, not upstream-identical.",
-      "sha256": "18aa2f68ef8770cdf9748d61c7eec0037142aa4fc1eafc989a9b443292b142f1"
+      "defectRepairPreviousSha256": "18aa2f68ef8770cdf9748d61c7eec0037142aa4fc1eafc989a9b443292b142f1", "sha256": "f6cf475d09e7be0ecce0a446d26748de1354830108a4d539425396ddac3b47bb"
     },
     {
       "path": "modules/schedule-prompt/test/review-fixes.test.ts",
       "checklistReviewBaselineSha256": "75c096aba18ba27defdb16059d7195f2a266dc2d7cc14d6d380fc5f1be7ab70e",
       "localSnapshotReview": "2026-10-08 current local snapshot review: M5-M7/L14-L19: user-authorized local third-party adaptation for terminal skipped-once error, widget snapshot/coalescing, owner-token fail-closed locking/corruption reread, job shape validation, locked fresh counters and session recovery boundary; v1 paths/schema/identity/license retained, not upstream-identical.",
       "reason": "2026-10-08 current local snapshot review: M5-M7/L14-L19: user-authorized local third-party adaptation for terminal skipped-once error, widget snapshot/coalescing, owner-token fail-closed locking/corruption reread, job shape validation, locked fresh counters and session recovery boundary; v1 paths/schema/identity/license retained, not upstream-identical.",
-      "sha256": "34fe7c1f4bcdba9f95e0cfebb160c63c37118cf946d5680f133ffa7d50958fde"
+      "defectRepairPreviousSha256": "34fe7c1f4bcdba9f95e0cfebb160c63c37118cf946d5680f133ffa7d50958fde", "sha256": "2ccb2b09024b3f6485a1e39e451d217b0268c4cff73934f1a9f861e334281bbe"
     },
     {
       "path": "modules/subagents/tests/review-lifecycle.test.ts",
@@ -3931,7 +3987,7 @@
     },
     {
       "path": "tests/integration/package.test.mjs",
-      "sha256": "9f00e1bc7fdf5563faa9380904bfcc1ae93f96566b445d6526622bbc1524fbce",
+      "validationRepairPreviousSha256": "9f00e1bc7fdf5563faa9380904bfcc1ae93f96566b445d6526622bbc1524fbce", "sha256": "603cf05cbdfa51cf2088a288093f57ddfeb12a203438fb60095c016ea1381b95", "validationRepairAdaptation": "2026-10-10 isolated real rg before5 grep-capable modes; all7 modes/assertions preserved.",
       "monitorPreviousSha256": "5b082b208b6de9863b30e887ddbfcaed4450a256fafbf8006c60f90447fa0f32",
       "monitorReason": "Monitor-owned manifest acceptance adds native module and exact twelve-local/fourteen-total entries, preserving earlier activation/protocol probes.",
       "piRuntimePreviousSha256": "789c0df5b18a198e5efde57025a8c319e822c847514acfbe891720b28618754d",
@@ -4012,8 +4068,72 @@
       "path": "tests/fixtures/blackhole-display-audit.ts",
       "sha256": "22d270e02296272281f2388b414027593dd71ce18d60a77d8ffb5c448381b383",
       "reason": "Authorized test-only public session_before_compact readonly observer: clone actual authoritative preparation/branch IDs for exact assertions; no result/cancel/override/cut/settings mutation. Not a user extension, package manifest resource or personal-config dependency; copied beside temporary production probe only."
-    }
+    },
+    { "path": "modules/blackhole/src/core/generated-summary-spans.ts", "sha256": "7985ce3820e3ed2b6f7d8a1d6462e0815a023ccf6aeadb0ab6cd5a305e058095", "reason": "Pi-owned generated-summary identity/spans proof and mismatch bounds; only trusted generated spans carry/strip, not markdown/literal authority. Exact fixed Review4 snapshot; inherited limited core scope in blackholePiOwnedSummaryMigrationReview." },
+    { "path": "modules/blackhole/src/core/native-compaction-input.ts", "sha256": "e66d7efc822534e16c80b80ffe4e37f9edd2737d5e77a43e06432b9dfe9b7dbc", "reason": "Authoritative native preparation content, explicit-null/replacement provenance and monotone unique-ID/ambiguous slots; raw branch content cannot replace omitted native input. Exact snapshot, limited cumulative review only." },
+    { "path": "modules/blackhole/src/core/native-context-display.ts", "sha256": "1147dc802e50461cffc1abb5135a12fef4e5ba4c54de11fce4fed5094220dfaf", "reason": "Shared display resolver uses operation-owned native snapshot or checked current public projection; ambiguity/recovery exclusion fail closed, effective replacements only. No raw history rewrite or model-visible display copies." },
+    { "path": "modules/blackhole/src/core/pi-owned-settings.ts", "sha256": "ebc5be2e108d2a5daf3ecd845697d30c7ea4db05987dd8421175cfc38d3d2b4f", "reason": "Bounded cwd-aware delivery-dedup compatibility diagnostics for seven ignored Pi-owned timing/cut controls; no BH trigger or implicit file write. Exact limited migration snapshot." },
+    { "path": "modules/blackhole/src/core/summary-format.ts", "sha256": "63999adacf16bedb32685c071f03d0dcc3877a54c664a3139c92d51e45b7fa9a", "reason": "S1/Files-aware structured-section membership, separate writer/format marker handling and nonduplicating Files merge with exact caps/counts. Limited fresh composition/static core scope, not substring authority." },
+    { "path": "modules/blackhole/src/om/manual-pending.ts", "sha256": "0476dd8c786455a394e0d04026b17ae468f05d00db182b32ad30a2af4f8db51e", "reason": "Explicit manual native-hook admission flush and separately fenced matching persisted-summary receipt before pending cleanup; refuse/cancel/branch/batch/write faults retain pending. Not transactional rollback or crash-proof erasure." },
+    { "path": "modules/blackhole/tests/fixtures/before-request-native-chain-host.mjs", "sha256": "5294d3da5fd1db8de37ccedf16178ebae50533eb1c1b34f40678766bc18fe8e1", "reason": "Retained historical host callback-replay diagnostic fixture; source inventory only, not production wrapper installation, normative before-request requirement or a claim that replay was fixed." },
+    { "path": "modules/blackhole/tests/fixtures/before-request-threshold-cancel-extension.ts", "sha256": "d3e416d8784ce7408c21368c612bb8b3007fa32ab06353e27735e1d16727db0a", "reason": "Retained historical diagnostic callback/cancel observer for native-chain fixture; no production installation, no removed timing requirement revived." },
+    { "path": "modules/blackhole/tests/fixtures/native-preparation.ts", "sha256": "a0d913871084038d339a823699a73ac2cd9ed27ee6246ee39fcaaac1fc5c9bec", "reason": "Readonly test native preparation/authoritative kept-entry, token/settings and projected-input builder; replaces old compact-all/BH tail assumptions without changing host implementation." },
+    { "path": "modules/blackhole/tests/fixtures/persisted-summary.ts", "sha256": "092d4b8bab0a492064d92250a8183d07d9cc4e41096a74aced3f4345654c59b0", "reason": "Test persisted writer-format/generated-span identities and actual saved-summary marker projection; no arbitrary marker trust or personal JSONL modification." },
+    { "path": "modules/blackhole/tests/fixtures/pi-owned-audit.ts", "sha256": "0157bea67fa4c13e896a18ee20f2f07263f06419557d0291a7238e5b2669d590", "reason": "Offline test public native operation audit records actual preparation/tokens/cut, final/tool/manual/overflow/cancel phases; no private SDK/request wrapper or production guard." },
+    { "path": "modules/blackhole/tests/fixtures/pi-owned-host.mjs", "sha256": "54e7e81fa31cd566de91329feb89f2f96bb977f0cc7613930dd4e31410c035a6", "reason": "Isolated synthetic with/without BH native lifecycle matrix; Pi timing/cut/retention remains authoritative. Inherited worker evidence, not paid-provider or root release acceptance." },
+    { "path": "modules/blackhole/tests/fixtures/pi-owned-review-host.mjs", "sha256": "9782454c38514530cd43ee25c0baa46f8deb436c2526afa3768dfd51a7c7d66c", "reason": "Offline settings/session/runtime precedence and branch-authority regression host supporting earlier limited wiring review; immutable Review4 snapshot, not new reviewer reruns." },
+    { "path": "modules/blackhole/tests/fixtures/pi-owned-review-peer.ts", "sha256": "db16737d5fa9566369254d930b4f6cd735f0c93c1e7a306fdf3a26c44e5565b7", "reason": "Test-only peer inspection of current native settings/projection operation; exact limited snapshot, no user extension registration or config migration." },
+    { "path": "modules/blackhole/tests/fixtures/pi-owned-review-projection-host.mjs", "defectRepairPreviousSha256": "43b3a6ff895e20f2d197d296913d6b3de702cb0191c20259e9983e40d7b81074", "sha256": "28f3a04fcbe4c8cbc184a57d4388e6769bbb281ae1b93aef0ffe51b1c8ae0f93", "reason": "Actual synthetic host null/replacement/manual/admission/persist/resume projection regressions retain exact native cuts and effective content; limited inherited core/wiring fixture scope." },
+    { "path": "modules/blackhole/tests/fixtures/rereview-navigation-cold-host.mjs", "sha256": "c3aea5ef8945c77a81dd74c870a6dcaf707d71fabea6fe1efb96e68da5a86c02", "reason": "Cold record-authoritative session ancestry test host; sibling/descendant history and warmed caches cannot prove current override ownership." },
+    { "path": "modules/blackhole/tests/fixtures/rereview-navigation-host.mjs", "sha256": "5c8ee12c645bb4f9c844e9673db07826646d9f34021e485988db57d0cb88cc12", "reason": "Offline owner/branch navigation, warning callback reprojection and unsupported snapshot fallback fixtures; preserve lower-layer settings and genuine pending data." },
+    { "path": "modules/blackhole/tests/fixtures/review3-settings-host.mjs", "sha256": "040a50fc0b499df6d8d7830d2d752ea6a11ccd62780bf10d8553a208e4239c9f", "reason": "Offline cold Save/PENDING_SESSION/delete/reset/512-key hasUI warning fixtures, isolated settings and unchanged synthetic producer identities; limited settings/migration review only." },
+    { "path": "modules/blackhole/tests/fixtures/review3-settings-peer.ts", "sha256": "7dacf1611667bd01de466c202f6896aa2e9be9006a9e3e253130a9fb1ab3354f", "reason": "Test-only same-host peer exposes bounded public settings observations/navigation barriers for Review3 settings fixtures; no provider or host SDK patch." },
+    { "path": "modules/blackhole/tests/fixtures/review4-delete-save-host.mjs", "defectRepairPreviousSha256": "aa8613610801b1b0847aa9723a12d2a2a5bb9661dd807850504fbf0d97b0ef03", "sha256": "0882546cfcc8d34a838085d1b40e6543de2f5b0550210dbfa5dcaffa44bfd2bb", "reason": "Review4 offline actual-host Global/Project Delete-to-Save and observable ignored-unlink refusal fixture; isolated mutation only, no external-writer atomicity promise." },
+    { "path": "modules/blackhole/tests/integration/before-request-native-chain.test.ts", "sha256": "01d6bacf857b91345b3f14ed834f40728886c49a5c3445b910e26208c5a710a8", "reason": "Retained callback replay diagnostic wrapper with unchanged historical assertions; not a normative production before-request requirement or a claimed host replay fix." },
+    { "path": "modules/blackhole/tests/integration/pi-owned-review-pending.test.ts", "sha256": "f900da85cac7a8a1a3e024a8991a616f751f819968ed07b3de80e4a2ba1768f4", "reason": "Manual admitted flush versus matching persisted receipt fences; wrong branch/batch/cancel/write and reuse failures retain pending. Inherited limited test artifact, not full pending durability certification." },
+    { "path": "modules/blackhole/tests/integration/pi-owned-review-projection.test.ts", "sha256": "211027e912d7ecb9d468a5257dda957b69f7367799a72f63cdd950e9bd396af2", "reason": "Synthetic actual-host native null/replacement/OM/display/persist/resume invariants; raw omitted/replaced text cannot return through summary or display fallback." },
+    { "path": "modules/blackhole/tests/integration/pi-owned-review.test.ts", "sha256": "1c47585bbfef4a392427383d4392c3a5b71eb94e07d0c499618303533b5a93e5", "reason": "Supported current-host settings/env/session ordering and compatibility diagnostic regressions; exact fixed snapshot and inherited limited wiring acceptance only." },
+    { "path": "modules/blackhole/tests/integration/pi-owned.test.ts", "validationRepairPreviousSha256": "0a5dffff2bad02ec37b94ad506c9e7fd38fd7073d01e55fc352ac97243b8bf1f", "sha256": "2b05cc991f58ac3f0c15b052cd9691419ea52e4b1954d859bfdb7cc8ec1679d5", "validationRepairAdaptation": "2026-10-10 preserve20 native assertions, existing process helper30s/termination8s/outer45s.", "reason": "Pi-owned with/without BH actual-host native final/tool/manual/overflow/reload/model/cancel matrix; native cuts preserved, synthetic worker evidence not paid backend/root release." },
+    { "path": "modules/blackhole/tests/integration/rereview-core.test.ts", "sha256": "796de49e3fdf10a3ff32246c2b32f6b39ae849b09d2a7d4987cb21c31630dd80", "reason": "Earlier limited core real-host review regressions for native evidence/generated proof/invalidation; fixed Review4 unchanged source, not renewed full336 safety review." },
+    { "path": "modules/blackhole/tests/integration/rereview-navigation.test.ts", "sha256": "5d227c920571fba4c9ea2b186501a0aa92f9933a993e9e3ac4517185db4dc481", "reason": "Supported current host owner/file/leaf/branch ancestry, cold init fallback and warning navigation tests preserve actual saved-record authority." },
+    { "path": "modules/blackhole/tests/integration/review3-fresh-layout.test.ts", "sha256": "dd1540b90f82b64287f478c0432694d9bf217e39d06ad773e0eda3f094fd029b", "reason": "Actual fresh public hook structured/headerless S1 and Files-only composition regressions for limited core review; stubbed helper-only green is not substituted for hook behavior." },
+    { "path": "modules/blackhole/tests/integration/review3-settings.test.ts", "sha256": "d05720d0dd4cfd10429e6f763811bc8de38bb93cf61b8b46ca94476c245c1be8", "reason": "Review3 actual-host cold saved-record authority, Reset/Delete canonical Save buffers and delivered hasUI warning bounded dedup cases; earlier limited acceptance inherited explicitly." },
+    { "path": "modules/blackhole/tests/integration/review4-delete-save.test.ts", "sha256": "0de74e5025070c5d1dba3b40a93da68b7f1bf876d764b5a801006d75d5d2ae90", "reason": "Review4 Delete-to-Save and observable still-existing file refusal regression wrapper with exact lower-layer/dirty postconditions; supported unlink observation, not arbitrary-writer atomicity/rollback." },
+    { "path": "modules/blackhole/tests/pi-owned-command.test.ts", "sha256": "d268da1944f3db07070cf521d75697b3539c667d96f299c391ae812f7860c5ed", "reason": "Explicit public /blackhole alias, native refusal/cancel callbacks and admitted manual pending flush regression, no private preflight/admission wrapper." },
+    { "path": "modules/blackhole/tests/pi-owned-compaction.test.ts", "sha256": "6a1f7f95f32301ba262abbc8963077938d68e1baa36a54b7fb7ca8bae2aecb71", "reason": "Authoritative native cut/tokens/projected inputs, disabled native operations, null/replacement edits and no post-final prohibition; strict summary-only contract regressions." },
+    { "path": "modules/blackhole/tests/pi-owned-settings.test.ts", "sha256": "ec2587b25f2d57e08eb2968133bfb573eb7b9339faf21216a3e8fbc153ea2370", "reason": "Seven ignored timing/cut controls remain compatibility diagnostics while Pi owns timing; limited canonical migration helper tests preserve unrelated settings." },
+    { "path": "modules/blackhole/tests/rereview-ui-migration.test.ts", "sha256": "b7f39a6b24fdabfcb769c42d67fa7afae22007dad3f0f04060bee476aaf2604b", "reason": "Readonly ignored-control rows, canonical scaffold/save and preservation tests for active/unknown model metadata/preset definitions; original upstream timing assertions are history." },
+    { "path": "modules/blackhole/tests/review3-warning-factory.test.ts", "sha256": "0a5937a8039a380d5f385bf2d0a5786ba11ed18b735495aa2388736531164f41", "reason": "Actual factory UI-gated warning delivery/no-op/throw/reload/cwd/navigation dedup regression inventory; hasUI false never counts as delivered." }
   ],
+  "blackholePiOwnedSummaryMigrationReview": {
+    "date": "2026-10-09",
+    "recordType": "restricted-current-local-pi-owned-summary-and-migration-snapshot",
+    "workerHandoff": "report/REPORT-20261009T195945020Z.md",
+    "limitedCoreAcceptance": "report/REPORT-20261009T193032883Z.md",
+    "limitedWiringAcceptance": "report/REPORT-20261009T200405430Z.md",
+    "inheritedScope": "Latest core and wiring reports explicitly carry prior limited acceptance forward. Core S1/fresh Files composition and settings/migration W1/W2/W3 zero-critical/zero-warning conclusions are bounded static conclusions, not an independent review of every fixed336 file. Reviewers did not rerun tests or full64 inventories; this root reconciliation freshly checks raw bytes.",
+    "workerTerminalEvidenceOnly": { "moduleExitCode": 0, "stagesPassed": 3, "stagesTotal": 3, "vitestFiles": 163, "vitestTests": 2862, "rootHostTestsPassed": 2, "rootHostTestsTotal": 2, "skips": 0, "scope": "Inherited terminal worker evidence from handoff, not root worker or reviewer reruns, paid-provider acceptance or root release." },
+    "fixedInventories": [
+      { "path": "modules/blackhole/plan/evidence/blackhole-review4-source-final.sha256", "sha256": "30b09ed61e2b07affd5e2259ccff9493b5c80171ae5cb441eb1302030565ed4a", "rows": 336 },
+      { "path": "modules/blackhole/plan/evidence/blackhole-review4-changed-final.sha256", "sha256": "78e6fc95e0a152afca3448e82acafd8cde7e0f278f21a7b779fe4cd9ed44ac72", "rows": 44 },
+      { "path": "modules/blackhole/plan/evidence/blackhole-review4-changed-round-final.sha256", "sha256": "fc8f6d79ff3c22cd567eca50dc9fce27075f099454cef93aac80e757dc425781", "rows": 5 },
+      { "path": "modules/blackhole/plan/evidence/blackhole-review4-core-unchanged-final.sha256", "sha256": "4a24b566c9aad5088d0eedf0e680ce2f294c42570570672da16b4a6b3d37d417", "rows": 85 },
+      { "path": "modules/blackhole/plan/evidence/blackhole-review4-boundary-final.sha256", "sha256": "55e22373c1be058e79450f3aab3f31fb3a55411b1a3866e7bca250a6f159025c", "rows": 7 },
+      { "path": "modules/blackhole/plan/evidence/blackhole-review4-logs-final.sha256", "sha256": "d4c0323c52a687457ce793da1ccd0e3adf4de62699bef0b1d49e21081f60e634", "rows": 7 }
+    ],
+    "metadataScope": { "importedActiveHashUpdates": 41, "existingAddedFileHashUpdates": 3, "newAddedHelperTestRecords": 35, "rootDocumentationHashUpdates": 3, "importedRemovalRecords": 0 },
+    "scopeAccounting": "Candidates classified against the fixed336 and immutable sources.json/active metadata, not changed44 alone. Review4 versus Review3 changes exactly README.md, docs/CONFIG.md and settings/config-flow.ts among334 old paths (331 unchanged), plus two new Delete/Save test files. The fixed336 inventory excludes13 still-existing imported metadata/historical docs; those records remain untouched. No other module hashes are refreshed.",
+    "previousRationalePolicy": "Each refreshed record preserves all prior fields/reasons and immediate prior full64 in piOwnedSummaryMigrationPreviousSha256. Those preceding reasons describe historical adaptations (including LF normalization or pending reviews); piOwnedSummaryMigrationAdaptation describes the current semantic adaptation and this restricted review scope. Local semantic changes are not claimed to be upstream-identical copies.",
+    "excludedUnrelatedCandidate": { "path": "modules/blackhole/tests/fixtures/note-file-alias-probe.mjs", "reason": "Fixed source inventory only; no new B1/Windows alias acceptance is inferred or signed by this summary/migration cleanup. Earlier cumulativeB1 records and scope remain unchanged." },
+    "supersededLocalNormativeTimingTests": [
+      { "path": "modules/blackhole/tests/integration/before-request.test.ts", "status": "absent-local-test-not-imported-and-not-active-provenance", "reason": "Four requirements prohibiting native post-final threshold/custom before-request compaction were superseded by Pi-owned timing. Removed by worker, not skipped or relabeled green; historical logs retained." },
+      { "path": "modules/blackhole/tests/fixtures/before-request-host.mjs", "status": "absent-local-fixture-not-imported-and-not-active-provenance", "reason": "Fixture for superseded normative timing tests; absence checked against immutable imports/current active metadata and fixed source snapshot. Do not invent removedFiles origin entries. Historical evidence remains." }
+    ],
+    "currentContract": "Pi alone owns timing/threshold/cut/retention/persist/retry/cancel; BH summary only. Exactly seven ignored controls are read-compatible/diagnostic/readonly UI but omitted from new scaffold and explicit canonical Save; no load autowrite, old JSONL rewrite, new adoption setting or personal-file edits. Preserve effective debug/sessionFallback/fullFoldAlways, unknown model metadata and user preset definitions. Public native capacity is not trigger budget; unknown stays unknown. Actual persisted settings-record ancestry owns overrides/branch-local empty resets. Reset/Delete successful Save buffers refresh; dirty buffers survive refused writes/cancel/observable unlink failure. hasUI true plus successful notify alone consumes bounded cwd-aware dedup.",
+    "evidence": "plan/evidence/blackhole-root-migration-review4-20261009-v1",
+    "integrityBoundary": "Six inventory digests and484 overlapping rows (fixed336 sources/seven boundary included) use fresh raw-byte full64 comparison. This is source/inventory identity, not historical-diff equivalence or comprehensive independent336-file safety. Existing43 unavailable historical deltas and cumulativeB1 history are preserved. Authorized root validation is sources:verify, narrow provenance fixture and isolated cross only; no root unit/typecheck/full integration/package/check/browser, provider run or module rerun is claimed. Their terminal results and after-run source stability belong to the separate root handoff evidence.",
+    "releaseAcceptance": false
+  },
   "removedFiles": [
     {
       "path": "modules/subagents/tests/runner-stress.test.ts",
@@ -5340,7 +5460,7 @@
         "path": "README.md",
         "childShellBlackholePreviousSha256": "949fbea1bc885ae50a5a7462639cc738e707f48f8f37af146ebe99814c39f4e1",
         "childShellBlackholeAdaptation": "2026-10-09 root contracts for marked child foreground/guard/raw checkpoints, parent reviewer native note-only and Blackhole stable allowlisted evidence/partial/provenance/scanner/tiny budgets; no producer/provider/root release claim.",
-        "monitorRuntimeReviewPreviousSha256": "51294af2fcb5bc4ec35565cf3aded1dc525fcf0ebb87282d3df9ebf870e98004", "blackholeNativeCutRootPreviousSha256": "058efbb411bb25f6cf76f20f395d0712bb15a55790e204a7e2f5d4eecc8a66a7", "blackholeNativeCutRootAdaptation": "Root ownership prose supersedes obsolete BH timing/cut claims; Pi owns native lifecycle, fixture green is not source/adoption/release approval. Preserve Monitor/B1/Runtime history; no module source signing.", "sha256": "25f36e055fd3d557361c0566e44a947e6df306fb718ee76461f560c9b8c4f51f", "monitorPreviousSha256": "1d41c1195a3f2a901a34b83a25167ef92b7f3311ebd6c4c3aa5365265a7e3514",
+        "monitorRuntimeReviewPreviousSha256": "51294af2fcb5bc4ec35565cf3aded1dc525fcf0ebb87282d3df9ebf870e98004", "blackholeNativeCutRootPreviousSha256": "058efbb411bb25f6cf76f20f395d0712bb15a55790e204a7e2f5d4eecc8a66a7", "blackholeNativeCutRootAdaptation": "Root ownership prose supersedes obsolete BH timing/cut claims; Pi owns native lifecycle, fixture green is not source/adoption/release approval. Preserve Monitor/B1/Runtime history; no module source signing.", "piOwnedSummaryMigrationPreviousSha256": "25f36e055fd3d557361c0566e44a947e6df306fb718ee76461f560c9b8c4f51f", "piOwnedSummaryMigrationAdaptation": "Root BH-only prose aligns limited terminal reviews, readonly ignored controls and canonical writes; no source safety/adoption/release claim. Earlier root/history metadata retained.", "validationRepairPreviousSha256": "897fc4c981184bbb4518f06f22f120bf336a35af1fd5b9d03518027a5d320c21", "monitorDefaultActivePreviousSha256": "2a1ea773fb60a0c9b83f582fcc6c18e5efc0acb403966b01d9bfa2b1d17f0eaf", "fffOverridePreviousSha256": "953c725eb3888c60d6bd631a6966d2f7b1236358633b5d3140a205d19c5f4a31", "sha256": "dc31f690b4758b23fcadbae07fed683fba482e840a54a8c72cd3428d113c6927", "validationRepairAdaptation": "2026-10-10 test grouping, rg prerequisite/env and safe dependency rebuild docs.", "monitorPreviousSha256": "1d41c1195a3f2a901a34b83a25167ef92b7f3311ebd6c4c3aa5365265a7e3514",
         "piRuntimePreviousSha256": "1f0e5f36c8587d0c663282d3e038a0b2caf2e71c6b470d0b8d64e51e25532edd",
         "previousRejectedTuiSha256": "5807cbdcc0657679b4fce2563864194639508b43913d98e81d40575d0c5fc899",
         "previousBackgroundRecoverySha256": "6ec0d4d4f8584fcfbb5b3cd83db7414c14d05a2001cea48d8ff815afaee22497",
@@ -5351,7 +5471,7 @@
         "path": "docs/architecture.md",
         "childShellBlackholePreviousSha256": "b10c4aca3a8f8c8d90a32fe80af6d0845be706acb5258fdd12379522ca850121",
         "childShellBlackholeAdaptation": "2026-10-09 document precise cooperative same-object raw startup lease/foreground child and allowlisted notification consumer/provenance/inspection boundaries, reviewer instructions not sandbox.",
-        "monitorRuntimeReviewPreviousSha256": "fa9c93eaed5833b5339e1461f317f14685ae76b0d0f9ba059cccea469de95563", "blackholeNativeCutRootPreviousSha256": "5621febbc8510c6d546e00b3d21ed4d34c7b832d08419e326fae8054bf001abc", "blackholeNativeCutRootAdaptation": "Root Pi-owned lifecycle and strict native-cut display fixture/readonly-audit boundary; not module source acceptance or project adoption.", "sha256": "8d81ec1e673c44a62121d71cdee551854e8279ffbd070552a14f42a00e638889", "monitorPreviousSha256": "073a7ba2c4aad2d104cb41bc52c5f2cc8b16b455343045456fb8dbcf40dc449f",
+        "monitorRuntimeReviewPreviousSha256": "fa9c93eaed5833b5339e1461f317f14685ae76b0d0f9ba059cccea469de95563", "blackholeNativeCutRootPreviousSha256": "5621febbc8510c6d546e00b3d21ed4d34c7b832d08419e326fae8054bf001abc", "blackholeNativeCutRootAdaptation": "Root Pi-owned lifecycle and strict native-cut display fixture/readonly-audit boundary; not module source acceptance or project adoption.", "monitorDefaultActivePreviousSha256": "8d81ec1e673c44a62121d71cdee551854e8279ffbd070552a14f42a00e638889", "fffOverridePreviousSha256": "d56487963df26621441695fadb8c5e0d1c6c51016fb9b25281d339c0823d3076", "sha256": "54b311ab2784842794562f790c30aa9478246c25fe7565c5f93d52963a3b971f", "monitorPreviousSha256": "073a7ba2c4aad2d104cb41bc52c5f2cc8b16b455343045456fb8dbcf40dc449f",
         "piRuntimePreviousSha256": "2c21b3aea0fa5612d7e134d71f541b363aa6e5041890c702c822ad001bae98c6",
         "notificationBatchingPreviousSha256": "9c48e1adcdcaf55e6da9b27b013f59653ed5b9e20ecaf0970397f4b6c4bdbf47",
         "previousBackgroundRecoverySha256": "0b026ca6b8d13740cf2be851c0a29b69c0711609db22c4be05d759a0738c6b62",
@@ -5363,7 +5483,7 @@
         "path": "docs/configuration.md",
         "childShellBlackholePreviousSha256": "6b1c6a23695895c4cbc08b70a53c2475c603b0e5bcd48b5c19031e844c84e92a",
         "childShellBlackholeAdaptation": "2026-10-09 explicit child exception to parent background field, diagnostics I/O and lease limits, unchanged Blackhole config/evidence budgets and selected absence semantics.",
-        "monitorRuntimeReviewPreviousSha256": "9cb3b98e9c00a2d766f845332007b30ba5a1cd55a307bd2d7731a9d2a3472732", "blackholeNativeCutRootPreviousSha256": "dba03c39cd9c739c9eefa498ed5bb940a578687e417f244f71c7f8f5e714c0e8", "blackholeNativeCutRootAdaptation": "Existing auto/blackhole keys are summary participation only; Pi budgets stay user-managed. No .pi/global edits; PASSIVE/settings effective precedence warning remains pending repair/re-review, no adoption guarantee.", "sha256": "af7c0d887e4d861ed5272d0b000e8e06d038133afea5923cd345eeded4332950", "monitorPreviousSha256": "9a8d2f870bd1e1088be9d48cb00f47ea04545a113b38bc10f187537944299162",
+        "monitorRuntimeReviewPreviousSha256": "9cb3b98e9c00a2d766f845332007b30ba5a1cd55a307bd2d7731a9d2a3472732", "blackholeNativeCutRootPreviousSha256": "dba03c39cd9c739c9eefa498ed5bb940a578687e417f244f71c7f8f5e714c0e8", "blackholeNativeCutRootAdaptation": "Existing auto/blackhole keys are summary participation only; Pi budgets stay user-managed. No .pi/global edits; PASSIVE/settings effective precedence warning remains pending repair/re-review, no adoption guarantee.", "piOwnedSummaryMigrationPreviousSha256": "af7c0d887e4d861ed5272d0b000e8e06d038133afea5923cd345eeded4332950", "piOwnedSummaryMigrationAdaptation": "Current limited-reviewed precedence supersedes old pending PASSIVE warning; seven canonical ignored controls, unknown/active metadata preservation, branch empty reset, Reset/Delete save buffers and hasUI delivery gate. No personal settings edits.", "monitorDefaultActivePreviousSha256": "d5af505d719a5328d3781d02b750983628920215c4ee95336e823c340b5851fd", "fffOverridePreviousSha256": "7c046090b8e518f1a001900bba441e363cc993e18ef7e6cb440f6de8aa72f7d8", "sha256": "2e0ea3f862fae21107b71679e8d29ab23adc89c5c3221d300a0cdcd74bb128b4", "monitorPreviousSha256": "9a8d2f870bd1e1088be9d48cb00f47ea04545a113b38bc10f187537944299162",
         "piRuntimePreviousSha256": "b9a1d09ea980453bd48e382702e6ae3b2bfc953f5ff780597bf2e85640d4e671",
         "notificationBatchingPreviousSha256": "b6ca4c67d462a8b1fed24eaa64151822f684fb34da84b3461de6a92ac73143b2",
         "previousReadyQueryDocumentationSha256": "c0e6e1a1920927bad0af925be16c25713ce40cdc3e939835dee2f8bb39abe11a",
@@ -5375,7 +5495,7 @@
         "path": "docs/migration.md",
         "childShellBlackholePreviousSha256": "5825c0133bb3a5eb919d7a6335617ac9e5b0035c03f9d2f06bca42f3aa5ca5be",
         "childShellBlackholeAdaptation": "2026-10-09 callers remove child background field entirely, note-only reviewer/fingerprint guidance, additive e refs with old#N/legacy compactions preserved, no job replay/outcome_unknown restart.",
-        "blackholeNativeCutRootPreviousSha256": "45f6f1b040b342254bebb1906914532624ee150d79801a2e6c7dc45fe560b71e", "blackholeNativeCutRootAdaptation": "Supersede obsolete before-request/final-only/minimal policies without overwriting historical logs, creating timing keys, editing personal settings or approving unreviewed sources.", "sha256": "d27c263e177fcfc01166a69b3ac2826288cbd56607246b9296fbe82a4272874c", "monitorPreviousSha256": "cd5c00c84260f5bd89ea1dd263ce57206424e4adb8185b3535398c584b441628",
+        "blackholeNativeCutRootPreviousSha256": "45f6f1b040b342254bebb1906914532624ee150d79801a2e6c7dc45fe560b71e", "blackholeNativeCutRootAdaptation": "Supersede obsolete before-request/final-only/minimal policies without overwriting historical logs, creating timing keys, editing personal settings or approving unreviewed sources.", "piOwnedSummaryMigrationPreviousSha256": "d27c263e177fcfc01166a69b3ac2826288cbd56607246b9296fbe82a4272874c", "piOwnedSummaryMigrationAdaptation": "Short current cleanup contract, explicit save/read-only load, preserved active/unknown fields, branch-local reset and limited review boundaries; no before-request/adoption settings or upstream ownership rewrite.", "defectRepairPreviousSha256": "81ec0f57beee059ec57670787dcfdd1e295abe880d6757ba067ab0dc28258245", "fffOverridePreviousSha256": "62c009a33846d6742323e8ef26126dc24c34b4b159a251c978665f704bde6c2c", "sha256": "e7669c8906f631a760036fb203dbdf4e6c3506cf31013ba9ae2c453066a72df3", "monitorPreviousSha256": "cd5c00c84260f5bd89ea1dd263ce57206424e4adb8185b3535398c584b441628",
         "piRuntimePreviousSha256": "462535864e9da0432abf132be377ce81c59d93c7f87d0d01afee9c4adf1cfc27",
         "previousBlackholeVendoringSha256": "4d6081ac112e4a3c522e2ad26e9f9341624eba20a365a532f1103a2e6d233456",
         "reason": " 2026-10-09 reviewed Blackhole local snapshot/manifest/verification adaptation; prior integration record preserved under blackholeVendoring."
@@ -5401,14 +5521,14 @@
       },
       {
         "path": "scripts/run-checks.mjs",
-        "sha256": "7ea68e5d8629d901745471830be8bf2614a0205168309d517fe2b673dac25c0b", "monitorV1InitialSha256": "8069304fc4d6f586956f3bcd3f9582c65bc5e556f887fcdf78f5394d1bd8cc7c", "monitorRunnerCorrection": "Evidence scope composes after preserving accepted transform anchor; existing transformation assertions unchanged.", "monitorPreviousSha256": "8d8a570d06db1bba65063b896a758db9ea0aee4e2022b9eaa94699d38a14059b",
+        "defectRepairPreviousSha256": "7ea68e5d8629d901745471830be8bf2614a0205168309d517fe2b673dac25c0b", "validationRepairPreviousSha256": "8c2a3a91d92bbb3629a49ade554061c697df2b91a6be24583a7ae3da619c09df", "sha256": "9ba038fbc615e653edfc071371f18da2abe97df09b118ec0d0ef30ab889e5a7b", "validationRepairAdaptation": "2026-10-10 explicit Blackhole unit/native stages and shared tooling unit/cross stage.", "monitorV1InitialSha256": "8069304fc4d6f586956f3bcd3f9582c65bc5e556f887fcdf78f5394d1bd8cc7c", "monitorRunnerCorrection": "Evidence scope composes after preserving accepted transform anchor; existing transformation assertions unchanged.", "monitorPreviousSha256": "8d8a570d06db1bba65063b896a758db9ea0aee4e2022b9eaa94699d38a14059b",
         "piRuntimePreviousSha256": "edd0db9e200bcb33a4184032d3c5b46665ecdd0d50c677ed2591c91cfb67ed8c",
         "previousBlackholeVendoringSha256": "e9874f2a66d34782d385b60df000ee92c051258cfaa02a6cc17168db53ec8f4f",
         "reason": " 2026-10-09 reviewed Blackhole local snapshot/manifest/verification adaptation; prior integration record preserved under blackholeVendoring."
       },
       {
         "path": "scripts/package-smoke.mjs",
-        "runtimeExact14PreviousSha256": "8618614e554cb51e395fb4ef1abb65777990ffa9cfdfe46e72a4ed6cba1ad794", "blackholeNativeCutRootPreviousSha256": "29f31a982cc829d2257866abad5edcbc9c4be2bbfd011fdbae311dcfeb8de053", "blackholeNativeCutRootAdaptation": "Only corresponding Blackhole probe staging/label/strict nativeCut JSON expectations changed; test-only audit copied adjacent, exact14 Runtime assertions/other stages unchanged. No production package execution or new Blackhole source signature in this round. 2026-10-09 ROOT W1: previous active SHA256 f4260912e809102f61c77b7994ef2088f429dc254f37da08f36cac7375488813 and preceding rationale preserved. Only matching Blackhole assertion block now demands distinct modelStreamCalls0/actualExternalFetchCalls0/providerCalls0 alias semantics at top/rows and disk-raw/reopened-compaction exact flags. Actual block evaluated offline with positive-counter/absent-counter/old-field-semantic payload rejection; full package was not run. No other stage changes, Blackhole source signing or adoption/release approval.", "sha256": "d800a003750e8f992a104bfabe2cd7270abd26fcc45a02be2e426d6075dc6083", "monitorPreviousSha256": "9a5c5b2068209ef25eeea47dc7597565769aa3792c51611b8475acac74c0cb3d",
+        "runtimeExact14PreviousSha256": "8618614e554cb51e395fb4ef1abb65777990ffa9cfdfe46e72a4ed6cba1ad794", "blackholeNativeCutRootPreviousSha256": "29f31a982cc829d2257866abad5edcbc9c4be2bbfd011fdbae311dcfeb8de053", "blackholeNativeCutRootAdaptation": "Only corresponding Blackhole probe staging/label/strict nativeCut JSON expectations changed; test-only audit copied adjacent, exact14 Runtime assertions/other stages unchanged. No production package execution or new Blackhole source signature in this round. 2026-10-09 ROOT W1: previous active SHA256 f4260912e809102f61c77b7994ef2088f429dc254f37da08f36cac7375488813 and preceding rationale preserved. Only matching Blackhole assertion block now demands distinct modelStreamCalls0/actualExternalFetchCalls0/providerCalls0 alias semantics at top/rows and disk-raw/reopened-compaction exact flags. Actual block evaluated offline with positive-counter/absent-counter/old-field-semantic payload rejection; full package was not run. No other stage changes, Blackhole source signing or adoption/release approval.", "validationRepairPreviousSha256": "d800a003750e8f992a104bfabe2cd7270abd26fcc45a02be2e426d6075dc6083", "sha256": "87a7d10165f3dbd304f36987226f348ebc475b9815a3b35495aeaf3958af78bb", "validationRepairAdaptation": "2026-10-10 fail-fast rg prerequisite and per-mode exclusive binary copy; production assertions unchanged.", "monitorPreviousSha256": "9a5c5b2068209ef25eeea47dc7597565769aa3792c51611b8475acac74c0cb3d",
         "piRuntimePreviousSha256": "1a0813c27fa5622043a250a658da59b138bef856338d21a84d487920099ca153",
         "previousBlackholeVendoringSha256": "688a0440c5b6ce4488d28adaa77ebfd501c20924fb773dcc22942c5054295c7c",
         "reason": " 2026-10-09 reviewed Blackhole local snapshot/manifest/verification adaptation; prior integration record preserved under blackholeVendoring."
@@ -5419,7 +5539,7 @@
       },
       {
         "path": "tests/fixtures/smoke.mjs",
-        "sha256": "eedace5f2fafd8443fd044c9c4836cb8a47e94c27d441ffd15efd11c49ba195d", "monitorPreviousSha256": "d68c632101f534218e28089d187349924154b461edef427b62f8f46f539a2362",
+        "monitorDefaultActivePreviousSha256": "eedace5f2fafd8443fd044c9c4836cb8a47e94c27d441ffd15efd11c49ba195d", "fffOverridePreviousSha256": "e5c748496187f311809bd306fe1a7bd33fb3f081c2b04fd997e6407116aa385f", "sha256": "7b89cde9eb3c605c6fd57f535a64aa0b407bf828f0c7708a9a5dedfce141b967", "monitorPreviousSha256": "d68c632101f534218e28089d187349924154b461edef427b62f8f46f539a2362",
         "piRuntimePreviousSha256": "5cf84bcff66ebbf80b4df7f1b6927bdc4019e653b3832cd04b641c7e01582cb1",
         "previousBlackholeVendoringSha256": "e35fa506ccb9d87be8fa5f3f8f0239243a0c097bc0e85ed7a7fd05cacb905d45",
         "reason": " 2026-10-09 reviewed Blackhole local snapshot/manifest/verification adaptation; prior integration record preserved under blackholeVendoring."
@@ -5430,14 +5550,14 @@
       },
       {
         "path": "tests/integration/package.test.mjs",
-        "sha256": "9f00e1bc7fdf5563faa9380904bfcc1ae93f96566b445d6526622bbc1524fbce", "monitorPreviousSha256": "5b082b208b6de9863b30e887ddbfcaed4450a256fafbf8006c60f90447fa0f32",
+        "validationRepairPreviousSha256": "9f00e1bc7fdf5563faa9380904bfcc1ae93f96566b445d6526622bbc1524fbce", "sha256": "603cf05cbdfa51cf2088a288093f57ddfeb12a203438fb60095c016ea1381b95", "validationRepairAdaptation": "2026-10-10 isolated real rg before5 grep-capable modes; all7 modes/assertions preserved.", "monitorPreviousSha256": "5b082b208b6de9863b30e887ddbfcaed4450a256fafbf8006c60f90447fa0f32",
         "piRuntimePreviousSha256": "789c0df5b18a198e5efde57025a8c319e822c847514acfbe891720b28618754d",
         "previousBlackholeVendoringSha256": "e3cc7e94ce06679f64d1121d180b948b7abc36cd8c0cbdaa0197202edce5af53",
         "reason": " 2026-10-09 reviewed Blackhole local snapshot/manifest/verification adaptation; prior integration record preserved under blackholeVendoring."
       },
       {
         "path": "scripts/blackhole-tests.mjs",
-        "sha256": "fa85621941b054a571e5bf1cd516ef6c7374db00e2fd063a52d579c4f0e0d2f8",
+        "validationRepairPreviousSha256": "fa85621941b054a571e5bf1cd516ef6c7374db00e2fd063a52d579c4f0e0d2f8", "sha256": "472506a6b822a9b76fdeb7714f3e60f0d0008efaab722e1862590b4d304ed895", "validationRepairAdaptation": "2026-10-10 validated suite selection, all default, existing file filters/passive isolation retained.",
         "previousTestHarnessRepairSha256": "8a351f4a2424740abbcdd6e5f531f2cffd8a8b9d0d6b8d0d20f6bd8d36374218",
         "reason": " 2026-10-09 reviewed Blackhole local snapshot/manifest/verification adaptation; prior integration record preserved under blackholeVendoring. Subsequent 2026-10-09 semantic harness adaptation: retain isolated HOME/credentials/passive, remove agentDir overrides that bypass case SDK mocks, mark bounded unit contract setup and allow targeted Vitest file filters."
       },

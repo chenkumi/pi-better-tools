@@ -50,6 +50,7 @@ function makePi() {
 function makeCtx(sessionId = "test-session") {
   return {
     cwd: "/tmp",
+    isProjectTrusted: () => true,
     modelRegistry: { find: () => undefined, getAvailable: () => [] },
     sessionManager: { getSessionId: () => sessionId },
   } as any;

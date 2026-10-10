@@ -53,6 +53,7 @@ Default-shell 卡片改由 self-shell 重建原有 Box，避免外層留白仍�
 - `timeoutMs` 是停滯期限，不是總時限：持續輸出的指令不會逾時，安靜的長指令（sleep、無輸出的建置）會被終止；此類指令請省略或調大 `timeoutMs`；`background: true` 只是非同步執行，仍使用相同停滯計時器。
 - 計時於 shell 開始執行時啟動，每收到一個 stdout／stderr 資料區塊即重新計時；只有輸出停滯達該時間才會逾時。持續有輸出的指令可執行超過 `timeoutMs`。計時在行程啟動前就開始，行程啟動時間計入第一次輸出的等待；`timeoutMs` 過小（例如數十毫秒）可能在指令尚未輸出前就被終止，建議使用數秒以上的值（工具描述已註明）。
 - Pi 內建的絕對計時器對此覆寫停用。內部以 `timeout:<秒數>` 丟出，宿主會格式化為 `Command timed out after N seconds`；本擴充改寫為 `Command stopped: no output for N seconds (timeoutMs idle timeout). If the command is expected to remain quiet, omit or increase timeoutMs. Use background:true separately if you want asynchronous execution.`，以符合「輸出停滯」語意並提示處置。
+  只改寫宿主附加在錯誤訊息**尾端**的診斷（`appendStatus` 的最後一行）；命令輸出中間出現相同字樣保持原樣，改寫後不再匹配故在多層 catch 中冪等。背景 job 的 `timed_out` 仍只由尾端 `(timeoutMs idle timeout)` marker 判定，不信任命令輸出。回歸測試：`tests/timeout-diagnostics.integration.test.mjs`（以 fake process backend，無 idle／sleep 等待）。
 - PowerShell 工具的宿主選項不支援 `shellPath`／`shellCommandPrefix`，這兩項設定僅套用於 Bash。
 - 非正數、小數、非安全整數、超過上限的值會被拒絕。
 - 新的呼叫若帶舊版 `timeout`（秒）欄位會直接報錯，請改用 `timeoutMs`；舊 session 紀錄中的 `timeout` 仍可正常顯示。

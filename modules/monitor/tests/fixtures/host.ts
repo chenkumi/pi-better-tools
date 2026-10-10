@@ -54,8 +54,9 @@ async function fileBarrier(path: string) {
   await new Promise<void>((done, fail) => { let settled = false; const watcher = watch(dirname(path), () => { void access(path).then(() => finish(), () => {}); }); const finish = () => { if (settled) return; settled = true; watcher.close(); done(); }; watcher.once('error', fail); void access(path).then(finish, () => {}); });
 }
 try {
-  console.log(`[monitor-host] Testing ${mode}: inactive registration, real command, readonly jobs and child identity`);
-  for (const name of names) { assert.equal(definitions().find(t => t.name === name)?.defaultActive, false); assert.ok(!session.getActiveToolNames().includes(name)); }
+  console.log(`[monitor-host] Testing ${mode}: default activation, explicit deactivation, real command, readonly jobs and child identity`);
+  for (const name of names) { assert.equal(definitions().find(t => t.name === name)?.defaultActive, true); assert.ok(session.getActiveToolNames().includes(name)); assert.ok(session.getCallableToolNames().includes(name)); }
+  session.setActiveToolsByName(session.getActiveToolNames().filter(name => !names.includes(name)));
   const definition = definitions().find(t => t.name === 'monitor_start')!;
   const inactive = await definition.execute('inactive', { source: { kind: 'command', tool: 'bash', command: 'MUST_NOT_RUN' } }, undefined, undefined, session.extensionRunner!.createToolContext('monitor-direct', undefined)); assert.equal(inactive.isError, true);
   session.setActiveToolsByName([...names, 'bash', 'shell_job_status', 'subagent', 'subagent_status']);

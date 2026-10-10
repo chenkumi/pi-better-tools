@@ -13,6 +13,7 @@
  */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { setProjectTrustForTests } from "../../core/project-trust.js";
 import type { Mock } from "vitest";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -124,6 +125,7 @@ let tempDir: string;
 
 beforeEach(() => {
   tempDir = mkdtempSync(join(tmpdir(), "config-flow-test-"));
+  setProjectTrustForTests(tempDir, true);
   mockCreateConfirm.reset();
   clearAllSessionConfigs();
 });

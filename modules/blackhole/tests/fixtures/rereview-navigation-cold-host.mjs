@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { SessionManager } from '@earendil-works/pi-coding-agent';
+import { ConfigManager } from '../../src/pi-base/config-manager.ts';
+const [file,parent,record]=process.argv.slice(2), s=SessionManager.open(file), cwd=s.getCwd();
+let fetchCalls=0; globalThis.fetch=async()=>{fetchCalls++;throw Error('OFFLINE_FETCH_FORBIDDEN');};
+const before=await readFile(file,'utf8'); s.branch(parent);
+assert.ok(s.getEntries().some(e=>e.id===record)); assert.equal(s.getLeafId(),parent); assert.ok(!s.getBranch().some(e=>e.id===record));
+const base={memory:false,compaction:'manual',model:{provider:'baseline',id:'baseline'}};
+const c=new ConfigManager({id:'branch-review',label:'branch-review',defaults:base,fields:()=>[],configDir:process.env.PI_CODING_AGENT_DIR});
+assert.deepEqual(c.resolveHostSession(base,{cwd,sessionManager:s,ui:{notify(){}}},()=>{throw Error('READ_MUST_NOT_WRITE');}),base);
+assert.equal(await readFile(file,'utf8'),before); assert.equal(fetchCalls,0);
+console.log(JSON.stringify({coldProcess:true,fullHistoryContainsRecord:true,branchExcludesRecord:true,actualExternalFetchCalls:fetchCalls}));

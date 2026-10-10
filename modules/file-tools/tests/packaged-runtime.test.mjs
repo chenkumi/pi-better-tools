@@ -56,13 +56,17 @@ test(`packaged extension with real Pi ${hostVersion} loader`, { timeout: 120000 
     linked = true;
     loaded = await sdk.discoverAndLoadExtensions([packageRoot], workspace, agentDir);
     assert.deepEqual(loaded.errors, []);
+    // A real session binds the runtime actions; this harness has no session, so bind the effective-settings getter the image read path uses.
+    loaded.runtime.getSettings = () => ({});
     assert.equal(loaded.extensions.length, 1);
     const definitions = [...loaded.extensions[0].tools.values()].map(tool => tool.definition);
-    assert.deepEqual(definitions.map(tool => tool.name), ["read", "write", "edit", "grep", "find", "ls"]);
+    assert.deepEqual(definitions.map(tool => tool.name), ["read", "write", "edit", "ls"]);
+    // Search remains host-owned when FFF is not loaded; do not re-add it to the packed extension.
+    const hostSearch = [sdk.createGrepToolDefinition(workspace), sdk.createFindToolDefinition(workspace)];
     const context = { cwd: workspace };
     const direct = async (name, args, signal) => {
-      const definition = definitions.find(tool => tool.name === name);
-      const prepared = await definition.prepareArguments(args);
+      const definition = [...definitions, ...hostSearch].find(tool => tool.name === name);
+      const prepared = definition.prepareArguments ? await definition.prepareArguments(args) : args;
       return definition.execute("packaged-test", prepared, signal, undefined, context);
     };
 
@@ -193,7 +197,7 @@ test(`packaged extension with real Pi ${hostVersion} loader`, { timeout: 120000 
       assert.ok(result.content.some(block => block.type === "image" && block.mimeType === "image/png"));
     });
 
-    await t.test("packed search overrides retain cwd, context, ignore rules and error propagation", async () => {
+    await t.test("host search remains available alongside packed ls with cwd, context, ignore rules and error propagation", async () => {
       await mkdir(join(workspace, ".git"));
       await writeFile(join(workspace, ".gitignore"), "ignored.txt\n");
       await writeFile(join(workspace, "ignored.txt"), "SEARCH_MARKER\n");

@@ -1,6 +1,6 @@
 # Monitor v1（原生）
 
-入口 `modules/monitor/src/index.ts`；僅支援 Pi **1.1.0**。三個工具均 `defaultActive:false`，必須明確選取 `monitor_start`、`monitor_status`、`monitor_stop`；載入不建立來源、timer 或模型請求。Explicit managed-child marker 下完全不註冊，直接 execute 同樣拒絕。不是 OS daemon、排程器、PTY 或 sandbox。
+入口 `modules/monitor/src/index.ts`；僅支援 Pi **1.1.0**。三個工具均 `defaultActive:true`，一般 session 載入即預設啟用 `monitor_start`、`monitor_status`、`monitor_stop`，不需加入 `defaultTools`；explicit `--tools`、`--exclude-tools`、`--no-tools` 及手動停用仍由宿主控制，不強制改 loadout；載入不建立來源、timer 或模型請求。Explicit managed-child marker 下完全不註冊，直接 execute 同樣拒絕。不是 OS daemon、排程器、PTY 或 sandbox。
 
 ## 使用
 
@@ -14,6 +14,9 @@
 - `websocket`：`url`、可選 `allowPrivateNetwork`／`allowInsecure`。預設公網 wss；私網與 ws 分別須本次 URL 明確 opt-in。不接受 userinfo、任意 headers、alternate scheme、redirect 或 compression；TLS certificate verification 保留。DNS 所有結果均驗證，actual connect 自訂 lookup 使用同一 immutable IP set，不再次無約束解析；SNI 維持 hostname。固定 direct `ws@8.22.0`，無必要 optional native addon。Handshake 最多15秒且不超總期限；16KiB aggregate payload cap 在 ws receive/reassembly 前執行，binary terminal failure、不自動重連。URL 回報只留 origin，path/query/fragment 不公開。
 - `shell_job`／`subagent_job`：`jobId`、可選 `intervalMs`（預設60000、30000–300000整數）。只取得當前 owner/canonical cwd/runtime-generation readonly capability；缺少 provider、外來 job、revoke 均拒絕。Subagent 必須走既有 provisional view，不公開 private query 答案，不 query 模型／讀 logs。停止只清 sampling timer，不取消被觀察 job。Terminal observation 不冒充第二份 task_result。
 
+### 命令授權範圍（設計決策）
+
+`monitor_start` 的 `source.kind:"command"` 由 Monitor 自行啟動 backend，不經巢狀 `bash` 的 `tool_call` hooks；因此只拒絕 `bash` 的 policy **不會**阻止 Monitor command source，policy 必須針對 `monitor_start`（可檢查 `input.source.command`）。這是目前明訂的授權範圍，不是已證實的權限漏洞，也不會偷偷啟用 `bash`；若產品要求兩者同範圍，需另行決定（例如 `ctx.executeTool`）。`tests/command-authorization.integration.test.mjs` 鎖定：直接 bash 被拒、可針對 `monitor_start` 攔截；「bash-deny 也涵蓋 Monitor」以 `todo` 記錄。
 共通 `durationMs` 預設300000、1000–1800000整數，包含 startup；不是 Shell idle `timeoutMs`。`wakeAgent` 預設true；false 的 display custom message 不要求模型回合。`stopAfterEvents` 可選1–600，計採納資料事件；`label` 可選80字、清控制碼。Start 立即回 pending receipt；acceptance 後 runtime 接管，不跟著原工具 call 的晚到 abort 停止。Status `{monitorId?}` 唯讀，省略列最多32；Stop `{monitorId}` 冪等、可能先回 stopping/cleanupPending。
 
 ## 限制與證據

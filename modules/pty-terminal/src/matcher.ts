@@ -20,6 +20,9 @@ export async function matchPattern(pattern: RegExp, input: string, signal?: Abor
   active++;
   const timers = options.timers ?? { set: (callback: () => void, ms: number) => setTimeout(callback, ms), clear: (handle: unknown) => clearTimeout(handle as NodeJS.Timeout) };
   let worker: Worker | undefined;
+  let exited = false;
+  let released = false;
+  const release = () => { if (!released) { released = true; active--; } };
   try {
     return await new Promise<boolean>((resolve, reject) => {
       let done = false;
@@ -43,6 +46,7 @@ export async function matchPattern(pattern: RegExp, input: string, signal?: Abor
       signal?.addEventListener("abort", abort, { once: true });
       try {
         worker = (options.createWorker ?? ((url, config) => new Worker(url, config)))(new URL("./match-worker.mjs", import.meta.url), { workerData: { source: pattern.source, flags: pattern.flags, input }, execArgv: [], resourceLimits: { maxOldGenerationSizeMb: 64 } });
+        worker.once("exit", () => { exited = true; });
         worker.on("message", (message: { ready?: boolean; matched?: boolean; error?: string }) => {
           if (message.ready) startBudget();
           else finish(message.error ? new Error(message.error) : undefined, message.matched === true);
@@ -53,6 +57,16 @@ export async function matchPattern(pattern: RegExp, input: string, signal?: Abor
       if (signal?.aborted) abort();
     });
   } finally {
-    try { await worker?.terminate(); } finally { active--; }
+    // Capacity is released only once the worker's exit is confirmed. If terminate() rejects, the worker's fate is unknown:
+    // keep ownership (capacity stays held) and release exactly once if/when its `exit` event arrives. The original match
+    // outcome (result or error) is never replaced by the terminate failure.
+    if (!worker || exited) release();
+    else {
+      try { await worker.terminate(); release(); }
+      catch {
+        if (exited) release();
+        else worker.once("exit", release);
+      }
+    }
   }
 }

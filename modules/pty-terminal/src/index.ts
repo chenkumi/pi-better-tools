@@ -4,7 +4,7 @@ import { decodeControlEscapes } from "./escape.ts";
 import { parseEnvPolicy } from "./env.ts";
 import { KEY_NAMES, resolveKeys } from "./keys.ts";
 import { truncatePtyOutput, type OutputFormat } from "./output.ts";
-import { droppedNotice, KILL_SIGNALS, MAX_COLS, MAX_ROWS, MAX_WAIT_MS, PtySessionManager, type ReadSnapshot } from "./pty-manager.ts";
+import { droppedNotice, KILL_SIGNALS, MAX_COLS, MAX_ROWS, MAX_WAIT_MS, PtySessionManager, sharedOrphanRegistry, type ReadSnapshot } from "./pty-manager.ts";
 import { compileWaitFor, MAX_WAIT_FOR_LENGTH } from "./wait-for.ts";
 import { resolveTarget } from "./targets.ts";
 import { ptyRenderers } from "./renderers.ts";
@@ -24,7 +24,7 @@ const spawnParameters = Type.Object({
 });
 
 export default function (pi: ExtensionAPI) {
-	const sessions = new PtySessionManager();
+	const sessions = new PtySessionManager({ orphans: sharedOrphanRegistry() });
 
 	pi.registerTool({
 		name: "pty_spawn",
@@ -188,15 +188,18 @@ export default function (pi: ExtensionAPI) {
 		executionMode: "sequential",
 		async execute() {
 			const result = sessions.list();
-			const text = result.map(({ sessionId, state, target, transport, bufferedBytes, droppedChars }) => ({
-				sessionId, state, target, ...(transport !== "local" ? { transport } : {}), ...(bufferedBytes ? { unreadBytes: bufferedBytes } : {}), ...(droppedChars ? { droppedChars } : {}),
+			const text = result.map(({ sessionId, state, target, transport, bufferedBytes, droppedChars, recovered }) => ({
+				sessionId, state, target, ...(recovered ? { recovered, note: "survived a failed shutdown; local transport exit unconfirmed, remote tree unknown; use pty_kill to retry" } : {}), ...(transport !== "local" ? { transport } : {}), ...(bufferedBytes ? { unreadBytes: bufferedBytes } : {}), ...(droppedChars ? { droppedChars } : {}),
 			}));
 			return { content: [{ type: "text", text: JSON.stringify(text) }], details: result };
 		},
 	});
 
+	// A previous instance whose shutdown could not confirm transport exit parked its sessions; re-adopt them for this workspace.
+	pi.on("session_start", async (_event, ctx) => { sessions.recover(ctx.cwd); });
+
 	pi.on("session_shutdown", async () => {
 		const result = await sessions.shutdown();
-		if (result.retained.length) throw new Error(`PTY shutdown incomplete: ${result.errors.join("; ")}. Local transport exit remains unconfirmed.`);
+		if (result.retained.length) throw new Error(`PTY shutdown incomplete: ${result.errors.join("; ")}. Local transport exit remains unconfirmed; sessions remain recoverable via pty_list/pty_kill after reload.`);
 	});
 }

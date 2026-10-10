@@ -7,6 +7,7 @@
  * Merged and extended by pi-vcc-om.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { recordProjectTrust } from "./src/core/project-trust.js";
 import { scaffoldSettings } from "./src/core/settings";
 import { registerBeforeCompactHook } from "./src/hooks/before-compact";
 import { registerCompactFailedHook } from "./src/hooks/compact-failed.js";
@@ -49,11 +50,23 @@ export default async (pi: ExtensionAPI) => {
   const omRuntime = new Runtime();
   const resolveSessionSettings = (_event: unknown, ctx: any) => {
     const warnings: string[] = [];
+    // One fresh-ctx trust decision feeds runtime config, ConfigManager layers and the settings UI (D01).
+    recordProjectTrust(ctx.cwd, ctx);
     omRuntime.reloadConfig(ctx.cwd, message => warnings.push(message));
     // Unified file/PASSIVE/explicit-env resolution runs once. Session overrides
     // are then validated purely, using public host identity and fresh ancestry.
-    omRuntime.config = settingsConfig.resolveHostSession(omRuntime.config, ctx, (type, data) => pi.appendEntry(type, data));
-    settingsConfig.notifyWarnings({ config: omRuntime.config, warnings: warnings.map(message => ({ scope: "global" as const, message })) }, message => ctx.ui?.notify?.(message, "warning"));
+    const base = omRuntime.config, append = (type: string, data: unknown) => pi.appendEntry(type, data);
+    omRuntime.config = settingsConfig.resolveHostSession(base, ctx, append);
+    if (ctx.hasUI === true && typeof ctx.ui?.notify === "function") {
+      let attempted = false;
+      settingsConfig.notifyWarnings({ config: omRuntime.config, warnings: warnings.map(message => ({ scope: "global" as const, message })) }, message => {
+        attempted = true;
+        ctx.ui.notify(message, "warning");
+      });
+      // An outer warning callback may navigate, including before throwing.
+      // Reproject from the lower-layer base, never a previously applied override.
+      if (attempted) omRuntime.config = settingsConfig.resolveHostSession(base, ctx, append);
+    }
   };
   pi.on("session_start", resolveSessionSettings);
   pi.on("session_tree", resolveSessionSettings);

@@ -8,6 +8,7 @@
 
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isProjectTrusted } from "./trust.js";
 import type { Model } from "@earendil-works/pi-ai";
 import {
   type AgentSession,
@@ -36,8 +37,8 @@ function isSelfExtension(ext: { path?: string; resolvedPath?: string }): boolean
 const DEFAULT_TOOL_NAMES = ["bash", "read", "edit", "write", "grep", "find", "ls"];
 
 export type SubagentResult =
-  | { ok: true; text: string }
-  | { ok: false; error: string; skipped?: boolean };
+  | { ok: true; text: string; cleanupError?: string }
+  | { ok: false; error: string; skipped?: boolean; cleanupError?: string };
 
 export interface RunSubagentOptions {
   /** If true, load all extensions. If an array, only those named. Default undefined (none). */
@@ -113,6 +114,46 @@ export function getLastAssistantError(session: AgentSession): string | undefined
   return undefined;
 }
 
+/**
+ * Terminal outcome of the child run, classified from its final assistant message:
+ * a provider error, a child that stopped itself with stopReason "aborted" (the parent did not cancel it),
+ * or a run that never produced an assistant message. Returns undefined for a normal completion.
+ * Parent cancellation and timeout are decided by the caller before this is consulted.
+ */
+export function getChildFailure(session: AgentSession, streamedText = ""): string | undefined {
+  for (let i = session.messages.length - 1; i >= 0; i--) {
+    const msg = session.messages[i] as any;
+    if (msg.role !== "assistant") continue;
+    if (msg.stopReason === "error") return msg.errorMessage || "Provider returned an error";
+    if (msg.stopReason === "aborted") return msg.errorMessage || "Child session aborted before completing";
+    return undefined;
+  }
+  return streamedText.trim() ? undefined : "Child session finished without an assistant response";
+}
+
+/**
+ * Awaited child teardown in the same order as the host's AgentSessionRuntime.dispose():
+ * emit session_shutdown to the child's extensions, then dispose the session. Failures are
+ * returned (not swallowed) so the parent can keep the unconfirmed-cleanup state.
+ */
+async function disposeChild(session: AgentSession): Promise<string | undefined> {
+  let failure: string | undefined;
+  try {
+    const runner = (session as any).extensionRunner;
+    if (runner?.hasHandlers?.("session_shutdown")) {
+      await runner.emit({ type: "session_shutdown", reason: "quit" });
+    }
+  } catch (err) {
+    failure = `session_shutdown failed: ${err instanceof Error ? err.message : String(err)}`;
+  }
+  try {
+    session.dispose?.();
+  } catch (err) {
+    failure ??= `dispose failed: ${err instanceof Error ? err.message : String(err)}`;
+  }
+  return failure;
+}
+
 export function describeAvailableModels(
   registry: ExtensionContext["modelRegistry"],
 ): string {
@@ -132,7 +173,31 @@ export async function runSubagentOnce(
   /** Internal admission guard after asynchronous initialization, not cancellation. */
   canStartPrompt?: () => boolean,
 ): Promise<SubagentResult> {
-  let session: AgentSession | undefined;
+  const holder: { session?: AgentSession } = {};
+  let result: SubagentResult;
+  try {
+    result = await runChild(holder, ctx, prompt, modelStr, signal, options, canStartPrompt);
+  } catch (err) {
+    result = { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+  // Awaited, so a caller that awaits this run also awaits the child's session_shutdown and disposal.
+  if (holder.session) {
+    const cleanupError = await disposeChild(holder.session);
+    if (cleanupError) result = { ...result, cleanupError };
+  }
+  return result;
+}
+
+async function runChild(
+  holder: { session?: AgentSession },
+  ctx: ExtensionContext,
+  prompt: string,
+  modelStr: string,
+  signal?: AbortSignal,
+  options: RunSubagentOptions = {},
+  /** Internal admission guard after asynchronous initialization, not cancellation. */
+  canStartPrompt?: () => boolean,
+): Promise<SubagentResult> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const model = resolveModel(ctx.modelRegistry, modelStr);
@@ -155,9 +220,13 @@ export async function runSubagentOnce(
     const extList = getNameList(options.extensions);
     const skillList = getNameList(options.skills);
 
+    // One SettingsManager with the parent's project-trust decision applied up front, shared by the
+    // loader and the SDK: both would otherwise default to trusted and reload project settings/extensions.
+    const settingsManager = SettingsManager.create(ctx.cwd, agentDir, { projectTrusted: isProjectTrusted(ctx) });
     const loader = new DefaultResourceLoader({
       cwd: ctx.cwd,
       agentDir,
+      settingsManager,
       // Prevent recursive loading of this extension into the subagent.
       // Context files (AGENTS.md / CLAUDE.md) are loaded by defaults.
       noExtensions: !isEnabled(options.extensions),
@@ -191,14 +260,14 @@ export async function runSubagentOnce(
       cwd: ctx.cwd,
       agentDir,
       sessionManager: SessionManager.inMemory(ctx.cwd),
-      settingsManager: SettingsManager.create(ctx.cwd, agentDir),
+      settingsManager,
       modelRuntime: hostModelRuntime(ctx.modelRegistry),
       model,
       tools: isEnabled(options.extensions) ? undefined : DEFAULT_TOOL_NAMES,
       resourceLoader: loader,
     });
     const active = created.session;
-    session = active;
+    holder.session = active;
 
     if (isEnabled(options.extensions)) {
       await active.bindExtensions({});
@@ -248,19 +317,12 @@ export async function runSubagentOnce(
     }
     // Provider failures usually surface as an assistant message with stopReason "error"
     // rather than a rejected prompt(); don't record those runs as successful.
-    const failure = getLastAssistantError(active);
+    const failure = getChildFailure(active, buffered);
     if (failure) return { ok: false, error: failure };
 
     const text = buffered.trim() || getLastAssistantText(active);
     return { ok: true, text };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
   } finally {
     if (timer) clearTimeout(timer);
-    try {
-      session?.dispose?.();
-    } catch {
-      // best-effort teardown
-    }
   }
 }

@@ -12,7 +12,7 @@ import { hintMissingSubagentLog } from "../src/subagent-log-paths.js";
 
 function toolsAt(cwd: string) {
   const tools = new Map<string, ToolDefinition>();
-  fileToolsExtension({ registerTool: (tool: ToolDefinition) => tools.set(tool.name, tool), on: () => {} } as unknown as ExtensionAPI);
+  fileToolsExtension({ registerTool: (tool: ToolDefinition) => tools.set(tool.name, tool), on: () => {}, getSettings: () => ({}) } as unknown as ExtensionAPI);
   return async (name: string, args: unknown) => {
     const tool = tools.get(name)!;
     const prepared = tool.prepareArguments ? await tool.prepareArguments(args) : args;

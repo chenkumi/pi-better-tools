@@ -198,6 +198,19 @@ test("directory symlink/junction escaping the workspace is refused", async t => 
   assert.deepEqual(await readdir(outside), []);
 });
 
+test("D18: a junction to an in-workspace directory whose name starts with '..' is accepted", async t => {
+  const cwd = await workspace(t);
+  const { symlink } = await import("node:fs/promises");
+  const archive = join(cwd, "..archive");
+  await mkdir(archive);
+  try { await symlink(archive, join(cwd, "plan"), process.platform === "win32" ? "junction" : "dir"); } catch { t.skip("cannot create symlink/junction here"); return; }
+  const result = await execute(cwd, { type: "plan", content: "# Plan\n" });
+  assert.match(result.details.relativePath, /^plan\/PLAN-/);
+  const files = await readdir(archive);
+  assert.equal(files.length, 1);
+  assert.equal(await readFile(join(archive, files[0]), "utf8"), "# Plan\n");
+});
+
 test("content over the size cap is rejected before any directory is created", async t => {
   const cwd = await workspace(t);
   await assert.rejects(execute(cwd, { type: "plan", content: "x".repeat(MAX_NOTE_BYTES + 1) }), /NOTE_TOO_LARGE/);

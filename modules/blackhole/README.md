@@ -16,6 +16,12 @@ Pi-owned review 安全修正：null-edited 通知保留 state-only 邊界骨架�
 
 生成 OM／recall footer 只能依 `blackhole.generatedSpans`（實際 composition offsets、span SHA-256、完整 summary sourceGeneration）剝除；quoted headers/footer、fresh transcript 與無證明 native／legacy text 保留。Memory-on 只依明確 active sourced edits 失效 stale observations 與 supporting reflections；historical source 不在本次 window 不等於 redaction，正常 memory/source IDs 保留。已證明 invalidation 隨 checkpoint carry-forward；native empty-summary fallback 用成功持久化後的 state-only、checkpoint/hash-bound marker 保留 invalidation（不是 model message）。這不會全面清除既有 unproved previousSummary／append segments 的 transitive 污點或 raw history；無來源 proof 的 selective erase 仍 blocked，詳見 `docs/CONFIG.md`。
 
+重讀審查修正：結構化 prefix 的 extraction／volatile filtering 另需真正 latest persisted BH writer、known format 與 exact text generation；新 `blackhole.summaryFormat` 記錄 `structured-v1`／`literal-brief-v1` 和 SHA-256，不讓 mutable-span proof 或 header 外觀代替 format authority。合法舊 BH writer grammar 仍可 merge；native／unknown／stale previous prose 留作 literal brief。Fresh prefix／brief 邊界來自 formatter 的實際 composition，不由 previous layout 推論；headerless assistant warning 與 brief 內的 quoted headers／separators 留作 literal，不能升格 fresh schema。120-line brief budget 保留首／尾並標明 middle omission，不再尋找 schema header 裁掉前置警告；不是不受限、lossless 的歷史保存。
+
+Session 設定每次以 fresh public cwd/session/file/leaf/branch/entries snapshot 驗證 actual saved-record ancestry；pre-save leaf cache 與 full-history 裡的 sibling／descendant 不授權 current branch。lookup 失敗／foreign initSession 不沿用舊權威，回到 file/env base；真正 owner-keyed unsaved pending 可在 materialization 後 append，append 失敗不先丟 pending。Explicit Session Reset／session delete append branch-local 空 override record 回到 exact lower layers，回舊 saved record 可恢復、回 reset record 再撤銷，不刪歷史；append 失敗／無法驗證新 record 不假成功、不清 genuine pending，純 pending reset 僅清 owner sentinel。Modal Reset／Global/Project file Delete 成功後同步取代顯示、save buffer、inspection 與 dirty baseline；未改欄位或只改另一欄再明確 Save，都不復活 stale values，仍可 canonical save 畫面值重建檔案。File Delete 若 scope source 仍顯示檔案存在則報錯，不假成功刷新；cancel／callback refusal／unlink failure 保留原 buffer 與 dirty edits，Save write failure 亦不清 dirty state。這是可觀察 postcondition，不是跨 writer 原子操作。診斷只在 public `hasUI === true` 且 callable notify 成功後去重；真 Pi no-UI callable no-op、缺 callback／UI、notify throws 不標交付且可重試，key 含 cwd；direct／outer loader warning callback 改 branch 時由 lower-layer base 重讀最終 snapshot。這不宣稱 disk transaction、rollback 或 private SDK 攔截。
+
+Migration cleanup：新 scaffold 與 explicit global/project/session save 不產生 `compactAfterPreset`／`compactAfterTokens`／`compactAfterRatio`／`compactReserveTokens`／`midRunCompaction`／`tailBehavior`／`retainedToolOutputMaxTokens`；舊檔 read/load/reload 不清理、不改 JSONL，僅明確 save canonicalize 這七個 ignored controls。UI 只顯示 readonly compatibility explanation，沒有可寫回的 picker。未知 keys、models 的未改 metadata、user preset definitions、有效 memory/debug/recall/output budgets 保留；`debug`／`sessionFallback`／`fullFoldAlways` 不屬於刪除範圍，memory defaults 不改。舊 `passive`／`noAutoCompact`／`overrideDefaultCompaction` 亦非 bulk-delete targets。Active X 狀態列以縮短進度條顯示 public `getContextUsage` 的 context usage／capacity；取不到時顯示 unknown。此進度只代表容量使用率，不推測 Pi 的 native trigger budget，也不以 legacy preset、比例或 transcript tokens 假造 Pi threshold。O／P／X 使用四個字元寬的進度條，Left Half Block（▌）提供半格精度（共八個填充步階）；未填部分採 dim 灰色軌道，填充色階依負載分級：低於 25% 為 muted、25% 起 success、50% 起 accent、75% 起 warning、100% 起 error；半格填充使用 Pi 主題的 `toolPendingBg` 背景色襯托。
+
 本目錄是上游 **0.5.12 / a2e4c13** 的來源快照，保留原 MIT LICENSE。實際入口為 `src/index.ts`，轉接原 `index.ts` factory；不載入 npm Blackhole，也不需要 dist。原文的安裝／pnpm scripts／開發 Pi 1.1.0 宣告是上游歷史資訊，**本整合只以根 manifest 的 Pi 1.1.0 為基準**。只在 repository root 管理依賴與唯一 lockfile，不在本目錄 npm/pnpm install。
 
 本地修正：`src/hooks/cosmetic-output.ts` 按 Pi `getBranch()` oldest-first 順序從 compaction 往回找最新被省略的回答，搭配真實順序的回歸測試。`showPreCompactionMessage: true` 時保存有界、清除 terminal controls 的 display-only 副本；保留 16 KiB 上限、去重、retained/aborted 過濾。不修改壓縮時機、tail 行為、模型 context、個人設定或歷史 session；不回填舊缺失副本。
@@ -31,6 +37,8 @@ Pi-owned review 安全修正：null-edited 通知保留 state-only 邊界骨架�
 B1 審查修正：raw collector 以 originating File-call IDs 選擇 authority，duplicate 被 shared pairs 排除後仍拒絕 legacy fallback；不把 File arguments 存入 speculative legacy actions。需 unique／同名／先 call 後 result／explicit false，並確認這一筆 raw result 的位置。R1 的 raw／normalized／compact／touched negative matrix 與 native compact/resume 有回歸；W1 另直接測 head/tail pathTokens 及 non-File consumer，保留 correlated File cases，不恢復不安全 prose retry。非 File legacy parser及 Windows alias 能力不擴包。
 
 根驗證：`npm run test:module -- blackhole`（保留來源 Vitest runner，並有隔離 Pi 1.1.0 native compact/persist/resume/renderer probe）、`npm run test:cross` 和 `npm run test:package`。完整 suite 有環境／上游阻礙時必須回報失敗，不跳過、不當作通過；進度與證據見 repository `plan/`。來源與適配雜湊見 `docs/sources.json` / `docs/adaptations.json`。
+
+測試分組修正：根 unit 明確使用 `--suite=unit` 排除 `tests/integration/**`；native Vitest 分組由 integration／module runner 顯式執行，單一 worker、檔案序列，保留全部案例。手動 runner 未指定 suite 仍執行全部（序列），也可用 `--suite=integration <filter>` 選取 native probes。Unit 10 秒不變；`pi-owned` 使用既有 process helper 的 30 秒程序預算／8 秒終止確認 grace，以及 45 秒 Vitest 外層收尾預算；取消或終止要求不等於 descendants 全部停止，失敗不能當作通過。不改 runtime 邏輯、信任界線或斷言。
 
 本地測試適配：根 `scripts/blackhole-tests.mjs` 保留隔離 HOME／空 credentials／`PI_BLACKHOLE_PASSIVE=true`，但不將 agentDir 環境覆寫蓋過各案例的 SDK mock。`tests/unit-isolation.setup.ts` 僅允許六個明確列出的純 config／mock command 測試暫時移除 passive 覆寫，其他案例維持 passive，並在每案例前後還原。Vitest `.js` alias 限相對來源 import，不改寫宿主 file URL；Windows fixtures 使用 `tmpdir()`／`dirname()`／正規化 Git map keys；唯讀故障注入 EROFS，不依賴 chmod 或 skip；worker deadline 測試以實際 invocation event barrier 對齊 fake clock，不加長 deadline。根 TypeScript compiler 透過 Node resolution 定位，不要求模組內 node_modules。
 
@@ -76,7 +84,7 @@ pi uninstall npm / git:https://github.com/sting8k/pi-vcc
 pi uninstall npm / git:https://github.com/elpapi42/pi-observational-memory
 ```
 
-Then `/reload` or restart Pi. The config file at `~/.pi/agent/pi-blackhole/pi-blackhole-config.json` is created with sensible defaults — no setup required for the default behavior. Config merges global → project → env → session (session is ephemeral). See **[`docs/CONFIG.md`](docs/CONFIG.md)** for tuning or run `/blackhole settings` to open the interactive overlay.
+Then `/reload` or restart Pi. The config file at `~/.pi/agent/pi-blackhole/pi-blackhole-config.json` is created with sensible defaults — no setup required for the default behavior. Config merges global → project → env → session (session is ephemeral). The project layer (`<cwd>/.pi/pi-blackhole-config.json` and legacy `<cwd>/.pi/settings.json`) is read only when the host reports the project trusted (`ctx.isProjectTrusted() === true`); untrusted or unknown trust ignores it for runtime, ConfigManager and the settings UI. See **[`docs/CONFIG.md`](docs/CONFIG.md)** for tuning or run `/blackhole settings` to open the interactive overlay.
 
 > **Want a guided setup?** Pass [`llms.txt`](llms.txt) to your agent — it will walk you through the interview, including picking cheap fallback models for your providers.
 
@@ -112,7 +120,7 @@ Both halves share a single hook and a single output. Together they keep the agen
 | Command                     | Description & Options                                                                                                                                   |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/blackhole`                | Manual compact — deterministic structural summary                                                                                                       |
-| `/blackhole settings`       | Open the configuration overlay _(Alias: `/blackhole configure`)_                                                                                        |
+| `/blackhole settings`       | Open the configuration overlay in the TUI; RPC/json/print return a supported text summary instead _(Alias: `/blackhole configure`)_                                                                                        |
 | `/blackhole changelog`      | Open the in-app changelog viewer                                                                                                                        |
 | `/blackhole cleanup`        | Remove orphaned pending files                                                                                                                           |
 | `/blackhole om-off`         | Disable observational memory                                                                                                                            |
@@ -382,3 +390,9 @@ What blackhole adds and reworks on top:
 ## License
 
 MIT
+
+## Behavior notes (defect-report fixes D01/D03/D20/D21)
+
+- **Branch epoch (D03):** `session_before_tree`/`session_tree` abort in-flight observer/reflector/dropper workers; before any append or pending commit the captured branch leaf must still be an ancestor of the live leaf. Ordinary turns that only extend the branch do not cancel workers. A navigation cancelled by another extension costs one re-launch at the next `turn_end`.
+- **`/blackhole om-on|om-off` (D21):** patch only the `memory` key of the global file; defaults, project and env values are never copied into it. On save failure the session fallback is really applied and the warning says it is not persisted.
+- **Known upstream (H01):** Pi 1.1.0 may emit `session_compact` with an older same-summary checkpoint; Blackhole rejects such receipts and keeps pending state (`tests/h01-*.test.*`).

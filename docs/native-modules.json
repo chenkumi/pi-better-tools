@@ -12,9 +12,9 @@
       "files": [
         { "path": "modules/monitor/LICENSE", "sha256": "e1cb88a3eed658e32e1e9d7a7a0ebad47efd7ef8049e7335af29fd5bee00ffe8", "reason": "Native MIT notice." },
         { "path": "modules/monitor/package.json", "sha256": "ea7a9c245eb65c2f443941510502f1c952b779dfd2ca119e1cef7ab0617995d8", "reason": "Native metadata, root install authoritative." },
-        { "path": "modules/monitor/README.md", "monitorReviewPreviousSha256": "0d1ad637ef6e2612eb34bc658593078de5f80f340f384a3ac906cfe9cc55755e", "monitorReentryPreviousSha256": "7886027c4a677adbaa3580d8058cd1e125ad01ece6b36ba99dc5ff9fb70f600b", "sha256": "250bf1a4cae8343bc09761f6925f045a14f861235f969c4f318548cc12a73a7a", "reason": "Contract, limits, security and producer schema/handoff." },
+        { "path": "modules/monitor/README.md", "monitorReviewPreviousSha256": "0d1ad637ef6e2612eb34bc658593078de5f80f340f384a3ac906cfe9cc55755e", "monitorReentryPreviousSha256": "7886027c4a677adbaa3580d8058cd1e125ad01ece6b36ba99dc5ff9fb70f600b", "defectRepairPreviousSha256": "250bf1a4cae8343bc09761f6925f045a14f861235f969c4f318548cc12a73a7a", "monitorDefaultActivePreviousSha256": "f39d35ebb769bd6490b5d0fc42a6e7047d73f70560206c087c9a6e53a90825d6", "sha256": "abbcedec65159c074f4a78207afae5b68c2bf15b3b5ae686f35165ff668afea7", "reason": "Contract, limits, security and producer schema/handoff." },
         { "path": "modules/monitor/src/core.ts", "monitorReviewPreviousSha256": "93596276c588b022c6d7ef4a7f9a3129b698d2996103f4b52ef36c6a845372b1", "monitorReentryPreviousSha256": "b820336ee6d66e146d23354ad23fd9dddd9bd1d399999fe05439c4adf1f7b07f", "sha256": "1b96dbe4caca25b1ce80c99567a79eef6724a4582c43a3aa1e676c60c26f91d6", "reason": "Owner-generation bounded lifecycle/events/submission/cleanup evidence." },
-        { "path": "modules/monitor/src/index.ts", "monitorReviewPreviousSha256": "7387daf19ec49737352811e445e9bb0e8d2bf163e02d8e81ad1a8dc462df7123", "sha256": "32126a70a9e35cc081d4eb650ffeaa86eb8b7b65f0a29921212fc642aabddd19", "reason": "Native inactive tools, managed-child and owner guards." },
+        { "path": "modules/monitor/src/index.ts", "monitorReviewPreviousSha256": "7387daf19ec49737352811e445e9bb0e8d2bf163e02d8e81ad1a8dc462df7123", "monitorDefaultActivePreviousSha256": "32126a70a9e35cc081d4eb650ffeaa86eb8b7b65f0a29921212fc642aabddd19", "sha256": "c11e6492f6ad29802714e39f4aef68e037a8e161fa5c5ff66004dfef069482f6", "reason": "2026-10-10 user-requested defaultActive:true; unchanged managed-child, selection and owner guards." },
         { "path": "modules/monitor/src/lines.ts", "sha256": "b1850b315e6ff26749136b317bdda09698c1dd78fe3774ba58905e25b3f3a4ef", "reason": "Bounded byte-line parsing before decode and UTF8 preview." },
         { "path": "modules/monitor/src/network.ts", "sha256": "6d28a3ede858ba93c2e708bf5d8f7d7b699e51998ca1e9f68fe013e9f2e54c04", "reason": "Validated pinned DNS/TLS/options for direct ws8.22." },
         { "path": "modules/monitor/src/renderers.ts", "sha256": "e7a96971e9989b88ae67f3a318469a556182864cd7941350b352401ccfd4f897", "reason": "Bounded presentation with truthful source-close/no-ack wording." },
@@ -22,7 +22,7 @@
         { "path": "modules/monitor/src/sources.ts", "sha256": "f1fcef4e422c60641eaf0db41e7ec42e8de7e695addf2ac953eff47f5f9961da", "reason": "Four source adapters, actual close and readonly job timer ownership." },
         { "path": "modules/monitor/tests/command.integration.test.ts", "sha256": "906bf06b9597f9f9510ca4853ed52de076ebc65547b83d0c334da365f564f678", "reason": "Actual command cancel/expiry/event-limit close barriers." },
         { "path": "modules/monitor/tests/core.test.ts", "sha256": "0268c391e634440693fcb5820afab313631865bb88158ce25e3a7a9d2bc1ea75", "reason": "Deterministic-clock limits/lifecycle/delivery/parser regressions." },
-        { "path": "modules/monitor/tests/fixtures/host.ts", "monitorReviewPreviousSha256": "ee8633727511b5d055d9b6f6907755b29aa9b8a4e30c9272d448e2a58dd9df4e", "sha256": "ff346f8667b2d687819cf15f3e71142f7ebbe596c8177a4fdb1523a683d199a9", "reason": "Actual offline Pi four-source/load-order/child/reload fixture." },
+        { "path": "modules/monitor/tests/fixtures/host.ts", "monitorReviewPreviousSha256": "ee8633727511b5d055d9b6f6907755b29aa9b8a4e30c9272d448e2a58dd9df4e", "monitorDefaultActivePreviousSha256": "ff346f8667b2d687819cf15f3e71142f7ebbe596c8177a4fdb1523a683d199a9", "sha256": "c744507305e137b0f76d0c87799043db5825b8c6b0dc15fa64267322ab6473b0", "reason": "Actual offline Pi four-source/load-order/child/reload fixture." },
         { "path": "modules/monitor/tests/fixtures/offline-provider.ts", "sha256": "56ab88728b3e415365328aa9356e869d3e863bafa9f7ed06524baa95c811b511", "reason": "Local synthetic provider and child event/file barriers, no external requests." },
         { "path": "modules/monitor/tests/fixtures/producer.ts", "sha256": "49ff840abb34aa64238fcf73ae9ef0158800e582a0ea8b0d051a1efb6442abfb", "reason": "Actual producer/Pi persisted-entry fixtures for parent Blackhole handoff." },
         { "path": "modules/monitor/tests/fixtures/tls-material.ts", "sha256": "154874ae3a5e7b539bbf0235ef7695f780667671deef42cd7738fcbac95e9652", "reason": "Public generated test-only TLS material, excluded from tarball/runtime." },
@@ -32,7 +32,7 @@
         { "path": "modules/monitor/tests/renderers.test.ts", "sha256": "c7750bd41e76e568f46fc2e0027a6afe5b01e7a5a1d25163896f2924b09a1e97", "reason": "Red-green source-close renderer evidence." },
         { "path": "modules/monitor/tests/sources.integration.test.ts", "monitorReviewPreviousSha256": "06f4f981d3b5fa82ba02e0968f2da90c3c5db886c1ab80a9c92eb0c040a42401", "sha256": "f6b8c10d2e2dd5e7e1dd1ab51c1c7720d2c4e796a6eaf92e76a39bbe2acb139c", "reason": "Actual stdout/stderr/WS fragments/binary/payload/job lease transports." },
         { "path": "modules/monitor/tests/review-core.test.ts", "monitorReentryPreviousSha256": "3901fd52edc11c9870da01a9035a621bd390d9e76017d18766792754aafe1120", "sha256": "64a8a4a7dea843c0ca24fce5675e9aa196e7780992c427370d583c41add015c7", "reason": "Review red/green deferred-close, four-source/byte-cap fairness, capacity/startup/reentry/wake regressions; deterministic clock." },
-        { "path": "modules/monitor/tests/status.test.ts", "sha256": "e80b4ffe9d60b9e5df2f921d204c66ce25c012d232fa565758a7dfc57785b956", "reason": "Direct execution rejects non-record status inputs before readonly list." },
+        { "path": "modules/monitor/tests/status.test.ts", "monitorDefaultActivePreviousSha256": "e80b4ffe9d60b9e5df2f921d204c66ce25c012d232fa565758a7dfc57785b956", "sha256": "721fbf9a999b9fd226fa76acffe874bf6291f73e4984246dd1edf6f9eefb5581", "reason": "Direct execution rejects non-record status inputs before readonly list." },
         { "path": "modules/monitor/tsconfig.json", "sha256": "cf84803c4808ab9d2af3834851589ef6a7c78eb252cb83d5e9e5f353af4d3edc", "reason": "Root strict typecheck target." }
       ]
     },
@@ -49,7 +49,7 @@
         },
         {
           "path": "modules/note-tools/extensions/note.ts",
-          "sha256": "17f5f87d48ca609ecc6609a82cab2cc83a7cab75d12cd7baa570c00633cbabd5",
+          "defectRepairPreviousSha256": "17f5f87d48ca609ecc6609a82cab2cc83a7cab75d12cd7baa570c00633cbabd5", "sha256": "84bd3ab8df301db593ccbb10e15b8fd6ca1de7a95855955b492def2d198de9ab",
           "preChangeSha256": "b224c95b00c707d879e886507aa21d9be8258a6a4693b2523e12d7708175f2a4",
           "previousRecordedSha256": "b753ab14a2ffe217509ed09555fb73553f8da694f70acf928785e57492562ea3",
           "historicalDeltaAudit": "unavailable",
@@ -60,7 +60,7 @@
         },
         {
           "path": "modules/note-tools/tests/note.test.ts",
-          "sha256": "66810acdb3ec9fcfaec9086a768be04b451b33eefe50245144b473577494d889",
+          "defectRepairPreviousSha256": "66810acdb3ec9fcfaec9086a768be04b451b33eefe50245144b473577494d889", "sha256": "5db5b963ae3307663e18800976b13d9c1ea6ace48a2d49f0f7b38f4905cfcb9f",
           "reason": "Update compact timestamp assertions; add UTC rollover, lexical sorting, legacy-file retention and 1000-collision exhaustion regressions without removing existing assertions. 2026-10-06 local adaptation (note-tools): slug filename TYPE-<UTC timestamp>[-slug].md (CJK preserved, 40 code points), NOTE_EMPTY error, single relative path result. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: L20-L23: single relativePath output, bounded fence-aware title discovery and exclusive-create/collision preservation reviewed; max999ms collision offset retained intentionally. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
           "preChangeSha256": "b5d6895104641e88ae2fd06d2fb41b9f955df86c1b7fb8732b0a26e0ae4bb603",
           "checklistReviewPreviousSha256": "71dec5d32ba9d557175be46a73a68457f2fe1195d76b2c4df6b6c60dc760b664",
@@ -76,7 +76,7 @@
         },
         {
           "path": "modules/note-tools/README.md",
-          "sha256": "238b9671e58167be9340d56e2dc1d10f6aaa3851d8188db3a968d51b990d64c3",
+          "defectRepairPreviousSha256": "238b9671e58167be9340d56e2dc1d10f6aaa3851d8188db3a968d51b990d64c3", "sha256": "424f439f76998f5afc71c1d7a393a240f1ec85456e17be2c57be39d51e0fa51d",
           "preChangeSha256": "d48131a0ac81493e67c45b929ec37227d720ce122566362a40ab850638154171",
           "previousRecordedSha256": "ab18ee3335437ce91af7fcdd1e8dbdc6198ab2c9989c0de37adf967b41e92bb9",
           "historicalDeltaAudit": "unavailable",
@@ -100,7 +100,7 @@
         },
         {
           "path": "modules/gpt-speed/extensions/gpt-speed.ts",
-          "sha256": "e04b78278f40d70c514eebe32db8b353b4d6489b9884c532a31774d3f7e410d3",
+          "defectRepairPreviousSha256": "e04b78278f40d70c514eebe32db8b353b4d6489b9884c532a31774d3f7e410d3", "sha256": "c8794423004f255a3d50c0bc5addb2dc4768367cd3790f0d40650bf20c1ea691",
           "checklistReviewPreviousSha256": "566852a410666e7bb252333536cd378a1279c019d1604197e837b627730f0bb5",
           "checklistReviewBaselineSha256": "ee66d2d818e06441394ef787fadca73a798450a36fca26bc7d7c4d208fea5a8d",
           "localSnapshotReview": "2026-10-08 current local snapshot review: M16: canonical settings target, dangling/error fail-closed behavior, bounded synchronous ELOCKED retry, lock-held mode read/chmod preservation and read-merge persistence reviewed without real user settings. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
@@ -110,7 +110,7 @@
         },
         {
           "path": "modules/gpt-speed/tests/gpt-speed.test.ts",
-          "sha256": "ea71a53b69b75daac205611f04d0fde7efa6c951be2492b8e836aa6aeb2b13b3",
+          "defectRepairPreviousSha256": "ea71a53b69b75daac205611f04d0fde7efa6c951be2492b8e836aa6aeb2b13b3", "sha256": "481660e3b6156451e815eb4ba53311efee9aa601835a500f0c3cc54283770310",
           "checklistReviewPreviousSha256": "bc3e042d832456c917db5995ca71c68f591230ae1a7090cd6b2b916099e46651",
           "checklistReviewBaselineSha256": "beb9df1b145d14be35c32f57d9eb6bb10543c8aa5a6a5ebe28d60a509d238325",
           "localSnapshotReview": "2026-10-08 current local snapshot review: M16: canonical settings target, dangling/error fail-closed behavior, bounded synchronous ELOCKED retry, lock-held mode read/chmod preservation and read-merge persistence reviewed without real user settings. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
@@ -125,7 +125,7 @@
         },
         {
           "path": "modules/gpt-speed/README.md",
-          "sha256": "8fc46055821cb738a66b1d9872e8f0e920c8a93d4b638c8ec19a9d56eaef6236",
+          "defectRepairPreviousSha256": "8fc46055821cb738a66b1d9872e8f0e920c8a93d4b638c8ec19a9d56eaef6236", "sha256": "3980ead77793f1145c968a7c48667128c24da91c8c75cf59f0b944bd1d825634",
           "previousRecordedSha256": "770e36fd3ec7a872da87ad776f37a2b396ae2d38d42b1852169f0a0002aacbe4",
           "historicalDeltaAudit": "unavailable",
           "localSnapshotReview": "2026-10-03: complete README inspected against root documented pattern/tiers/settings policy and existing local tests; current bytes match initial commit f14b837, earlier recorded bytes unavailable.\n2026-10-08 current local snapshot review: M16: canonical settings target, dangling/error fail-closed behavior, bounded synchronous ELOCKED retry, lock-held mode read/chmod preservation and read-merge persistence reviewed without real user settings.",
@@ -148,7 +148,7 @@
         },
         {
           "path": "modules/json-schema/extensions/json-schema.ts",
-          "sha256": "8e45d2c0135e1c34c8eb867d805aa560a601f307f8ce8b9bf061cb5469e6c589",
+          "defectRepairPreviousSha256": "8e45d2c0135e1c34c8eb867d805aa560a601f307f8ce8b9bf061cb5469e6c589", "sha256": "f87a662ff10a522ebe254a50720eea883a50522b10e438538c5f35bdec392cd6",
           "preChangeSha256": "54b24fcdd98e16d99f5d7a6f1e1719d78ef95833540d14bdbf578a352c2e235a",
           "reason": " 2026-10-06 local adaptation (json-schema): description merged, README documents validation-failure semantics and provider compatibility warning. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: M8-M9/L32-L33: retained original assistant text, schema-valid candidate selection, bounded reusable validation pool and Windows delivery rename retry reviewed; conservative pattern policy and cancellation/termination capacity retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
           "checklistReviewPreviousSha256": "cb6e89aec983c86b472fa497f1267add9efcc2c4bf8c9c3f7fce01367e8adff8",
@@ -253,7 +253,7 @@
         },
         {
           "path": "modules/json-schema/README.md",
-          "sha256": "15ba1dc1cc72eb3a45917a2a6f3f61dc5560b66defd815fc97ef17fa7a9f1985",
+          "defectRepairPreviousSha256": "15ba1dc1cc72eb3a45917a2a6f3f61dc5560b66defd815fc97ef17fa7a9f1985", "sha256": "fc13f878c1e8bf3d7caf9c605d84f7a00fd52cdd8010e99e828039ba51676e64",
           "preChangeSha256": "d958f41be3768e319f816e1707dbbff41bb4c25e591152392796a5088c52bde6",
           "reason": " 2026-10-06 local adaptation (json-schema): description merged, README documents validation-failure semantics and provider compatibility warning. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: M8-M9/L32-L33: retained original assistant text, schema-valid candidate selection, bounded reusable validation pool and Windows delivery rename retry reviewed; conservative pattern policy and cancellation/termination capacity retained.",
           "checklistReviewPreviousSha256": "b50c3f1c168e10f939b4439d9aae71eaafa83a4d72c9a1203424d84059d4e8a0",

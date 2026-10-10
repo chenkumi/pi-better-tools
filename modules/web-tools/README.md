@@ -143,5 +143,6 @@ Brave 使用 Web Search endpoint；Exa 使用 Search endpoint（`type: "auto"`�
 - context 關閉設有 5 秒上限，逾時仍會釋放佇列名額，瀏覽器由 idle／shutdown 清理。
 - 為逐跳驗證 redirect，網路請求經 Playwright context request 取回後交給 browser；部分重新導向子資源的相對 URL 語意可能與一般瀏覽不同。
 - 不是完整安全沙箱：DNS 檢查與實際連線各自解析，仍有 DNS rebinding 競態。Playwright `route.fetch` 不提供固定已驗證 IP 的連線選項，因此未實作 IP pinning；已加入事後緩解：每個 `route.fetch` 回應在交給瀏覽器前，以 `APIResponse.serverAddr()` 檢查實際連線的對端位址，非公開或缺少位址即 fail closed（`NETWORK_BLOCKED`），每個 redirect 跳點都檢查。此緩解只能阻止回應內容被使用，惡意 DNS 仍可能讓請求本身已送達內部位址（盲 SSRF，例如帶副作用的 GET/POST）；完整防護仍需 OS／container egress 控制。同一次 fetch 內每個 hostname 僅做一次 DNS 檢查（結果含失敗皆快取），實際連線位址則逐回應檢查，且 Chromium 會執行遠端 JavaScript；高敏感環境需以 OS／container 控制 egress。不適合作為公開或多租戶抓取服務。
+  R04 回歸：`tests/integration/fetch.test.ts` 鎖定現況（盲請求仍送達、僅阻止回應使用），「私有目標零請求」以 `todo` 記錄，不使 CI 變紅。
 - 頁面與搜尋內容是不可信的外部資料，清理 HTML 不能消除 prompt injection；網頁與搜尋結果會進入 Pi 對話並傳送給模型供應商。
 - Pi 的 offline 設定不等於阻擋本模組的網路；如需阻擋請使用 OS／container 網路政策。

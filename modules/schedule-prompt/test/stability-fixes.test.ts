@@ -77,7 +77,7 @@ it.each(['session_shutdown', 'session_start'])('%s always stops the old schedule
   const storage = new CronStorage(cwd); storage.addJob(job(false));
   const hooks = new Map<string, any>();
   await extension({ registerTool() {}, registerCommand() {}, registerMessageRenderer() {}, events: { on: () => () => {}, emit() {} }, on: (key: string, fn: any) => hooks.set(key, fn) } as any);
-  const ctx = { cwd, mode: 'rpc', hasUI: false, sessionManager: { getSessionId: () => 'owner' }, ui: { setWidget() {}, setStatus() {} } };
+  const ctx = { cwd, isProjectTrusted: () => true, mode: 'rpc', hasUI: false, sessionManager: { getSessionId: () => 'owner' }, ui: { setWidget() {}, setStatus() {} } };
   await hooks.get('session_start')({ reason: 'startup' }, ctx);
   const stop = vi.spyOn(CronScheduler.prototype, 'stop');
   const remove = vi.spyOn(CronStorage.prototype, 'removeJob').mockImplementation(() => { throw new Error('injected save failure'); });

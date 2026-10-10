@@ -26,7 +26,7 @@ pi -p --json-schema "$schema" --json-output result.json "回答問題"
 驗證失敗不會使整個執行失敗：`json_output` 以**工具錯誤**回給模型，模型可依錯誤訊息修正後重試。目前沒有重試次數上限（受模型自身的回合與成本限制）；模型始終不給出有效結果時，會落入下方的 best-effort 回收。
 
 - file：原子寫入（暫存檔後 rename），2 格縮排 JSON 並結尾換行；rename 遇到暫時鎖定（EPERM／EBUSY／EACCES）最多重試 8 次、累計等待 1.32 秒，失敗時保留舊檔並清除暫存檔。
-- stdout：單行 JSON 加換行。結構化輸出的執行不會把助理的說明文字印到 stdout；每次執行只接受一個 prompt（要多個請用 `--json-output`）。
+- stdout：單行 JSON 加換行。結構化輸出的執行不會把助理的說明文字印到 stdout（即使之前已有上游錯誤而判定失敗，也仍抑制，失敗時 stdout 為空）；每次執行只接受一個 prompt（要多個請用 `--json-output`）。
 - 只接受一個結果；內容不同的第二個結果視為衝突並失敗。
 - 交付的是模型給的原始資料，不套用 schema 的 `default`，也不做型別轉換。
 
@@ -39,7 +39,7 @@ pi -p --json-schema "$schema" --json-output result.json "回答問題"
 
 ## 失敗處理
 
-上游請求出錯／中止、收到 SIGTERM（非 Windows 另含 SIGHUP）、`json_output` 驗證失敗、結果衝突或無法取得有效結果時，不交付任何內容、錯誤寫入 stderr 並設 exit code 1。
+宿主在 `agent_settled` 回報最終 `aborted`（例如 `agent_before_settle` 中的 `ctx.abort()`，沒有 SIGTERM）時，以最後一個高階 run 的狀態決定：不交付、stdout 為空、既有輸出檔不覆寫、exit code 1。上游請求出錯／中止、收到 SIGTERM（非 Windows 另含 SIGHUP）、`json_output` 驗證失敗、結果衝突或無法取得有效結果時，不交付任何內容、錯誤寫入 stderr 並設 exit code 1。
 
 ## 支援的 schema 範圍
 

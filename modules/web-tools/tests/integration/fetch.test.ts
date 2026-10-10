@@ -207,6 +207,20 @@ test('connected-address mitigation blocks private response use but does not prev
   assert.equal(site.hits.has('/forbidden'), false);
 });
 
+// R04 known limitation (todo, not CI red): the desired containment would send NO request to a rebound private address. Today the DNS preflight
+// is not pinned and route.fetch is issued before assertConnectedAddress, so the request is sent and only the response use is blocked (locked by
+// the test above and documented in the README). Full containment needs pinned transport or external egress control: a policy decision, not a bug fix here.
+test('R04 private target must receive zero requests after a rebinding-style public preflight', { timeout: 45_000, todo: 'known limitation: not a full SSRF sandbox; see README (blind request)' }, async (t) => {
+  const site = await fixture();
+  const service = new FetchService(options);
+  t.after(async () => { await service.close(); await site.close(); });
+  await extractHtmlIsolated('<main>warm</main>', 'https://example.org/', 'text', 'main', new AbortController().signal);
+  const policy = (service as unknown as { policy: NetworkPolicy }).policy;
+  t.mock.method(policy, 'validate', async (url: string) => parseWebUrl(url));
+  await assert.rejects(service.fetch({ url: `${site.url}/blind` }), /NETWORK_BLOCKED:/);
+  assert.equal(site.hits.get('/blind') ?? 0, 0, 'blind request reached the private server before the connected-peer check');
+});
+
 test('queue cancellation and shutdown are bounded and do not start queued requests', { timeout: 45_000 }, async (t) => {
   const site = await fixture();
   const service = new FetchService({ ...options, maxConcurrency: 1 }, { allowPrivateNetwork: true });

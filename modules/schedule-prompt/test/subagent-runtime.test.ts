@@ -26,7 +26,7 @@ function makeCtx(registryExtra: Record<string, unknown> = {}) {
 }
 
 function fakeSession() {
-  return { abort: vi.fn(), subscribe: vi.fn(() => vi.fn()), prompt: vi.fn().mockResolvedValue(undefined), messages: [] };
+  return { abort: vi.fn(), subscribe: vi.fn(() => vi.fn()), prompt: vi.fn().mockResolvedValue(undefined), messages: [{ role: "assistant", stopReason: "stop", content: [{ type: "text", text: "done" }] }] };
 }
 
 describe("runSubagentOnce — Pi 1.0 model runtime", () => {

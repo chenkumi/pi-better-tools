@@ -26,7 +26,7 @@ const sourceTests = [directTests('pty-terminal:test', 'modules/pty-terminal/test
   directTests('web-tools:test', 'modules/web-tools/tests/unit', () => true, { concurrency: 4 }),
   // Schedule Prompt keeps its source vitest runner (heavy vi.mock use); modules/schedule-prompt/test is therefore not scanned by node --test.
   { label: 'schedule-prompt:test', args: ['node_modules/vitest/vitest.mjs', 'run', '--root', 'modules/schedule-prompt'] },
-  { label: 'blackhole:test', args: ['scripts/blackhole-tests.mjs'] }];
+  { label: 'blackhole:test', args: ['scripts/blackhole-tests.mjs', '--suite=unit'] }];
 const groups = {
   // No module ships compiled artifacts any more; the group stays so `npm run build` / prepack remain valid no-ops.
   build: [],
@@ -40,12 +40,18 @@ const groups = {
     { label: 'json-schema:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/json-schema/tsconfig.json'] },
     { label: 'blackhole:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/blackhole/tsconfig.json'] }],
   // Scan test directories (not hard-coded lists) so a new *.test.ts is never silently skipped; *.test.mjs there are real-host integration tests.
-  unit: [directTests('monitor:test', 'modules/monitor/tests', name => !isIntegration(name)), directTests('pi-runtime:test', 'modules/pi-runtime/tests', name => !isIntegration(name)), ...sourceTests, ...[['note-tools', 'modules/note-tools/tests'], ['gpt-speed', 'modules/gpt-speed/tests'], ['json-schema', 'modules/json-schema/tests']]
+  unit: [directTests('all-modules:test-tooling', 'tests/unit', () => true), directTests('monitor:test', 'modules/monitor/tests', name => !isIntegration(name)), directTests('pi-runtime:test', 'modules/pi-runtime/tests', name => !isIntegration(name)), ...sourceTests, ...[['note-tools', 'modules/note-tools/tests'], ['gpt-speed', 'modules/gpt-speed/tests'], ['json-schema', 'modules/json-schema/tests']]
     .map(([module, dir]) => directTests(`${module}:test`, dir, name => name.endsWith('.test.ts')))],
   integration: [directTests('monitor:integration', 'modules/monitor/tests', isIntegration), directTests('pi-runtime:real-host', 'modules/pi-runtime/tests', isIntegration), directTests('pty-terminal:test:integration', 'modules/pty-terminal/tests', isIntegration),
     directTests('json-schema:workers', 'modules/json-schema/tests', isIntegration),
+    // Real-host regressions for reported defects (todo cases document known limits and do not fail the stage).
+    directTests('gpt-speed:real-host', 'modules/gpt-speed/tests', isIntegration),
+    directTests('note-tools:real-host', 'modules/note-tools/tests', isIntegration),
+    directTests('schedule-prompt:integration', 'modules/schedule-prompt/tests', isIntegration, { concurrency: 3 }),
     { label: 'schedule-prompt:real-host', args: ['--test', 'tests/integration/schedule-deadline.test.mjs'] },
     { label: 'blackhole:real-host', args: ['--test', 'tests/integration/blackhole-display.test.mjs'] },
+    { label: 'blackhole:native-vitest', args: ['scripts/blackhole-tests.mjs', '--suite=integration'] },
+    directTests('blackhole:integration', 'modules/blackhole/tests', isIntegration),
     directTests('shell-tools:test:integration', 'modules/shell-tools/tests', isIntegration), moduleTask('file-tools', 'test:integration'),
     directTests('subagents:test:integration', 'modules/subagents/tests', isIntegration, { concurrency: 3 }),
     { label: 'json-schema:real-cli', args: ['--test', 'modules/json-schema/tests/runtime.test.mjs'] },

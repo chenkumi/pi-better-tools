@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (Pi Better Tools local adaptation, 2026-10-10; defects D02/D04/D06/D08/D09/D10)
+- D02: project schedules (`.pi/schedule-prompts.json`, project settings file) load and start only when `ctx.isProjectTrusted()`; an untrusted project gets no timers, widget or command, and `schedule_prompt` returns an error. Scheduler `start()`/fire re-check trust. The child session creates one `SettingsManager` with the parent's trust and shares it between the resource loader and `createAgentSession`.
+- D04: child sessions are disposed with an awaited `session_shutdown` followed by `dispose()`; failures are returned as `cleanupError` and kept by the scheduler (`getCleanupFailures()`). `stop()` closes admission and aborts; `drain()` (bounded) waits for accepted/initializing children and is awaited on session shutdown/replacement. This is in-process cleanup, not an OS sandbox, and is separate from Subagents' child guarantees.
+- D06: the recursion guard reads the current branch (oldest-first) for the real `custom_message` marker (`customType: "scheduled_prompt"`) tied to the current user turn, or a notifying child-result marker (`details.notify`), instead of a `type === "custom"` check over the last ten entries.
+- D08: failed `schedule_prompt` calls (missing job, deadline, lock failure, validation) return `isError: true` with the same text/`details.error`.
+- D09: a child whose final assistant message is `stopReason: "aborted"` or that produced no assistant response is recorded as an error, not a success/`runCount`; parent cancel and timeout stay separate.
+- D10: outside `ctx.mode === "tui"` no component widget or 30 s refresh timer is created; `/schedule-prompt` Jobs uses select/confirm dialogs (RPC-compatible). Headless scheduling is unchanged.
+- D07 (stdout stays clean) is covered by negative regression tests; no code change.
+- Real-host regressions live in `tests/*.integration.test.mjs` (run with `node --test`; vitest excludes `tests/` via `vitest.config.ts`).
+
 ### Added (Pi Better Tools local adaptation, 2026-10-07)
 - Optional native `endAt` exclusive deadline for cron/interval/once. Strict timezone/calendar validation, UTC persistence, update-null clearing, deadline timer plus fresh dispatch guards, lock-required conditional expiration and lifecycle cleanup. Already-started work is not cancelled; expired jobs keep existing disabled-job cleanup semantics. Old jobs remain compatible, but older extensions do not enforce deadlines.
 - Add UI deadline choice, cutoff/expiration displays and enable guards; fake-clock contract/storage/scheduler/UI regressions and an isolated offline real-Pi-1.0.0 host probe in the root module test group. This is not an upstream snapshot update.

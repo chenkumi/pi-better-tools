@@ -218,6 +218,8 @@ Markdown 檔，位置：
 
 優先順序：專案 > 使用者 > 內建（同名覆寫）。`agentScope` 預設 `"user"`，需指定 `"both"` 或 `"project"` 才會使用專案 agents。
 
+未信任專案的 project-local agent 需 `confirm` 批准：dialog 會收到工具的 AbortSignal，取消工具時關閉；取消後（含晚到的批准）不派遣 child。`provider`／`model` 組合無效（空白 provider、provider 缺 model、provider 加 provider/model）回 `isError:true`，且不派遣。ready-query child 的 `before_agent_start` throw 只是回報，宿主 catch 後會繼續該 turn，**不是 admission barrier**；實際防護是 child 的 `--no-tools`／`--exclude-tools subagent` 與 guard（契約測試 `tests/approval-and-ready-query.integration.test.mjs`）。
+
 Frontmatter：`name`、`description`（必填，皆須為字串）、`tools`（逗號字串或陣列）、`model`（選填）；本文為 system prompt。格式錯誤的檔案會被略過。
 
 ```markdown

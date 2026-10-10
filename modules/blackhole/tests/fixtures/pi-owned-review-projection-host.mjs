@@ -32,7 +32,8 @@ const uiContext = new Proxy({ notify: text => notifications.push(String(text)) }
   if (['select', 'input', 'editor', 'confirm'].includes(key)) return async () => undefined;
   return target[key] ?? (() => undefined);
 } });
-await session.bindExtensions({ mode: 'json', uiContext, onError: e => errors.push(e.error) });
+// settings-session drives a simulated TUI selector; /blackhole settings only opens custom UI in mode 'tui' (D20).
+await session.bindExtensions({ mode: scenario === 'settings-session' ? 'tui' : 'json', uiContext, onError: e => errors.push(e.error) });
 const normalMemory = ['memory-normal', 'settings-session'].includes(scenario);
 const notice = id => sm.appendCustomMessageEntry('shell-job-completed', 'job', false, { jobs: [{ jobId: id, status: 'completed', exitCode: 0 }] });
 const user = text => sm.appendMessage({ role: 'user', content: text, timestamp: 1 });

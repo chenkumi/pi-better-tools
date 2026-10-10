@@ -30,6 +30,7 @@ function makePi(): ExtensionAPI {
 
 function makeCtx(): any {
   return {
+    mode: "tui",
     ui: {
       setWidget: vi.fn(),
     },

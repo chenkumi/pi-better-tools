@@ -1,0 +1,5 @@
+8dca3c57c2caae7caf8cd288c104f41be069f53eec83f7fb8218db92cca6bd3d  modules/blackhole/README.md
+b117801c56412f326355490a3c08f049ae5322200cb19efc582b2ddeff4dcc10  modules/blackhole/docs/CONFIG.md
+229b61c5a8f10f4ad2a4223ee13303a01e106493613075160debd50dd61a12d1  modules/blackhole/src/pi-base/settings/config-flow.ts
+aa8613610801b1b0847aa9723a12d2a2a5bb9661dd807850504fbf0d97b0ef03  modules/blackhole/tests/fixtures/review4-delete-save-host.mjs
+0de74e5025070c5d1dba3b40a93da68b7f1bf876d764b5a801006d75d5d2ae90  modules/blackhole/tests/integration/review4-delete-save.test.ts

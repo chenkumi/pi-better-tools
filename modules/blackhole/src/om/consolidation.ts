@@ -216,14 +216,28 @@ export function trimSerializedPrefix(entries: Entry[], maxTokens: number): Entry
   return entries.slice(0, lo);
 }
 
+/** The branch the work started on must still be an ancestor of the live leaf (normal turns advance the leaf; navigation leaves it). */
+function branchStillOwned(generation: RuntimeGeneration, ctx: ConsolidationCtx): boolean {
+  const leafId = generation.branchLeafId;
+  if (leafId === undefined || leafId === null) return true;
+  try {
+    const branch = ctx.sessionManager.getBranch() as Array<{ id?: string }>;
+    return Array.isArray(branch) && branch.some((entry) => entry?.id === leafId);
+  } catch {
+    return false;
+  }
+}
+
 function appendEntry(
   pi: ExtensionAPI,
   runtime: Runtime,
   generation: RuntimeGeneration,
   customType: string,
   data: unknown,
+  ctx: ConsolidationCtx,
 ): boolean {
   if (!runtime.isGenerationActive(generation)) return false;
+  if (!branchStillOwned(generation, ctx)) return false;
   pi.appendEntry(customType, data);
   return true;
 }
@@ -545,6 +559,15 @@ export function registerConsolidationTrigger(pi: ExtensionAPI, runtime: Runtime)
   pi.on("session_start", (_event, ctx) => {
     runtime.startSession(currentSessionIdentity(ctx as ConsolidationCtx));
   });
+  // Branch epoch: same-session navigation changes the leaf without changing the session id.
+  // before_tree revokes workers before the leaf moves (a cancelled navigation only costs a re-launch at
+  // the next turn_end); session_tree revokes again for any worker started in between.
+  pi.on("session_before_tree", () => {
+    runtime.advanceBranchEpoch();
+  });
+  pi.on("session_tree", () => {
+    runtime.advanceBranchEpoch();
+  });
   pi.on("session_shutdown", () => {
     runtime.dispose();
   });
@@ -652,7 +675,13 @@ function maybeLaunchConsolidation(pi: ExtensionAPI, runtime: Runtime, ctx: Conso
 
   // Capture the generation at launch time so we can detect session changes
   // mid-pipeline and abort stale work.
-  const generation = runtime.captureGeneration(currentSessionIdentity(ctx));
+  let branchLeafId: string | null | undefined;
+  try {
+    branchLeafId = (ctx.sessionManager as { getLeafId?: () => string | null }).getLeafId?.();
+  } catch {
+    branchLeafId = undefined;
+  }
+  const generation = runtime.captureGeneration(currentSessionIdentity(ctx), branchLeafId);
   if (!runtime.isGenerationActive(generation)) return;
 
   const runId = `consolidation-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 8)}`;
@@ -1294,6 +1323,7 @@ export async function runObserverStage(
           coversUpToId,
         });
         if (isManualMode(runtime.config)) {
+          if (!runtime.isGenerationActive(generation) || !branchStillOwned(generation, ctx)) return "abort";
           savePendingObservation(sessionId, { coversUpToId, data });
           debugLog("observer.pending", {
             count: result.observations.length,
@@ -1301,7 +1331,7 @@ export async function runObserverStage(
             sessionId,
           });
         } else {
-          if (!appendEntry(pi, runtime, generation, OM_OBSERVATIONS_RECORDED, data)) return "abort";
+          if (!appendEntry(pi, runtime, generation, OM_OBSERVATIONS_RECORDED, data, ctx)) return "abort";
           debugLog("observer.appended", {
             count: result.observations.length,
             coversUpToId,
@@ -1665,12 +1695,15 @@ export async function runReflectorStage(
       return { outcome: "continue", sameRunReflections: [] };
     }
     if (isManualMode(runtime.config)) {
+      if (!runtime.isGenerationActive(generation) || !branchStillOwned(generation, ctx)) {
+        return { outcome: "abort", sameRunReflections: [] };
+      }
       savePendingReflection(sessionId, {
         coversUpToId: data.coversUpToId,
         data,
       });
     } else {
-      if (!appendEntry(pi, runtime, generation, OM_REFLECTIONS_RECORDED, data)) {
+      if (!appendEntry(pi, runtime, generation, OM_REFLECTIONS_RECORDED, data, ctx)) {
         return { outcome: "abort", sameRunReflections: [] };
       }
     }
@@ -2305,9 +2338,10 @@ export async function runDropperStage(
         : undefined;
     if (data && coversUpToId) {
       if (isManualMode(runtime.config)) {
+        if (!runtime.isGenerationActive(generation) || !branchStillOwned(generation, ctx)) return "abort";
         savePendingDropped(sessionId, { coversUpToId, data });
       } else {
-        if (!appendEntry(pi, runtime, generation, OM_OBSERVATIONS_DROPPED, data)) return "abort";
+        if (!appendEntry(pi, runtime, generation, OM_OBSERVATIONS_DROPPED, data, ctx)) return "abort";
       }
       runtime.advanceCursor("dropper", coversUpToId, "recorded");
     } else {
