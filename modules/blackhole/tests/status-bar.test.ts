@@ -108,7 +108,10 @@ function setup(configOverrides: Record<string, unknown> = {}): Harness {
 
   const setStatus = vi.fn();
   // Theme records the style name so tests can assert warning vs dim.
-  const theme = { fg: (style: string, text: string) => `${style}:${text}` };
+  const theme = {
+    fg: (style: string, text: string) => `${style}:${text}`,
+    bg: (style: string, text: string) => `bg-${style}:${text}`,
+  };
   let branch: unknown[] = [];
   const ctx = {
     ui: { setStatus, theme },
@@ -136,7 +139,7 @@ function setup(configOverrides: Record<string, unknown> = {}): Harness {
       branch = e;
     },
     lastStatus,
-    plain: () => lastStatus()?.replace(/(muted|dim|warning|success|accent):/g, ""),
+    plain: () => lastStatus()?.replace(/(muted|dim|warning|success|accent):|bg-toolPendingBg:/g, ""),
   };
 }
 
@@ -157,14 +160,14 @@ describe("status bar", () => {
       await h.fire("session_start", {}, h.ctx);
       const s = h.lastStatus();
       expect(s).toContain("success:bh");
-      expect(s).toContain("muted:O");
-      expect(s).toContain("muted:P");
-      expect(s).toContain("muted:X");
+      expect(s).toContain("muted:O ");
+      expect(s).toContain("muted:P ");
+      expect(s).toContain("muted:X ");
     });
 
-    it("colors gauges by fill tier: dim under 80%, warning to 100%, error at full", async () => {
+    it("colors gauge fill at load tiers: 25%, 50%, 75%, and 100%", async () => {
       const h = setup();
-      // O gauge 13k/15k = 87% → warning tier; pool gauge 0% → dim.
+      // O gauge 13k/15k = 87% → warning tier; empty pool track stays dim.
       h.setEntries([msg("e1", 13_000)]);
       await h.fire("session_start", {}, h.ctx);
       const s = h.plain();
@@ -172,8 +175,9 @@ describe("status bar", () => {
       const oSection = s!.slice(s!.indexOf("O"), s!.indexOf("P"));
       const pSection = raw.slice(raw.indexOf("muted:P"), raw.indexOf("muted:X"));
       expect(h.lastStatus()).toContain("warning:█");
-      expect(oSection).toContain("▕███████░▏");
-      expect(pSection).toContain("dim:▕");
+      expect(oSection).toContain("███▌");
+      expect(h.lastStatus()).toContain("bg-toolPendingBg:warning:▌");
+      expect(pSection).toContain("dim:░░░░");
     });
 
     it("marks a gauge error-colored at or above 100%", async () => {
@@ -200,9 +204,10 @@ describe("status bar", () => {
         obsDropped("m2", "e1", ["112233445566"]),
       ]);
       await h.fire("session_start", {}, h.ctx);
-      // Pool = 5000/20000 = 25% → 2 filled cells, all dim.
+      // Pool = 5000/20000 = 25% → 2 filled cells, success tier.
       const pSection = h.plain()!.slice(h.plain()!.indexOf("P"), h.plain()!.indexOf("X"));
-      expect(pSection).toContain("▕██░░░░░░▏");
+      expect(pSection).toContain("█░░░");
+      expect(h.lastStatus()).toContain("success:█");
     });
 
     it("P gauge fill equals the shared observationPoolTokens measurement", async () => {
@@ -218,19 +223,32 @@ describe("status bar", () => {
       ];
       h.setEntries(entries);
       await h.fire("session_start", {}, h.ctx);
-      // Helper pool = 6,000 + 4,000 = 10,000 → 10k/20k = 50% → 4 filled cells.
+      // Helper pool = 6,000 + 4,000 = 10,000 → 10k/20k = 50% → 4 cells, accent tier.
       expect(observationPoolTokens(entries as never).tokens).toBe(10_000);
       const pSection = h.plain()!.slice(h.plain()!.indexOf("P"), h.plain()!.indexOf("X"));
-      expect(pSection).toContain("▕████░░░░▏");
+      expect(pSection).toContain("██░░");
+      expect(h.lastStatus()).toContain("muted:P accent:");
     });
 
-    it("X gauge counts tokens since the last compaction", async () => {
+    it("X uses a half-block at 12.5% and reads only public context usage/capacity", async () => {
       const h = setup();
       h.setEntries([msg("old", 90_000), { type: "compaction", id: "c1" }, msg("e1", 50_000)]);
+      (h.ctx as any).getContextUsage = () => ({ tokens: 1024, contextWindow: 8192, percent: 12.5 });
       await h.fire("session_start", {}, h.ctx);
-      // X = 50k/100k = 50% → 4 filled dim cells.
       const xSection = h.plain()!.slice(h.plain()!.indexOf("X"));
-      expect(xSection).toContain("▕████░░░░▏");
+      expect(xSection).toContain("▌░░░");
+      expect(h.lastStatus()).toContain("muted:X muted:");
+      expect(h.lastStatus()).toContain("bg-toolPendingBg:muted:▌");
+      expect(xSection).not.toContain("native trigger budget");
+    });
+
+    it("uses distinct X fill colors at 25%, 50%, 75%, and 100%", async () => {
+      for (const [tokens, color] of [[2048, "success"], [4096, "accent"], [6144, "warning"], [8192, "error"]] as const) {
+        const h = setup();
+        (h.ctx as any).getContextUsage = () => ({ tokens, contextWindow: 8192 });
+        await h.fire("session_start", {}, h.ctx);
+        expect(h.lastStatus()).toContain(`muted:X ${color}:`);
+      }
     });
   });
 
@@ -254,9 +272,8 @@ describe("status bar", () => {
       h.setEntries([msg("e1", 20_000)]);
       await h.fire("session_start", {}, h.ctx);
       const s = h.lastStatus();
-      // Pin the positive shape first: a gauge still renders (X, dim at
-      // 20k/100k), so the negatives below can only be about O/P being hidden.
-      expect(s).toContain("dim:▕");
+      // Unknown public usage is labeled instead of inventing a progress value.
+      expect(s).toContain("muted:X dim:(unknown)");
       expect(s).not.toContain("muted:O");
       expect(s).not.toContain("warning:█");
       expect(s).not.toContain("error:█");

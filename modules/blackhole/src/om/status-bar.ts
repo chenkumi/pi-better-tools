@@ -4,8 +4,8 @@
  *
  * Gauges: O = transcript tokens since the last observer run (fills at
  * observeAfterTokens), P = observation pool fill (fills at
- * observationsPoolMaxTokens), X = context tokens since the last compaction
- * (fills at the auto-compaction threshold). A gauge turns warning-colored at
+ * observationsPoolMaxTokens). X shows public context usage versus context
+ * capacity; it does not infer Pi's native trigger budget. O/P/X turn warning-colored at
  * or above 100%. O and P are omitted while `memory === false`: the
  * consolidation pipeline hard-returns before any observer runs, so a filling
  * gauge would imply a pass that is never due. They return on the next render
@@ -22,17 +22,16 @@
  * Ported from the standalone blackhole-status.ts footer extension. Its
  * config-file read, preset-curve copy, token-estimation mirror, and
  * threshold-inference blocks are all replaced by in-repo sources of truth.
+ * All three progress bars use four cells to keep the footer compact.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { Runtime, ConsolidationPhase } from "./runtime.js";
 import {
   foldLedger,
   observationPoolTokens,
-  rawTokensSinceLastCompaction,
   rawTokensSinceObservationCoverage,
   type Entry,
 } from "./ledger/index.js";
-import { autoCompactThreshold } from "./model-budget.js";
 
 const STATUS_KEY = "blackhole";
 // Match pi's own working spinner (pi-tui Loader): 10 braille frames at 80 ms,
@@ -40,11 +39,11 @@ const STATUS_KEY = "blackhole";
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
 const SPINNER_INTERVAL_MS = 80;
 const SETTLE_MS = 5000;
-const GAUGE_CELLS = 8;
-// Fraction of a gauge's max at which it starts warning (orange).
-const WARN_FRACTION = 0.8;
-
-type ThemeShim = { fg: (style: string, text: string) => string };
+const GAUGE_CELLS = 4;
+type ThemeShim = {
+  fg: (style: string, text: string) => string;
+  bg?: (style: string, text: string) => string;
+};
 const EMPTY_THEME: ThemeShim = { fg: (_style, text) => text };
 
 type WorkerType = ConsolidationPhase | "compact";
@@ -66,7 +65,8 @@ interface Counts {
 interface Gauges {
   obsSince: number;
   pool: number;
-  ctxTokens: number;
+  contextTokens: number;
+  contextCapacity: number;
 }
 
 interface StatusBarUi {
@@ -77,13 +77,12 @@ interface StatusBarUi {
 /** Register the footer status bar. Gated by config.statusBar at render time. */
 export function registerStatusBar(pi: ExtensionAPI, runtime: Runtime): void {
   let ui: StatusBarUi | undefined;
-  let model: Parameters<typeof autoCompactThreshold>[1];
   let spinnerTimer: ReturnType<typeof setInterval> | undefined;
   let frame = 0;
   let statusWritten = false;
   let lastRendered: string | undefined;
   const workers: WorkerEntry[] = [];
-  let gauges: Gauges = { obsSince: 0, pool: 0, ctxTokens: 0 };
+  let gauges: Gauges = { obsSince: 0, pool: 0, contextTokens: 0, contextCapacity: 0 };
   // Change detection so the fold only re-runs when something actually moved.
   let lastBranchLen = 0;
   let lastTailId: string | undefined;
@@ -99,21 +98,26 @@ export function registerStatusBar(pi: ExtensionAPI, runtime: Runtime): void {
 
   // ── rendering ──────────────────────────────────────────────────────────────
 
-  /** Compact colored fill bar, e.g. `▕████░░░░▏`. Warning color past 100%. */
+  /** Four-cell bar with half-cell fill precision and a dim track. */
   function gaugeBar(t: ThemeShim, value: number, max: number): string {
     const frac = max > 0 ? value / max : 0;
-    const filled = Math.min(GAUGE_CELLS, Math.round(Math.min(1.2, frac) * GAUGE_CELLS));
-    // Fill tiers: dim under WARN_FRACTION, warning (orange in default themes)
-    // as it nears the trigger, error (red) at or above 100%.
-    let color = "dim";
-    if (frac >= 1) color = "error";
-    else if (frac >= WARN_FRACTION) color = "warning";
-    return (
-      t.fg(color, "▕") +
-      t.fg(color, "█".repeat(filled)) +
-      t.fg(color, "░".repeat(GAUGE_CELLS - filled)) +
-      t.fg(color, "▏")
-    );
+    // Two fill steps per terminal cell: the odd step uses U+258C LEFT HALF BLOCK.
+    const units = Math.min(GAUGE_CELLS * 2, Math.round(Math.min(1.2, frac) * GAUGE_CELLS * 2));
+    const fullCells = Math.floor(units / 2);
+    const halfCell = units % 2 === 1 ? (t.bg ? t.bg("toolPendingBg", t.fg(colorForFraction(frac), "▌")) : "▌") : "";
+    // Fill tiers encode load: success below 80%, warning near capacity, error
+    // at/above 100%; the unfilled track stays dim gray.
+    const color = colorForFraction(frac);
+    const emptyCells = GAUGE_CELLS - fullCells - (units % 2 === 1 ? 1 : 0);
+    return t.fg(color, "█".repeat(fullCells)) + halfCell + t.fg("dim", "░".repeat(emptyCells));
+  }
+
+  function colorForFraction(frac: number): string {
+    if (frac >= 1) return "error";       // 100%+
+    if (frac >= 0.75) return "warning"; // 75–99%
+    if (frac >= 0.5) return "accent";   // 50–74%
+    if (frac >= 0.25) return "success"; // 25–49%
+    return "muted";                     // below 25%
   }
 
   function clearStatus(): void {
@@ -136,18 +140,17 @@ export function registerStatusBar(pi: ExtensionAPI, runtime: Runtime): void {
     if (!ui.setStatus) return;
     const t = theme();
     const cfg = runtime.config;
-    const threshold = autoCompactThreshold(cfg, model);
     const segments: string[] = [];
     // O and P describe observational-memory work the consolidation pipeline
     // never launches while memory === false (it hard-returns first), so a
     // filling gauge would promise a note-taking pass that cannot run.
     if (cfg.memory !== false) {
-      segments.push(`${t.fg("muted", "O")}${gaugeBar(t, gauges.obsSince, cfg.observeAfterTokens)}`);
+      segments.push(`${t.fg("muted", "O")} ${gaugeBar(t, gauges.obsSince, cfg.observeAfterTokens)}`);
       segments.push(
-        `${t.fg("muted", "P")}${gaugeBar(t, gauges.pool, cfg.observationsPoolMaxTokens)}`,
+        `${t.fg("muted", "P")} ${gaugeBar(t, gauges.pool, cfg.observationsPoolMaxTokens)}`,
       );
     }
-    segments.push(`${t.fg("muted", "X")}${gaugeBar(t, gauges.ctxTokens, threshold)}`);
+    segments.push(`${t.fg("muted", "X")} ${gauges.contextCapacity > 0 ? gaugeBar(t, gauges.contextTokens, gauges.contextCapacity) : t.fg("dim", "(unknown)")}`);
     let s = `${t.fg("success", "bh")} ${segments.join("  ")}`;
     const parts: string[] = [];
     for (const w of workers) {
@@ -241,6 +244,7 @@ export function registerStatusBar(pi: ExtensionAPI, runtime: Runtime): void {
   // real Pi handler ctx carries sessionManager.getBranch; the shape only
   // widens what the handlers already expose, never narrows a missing field.
   interface BranchCtx {
+    getContextUsage?: () => unknown;
     sessionManager?: { getBranch?: () => Entry[] };
   }
 
@@ -248,6 +252,17 @@ export function registerStatusBar(pi: ExtensionAPI, runtime: Runtime): void {
 
   function branchOf(ctx: BranchCtx | undefined): Entry[] {
     return ctx?.sessionManager?.getBranch?.() ?? [];
+  }
+
+  function contextGauge(ctx: BranchCtx): Pick<Gauges, "contextTokens" | "contextCapacity"> {
+    try {
+      const usage = ctx.getContextUsage?.() as { tokens?: unknown; contextWindow?: unknown } | undefined;
+      if (typeof usage?.tokens === "number" && Number.isFinite(usage.tokens) && usage.tokens >= 0 &&
+          typeof usage.contextWindow === "number" && Number.isFinite(usage.contextWindow) && usage.contextWindow > 0) {
+        return { contextTokens: usage.tokens, contextCapacity: usage.contextWindow };
+      }
+    } catch { /* A stale/failed public lookup cannot provide a meaningful gauge. */ }
+    return { contextTokens: 0, contextCapacity: 0 };
   }
 
   function recompute(ctx: BranchCtx): void {
@@ -273,7 +288,9 @@ export function registerStatusBar(pi: ExtensionAPI, runtime: Runtime): void {
       // Live active pool only — the P gauge deliberately omits manual-mode
       // pending batches (the dropper trigger includes them); see issue #120.
       pool: memoryOn ? observationPoolTokens(entries).tokens : 0,
-      ctxTokens: rawTokensSinceLastCompaction(entries),
+      // X measures public current usage against public context capacity, not an
+      // inferred native compaction trigger/reserve threshold.
+      ...contextGauge(ctx),
     };
     syncWorkers({
       observations: folded.observations.length,
@@ -324,7 +341,6 @@ export function registerStatusBar(pi: ExtensionAPI, runtime: Runtime): void {
 
   pi.on("session_start", (_event, ctx) => {
     ui = ctx.hasUI !== false ? (ctx.ui as StatusBarUi | undefined) : undefined;
-    model = ctx.model;
     lastCtx = ctx as BranchCtx;
     clearWorkers();
     if (!ui) return;
@@ -341,7 +357,6 @@ export function registerStatusBar(pi: ExtensionAPI, runtime: Runtime): void {
 
   pi.on("agent_end", (_event, ctx) => {
     if (!ui) return;
-    model = ctx.model ?? model;
     lastCtx = ctx as BranchCtx;
     recompute(ctx as BranchCtx);
   });
@@ -351,7 +366,6 @@ export function registerStatusBar(pi: ExtensionAPI, runtime: Runtime): void {
   // only ever start at agent_end, by which time the pipeline is usually done.
   pi.on("agent_start", (_event, ctx) => {
     if (!ui) return;
-    model = ctx.model ?? model;
     lastCtx = ctx as BranchCtx;
     recompute(ctx as BranchCtx);
   });
