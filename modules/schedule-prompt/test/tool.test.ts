@@ -10,6 +10,11 @@ function makeStorage(seedJobs: CronJob[] = []) {
       Array.from(jobs.values()).some((j) => j.name === name),
     addJob: (job: CronJob) => jobs.set(job.id, job),
     removeJob: (id: string) => jobs.delete(id),
+    removeDisabledJobs: (sessionId: string | undefined) => {
+      const removed = Array.from(jobs.values()).filter(j => !j.enabled && (!j.session || j.session === sessionId));
+      for (const j of removed) jobs.delete(j.id);
+      return removed;
+    },
     updateJob: (id: string, partial: Partial<CronJob>) => {
       const job = jobs.get(id);
       if (!job) return false;

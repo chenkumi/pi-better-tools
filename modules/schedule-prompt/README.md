@@ -157,7 +157,7 @@ The tool accepts multiple time formats:
 | **ISO timestamp** | `2026-02-13T15:30:00Z` | once | Runs once at exact time |
 | **Cron expression** | `0 */5 * * * *` | cron | Runs on cron schedule |
 
-Notes: `+0s` (zero delay) and relative values beyond the representable date range are rejected with an error. A date-only `schedule` such as `2026-02-13` is parsed as UTC midnight (JavaScript `Date` semantics), while a date-time without a zone (`2026-02-13T15:30:00`) is local time; prefer an explicit `Z` or `±HH:mm` offset. A once job whose fire returns false (all subagent slots busy, a previous run in progress, or delivery failure) is disabled immediately with an error status and no automatic retry. Removed, disabled, foreign-session and expired jobs retain their existing state/deadline handling.
+Notes: `+0s` (zero delay) and relative values beyond the representable date range are rejected with an error. A date-only `schedule` such as `2026-02-13` is parsed as UTC midnight (JavaScript `Date` semantics), while a date-time without a zone (`2026-02-13T15:30:00`) is local time; prefer an explicit `Z` or `±HH:mm` offset. A once job whose fire returns false (all subagent slots busy, a previous run in progress, or delivery failure) is disabled immediately with an error status and no automatic retry. Removed, disabled, foreign-session and expired jobs retain their existing state/deadline handling. Local update/remove/stop revokes the timer generation, so an earlier once success/failure continuation cannot disable or cancel a replacement (including cron). Once settlement checks the original schedule/execution configuration and session binding again inside the storage mutation lock; changed peer state is not overwritten. This is not a persisted cross-process generation/ABA protocol.
 
 **Cron format** (6 fields - **must include seconds**):
 
@@ -183,7 +183,7 @@ Notes: `+0s` (zero delay) and relative values beyond the representable date rang
 
 **Storage:**
 
-- Job data: `.pi/schedule-prompts.json` (project-local, atomic writes, auto-created). Only ENOENT means an empty store; other read failures refuse mutation. Malformed content must first be successfully quarantined as `.corrupt-<timestamp>`; failed quarantine refuses mutation and preserves the original bytes. An unreadable store is never replaced with empty data. Corruption recovery acquires the same mutation lock and re-reads the file before quarantine so it cannot move aside a valid peer replacement. Invalid job elements are ignored with a diagnostic (required execution fields and optional field types are checked); missing legacy statistics remain supported and invalid `endAt` values remain visible for scheduler fail-closed disabling.
+- Job data: `.pi/schedule-prompts.json` (project-local, atomic writes, auto-created). Only ENOENT means an empty store; other read failures refuse mutation. Malformed content must first be successfully quarantined as `.corrupt-<timestamp>`; failed quarantine refuses mutation and preserves the original bytes. An unreadable store is never replaced with empty data. Corruption recovery acquires the same mutation lock and re-reads the file before quarantine so it cannot move aside a valid peer replacement. Invalid job elements are ignored with a diagnostic (required execution fields and optional field types are checked); missing legacy statistics remain supported and invalid `endAt` values remain visible for scheduler fail-closed disabling. Interval loading and timer admission freshly derive the delay from `schedule`; its persisted `intervalMs` cache must match exactly, be an integer, and represent a supported duration from `1s` through `2^31-1` milliseconds. Inconsistent/unsupported entries are ignored with an interval diagnostic (not silently corrected or armed with a shorter delay); valid version-1 intervals remain supported.
 - Settings: two-layer config — `~/.pi/agent/schedule-prompts-settings.json` (global, hand-edited defaults) and `<cwd>/.pi/schedule-prompts-settings.json` (project, written by the UI). Project overrides global on load.
 
 **Job binding:**
@@ -198,6 +198,8 @@ Toggle the default for new jobs in `/schedule-prompt → Settings → Bind new j
 
 - Uses `croner` library for cron expressions
 - Native `setTimeout`/`setInterval` for intervals and one-shots
+- Startup uses the already-loaded jobs snapshot instead of re-reading the whole store per normal job; actual trigger admission still reads fresh persisted state. Stale-running/deadline mutations retain their locked fresh reads.
+- Session-exit, tool and Jobs UI disabled cleanup use one locked read/filter/write with the session predicate rechecked at mutation time. UI confirmation is not authority to remove a job a peer has re-enabled or rebound. Deadline recheck timers still read individually; this change is not a general storage cache.
 - Tracks: next run, last run, execution count, status (running/success/error)
 
 **Execution:**

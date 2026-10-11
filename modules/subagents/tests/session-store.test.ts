@@ -123,6 +123,219 @@ test("foreign lock owner rejects commit and blocked publication before writes", 
 	} finally { await rm(s.temp, { recursive: true, force: true }); }
 });
 
+test("R7 failed owner publish releases its settled initialization ownership", async (t) => {
+	const s = await setup();
+	const rename = fs.promises.rename.bind(fs.promises);
+	let injected = false;
+	t.mock.method(fs.promises, "rename", async (from: any, to: any) => {
+		if (!injected && String(to) === join(s.session.directory, "writer.lock", "owner.json")) {
+			injected = true; throw Object.assign(new Error("owner publish EIO"), { code: "EIO" });
+		}
+		return rename(from, to);
+	});
+	try {
+		await assert.rejects(s.session.acquire(ulid().toUpperCase()), /owner publish EIO/);
+		assert.equal(injected, true);
+		await assert.rejects(stat(join(s.session.directory, "writer.lock")), { code: "ENOENT" });
+		const next = await ManagedSession.resolve(s.root, s.session.id, s.owner);
+		await next.acquire(ulid().toUpperCase()); await next.release();
+	} finally { await rm(s.temp, { recursive: true, force: true }); }
+});
+
+for (const fault of ["cleanup", "foreign-owner", "close"] as const) {
+	test(`R7 initialization fails closed with honest retained ownership: ${fault}`, async (t) => {
+		const s = await setup(), lockDir = join(s.session.directory, "writer.lock");
+		const rename = fs.promises.rename.bind(fs.promises), remove = fs.promises.rm.bind(fs.promises), open = fs.promises.open.bind(fs.promises);
+		let retainedHandle: fs.promises.FileHandle | undefined;
+		const registry = (globalThis as any)[Symbol.for("pi-better-tools.subagents.live-writer-locks")] as Set<string>;
+		const before = new Set(registry);
+		try {
+			if (fault === "close") t.mock.method(fs.promises, "open", async (...args: Parameters<typeof open>) => {
+				const h = await open(...args);
+				if (String(args[0]).includes("writer.lock") && String(args[0]).endsWith(".partial")) {
+					retainedHandle = h; t.mock.method(h, "close", async () => { throw new Error("owned metadata close EIO"); });
+				}
+				return h;
+			});
+			else t.mock.method(fs.promises, "rename", async (from: any, to: any) => {
+				if (String(to) === join(lockDir, "owner.json")) {
+					if (fault === "foreign-owner") await writeFile(to, JSON.stringify({ nonce: "foreign" }));
+					throw new Error("owner publish EIO");
+				}
+				return rename(from, to);
+			});
+			if (fault === "cleanup") t.mock.method(fs.promises, "rm", async (...args: Parameters<typeof remove>) => {
+				if (String(args[0]) === lockDir) throw new Error("owned cleanup EACCES");
+				return remove(...args);
+			});
+			await assert.rejects(s.session.acquire(ulid().toUpperCase()), fault === "close" ? /Metadata writer close failed/ : /cleanup unconfirmed/);
+			await stat(lockDir);
+			assert.equal(registry.size, before.size + 1, "unknown cleanup must retain its live owner");
+			if (fault === "foreign-owner") assert.equal(JSON.parse(await readFile(join(lockDir, "owner.json"), "utf8")).nonce, "foreign");
+		} finally {
+			t.mock.restoreAll(); if (retainedHandle) await retainedHandle.close();
+			await rm(s.temp, { recursive: true, force: true });
+			for (const nonce of registry) if (!before.has(nonce)) registry.delete(nonce); // Test owns these fixtures; not production cleanup.
+		}
+	});
+}
+
+test("C2 recovered manifest close failure preserves diagnostic and actual writer ownership", async (t) => {
+	const s = await setup();
+	const registry = (globalThis as any)[Symbol.for("pi-better-tools.subagents.live-writer-locks")] as Set<string>;
+	const before = new Set(registry);
+	let retainedHandle: fs.promises.FileHandle | undefined;
+	let closeAttempts = 0;
+	try {
+		const first = await prepare(s.session, "verified-checkpoint");
+		await s.session.commit(first.segment, first.digest, {}, active); await s.session.release();
+		const lockDir = join(s.session.directory, "writer.lock");
+		await mkdir(lockDir); await writeFile(join(lockDir, "owner.json"), JSON.stringify({ nonce: "orphan", pid: process.pid }));
+		const recovered = await ManagedSession.resolve(s.root, s.session.id, s.owner);
+		const open = fs.promises.open.bind(fs.promises);
+		t.mock.method(fs.promises, "open", async (...args: Parameters<typeof open>) => {
+			const h = await open(...args);
+			if (String(args[0]).startsWith(join(s.session.directory, "manifest.json.")) && String(args[0]).endsWith(".partial")) {
+				retainedHandle = h;
+				t.mock.method(h, "close", async () => { closeAttempts++; throw Object.assign(new Error("recovered manifest close EIO"), { code: "EIO" }); });
+			}
+			return h;
+		});
+		const error = await recovered.acquire(ulid().toUpperCase()).then(() => undefined, error => error);
+		assert.equal(closeAttempts, 1, "fault must target actual recovery manifest handle, not owner publish");
+		assert.ok(retainedHandle); await retainedHandle.stat(); // Still genuinely open, not a fake close acknowledgement.
+		const ownerText = await readFile(join(lockDir, "owner.json"), "utf8").catch(error => {
+			if (error.code === "ENOENT") return undefined; throw error;
+		});
+		t.diagnostic(JSON.stringify({ handleStillOpen: true, closeAttempts, writerOwnerPresent: ownerText !== undefined,
+			retainedNonces: [...registry].filter(nonce => !before.has(nonce)).length, error: String(error) }));
+		assert.match(String(error), /Metadata writer close failed.*recovered manifest close EIO/);
+		assert.equal(error.cleanupUnsafe, true);
+		const owner = JSON.parse(await readFile(join(lockDir, "owner.json"), "utf8"));
+		assert.notEqual(owner.nonce, "orphan"); assert.equal(registry.has(owner.nonce), true);
+		const other = await ManagedSession.resolve(s.root, s.session.id, s.owner);
+		await assert.rejects(other.acquire(ulid().toUpperCase()), /SESSION_BUSY/);
+		await assert.rejects(other.acquireQueryLease(ulid().toUpperCase()), /SESSION_BUSY/);
+		assert.equal(JSON.parse(await readFile(join(lockDir, "owner.json"), "utf8")).nonce, owner.nonce);
+	} finally {
+		t.mock.restoreAll(); if (retainedHandle) await retainedHandle.close(); // First real close is owned teardown.
+		await rm(s.temp, { recursive: true, force: true });
+		for (const nonce of registry) if (!before.has(nonce)) registry.delete(nonce);
+	}
+});
+
+for (const foreignOwner of [false, true]) {
+	test(`W1 fence cleanup failure preserves owner publish EIO and EACCES: foreign=${foreignOwner}`, async (t) => {
+		const s = await setup(), lockDir = join(s.session.directory, "writer.lock"), fence = join(s.session.directory, "writer.acquire");
+		const registry = (globalThis as any)[Symbol.for("pi-better-tools.subagents.live-writer-locks")] as Set<string>;
+		const before = new Set(registry);
+		const primary = Object.assign(new Error("owner publish EIO"), { code: "EIO" });
+		const cleanup = Object.assign(new Error("fence rmdir EACCES"), { code: "EACCES" });
+		const rename = fs.promises.rename.bind(fs.promises), rmdir = fs.promises.rmdir.bind(fs.promises);
+		let injected = false;
+		t.mock.method(fs.promises, "rename", async (from: any, to: any) => {
+			if (String(to) === join(lockDir, "owner.json")) {
+				injected = true;
+				if (foreignOwner) await writeFile(to, JSON.stringify({ nonce: "foreign-owner" }));
+				throw primary;
+			}
+			return rename(from, to);
+		});
+		t.mock.method(fs.promises, "rmdir", async (...args: Parameters<typeof rmdir>) => {
+			if (String(args[0]) === fence) throw cleanup;
+			return rmdir(...args);
+		});
+		try {
+			const error = await s.session.acquire(ulid().toUpperCase()).then(() => undefined, error => error);
+			assert.equal(injected, true);
+			assert.match(String(error), /owner publish EIO/, "fence failure must not hide the primary initialization diagnostic");
+			assert.match(String(error), /fence rmdir EACCES/);
+			assert.ok(error instanceof AggregateError);
+			assert.equal(error.errors[1], cleanup);
+			if (!foreignOwner) assert.equal(error.errors[0], primary);
+			else {
+				assert.ok(error.errors[0] instanceof AggregateError);
+				assert.equal(error.errors[0].errors[0], primary);
+				assert.equal(JSON.parse(await readFile(join(lockDir, "owner.json"), "utf8")).nonce, "foreign-owner");
+			}
+			await stat(fence);
+			const other = await ManagedSession.resolve(s.root, s.session.id, s.owner);
+			await assert.rejects(other.acquire(ulid().toUpperCase()), /SESSION_BUSY/);
+			await assert.rejects(other.acquireQueryLease(ulid().toUpperCase()), /SESSION_BUSY/);
+		} finally {
+			t.mock.restoreAll(); await rm(s.temp, { recursive: true, force: true });
+			for (const nonce of registry) if (!before.has(nonce)) registry.delete(nonce);
+		}
+	});
+}
+
+test("W1 successful initialization with failed fence removal retains writer and refuses new leases", async (t) => {
+	const s = await setup(), fence = join(s.session.directory, "writer.acquire");
+	const registry = (globalThis as any)[Symbol.for("pi-better-tools.subagents.live-writer-locks")] as Set<string>;
+	const before = new Set(registry), rmdir = fs.promises.rmdir.bind(fs.promises);
+	const cleanup = Object.assign(new Error("fence cleanup EACCES after initialization"), { code: "EACCES" });
+	t.mock.method(fs.promises, "rmdir", async (...args: Parameters<typeof rmdir>) => {
+		if (String(args[0]) === fence) throw cleanup; return rmdir(...args);
+	});
+	try {
+		const error = await s.session.acquire(ulid().toUpperCase()).then(() => undefined, error => error);
+		assert.ok(error instanceof AggregateError); assert.deepEqual(error.errors, [cleanup]);
+		assert.equal(error.cleanupUnsafe, true); assert.match(error.message, /cleanup unconfirmed.*ownership may remain held/);
+		const owner = JSON.parse(await readFile(join(s.session.directory, "writer.lock", "owner.json"), "utf8"));
+		assert.equal(registry.has(owner.nonce), true); await stat(fence);
+		const other = await ManagedSession.resolve(s.root, s.session.id, s.owner);
+		await assert.rejects(other.acquire(ulid().toUpperCase()), /SESSION_BUSY/);
+		await assert.rejects(other.acquireQueryLease(ulid().toUpperCase()), /SESSION_BUSY/);
+	} finally {
+		t.mock.restoreAll(); await s.session.release(); await rm(s.temp, { recursive: true, force: true });
+		for (const nonce of registry) if (!before.has(nonce)) registry.delete(nonce);
+	}
+});
+
+test("R6 orphan election fence blocks both fresh writer and query creation", async () => {
+	const s = await setup();
+	try {
+		await mkdir(join(s.session.directory, "writer.acquire"));
+		await assert.rejects(s.session.acquire(ulid().toUpperCase()), /SESSION_BUSY.*manual inspection/);
+		await assert.rejects(s.session.acquireQueryLease(ulid().toUpperCase()), /SESSION_BUSY/);
+		await assert.rejects(stat(join(s.session.directory, "writer.lock")), { code: "ENOENT" });
+	} finally { await rm(s.temp, { recursive: true, force: true }); }
+});
+
+test("R6 stale contender cannot replace an acquired live writer", async (t) => {
+	const s = await setup();
+	let unblock!: () => void, reached!: () => void;
+	const barrier = new Promise<void>(r => { unblock = r; });
+	const entered = new Promise<void>(r => { reached = r; });
+	let b: ManagedSession | undefined;
+	try {
+		const first = await prepare(s.session, "checkpoint");
+		await s.session.commit(first.segment, first.digest, {}, active); await s.session.release();
+		const lockDir = join(s.session.directory, "writer.lock");
+		await mkdir(lockDir); await writeFile(join(lockDir, "owner.json"), JSON.stringify({ nonce: "orphan", pid: process.pid }));
+		b = await ManagedSession.resolve(s.root, s.session.id, s.owner);
+		const a = await ManagedSession.resolve(s.root, s.session.id, s.owner);
+		const rename = fs.promises.rename.bind(fs.promises); let paused = false;
+		t.mock.method(fs.promises, "rename", async (from: any, to: any) => {
+			if (!paused && String(from) === lockDir) { paused = true; reached(); await barrier; }
+			return rename(from, to);
+		});
+		const acquiringB = b.acquire(ulid().toUpperCase());
+		await entered;
+		let aOwned = false;
+		try { await a.acquire(ulid().toUpperCase()); aOwned = true; }
+		catch (error) { assert.match(String(error), /SESSION_BUSY/); }
+		const ownerBefore = aOwned ? await readFile(join(lockDir, "owner.json")) : undefined;
+		if (aOwned) await appendFile(first.file, "live writer bytes\n");
+		unblock(); await acquiringB;
+		if (aOwned) {
+			assert.deepEqual(await readFile(join(lockDir, "owner.json")), ownerBefore, "B replaced A's live nonce");
+			assert.match(await readFile(first.file, "utf8"), /live writer bytes/);
+			await a.release();
+		} else { await b.release(); await a.acquire(ulid().toUpperCase()); await a.release(); }
+	} finally { unblock(); await rm(s.temp, { recursive: true, force: true }); }
+});
+
 test("LOCK-01/02 exclusive filesystem lock and nonce owner", async () => {
 	const s = await setup();
 	try {

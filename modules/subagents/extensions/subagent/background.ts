@@ -233,17 +233,32 @@ export class BackgroundJobs {
 		return undefined;
 	}
 	/** Hold admission while allocating real managed identities; no runner is admitted before prepare succeeds. */
-	async submitManaged(owner: string, cwd: string, epoch: number, agents: string[], prepare: () => Promise<string[]>, run: Parameters<BackgroundJobs["submit"]>[4], titles: readonly (string | undefined)[] = [], beforeAccept?: () => void, readonlyQueryId?: string) {
+	async submitManaged(owner: string, cwd: string, epoch: number, agents: string[], prepare: (signal: AbortSignal) => Promise<string[]>, run: Parameters<BackgroundJobs["submit"]>[4], titles: readonly (string | undefined)[] = [], beforeAccept?: () => void, readonlyQueryId?: string, toolSignal?: AbortSignal) {
 		let start!: () => void, reject!: (error: unknown) => void;
 		const ready = new Promise<void>((resolve, fail) => { start = resolve; reject = fail; });
 		// submit installs its rejection handler before prepare can fail.
 		const receipt = this.submit(owner, cwd, epoch, agents, run, titles, ready, readonlyQueryId);
 		const job = this.jobs.get(receipt.jobId)!;
+		let preparation: Promise<string[]> | undefined;
+		const abortTool = () => { job.cancelRequested = true; job.controller.abort(); };
+		let abortPreparation!: () => void;
+		const aborted = new Promise<never>((_resolve, fail) => {
+			abortPreparation = () => fail(new Error("BACKGROUND_PREPARATION_ABORTED: managed allocation cancelled; actual I/O cleanup remains owned"));
+			job.controller.signal.addEventListener("abort", abortPreparation, { once: true });
+		});
+		// Install rejection ownership before checking an already-aborted signal.
+		void aborted.catch(() => undefined);
+		toolSignal?.addEventListener("abort", abortTool, { once: true });
+		if (toolSignal?.aborted) abortTool();
 		try {
 			// Persist queued intent before managed allocation touches child metadata.
 			// Identity enrichment follows preparation; no child runner exists yet.
 			job.recovery = this.persist?.(owner, cwd, this.snapshot(job));
-			const ids = await prepare();
+			preparation = Promise.resolve().then(() => {
+				if (job.controller.signal.aborted) throw new Error("BACKGROUND_PREPARATION_ABORTED: allocation not started");
+				return prepare(job.controller.signal);
+			});
+			const ids = await Promise.race([preparation, aborted]);
 			beforeAccept?.(); // Last synchronous abort fence before publishing acceptance.
 			if (this.closed || epoch !== this.generation || job.cancelRequested) throw new Error("BACKGROUND_RUNTIME_CLOSED: owner changed during managed allocation");
 			if (ids.length !== agents.length) throw new Error("INVALID_DISPATCH: missing managed session identity");
@@ -252,7 +267,20 @@ export class BackgroundJobs {
 			this.record(job);
 			start();
 			return accepted;
-		} catch (error) { reject(error); await job.done; this.jobs.delete(job.jobId); throw error; }
+		} catch (error) {
+			// Rejection of the caller's wait is NOT allocation settlement. Keep ready,
+			// job.done and submitted capacity owned until the actual prepare finishes.
+			const cleanup = Promise.resolve(preparation).catch(() => undefined).then(async () => {
+				reject(error); await job.done;
+				if (this.jobs.get(job.jobId) === job) this.jobs.delete(job.jobId);
+			});
+			if (job.controller.signal.aborted) void cleanup.catch(() => undefined);
+			else await cleanup;
+			throw error;
+		} finally {
+			toolSignal?.removeEventListener("abort", abortTool);
+			job.controller.signal.removeEventListener("abort", abortPreparation);
+		}
 	}
 	message(id: string, taskId: string, mode: "control" | "query", text: string, owner: string, cwd: string) {
 		this.get(id, owner, cwd);

@@ -33,7 +33,7 @@ const makePi = () => ({ sendMessage: vi.fn(), sendUserMessage: vi.fn(), events: 
 const ctx = { cwd: "/tmp", isProjectTrusted: () => true, modelRegistry: {}, sessionManager: { getSessionId: () => "s" } } as any;
 
 function job(overrides: Partial<CronJob> = {}): CronJob {
-  return { id: "j1", name: "demo", schedule: "5m", prompt: "p", enabled: true, type: "interval", intervalMs: 1000, createdAt: "", runCount: 0, ...overrides };
+  return { id: "j1", name: "demo", schedule: "1s", prompt: "p", enabled: true, type: "interval", intervalMs: 1000, createdAt: "", runCount: 0, ...overrides };
 }
 
 describe("timer limits", () => {

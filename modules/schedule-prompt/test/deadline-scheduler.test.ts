@@ -60,7 +60,7 @@ describe("native scheduler deadlines", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
   it("expires without a trigger and doesn't change statistics", async () => {
-    install({ intervalMs: 5000, endAt: at(1000), lastStatus: "error", lastRun: "last", runCount: 7, nextRun: at(5000) });
+    install({ schedule: "5s", intervalMs: 5000, endAt: at(1000), lastStatus: "error", lastRun: "last", runCount: 7, nextRun: at(5000) });
     await vi.advanceTimersByTimeAsync(1000);
     expect(pi.sendUserMessage).not.toHaveBeenCalled();
     expect(storage.getJob("j")).toMatchObject({ enabled: false, lastStatus: "error", lastRun: "last", runCount: 7 });
@@ -88,14 +88,14 @@ describe("native scheduler deadlines", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
   it("bounds timer segments for a far-future deadline", async () => {
-    install({ intervalMs: MAX_TIMER_MS, endAt: at(MAX_TIMER_MS * 2) });
+    install({ schedule: "2147483s", intervalMs: 2147483000, endAt: at(MAX_TIMER_MS * 2) });
     await vi.advanceTimersByTimeAsync(DEADLINE_RECHECK_MS * 2);
     expect(pi.sendUserMessage).not.toHaveBeenCalled();
     expect(storage.getJob("j")?.enabled).toBe(true);
     expect(vi.getTimerCount()).toBe(2);
   });
   it("resumes after a clock jump without catching up missed triggers", async () => {
-    install({ endAt: at(120000), intervalMs: 600000 });
+    install({ endAt: at(120000), schedule: "10m", intervalMs: 600000 });
     vi.setSystemTime(NOW + 180000);
     await vi.advanceTimersByTimeAsync(DEADLINE_RECHECK_MS);
     expect(storage.getJob("j")?.enabled).toBe(false);
@@ -105,7 +105,7 @@ describe("native scheduler deadlines", () => {
     expect(pi.sendUserMessage).not.toHaveBeenCalled();
   });
   it("rechecks a clock rollback and waits until the absolute deadline", async () => {
-    install({ intervalMs: 600000, endAt: at(1000) });
+    install({ schedule: "10m", intervalMs: 600000, endAt: at(1000) });
     vi.setSystemTime(NOW - 1000);
     await vi.advanceTimersByTimeAsync(1000);
     expect(storage.getJob("j")?.enabled).toBe(true);
@@ -113,7 +113,7 @@ describe("native scheduler deadlines", () => {
     expect(storage.getJob("j")?.enabled).toBe(false);
   });
   it.each([at(5000), undefined])("an old timer cannot expire an extended/cleared deadline: %s", async (endAt) => {
-    install({ intervalMs: 10000, endAt: at(1000) });
+    install({ schedule: "10s", intervalMs: 10000, endAt: at(1000) });
     storage.updateJob("j", { endAt });
     await vi.advanceTimersByTimeAsync(1000);
     expect(storage.getJob("j")?.enabled).toBe(true);
@@ -139,7 +139,7 @@ describe("native scheduler deadlines", () => {
     expect(pi.sendUserMessage).toHaveBeenCalledTimes(3);
   });
   it.each(["remove", "disable", "rebind"])("cleans up when storage has been changed by a peer: %s", async (action) => {
-    install({ intervalMs: 10000, endAt: at(1000) });
+    install({ schedule: "10s", intervalMs: 10000, endAt: at(1000) });
     if (action === "remove") storage.removeJob("j");
     if (action === "disable") storage.updateJob("j", { enabled: false });
     if (action === "rebind") storage.updateJob("j", { session: "foreign" });

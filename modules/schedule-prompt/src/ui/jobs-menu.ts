@@ -48,10 +48,7 @@ export async function runJobsMenu(
     }
     if (choice === CLEANUP) {
       if (await ctx.ui.confirm("Cleanup", `Remove ${disabled.length} disabled job(s) in this session?`)) {
-        for (const j of disabled) {
-          storage.removeJob(j.id);
-          scheduler.removeJob(j.id);
-        }
+        for (const j of storage.removeDisabledJobs(mySessionId)) scheduler.removeJob(j.id);
       }
       continue;
     }

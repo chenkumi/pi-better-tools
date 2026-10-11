@@ -427,7 +427,43 @@ export class Runtime {
    * if all candidates (including session model, if enabled) are exhausted or unavailable.
    */
   async resolveModel(ctx: ResolveCtx, signal?: AbortSignal): Promise<ResolveResult> {
-    signal?.throwIfAborted();
+    const parent = signal ?? this.lifecycleController.signal;
+    parent.throwIfAborted();
+    const controller = new AbortController();
+    // Resolution has its own elapsed budget, captured before the first auth
+    // await. Pi's auth facade does not accept a signal; observe late settlement
+    // and revoke our continuation rather than claim its I/O was cancelled.
+    const timeoutMs = this.config.workerAttemptTimeoutMs;
+    return new Promise<ResolveResult>((resolve, reject) => {
+      let settled = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const settle = (callback: () => void) => {
+        if (settled) return;
+        settled = true;
+        if (timer !== undefined) clearTimeout(timer);
+        parent.removeEventListener("abort", abort);
+        callback();
+      };
+      const cancel = (error: unknown) => settle(() => {
+        controller.abort(error);
+        reject(error);
+      });
+      const abort = () => cancel(parent.reason ?? new Error("Model resolution aborted"));
+      parent.addEventListener("abort", abort, { once: true });
+      if (parent.aborted) { abort(); return; }
+      if (timeoutMs !== undefined && timeoutMs > 0) {
+        timer = setTimeout(() => cancel(new Error(`Model resolution timed out after ${timeoutMs} ms`)), timeoutMs);
+        timer.unref?.();
+      }
+      this.resolveModelInner(ctx, controller.signal).then(
+        value => settle(() => resolve(value)),
+        error => settle(() => reject(error)),
+      );
+    });
+  }
+
+  private async resolveModelInner(ctx: ResolveCtx, signal: AbortSignal): Promise<ResolveResult> {
+    signal.throwIfAborted();
     const candidates = this.buildCandidateList(ctx.stageModel, ctx.stageFallbacks);
     const stageName = this.consolidationPhase ?? "unknown";
 
@@ -493,12 +529,14 @@ export class Runtime {
       }
 
       const auth = await ctx.modelRegistry.getApiKeyAndHeaders(configured);
+      signal.throwIfAborted();
       let hasAuth = ctx.modelRegistry.hasConfiguredAuth?.(configured) ?? true;
       const authProvider = candidate.provider;
       const isOAuth = ctx.modelRegistry.isUsingOAuth?.(configured) === true;
       const emptyApiKey = typeof auth.apiKey === "string" && auth.apiKey.length === 0;
       if (auth.ok && !hasUsableAuth(auth) && !isOAuth && !emptyApiKey && !hasAuth) {
-        hasAuth = await this.recheckProviderCredential(ctx.modelRegistry, configured, authProvider);
+        hasAuth = await this.recheckProviderCredential(ctx.modelRegistry, configured, authProvider, signal);
+        signal.throwIfAborted();
       }
       if (!auth.ok || !hasAuth) {
         if (ctx.hasUI && ctx.ui) {
@@ -514,6 +552,7 @@ export class Runtime {
       // to recover the credential-resolved baseUrl (only GitHub Copilot's
       // OAuth emits one; other providers pay the call cost but are unaffected).
       const resolvedModel = await withResolvedAuthEndpoint(ctx.modelRegistry, configured, auth);
+      signal.throwIfAborted();
 
       return {
         ok: true,
@@ -615,6 +654,7 @@ export class Runtime {
       // to recover the credential-resolved baseUrl (only GitHub Copilot's
       // OAuth emits one; other providers pay the call cost but are unaffected).
       const resolvedModel = await withResolvedAuthEndpoint(ctx.modelRegistry, sessionModel, auth);
+      signal.throwIfAborted();
 
       return {
         ok: true,

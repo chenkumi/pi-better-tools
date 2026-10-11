@@ -229,9 +229,7 @@ export function createCronTool(
             // Only touch jobs this session can see — foreign-session jobs are
             // owned by other pis. Unbound disabled jobs are fair game.
             const mySessionId = ctx.sessionManager.getSessionId();
-            const disabledJobs = storage
-              .getAllJobs()
-              .filter((j) => !j.enabled && CronScheduler.isLoadedFor(j, mySessionId));
+            const disabledJobs = storage.removeDisabledJobs(mySessionId);
 
             if (disabledJobs.length === 0) {
               details.jobs = [];
@@ -246,10 +244,7 @@ export function createCronTool(
               };
             }
 
-            for (const job of disabledJobs) {
-              storage.removeJob(job.id);
-              scheduler.removeJob(job.id);
-            }
+            for (const job of disabledJobs) scheduler.removeJob(job.id);
 
             details.jobs = disabledJobs;
 

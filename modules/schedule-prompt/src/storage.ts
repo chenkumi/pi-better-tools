@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import type { CronJob, CronStore } from "./types.js";
 import { deadlineState } from "./deadline.js";
+import { intervalError, parseInterval } from "./interval.js";
 
 const RENAME_RETRIES = 5;
 
@@ -111,7 +112,13 @@ export class CronStorage {
       this.quarantineCorruptStore(new Error("missing jobs array"));
       return { jobs: [], version: 1 };
     }
-    const valid = store.jobs.filter(isJobShape);
+    const valid = store.jobs.filter(isJobShape).filter(job => {
+      if (job.type !== "interval") return true;
+      const error = intervalError(job.schedule, job.intervalMs!);
+      if (error) { console.error(`Ignoring scheduled prompt ${job.id}: ${error}`); return false; }
+      job.intervalMs = parseInterval(job.schedule)!;
+      return true;
+    });
     if (valid.length !== store.jobs.length) {
       console.error(`Ignoring ${store.jobs.length - valid.length} malformed scheduled prompt entr${store.jobs.length - valid.length === 1 ? "y" : "ies"} in ${this.storePath}`);
       store.jobs = valid;
@@ -241,12 +248,14 @@ export class CronStorage {
    * Compute a partial from the freshly loaded job and apply it in one locked
    * read-modify-write (no stale read-then-write, e.g. for `runCount`).
    */
-  updateJobWith(id: string, compute: (current: CronJob) => Partial<CronJob>): boolean {
+  updateJobWith(id: string, compute: (current: CronJob) => Partial<CronJob> | undefined): boolean {
     return this.withLock(() => {
       const store = this.load();
       const job = store.jobs.find((j) => j.id === id);
       if (!job) return false;
-      Object.assign(job, compute(job));
+      const partial = compute(job);
+      if (partial === undefined) return false; // conditional mutation rejected: preserve peer bytes
+      Object.assign(job, partial);
       this.save(store);
       return true;
     });
@@ -264,6 +273,21 @@ export class CronStorage {
       delete job.nextRun;
       this.save(store);
       return { job, expired: true };
+    });
+  }
+
+  /** One locked snapshot/mutation; a peer's enabled or foreign jobs are never swept. */
+  removeDisabledJobs(sessionId: string | undefined): CronJob[] {
+    return this.withLock(() => {
+      const store = this.load();
+      const removed: CronJob[] = [];
+      store.jobs = store.jobs.filter(job => {
+        if (job.enabled || (job.session && job.session !== sessionId)) return true;
+        removed.push(job);
+        return false;
+      });
+      if (removed.length) this.save(store);
+      return removed;
     });
   }
 

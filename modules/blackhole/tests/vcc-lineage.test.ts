@@ -9,14 +9,16 @@ describe("getActiveLineageEntryIds", () => {
     expect([...ids]).toEqual(["a", "b", "c"]);
   });
 
-  it("falls back to getEntries when getBranch throws", () => {
+  it("fails closed without consulting getEntries when getBranch throws", () => {
+    let allCalls = 0;
     const ids = getActiveLineageEntryIds({
       getBranch: () => {
         throw new Error("boom");
       },
-      getEntries: () => [{ id: "x" }, { id: "y" }],
+      getEntries: () => { allCalls++; return [{ id: "x" }, { id: "y" }]; },
     });
-    expect([...ids]).toEqual(["x", "y"]);
+    expect([...ids]).toEqual([]);
+    expect(allCalls).toBe(0);
   });
 
   it("returns empty set when both branch and entries are unavailable", () => {

@@ -430,13 +430,15 @@ export function expandEntryFileDetailed(
   offset?: number,
   limit?: number,
 ): DrillDownResult {
-  const { rawMessages } = loadAllMessages(sessionFile, true);
-
-  if (entryIndex < 0 || entryIndex >= rawMessages.length) {
-    return { text: `Entry #${entryIndex} not found in session history.` };
+  const loaded = loadAllMessages(sessionFile, true, undefined, pathPattern === "text" ? new Set([entryIndex]) : undefined);
+  const { rawMessages } = loaded;
+  const expand = (): DrillDownResult => {
+  const position = loaded.rendered.findIndex(entry => entry.index === entryIndex);
+  if (position < 0) {
+    return { text: loaded.incomplete ? `Entry #${entryIndex} unavailable in inspected session history.` : `Entry #${entryIndex} not found in session history.` };
   }
 
-  const msg = rawMessages[entryIndex];
+  const msg = rawMessages[position];
   const content = msg.content as unknown[];
   const calls = findContentBearingCalls(content, successfulNotePaths(rawMessages));
   const matched = calls.filter((tc) => tc.path.includes(pathPattern));
@@ -505,4 +507,7 @@ Use #${entryIndex}:<more-specific-path> to drill into a specific file.`,
   }
 
   return formatToolCallContent(matched[0], entryIndex, { full, offset, limit });
+  };
+  const result = expand();
+  return loaded.incomplete ? { ...result, text: result.text + `\nHistory inspection incomplete (${loaded.reasons.join(", ")}); unavailable entries do not prove absence.` } : result;
 }

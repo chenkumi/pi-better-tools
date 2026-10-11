@@ -233,7 +233,7 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 
 `recall`／`/blackhole-recall` 新增 allowlisted persisted `custom_message` 消費端：Shell 完成批次、Subagent task/query 結果、Runtime 診斷、Schedule subagent 結果與背景 reconciliation。以 ID 搜尋後使用 `e:<persisted-entry-id>`／`page`；stable ID namespace 不重編舊 message-only `#N`。排除 plain custom、display-only 副本、start/inline markers、private query 欄位與 credentials；details 的 producer-specific 結構為權威，正文僅補公開 scalar display，不提升為指令或 goal/preference。Query 的 lateUsage／snapshotUnavailable（含 false）保留，但不復活失敗答案。
 
-新 summary 最多16 refs／8000 structural chars，carry／strip 必須驗證實際 insertion span、SHA-256／refs 的 optional `blackhole.notificationEvidence` provenance；不是相信 Markdown header，也不是身份簽章。無 metadata 的舊 compactions 不回填／改寫；壓縮時機、tail、設定與舊 ref 不變。Evidence 專用 scanner 在 parse 前限64 KiB line，另限32 MiB讀取／100000 lines；不涵蓋舊 generic raw scanner 或宿主已解析的 branch。Selected projection、summary 樣本與 raw history 完整程度不同，producer outputTruncated 與 projection partial 也不同。分頁只推進已交付 body；tiny budget 不足回 `isError`／結構診斷、零交付且無 cursor，最小文字可能僅 `!`；`0` 只解除文字 budget，不解除 projection/scanner 界限。Unavailable 僅表示 selected inspection 未取得，不能推全歷史 absence／outcome。詳見 [Blackhole recall](modules/blackhole/docs/recall.md)。
+新 summary 最多16 refs／8000 structural chars，carry／strip 必須驗證實際 insertion span、SHA-256／refs 的 optional `blackhole.notificationEvidence` provenance；不是相信 Markdown header，也不是身份簽章。無 metadata 的舊 compactions 不回填／改寫；壓縮時機、tail、設定與舊 ref 不變。Evidence 專用 scanner 在 parse 前限64 KiB line，另限32 MiB讀取／100000 lines；generic raw recall 另有限32 MiB讀取／1 MiB單行、8 MiB保守payload charge及16 MiB aggregate cache，超限明示 incomplete 並保留原始 #N。這些不是精確heap上限，也不涵蓋宿主已解析的 branch。Selected projection、summary 樣本與 raw history 完整程度不同，producer outputTruncated 與 projection partial 也不同。分頁只推進已交付 body；tiny budget 不足回 `isError`／結構診斷、零交付且無 cursor，最小文字可能僅 `!`；`0` 只解除文字 budget，不解除 projection/scanner 界限。Unavailable 僅表示 selected inspection 未取得，不能推全歷史 absence／outcome。詳見 [Blackhole recall](modules/blackhole/docs/recall.md)。
 
 離線 fixtures 驗證持久化消費端，不代表 producer lifecycle／exactly-once／process-tree cleanup、真實 provider、人工 TUI 或根 release gates 已通過；不讀 logs、不重播或重啟 outcome_unknown 舊工作。
 
@@ -262,6 +262,16 @@ pi -p "Extract company name: Acme" --json-schema $schema --json-output result.js
 驗證使用 zod 4；zod 無法忠實驗證的 schema 關鍵字（`if/then/else`、`not`、`dependent*`、外部 `$ref` 等）會在啟動時被拒絕，完整範圍見 [JSON Schema README](modules/json-schema/README.md)。入口為 `modules/json-schema/src/index.ts`。
 
 ### 穩定性防護（本地修正）
+
+2026-10-11 review 修正均以保留的重現案例先在原碼重複確認，再修正並重跑相同案例；不是單靠靜態推論。工具名稱、activation、credentials、managed格式身份與依賴版本不變，完整證據／平台限制見 `plan/PLAN-20261011T124436419Z.md`。
+
+- File edit 的成功 diff preview 在提交後只保留有界行數，不以大量參數spread導致成功回報拋錯；原子提交／hash guard不變。
+- JSON Schema 的 default 只作annotation、不補缺少的required欄位；拒絕漏驗的 `$ref` 同層validation及超出2048 expanded schema visits的ref DAG；輸出採短的同目錄exclusive temporary名稱。這是保守支援範圍，不是任意recursive資料的CPU上限。
+- 已確認退出的POSIX PTY不再signal舊PID；Windows保留native handle release。這項POSIX回歸是fake backend，不是實機PIDreuse驗證。
+- Subagents writer／query acquisition共同遵守 `writer.acquire/` 短期election fence；故障留fence時fail closed，須確認無writer後人工檢查。Background allocation取消可結束caller等待，但實際晚到I/O仍持有capacity至settlement，不在取消後啟動runner。
+- Shell receipt不等待tmpdir sweep／eviction清理；async sweep最多檢查1024 entries、最多32筆pending housekeeping，未確認清理可能留下orphan，不承諾全量清掃。
+- Schedule一次性callback使用generation fence，startup共用snapshot、disabled cleanup一次locked batch；interval每次由schedule重新derive，拒絕不一致或非法cached delay，legacy valid jobs保留。
+- Recall空／失敗lineage不擴至all history；advanced unsafe regex採literal fallback，有限安全regex與常見ASCII `prefix.*suffix`仍可用。Generic scanner／cache有上述byte admission。正值worker attempt timeout另涵蓋auth／endpoint resolution等待；late結果不啟動worker，不代表底層provider I/O已停止。
 
 - Schedule store 只有 ENOENT 才視為空；讀取或損壞隔離失敗拒絕修改，不覆蓋既有資料。持久化清理故障不跳過 scheduler/widget teardown，cron 驗證不建立 timer。
 - PTY `waitFor` 用可終止 worker（單次最多1秒、最多16個）；完整 escape 序列超過單次50KiB限制時明示丟棄並推進 cursor。Shutdown 確認 transport exit 才釋放 ownership，失敗保留並回報，不虛構退出。

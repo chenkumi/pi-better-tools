@@ -2,6 +2,7 @@ import { createRequire } from "node:module";
 import { validationPool } from "./validation-pool.ts";
 export { VALIDATION_BUDGET_MS } from "./validation-pool.ts";
 import { assertSafeSchemaPattern } from "./pattern-policy.ts";
+import { withoutSchemaDefaults } from "./validation-schema.mjs";
 
 import type { ZodType } from "zod";
 
@@ -58,6 +59,8 @@ function audit(node: unknown, path: string): void {
   if (reference !== undefined) {
     if (typeof reference !== "string" || !reference.startsWith("#")) throw new Error(`only local $ref values ("#...") are supported at ${path}`);
     if (!/^#(?:\/.*)?$/.test(reference)) throw new Error(`only JSON-pointer $ref values are supported at ${path}`);
+    const sibling = Object.keys(node).find(key => TYPE_SPECIFIC_KEYWORDS.has(key) || SUBSCHEMA_LIST.has(key) || ["type", "enum", "const"].includes(key));
+    if (sibling) throw new Error(`$ref at ${path} has unsupported sibling "${sibling}"; use explicit-type allOf instead (draft semantics are not rewritten)`);
   }
   if ("required" in node && !(Array.isArray(node.required) && node.required.every((name) => typeof name === "string"))) throw new Error(`"required" at ${path} must be an array of strings`);
   if ("properties" in node && !isRecord(node.properties)) throw new Error(`"properties" at ${path} must be an object`);
@@ -104,6 +107,39 @@ function usesPattern(node: unknown): boolean {
   return false;
 }
 
+/** Bound acyclic reference/branch expansion before Zod compilation AND host tool registration.
+ * Cyclic edges are counted once per active path: this is a schema structural budget,
+ * not a bound on recursive data size or validation time for arbitrary instances.
+ */
+export const MAX_EXPANDED_SCHEMA_NODES = 2048;
+function admitExpandedSchema(root: Record<string, unknown>): void {
+  let visits = 0;
+  const active = new Set<Record<string, unknown>>();
+  const visit = (node: unknown, depth: number): void => {
+    if (++visits > MAX_EXPANDED_SCHEMA_NODES || depth > 128) throw new Error(`schema expanded-work budget exceeded (max ${MAX_EXPANDED_SCHEMA_NODES} nodes, depth 128); flatten references or reduce branches`);
+    if (!isRecord(node) || active.has(node)) return;
+    active.add(node);
+    if (typeof node.$ref === "string" && /^#(?:\/.*)?$/.test(node.$ref)) {
+      const parts = node.$ref.slice(1).split("/").filter(Boolean).map(part => part.replace(/~1/g, "/").replace(/~0/g, "~"));
+      // Zod's converter resolves definition names, not arbitrary descendant pointers.
+      // Match ctx.defs precedence even when the reference prefix names the other map.
+      // Count the definition it would actually parse, even for a trailing pointer suffix.
+      const definitions = root.$defs || root.definitions || {};
+      const target = parts.length === 0 ? root : isRecord(definitions) && Object.hasOwn(definitions, parts[1]) ? definitions[parts[1]] : undefined;
+      visit(target, depth + 1);
+    }
+    for (const [key, value] of Object.entries(node)) {
+      if (SUBSCHEMA.has(key)) {
+        if (Array.isArray(value)) value.forEach(child => visit(child, depth + 1));
+        else visit(value, depth + 1);
+      } else if (SUBSCHEMA_LIST.has(key) && Array.isArray(value)) value.forEach(child => visit(child, depth + 1));
+      else if ((key === "properties" || key === "patternProperties") && isRecord(value)) Object.values(value).forEach(child => visit(child, depth + 1));
+    }
+    active.delete(node);
+  };
+  visit(root, 0);
+}
+
 /** Parse and compile a JSON Schema document whose root is `type: "object"`. Throws Error with a user-facing message. */
 export function compileSchema(text: string): CompiledSchema {
   let parsed: unknown;
@@ -114,11 +150,12 @@ export function compileSchema(text: string): CompiledSchema {
   }
   if (!isRecord(parsed)) throw new Error("schema must be a JSON object");
   if (parsed.type !== "object") throw new Error('schema root must declare "type": "object"');
+  admitExpandedSchema(parsed);
   audit(parsed, "#");
 
   let validator: ZodType;
   try {
-    validator = loadZod().z.fromJSONSchema(parsed as never);
+    validator = loadZod().z.fromJSONSchema(withoutSchemaDefaults(parsed) as never);
   } catch (error) {
     throw new Error(`schema cannot be compiled: ${error instanceof Error ? error.message : String(error)}`);
   }

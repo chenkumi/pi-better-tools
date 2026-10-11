@@ -1511,14 +1511,15 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 					const ownerCwd = await canonicalCwd(dispatchCwd);
 					if (signal?.aborted) throw new Error("Background submission aborted before acceptance");
 					const sessions: ManagedSession[] = [];
-					const receipt = await jobs.submitManaged(parentSessionId, ownerCwd, epoch, items.map(item => item.agent), async () => {
+					const receipt = await jobs.submitManaged(parentSessionId, ownerCwd, epoch, items.map(item => item.agent), async preparationSignal => {
 						for (const item of items) {
-							if (signal?.aborted) throw new Error("Background submission aborted before acceptance");
+							if (preparationSignal.aborted) throw new Error("Background submission aborted before acceptance");
 							const agent = agents.find(agent => agent.name === item.agent)!;
 							const defaults = item.defaults;
 							const model = defaults.modelWasExplicit ? defaults.model : agent.model ?? defaults.model;
 							const shouldPass = defaults.thinkingLevelWasExplicit || (!agent.model && !defaults.modelWasExplicit);
 							const config = await snapshotConfig(agent, agentScope, item.cwd ?? dispatchCwd, model, shouldPass ? defaults.thinkingLevel : undefined, projectTrusted);
+							if (preparationSignal.aborted) throw new Error("Background submission aborted before allocation");
 							sessions.push(await ManagedSession.allocate(runtime.sessionRootDir ?? path.join(getAgentDir(), "subagent-sessions"), { parentSessionId, parentCwd: ownerCwd }, config));
 						}
 						if (signal?.aborted) throw new Error("Background submission aborted before acceptance");
@@ -1545,7 +1546,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 						}
 					}, items.map(item => item.title ?? params.title), () => {
 						if (signal?.aborted) throw new Error("Background submission aborted before acceptance");
-					});
+					}, undefined, signal);
 					return { content: [{ type: "text", text: JSON.stringify(slimReceipt(receipt)) }], details: { ...makeDetails(hasChain ? "chain" : hasTasks ? "parallel" : "single")([]), background: receipt }, structuredContent: jsonReceipt(receipt) };
 				} catch (error) { return { content: [{ type: "text", text: errorToString(error) }], details: { ...makeDetails("single")([]), errorCode: error instanceof SessionError ? error.code : "BACKGROUND_REJECTED" }, isError: true }; }
 			}

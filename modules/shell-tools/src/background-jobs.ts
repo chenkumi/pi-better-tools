@@ -2,7 +2,7 @@ import { ulid } from "ulid";
 import { canonicalMonitorCwd } from "./monitor-capability.js";
 import { ShellJobsWidget } from "./live-widget.js";
 import { BackgroundRecovery, type RecoveryWriter } from "./recovery.js";
-import { closeSync, lstatSync, mkdtempSync, openSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, writeSync } from "node:fs";
+import { closeSync, mkdtempSync, openSync, promises as asyncFs, writeFileSync, writeSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BashOperations, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -34,8 +34,16 @@ const OWNER_MARKER = "owner.pid";
 const STALE_UNMARKED_MS = 24 * 60 * 60 * 1000;
 
 /** Windows can briefly hold a directory (antivirus, a straggler child): retry instead of orphaning it in tmpdir. */
-function removeJobDirectory(directory: string) {
-  rmSync(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+async function removeJobDirectory(directory: string) {
+  await asyncFs.rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+}
+const housekeeping = new Set<Promise<unknown>>();
+function housekeep(operation: () => Promise<unknown>) {
+  // A stuck filesystem must not create an unbounded detached deletion queue.
+  if (housekeeping.size >= MAX_RETAINED_JOBS) return;
+  const pending = Promise.resolve().then(operation).catch(() => undefined);
+  housekeeping.add(pending);
+  void pending.finally(() => housekeeping.delete(pending));
 }
 
 function processAlive(pid: number): boolean {
@@ -48,29 +56,32 @@ function processAlive(pid: number): boolean {
  * a directory whose owner marker names a dead process, or an unmarked (older-version) directory untouched for 24 h.
  * Directories of live processes (including this one) and anything that is not a plain directory are left alone.
  */
-export function sweepStaleJobDirectories(root = tmpdir(), options: { now?: number; alive?: (pid: number) => boolean; skip?: ReadonlySet<string> } = {}): string[] {
+export async function sweepStaleJobDirectories(root = tmpdir(), options: { now?: number; alive?: (pid: number) => boolean; skip?: ReadonlySet<string>; maxEntries?: number } = {}): Promise<string[]> {
   const now = options.now ?? Date.now();
   const alive = options.alive ?? processAlive;
   const removed: string[] = [];
-  let names: string[];
-  try { names = readdirSync(root); } catch { return removed; }
-  for (const name of names) {
+  let directoryHandle;
+  try { directoryHandle = await asyncFs.opendir(root); } catch { return removed; }
+  let scanned = 0;
+  for await (const entry of directoryHandle) {
+    if (++scanned > (options.maxEntries ?? 1024)) break;
+    const name = entry.name;
     if (!name.startsWith(JOB_DIR_PREFIX)) continue;
     const directory = join(root, name);
     if (options.skip?.has(directory)) continue;
     try {
-      const info = lstatSync(directory);
+      const info = await asyncFs.lstat(directory);
       if (!info.isDirectory() || info.isSymbolicLink()) continue;
       let pid: number | undefined;
-      try { pid = Number.parseInt(readFileSync(join(directory, OWNER_MARKER), "utf8").trim(), 10); } catch { /* unmarked */ }
+      try { pid = Number.parseInt((await asyncFs.readFile(join(directory, OWNER_MARKER), "utf8")).trim(), 10); } catch { /* unmarked */ }
       if (pid !== undefined && Number.isInteger(pid) && pid > 0) {
         if (pid === process.pid || alive(pid)) continue;
       } else {
         let newest = info.mtimeMs;
-        try { newest = Math.max(newest, statSync(join(directory, "output.log")).mtimeMs); } catch { /* no log */ }
+        try { newest = Math.max(newest, (await asyncFs.stat(join(directory, "output.log"))).mtimeMs); } catch { /* no log */ }
         if (now - newest < STALE_UNMARKED_MS) continue;
       }
-      removeJobDirectory(directory);
+      await removeJobDirectory(directory);
       removed.push(directory);
     } catch { /* best effort; never block a submit on tmpdir housekeeping */ }
   }
@@ -199,14 +210,15 @@ export class ShellJobs {
         throw new Error(`Request not accepted: capacity limit reached. Shell background retention limit (${MAX_RETAINED_JOBS}) reached: every retained job is running or awaiting its completion notification. Wait for a completion notification (or cancel a running job with shell_job_cancel if selected): ${this.describe(blocking)}`);
       }
       // EBUSY/EPERM on Windows (a straggler child still holds the directory) must not wedge every later submit.
-      try { removeJobDirectory(oldest.directory); } catch { /* directory is orphaned in tmpdir; the job slot is still released */ }
+      housekeep(() => removeJobDirectory(oldest.directory)); // Failed/capped cleanup remains orphaned; admission is not blocked.
       this.jobs.delete(oldest.jobId);
       this.evicted.add(oldest.jobId);
       if (this.evicted.size > MAX_EVICTED_IDS) this.evicted.delete(this.evicted.values().next().value!);
     }
     if (!swept) { // Lazily, once per process, at the first real submission (loading the extension creates nothing).
       swept = true;
-      sweepStaleJobDirectories(tmpdir(), { skip: new Set([...this.jobs.values()].map(job => job.directory)) });
+      const root = tmpdir(), skip = new Set([...this.jobs.values()].map(job => job.directory));
+      housekeep(() => sweepStaleJobDirectories(root, { skip }));
     }
     const directory = mkdtempSync(join(tmpdir(), JOB_DIR_PREFIX));
     const liveLogPath = join(directory, "output.log");
@@ -215,7 +227,7 @@ export class ShellJobs {
       writeFileSync(join(directory, OWNER_MARKER), String(process.pid), { mode: 0o600 });
       fd = openSync(liveLogPath, "wx", 0o600);
     }
-    catch (error) { try { removeJobDirectory(directory); } catch { /* orphan is swept at a later start */ } throw error; }
+    catch (error) { housekeep(() => removeJobDirectory(directory)); throw error; }
     const job: Job = {
       jobId: ulid().toUpperCase(), status: "running", tool, toolCallId, owner: this.owner!, generation: this.generation,
       controller: new AbortController(), directory, liveLogPath, fd, logBytes: 0, capturedBytes: 0,
@@ -226,7 +238,7 @@ export class ShellJobs {
       job.recovery = this.recovery.accept({ jobId: job.jobId, toolCallId, state: "accepted", started: false });
     } catch (error) {
       this.closeLog(job);
-      try { removeJobDirectory(directory); } catch { /* bounded temp housekeeping */ }
+      housekeep(() => removeJobDirectory(directory));
       throw error; // No runner has been scheduled and no command was executed.
     }
     try { job.monitorCwd = canonicalMonitorCwd(ctx.cwd); } catch { /* Monitor must refuse unavailable cwd evidence; Shell behavior is unchanged. */ }
@@ -475,7 +487,7 @@ export class ShellJobs {
       if (timer) clearTimeout(timer);
       for (const job of jobs) {
         this.closeLog(job);
-        try { removeJobDirectory(job.directory); } catch { /* best effort; the owner marker lets a later start sweep it */ }
+        try { await removeJobDirectory(job.directory); } catch { /* best effort; the owner marker lets a later start sweep it */ }
       }
       this.jobs.clear();
       this.evicted.clear();

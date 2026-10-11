@@ -1,5 +1,6 @@
 import { parentPort } from 'node:worker_threads';
 import { z } from 'zod';
+import { withoutSchemaDefaults } from './validation-schema.mjs';
 // Pure computation: no output or providers. Cache only the last schema to bound retained state.
 let schemaText;
 let validator;
@@ -7,7 +8,7 @@ parentPort.on('message', ({ schema, data }) => {
   try {
     const text = JSON.stringify(schema);
     if (text !== schemaText) {
-      validator = z.fromJSONSchema(schema);
+      validator = z.fromJSONSchema(withoutSchemaDefaults(schema));
       schemaText = text;
     }
     const result = validator.safeParse(data);

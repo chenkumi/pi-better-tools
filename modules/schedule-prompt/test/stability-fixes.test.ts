@@ -80,7 +80,7 @@ it.each(['session_shutdown', 'session_start'])('%s always stops the old schedule
   const ctx = { cwd, isProjectTrusted: () => true, mode: 'rpc', hasUI: false, sessionManager: { getSessionId: () => 'owner' }, ui: { setWidget() {}, setStatus() {} } };
   await hooks.get('session_start')({ reason: 'startup' }, ctx);
   const stop = vi.spyOn(CronScheduler.prototype, 'stop');
-  const remove = vi.spyOn(CronStorage.prototype, 'removeJob').mockImplementation(() => { throw new Error('injected save failure'); });
+  const remove = vi.spyOn(CronStorage.prototype, 'removeDisabledJobs').mockImplementation(() => { throw new Error('injected save failure'); });
   if (name === 'session_shutdown') await expect(hooks.get(name)({}, ctx)).rejects.toThrow(/injected/);
   else await hooks.get(name)({ reason: 'switch' }, ctx);
   expect(stop).toHaveBeenCalled();

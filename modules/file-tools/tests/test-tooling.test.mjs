@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import childProcess, { spawn } from "node:child_process";
+import { EventEmitter } from "node:events";
+import { syncBuiltinESMExports } from "node:module";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, posix, win32 } from "node:path";
@@ -9,6 +11,53 @@ import { locateNpmCli, parsePackManifest, runCommand, runNpm } from "../scripts/
 import { cleanupTestResources } from "../scripts/test-cleanup.mjs";
 
 const alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
+
+for (const fallback of [false, true]) test(`R18 root close waits for Windows cleaner completion (fallback=${fallback})`, async t => {
+  const fake = () => {
+    const child = new EventEmitter();
+    Object.assign(child, { pid: 99999999, exitCode: null, signalCode: null, kills: 0,
+      kill() { this.kills++; }, unref() {},
+      stdout: Object.assign(new EventEmitter(), { destroy() {} }),
+      stderr: Object.assign(new EventEmitter(), { destroy() {} }) });
+    return child;
+  };
+  const root = fake(); const cleaners = []; const launches = [];
+  const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
+  Object.defineProperty(process, "platform", { value: "win32", configurable: true });
+  t.mock.method(childProcess, "spawn", (command) => {
+    launches.push(command); const child = fake(); cleaners.push(child); return child;
+  });
+  syncBuiltinESMExports();
+  let settled = false;
+  const running = runCommand("R18 fake owned tree", "fixture", [], {
+    quiet: true, spawnProcess: () => root,
+  }).then(() => { settled = true; }, error => { settled = true; return error; });
+  try {
+    root.stdout.emit("data", Buffer.alloc(4 * 1024 * 1024 + 1));
+    assert.deepEqual(launches, ["taskkill"]);
+    root.emit("close", 1);
+    // Drain only deterministic promise continuations, not timers or a sleep.
+    for (let i = 0; i < 8; i++) await Promise.resolve();
+    assert.equal(cleaners[0].kills, 0, "root close must not terminate the in-progress tree cleaner");
+    assert.equal(settled, false, "root pipe close is not cleanup completion");
+    cleaners[0].exitCode = fallback ? 1 : 0;
+    cleaners[0].emit("exit", cleaners[0].exitCode);
+    if (fallback) {
+      assert.deepEqual(launches, ["taskkill", "powershell.exe"]);
+      for (let i = 0; i < 8; i++) await Promise.resolve();
+      assert.equal(settled, false);
+      cleaners[1].exitCode = 0; cleaners[1].emit("exit", 0);
+    }
+    const error = await running;
+    assert.match(error.message, /output exceeded 4 MiB/);
+    assert.equal(cleaners.every(child => child.kills === 0), true);
+  } finally {
+    for (const cleaner of cleaners) { cleaner.exitCode = 0; cleaner.emit("exit", 0); }
+    await running;
+    t.mock.restoreAll(); syncBuiltinESMExports();
+    Object.defineProperty(process, "platform", originalPlatform);
+  }
+});
 
 test("test process output separates stdout from diagnostics", async () => {
   const result = await runCommand("fixture stdout", process.execPath, ["-e", 'console.log("result"); console.error("diagnostic");'], { quiet: true, timeoutMs: 3000 });

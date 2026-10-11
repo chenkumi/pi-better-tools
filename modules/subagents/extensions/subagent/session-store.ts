@@ -108,7 +108,10 @@ async function atomicJson(file: string, value: unknown, active: () => boolean = 
 	if (Buffer.byteLength(text) > MAX_METADATA_BYTES) fail("METADATA_UNSUPPORTED", "Serialized metadata exceeds capacity");
 	const temp = `${file}.${ulid().toUpperCase()}.partial`;
 	const handle = await fs.promises.open(temp, "wx", 0o600);
-	try { await handle.writeFile(text); await handle.sync(); } finally { await handle.close(); }
+	try { await handle.writeFile(text); await handle.sync(); } finally {
+		try { await handle.close(); }
+		catch (error) { throw Object.assign(new Error(`Metadata writer close failed: ${String(error)}`), { cleanupUnsafe: true, cause: error }); }
+	}
 	if (!active()) fail("COMMIT_FAILED", "I/O deadline elapsed before metadata publish");
 	await renameWithRetry(temp, file);
 }
@@ -277,21 +280,59 @@ export class ManagedSession {
 			return record(owner) && Number.isSafeInteger(owner.pid) && owner.pid > 0 && (owner.pid === process.pid ? typeof owner.nonce === "string" && !liveLockNonces.has(owner.nonce) : !pidAlive(owner.pid));
 		} catch { return false; }
 	}
+	/** Serialize pathname replacement AND fresh writer/query creation across processes.
+	 * Never take over this short-lived election fence: a crashed acquisition fails
+	 * closed until manual inspection, rather than introducing another stale race. */
+	private async acquisitionFence<T>(operation: () => Promise<T>): Promise<T> {
+		const fence = path.join(this.directory, "writer.acquire");
+		try { await fs.promises.mkdir(fence, { mode: 0o700 }); }
+		catch (error) { if ((error as NodeJS.ErrnoException).code === "EEXIST") fail("SESSION_BUSY", "Writer acquisition/recovery in progress; orphan election fence requires manual inspection"); throw error; }
+		let primaryFailed = false, primaryError: unknown;
+		try { return await operation(); }
+		catch (error) { primaryFailed = true; primaryError = error; throw error; }
+		finally {
+			try { await fs.promises.rmdir(fence); }
+			catch (cleanupError) {
+				throw Object.assign(new AggregateError(primaryFailed ? [primaryError, cleanupError] : [cleanupError],
+					`Acquisition fence cleanup unconfirmed; writer ownership may remain held. ${primaryFailed ? `Primary failure: ${String(primaryError)}; ` : ""}Fence cleanup: ${String(cleanupError)}`), { cleanupUnsafe: true });
+			}
+		}
+	}
+	/** Cleanup is only for settled initialization, while the election fence is held.
+	 * Missing metadata is ours only if the directory identity still matches mkdir. */
+	private async initializeLock(lockDir: string, taskId: string, recovered = false): Promise<void> {
+		const identity = await fs.promises.lstat(lockDir);
+		this.lock = { nonce: ulid().toUpperCase(), taskId, pid: process.pid, createdAt: new Date().toISOString() };
+		liveLockNonces.add(this.lock.nonce);
+		try {
+			await atomicJson(path.join(lockDir, "owner.json"), this.lock);
+			if (recovered && !(await this.rollbackToCheckpoint(() => true))) fail("SESSION_BLOCKED", "Stale writer lock checkpoint could not be verified; manual inspection required");
+		} catch (error) {
+			if ((error as { cleanupUnsafe?: boolean })?.cleanupUnsafe) throw error;
+			try {
+				const current = await fs.promises.lstat(lockDir);
+				if (current.isSymbolicLink() || current.dev !== identity.dev || current.ino !== identity.ino) fail("SESSION_BUSY", "Initialization lock identity changed; not releasing");
+				try {
+					const owner = await readJson(path.join(lockDir, "owner.json"));
+					if (owner.nonce !== this.lock.nonce) fail("SESSION_BUSY", "Initialization lock ownership changed; not releasing");
+				} catch (ownerError) { if ((ownerError as NodeJS.ErrnoException).code !== "ENOENT") throw ownerError; }
+				await fs.promises.rm(lockDir, { recursive: true });
+				liveLockNonces.delete(this.lock.nonce); this.lock = undefined;
+			} catch (cleanupError) { throw new AggregateError([error, cleanupError], `Lock initialization failed; owned cleanup unconfirmed: ${String(error)}; ${String(cleanupError)}`); }
+			throw error;
+		}
+	}
 	/** Exclusive read lease using the existing writer fence. Unlike acquire(),
 	 * query never recovers stale ownership, truncates files or publishes state. */
 	async acquireQueryLease(taskId: string): Promise<void> {
 		if (!SESSION_ID.test(taskId)) fail("INVALID_DISPATCH", "Invalid internal query ID");
 		await contained(this.root, this.directory);
 		const lockDir = path.join(this.directory, "writer.lock");
-		try { await fs.promises.mkdir(lockDir, { mode: 0o700 }); }
-		catch (error) { if ((error as NodeJS.ErrnoException).code === "EEXIST") fail("SESSION_BUSY", "Writer/read lease exists; query never takes over or recovers a writer"); throw error; }
-		this.lock = { nonce: ulid().toUpperCase(), taskId, pid: process.pid, createdAt: new Date().toISOString() };
-		liveLockNonces.add(this.lock.nonce);
-		try { await atomicJson(path.join(lockDir, "owner.json"), this.lock); }
-		catch (error) {
-			await fs.promises.rm(lockDir, { recursive: true }); liveLockNonces.delete(this.lock.nonce); this.lock = undefined;
-			throw error;
-		}
+		await this.acquisitionFence(async () => {
+			try { await fs.promises.mkdir(lockDir, { mode: 0o700 }); }
+			catch (error) { if ((error as NodeJS.ErrnoException).code === "EEXIST") fail("SESSION_BUSY", "Writer/read lease exists; query never takes over or recovers a writer"); throw error; }
+			await this.initializeLock(lockDir, taskId);
+		});
 	}
 	/** Read exactly the verified checkpoint, bounded independently of the larger
 	 * continuation file policy. Caller holds the lease until actual owned cleanup. */
@@ -332,25 +373,22 @@ export class ManagedSession {
 		if (!SESSION_ID.test(taskId)) fail("INVALID_DISPATCH", "Invalid internal task ID");
 		await contained(this.root, this.directory);
 		const lockDir = path.join(this.directory, "writer.lock");
-		let recovered = false;
-		for (let attempt = 0; ; attempt++) {
-			try { await fs.promises.mkdir(lockDir, { mode: 0o700 }); break; }
-			catch (e) {
-				if ((e as any).code !== "EEXIST") throw e;
-				if (attempt > 0 || !(await this.lockIsStale())) return fail("SESSION_BUSY", "Writer lock exists; no automatic takeover");
-				// Atomic rename elects a single winner when several processes find the same dead owner.
-				const stale = `${lockDir}.stale-${ulid().toUpperCase()}`;
-				try { await fs.promises.rename(lockDir, stale); await fs.promises.rm(stale, { recursive: true, force: true }); recovered = true; }
-				catch (renameError) { if ((renameError as any).code !== "ENOENT") throw renameError; }
+		await this.acquisitionFence(async () => {
+			let recovered = false;
+			for (let attempt = 0; ; attempt++) {
+				try { await fs.promises.mkdir(lockDir, { mode: 0o700 }); break; }
+				catch (e) {
+					if ((e as any).code !== "EEXIST") throw e;
+					if (attempt > 0 || !(await this.lockIsStale())) return fail("SESSION_BUSY", "Writer lock exists; no automatic takeover");
+					// All fresh acquisition paths respect the election fence, so
+					// this pathname cannot have been replaced by another contender.
+					const stale = `${lockDir}.stale-${ulid().toUpperCase()}`;
+					try { await fs.promises.rename(lockDir, stale); await fs.promises.rm(stale, { recursive: true, force: true }); recovered = true; }
+					catch (renameError) { if ((renameError as any).code !== "ENOENT") throw renameError; }
+				}
 			}
-		}
-		this.lock = { nonce: ulid().toUpperCase(), taskId, pid: process.pid, createdAt: new Date().toISOString() };
-		liveLockNonces.add(this.lock.nonce);
-		await atomicJson(path.join(lockDir, "owner.json"), this.lock);
-		if (recovered && !(await this.rollbackToCheckpoint(() => true))) {
-			await this.release().catch(() => undefined);
-			fail("SESSION_BLOCKED", "Stale writer lock from a dead process and the checkpoint could not be verified; manual inspection required");
-		}
+			await this.initializeLock(lockDir, taskId, recovered);
+		});
 	}
 	/**
 	 * Restore the last verified checkpoint after an unsuccessful run: truncate native/readable files to the recorded
@@ -382,7 +420,12 @@ export class ManagedSession {
 			await atomicJson(path.join(this.directory, "manifest.json"), candidate, active);
 			this.manifest = candidate;
 			return true;
-		} catch { return false; }
+		} catch (error) {
+			// A rejected actual metadata close is not a checkpoint mismatch. Keep
+			// its ownership marker/diagnostic for initialization and runner cleanup.
+			if (record(error) && error.cleanupUnsafe === true) throw error;
+			return false;
+		}
 	}
 	private async assertLock(): Promise<void> {
 		if (!this.lock) fail("SESSION_BUSY", "Missing writer ownership");

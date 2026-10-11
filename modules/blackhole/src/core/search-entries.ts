@@ -61,8 +61,65 @@ export interface SearchHit extends RenderedEntry {
 
 const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** Try to compile as regex; fall back to escaped literal. */
-const safeRegex = (pattern: string): RegExp => {
+/** Conservative finite-width subset: no repetition, groups or backreferences.
+ * One optional atom is finite-width too. Simple ASCII prefix.*suffix uses a
+ * separate linear string matcher, never native backtracking repetition.
+ * Unsupported patterns are literal, like invalid regex syntax. This deliberately
+ * trades advanced regex compatibility for bounded native matching work.
+ */
+const admittedRegex = (pattern: string): boolean => {
+  if (pattern.length > 512) return false;
+  let inClass = false;
+  let optionals = 0;
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i];
+    if (c === "\\") {
+      const escaped = pattern[++i];
+      // Only escaped punctuation or single-character classes; no references,
+      // Unicode property escapes, hex/unicode escapes or assertions in groups.
+      if (!escaped || !"\\.^$|?*+(){}[]/-dDsSwWbB".includes(escaped)) return false;
+      continue;
+    }
+    if (c === "[" && !inClass) { inClass = true; continue; }
+    if (c === "]" && inClass) { inClass = false; continue; }
+    if (!inClass && c === "?") { if (++optionals > 1) return false; continue; }
+    if (!inClass && "()*+{}".includes(c)) return false;
+  }
+  return !inClass;
+};
+type SearchPattern = Pick<RegExp, "test" | "exec"> & { frequency?: (text: string) => number };
+const linearWildcard = (pattern: string): SearchPattern | undefined => {
+  if (pattern.length > 512) return undefined;
+  const parts = /^([A-Za-z0-9_-]+)\.\*([A-Za-z0-9_-]*)$/.exec(pattern);
+  if (!parts) return undefined;
+  const prefix = parts[1].toLowerCase(), suffix = parts[2].toLowerCase();
+  const execLine = (line: string): RegExpExecArray | null => {
+    // ASCII case folding keeps source offsets unchanged.
+    const folded = line.replace(/[A-Z]/g, c => c.toLowerCase());
+    const start = folded.indexOf(prefix);
+    if (start < 0) return null;
+    const end = suffix ? folded.lastIndexOf(suffix) + suffix.length : line.length;
+    if (suffix && end - suffix.length < start + prefix.length) return null;
+    const match = [line.slice(start, end)] as RegExpExecArray;
+    match.index = start; match.input = line;
+    return match;
+  };
+  const exec = (text: string): RegExpExecArray | null => {
+    let offset = 0;
+    for (const line of text.split(/[\n\r\u2028\u2029]/)) {
+      const match = execLine(line);
+      if (match) { match.index += offset; match.input = text; return match; }
+      offset += line.length + 1;
+    }
+    return null;
+  };
+  return { exec, test: text => exec(text) !== null,
+    frequency: text => text.split(/[\n\r\u2028\u2029]/).reduce((n, line) => n + (execLine(line) ? 1 : 0), 0) };
+};
+const safeRegex = (pattern: string): SearchPattern => {
+  const wildcard = linearWildcard(pattern);
+  if (wildcard) return wildcard;
+  if (!admittedRegex(pattern)) return new RegExp(escapeRegex(pattern), "i");
   try {
     return new RegExp(pattern, "i");
   } catch {
@@ -87,22 +144,28 @@ const REGEX_TERM_HINT = /[|*+?{}()[\]\\^$]/;
  * including dotted filenames — match literally, so "observer.ts" never
  * matches "observerXts". Never throws.
  */
-const compileTerm = (term: string): RegExp =>
+const compileTerm = (term: string): SearchPattern =>
   REGEX_TERM_HINT.test(term) ? safeRegex(term) : literalRegex(term);
 
 /** A query term paired with its matcher (compiled once per search). */
 interface CompiledTerm {
   term: string;
-  pattern: RegExp;
+  pattern: SearchPattern;
 }
 
 const compileTerms = (terms: string[]): CompiledTerm[] =>
   terms.map((term) => ({ term, pattern: compileTerm(term) }));
 
 /** Build a matcher over per-term patterns — matches first available term. */
-const snippetRegex = (terms: string[]): RegExp => {
-  const alts = terms.map((t) => compileTerm(t).source);
-  return new RegExp(alts.join("|"), "i");
+const snippetRegex = (terms: string[]): SearchPattern => {
+  const patterns = terms.map(compileTerm);
+  return {
+    test: text => patterns.some(pattern => pattern.test(text)),
+    exec: text => patterns.reduce<RegExpExecArray | null>((first, pattern) => {
+      const match = pattern.exec(text);
+      return match && (!first || match.index < first.index) ? match : first;
+    }, null),
+  };
 };
 
 // ── Stopwords for natural language queries ──
@@ -248,9 +311,16 @@ const BM25_B = 0.75;
 const BM25_DELTA = 0.5; // BM25+ lower-bound floor for matched terms
 
 /** Count occurrences of a regex pattern in text. */
-const termFreq = (text: string, pattern: RegExp): number => {
-  const matches = text.match(new RegExp(pattern.source, "gi"));
-  return matches ? matches.length : 0;
+const termFreq = (text: string, pattern: SearchPattern): number => {
+  if (pattern.frequency) return pattern.frequency(text);
+  const regex = new RegExp((pattern as RegExp).source, "gi");
+  let count = 0;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text))) {
+    count++;
+    if (match[0].length === 0) regex.lastIndex++;
+  }
+  return count;
 };
 
 interface BM25Context {
@@ -311,7 +381,7 @@ const SNIPPET_LINE_MAX = 1000;
  * on the match so the hit stays visible even deep in a long line; otherwise
  * (plain context lines) the start is kept.
  */
-const clipSnippetLine = (line: string, regex?: RegExp): string => {
+const clipSnippetLine = (line: string, regex?: SearchPattern): string => {
   if (line.length <= SNIPPET_LINE_MAX) return line;
   let trimmed = line.slice(0, SNIPPET_LINE_MAX);
   let prefix = "";
@@ -320,7 +390,7 @@ const clipSnippetLine = (line: string, regex?: RegExp): string => {
     if (match) {
       const radius = Math.max(0, Math.floor((SNIPPET_LINE_MAX - match[0].length) / 2));
       const start = Math.max(0, match.index - radius);
-      const end = Math.min(line.length, match.index + match[0].length + radius);
+      const end = Math.min(line.length, start + SNIPPET_LINE_MAX);
       prefix = start > 0 ? "… " : "";
       trimmed = line.slice(start, end);
     }
@@ -329,7 +399,7 @@ const clipSnippetLine = (line: string, regex?: RegExp): string => {
 };
 
 /** Line-based snippet: ±contextLines around first regex match. */
-const lineSnippet = (text: string, regex: RegExp, contextLines = 2): string | undefined => {
+const lineSnippet = (text: string, regex: SearchPattern, contextLines = 2): string | undefined => {
   const lines = text.split("\n");
   let matchIdx = -1;
   for (let i = 0; i < lines.length; i++) {

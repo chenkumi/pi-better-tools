@@ -36,6 +36,12 @@ Migration cleanup：新 scaffold 與 explicit global/project/session save 不產
 
 B1 審查修正：raw collector 以 originating File-call IDs 選擇 authority，duplicate 被 shared pairs 排除後仍拒絕 legacy fallback；不把 File arguments 存入 speculative legacy actions。需 unique／同名／先 call 後 result／explicit false，並確認這一筆 raw result 的位置。R1 的 raw／normalized／compact／touched negative matrix 與 native compact/resume 有回歸；W1 另直接測 head/tail pathTokens 及 non-File consumer，保留 correlated File cases，不恢復不安全 prose retry。非 File legacy parser及 Windows alias 能力不擴包。
 
+本輪穩定重現修正（R5/R15/R16/R17）：Recall 使用保守 finite-width regex admission；groups／references／repetition 等不安全或不支援語法改 literal，常見 ASCII `prefix.*suffix` 改走獨立 linear matcher，保留 `hook|inject`、`colou?r`／CJK／一般 literal。Empty／throwing branch fail closed，不擴至 all，cache 區分 empty filtered scope。Generic JSONL 增加 32 MiB scan／1 MiB line／8 MiB accounted retained payload，cache 全部 records（含 key）總量 16 MiB；超額明示 incomplete，巨大／未換行 line 在 parse 前停止，不猜 tail #N。Selected expansion／message-text drilldown 只保留選定 payload；file/note 保留有界 acknowledged-result correlation。這些是 byte admission counters，不是精確 host heap／全歷史索引或無限分頁保證；response cap=0 不能繞過，原始 JSONL／numeric counting rule／e: authority 不改。詳見 `docs/recall.md`。
+
+Model/auth/endpoint resolution 亦受 captured positive `workerAttemptTimeoutMs` 的獨立 elapsed budget；之後真正 worker 有 fresh attempt budget。Resolution timeout 結束本次 pipeline 並清 tracked gate；zero/unset 仍接受 lifecycle abort。晚到 resolution 不啟 worker／append，observe late rejection，不宣稱 Pi-owned provider I/O 已取消。詳見 `docs/CONFIG.md`。Root test helper 的 Windows stopped 路徑另等 taskkill／必要 PowerShell fallback completion，root close 不等 tree cleanup；既有 grace 到期仍報 unconfirmed，不能當 descendants 全部停止。
+
+保留回歸：`tests/review-recall-safety.test.ts`、`review-history-bounds.test.ts`、`review-resolution-bound.test.ts` 和 `tests/integration/review-recall-host.test.ts`；只跑最小相關分組，沒有改既知 UI fixture 造 green。
+
 根驗證：`npm run test:module -- blackhole`（保留來源 Vitest runner，並有隔離 Pi 1.1.0 native compact/persist/resume/renderer probe）、`npm run test:cross` 和 `npm run test:package`。完整 suite 有環境／上游阻礙時必須回報失敗，不跳過、不當作通過；進度與證據見 repository `plan/`。來源與適配雜湊見 `docs/sources.json` / `docs/adaptations.json`。
 
 測試分組修正：根 unit 明確使用 `--suite=unit` 排除 `tests/integration/**`；native Vitest 分組由 integration／module runner 顯式執行，單一 worker、檔案序列，保留全部案例。手動 runner 未指定 suite 仍執行全部（序列），也可用 `--suite=integration <filter>` 選取 native probes。Unit 10 秒不變；`pi-owned` 使用既有 process helper 的 30 秒程序預算／8 秒終止確認 grace，以及 45 秒 Vitest 外層收尾預算；取消或終止要求不等於 descendants 全部停止，失敗不能當作通過。不改 runtime 邏輯、信任界線或斷言。

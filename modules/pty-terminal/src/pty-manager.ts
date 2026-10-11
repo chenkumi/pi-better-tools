@@ -208,11 +208,13 @@ export class PtySessionManager {
 	}
 
 	/** Reclamation never sacrifices unread output merely to admit a new session. */
-	/** Free native handles of an exited session being forgotten (node-pty keeps them until kill()). */
+	/** Windows needs native handle release; POSIX kill signals a PID that may already have been reused. */
 	private dispose(id: string): void {
 		const session = this.sessions.get(id);
 		this.sessions.delete(id);
-		try { session?.pty.kill(process.platform === "win32" ? undefined : "SIGHUP"); } catch { /* already gone */ }
+		if (process.platform === "win32") {
+			try { session?.pty.kill(); } catch { /* already gone */ }
+		}
 	}
 
 	private reclaim(needSlot = false): void {

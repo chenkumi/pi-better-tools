@@ -88,6 +88,20 @@ export function mergeExpandedIntoSearchResults(
 }
 
 export async function vccRecall(
+  params: Parameters<typeof vccRecallInspected>[0], ctx: any,
+  maxChars = DEFAULT_RECALL_RESPONSE_MAX_CHARS,
+) {
+  const reasons = new Set<string>();
+  const result = await vccRecallInspected(params, ctx, maxChars, loaded => {
+    loaded.reasons.forEach(reason => reasons.add(reason));
+  });
+  if (!reasons.size) return result;
+  const diagnostic = `History inspection incomplete (${[...reasons].join(", ")}); unavailable entries do not prove absence.`;
+  const text = capRecallBlocks({ header: diagnostic, entryBlocks: [result.content[0].text], budget: maxChars }).text;
+  return { ...result, content: [{ type: "text" as const, text }], details: { ...result.details, historyInspection: { incomplete: true, reasons: [...reasons] } } };
+}
+
+async function vccRecallInspected(
   params: {
     query?: string;
     expand?: number[];
@@ -97,6 +111,7 @@ export async function vccRecall(
   },
   ctx: any,
   maxChars = DEFAULT_RECALL_RESPONSE_MAX_CHARS,
+  onHistory: (loaded: ReturnType<typeof loadAllMessages>) => void,
 ) {
   const sessionFile = ctx.sessionManager.getSessionFile();
   if (!sessionFile) {
@@ -110,9 +125,15 @@ export async function vccRecall(
   const lineageEntryIds =
     scope === "lineage" ? getActiveLineageEntryIds(ctx.sessionManager) : undefined;
 
+  const load = (full: boolean, selected?: Set<number>) => {
+    const loaded = loadAllMessages(sessionFile, full, lineageEntryIds, selected);
+    onHistory(loaded);
+    return loaded;
+  };
+
   // ── "touched" mode: aggregate file operations ──
   if (mode === "touched") {
-    const { rendered, rawMessages } = loadAllMessages(sessionFile, false, lineageEntryIds);
+    const { rendered, rawMessages } = load(false);
     const touched = getTouchedFiles(rawMessages, rendered);
     const text = formatTouchedOutput(touched, params.page, undefined, maxChars);
     return { content: [{ type: "text" as const, text }], details: undefined };
@@ -163,7 +184,7 @@ export async function vccRecall(
   // ── Pre-load full messages if expand is requested ──
   let expandedFullEntries: RenderedEntry[] | undefined;
   if (hasExpand) {
-    const { rendered: fullMsgs } = loadAllMessages(sessionFile, true, lineageEntryIds);
+    const { rendered: fullMsgs } = load(true, expandSet);
     const requested = [...expandSet];
     const byIndex = new Map(fullMsgs.map((m) => [m.index, m]));
     const invalid = invalidExpandIndices(requested, new Set(byIndex.keys()));
@@ -229,7 +250,7 @@ export async function vccRecall(
     // With query: fall through to search, then merge expanded entries into results
   }
 
-  const { rendered: msgs, rawMessages } = loadAllMessages(sessionFile, false, lineageEntryIds);
+  const { rendered: msgs, rawMessages } = load(false);
   const searchResult = params.query?.trim()
     ? searchEntriesDetailed([...msgs, ...evidence], rawMessages, params.query, undefined, mode)
     : undefined;
@@ -523,13 +544,14 @@ export function registerRecallTool(
       if (q && parseDrillDown(q)) {
         const parsed = parseDrillDown(q)!;
         if (lineageEntryIds) {
-          const { rendered } = loadAllMessages(sessionFile, false, lineageEntryIds);
+          const loaded = loadAllMessages(sessionFile, false, lineageEntryIds, new Set([parsed.index]));
+          const { rendered } = loaded;
           if (!rendered.some((m) => m.index === parsed.index)) {
             return {
               content: [
                 {
                   type: "text" as const,
-                  text: `Cannot expand indices outside active lineage: ${parsed.index}. Use scope:'all' to reach other branches.`,
+                  text: loaded.incomplete ? `History inspection incomplete (${loaded.reasons.join(", ")}); entry #${parsed.index} unavailable, absence unknown.` : `Cannot expand indices outside active lineage: ${parsed.index}. Use scope:'all' to reach other branches.`,
                 },
               ],
               details: undefined,

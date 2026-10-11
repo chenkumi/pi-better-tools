@@ -7,7 +7,7 @@ export const MAX_INTERACTION_BYTES = 64 * 1024;
 export const MAX_QUERY_REPLY_BYTES = 128 * 1024;
 export const CONTROL_PREFIX = "[Delegated user control ";
 export function controlText(id: string, message: string) { return `${CONTROL_PREFIX}${id}]\n${message}`; }
-export function controlId(text: string) { return /^\[Delegated user control ([a-z0-9]+)\]\n/.exec(text)?.[1]; }
+export function controlId(text: string) { return /^\[Delegated user control ([A-Za-z0-9]+)\]\n/.exec(text)?.[1]; }
 export function messageText(content: unknown): string {
 	if (typeof content === "string") return content;
 	return Array.isArray(content) ? content.filter(part => part?.type === "text").map(part => part.text).join("\n") : "";

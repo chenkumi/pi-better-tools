@@ -48,6 +48,13 @@ test("branches, orphan results, and context edits breaking pairing fail closed",
 	source.push({ type: "context_edit", id: "edit", parentId: "entry-2", targetId: "entry-1", replacement: null, timestamp: header.timestamp });
 	assert.throws(() => safeSnapshot(header, source, "edit", ""), /orphan or duplicate tool result/);
 });
+test("R9 uppercase control IDs remain exact in canonical snapshot metadata", () => {
+	const ids = ["01ARZ3NDEKTSV4RRFFQ69G5FAV", "id123", "01arz3ndektsv4rrffq69g5fav"];
+	const source = entries(ids.map(id => ({ role: "user", content: controlText(id, "literal"), timestamp: 1 })));
+	assert.deepEqual(safeSnapshot(header, source, source.at(-1)!.id, "").asOf.appliedControlIds, ids);
+	const malformed = entries([{ role: "user", content: "[Delegated user control 01ARZ3NDEKTSV4RRFFQ69G5FAV]literal", timestamp: 1 }]);
+	assert.deepEqual(safeSnapshot(header, malformed, "entry-0", "").asOf.appliedControlIds, []);
+});
 test("interaction text remains literal and is UTF-8 bounded", () => {
 	assert.equal(controlText("abc", "/template @file $&"), "[Delegated user control abc]\n/template @file $&");
 	validateInteraction("🙂".repeat(16384));

@@ -1554,6 +1554,13 @@ const COMPACT_DIFF_CONTEXT = 1;
 export function compactPatch(patch: string): { text: string; added: number; removed: number; omittedLines: number } {
   const lines = patch.split("\n");
   const out: string[] = [];
+  let outputLines = 0;
+  const append = (line: string) => {
+    outputLines++;
+    if (out.length < COMPACT_DIFF_MAX_LINES) out.push(line.length > COMPACT_DIFF_MAX_LINE_CHARS
+      ? `${line.slice(0, COMPACT_DIFF_MAX_LINE_CHARS)}…[+${line.length - COMPACT_DIFF_MAX_LINE_CHARS} chars]`
+      : line);
+  };
   let added = 0;
   let removed = 0;
   let index = lines.findIndex((line) => line.startsWith("@@"));
@@ -1580,20 +1587,16 @@ export function compactPatch(patch: string): { text: string; added: number; remo
       const newLength = content.filter((line) => !line.startsWith("-")).length;
       const oldStart = Number(header[1]) + (oldLength > 0 ? dropLead : 0);
       const newStart = Number(header[3]) + (newLength > 0 ? dropLead : 0);
-      out.push(`@@ -${oldStart},${oldLength} +${newStart},${newLength} @@`);
+      append(`@@ -${oldStart},${oldLength} +${newStart},${newLength} @@`);
     } else {
-      out.push(lines[index]);
+      append(lines[index]);
     }
-    out.push(...body);
+    for (const line of body) append(line);
     index = end < lines.length ? end : -1;
   }
-  const bounded = out.map((line) => line.length > COMPACT_DIFF_MAX_LINE_CHARS
-    ? `${line.slice(0, COMPACT_DIFF_MAX_LINE_CHARS)}…[+${line.length - COMPACT_DIFF_MAX_LINE_CHARS} chars]`
-    : line);
-  const omittedLines = Math.max(0, bounded.length - COMPACT_DIFF_MAX_LINES);
-  const shown = bounded.slice(0, COMPACT_DIFF_MAX_LINES);
-  if (omittedLines > 0) shown.push(`… ${omittedLines} more diff line(s) omitted`);
-  return { text: shown.join("\n"), added, removed, omittedLines };
+  const omittedLines = Math.max(0, outputLines - COMPACT_DIFF_MAX_LINES);
+  if (omittedLines > 0) out.push(`… ${omittedLines} more diff line(s) omitted`);
+  return { text: out.join("\n"), added, removed, omittedLines };
 }
 
 export function truncateFeedback(content: string): { content: string; truncated: boolean } {

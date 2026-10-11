@@ -66,14 +66,20 @@ export const registerVccRecallCommand = (pi: ExtensionAPI) => {
       const mode = parsed.mode;
       const evidenceProjection = mode === "hybrid" ? loadNotificationEvidence(sessionFile, lineageEntryIds) : undefined;
       const evidence = evidenceProjection?.map(renderNotificationEvidence) ?? [];
-      const evidenceNote = evidenceProjection?.incomplete ? `\nNotification evidence inspection incomplete (${evidenceProjection.reasons.join(", ")}); absent evidence proves no outcome.` : "";
+      let evidenceNote = evidenceProjection?.incomplete ? `\nNotification evidence inspection incomplete (${evidenceProjection.reasons.join(", ")}); absent evidence proves no outcome.` : "";
+
+      const load = () => {
+        const loaded = loadAllMessages(sessionFile, false, lineageEntryIds);
+        if (loaded.incomplete) evidenceNote += `\nHistory inspection incomplete (${loaded.reasons.join(", ")}); unavailable entries do not prove absence.`;
+        return loaded;
+      };
 
       if (mode === "touched") {
         const pageMatch = raw.match(/\bpage:(\d+)\b/i);
         const page = pageMatch ? Math.max(1, parseInt(pageMatch[1], 10)) : 1;
-        const { rendered, rawMessages } = loadAllMessages(sessionFile, false, lineageEntryIds);
+        const { rendered, rawMessages } = load();
         const touched = getTouchedFiles(rawMessages, rendered);
-        const text = formatTouchedOutput(touched, page);
+        const text = formatTouchedOutput(touched, page) + evidenceNote;
         pi.sendMessage(
           { customType: "blackhole-recall", content: text, display: true },
           { triggerTurn: true },
@@ -83,7 +89,7 @@ export const registerVccRecallCommand = (pi: ExtensionAPI) => {
 
       if (!parsed.text) {
         // No query: show recent entries
-        const { rendered } = loadAllMessages(sessionFile, false, lineageEntryIds);
+        const { rendered } = load();
         const recent = [...rendered.slice(-DEFAULT_RECENT), ...evidence.slice(-5)];
         const base = (parsed.scope === "all" ? "Scope: all\n\n" : "") + formatRecallOutput(recent) + evidenceNote;
         const output = await augmentWithObservations(base, recent, ctx);
@@ -100,7 +106,7 @@ export const registerVccRecallCommand = (pi: ExtensionAPI) => {
       const query = parsed.text.replace(/\bpage:\d+\b/i, "").trim();
 
       if (!query) {
-        const { rendered } = loadAllMessages(sessionFile, false, lineageEntryIds);
+        const { rendered } = load();
         const recent = [...rendered.slice(-DEFAULT_RECENT), ...evidence.slice(-5)];
         const base = (parsed.scope === "all" ? "Scope: all\n\n" : "") + formatRecallOutput(recent) + evidenceNote;
         const output = await augmentWithObservations(base, recent, ctx);
@@ -116,7 +122,7 @@ export const registerVccRecallCommand = (pi: ExtensionAPI) => {
         pi.sendMessage({ customType: "blackhole-recall", content: result.content[0].text, display: true }, { triggerTurn: true });
         return;
       }
-      const { rendered, rawMessages } = loadAllMessages(sessionFile, false, lineageEntryIds);
+      const { rendered, rawMessages } = load();
       const {
         hits: allResults,
         totalBeforeCap,
@@ -148,7 +154,7 @@ export const registerVccRecallCommand = (pi: ExtensionAPI) => {
             customType: "blackhole-recall",
             content:
               `Page ${page} is outside the available range 1-${totalPages} ` +
-              `(${allResults.length} matches${scopeSuffix}${capNote}). ${guidance}`,
+              `(${allResults.length} matches${scopeSuffix}${capNote}). ${guidance}${evidenceNote}`,
             display: true,
           },
           { triggerTurn: true },

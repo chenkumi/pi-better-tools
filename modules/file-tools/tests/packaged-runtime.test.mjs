@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+// Keep the post-commit regression in the module's fixed integration entry list.
+import "./review-r1.integration.test.mjs";
 import { mkdtemp, mkdir, readFile, writeFile, rm, symlink, unlink } from "node:fs/promises";
 import { findPackageJSON } from "node:module";
 import { tmpdir } from "node:os";

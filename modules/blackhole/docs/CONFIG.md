@@ -308,8 +308,10 @@ Accepted via plain config or `PI_BLACKHOLE_PROVIDER_IDLE_TIMEOUT_MS`. Negative v
 
 Hard elapsed deadline for one worker/model attempt. It covers the complete observer, reflector, or dropper agent loop for the selected model: response headers, streamed bodies and heartbeats, tool turns, and final confirmation. When the deadline expires, Blackhole aborts that attempt. If the model is a configured candidate, Blackhole records its cooldown and immediately resolves the next fallback, which gets a fresh deadline. The final session-model fallback behaves differently: it is attempted once per stage, and a timeout there records no cooldown and ends the stage's model search instead of retrying the same session model up to ten times.
 
-- **unset** or **`0`** — disabled.
-- **`> 0`** — abort one model attempt after this many milliseconds.
+Before the worker loop, Blackhole now also gives the complete model/auth/endpoint resolution a **separate** elapsed budget with this same captured positive value. Resolution timeout ends the current pipeline with an error and releases its tracked launch gate; it does not pretend an unresolved provider is a failed model with a known candidate cooldown. Branch/session revocation and dispose stop waiting even with a zero deadline. Pi's auth facade does not accept cancellation, so late settlement remains observed and cannot start a worker, resolve another endpoint or append data; this does not prove provider I/O stopped.
+
+- **unset** or **`0`** — elapsed deadlines disabled (lifecycle revocation still applies to resolution).
+- **`> 0`** — bound model resolution, then give the actual worker attempt a fresh budget of this many milliseconds.
 
 Accepted via plain config, `/blackhole settings`, or `PI_BLACKHOLE_WORKER_ATTEMPT_TIMEOUT_MS`. Settings-modal saves persist the key correctly at global, project, and session scope. Direct config and env values must not exceed 2,147,483,647 ms (Node's maximum timer delay); larger values are rejected. The settings UI caps edits at 3,600,000 ms. It only affects Blackhole workers, never foreground Pi chat requests.
 

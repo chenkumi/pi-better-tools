@@ -343,9 +343,8 @@ export function prepareEditArguments(value: unknown) {
   };
 }
 
-export function formatEditSuccessFeedback(result: EditResult): { content: string; truncated: boolean } {
+export function formatEditSuccessFeedback(result: EditResult, compact = compactPatch(result.patch)): { content: string; truncated: boolean } {
   // Model-visible text is compact; the full diff, patch and changedRanges live in details.
-  const compact = compactPatch(result.patch);
   const metadata = {
     sha256After: result.sha256After,
     edits: result.appliedEdits,
@@ -636,8 +635,9 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
         const absolutePath = resolveToolPath(params.path, ctx.cwd);
         return withFileMutationQueue(absolutePath, async () => {
           const result = await editTextFile(absolutePath, params.path, params.edits, params.expectedHash, signal);
-          const feedback = formatEditSuccessFeedback(result);
-          const { added, removed } = compactPatch(result.patch);
+          const compact = compactPatch(result.patch);
+          const feedback = formatEditSuccessFeedback(result, compact);
+          const { added, removed } = compact;
           return {
             content: [{ type: "text", text: feedback.content }],
             details: {

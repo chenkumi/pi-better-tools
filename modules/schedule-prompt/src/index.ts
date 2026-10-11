@@ -104,15 +104,9 @@ export default async function (pi: ExtensionAPI) {
     // Only sweep our own (or unbound) disabled jobs — never another session's.
     if (!admitted || !storage) return;
     const mySessionId = ctx.sessionManager.getSessionId();
-    const disabledJobs = storage
-      .getAllJobs()
-      .filter((j) => !j.enabled && CronScheduler.isLoadedFor(j, mySessionId));
-
+    const disabledJobs = storage.removeDisabledJobs(mySessionId);
     if (disabledJobs.length > 0) {
       console.log(`Auto-cleanup: removing ${disabledJobs.length} disabled job(s)`);
-      for (const job of disabledJobs) {
-        storage.removeJob(job.id);
-      }
     }
   };
 

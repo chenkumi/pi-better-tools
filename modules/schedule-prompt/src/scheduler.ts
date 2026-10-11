@@ -1,6 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Cron } from "croner";
 import { deadlineState, normalizeEndAt } from "./deadline.js";
+import { intervalError, MAX_TIMER_MS, parseInterval } from "./interval.js";
 import type { CronStorage } from "./storage.js";
 import { isProjectTrusted } from "./trust.js";
 import { runSubagentOnce, type SubagentResult } from "./subagent.js";
@@ -15,7 +16,7 @@ type ValidateScheduleResult =
 const SUBAGENT_OUTPUT_SNIPPET_LENGTH = 500;
 
 /** Node clamps timer delays above 2^31-1 ms (~24.8 days) to 1 ms, which turns a long interval into a flood. */
-export const MAX_TIMER_MS = 2 ** 31 - 1;
+export { MAX_TIMER_MS } from "./interval.js";
 /** In-process subagent runs allowed at once; extra ticks are skipped rather than queued. */
 export const MAX_CONCURRENT_SUBAGENTS = 4;
 /** Re-evaluate wall-clock deadlines even after a clock adjustment. */
@@ -33,6 +34,8 @@ function snippet(text: string): string {
  */
 export class CronScheduler {
   private jobs = new Map<string, Cron>();
+  /** Revoked by update/remove/stop, including while a once continuation is pending. */
+  private generations = new Map<string, symbol>();
   private intervals = new Map<string, NodeJS.Timeout>();
   private deadlines = new Map<string, NodeJS.Timeout>();
   /** Local timer bookkeeping so getNextRun can answer for interval/once jobs (epoch ms). */
@@ -96,6 +99,7 @@ export class CronScheduler {
   stop(): void {
     // Stop admission first: a timer callback already queued must not start new work.
     this.closed = true;
+    this.generations.clear();
     // Stop all cron jobs
     for (const cron of this.jobs.values()) {
       cron.stop();
@@ -215,23 +219,25 @@ export class CronScheduler {
     try {
       if (!CronScheduler.isLoadedFor(job, this.ctx.sessionManager.getSessionId())) return;
       if (!this.checkDeadline(job)) return;
-      if (job.type === "interval" && job.intervalMs) {
-        if (!(job.intervalMs <= MAX_TIMER_MS)) {
-          throw new Error(`Interval ${job.intervalMs}ms exceeds the ${MAX_TIMER_MS}ms timer limit`);
-        }
+      const generation = Symbol(job.id);
+      this.generations.set(job.id, generation);
+      if (job.type === "interval") {
+        const error = intervalError(job.schedule, job.intervalMs!);
+        if (error) throw new Error(error);
+        const intervalMs = parseInterval(job.schedule)!;
         // Interval-based scheduling
         const interval = setInterval(() => {
-          void this.fire(job);
-        }, job.intervalMs);
+          if (this.generations.get(job.id) === generation) void this.fire(job);
+        }, intervalMs);
         this.intervals.set(job.id, interval);
-        this.intervalStarts.set(job.id, { start: Date.now(), ms: job.intervalMs });
+        this.intervalStarts.set(job.id, { start: Date.now(), ms: intervalMs });
       } else if (job.type === "once") {
         // One-shot execution at a specific time
         const targetDate = new Date(job.schedule);
         const delay = targetDate.getTime() - Date.now();
 
         if (delay > 0) {
-          this.armOnce(job, targetDate.getTime());
+          this.armOnce(job, targetDate.getTime(), generation);
         } else {
           // Job is in the past - disable it and log warning
           console.warn(`Job ${job.id} (${job.name}) scheduled for past time: ${job.schedule}`);
@@ -244,15 +250,18 @@ export class CronScheduler {
             jobId: job.id, 
             error: `Scheduled time ${job.schedule} is in the past` 
           });
+          if (this.generations.get(job.id) === generation) this.unscheduleJob(job.id);
+          return;
         }
       } else {
         // Standard cron expression
         const cron = new Cron(job.schedule, () => {
-          void this.fire(job);
+          if (this.generations.get(job.id) === generation) void this.fire(job);
         });
         this.jobs.set(job.id, cron);
       }
-      if (this.storage.getJob(job.id)?.enabled) this.armDeadline(job);
+      // start() already holds the loaded snapshot; trigger admission still re-reads.
+      if (job.enabled && this.generations.get(job.id) === generation) this.armDeadline(job);
     } catch (error) {
       this.unscheduleJob(job.id);
       console.error(`Failed to schedule job ${job.id}:`, error);
@@ -265,24 +274,32 @@ export class CronScheduler {
   }
 
   /** Arm a one-shot timer, re-arming in <=MAX_TIMER_MS hops so far-future jobs do not fire early. */
-  private armOnce(job: CronJob, targetMs: number): void {
+  private armOnce(job: CronJob, targetMs: number, generation: symbol): void {
     this.onceTargets.set(job.id, targetMs);
     const remaining = targetMs - Date.now();
     const timeout = setTimeout(
       () => {
+        if (this.generations.get(job.id) !== generation) return;
         if (targetMs - Date.now() > 1000) {
-          this.armOnce(job, targetMs);
+          this.armOnce(job, targetMs, generation);
           return;
         }
         this.intervals.delete(job.id);
         void this.fire(job).then((fired) => {
+          if (this.generations.get(job.id) !== generation) return;
           if (!fired) {
-            this.handleSkippedOnce(job);
+            this.handleSkippedOnce(job, generation);
             return;
           }
           // Auto-disable one-shot jobs after execution
           try {
-            this.storage.updateJob(job.id, { enabled: false });
+            let disabled = false;
+            this.storage.updateJobWith(job.id, fresh => {
+              if (this.generations.get(job.id) !== generation || !this.sameOnce(job, fresh)) return undefined;
+              disabled = true;
+              return { enabled: false };
+            });
+            if (!disabled) { this.unscheduleJob(job.id); return; }
             if (this.runningSubagentJobs.has(job.id)) this.autoDisabledOnceJobs.add(job.id);
             this.unscheduleJob(job.id);
             this.emitChange({ type: "update", job: { ...job, enabled: false } });
@@ -297,18 +314,32 @@ export class CronScheduler {
     this.intervals.set(job.id, timeout as any);
   }
 
-  /** A false once fire is terminal: disable/error, never silently lose it or retry indefinitely. */
-  private handleSkippedOnce(job: CronJob): void {
+  /** Compare execution configuration, not statistics; this predicate also runs inside the mutation lock. */
+  private sameOnce(expected: CronJob, fresh: CronJob): boolean {
+    return fresh.enabled && fresh.type === "once" && fresh.session === expected.session &&
+      CronScheduler.isLoadedFor(fresh, this.ctx.sessionManager.getSessionId()) &&
+      (["schedule", "prompt", "model", "endAt", "notify", "extensions", "skills"] as const)
+        .every(key => JSON.stringify(fresh[key]) === JSON.stringify(expected[key]));
+  }
+
+  /** A false once fire is terminal unless its generation/configuration has been replaced. */
+  private handleSkippedOnce(job: CronJob, generation: symbol): void {
     try {
-      if (this.intervals.has(job.id)) return; // an update already installed a replacement timer
+      if (this.generations.get(job.id) !== generation) return;
       const fresh = this.storage.getJob(job.id);
       if (!fresh?.enabled || !CronScheduler.isLoadedFor(fresh, this.ctx.sessionManager.getSessionId())) {
         this.unscheduleJob(job.id);
         return;
       }
       if (!this.checkDeadline(fresh)) return; // expiration preserves execution status
+      let disabled = false;
+      this.storage.updateJobWith(job.id, latest => {
+        if (this.generations.get(job.id) !== generation || !this.sameOnce(job, latest)) return undefined;
+        disabled = true;
+        return { enabled: false, lastStatus: "error", nextRun: undefined };
+      });
       this.unscheduleJob(job.id);
-      this.storage.updateJob(job.id, { enabled: false, lastStatus: "error", nextRun: undefined });
+      if (!disabled) return;
       this.emitChange({ type: "error", jobId: job.id, error: "One-shot delivery skipped or failed; job disabled (no retry)" });
       this.emitChange({ type: "update", job: { ...fresh, enabled: false, lastStatus: "error", nextRun: undefined } });
     } catch (error) {
@@ -407,6 +438,7 @@ export class CronScheduler {
    * Unschedule a job
    */
   private unscheduleJob(id: string): void {
+    this.generations.delete(id);
     const deadline = this.deadlines.get(id);
     if (deadline) clearTimeout(deadline);
     this.deadlines.delete(id);
@@ -736,20 +768,7 @@ export class CronScheduler {
    * Parse interval string to milliseconds
    */
   static parseInterval(interval: string): number | null {
-    const match = interval.match(/^(\d+)(s|m|h|d)$/);
-    if (!match) return null;
-
-    const value = parseInt(match[1], 10);
-    const unit = match[2];
-
-    const multipliers: Record<string, number> = {
-      s: 1000,
-      m: 60 * 1000,
-      h: 60 * 60 * 1000,
-      d: 24 * 60 * 60 * 1000,
-    };
-
-    return value * multipliers[unit];
+    return parseInterval(interval);
   }
 
   /**

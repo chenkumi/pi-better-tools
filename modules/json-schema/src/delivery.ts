@@ -1,5 +1,5 @@
-import { mkdir, rename, rm, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { mkdir, open, rename, rm } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { ulid } from "ulid";
 
 const RENAME_RETRY_CODES = new Set(["EPERM", "EBUSY", "EACCES"]);
@@ -25,12 +25,19 @@ export async function renameWithRetry(from: string, to: string, operations = {
 /** Write `data` as 2-space JSON plus a trailing newline. The old file survives any failure (temp file + rename). */
 export async function writeJsonFile(path: string, data: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
-  const temporary = join(dirname(path), `.${basename(path)}.${ulid().toUpperCase()}.tmp`);
+  const temporary = join(dirname(path), `.pi-json-${ulid().toUpperCase()}.tmp`);
+  let owned = false;
   try {
-    await writeFile(temporary, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+    const handle = await open(temporary, "wx");
+    owned = true;
+    try {
+      await handle.writeFile(`${JSON.stringify(data, null, 2)}\n`, "utf8");
+    } finally {
+      await handle.close();
+    }
     await renameWithRetry(temporary, path);
   } catch (error) {
-    await rm(temporary, { force: true }).catch(() => undefined);
+    if (owned) await rm(temporary, { force: true }).catch(() => undefined);
     throw error;
   }
 }

@@ -187,6 +187,7 @@ test('disposed owner getter fails closed during live output, cancels runner and 
     assert.equal(runningSignal.aborted, true);
     await flush();
     assert.equal(messages.length, 0);
+    await jobs.shutdown(); // Actual asynchronous removal barrier, not a fixed count of event-loop turns.
     assert.equal(fs.existsSync(receipt.liveLogPath), false);
   } finally { await jobs.shutdown(); }
 });
@@ -207,6 +208,7 @@ test('disposed owner getter at deferred completion never rejects detached work o
     release();
     await flush();
     assert.equal(messages.length, 0);
+    await jobs.shutdown(); // Actual asynchronous removal barrier, not a fixed count of event-loop turns.
     assert.equal(fs.existsSync(receipt.liveLogPath), false);
   } finally { release?.(); await jobs.shutdown(); }
 });
@@ -402,7 +404,7 @@ test('stale job directory sweep removes only dead-owner or long-untouched unmark
     const freshUnmarked = make('pi-shell-job-new5555', undefined, 1000);
     const skipped = make('pi-shell-job-skip666', 111111, 0);
     const unrelated = make('other-dir-777', 111111, 5 * day);
-    const removed = sweepStaleJobDirectories(root, { alive: pid => pid === 222222, skip: new Set([skipped]) });
+    const removed = await sweepStaleJobDirectories(root, { alive: pid => pid === 222222, skip: new Set([skipped]) });
     assert.deepEqual(removed.sort(), [dead, oldUnmarked].sort());
     for (const kept of [alive, own, freshUnmarked, skipped, unrelated]) assert.ok(fs.existsSync(kept), kept);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }

@@ -51,9 +51,16 @@ export const buildGlobalIndexById = (entries: readonly any[]): Map<string, numbe
 export const loadGlobalIndexById = (sessionFile: string): Map<string, number> | undefined => {
   // Streamed like load-messages (upstream pi-vcc #26): no whole-file string.
   const entries: any[] = [];
+  let retainedBytes = 0;
+  let overBudget = false;
   const scan = scanSessionEntries(sessionFile, (entry) => {
-    entries.push(entry);
+    if (!isCountedMessageEntry(entry)) return;
+    const bytes = (typeof entry.id === "string" ? entry.id.length * 2 : 0) + 256;
+    if (retainedBytes + bytes > 8 * 1024 * 1024) { overBudget = true; return; }
+    retainedBytes += bytes;
+    // Counting needs only identity and a message sentinel, not raw payloads.
+    entries.push({ type: "message", id: entry.id, message: {} });
   });
-  if (scan.missing) return undefined;
+  if (scan.missing || scan.incomplete || overBudget) return undefined;
   return buildGlobalIndexById(entries);
 };

@@ -17,21 +17,47 @@ export async function runCommand(label, command, args, { cwd, env = process.env,
   let terminationDeadline;
   const killers = [];
   let rejectCompletion;
+  let resolveCompletion;
+  let rootClosed = false;
+  let rootCode;
+  let pendingKillers = 0;
+  const maybeComplete = () => {
+    if (rootClosed && pendingKillers === 0) resolveCompletion(rootCode);
+  };
   const completed = new Promise((resolve, reject) => {
+    resolveCompletion = resolve;
     rejectCompletion = reject;
     child.once("error", reject);
-    child.once("close", code => resolve(code));
+    child.once("close", code => { rootClosed = true; rootCode = code; maybeComplete(); });
   });
+  const trackKiller = (killer, onFailure) => {
+    killers.push(killer);
+    pendingKillers++;
+    let settled = false;
+    const settle = failed => {
+      if (settled || finished) return;
+      settled = true;
+      // Register recovery before decrementing the original cleaner: a root
+      // close cannot resolve the gate in the gap between the two cleaners.
+      if (failed) onFailure();
+      pendingKillers--;
+      maybeComplete();
+    };
+    killer.once("error", () => settle(true));
+    killer.once("exit", code => settle(code !== 0));
+  };
   const recoverWindowsDescendants = () => {
     if (finished) return;
     // A root may already have exited while a descendant still holds the pipe.
     // Win32_Process retains ParentProcessId; collect recent descendants before
     // stopping them. Do not target unrelated processes created before this run.
     const script = `$ErrorActionPreference='Stop'; $all=@(Get-CimInstance Win32_Process); $ids=@(${child.pid}); $found=@(); $since=[DateTimeOffset]::FromUnixTimeMilliseconds(${started - 1000}).UtcDateTime; do { $next=@($all | Where-Object { $ids -contains [int]$_.ParentProcessId -and $found -notcontains [int]$_.ProcessId -and $_.CreationDate.ToUniversalTime() -ge $since } | ForEach-Object { [int]$_.ProcessId }); $found+= $next; $ids=$next } while($ids.Count -gt 0); [array]::Reverse($found); foreach($id in $found) { if(Get-Process -Id $id -ErrorAction SilentlyContinue) { Stop-Process -Id $id -Force } }`;
-    const killer = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { stdio: "ignore" });
-    killers.push(killer);
-    killer.on("error", () => { failure.message += "; descendant cleanup could not start"; });
-    killer.on("exit", code => { if (code !== 0) failure.message += "; descendant cleanup failed"; });
+    try {
+      const killer = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { stdio: "ignore" });
+      trackKiller(killer, () => { failure.message += "; descendant cleanup unconfirmed"; });
+    } catch {
+      failure.message += "; descendant cleanup could not start; cleanup unconfirmed";
+    }
   };
   const stop = reason => {
     if (stopped) return;
@@ -46,10 +72,10 @@ export async function runCommand(label, command, args, { cwd, env = process.env,
     }, terminationGraceMs);
     if (!child.pid) return;
     if (process.platform === "win32") {
-      const killer = spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], { stdio: "ignore" });
-      killers.push(killer);
-      killer.on("error", recoverWindowsDescendants);
-      killer.on("exit", code => { if (code !== 0) recoverWindowsDescendants(); });
+      try {
+        const killer = spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], { stdio: "ignore" });
+        trackKiller(killer, recoverWindowsDescendants);
+      } catch { recoverWindowsDescendants(); }
     } else {
       try { process.kill(-child.pid, "SIGKILL"); } catch { child.kill("SIGKILL"); }
     }

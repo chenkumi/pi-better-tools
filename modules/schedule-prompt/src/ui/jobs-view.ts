@@ -78,10 +78,7 @@ export class JobsView implements Component {
         this.storage.removeJob(this.confirm.id);
         this.scheduler.removeJob(this.confirm.id);
       } else if (this.confirm?.kind === "cleanup") {
-        for (const j of this.mine.filter((j) => !j.enabled)) {
-          this.storage.removeJob(j.id);
-          this.scheduler.removeJob(j.id);
-        }
+        for (const j of this.storage.removeDisabledJobs(this.mySessionId)) this.scheduler.removeJob(j.id);
       }
       this.confirm = null;
       this.refresh();
