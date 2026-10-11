@@ -287,11 +287,10 @@ export default function (pi: ExtensionAPI) {
   const jobs = new ShellJobs(pi);
   const monitorPublisher = createShellMonitorPublisher(jobs);
   pi.on("session_start", (_event, ctx) => { monitorPublisher.stop(); jobs.start(ctx); monitorPublisher.start(ctx); });
-  pi.on("agent_start", (_event, ctx) => { jobs.setAgentActive(ctx, true); });
-  pi.on("agent_settled", (_event, ctx) => { jobs.setAgentActive(ctx, false); jobs.flushWhenIdle(ctx); });
-  pi.on("session_compact", (_event, ctx) => { jobs.flushWhenIdle(ctx); });
-  pi.on("session_compact_failed", (_event, ctx) => { jobs.flushWhenIdle(ctx); });
-  pi.on("session_tree", (_event, ctx) => { jobs.flushWhenIdle(ctx); });
+  pi.on("agent_settled", (_event, ctx) => { jobs.flushPending(ctx); });
+  pi.on("session_compact", (_event, ctx) => { jobs.flushPending(ctx); });
+  pi.on("session_compact_failed", (_event, ctx) => { jobs.flushPending(ctx); });
+  pi.on("session_tree", (_event, ctx) => { jobs.flushPending(ctx); });
   pi.on("session_shutdown", event => { monitorPublisher.stop(); return jobs.shutdown(event.reason); });
   const jobFields = {
     jobId: Type.String(), status: Type.String(), tool: Type.String(), toolCallId: Type.String(), command: Type.String(),

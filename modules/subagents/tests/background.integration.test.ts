@@ -12,7 +12,7 @@ const cli = process.env.PI_SUBAGENTS_TEST_CLI;
 const provider = fileURLToPath(new URL("./fixtures/pi-provider.ts", import.meta.url));
 const launcher = fileURLToPath(new URL("./fixtures/background-child.mjs", import.meta.url));
 for (const mode of ["single", "parallel", "chain", "resume"] as const) {
-	test(`background ${mode}: real isolated Pi/fake provider commits before followUp`, { skip: !cli && "Set PI_SUBAGENTS_TEST_CLI to a verified installed CLI", timeout: 60000 }, async () => {
+	test(`background ${mode}: real isolated Pi/fake provider commits before steering completion`, { skip: !cli && "Set PI_SUBAGENTS_TEST_CLI to a verified installed CLI", timeout: 60000 }, async () => {
 		console.log(`[progress] Verifying background ${mode} real child lifecycle`);
 		const root = await realpath(await mkdtemp(join(tmpdir(), "pi-background-contract-")));
 		const tools = new Map<string, ToolDefinition>(); const handlers = new Map<string, Function>(), commands = new Map<string, any>(), statuses = new Map<string, string>(), renderers = new Map<string, any>();
@@ -40,7 +40,7 @@ for (const mode of ["single", "parallel", "chain", "resume"] as const) {
 						assert.doesNotMatch(modelNotice.outputTrust, /untrusted/);
 						assert.equal(modelNotice.status, data.status);
 					}
-					assert.deepEqual(options, { triggerTurn: data.kind !== "log_ready", deliverAs: "followUp" });
+					if (data.kind === "log_ready") assert.deepEqual(options, { triggerTurn: false, deliverAs: "followUp" });
 					if (data.kind === "log_ready") for (const task of data.tasks) if (task.liveLogPath) { assert.equal(task.finalLogPath, task.liveLogPath.replace(/\.partial$/, "")); const finalPath = task.finalLogPath; liveChecks.push(stat(task.liveLogPath).catch(error => { if (error?.code !== "ENOENT") throw error; return stat(finalPath); })); } // the live file may already be renamed to its announced final path
 					if (data.kind === "task_result") complete(data);
 				} } as ExtensionAPI, { debugLog: false, sessionRootDir: join(root, "managed"), invocation: args => ({ command: process.execPath, args: [launcher, root, resolve(cli!), ...args] }) });
@@ -83,7 +83,7 @@ for (const mode of ["single", "parallel", "chain", "resume"] as const) {
 			}
 			assert.ok(notifications.some(entry => entry.message.details.kind === "log_ready"), "log-ready events still reach the model without chat bubbles");
 			const notice = notifications.find(entry => entry.message.details.kind === "task_result");
-			assert.deepEqual(notice.options, { triggerTurn: true, deliverAs: "followUp" });
+			assert.deepEqual(notice.options, { triggerTurn: true, deliverAs: "steer" });
 			const status = await execute("subagent_status", { jobId: receipt.jobId }); assert.equal(status.usage, undefined);
 			assert.equal((status.details as any).status, "completed");
 			const listed = await execute("subagent_status", {}); assert.equal(listed.isError, undefined);

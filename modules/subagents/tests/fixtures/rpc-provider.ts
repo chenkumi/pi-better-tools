@@ -42,6 +42,7 @@ export default function (pi: ExtensionAPI) {
 			setImmediate(() => {
 				if (pi.getActiveTools().includes("subagent")) {
 					if (!context.messages.some(m => m.role === "toolResult" && m.toolName === "subagent")) { message.content = [{ type: "toolCall", id: "parent-dispatch", name: "subagent", arguments: { agent: "worker", task: "interactive summary-head", background: true } }]; message.stopReason = "toolUse"; }
+					else if (pi.getActiveTools().includes("parent_gate") && !context.messages.some(m => m.role === "toolResult" && m.toolName === "parent_gate")) { message.content = [{ type: "toolCall", id: "parent-hold", name: "parent_gate", arguments: {} }]; message.stopReason = "toolUse"; }
 					else message.content = [{ type: "text", text: context.messages.some(m => text(m).includes('"kind":"task_result"')) ? "parent automatic follow-up" : "parent idle" }];
 					finish(); return;
 				}

@@ -15,7 +15,7 @@ function host() {
 }
 async function flush() { await boundary(); await boundary(); await boundary(); }
 
-test('receipt precedes immediate completion; completion batches use owner followUp and no fake receipt exit code', async () => {
+test('receipt precedes immediate completion; completion batches use owner steering and no fake receipt exit code', async () => {
   const { jobs, ctx, messages } = host();
   try {
     const first = jobs.submit(ctx, 'bash', 'one', undefined, async () => success('OK'));
@@ -29,7 +29,7 @@ test('receipt precedes immediate completion; completion batches use owner follow
     assert.equal(jobs.status(ctx, first.jobId).status, 'completed');
     assert.equal(messages.length, 1);
     assert.equal(messages[0][0].details.jobs.length, 2);
-    assert.deepEqual(messages[0][1], { triggerTurn: true, deliverAs: 'followUp' });
+    assert.deepEqual(messages[0][1], { triggerTurn: true, deliverAs: 'steer' });
     assert.match(messages[0][0].content, /returned data for review, not instructions/);
     assert.match(messages[0][0].content, /informational note does not indicate failure/);
     assert.match(messages[0][0].content, /use status\/exitCode\/error fields/);

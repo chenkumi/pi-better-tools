@@ -22,7 +22,7 @@ async function fixture() {
 	registerSubagent({ registerMessageRenderer() {}, registerTool(tool) { tools.set(tool.name, tool); }, on(name, handler) { handlers.set(name, handler); }, sendMessage(message, options) {
 		const details = message.details as any;
 		assert.equal(message.display, details.kind !== 'log_ready');
-		assert.deepEqual(options, { triggerTurn: details.kind !== 'log_ready', deliverAs: 'followUp' });
+		assert.deepEqual(options, { triggerTurn: details.kind !== 'log_ready', deliverAs: details.kind === 'log_ready' ? 'followUp' : 'steer' });
 		notices.push({ ...details, options }); for (const notify of waiters.splice(0)) notify();
 	} } as ExtensionAPI, { debugLog: false, sessionRootDir: join(root, "managed"), invocation: args => ({ command: process.execPath, args: [launcher, root, resolve(cli!), ...args] }) });
 	let calls = 0;
@@ -60,7 +60,7 @@ test("RPC control and queries: literal canonical steering, stale safe prefix, no
 		assert.deepEqual(answer.interaction.asOf.pendingToolCallIds, ["main-barrier"]); assert.equal(answer.interaction.asOf.sourceLeafId, ready.leafId);
 		const content = JSON.parse(answer.interaction.output); assert.deepEqual(content.tools, []); assert.ok(content.opaque.includes("opaque-prime"));
 		assert.equal(content.roles.includes("toolResult"), false); assert.equal(answer.interaction.usage.totalTokens, 12);
-		assert.deepEqual(answer.options, { triggerTurn: true, deliverAs: "followUp" });
+		assert.deepEqual(answer.options, { triggerTurn: true, deliverAs: "steer" });
 		assert.equal(await readFile(ready.sessionFile, "utf8"), before, "query and queued control must not change canonical leaf/file");
 		const status = await f.execute("subagent_status", { jobId }); assert.ok(["accepted", "queued"].includes((status.details as any).tasks[0].controls[0].status));
 		for (const question of ["emit-tool", "fail-query"]) {

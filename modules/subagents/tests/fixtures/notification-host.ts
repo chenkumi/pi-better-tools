@@ -39,16 +39,16 @@ for (const mode of ["streaming", "idle", "async-failure"] as const) {
 	const manager = sdk.SessionManager.create(cwd, join(root, mode, "sessions"));
 	const { session } = await sdk.createAgentSession({ cwd, agentDir, settingsManager, resourceLoader: loader, sessionManager: manager, modelRuntime, model, thinkingLevel: "off", tools: [] });
 	await session.bindExtensions({ mode: "json", onError: event => { errors.push(event.error); hostFailed.resolve(); } });
-	const originalFollowUp = session.agent.followUp.bind(session.agent);
+	const originalSteer = session.agent.steer.bind(session.agent);
 	// Instrument the real host queue admission, not the extension callback acknowledgment.
-	session.agent.followUp = message => { originalFollowUp(message); queued++; };
+	session.agent.steer = message => { originalSteer(message); queued++; };
 	const originalSend = session.sendCustomMessage.bind(session);
 	if (mode === "async-failure") session.sendCustomMessage = async () => { throw new Error("injected async host send failure"); };
 	session.subscribe(event => {
 		if (event.type === "message_end" && event.message.role === "custom" && (event.message as any).customType === "notification-boundary") persisted.resolve();
 		if (event.type === "agent_settled") settled.resolve();
 	});
-	const jobs = new BackgroundJobs((kind, receipt) => api.sendMessage({ customType: "notification-boundary", content: JSON.stringify({ kind, receipt }), display: false }, { deliverAs: "followUp", triggerTurn: true }), undefined, undefined, event => { if (event.phase === "callback_returned") returned.resolve(); });
+	const jobs = new BackgroundJobs((kind, receipt) => api.sendMessage({ customType: "notification-boundary", content: JSON.stringify({ kind, receipt }), display: false }, { deliverAs: "steer", triggerTurn: true }), undefined, undefined, event => { if (event.phase === "callback_returned") returned.resolve(); });
 	let prompt: Promise<void> | undefined;
 	try {
 		if (mode === "streaming") { prompt = session.prompt("Hold one offline assistant turn."); await entered.promise; assert.equal(session.isStreaming, true); }
@@ -57,7 +57,7 @@ for (const mode of ["streaming", "idle", "async-failure"] as const) {
 		assert.deepEqual(jobs.notificationEvidence().events.map(event => event.phase), ["callback_attempted", "callback_returned"]);
 		assert.ok(jobs.notificationEvidence().events.every(event => event.hostAcknowledgment === "unknown"));
 		if (mode === "streaming") {
-			assert.equal(queued, 1, "actual host followUp queue admission observed");
+			assert.equal(queued, 1, "actual host steering queue admission observed");
 			assert.equal(manager.getEntries().some(entry => entry.type === "custom_message"), false, "callback returned while queued, before persistence");
 			release.resolve(); await prompt;
 		}
@@ -76,7 +76,7 @@ for (const mode of ["streaming", "idle", "async-failure"] as const) {
 		results.push({ mode, queuedObserved: queued, persistedObserved: mode !== "async-failure", hostAsyncFailureObserved: mode === "async-failure", extensionHostAcknowledgment: "unknown", callbackAttempts: jobs.notificationEvidence().events.filter(event => event.phase === "callback_attempted").length });
 	} finally {
 		release.resolve(); await prompt; await jobs.shutdown();
-		session.sendCustomMessage = originalSend; session.agent.followUp = originalFollowUp;
+		session.sendCustomMessage = originalSend; session.agent.steer = originalSteer;
 		await session.extensionRunner!.emit({ type: "session_shutdown", reason: "quit" }); session.dispose();
 	}
 }

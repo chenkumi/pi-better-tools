@@ -65,7 +65,7 @@ process.stdout.write('READY ' + (process.env.BG_PREFIX || 'none') + '\\n', () =>
   return { script, ready, gate };
 }
 
-test('real local shells return readable receipts, allow foreground work, detach turn abort and followUp after completion', { timeout: 60000 }, async () => {
+test('real local shells return readable receipts, allow foreground work, detach turn abort and steer after completion', { timeout: 60000 }, async () => {
   for (const name of names) {
     const cwd = fs.mkdtempSync(path.join(fixture.temp, 'bg-workspace-'));
     const host = fakeHost(cwd);
@@ -107,9 +107,9 @@ test('real local shells return readable receipts, allow foreground work, detach 
       assert.equal(foreground.structuredContent.exit_code, 0);
       fs.writeFileSync(gate, 'release');
       const notification = await completion;
-      assert.equal(host.widgets.has(SHELL_WIDGET_KEY), false, 'completion removes the live widget before followUp');
+      assert.equal(host.widgets.has(SHELL_WIDGET_KEY), false, 'completion removes the live widget before steering');
       assert.equal(host.statuses.has(SHELL_WIDGET_KEY), false, 'completion also clears the footer summary');
-      assert.deepEqual(notification.options, { triggerTurn: true, deliverAs: 'followUp' });
+      assert.deepEqual(notification.options, { triggerTurn: true, deliverAs: 'steer' });
       const finalResult = await host.execute('shell_job_status', { jobId: receipt.jobId });
       const final = finalResult.structuredContent;
       const finalText = JSON.parse(finalResult.content[0].text);

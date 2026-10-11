@@ -159,7 +159,7 @@ test("journal binds session, projects metadata, writes acceptance before runner,
     assert.ok(f.entries.some(e => e.data?.terminal && e.data.exitCode === 0));
     assert.doesNotMatch(JSON.stringify(f.entries.filter(e => e.type === "custom")), /SECRET_COMMAND|SECRET_OUTPUT/);
     assert.equal(f.messages[0].message.customType, "shell-job-completed");
-    assert.deepEqual(f.messages[0].options, { triggerTurn: true, deliverAs: "followUp" }, "normal completion unchanged");
+    assert.deepEqual(f.messages[0].options, { triggerTurn: true, deliverAs: "steer" }, "normal completion steers while recovery itself remains non-triggering");
     await jobs.shutdown("quit"); jobs.start(f.ctx);
     assert.equal(f.messages.filter(m => m.message.customType === `${RECOVERY_NOTICE}-shell`).length, 0, "already persisted completion is not re-notified");
   } finally { await jobs.shutdown(); }

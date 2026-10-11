@@ -8,7 +8,7 @@ import { Type } from 'typebox';
 import shellExtension from '../../extensions/timeout-ms.ts';
 
 const mode = process.argv[2];
-assert.ok(['normal', 'queued', 'aborted', 'preflight-failed'].includes(mode));
+assert.ok(['normal', 'queued', 'aborted', 'preflight-failed', 'streaming', 'one-at-a-time'].includes(mode));
 assert.equal(sdk.VERSION, '1.1.0');
 const home = homedir(), agentDir = join(home, '.pi/agent'), cwd = join(home, 'workspace');
 assert.equal(resolve(process.env.PI_CODING_AGENT_DIR), resolve(agentDir));
@@ -18,16 +18,17 @@ globalThis.fetch = async () => { throw new Error('Network forbidden in notificat
 sdk.initTheme('dark', false);
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
 const gateEntered = deferred(), gateRelease = deferred(), batchReceived = deferred(), batchSettled = deferred();
-const terminalWaiters = new Map(), submitted = [], contexts = [], errors = [];
+const terminalWaiters = new Map(), submitted = [], contexts = [], errors = [], trace = [];
 const text = message => typeof message.content === 'string' ? message.content : (message.content ?? []).filter(part => part.type === 'text').map(part => part.text).join('\n');
 const isBatch = message => text(message).startsWith('Shell background jobs have finished.');
+const modelJobs = message => JSON.parse(text(message).slice(text(message).indexOf('\n') + 1));
 let calls = 0, queued = false, sawBatch = false;
 const model = { id: 'offline-batching', name: 'Offline batching', provider: 'batching-fixture', api: 'openai-completions', baseUrl: 'https://unused.invalid',
   reasoning: false, input: ['text'], contextWindow: 128000, maxTokens: 64, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } };
 const settingsManager = sdk.SettingsManager.inMemory({ defaultTools: ['bash', 'batch_gate'], retry: { enabled: false }, compaction: { enabled: false },
-  cacheWarming: 'off', enableInstallTelemetry: false, defaultProjectTrust: 'never' });
+  steeringMode: mode === 'one-at-a-time' ? 'one-at-a-time' : 'all', cacheWarming: 'off', enableInstallTelemetry: false, defaultProjectTrust: 'never' });
 const extensionFactories = [pi => {
-  // Only observe the public API; the real production factory owns its registry and lifecycle handlers.
+  // Observe the public API; the production factory owns its registry and delivery policy.
   shellExtension({ ...pi,
     appendEntry(type, data) { pi.appendEntry(type, data); if (data?.terminal && data.kind === 'shell') terminalWaiters.get(data.toolCallId)?.resolve(data); },
     sendMessage(message, options) { submitted.push({ message, options }); pi.sendMessage(message, options); },
@@ -39,11 +40,16 @@ const extensionFactories = [pi => {
       const batch = context.messages.find(isBatch);
       if (batch) { sawBatch = true; batchReceived.resolve(batch); }
       const isFirst = calls === 1 && mode !== 'preflight-failed';
+      const usesTool = isFirst && mode !== 'streaming';
       const message = { role: 'assistant', api: m.api, provider: m.provider, model: m.id, timestamp: Date.now(),
-        content: isFirst ? [{ type: 'toolCall', id: 'hold-main', name: 'batch_gate', arguments: {} }] : [{ type: 'text', text: batch ? 'BATCH_RECEIVED' : 'MAIN_FINISHED' }],
-        stopReason: isFirst ? 'toolUse' : 'stop', usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } };
+        content: usesTool ? [{ type: 'toolCall', id: 'hold-main', name: 'batch_gate', arguments: {} }] : [{ type: 'text', text: batch ? 'BATCH_RECEIVED' : 'MAIN_FINISHED' }],
+        stopReason: usesTool ? 'toolUse' : 'stop', usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } };
       const stream = createAssistantMessageEventStream();
-      queueMicrotask(() => { stream.push({ type: 'start', partial: message }); stream.push({ type: 'done', reason: message.stopReason, message }); stream.end(); });
+      queueMicrotask(async () => {
+        stream.push({ type: 'start', partial: message });
+        if (isFirst && mode === 'streaming') { gateEntered.resolve(); await gateRelease.promise; }
+        stream.push({ type: 'done', reason: message.stopReason, message }); stream.end();
+      });
       return stream;
     },
   });
@@ -57,10 +63,6 @@ const extensionFactories = [pi => {
   });
   pi.on('before_agent_start', event => { if (mode === 'preflight-failed') event.systemPromptOptions.selectedTools = null; });
   pi.on('agent_end', () => { if (mode === 'queued' && !queued) { queued = true; pi.sendUserMessage('OTHER_QUEUED_WORK', { deliverAs: 'followUp' }); } });
-  pi.on('agent_before_settle', event => {
-    const count = submitted.filter(item => item.message.customType === 'shell-job-completed').length;
-    if (!sawBatch && mode !== 'preflight-failed') assert.equal(count, 0, 'pre-settle boundaries may still continue work: the batch waits for final settlement');
-  });
   pi.on('agent_settled', () => { if (sawBatch) batchSettled.resolve(); });
 }];
 const manager = sdk.SessionManager.create(cwd, join(home, 'sessions'));
@@ -76,12 +78,13 @@ const heartbeat = setInterval(() => console.error('[batching-host] Offline lifec
 let prompt;
 try {
   await session.bindExtensions({ mode: 'json', onError: event => errors.push(event.error) });
+  session.subscribe(event => { if (event.type === 'message_end') trace.push(event.message); });
   if (mode === 'preflight-failed') {
     manager.appendMessage({ role: 'user', content: 'Durable isolated admission fixture', timestamp: Date.now() });
     await assert.rejects(session.prompt('Fail before the agent run starts'), TypeError);
     assert.equal(calls, 0); assert.equal(session.isIdle, true);
   } else {
-    prompt = session.prompt('Begin offline batching test');
+    prompt = session.prompt('Begin offline steering test');
     await gateEntered.promise;
     assert.equal(session.isIdle, false);
   }
@@ -94,35 +97,42 @@ try {
     receipts.push(result.structuredContent);
     const outcome = await terminal.promise;
     assert.equal(outcome.state, index === 2 ? 'failed' : 'completed');
-    // One native event-loop boundary makes the old per-completion sender observable,
-    // without fixed sleeps or polling for completion.
+    // A native event-loop boundary observes submission without sleeps or polling.
     await new Promise(resolve => setImmediate(resolve));
-    if (mode === 'preflight-failed') {
-      assert.equal(submitted.filter(item => item.message.customType === 'shell-job-completed').length, 1, 'a failed preflight with no agent_settled must not strand idle completions');
+    const completion = submitted.filter(item => item.message.customType === 'shell-job-completed');
+    assert.equal(completion.length, index + 1, 'terminal results submit before the main tool/stream finishes');
+    assert.deepEqual(completion.at(-1).options, { triggerTurn: true, deliverAs: 'steer' });
+    if (mode !== 'preflight-failed') assert.equal(manager.getEntries().filter(entry => entry.type === 'custom_message' && entry.customType === 'shell-job-completed').length, 0, 'queued submission is not persistence and cannot split a tool batch');
+  }
+  if (mode === 'aborted') {
+    await session.abort(); await prompt;
+    assert.equal(sawBatch, false, 'abort is not permission to force another model request');
+    assert.equal(manager.getEntries().filter(entry => entry.type === 'custom_message' && entry.customType === 'shell-job-completed').length, receipts.length, 'host may persist steering at the aborted tool boundary without issuing a model request');
+    prompt = session.prompt('Explicitly resume after abort to read the completed results');
+  } else gateRelease.resolve();
+  if (prompt) await prompt;
+  await batchReceived.promise; await batchSettled.promise; await session.waitForIdle();
+  const completion = submitted.filter(item => item.message.customType === 'shell-job-completed');
+  assert.equal(completion.length, receipts.length);
+  const jobs = completion.flatMap(item => item.message.details.jobs);
+  assert.deepEqual(jobs.map(job => job.jobId), receipts.map(receipt => receipt.jobId));
+  assert.deepEqual(jobs.map(job => job.exitCode), receipts.map((_receipt, index) => index === 2 ? 7 : 0));
+  const notices = manager.getEntries().filter(entry => entry.type === 'custom_message' && entry.customType === 'shell-job-completed');
+  assert.equal(notices.length, receipts.length, 'each result is persisted exactly once in this fixture');
+  const deliveredIds = notices.flatMap(modelJobs).map(job => job.jobId);
+  assert.deepEqual(deliveredIds, receipts.map(receipt => receipt.jobId));
+  if (mode !== 'preflight-failed') {
+    assert.ok(contexts[1].some(isBatch), 'the first request after the busy boundary sees the completion');
+    const firstNotice = trace.findIndex(isBatch);
+    if (mode === 'streaming') {
+      assert.equal(trace[firstNotice - 1].role, 'assistant');
+      assert.equal(text(trace[firstNotice - 1]), 'MAIN_FINISHED', 'an in-flight provider answer cannot retroactively see results');
     } else {
-      assert.equal(submitted.filter(item => item.message.customType === 'shell-job-completed').length, 0, 'busy completions are not prequeued separately');
-      assert.equal(manager.getEntries().filter(entry => entry.type === 'custom_message' && entry.customType === 'shell-job-completed').length, 0);
+      assert.equal(trace.slice(0, firstNotice).filter(m => m.role === 'toolResult' && m.toolName === 'batch_gate').length, 1, 'tool pairing precedes insertion');
+      assert.equal(trace.slice(0, firstNotice).some(m => m.role === 'assistant' && text(m) === 'MAIN_FINISHED'), false, 'no result-blind final answer before insertion');
     }
   }
-  if (mode !== 'preflight-failed') {
-    const denied = await session.extensionRunner.emitBoundary({ type: 'agent_before_settle', outcome: 'aborted' }, () => ({ contextEntries: [], contextMessages: [], llmMessages: [], pendingMessages: [], canContinue: false }));
-    assert.equal(denied.continue, false); assert.equal(denied.valid, true); assert.deepEqual(denied.entries, []);
-    assert.equal(submitted.filter(item => item.message.customType === 'shell-job-completed').length, 0);
-  }
-  if (mode === 'aborted') await session.abort(); else gateRelease.resolve();
-  if (prompt) await prompt;
-  const batch = await batchReceived.promise;
-  await batchSettled.promise;
-  await session.waitForIdle();
-  const completion = submitted.filter(item => item.message.customType === 'shell-job-completed');
-  assert.equal(completion.length, 1);
-  assert.deepEqual(completion[0].options, { triggerTurn: true, deliverAs: 'followUp' });
-  assert.deepEqual(completion[0].message.details.jobs.map(job => job.jobId), receipts.map(receipt => receipt.jobId));
-  assert.deepEqual(completion[0].message.details.jobs.map(job => job.exitCode), receipts.map((_receipt, index) => index === 2 ? 7 : 0));
-  assert.equal(JSON.parse(text(batch).slice(text(batch).indexOf('\n') + 1)).length, receipts.length);
-  const notices = manager.getEntries().filter(entry => entry.type === 'custom_message' && entry.customType === 'shell-job-completed');
-  assert.equal(notices.length, 1, 'one persisted and model-visible batch');
-  assert.equal(contexts.filter(messages => messages.some(isBatch)).length, 1);
+  if (mode === 'one-at-a-time') assert.deepEqual(contexts.slice(1).map(messages => messages.filter(isBatch).length), [1, 2, 3, 4, 5], 'respect host one-at-a-time queue policy');
   if (mode === 'queued') assert.ok(contexts.at(-1).some(message => message.role === 'user' && text(message).includes('OTHER_QUEUED_WORK')));
   assert.equal(session.isIdle, true); assert.deepEqual(errors, []);
   console.log(JSON.stringify({ status: 'passed', host: sdk.VERSION, mode, notifications: completion.length, jobs: receipts.length, fixtureModelCalls: calls, providerCalls: 0 }));
