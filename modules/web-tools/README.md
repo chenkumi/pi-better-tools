@@ -12,6 +12,8 @@
 
 安裝與跨平台驗證命令以[根 README](../../README.md)為準，請勿在模組目錄獨立安裝依賴。
 
+來源保留的 `scripts/compat.mjs` 是歷史相容性流程，不是整合包的受支援 host matrix；本專案僅驗證 Pi 1.1.0，不執行它安裝舊 host。其清理路徑會分別保留驗證／暫存刪除／manifest 完整性錯誤；即使刪除失敗仍檢查 checksum，多個失敗以 `AggregateError` 回報，全部成功才輸出 PASS。根 `tests/unit/cleanup-arbitration.test.mjs` 以無 I/O、無安裝的替身驗證實際 script body，不代表舊 host 相容性通過。
+
 ## 設定
 
 設定檔：`~/.pi/agent/web-search.json`（不隨 `PI_CODING_AGENT_DIR` 遷移）。可在啟動前以環境變數 `PI_WEB_TOOLS_CONFIG` 指定**絕對路徑**；空值或相對路徑視為非法，不回退。檔案不存在時採用預設值。設定只在 extension 載入時讀取，變更後需 `/reload`。不修改 Pi 的 `settings.json`／`auth.json`。

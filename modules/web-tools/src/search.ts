@@ -6,7 +6,26 @@ export interface SearchResponse { provider: 'brave' | 'exa'; query: string; resu
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 class SearchError extends Error {}
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
-const clean = (v: unknown, max: number) => typeof v === 'string' ? v.replace(/<[^>]*>/g, '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').slice(0, max) : undefined;
+/** Linear tag removal, bounded retained output. Unclosed '<' stays literal,
+ * matching the old replacement semantics without retrying every '<' suffix. */
+export function cleanSearchField(value: unknown, max: number): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const output: string[] = [];
+  let unclosed = false;
+  for (let index = 0; index < value.length && output.length < max; index++) {
+    const char = value.charAt(index);
+    if (char === '<' && !unclosed) {
+      const end = value.indexOf('>', index + 1);
+      if (end >= 0) { index = end; continue; }
+      unclosed = true;
+    }
+    const code = value.charCodeAt(index);
+    if (code <= 8 || code === 11 || code === 12 || (code >= 14 && code <= 31) || code === 127) continue;
+    output.push(char);
+  }
+  return output.join('');
+}
+const clean = cleanSearchField;
 async function readJson(response: Response): Promise<unknown> {
   if (!response.body) throw new SearchError('UPSTREAM_ERROR: empty search response');
   const reader = response.body.getReader();
@@ -62,6 +81,7 @@ export async function search(
     }
     if (!response.ok) throw new SearchError(`UPSTREAM_ERROR: ${provider} HTTP ${response.status}`);
     const payload = await readJson(response);
+    combined.throwIfAborted();
     if (!record(payload)) throw new SearchError('UPSTREAM_ERROR: invalid search response shape');
     if (provider === 'brave' && payload.web !== undefined && !record(payload.web)) throw new SearchError('UPSTREAM_ERROR: invalid Brave web section');
     const raw = provider === 'brave' ? (record(payload.web) ? payload.web.results : undefined) : payload.results;
@@ -84,6 +104,7 @@ export async function search(
         ...(typeof item.publishedDate === 'string' ? { publishedAt: clean(item.publishedDate, 100) } : {}) });
       if (results.length === limit) break;
     }
+    combined.throwIfAborted();
     return { provider, query, results, warnings: invalid ? [`Discarded ${invalid} invalid source entries.`] : [] };
   } catch (e) {
     if (signal?.aborted) throw new Error('CANCELLED: search cancelled');

@@ -84,11 +84,11 @@ Windows 上可用 `tools.powershell({ command, timeoutMs })`。該 shell 必須�
 
 ### 即時 TUI 面板
 
-原生 footer 的 extension 狀態列透過 `setStatus()` 顯示 `▸ Subagents：N ｜ ▸ Shell：M`，按 key 排序並由宿主截短，與 Fast／其他狀態共存，不替換 footer。預設收合不掛 widget；摘要不含命令／標題，footer 文字不可點擊。Shell 計算目前 session/runtime 擁有的 running／cancelling Bash／PowerShell 工作，取消要求直到 registry 終結仍計數。用 `/background-jobs shell` 操作（省略參數或 all 切換全部、collapse 全收合）。展開時才在 belowEditor（輸入框下方／footer 上方）掛詳細 widget，全螢幕可左鍵單擊其 Shell 標籤切換；一般模式不接管終端滑鼠。不搶 editor focus；詳細 widget 未完整顯示的截短標籤不接點擊，窄欄縮寫 S／Sh。
+Jobs 面板自動掛在輸入欄上方 `aboveEditor`，Shell＋Subagents **合計最多五個 job，每個兩行**（tool／command preview／短ID＋狀態），最多12行；窄欄截短不折行，高度不足減少列數，More 顯示省略數。只列目前 owner/runtime 的背景 Bash／PowerShell，running／cancelling 直到 registry settlement；取消要求不冒充程序樹已停止。Shell 顯示 Running／output received 或 no output observed，沒有輸出不自行推斷卡住；工具本身沒有模型用量帳本，固定顯示 `tokens N/A`，不推算命令內呼叫 AI 的 token。
 
-展開保留 tool、running／cancel requested、job ID 尾六碼與單行 command 預覽；投影先限256字元，顯示再清除 ANSI／控制碼與限制欄寬，最多八列加 header／省略數（十行），不讀 log／輸出。完成逐項移除；該區清零重設收合、另一區仍保留，所有工作終結才清除自有 footer 狀態與 widget，不移除其他 extension 狀態。以事件更新、無輪詢／ticker，shutdown／owner／generation／disposed pointer 防護仍保留；取消要求或面板消失不表示 process tree 已停止。
+`/background-jobs`／`more`／`all` 開有界浮層；`shell`／`subagents` 篩選，`collapse` 明確隱藏常駐面板，more／all 恢復。↑↓ 選取、Enter 詳細、Tab 最近完成／全部、Esc 返回／關閉回 editor，保持輸入草稿；只有主動開啟才取焦點，背景事件不重開浮層。Fullscreen 可左鍵點完整 More 標籤，一般模式保留 terminal mouse。完成逐項移出常駐面板，但 More 可查看目前 retained registry 的完整ID、命令預覽、開始／結束時間、exit、取消要求與既有 log 路徑／輸出 byte 統計；不讀 log／输出、不恢復跨 reload 或已淘汰工作。命令／ID 只做顯示層 ANSI／控制碼／bidi 清理，Unicode 按欄寬截短，不重寫原參數。
 
-共用 key `pi-better-tools-background-jobs`，由純 UI helper 經公開 pi.events rendezvous 與 Subagents 協調，沒有共用 job registry，不覆蓋 Schedule Prompt／footer、不啟用未選工具。僅 TUI 且 hasUI 綁定；RPC／JSON／print 不掛 widget，UI 錯誤不改工作／通知。只載入一模組也可顯示摘要／使用指令；不列前景、其他 session/runtime 或 OS 行程，完整 ID/log 仍由既有 receipt/status 查看。等待背景工作結束後 `/reload` 載入。
+共用 key `pi-better-tools-background-jobs`，純 UI helper 透過公開 pi.events rendezvous 協調；不共用 job registry，不替換 footer／Schedule Prompt 或移除其他狀態／widgets，footer 不重複 Jobs 摘要，不啟用未選 tools。僅 TUI+hasUI，RPC／JSON／print 不掛面板；單模組與兩種載入順序均支援。沿用 stdout／stderr、取消／完成事件更新，無 polling／ticker／模型請求，owner／generation／producer lease／disposed pointer／shutdown 防護保留，UI 例外不改執行、通知或結果。只列背景工作，不列前景、其他 owner/runtime 或 OS 行程。等待背景工作結束後 `/reload` 載入。
 
 ```javascript
 const receipt = await tools.bash({ command: "npm test", background: true });

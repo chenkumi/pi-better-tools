@@ -39,8 +39,9 @@ async function record(label, action) {
   }
 }
 const required = [
-  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'note-tools', 'gpt-speed', 'json-schema', 'pty-terminal', 'schedule-prompt', 'blackhole', 'pi-runtime', 'monitor'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
+  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'note-tools', 'gpt-speed', 'json-schema', 'pty-terminal', 'schedule-prompt', 'blackhole', 'pi-runtime', 'monitor', 'skill-tools'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
   'modules/pi-runtime/src/policy.ts',
+  'modules/skill-tools/skills/create-plan/SKILL.md',
   ...['core', 'schema', 'lines', 'network', 'sources', 'renderers'].map(name => `modules/monitor/src/${name}.ts`),
   'modules/monitor/LICENSE', 'modules/monitor/package.json',
   'modules/shell-tools/src/monitor-capability.ts', 'modules/shell-tools/src/monitor-exec.ts', 'modules/shell-tools/src/monitor-publisher.ts',
@@ -233,6 +234,16 @@ try {
       await record(`${version}:monitor-runtime`, async () => {
         const output = await runCommand(`production Pi ${version} Monitor`, process.execPath, [monitorFixture, packageRoot], { cwd: monitorHome, env: { ...isolatedEnv(monitorHome), PI_BETTER_TOOLS_HOST: host }, timeoutMs: 180000 });
         const result = JSON.parse(output.trim().split('\n').at(-1)); assert.equal(result.status, 'passed'); assert.equal(result.host, version); assert.equal(result.providerCalls, 0); assert.deepEqual(result.sources, ['command', 'websocket']); assert.equal(result.sourceCloseObserved, true); return output;
+      });
+      const skillsFixture = join(temp, 'skills-host.mjs');
+      await copyFile(join(root, 'modules/skill-tools/tests/fixtures/skills-host.mjs'), skillsFixture);
+      const skillsHome = join(temp, 'home-skills'); await mkdir(skillsHome);
+      await record(`${version}:skill-resources`, async () => {
+        const output = await runCommand(`production Pi ${version} skill resources`, process.execPath, [skillsFixture, packageRoot],
+          { cwd: skillsHome, env: { ...isolatedEnv(skillsHome), PI_BETTER_TOOLS_HOST: host }, timeoutMs: 60000 });
+        const result = JSON.parse(output.trim().split('\n').at(-1));
+        assert.equal(result.status, 'passed'); assert.equal(result.host, version); assert.equal(result.providerCalls, 0);
+        assert.deepEqual(result.cases, ['startup', 'reload', 'relocated', 'lazy-body', 'skill-command', 'extension-filter', 'no-tools']); return output;
       });
       const runtimeFixture = join(temp, 'runtime-host.mjs');
       await copyFile(join(root, 'modules/pi-runtime/tests/fixtures/runtime-host.mjs'), runtimeFixture);

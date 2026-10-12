@@ -1324,7 +1324,13 @@ export async function runObserverStage(
         });
         if (isManualMode(runtime.config)) {
           if (!runtime.isGenerationActive(generation) || !branchStillOwned(generation, ctx)) return "abort";
-          savePendingObservation(sessionId, { coversUpToId, data });
+          try { savePendingObservation(sessionId, { coversUpToId, data }); }
+          catch (error) {
+            // Storage failure is not a model failure: preserve coverage and stop
+            // this cycle instead of paying for another fallback worker.
+            runtime.recordConsolidationStageError(ctx, "observer", error);
+            return "abort";
+          }
           debugLog("observer.pending", {
             count: result.observations.length,
             coversUpToId,
@@ -1698,10 +1704,11 @@ export async function runReflectorStage(
       if (!runtime.isGenerationActive(generation) || !branchStillOwned(generation, ctx)) {
         return { outcome: "abort", sameRunReflections: [] };
       }
-      savePendingReflection(sessionId, {
-        coversUpToId: data.coversUpToId,
-        data,
-      });
+      try { savePendingReflection(sessionId, { coversUpToId: data.coversUpToId, data }); }
+      catch (error) {
+        runtime.recordConsolidationStageError(ctx, "reflector", error);
+        return { outcome: "abort", sameRunReflections: [] };
+      }
     } else {
       if (!appendEntry(pi, runtime, generation, OM_REFLECTIONS_RECORDED, data, ctx)) {
         return { outcome: "abort", sameRunReflections: [] };
@@ -2339,7 +2346,11 @@ export async function runDropperStage(
     if (data && coversUpToId) {
       if (isManualMode(runtime.config)) {
         if (!runtime.isGenerationActive(generation) || !branchStillOwned(generation, ctx)) return "abort";
-        savePendingDropped(sessionId, { coversUpToId, data });
+        try { savePendingDropped(sessionId, { coversUpToId, data }); }
+        catch (error) {
+          runtime.recordConsolidationStageError(ctx, "dropper", error);
+          return "abort";
+        }
       } else {
         if (!appendEntry(pi, runtime, generation, OM_OBSERVATIONS_DROPPED, data, ctx)) return "abort";
       }

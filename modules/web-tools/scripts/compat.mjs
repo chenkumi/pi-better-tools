@@ -13,6 +13,8 @@ const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const digest = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 const before = await Promise.all(['package.json', 'package-lock.json'].map(f => digest(join(root, f))));
 const temp = await mkdtemp(join(tmpdir(), `pi-web-compat-${version}-`));
+let primaryFailed = false, primary;
+const cleanupErrors = [];
 try {
   const project = join(temp, 'project'), home = join(temp, 'home');
   await mkdir(project); await mkdir(home);
@@ -38,10 +40,18 @@ try {
   for (const command of ['typecheck', 'test', 'test:integration', 'test:production']) {
     await runNpm(['run', command], { cwd: project, env, timeoutMs: command === 'test:production' ? 900000 : 300000, label: `pi ${version}: ${command}`, echo: true });
   }
-  console.log(`Compatibility validation PASS: pi ${version}, ${process.platform}, Node ${process.version}`);
-} finally {
+} catch (error) { primaryFailed = true; primary = error; }
+finally {
   console.error('Progress: cleaning isolated compatibility directory');
-  await rm(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
-  const after = await Promise.all(['package.json', 'package-lock.json'].map(f => digest(join(root, f))));
-  if (JSON.stringify(before) !== JSON.stringify(after)) throw new Error('Root package manifests changed during isolated validation');
+  try { await rm(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
+  catch (error) { cleanupErrors.push(error); }
+  // Integrity checking remains mandatory even when temporary cleanup fails.
+  try {
+    const after = await Promise.all(['package.json', 'package-lock.json'].map(f => digest(join(root, f))));
+    if (JSON.stringify(before) !== JSON.stringify(after)) cleanupErrors.push(new Error('Root package manifests changed during isolated validation'));
+  } catch (error) { cleanupErrors.push(error); }
 }
+const failures = [...(primaryFailed ? [primary] : []), ...cleanupErrors];
+if (failures.length > 1) throw new AggregateError(failures, 'Compatibility validation or cleanup failed');
+if (failures.length === 1) throw failures[0];
+console.log(`Compatibility validation PASS: pi ${version}, ${process.platform}, Node ${process.version}`);

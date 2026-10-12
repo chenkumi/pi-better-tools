@@ -4,6 +4,22 @@
   "filenameAndIdChanges": "2026-10-08 user request: Note uses TYPE-YYYYMMDDTHHmmssSSSZ.md without title/slug; removed slug helpers/tests, retained timestamp collision/no-overwrite/content/legacy-file tests. All project-generated ULIDs use ulid().toUpperCase(), including GPT settings temp names and JSON delivery/extraction session IDs. Historical slug/lowercase descriptions below are superseded; source origins and prior audit limits remain unchanged.",
   "modules": [
     {
+      "module": "skill-tools",
+      "origin": "2026-10-12 user-requested native extension providing bundled skills via Pi 1.1.0 resources_discover; create-plan moved byte-for-byte from the user's Agent Skills directory, not an imported upstream snapshot.",
+      "license": "MIT (root LICENSE)",
+      "entry": "modules/skill-tools/src/index.ts",
+      "migration": { "skill": "create-plan", "originalLocation": "~/.agents/skills/create-plan/SKILL.md", "originalSha256": "6dd6032ec12b89c58ec9db1ef7f5509f3688b517e15df84f1cd4f91c08e00b80", "policy": "Authorized one-time move; runtime never copies/deletes home files or changes settings. Original frontmatter/body preserved." },
+      "files": [
+        { "path": "modules/skill-tools/src/index.ts", "sha256": "4f8f941ef13e657623e326ecbe293547165e3f5ef9135126378a4377cc30aebb", "reason": "Native discovery hook with module-relative packaged skills directory; no tools or lifecycle resources." },
+        { "path": "modules/skill-tools/README.md", "sha256": "ffef8af072b64ba911722c53bd162d378cd4fc9cabc77419fdef1093d1ea3687", "reason": "Usage, extension-filter boundary, migration/rollback and validation instructions." },
+        { "path": "modules/skill-tools/tsconfig.json", "sha256": "4f93c79be455ac413c94d8986d2821f49c4f4ac8271df09d5e9fa567861bca64", "reason": "Root strict noEmit typecheck target." },
+        { "path": "modules/skill-tools/skills/create-plan/SKILL.md", "sha256": "6dd6032ec12b89c58ec9db1ef7f5509f3688b517e15df84f1cd4f91c08e00b80", "reason": "User-authorized unchanged skill migration; no instructions rewritten." },
+        { "path": "modules/skill-tools/tests/skills.test.ts", "sha256": "cad83e02d0878a5e3d95eec537f797160be27ae052654dd8c7ac9aee2a5a7e33", "reason": "Registration-only, startup/reload path identity and independent result arrays." },
+        { "path": "modules/skill-tools/tests/skills.integration.test.mjs", "sha256": "d3d7511b34345893fa9e8ada81707216a95199c904f6b513681abe2bbf3810ad", "reason": "Isolated-home real Pi1.1.0 wrapper, no external provider calls." },
+        { "path": "modules/skill-tools/tests/fixtures/skills-host.mjs", "sha256": "6588b6c267cbc54673bb56fa14f0d66d0cc27b73d25ef8e03c775f7a6cc686f6", "reason": "Relocated package discovery, startup/reload, lazy catalogue/body, command expansion, package extension filters and no-tools; reused by production tarball smoke." }
+      ]
+    },
+    {
       "module": "monitor",
       "reentryRepairRound": { "reviewFinding": "report/REPORT-20261009T131356545Z.md:R1/P3", "evidence": "plan/evidence/monitor-reentry-20261009-v1", "scope": "Selected/retry event identity reservation prevents snapshot coalescing from miscounting successful submission; charged bytes/quotas and unreserved-latest policy retained. FakeClock sync success/throw/lifecycle fences/32large fairness/unknown terminal plus owning module typecheck/unit/integration.", "acceptance": "Worker repair provenance, pending independent re-review; previous root/package green is historical, not latest-source acceptance or Blackhole timing/coexistence approval. Runtime and all other native metadata unchanged." },
       "origin": "User-authorized project-native Monitor v1, not an imported snapshot: command stdout, WebSocket text, readonly Shell/Subagent jobs; Pi1.1.0 only. Blackhole producer handoff separate.",
@@ -137,6 +153,7 @@
     },
     {
       "module": "json-schema",
+      "reportRepair20261012": { "finding": "MISC-004", "report": "report/REPORT-20261012T085500226Z.md", "scope": "Fail startup on deep/non-definition/trailing-slash local pointers rather than silently converting to the whole definition. Only root# and direct definition refs accepted. Native audit/test/README updated; previous fingerprints preserved, no draft/provider-schema or delivery-path rewrite.", "validation": "Original regression red1 then schema suite green9; final module/root outcomes recorded in report-fixes-20261012 evidence, no full-release/provider claim." },
       "reviewFollowupC1": { "date": "2026-10-11", "report": "report/REPORT-20261011T132908489Z.md", "meaningfulRed": 3, "sameCoreGreen": 3, "scope": "Expanded-work admission tracks installed converter $defs || definitions precedence; bounded depth8 leaf256 and depth12 startup-only refusal, including host pre-registration. No provider schema/draft rewrite or universal recursive-data CPU bound.", "validation": "Worker terminal completion: typecheck,44 units,9 worker/boundary and2 offline actual-host wrappers passed; limited read-only follow-up accepted in report/REPORT-20261011T133118922Z.md (0 new must-fix/warning; reviewer did not rerun tests). Earlier root cross/typecheck/unit results precede this follow-up." },
       "reviewReproductionRepairs": { "date": "2026-10-11", "baseline": "800ced0", "report": "report/REPORT-20261011T130233001Z.md", "findings": ["R2", "R3", "R10", "R11"], "reportedMeaningfulRed": 3, "reportedSameCaseGreen": 3, "boundary": "Native rewrite inventory, not imported adaptation. Only confirmed assigned defects repaired; supplementary guards are green-only. Windows actual filesystem and offline worker/host probes do not certify Linux/macOS, universal schema CPU bounds or providers." },
       "stabilityRepair": "2026-10-07 user-authorized BUG001/002 local repairs, not an upstream update; stricter schema subset documented. No dependency, flag, delivery-path or credential changes.",
@@ -167,7 +184,7 @@
         },
         {
           "path": "modules/json-schema/src/schema.ts",
-          "reviewReproductionPreviousSha256": "3fa4cc833cbb46361e9bdcd15fb5f2735c86d0f4432ce3b6063682408a848db5", "reviewFollowupPreviousSha256": "3672fa49f8965db1dfeff28a982702be7b7ac4cf1ef8843b956ebdb7304e75a9", "sha256": "85f26826471a5ad4f573606c391de829207b2271b7dec935892e8e3e91a90ea6",
+          "reviewReproductionPreviousSha256": "3fa4cc833cbb46361e9bdcd15fb5f2735c86d0f4432ce3b6063682408a848db5", "reviewFollowupPreviousSha256": "3672fa49f8965db1dfeff28a982702be7b7ac4cf1ef8843b956ebdb7304e75a9", "reportRepairPreviousSha256": "85f26826471a5ad4f573606c391de829207b2271b7dec935892e8e3e91a90ea6", "sha256": "0ed1bc0272fc0dd4f0dd2594d7fae28e11cc0304a76b795fc6909bc309026be6",
           "reason": "2026-10-06 lazy zod loading retained. 2026-10-07 user-authorized BUG001/002 repairs: fail startup on enum/const ignored siblings or type conflicts; conservative linear patterns protect host synchronous pre-execute validation (including draft-07 additionalItems tuple tails in audit/pattern detection); accepted pattern schemas validate in terminable cancellable workers (2s, max4, held-until-exit permits), and extension delivery paths await results. 2026-10-08 current local snapshot review: M8-M9/L32-L33: retained original assistant text, schema-valid candidate selection, bounded reusable validation pool and Windows delivery rename retry reviewed; conservative pattern policy and cancellation/termination capacity retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-11 R2/R3/R10: shared schema-position default pruning without raw-data mutation, ref-sibling audit and precompile expanded-work budget. C1 follow-up: resolve the same definition map as the installed converter to close dual-map admission bypass.",
           "checklistReviewPreviousSha256": "15756df6f84a6a3495fb621788a97b54a41327d3f08a50e9b064335c2c2e9c6a",
           "checklistReviewBaselineSha256": "c422f5855e644613696f8cd78ce9f90dcaf1030993ea113a11deb2880c925aef",
@@ -225,7 +242,7 @@
         },
         {
           "path": "modules/json-schema/tests/schema.test.ts",
-          "sha256": "94d86ea2814dc61b8ff064867cc8ce4ec0911b2dd0017251f9337dd366db2f8f"
+          "reportRepairPreviousSha256": "94d86ea2814dc61b8ff064867cc8ce4ec0911b2dd0017251f9337dd366db2f8f", "sha256": "1b51b92c3e4f31d18063c897b4ca0f5869b0e204d3cd1da39a5287134f0a6413"
         },
         {
           "path": "modules/json-schema/tests/extract.test.ts",
@@ -261,7 +278,7 @@
         },
         {
           "path": "modules/json-schema/README.md",
-          "defectRepairPreviousSha256": "15ba1dc1cc72eb3a45917a2a6f3f61dc5560b66defd815fc97ef17fa7a9f1985", "reviewReproductionPreviousSha256": "fc13f878c1e8bf3d7caf9c605d84f7a00fd52cdd8010e99e828039ba51676e64", "reviewFollowupPreviousSha256": "7b3a1eb8c0c5a2eddb8395511393c508fae591a97225fc6cbede7737d845b306", "sha256": "f9ac242a1363cad9509b1fb94c65a76c21a5a37059fd8abd72f47e0732812832",
+          "defectRepairPreviousSha256": "15ba1dc1cc72eb3a45917a2a6f3f61dc5560b66defd815fc97ef17fa7a9f1985", "reviewReproductionPreviousSha256": "fc13f878c1e8bf3d7caf9c605d84f7a00fd52cdd8010e99e828039ba51676e64", "reviewFollowupPreviousSha256": "7b3a1eb8c0c5a2eddb8395511393c508fae591a97225fc6cbede7737d845b306", "reportRepairPreviousSha256": "f9ac242a1363cad9509b1fb94c65a76c21a5a37059fd8abd72f47e0732812832", "sha256": "2778b2f9fbb1844fc39c1f8bcb0b75b80c442ee7625ee3efe180257eeb218d78",
           "preChangeSha256": "d958f41be3768e319f816e1707dbbff41bb4c25e591152392796a5088c52bde6",
           "reason": " 2026-10-06 local adaptation (json-schema): description merged, README documents validation-failure semantics and provider compatibility warning. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: M8-M9/L32-L33: retained original assistant text, schema-valid candidate selection, bounded reusable validation pool and Windows delivery rename retry reviewed; conservative pattern policy and cancellation/termination capacity retained. 2026-10-11 R2/R3/R10/R11: raw-required validation, explicit ref-sibling rejection, expanded-work admission and short exclusive delivery temporary documented. C1: actual converter definition-map precedence is explicitly documented.",
           "checklistReviewPreviousSha256": "b50c3f1c168e10f939b4439d9aae71eaafa83a4d72c9a1203424d84059d4e8a0",

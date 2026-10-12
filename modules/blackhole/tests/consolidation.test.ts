@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, test, expect, vi } from "vitest";
 import { rmSync } from "node:fs";
+import * as fs from "node:fs";
+vi.mock("node:fs", async importOriginal => ({ ...await importOriginal<typeof import("node:fs")>() }));
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Runtime } from "../src/om/runtime.js";
@@ -972,6 +974,31 @@ function attemptStartedBarrier() {
   const started = new Promise<void>((resolve) => { notify = resolve; });
   return { started, notify };
 }
+
+test("MISC-001 failed pending save never advances production recorded cursor or suppresses retry", async () => {
+  const fixture = makePipelineFixture({ observeAfterTokens: 100, entries: [rawMessage("raw-a", "previous"), rawMessage("raw-b", "x".repeat(4000))] });
+  fixture.runtime.config.compaction = "manual";
+  savePendingObservation("cursor-session", { coversUpToId: "raw-a", data: { observations: [observation("aaaaaaaaaaaa", { sourceEntryIds: ["raw-a"] })] } });
+  fixture.runtime.advanceCursor("observer", "raw-a", "recorded");
+  fixture.runtime.saveCursorsToPending("cursor-session");
+  agents.runObserver.mockResolvedValue({ observations: [observation("bbbbbbbbbbbb", { sourceEntryIds: ["raw-b"] })] });
+  const original = fs.writeFileSync;
+  const spy = vi.spyOn(fs, "writeFileSync").mockImplementation((...args: Parameters<typeof fs.writeFileSync>) => {
+    if (String(args[1]).includes("bbbbbbbbbbbb")) throw new Error("ENOSPC pending batch");
+    return original(...args);
+  });
+  try { await fixture.run(); } finally { spy.mockRestore(); }
+  expect(agents.runObserver).toHaveBeenCalledTimes(1);
+  expect(fixture.runtime.getCursor("observer")?.entryId).toBe("raw-a");
+  fixture.runtime.saveCursorsToPending("cursor-session");
+  const reloaded = new Runtime(); reloaded.config = { ...fixture.runtime.config }; reloaded.loadCursorsFromPending("cursor-session");
+  expect(reloaded.getCursor("observer")?.entryId).toBe("raw-a");
+  expect(readPendingState("cursor-session").observationBatches?.map(b => b.coversUpToId)).toEqual(["raw-a"]);
+  expect(anyStageDue(fixture.entries, reloaded, readPendingState("cursor-session"))).toBe(true);
+  await fixture.run();
+  expect(agents.runObserver).toHaveBeenCalledTimes(2);
+  expect(fixture.runtime.getCursor("observer")?.entryId).toBe("raw-b");
+});
 
 describe("worker attempt hard timeout", () => {
   test("observer falls through to the next model after the deadline", async () => {

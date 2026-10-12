@@ -103,15 +103,26 @@ async function readBounded(file: string): Promise<string> {
 	} finally { await handle.close(); }
 }
 async function readJson(file: string): Promise<any> { return JSON.parse(await readBounded(file)); }
-async function atomicJson(file: string, value: unknown, active: () => boolean = () => true): Promise<void> {
+type UnsafeWriter = { handle: fs.promises.FileHandle; path: string; error: Error };
+async function atomicJson(file: string, value: unknown, active: () => boolean = () => true, onUnsafe?: (writer: UnsafeWriter) => void): Promise<void> {
 	const text = JSON.stringify(value, null, 2) + "\n";
 	if (Buffer.byteLength(text) > MAX_METADATA_BYTES) fail("METADATA_UNSUPPORTED", "Serialized metadata exceeds capacity");
 	const temp = `${file}.${ulid().toUpperCase()}.partial`;
 	const handle = await fs.promises.open(temp, "wx", 0o600);
-	try { await handle.writeFile(text); await handle.sync(); } finally {
+	let writeFailed = false, writeError: unknown, closeFailed = false, closeError: unknown;
+	try { await handle.writeFile(text); await handle.sync(); }
+	catch (error) { writeFailed = true; writeError = error; }
+	finally {
 		try { await handle.close(); }
-		catch (error) { throw Object.assign(new Error(`Metadata writer close failed: ${String(error)}`), { cleanupUnsafe: true, cause: error }); }
+		catch (error) { closeFailed = true; closeError = error; }
 	}
+	// An unconfirmed close takes precedence and must retain initialization ownership.
+	if (closeFailed) {
+		const error = Object.assign(new Error(`Metadata writer close failed: ${String(closeError)}${writeFailed ? `; write failed: ${String(writeError)}` : ""}`), { cleanupUnsafe: true, cause: closeError });
+		onUnsafe?.({ handle, path: temp, error });
+		throw error;
+	}
+	if (writeFailed) throw writeError;
 	if (!active()) fail("COMMIT_FAILED", "I/O deadline elapsed before metadata publish");
 	await renameWithRetry(temp, file);
 }
@@ -234,10 +245,52 @@ async function inspectNative(file: string, id: string, cwd: string, since: numbe
 const lockRegistryKey = Symbol.for("pi-better-tools.subagents.live-writer-locks");
 const lockRegistry = globalThis as typeof globalThis & { [lockRegistryKey]?: Set<string> };
 const liveLockNonces = lockRegistry[lockRegistryKey] ??= new Set<string>();
+// Strong resource identities survive runner settlement/reload alongside their
+// live nonce. A rejected close is not retried or inferred from a settled gate.
+const unsafeWritersKey = Symbol.for("pi-better-tools.subagents.unsafe-writer-handles");
+const writerRegistry = globalThis as typeof globalThis & { [unsafeWritersKey]?: Map<string, UnsafeWriter[]> };
+const unsafeWriters = writerRegistry[unsafeWritersKey] ??= new Map<string, UnsafeWriter[]>();
 
 export class ManagedSession {
 	private lock?: WriterLock;
 	private run?: RunIntent;
+	private pendingWriterOperations = 0;
+	get writerCloseConfirmed(): boolean { return this.pendingWriterOperations === 0 && (!this.lock || !unsafeWriters.get(this.lock.nonce)?.length); }
+	assertWriterSafe(): void {
+		const writer = this.lock && unsafeWriters.get(this.lock.nonce)?.[0];
+		if (writer) throw writer.error;
+	}
+	private retainUnsafeWriter = (writer: UnsafeWriter): void => {
+		if (!this.lock) throw new Error("Owned writer lost its lock identity");
+		const records = unsafeWriters.get(this.lock.nonce) ?? [];
+		records.push(writer); unsafeWriters.set(this.lock.nonce, records);
+	};
+	private async writeMetadata(file: string, value: unknown, active: () => boolean = () => true): Promise<void> {
+		this.assertWriterSafe();
+		this.pendingWriterOperations++;
+		try { await atomicJson(file, value, active, this.retainUnsafeWriter); }
+		finally { this.pendingWriterOperations--; }
+	}
+	/** Path-based writeFile/truncate hide their writable close; retain it explicitly. */
+	private async withWriter(file: string, flags: string, operation: (handle: fs.promises.FileHandle) => Promise<void>): Promise<void> {
+		this.assertWriterSafe();
+		this.pendingWriterOperations++;
+		try {
+			const handle = await fs.promises.open(file, flags, 0o600);
+			let operationFailed = false, operationError: unknown, closeError: Error | undefined;
+			try { await operation(handle); }
+			catch (error) { operationFailed = true; operationError = error; }
+			finally {
+				try { await handle.close(); }
+				catch (cause) {
+					closeError = Object.assign(new Error(`Managed writer close failed: ${String(cause)}${operationFailed ? `; operation failed: ${String(operationError)}` : ""}`), { cleanupUnsafe: true, cause });
+					this.retainUnsafeWriter({ handle, path: file, error: closeError });
+				}
+			}
+			if (closeError) throw closeError;
+			if (operationFailed) throw operationError;
+		} finally { this.pendingWriterOperations--; }
+	}
 	readonly root: string;
 	readonly directory: string;
 	manifest: SessionManifest;
@@ -287,16 +340,18 @@ export class ManagedSession {
 		const fence = path.join(this.directory, "writer.acquire");
 		try { await fs.promises.mkdir(fence, { mode: 0o700 }); }
 		catch (error) { if ((error as NodeJS.ErrnoException).code === "EEXIST") fail("SESSION_BUSY", "Writer acquisition/recovery in progress; orphan election fence requires manual inspection"); throw error; }
-		let primaryFailed = false, primaryError: unknown;
-		try { return await operation(); }
-		catch (error) { primaryFailed = true; primaryError = error; throw error; }
+		let result!: T;
+		let primaryFailed = false, primaryError: unknown, cleanupFailed = false, cleanupError: unknown;
+		try { result = await operation(); }
+		catch (error) { primaryFailed = true; primaryError = error; }
 		finally {
 			try { await fs.promises.rmdir(fence); }
-			catch (cleanupError) {
-				throw Object.assign(new AggregateError(primaryFailed ? [primaryError, cleanupError] : [cleanupError],
-					`Acquisition fence cleanup unconfirmed; writer ownership may remain held. ${primaryFailed ? `Primary failure: ${String(primaryError)}; ` : ""}Fence cleanup: ${String(cleanupError)}`), { cleanupUnsafe: true });
-			}
+			catch (error) { cleanupFailed = true; cleanupError = error; }
 		}
+		if (cleanupFailed) throw Object.assign(new AggregateError(primaryFailed ? [primaryError, cleanupError] : [cleanupError],
+			`Acquisition fence cleanup unconfirmed; writer ownership may remain held. ${primaryFailed ? `Primary failure: ${String(primaryError)}; ` : ""}Fence cleanup: ${String(cleanupError)}`), { cleanupUnsafe: true });
+		if (primaryFailed) throw primaryError;
+		return result;
 	}
 	/** Cleanup is only for settled initialization, while the election fence is held.
 	 * Missing metadata is ours only if the directory identity still matches mkdir. */
@@ -305,7 +360,7 @@ export class ManagedSession {
 		this.lock = { nonce: ulid().toUpperCase(), taskId, pid: process.pid, createdAt: new Date().toISOString() };
 		liveLockNonces.add(this.lock.nonce);
 		try {
-			await atomicJson(path.join(lockDir, "owner.json"), this.lock);
+			await this.writeMetadata(path.join(lockDir, "owner.json"), this.lock);
 			if (recovered && !(await this.rollbackToCheckpoint(() => true))) fail("SESSION_BLOCKED", "Stale writer lock checkpoint could not be verified; manual inspection required");
 		} catch (error) {
 			if ((error as { cleanupUnsafe?: boolean })?.cleanupUnsafe) throw error;
@@ -325,6 +380,7 @@ export class ManagedSession {
 	/** Exclusive read lease using the existing writer fence. Unlike acquire(),
 	 * query never recovers stale ownership, truncates files or publishes state. */
 	async acquireQueryLease(taskId: string): Promise<void> {
+		this.assertWriterSafe();
 		if (!SESSION_ID.test(taskId)) fail("INVALID_DISPATCH", "Invalid internal query ID");
 		await contained(this.root, this.directory);
 		const lockDir = path.join(this.directory, "writer.lock");
@@ -370,6 +426,7 @@ export class ManagedSession {
 		fail("SESSION_BUSY", "Writer lock exists; no automatic takeover");
 	}
 	async acquire(taskId: string): Promise<void> {
+		this.assertWriterSafe();
 		if (!SESSION_ID.test(taskId)) fail("INVALID_DISPATCH", "Invalid internal task ID");
 		await contained(this.root, this.directory);
 		const lockDir = path.join(this.directory, "writer.lock");
@@ -411,23 +468,24 @@ export class ManagedSession {
 			const prefix = createHash("sha256");
 			if (cp.nativeBytes > 0) for await (const chunk of fs.createReadStream(file, { start: 0, end: cp.nativeBytes - 1 })) prefix.update(chunk);
 			if (prefix.digest("hex") !== cp.nativeSha256) return false;
-			if (size > cp.nativeBytes) await fs.promises.truncate(file, cp.nativeBytes);
-			await fs.promises.truncate(this.logPath, cp.readableCommittedBytes);
+			if (size > cp.nativeBytes) await this.withWriter(file, "r+", handle => handle.truncate(cp.nativeBytes));
+			await this.withWriter(this.logPath, "r+", handle => handle.truncate(cp.readableCommittedBytes));
 			const native = await inspectNative(file, this.id, candidate.config.cwd, cp.nativeBytes);
 			if (native.hash !== cp.nativeSha256 || native.bytes !== cp.nativeBytes || native.leafId !== cp.leafId) return false;
 			candidate.updatedAt = new Date().toISOString();
 			await this.assertLock();
-			await atomicJson(path.join(this.directory, "manifest.json"), candidate, active);
+			await this.writeMetadata(path.join(this.directory, "manifest.json"), candidate, active);
 			this.manifest = candidate;
 			return true;
 		} catch (error) {
-			// A rejected actual metadata close is not a checkpoint mismatch. Keep
+			// A rejected actual writable close is not a checkpoint mismatch. Keep
 			// its ownership marker/diagnostic for initialization and runner cleanup.
 			if (record(error) && error.cleanupUnsafe === true) throw error;
 			return false;
 		}
 	}
 	private async assertLock(): Promise<void> {
+		this.assertWriterSafe();
 		if (!this.lock) fail("SESSION_BUSY", "Missing writer ownership");
 		const file = path.join(this.directory, "writer.lock", "owner.json");
 		await contained(this.root, file);
@@ -450,9 +508,13 @@ export class ManagedSession {
 		config.model = startup.model; config.thinkingLevel = startup.thinkingLevel;
 	}
 	async release(): Promise<void> {
+		this.assertWriterSafe();
+		if (this.pendingWriterOperations) fail("SESSION_BUSY", "Owned writer operations have not settled; not releasing");
 		if (!this.lock) return;
 		const owner = await readJson(path.join(this.directory, "writer.lock", "owner.json"));
 		if (owner.nonce !== this.lock.nonce) fail("SESSION_BUSY", "Writer lock ownership changed; not releasing");
+		this.assertWriterSafe();
+		if (this.pendingWriterOperations) fail("SESSION_BUSY", "Owned writer operations have not settled; not releasing");
 		await fs.promises.rm(path.join(this.directory, "writer.lock"), { recursive: true }); liveLockNonces.delete(this.lock.nonce); this.lock = undefined;
 	}
 	async validateCheckpoint(): Promise<void> {
@@ -469,19 +531,20 @@ export class ManagedSession {
 		await this.assertLock();
 		await this.diskUsage();
 		const dispatchKey = sha256(toolCallId), dispatchFile = path.join(this.directory, "dispatch", `${dispatchKey}.json`);
-		try { await fs.promises.writeFile(dispatchFile, JSON.stringify({ taskId, requestHash: sha256(task) }), { flag: "wx", mode: 0o600 }); }
+		try { await this.withWriter(dispatchFile, "wx", handle => handle.writeFile(JSON.stringify({ taskId, requestHash: sha256(task) }))); }
 		catch (e) { if ((e as any).code === "EEXIST") return fail("DUPLICATE_DISPATCH", `Already dispatched: ${(await readJson(dispatchFile)).taskId}`); throw e; }
 		await fs.promises.mkdir(path.join(this.directory, "runs", taskId), { mode: 0o700 });
 		this.run = { version: 1, taskId, dispatchKey, requestHash: sha256(task), oldCommittedBytes: this.manifest.checkpoint?.readableCommittedBytes ?? 0,
 			state: "running", startedAt: new Date().toISOString(), ownerNonce: this.lock.nonce };
-		await atomicJson(path.join(this.runDir, "run.json"), this.run, active);
+		await this.writeMetadata(path.join(this.runDir, "run.json"), this.run, active);
 		await this.publish("running", active);
 	}
 	/** Returns true when `restore` rolled a previously ready session back to its verified checkpoint instead of blocking it. */
 	async blocked(code: string, details: unknown, active: () => boolean, restore = false): Promise<boolean> {
+		this.assertWriterSafe();
 		if (!this.lock || (!this.run && code !== "CHECKPOINT_MISMATCH")) return false;
 		await this.assertLock();
-		if (this.run) { this.run.state = "blocked"; this.run.result = details; await atomicJson(path.join(this.runDir, "run.json"), this.run, active); }
+		if (this.run) { this.run.state = "blocked"; this.run.result = details; await this.writeMetadata(path.join(this.runDir, "run.json"), this.run, active); }
 		if (restore && await this.rollbackToCheckpoint(active)) return true;
 		this.manifest.errorCode = code; await this.publish("blocked", active);
 		return false;
@@ -508,10 +571,14 @@ export class ManagedSession {
 		if (!native.model || !["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(native.thinkingLevel!)) fail("CONFIG_CHANGED", "Cannot restore native model/thinking selection");
 		if (native.model !== this.manifest.config.model || native.thinkingLevel !== this.manifest.config.thinkingLevel) fail("CONFIG_CHANGED", "Child changed saved logical model/thinking selection");
 		this.run.state = "committing"; this.run.result = result;
-		await atomicJson(path.join(this.runDir, "run.json"), this.run, active); await this.publish("committing", active);
+		await this.writeMetadata(path.join(this.runDir, "run.json"), this.run, active); await this.publish("committing", active);
 		await this.assertLock();
 		const oldBytes = this.run.oldCommittedBytes;
-		const output = await fs.promises.open(this.logPath, oldBytes === 0 ? "ax" : "a", 0o600);
+		this.pendingWriterOperations++;
+		let output: fs.promises.FileHandle;
+		try { output = await fs.promises.open(this.logPath, oldBytes === 0 ? "ax" : "a", 0o600); }
+		catch (error) { this.pendingWriterOperations--; throw error; }
+		let appendFailed = false, appendError: unknown, closeError: Error | undefined;
 		try {
 			if ((await output.stat()).size !== oldBytes) fail("CHECKPOINT_MISMATCH", "Uncommitted transcript bytes detected");
 			for await (const chunk of fs.createReadStream(segment, { highWaterMark: 64 * 1024 })) {
@@ -520,18 +587,28 @@ export class ManagedSession {
 			}
 			await output.sync();
 			this.manifest.checkpoint = { nativeSha256: native.hash, nativeBytes: native.bytes, readableCommittedBytes: (await output.stat()).size, completedTaskId: this.run.taskId, leafId: native.leafId };
-		} finally { await output.close(); }
+		} catch (error) { appendFailed = true; appendError = error; }
+		finally {
+			try { await output.close(); }
+			catch (cause) {
+				closeError = Object.assign(new Error(`Aggregate writer close failed: ${String(cause)}${appendFailed ? `; append failed: ${String(appendError)}` : ""}`), { cleanupUnsafe: true, cause });
+				this.retainUnsafeWriter({ handle: output, path: this.logPath, error: closeError });
+			}
+			this.pendingWriterOperations--;
+		}
+		if (closeError) throw closeError;
+		if (appendFailed) throw appendError;
 		await this.diskUsage();
 		this.manifest.nativeFile = `pi/${files[0]}`;
 		this.manifest.config.model = native.model; this.manifest.config.thinkingLevel = native.thinkingLevel;
 		this.run.state = "completed"; this.run.completedAt = new Date().toISOString();
-		await atomicJson(path.join(this.runDir, "run.json"), this.run, active); await this.publish("ready", active);
+		await this.writeMetadata(path.join(this.runDir, "run.json"), this.run, active); await this.publish("ready", active);
 	}
 	private async publish(state: SessionState, active: () => boolean): Promise<void> {
 		await this.assertLock();
 		this.manifest.state = state; this.manifest.updatedAt = new Date().toISOString();
 		if (this.run) this.manifest.lastRun = this.run.taskId;
-		await atomicJson(path.join(this.directory, "manifest.json"), this.manifest, active);
+		await this.writeMetadata(path.join(this.directory, "manifest.json"), this.manifest, active);
 	}
 	async diskUsage(): Promise<number> {
 		let bytes = 0, count = 0;

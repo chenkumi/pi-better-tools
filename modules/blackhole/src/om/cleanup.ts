@@ -35,6 +35,9 @@ export interface CleanupReport {
   orphaned: PendingFile[];
   /** Files whose sessionId was matched to an active session. */
   active: PendingFile[];
+  /** Unclassified files when absence could not be established. */
+  unknown?: PendingFile[];
+  scanComplete?: boolean;
 }
 
 // ── Constants ───────────────────────────────────────────────────────────────
@@ -108,7 +111,10 @@ function scanPendingFiles(agentDir: string = getAgentDir()): PendingFile[] {
  */
 function scanSessionDir(dir: string): Set<string> {
   const ids = new Set<string>();
-  if (!existsSync(dir)) return ids;
+  try { statSync(dir); } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return ids;
+    throw error;
+  }
 
   const stack: string[] = [dir];
   while (stack.length > 0) {
@@ -116,8 +122,8 @@ function scanSessionDir(dir: string): Set<string> {
     let names: string[];
     try {
       names = readdirSync(current);
-    } catch {
-      continue;
+    } catch (error) {
+      throw error; // Unreadable directories cannot establish session absence.
     }
 
     for (const name of names) {
@@ -125,8 +131,8 @@ function scanSessionDir(dir: string): Set<string> {
       let st;
       try {
         st = statSync(fullPath);
-      } catch {
-        continue;
+      } catch (error) {
+        throw error;
       }
 
       if (st.isDirectory()) {
@@ -139,9 +145,11 @@ function scanSessionDir(dir: string): Set<string> {
           const header = JSON.parse(firstLine) as Record<string, unknown>;
           if (header.type === "session" && typeof header.id === "string" && header.id.length > 0) {
             ids.add(header.id);
+          } else {
+            throw new Error("Invalid session header; cleanup scan is incomplete");
           }
-        } catch {
-          // Corrupt or unreadable file — skip
+        } catch (error) {
+          throw error;
         }
       }
     }
@@ -157,7 +165,6 @@ function scanSessionDir(dir: string): Set<string> {
 function readSettingsSessionDir(): string | undefined {
   try {
     const settingsPath = join(getAgentDir(), "settings.json");
-    if (!existsSync(settingsPath)) return undefined;
     const raw = JSON.parse(readFileSync(settingsPath, "utf-8")) as Record<string, unknown>;
     const dir = raw.sessionDir;
     if (typeof dir === "string" && dir.trim().length > 0) {
@@ -165,8 +172,8 @@ function readSettingsSessionDir(): string | undefined {
       const expanded = dir.startsWith("~") ? join(process.env.HOME ?? "/home", dir.slice(2)) : dir;
       return resolve(expanded);
     }
-  } catch {
-    // Unreadable settings — use default
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
   }
   return undefined;
 }
@@ -187,7 +194,7 @@ function findSessionDirs(): string[] {
   dirs.push(default_);
 
   const custom = readSettingsSessionDir();
-  if (custom && custom !== default_ && existsSync(custom)) {
+  if (custom && custom !== default_) {
     dirs.push(custom);
   }
 
@@ -237,13 +244,17 @@ function crossReference(pending: PendingFile[], sessionIds: Set<string>): Cleanu
  * Full pipeline: scan pending files, collect session IDs, cross-reference.
  * Returns the cleanup report.
  */
-export function analyzeOrphaned(agentDir?: string, sessionDirs?: string[]): CleanupReport {
+export function analyzeOrphaned(agentDir?: string, sessionDirs?: string[], protectedIds: string[] = []): CleanupReport {
   const pending = scanPendingFiles(agentDir);
-  if (pending.length === 0) {
-    return { all: [], orphaned: [], active: [] };
+  try {
+    const sessionIds = collectAllSessionIds(sessionDirs);
+    for (const id of protectedIds) sessionIds.add(id);
+    return { ...crossReference(pending, sessionIds), scanComplete: true, unknown: [] };
+  } catch {
+    // A failed scan is unknown, never proof that a live session disappeared.
+    const active = pending.filter(pf => protectedIds.includes(pf.sessionId));
+    return { all: pending, orphaned: [], active, unknown: pending.filter(pf => !protectedIds.includes(pf.sessionId)), scanComplete: false };
   }
-  const sessionIds = collectAllSessionIds(sessionDirs);
-  return crossReference(pending, sessionIds);
 }
 
 // ── Deletion ────────────────────────────────────────────────────────────────
@@ -320,12 +331,14 @@ export function deletePendingFiles(sessionId: string, agentDir?: string): boolea
  * Delete multiple pending files by sessionId.
  * Returns the count of successfully deleted file sets.
  */
-export function deleteOrphanedBatch(orphaned: PendingFile[], agentDir?: string): number {
+export function deleteOrphanedBatch(orphaned: PendingFile[], agentDir?: string, sessionDirs?: string[], protectedIds: string[] = []): number {
+  // The UI snapshot is not deletion authority. Recheck immediately before unlink.
+  const fresh = analyzeOrphaned(agentDir, sessionDirs, protectedIds);
+  if (!fresh.scanComplete) return 0;
+  const eligible = new Set(fresh.orphaned.map(pf => pf.sessionId));
   let count = 0;
-  for (const pf of orphaned) {
-    if (deletePendingFiles(pf.sessionId, agentDir)) {
-      count++;
-    }
+  for (const sessionId of new Set(orphaned.map(pf => pf.sessionId))) {
+    if (eligible.has(sessionId) && deletePendingFiles(sessionId, agentDir)) count++;
   }
   return count;
 }

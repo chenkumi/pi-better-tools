@@ -42,6 +42,8 @@ Model/auth/endpoint resolution 亦受 captured positive `workerAttemptTimeoutMs`
 
 保留回歸：`tests/review-recall-safety.test.ts`、`review-history-bounds.test.ts`、`review-resolution-bound.test.ts` 和 `tests/integration/review-recall-host.test.ts`；只跑最小相關分組，沒有改既知 UI fixture 造 green。
 
+Status-bar provenance（2026-10-12）：目前 `src/om/status-bar.ts` 與 `tests/status-bar.test.ts` 經獨立完整查閱及現行測試，作為明示的新本地基準接受；兩筆舊 expected hash 對應的完整內容未能取回，不能宣稱精確歷史差異或僅換行變更。`docs/adaptations.json` 保留上一 hash、immutable origin、審查與 `historicalDeltaAudit: "unavailable"`，verifier 仍嚴格核對當前 raw bytes。審查範圍與低風險 UI freshness／直接 session replacement／negative matrix 覆蓋限制見 `report/REPORT-20261012T061203580Z.md`；這不代表新產品修正或全面安全認證。
+
 根驗證：`npm run test:module -- blackhole`（保留來源 Vitest runner，並有隔離 Pi 1.1.0 native compact/persist/resume/renderer probe）、`npm run test:cross` 和 `npm run test:package`。完整 suite 有環境／上游阻礙時必須回報失敗，不跳過、不當作通過；進度與證據見 repository `plan/`。來源與適配雜湊見 `docs/sources.json` / `docs/adaptations.json`。
 
 測試分組修正：根 unit 明確使用 `--suite=unit` 排除 `tests/integration/**`；native Vitest 分組由 integration／module runner 顯式執行，單一 worker、檔案序列，保留全部案例。手動 runner 未指定 suite 仍執行全部（序列），也可用 `--suite=integration <filter>` 選取 native probes。Unit 10 秒不變；`pi-owned` 使用既有 process helper 的 30 秒程序預算／8 秒終止確認 grace，以及 45 秒 Vitest 外層收尾預算；取消或終止要求不等於 descendants 全部停止，失敗不能當作通過。不改 runtime 邏輯、信任界線或斷言。

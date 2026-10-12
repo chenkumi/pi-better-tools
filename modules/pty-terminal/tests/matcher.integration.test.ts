@@ -8,6 +8,14 @@ function harness() {
   const { sessionId } = manager.spawn('fake', [], {}, process.cwd());
   return { manager, sessionId, data: (text: string) => data(text) };
 }
+for (const location of ['prefix', 'within', 'suffix', 'cross-window'] as const) test(`actual waitFor worker searches retained ${location} without silent prefix omission`, async t => {
+  const h = harness(); t.after(() => h.manager.shutdown());
+  const text = location === 'prefix' ? '\u001b[32mREADY\u001b[0m\n' + 'x'.repeat(262144) : location === 'within' ? 'READY' + 'x'.repeat(262139) : location === 'suffix' ? 'x'.repeat(262144) + 'READY' : 'x'.repeat(5) + 'READY' + 'x'.repeat(262140);
+  h.data(text);
+  const result = await h.manager.readEx(h.sessionId, { timeoutMs: 0, waitFor: /READY/ });
+  assert.equal(result.wait, 'matched'); assert.equal(result.text, text); assert.equal(result.dropped, undefined);
+});
+
 test('actual regex worker bounds catastrophic alternation while host remains responsive', { timeout: 10000 }, async t => {
   const h = harness(); t.after(() => h.manager.shutdown());
   h.data('a'.repeat(48) + '!');

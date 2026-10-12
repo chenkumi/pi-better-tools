@@ -224,6 +224,51 @@ test("C2 recovered manifest close failure preserves diagnostic and actual writer
 	}
 });
 
+for (const fault of ["writeFile", "sync"] as const) {
+	for (const closeFails of [false, true]) {
+		test(`metadata ${fault} failure preserves close priority and prevents publish: closeFails=${closeFails}`, async (t) => {
+			const s = await setup(), lockDir = join(s.session.directory, "writer.lock");
+			const registry = (globalThis as any)[Symbol.for("pi-better-tools.subagents.live-writer-locks")] as Set<string>;
+			const before = new Set(registry), open = fs.promises.open.bind(fs.promises), rename = fs.promises.rename.bind(fs.promises);
+			const primary = new Error(`metadata ${fault} failed`), closing = new Error("metadata close failed");
+			let retainedHandle: fs.promises.FileHandle | undefined, closes = 0, published = 0;
+			t.mock.method(fs.promises, "open", async (...args: Parameters<typeof open>) => {
+				const handle = await open(...args);
+				if (String(args[0]).startsWith(join(lockDir, "owner.json.")) && String(args[0]).endsWith(".partial")) {
+					retainedHandle = handle;
+					t.mock.method(handle, fault, async () => { throw primary; });
+					const close = handle.close.bind(handle);
+					t.mock.method(handle, "close", async () => { closes++; if (closeFails) throw closing; await close(); });
+				}
+				return handle;
+			});
+			t.mock.method(fs.promises, "rename", async (from: any, to: any) => {
+				if (String(to) === join(lockDir, "owner.json")) published++;
+				return rename(from, to);
+			});
+			try {
+				const error = await s.session.acquire(ulid().toUpperCase()).then(() => assert.fail("failed metadata must reject acquisition"), error => error);
+				assert.equal(closes, 1); assert.equal(published, 0);
+				if (closeFails) {
+					assert.equal(error.cleanupUnsafe, true); assert.equal(error.cause, closing);
+					assert.match(error.message, /Metadata writer close failed/);
+					await retainedHandle!.stat(); await stat(lockDir);
+					assert.equal(registry.size, before.size + 1);
+				} else {
+					assert.equal(error, primary);
+					await assert.rejects(stat(lockDir), { code: "ENOENT" });
+					assert.equal(registry.size, before.size);
+				}
+				await assert.rejects(stat(join(s.session.directory, "writer.acquire")), { code: "ENOENT" });
+			} finally {
+				t.mock.restoreAll(); if (closeFails) await retainedHandle?.close();
+				await rm(s.temp, { recursive: true, force: true });
+				for (const nonce of registry) if (!before.has(nonce)) registry.delete(nonce);
+			}
+		});
+	}
+}
+
 for (const foreignOwner of [false, true]) {
 	test(`W1 fence cleanup failure preserves owner publish EIO and EACCES: foreign=${foreignOwner}`, async (t) => {
 		const s = await setup(), lockDir = join(s.session.directory, "writer.lock"), fence = join(s.session.directory, "writer.acquire");
@@ -290,6 +335,35 @@ test("W1 successful initialization with failed fence removal retains writer and 
 		t.mock.restoreAll(); await s.session.release(); await rm(s.temp, { recursive: true, force: true });
 		for (const nonce of registry) if (!before.has(nonce)) registry.delete(nonce);
 	}
+});
+
+test("acquisition fence preserves successful values and falsy operation/cleanup failures", async (t) => {
+	const s = await setup(), fence = join(s.session.directory, "writer.acquire");
+	const rmdir = fs.promises.rmdir.bind(fs.promises);
+	let cleanupFails = false;
+	t.mock.method(fs.promises, "rmdir", async (...args: Parameters<typeof rmdir>) => {
+		if (cleanupFails && String(args[0]) === fence) throw undefined;
+		return rmdir(...args);
+	});
+	// Exercise generic arbitration without publishing a writer or changing the public API.
+	const run = (operation: () => Promise<unknown>) => (s.session as any).acquisitionFence(operation);
+	try {
+		for (const value of [undefined, { literal: "same object" }]) assert.equal(await run(async () => value), value);
+		for (const primary of [undefined, null, false, 0]) {
+			for (cleanupFails of [false, true]) {
+				const result = await run(async () => { throw primary; }).then(
+					() => ({ failed: false, error: undefined }), (error: any) => ({ failed: true, error }));
+				assert.equal(result.failed, true);
+				if (cleanupFails) {
+					assert.ok(result.error instanceof AggregateError);
+					assert.deepEqual(result.error.errors, [primary, undefined]); assert.equal(result.error.cleanupUnsafe, true);
+					await stat(fence); await rm(fence, { recursive: true });
+				} else {
+					assert.equal(result.error, primary); await assert.rejects(stat(fence), { code: "ENOENT" });
+				}
+			}
+		}
+	} finally { t.mock.restoreAll(); await rm(s.temp, { recursive: true, force: true }); }
 });
 
 test("R6 orphan election fence blocks both fresh writer and query creation", async () => {

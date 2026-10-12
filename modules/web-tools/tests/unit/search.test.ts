@@ -1,7 +1,31 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { defaults } from '../../src/config.ts';
-import { search } from '../../src/search.ts';
+import { search, cleanSearchField } from '../../src/search.ts';
+test('linear snippet scanner preserves tag/control/unclosed semantics and bounds work', (t) => {
+  for (const text of ['plain', '<b>a</b> <i>b</i>', 'a<<<b>c<tail', '<open', '<>x', 'a\u0000b\u0009c\u007fd', '😀<b>中文</b>']) {
+    for (const cap of [0, 1, 5, 1500]) assert.equal(cleanSearchField(text, cap), text.replace(/<[^>]*>/g, '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').slice(0, cap));
+  }
+  const input = '<'.repeat(1024 * 1024);
+  const original = String.prototype.indexOf; let searches = 0;
+  t.mock.method(String.prototype, 'indexOf', function(this: string, needle: string, from?: number) {
+    if (this === input || String(this) === input) searches++;
+    return original.call(this, needle, from);
+  });
+  assert.equal(cleanSearchField(input, 1500), '<'.repeat(1500));
+  assert.equal(searches, 1, 'an unmatched tag suffix is searched once, not once per opening angle');
+  assert.equal(cleanSearchField('<' + 'x'.repeat(1024 * 1024) + '>tail', 1500), 'tail');
+});
+
+test('Brave and Exa tolerate large unmatched tag snippets', async () => {
+  for (const provider of ['brave', 'exa'] as const) {
+    const c = config(); c.provider = provider;
+    const item = { url: 'https://example.com', description: '<'.repeat(65536), highlights: ['<'.repeat(65536)] };
+    const result = await search(c, { query: 'topic' }, undefined, async () => json(provider === 'brave' ? { web: { results: [item] } } : { results: [item] }));
+    assert.ok(result.results[0]);
+    assert.equal(result.results[0].snippet, '<'.repeat(1500));
+  }
+});
 const config = () => { const c = defaults(); c.provider = 'brave'; c.providers.brave = { apiKey: 'SECRET' }; c.providers.exa = { apiKey: 'EXASECRET' }; return c; };
 const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
 

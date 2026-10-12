@@ -50,6 +50,7 @@ pi -p --json-schema "$schema" --json-output result.json "回答問題"
 zod 無法忠實驗證的內容會**在啟動時被拒絕**，避免悄悄放行錯誤資料：
 
 - `if`／`then`／`else`、`not`、`dependentRequired`／`dependentSchemas`／`dependencies`、`unevaluatedProperties`／`unevaluatedItems`、`$dynamicRef`／`$anchor`、外部 `$ref`。
+- 本地 `$ref` 僅接受 `#`、直接 `#/$defs/<name>` 或 `#/definitions/<name>`。深層 pointer（如 `#/$defs/W/properties/amount`）、非 definition pointer 與 trailing slash 均在初始化拒絕：目前 converter 無法忠實處理，不能默默驗成整個 definition。請將目標抽為獨立 definition 或 inline；此限制同時涵蓋同步、worker 與 prose／extraction fallback。
 - 陣列形式的 `items`（draft-07 tuple）會逐元素稽核，同樣套用以上規則。
 - 沒有 `type`（也沒有 `$ref`／`enum`／`const`）卻帶型別專屬約束的子 schema，例如 `allOf: [{type:"string"}, {minLength:3}]` 的第二項；zod 會忽略這類約束，請補上 `type`。
 - `$ref` 與同層 `type`／bounds／組合／`enum`／`const` 驗證關鍵字共存時拒絕（包含 draft-2020-12 與 draft-07），不默默套用另一 draft 的 sibling 語意。需要交集限制時請明確改寫為 `allOf: [{$ref:"#/$defs/s"}, {type:"string", minLength:3}]`；annotation-only siblings 保留。

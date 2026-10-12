@@ -13,7 +13,7 @@ const tsx = import.meta.resolve('tsx');
 const testFiles = (dir, keep) => readdirSync(join(root, dir)).filter(name => /\.test\.(ts|mjs)$/.test(name) && keep(name)).sort().map(name => `${dir}/${name}`);
 const isIntegration = name => name.includes('.integration.');
 // Unit files use isolated temp dirs and separate processes. Subagent fault-injection files stay serial:
-// concurrent Windows disk/process load can exhaust their 300ms I/O setup budget before the injected fault.
+// process-global fault mocks and actual resource barriers must not overlap; targeted deadlines start at injected entry.
 const directTests = (label, dir, keep, extra = {}) => {
   // An empty list would make `node --test` scan its default directories and silently run something else.
   const files = testFiles(dir, keep);
@@ -34,15 +34,16 @@ const groups = {
     ...['shell-tools', 'web-tools', 'pty-terminal', 'subagents'].map(m => ({ label: `${m}:typecheck`, args: ['node_modules/typescript/bin/tsc', '-p', `modules/${m}/tsconfig.json`] })),
     { label: 'monitor:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/monitor/tsconfig.json'] },
     { label: 'pi-runtime:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/pi-runtime/tsconfig.json'] },
+    { label: 'skill-tools:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/skill-tools/tsconfig.json'] },
     { label: 'note-tools:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/note-tools/tsconfig.json'] },
     { label: 'gpt-speed:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/gpt-speed/tsconfig.json'] },
     { label: 'schedule-prompt:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/schedule-prompt/tsconfig.json'] },
     { label: 'json-schema:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/json-schema/tsconfig.json'] },
     { label: 'blackhole:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/blackhole/tsconfig.json'] }],
   // Scan test directories (not hard-coded lists) so a new *.test.ts is never silently skipped; *.test.mjs there are real-host integration tests.
-  unit: [directTests('all-modules:test-tooling', 'tests/unit', () => true), directTests('monitor:test', 'modules/monitor/tests', name => !isIntegration(name)), directTests('pi-runtime:test', 'modules/pi-runtime/tests', name => !isIntegration(name)), ...sourceTests, ...[['note-tools', 'modules/note-tools/tests'], ['gpt-speed', 'modules/gpt-speed/tests'], ['json-schema', 'modules/json-schema/tests']]
+  unit: [directTests('skill-tools:test', 'modules/skill-tools/tests', name => !isIntegration(name)), directTests('all-modules:test-tooling', 'tests/unit', () => true), directTests('monitor:test', 'modules/monitor/tests', name => !isIntegration(name)), directTests('pi-runtime:test', 'modules/pi-runtime/tests', name => !isIntegration(name)), ...sourceTests, ...[['note-tools', 'modules/note-tools/tests'], ['gpt-speed', 'modules/gpt-speed/tests'], ['json-schema', 'modules/json-schema/tests']]
     .map(([module, dir]) => directTests(`${module}:test`, dir, name => name.endsWith('.test.ts')))],
-  integration: [directTests('monitor:integration', 'modules/monitor/tests', isIntegration), directTests('pi-runtime:real-host', 'modules/pi-runtime/tests', isIntegration), directTests('pty-terminal:test:integration', 'modules/pty-terminal/tests', isIntegration),
+  integration: [directTests('skill-tools:real-host', 'modules/skill-tools/tests', isIntegration), directTests('monitor:integration', 'modules/monitor/tests', isIntegration), directTests('pi-runtime:real-host', 'modules/pi-runtime/tests', isIntegration), directTests('pty-terminal:test:integration', 'modules/pty-terminal/tests', isIntegration),
     directTests('json-schema:workers', 'modules/json-schema/tests', isIntegration),
     // Real-host regressions for reported defects (todo cases document known limits and do not fail the stage).
     directTests('gpt-speed:real-host', 'modules/gpt-speed/tests', isIntegration),

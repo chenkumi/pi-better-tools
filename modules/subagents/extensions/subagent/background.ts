@@ -1,5 +1,7 @@
 import { ulid } from "ulid";
 import type { SubagentWidgetRow } from "./live-widget.ts";
+import { panelUsage, safeJobText, usageDetails, type PanelJob, type PanelUsage } from "../../../shell-tools/src/job-view.js";
+export interface TaskPresentation { activity: string; usage?: PanelUsage; usageReported: boolean }
 import type { RecoverySnapshot, RecoveryWriter } from "../../../shell-tools/src/recovery.js";
 import { copyResultSummary, resultSummary } from "./result.ts";
 import type { RpcInteraction, ControlReceipt, QueryReceipt, InteractionNotice } from "./rpc.ts";
@@ -34,6 +36,8 @@ interface Job extends BackgroundReceipt {
 	interactive: Map<number, RpcInteraction>;
 	/** UI-only titles: deliberately absent from receipts/model/structured content. */
 	widgetTitles: string[];
+	widgetProgress: Array<TaskPresentation | undefined>;
+	widgetStartedAt: number;
 	recovery?: RecoveryWriter;
 	/** Ready-session query has its own job but never claims a main-task result. */
 	readonlyQueryId?: string;
@@ -163,6 +167,48 @@ export class BackgroundJobs {
 			return rows.length ? rows : [{ jobId: job.jobId, status: "finalizing" as const, cancelRequested: job.cancelRequested }];
 		});
 	}
+	/** Owned retained metadata only, grouped by job. No output/prompt/query answers or execution handles escape. */
+	panelJobs(owner: string, cwd: string): PanelJob[] {
+		if (this.closed) return [];
+		return [...this.jobs.values()].filter(job => job.owner === owner && job.cwd === cwd && job.generation === this.generation).map(job => {
+			const active = job.status === "queued" || job.status === "running";
+			const running = job.tasks.filter(t => t.status === "running").length, queued = job.tasks.filter(t => t.status === "queued").length;
+			const finalizing = active && !queued && (!running || job.tasks.every((t, i) => t.status !== "running" || job.interactive.get(i)?.isRunning === false));
+			const state = active && job.cancelRequested ? "cancelling" : finalizing ? "finalizing" : job.status;
+			const usage: PanelUsage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: 0 };
+			let reported = 0;
+			const details: string[] = [];
+			for (const [index, task] of job.tasks.entries()) {
+				const result = isPlainRecord(task.result) ? task.result : {}, progress = job.widgetProgress[index];
+				// Query usage is independent. Never add live query usage to its main task.
+				let queries = job.interactive.get(index)?.snapshot().queries ?? task.queries ?? [];
+				if (job.readonlyQueryId && active) { const q = this.provisionalReadyQuery(job, queries[0]); queries = q ? [q] : []; }
+				const query = job.readonlyQueryId ? queries.find(q => q.queryId === job.readonlyQueryId) : undefined;
+				const finalUsage = panelUsage(result.usage);
+				// A positive final total proves observed use even if a logging failure prevented the last UI event.
+				// Reported zero needs the runner's private evidence; initialization zero must stay unknown.
+				const value = query ? panelUsage(query.usage) : finalUsage && (finalUsage.totalTokens > 0 || progress?.usageReported) ? finalUsage : progress?.usageReported ? panelUsage(progress.usage) : undefined;
+				if (value) { reported++; for (const key of Object.keys(usage) as (keyof PanelUsage)[]) usage[key] += value[key]; }
+				details.push(`Task ${index + 1}: ${safeJobText(task.agent, 256)} · ${task.status} · ${safeJobText(job.widgetTitles[index] ?? "", 256)}`,
+					`Task ID: ${safeJobText(task.taskId)} · Session ID: ${safeJobText(task.subagentSessionId ?? "pending")}`,
+					`Activity: ${safeJobText(progress?.activity ?? (task.status === "queued" ? "Queued" : task.status))}`,
+					usageDetails(value));
+				const log = typeof result.logPath === "string" ? result.logPath : task.liveLogPath;
+				if (log) details.push(`Log: ${safeJobText(log)}`);
+				if (typeof result.model === "string") details.push(`Model: ${safeJobText(result.model, 256)}`);
+				if (task.finalLogPath) details.push(`Future final log path (not confirmed): ${safeJobText(task.finalLogPath)}`);
+				if (typeof result.exitCode === "number") details.push(`Exit code: ${result.exitCode}`);
+				if (typeof result.errorCode === "string") details.push(`Reason code: ${safeJobText(result.errorCode, 256)}`);
+				for (const q of queries.slice(0, 32)) details.push(`Independent query ${safeJobText(q.queryId, 256)} · ${q.status}${q.cleanupPending ? " · cleanup pending" : ""}${q.usageUnknown ? " · usage unknown" : ""} · ${usageDetails(panelUsage(q.usage))}`);
+			}
+			let activity = state === "cancelling" ? `Cancel requested · ${finalizing ? "finalizing · " : ""}awaiting settlement` : state === "finalizing" ? "Finalizing · finishing cleanup" : !active ? job.status : job.tasks.length > 1 ? `${running} running / ${queued} queued / ${job.tasks.length - running - queued} finished` : job.widgetProgress[0]?.activity ?? (queued ? "Queued" : job.readonlyQueryId ? "Query running · snapshot request" : "Starting");
+			if (reported && reported < job.tasks.length) activity += " · usage partial";
+			details.unshift(`Reported task usage: ${reported}/${job.tasks.length} · ${usageDetails(reported ? usage : undefined)}`);
+			return { kind: "subagents", jobId: job.jobId, label: job.tasks.length > 1 ? `batch (${job.tasks.length} tasks)` : `${safeJobText(job.tasks[0].agent, 64)}${job.readonlyQueryId ? " (query)" : ""}`,
+				title: safeJobText(job.widgetTitles[0] ?? "", 256), state, active, activity, startedAt: job.widgetStartedAt,
+				usage: reported ? usage : undefined, usageState: reported ? "reported" : active ? "pending" : "unknown", details };
+		});
+	}
 	/** Current admission load, for actionable capacity diagnostics. */
 	load(): string {
 		const active = this.activeCount?.();
@@ -181,6 +227,20 @@ export class BackgroundJobs {
 	}
 	get epoch() { return this.generation; }
 	start() { this.closed = false; this.changed(); }
+	/** Shared ready-query arbitration: model terminal evidence is not worker/lease settlement. */
+	private provisionalReadyQuery(job: Job, source?: QueryReceipt): QueryReceipt | undefined {
+		const notice = job.readonlyQueryNotice;
+		const query: QueryReceipt | undefined = notice
+			? { ...notice, queryId: job.readonlyQueryId!, status: notice.status as QueryReceipt["status"] }
+			: source ? { ...source } : undefined;
+		if (query) {
+			query.cleanupPending = true;
+			query.cleanupEvidence = { ...(isPlainRecord(query.cleanupEvidence) ? query.cleanupEvidence : {}), originalLeaseReleased: false };
+			if (query.status === "completed") query.status = "accepted";
+			delete query.output;
+		}
+		return query;
+	}
 	private view(job: Job): BackgroundReceipt {
 		const view = structuredClone({ jobId: job.jobId, status: job.status, tasks: job.tasks.map((task, index) => {
 			const handle = job.interactive.get(index);
@@ -188,17 +248,8 @@ export class BackgroundJobs {
 			if (job.readonlyQueryId && ["queued", "running"].includes(job.status)) {
 				// RPC terminal evidence describes the model request, not worker/lease cleanup.
 				// Worker faults outrank it until settlement installs the final retained receipt.
-				const notice = job.readonlyQueryNotice;
-				const query: QueryReceipt | undefined = notice
-					? { ...notice, queryId: job.readonlyQueryId, status: notice.status as QueryReceipt["status"] }
-					: projected.queries?.[0] ? { ...projected.queries[0] } : undefined;
-				if (query) {
-					query.cleanupPending = true;
-					query.cleanupEvidence = { ...(isPlainRecord(query.cleanupEvidence) ? query.cleanupEvidence : {}), originalLeaseReleased: false };
-					if (query.status === "completed") query.status = "accepted";
-					delete query.output;
-					projected.queries = [query];
-				}
+				const query = this.provisionalReadyQuery(job, projected.queries?.[0]);
+				if (query) projected.queries = [query];
 				if (projected.status === "completed") projected.status = "running";
 				// The worker-local result cannot certify original-lease settlement.
 				delete projected.result;
@@ -294,7 +345,7 @@ export class BackgroundJobs {
 		}
 		return mode === "control" ? handle.control(text) : handle.query(text);
 	}
-	submit(owner: string, cwd: string, epoch: number, agents: string[], run: (signal: AbortSignal, taskIds: string[], live: (index: number, sessionId: string, path: string) => void, finish: (index: number, result: unknown, status: BackgroundTask["status"]) => void, attach: (index: number, handle: RpcInteraction) => void, interaction: (index: number, notice: InteractionNotice) => void) => Promise<void>, widgetTitles: readonly (string | undefined)[] = [], admission?: Promise<void>, readonlyQueryId?: string) {
+	submit(owner: string, cwd: string, epoch: number, agents: string[], run: (signal: AbortSignal, taskIds: string[], live: (index: number, sessionId: string, path: string) => void, finish: (index: number, result: unknown, status: BackgroundTask["status"]) => void, attach: (index: number, handle: RpcInteraction) => void, interaction: (index: number, notice: InteractionNotice) => void, progress: (index: number, data: TaskPresentation) => void) => Promise<void>, widgetTitles: readonly (string | undefined)[] = [], admission?: Promise<void>, readonlyQueryId?: string) {
 		if (this.closed || epoch !== this.generation) throw new Error("BACKGROUND_RUNTIME_CLOSED: owner session changed during preflight");
 		if (!agents.length || agents.length > MAX_SUBMITTED || submittedTasks + agents.length > MAX_SUBMITTED) throw new Error(`BACKGROUND_CAPACITY: Request not accepted: capacity limit reached. at most ${MAX_SUBMITTED} submitted background tasks process-wide (now ${this.load()}; this request adds ${agents.length}). Next: call subagent_status (no jobId lists your jobs) to see what is still running, subagent_cancel jobs you no longer need, or split the work into smaller batches and submit the rest after task_result completion notifications arrive.`);
 		for (const [id, job] of this.jobs) {
@@ -303,7 +354,7 @@ export class BackgroundJobs {
 		}
 		if (this.jobs.size >= MAX_RETAINED_JOBS) throw new Error(`BACKGROUND_CAPACITY: Request not accepted: capacity limit reached. retained job limit (${MAX_RETAINED_JOBS}) reached with unfinished jobs (now ${this.load()}). Next: call subagent_status to list jobs and subagent_cancel ones you no longer need, then retry.`);
 		const job: Job = { jobId: ulid().toUpperCase(), owner, cwd, generation: this.generation, status: "queued", cancelRequested: false,
-			tasks: agents.map(agent => ({ taskId: ulid().toUpperCase(), agent, status: "queued", logPending: true })), controller: new AbortController(), done: Promise.resolve(), interactive: new Map(), readonlyQueryId, widgetTitles: agents.map((_agent, index) => widgetTitles[index]?.slice(0, 256) ?? "") };
+			tasks: agents.map(agent => ({ taskId: ulid().toUpperCase(), agent, status: "queued", logPending: true })), controller: new AbortController(), done: Promise.resolve(), interactive: new Map(), readonlyQueryId, widgetTitles: agents.map((_agent, index) => widgetTitles[index]?.slice(0, 256) ?? ""), widgetProgress: [], widgetStartedAt: Date.now() };
 		if (!admission) job.recovery = this.persist?.(owner, cwd, this.snapshot(job));
 		if (readonlyQueryId) Object.assign(job.tasks[0], { queries: [{ queryId: readonlyQueryId, status: "accepted" }], readOnlyQuery: true, logPending: false, canMessage: false });
 		this.jobs.set(job.jobId, job);
@@ -332,7 +383,7 @@ export class BackgroundJobs {
 					if (result && typeof result === "object" && "logPath" in result && result.logPath) { delete task.liveLogPath; delete task.finalLogPath; }
 					if (result && typeof result === "object" && "subagentSessionId" in result && typeof result.subagentSessionId === "string") task.subagentSessionId = result.subagentSessionId;
 					this.record(job); this.changed(job);
-				}, (index, handle) => { if (job.readonlyQueryId) { job.tasks[index].status = "running"; job.readonlyQueryStarted = true; this.record(job); } job.interactive.set(index, handle); send("log_ready"); }, (index, notice) => {
+				}, (index, handle) => { if (job.readonlyQueryId) { job.tasks[index].status = "running"; job.readonlyQueryStarted = true; this.record(job); } job.interactive.set(index, handle); this.changed(job); send("log_ready"); }, (index, notice) => {
 					if (notice.kind === "control_result" && notice.status === "applied") this.observe(job, notice.kind, "canonical_applied", job.tasks[index].taskId);
 					if (!this.closed && job.generation === this.generation && this.jobs.get(job.jobId) === job) {
 						// After finish(), retain plain snapshots, not the child handle. Reconcile
@@ -349,6 +400,11 @@ export class BackgroundJobs {
 						job.readonlyQueryNotice = { ...notice, taskId: job.tasks[index].taskId, subagentSessionId: job.tasks[index].subagentSessionId, action: "query" };
 						if (notice.cleanupPending === true) { this.deliver(job, "query_result", admitted, job.readonlyQueryNotice); }
 					} else this.deliver(job, notice.kind, admitted, { ...notice, taskId: job.tasks[index].taskId, subagentSessionId: job.tasks[index].subagentSessionId, action: notice.kind === "query_result" ? "query" : "control" });
+					this.changed(job);
+				}, (index, data) => {
+					if (this.closed || job.generation !== this.generation || this.jobs.get(job.jobId) !== job || !["queued", "running"].includes(job.status) || !["queued", "running"].includes(job.tasks[index]?.status)) return;
+					job.widgetProgress[index] = { activity: safeJobText(data.activity, 256), usageReported: data.usageReported, usage: data.usageReported ? panelUsage(data.usage) : undefined };
+					this.changed(job);
 				});
 				for (const task of job.tasks) if (task.status === "queued") task.status = job.controller.signal.aborted ? "aborted" : "skipped";
 				job.status = job.controller.signal.aborted ? "aborted" : job.tasks.some(task => task.status !== "completed") ? "failed" : "completed";

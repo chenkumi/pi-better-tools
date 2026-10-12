@@ -177,8 +177,10 @@ export class ShellJobs {
     this.owner = ctx.sessionManager.getSessionId();
     this.currentSession = () => ctx.sessionManager.getSessionId();
     this.recovery.bind(ctx);
-    this.widget.bind(ctx, () => [...this.jobs.values()].filter(job => !this.stopped && job.owner === this.owner && job.generation === this.generation && (job.status === "running" || job.status === "cancelling"))
-      .map(job => ({ jobId: job.jobId, tool: job.tool, status: job.status as "running" | "cancelling", command: job.command.slice(0, 256) })));
+    this.widget.bind(ctx, () => [...this.jobs.values()].filter(job => !this.stopped && job.owner === this.owner && job.generation === this.generation)
+      .map(job => ({ jobId: job.jobId, tool: job.tool, status: job.status, command: job.command.slice(0, 8192), startedAt: job.startedAt, endedAt: job.endedAt,
+        totalBytes: job.totalBytes, logBytes: job.logBytes, cancelRequested: job.cancelRequested, liveLogPath: job.liveLogPath,
+        exitCode: (job.result?.structuredContent as { exit_code?: number } | undefined)?.exit_code })));
   }
 
   private assertOwner(ctx: ExtensionContext) {
@@ -287,6 +289,7 @@ export class ShellJobs {
               job.capturedBytes += captured.length;
               if (captured.length) options.onData(captured);
               if (captured.length !== data.length || logged.length !== data.length) job.outputTruncated = true;
+              this.refreshWidget(); // Existing stdout/stderr event, not polling or output parsing.
             },
           }),
         }));

@@ -14,18 +14,18 @@ function view(mode = 'tui') {
 test('registry events show queue, admitted tasks, cancellation and finalizing, then hide; titles are UI-only', async () => {
   const ui = view(), widget = new SubagentJobsWidget(ui.api), entered = deferred(), first = deferred(), last = deferred(), done = deferred();
   const jobs = new BackgroundJobs(kind => { if (kind === 'task_result') done.resolve(); }, undefined, () => widget.refresh());
-  widget.bind(ui.ctx, () => jobs.activePanel('owner', '/cwd'));
+  widget.bind(ui.ctx, () => jobs.panelJobs('owner', '/cwd'));
   try {
     const receipt = jobs.submit('owner', '/cwd', jobs.epoch, ['worker', 'reviewer'], async (_signal, _ids, live, finish) => {
       live(0, 'session', '/live.partial'); entered.resolve(); await first.promise;
       finish(0, { output: 'SENSITIVE OUTPUT' }, 'completed'); finish(1, {}, 'skipped'); await last.promise;
     }, ['Build component', 'Review output']);
     const original = JSON.stringify(receipt);
-    assert.match(ui.text(), /Subagents：2/); assert.equal(ui.text().split('\n').length, 1); assert.doesNotMatch(ui.text(), /Build component/); ui.expand();
-    assert.match(ui.text(), /2 queued/); assert.match(ui.text(), /Build component/); assert.match(ui.text(), /Review output/);
+    assert.match(ui.text(), /Jobs · 1 active.*Subagents 1/); assert.equal(ui.text().split('\n').length, 4); assert.match(ui.text(), /Build component/);
+    assert.match(ui.text(), /2 queued/); assert.match(ui.text(), /batch \(2 tasks\)/); assert.match(JSON.stringify(jobs.panelJobs('owner', '/cwd')), /Review output/);
     assert.doesNotMatch(JSON.stringify(receipt), /widgetTitles|Build component|Review output/); assert.doesNotMatch(JSON.stringify(slimReceipt(receipt)), /Build component/);
     assert.deepEqual(jobs.activePanel('other', '/cwd'), []); assert.deepEqual(jobs.activePanel('owner', '/other'), []);
-    await entered.promise; assert.match(ui.text(), /1 running.*1 queued/); jobs.cancel(receipt.jobId, 'owner', '/cwd'); assert.match(ui.text(), /cancel requested/);
+    await entered.promise; assert.match(ui.text(), /1 running \/ 1 queued/); jobs.cancel(receipt.jobId, 'owner', '/cwd'); assert.match(ui.text(), /Cancel requested/);
     first.resolve(); await Promise.resolve(); await Promise.resolve(); assert.match(ui.text(), /finalizing/); assert.doesNotMatch(ui.text(), /SENSITIVE OUTPUT/);
     assert.equal(JSON.stringify(receipt), original, 'returned receipt remains detached');
     last.resolve(); await done.promise; assert.equal(ui.widgets.has(SUBAGENT_WIDGET_KEY), false);
@@ -33,10 +33,10 @@ test('registry events show queue, admitted tasks, cancellation and finalizing, t
 });
 test('shutdown/epoch checks suppress old late callbacks while replacement panel remains live', async () => {
   const ui = view(), widget = new SubagentJobsWidget(ui.api), entered = deferred(), release = deferred(), freshRelease = deferred(), freshEntered = deferred();
-  const jobs = new BackgroundJobs(() => {}, undefined, () => widget.refresh()); widget.bind(ui.ctx, () => jobs.activePanel('owner', '/cwd'));
+  const jobs = new BackgroundJobs(() => {}, undefined, () => widget.refresh()); widget.bind(ui.ctx, () => jobs.panelJobs('owner', '/cwd'));
   jobs.submit('owner', '/cwd', jobs.epoch, ['worker'], async (_signal, _ids, live, finish) => { entered.resolve(); await release.promise; live(0, 'old', '/old.partial'); finish(0, {}, 'completed'); });
   await entered.promise; const closing = jobs.shutdown(0); assert.equal(ui.widgets.has(SUBAGENT_WIDGET_KEY), false); await closing; jobs.start();
-  jobs.submit('owner', '/cwd', jobs.epoch, ['reviewer'], async () => { freshEntered.resolve(); await freshRelease.promise; }); await freshEntered.promise; ui.expand();
+  jobs.submit('owner', '/cwd', jobs.epoch, ['reviewer'], async () => { freshEntered.resolve(); await freshRelease.promise; }); await freshEntered.promise;
   const before = ui.calls.length; release.resolve(); await Promise.resolve(); await Promise.resolve();
   assert.equal(ui.calls.length, before); assert.match(ui.text(), /reviewer/); assert.doesNotMatch(ui.text(), /worker/);
   freshRelease.resolve(); widget.clear(); await jobs.shutdown();
@@ -68,6 +68,6 @@ test('running tasks have display priority; bounded, safe, full-width layout neve
     assert.equal(visibleWidth(line), width); assert.doesNotMatch(plain(line), /[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/);
     for (const reset of line.matchAll(/\x1b\[(?:0)?m/g)) assert.ok(line.startsWith(theme.getBgAnsi(), reset.index! + reset[0].length));
   }
-  const text = plain(component.render(80).join('\n')); assert.match(text, /8 running.*24 queued/); assert.match(text, /24 more/); assert.match(text, /active-agent/); assert.doesNotMatch(text, /queued-agent/);
-  assert.ok(component.render(80).length <= 10); assert.equal(JSON.stringify(rows), before);
+  const text = plain(component.render(80).join('\n')); assert.match(text, /32 active/); assert.match(text, /More… \(\+27 active\)/); assert.match(text, /active-agent/); assert.doesNotMatch(text, /queued-agent/);
+  assert.equal(component.render(80).length, 12); assert.equal(JSON.stringify(rows), before);
 });

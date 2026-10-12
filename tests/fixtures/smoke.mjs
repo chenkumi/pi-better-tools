@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'u
 const expectedExtensions = manifest.pi.extensions.length;
 assert.ok(manifest.pi.extensions.includes('./modules/note-tools/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/pi-runtime/src/index.ts'));
-assert.equal(expectedExtensions, 14, 'twelve local entries plus two pinned dependency entries');
+assert.equal(expectedExtensions, 15, 'thirteen local entries plus two pinned dependency entries');
 assert.ok(manifest.pi.extensions.includes('./modules/monitor/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/schedule-prompt/src/index.ts'));
 assert.ok(!manifest.pi.extensions.some(entry => entry.includes('/goal/')));
@@ -19,7 +19,7 @@ const dependencyEntries = {
   '@ff-labs/pi-fff': { version: '0.11.0', entry: './src/index.ts' },
 };
 for (const entry of manifest.pi.extensions.filter(entry => entry.startsWith('./modules/'))) assert.match(entry, /^\.\/modules\/[^/]+\/src\/index\.ts$/);
-assert.equal(manifest.pi.extensions.filter(entry => entry.startsWith('./modules/')).length, 12);
+assert.equal(manifest.pi.extensions.filter(entry => entry.startsWith('./modules/')).length, 13);
 assert.ok(manifest.pi.extensions.includes('./modules/blackhole/src/index.ts'));
 assert.equal(manifest.dependencies['pi-blackhole'], undefined);
 for (const [name, expected] of Object.entries(dependencyEntries)) {
@@ -124,6 +124,14 @@ try {
     sessionManager: sdk.SessionManager.inMemory(cwd), ...(noTools ? { noTools: 'all' } : { tools: selection }),
     ...(mode === 'exclude' ? { excludeTools: ['subagent', 'bash', 'powershell', 'note', 'schedule_prompt', ...ptyNames, ...backgroundNames, ...monitorNames] } : {}) }));
   await session.bindExtensions({ mode: 'json', onError: e => errors.push(e.error) });
+  const checkSkills = () => {
+    assert.deepEqual(loader.getSkills().diagnostics, []);
+    assert.deepEqual(loader.getSkills().skills.map(skill => skill.name), ['create-plan']);
+    assert.equal(resolve(loader.getSkills().skills[0].filePath), join(packageRoot, 'modules/skill-tools/skills/create-plan/SKILL.md'));
+    assert.equal(session.systemPrompt.includes('Create or revise a software development plan'), !noTools);
+    assert.ok(!session.systemPrompt.includes('Plan Title:'), 'skill body is loaded on demand');
+  };
+  checkSkills();
   assert.ok(session.extensionRunner.getCommand('background-jobs'), 'shared presentation command is available without enabling model tools');
   // Real command contexts + request-hook composition, even with no-tools/read-only.
   const speedCommand = async name => {
@@ -265,6 +273,7 @@ try {
       assert.ok(injected.tools.some(t => t.type === 'web_search'));
     }
     await session.reload();
+    checkSkills();
     assert.equal(loader.getExtensions().extensions.length, expectedExtensions);
     assert.ok(session.extensionRunner.getCommand('background-jobs'), 'reload invalidates the old event-bus coordinator and registers a fresh command');
   }

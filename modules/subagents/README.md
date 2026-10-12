@@ -127,11 +127,13 @@ startup/resume/reload 時 bounded 核對同 owner/cwd 的 session-wide inventory
 
 ### 即時背景工作 TUI 面板
 
-原生 `setStatus()` 在 footer extension 狀態列顯示共用摘要 `▸ Subagents：N ｜ ▸ Shell：M`。Subagents 計算目前 owner／canonical cwd／runtime epoch 的 queued／running tasks（含未終結取消要求），不是 OS child 行程數。已完成 tasks 不計數；全 batch 正在 finalizing 時摘要可為0，仍可展開看 finalizing，不偽裝成執行中的 child。預設收合不掛 widget、不顯示 title／command；footer 文字不可點擊，與 Fast／其他 extension 狀態共存，排序／截短由宿主決定。以 `/background-jobs subagents` 操作，展開才在 belowEditor（輸入框下方／footer 上方）掛詳細 widget；全螢幕可點擊該 widget 的 Subagents 標籤切換，一般模式不接管終端滑鼠。省略參數／all 切換全部，collapse 全收合；不搶 editor focus。
+背景工作自動在輸入欄上方 `aboveEditor` 顯示 Jobs 面板，與 Shell **合計最多五個 job，每個兩行**，最多12行（header＋10工作行＋More／註記）。Parallel／chain 以一個 job 聚合，顯示 running／queued／finished task 數量，不把 task 數當 job 數或 OS process 數；More 詳細列 task／session ID。狀態來自相同 owner／canonical cwd／runtime epoch 的 registry；cancel requested 只表示要求，finalizing 仍等待 runner／commit／rollback／release，不偽稱 completed。生命週期與最近觀察到的活動分開：Generating reply、thinking observed、Preparing tool request、Tool running、Retrying API request；不展示 thinking／prompt／工具參數內容。
 
-展開才列 agent、queued／running、job/task ID 尾六碼及 title；Title／agent 投影先限256字元，再移除顯示控制碼與依欄寬截短，最多八列（running 優先）加 header／省略数（十行）。不顯示 task prompt、log、結果或 control/query；狀態來自既有 registry，不是 OS 監控。完成逐項移除，該區清零重設收合，所有工作終結才清除自有 footer 狀態與 widget，不移除其他 extension 狀態；取消或移除面板不能證明 provider/process tree 已停止。
+Subagent `reported … tok*` 為本次 invocation **已回報累計 usage**，不是逐 token 精確計數。詳細 metadata 有 input／output／cache read/write／total／cost，未報為 pending，終結仍無資料為 unknown；部分 tasks 未報時標 usage partial。已確認終結 result 優先於早期 snapshot；live query 用量不加入主 task，ready query 以自己的 job 顯示，query 的模型回覆不冒充 worker／lease settlement。背景用量不加到 host totals，不改任何 result/schema/accounting。
 
-共用 key `pi-better-tools-background-jobs`；刻意依賴 Shell Tools 的純 UI helper，經公開 pi.events rendezvous 分享 presentation，不分享 job registry、權限或工作操作。兩種載入順序與單模組均支援，不替換 footer／其他 widget、不啟用未選工具。僅 TUI+hasUI，RPC／JSON／print 不掛面板。事件更新，無輪詢／ticker；owner、epoch、lease／disposed pointer 與 shutdown 防護，UI 錯誤不改派發／通知，private title metadata 不進 receipt／模型內容。不列同步／其他 session/workspace 工作；等待背景工作結束後 `/reload` 載入。
+`/background-jobs` 或 `more`／`all` 開啟有界浮層；`subagents`／`shell` 篩選清單，`collapse` 明確隱藏常駐面板，之後 more／all 可恢復。↑↓ 選取、Enter 詳細、Tab 最近完成／全部、Esc 返回清單／關閉回 editor；只有主動開啟才取焦點，背景更新不重開或改草稿。Fullscreen 可點完整 More 標籤；一般模式不接管 terminal mouse。終結 jobs 移出常駐面板，More 可查看當前 retained metadata，不復原已淘汰或跨 reload job。無 active job 不占面板空間。標題／agent 顯示先有界清理 ANSI／控制碼／bidi，按 Unicode 欄寬截短不折行；窄／矮終端減少細節／行數。
+
+共用 key `pi-better-tools-background-jobs`；Shell `background-panel.ts`／`job-view.ts` 是純 presentation helper，公開 pi.events rendezvous 分享顯示、不分享 registry／權限／操作，不替換 footer／其他 widget、不啟用未選 tools。僅 TUI+hasUI，RPC／JSON／print 不掛面板，不列同步／其他 session/workspace。UI progress 由既有 child events signature 去重，無 polling／新 ticker／模型請求／log 讀取；owner、epoch、producer lease、disposed component／shutdown 防護保留，private progress／title 不進 receipt／模型內容，UI 例外不改工作結果。等待背景工作結束後 `/reload` 載入。取消或移除面板不證明 provider/process tree 已停止。
 
 ### 背景訊息與管理結果 TUI
 
@@ -171,8 +173,17 @@ RPC 啟動錯誤保留原始錯誤碼／訊息，另附英文 `Startup observati
 - Child 以 `PI_SUBAGENTS_GUARD` 接收啟動 handshake，guard 讀取後即從環境刪除，孫行程不會繼承。
 - Pi CLI 解析順序：環境變數 `PI_SUBAGENTS_PI_CLI`（指向 `cli.js` 或可執行檔）、宿主提供的 `@earendil-works/pi-coding-agent` bin、`process.argv[1]`、PATH 上的 `pi`。以 SDK 內嵌時不會再重跑宿主應用程式。
 - stdout 單筆 JSON record 上限 8 MiB；stderr diagnostics 上限 512 KiB；retained assistant 輸出預算 2 MiB；tool alias／key 帳目另限 8 MiB，不挪用輸出預算。累積 assistant 輸出超過預算時截斷並附註，不會讓成功的 run 失敗。
+- Mandatory readable log 的**單筆序列化 JSONL（含 escaping、metadata 與結尾換行）上限 1 MiB**；這與 8 MiB wire record／2 MiB retained assistant 輸出預算是不同層的防護。超過單筆 cap 會使 log／run failed，不能由較大的 wire cap 推論可接受，也不自動截短 assistant part 或 tool record。長內容請寫檔並回傳路徑；此既有拒絕政策未移除。
 - Log 寫入 I/O 另有 300 秒停滯期限。
+- 2026-10-12 writer barrier 修正：metadata temporary（owner/run/manifest）、exclusive dispatch、conversation aggregate append 及 native／aggregate rollback truncate 的 actual close 拒絕，均由 ManagedSession 保留 handle／path／原始錯誤，單調標記 unsafe；即使 IoGate pending=0 或 run-local writer 已關閉，仍拒絕 mutation／rollback／release，保留 writer.lock 與 live nonce。正常、晚到 runner 及 query preflight 共用此防線，不重試 close、不因 abandon 清除 unsafe；需確認實際資源終止後人工處理。此 process-local retention 跨 reload 保留，不是 crash 後自動復原。
+- Ready-query stdout 首次協定／8 MiB 容量故障後清空 retained buffer，後續只 drain、不再 decode 或檢查已拒絕 payload；permit／query lease 仍等 actual close／I/O 收尾，不提前釋放。
 - Writer 的實際 `FileHandle.close()` 成功才是 ownership release barrier；關閉拒絕時保留原始失敗原因與明確的 `Writer close failed` 診斷，不 rename、不 commit、不 rollback／發布 ready，也不釋放 managed writer lock。`finalize()` 仍回傳 structured log error；`abandon()` 保持 rejecting barrier，立即附拒絕 handler，即使 pending I/O 令 runner 暫時無法 await，亦不產生未處理 rejection。晚到 writer 建立／finalization 同樣遵循此規則；成功關閉與正常／晚到清理仍可釋放鎖。關閉失敗不自動 retry，磁碟 manifest 可能仍為 running／committing，但 live writer lock 仍禁止續接；故障後須確認實際資源已終止，不能因 receipt 已結束就手動刪鎖。Runner 測試 helper 現在以 owned settlement barrier 等待 actual child／I/O／late managed release／prompt cleanup，再拆自己的 root；初始化取消測試以 owner.json write event barrier 交錯，不靠固定 sleep 或 rm retries。已重現 helper teardown 重疊不等於確認所有歷史 EPERM／ENOTEMPTY 根因，也未確認產品 premature ownership release；歷史項目仍 open。
+
+### I/O 故障測試邊界
+
+`runner-io.test.ts` 保留真實 managed 配置、writer election／metadata 與實際 close／late cleanup。測試不再將全部 I/O gate override 為 300ms；僅在指定 write／sync／close／header／spool read mock 的受阻 barrier，重排同一真實 IoGate 的原 deadline callback，wall-time 為 300ms（slow write 為 2000ms）。受阻點之前與非目標操作仍用產品的 300000ms 預算；inactivity／forceKill／外層測試期限不變。
+
+這是 test-only clock compression，錯誤文字仍表示產品邏輯預算，不宣稱實際等待五分鐘。原 token／替代 token 共用取消映射，abort／completion 清除替代 timer，actual promise、pending／whenIdle 與 ownership 不被替換；clock mock 只在真正 owned cleanup 後還原。無 sleep 的 clock 單元回歸涵蓋 phase、cancel、late callback、雙 pending 與 nested scope；原故障／鎖／artifact 斷言保留。真實 native guard／checkpoint／resume 仍由其專用 store／host 分組驗證。
 
 ## 續接
 
@@ -195,6 +206,7 @@ RPC 啟動錯誤保留原始錯誤碼／訊息，另附英文 `Startup observati
 - Writer／readonly query 的 fresh mkdir 與 stale takeover 共用 `writer.acquire/` election fence；持有 fence 時才判 stale、rename、建立／publish 新 owner，避免另一 contender 把已建立的 live writer 移走。Fence 不自動 stale takeover；process crash 在此短期區段仍可能留下 fence，會 fail closed 為 SESSION_BUSY，須確認沒有實際 writer／I/O 後人工檢查，不可只因 receipt 結束刪除。不同版本的舊 runtime 不尊重此新增 fence，不保證混合版本同時存取安全。
 - Owner metadata publish 失敗時，僅在 metadata handle 實際 close 已確認、目錄身份及 nonce 未換 owner 時移除 owned 初始化鎖與 nonce registry；cleanup 失敗／foreign owner／close 未確認保留 ownership 與診斷，不盲刪 pathname。Recovered rollback 的 manifest writer 實際 close 拒絕亦保留原始 cleanupUnsafe 診斷與 writer ownership，不退化成一般 checkpoint mismatch 的 false；正常 checkpoint 不符仍拒絕復原。Query 初始化使用相同保障；真正 child/native/transcript writer cleanup barrier 不變。
 - Election fence 的 rmdir 拒絕以 AggregateError 保存主要故障與 fence cleanup 故障，明說 cleanup 未確認、writer ownership 可能仍被持有；不遮蔽原始 close／publish 原因，不自動 retry、盲刪或接管殘留 fence。即使初始化成功但 fence 移除失敗，acquire 仍拒絕並保留 writer／nonce；這不是 ownership 已釋放或可立即重試的確認。
+- 清理錯誤仲裁在 `finally` 外進行，`finally` 只等待關閉／移除並保存結果。Metadata 寫入／sync 與 close 同時失敗時，仍以含原始 close cause 的 `cleanupUnsafe` 錯誤優先，禁止 rename／publish 並保留 ownership；fence 的主故障／清理故障按原順序聚合，包含 `throw undefined/null/false/0`。Transcript finalization 使用被 await 的局部函式，原有 guard、commit／rollback／release 順序不變；不是提前或 detached cleanup。
 - 不保證副作用 exactly-once。
 
 若需要決策，child 應回報選項後正常結束，不要常駐等待。

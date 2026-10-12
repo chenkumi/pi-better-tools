@@ -336,7 +336,7 @@ export function createCronTool(
             const lines = ["Configured cron jobs:", ""];
             for (const job of jobs) {
               const status = job.enabled ? "✓" : "✗";
-              const nextRun = scheduler.getNextRun(job.id);
+              const nextRun = scheduler.getNextRun(job.id, job);
               const nextStr = nextRun ? `Next: ${nextRun.toISOString()}` : "";
               const lastStr = job.lastRun ? `Last: ${job.lastRun}` : "Never run";
 

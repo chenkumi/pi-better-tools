@@ -1,0 +1,118 @@
+{
+  "createdAt": "2026-10-12T08:31:33.684Z",
+  "failures": 0,
+  "runs": [
+    {
+      "mode": "hash",
+      "run": 0,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "--import",
+        "tsx",
+        "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-schedule-schema\\probe.mjs",
+        "hash"
+      ],
+      "exit": 0,
+      "signal": null,
+      "log": "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-schedule-schema\\hash-0.log"
+    },
+    {
+      "mode": "schedule",
+      "run": 1,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "--import",
+        "tsx",
+        "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-schedule-schema\\probe.mjs",
+        "schedule"
+      ],
+      "exit": 0,
+      "signal": null,
+      "log": "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-schedule-schema\\schedule-1.log"
+    },
+    {
+      "mode": "schedule",
+      "run": 2,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "--import",
+        "tsx",
+        "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-schedule-schema\\probe.mjs",
+        "schedule"
+      ],
+      "exit": 0,
+      "signal": null,
+      "log": "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-schedule-schema\\schedule-2.log"
+    },
+    {
+      "mode": "schedule",
+      "run": 3,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "--import",
+        "tsx",
+        "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-schedule-schema\\probe.mjs",
+        "schedule"
+      ],
+      "exit": 0,
+      "signal": null,
+      "log": "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-schedule-schema\\schedule-3.log"
+    },
+    {
+      "mode": "schema",
+      "run": 1,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "--import",
+        "tsx",
+        "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-schedule-schema\\probe.mjs",
+        "schema"
+      ],
+      "exit": 0,
+      "signal": null,
+      "log": "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-schedule-schema\\schema-1.log"
+    },
+    {
+      "mode": "schema",
+      "run": 2,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "--import",
+        "tsx",
+        "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-schedule-schema\\probe.mjs",
+        "schema"
+      ],
+      "exit": 0,
+      "signal": null,
+      "log": "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-schedule-schema\\schema-2.log"
+    },
+    {
+      "mode": "schema",
+      "run": 3,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "--import",
+        "tsx",
+        "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-schedule-schema\\probe.mjs",
+        "schema"
+      ],
+      "exit": 0,
+      "signal": null,
+      "log": "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-schedule-schema\\schema-3.log"
+    },
+    {
+      "mode": "hash",
+      "run": 4,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "--import",
+        "tsx",
+        "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-schedule-schema\\probe.mjs",
+        "hash"
+      ],
+      "exit": 0,
+      "signal": null,
+      "log": "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-schedule-schema\\hash-4.log"
+    }
+  ]
+}

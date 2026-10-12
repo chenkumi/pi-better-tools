@@ -108,7 +108,7 @@ export async function runReadyQuery(options: ReadyQueryOptions): Promise<QueryRe
       if (notice.cleanupPending === true || published) pending();
       notifyQuery();
     });
-    const decoder = new StringDecoder("utf8"); let buffer = "", stdoutFinished = false;
+    const decoder = new StringDecoder("utf8"); let buffer = "", stdoutFinished = false, stdoutFaulted = false;
     const acceptLine = (line: string) => {
       if (!line.trim()) return;
       const event = JSON.parse(line);
@@ -116,15 +116,19 @@ export async function runReadyQuery(options: ReadyQueryOptions): Promise<QueryRe
       if (event.type === "extension_ui_request") throw new Error("QUERY_STARTUP_INTERACTION: query child requires interactive configuration");
       rpc!.pipe.accept(event);
     };
-    const streamFailure = (error: unknown) => { failure ??= error instanceof Error ? error : new Error(String(error)); gate.stop(failure); terminate(); pending(); };
+    const streamFailure = (error: unknown) => { stdoutFaulted = true; buffer = ""; failure ??= error instanceof Error ? error : new Error(String(error)); gate.stop(failure); terminate(); pending(); };
     finishStdout = () => {
       if (stdoutFinished) return;
       stdoutFinished = true;
+      if (stdoutFaulted) return;
       try { buffer += decoder.end(); acceptLine(buffer); buffer = ""; }
       catch (error) { streamFailure(error); }
     };
     proc.stdout!.on("end", finishStdout);
     proc.stdout!.on("data", chunk => {
+      // Keep draining the pipe for actual close, but never decode/retain rejected
+      // stdout again. A protocol fault does not release permits or query leases.
+      if (stdoutFaulted) return;
       try {
         buffer += decoder.write(chunk);
         if (Buffer.byteLength(buffer) > 8 * 1024 * 1024) throw new Error("RPC_CAPACITY: query stdout record exceeds 8 MiB");

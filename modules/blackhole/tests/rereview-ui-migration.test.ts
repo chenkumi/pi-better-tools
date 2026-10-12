@@ -47,10 +47,15 @@ it("active X and memory command are invariant under all legacy thresholds, with 
   const ctx: any = { ui: { setStatus: status, notify }, sessionManager: { getBranch: () => [], getSessionId: () => "ui" }, model: { contextWindow: 8192 }, getContextUsage: () => ({ tokens: 2048, contextWindow: 8192, percent: 25 }), compact };
   handlers.get("session_start")!({}, ctx); await commands.get("blackhole-memory").handler("status", ctx);
   const initial = status.mock.calls.at(-1)?.[1], memory = notify.mock.calls.at(-1)?.[0];
-  expect(initial).toMatch(/Pi-owned|Pi owned/i); expect(memory).toMatch(/budget.*unknown|unknown.*budget/i); expect(memory).not.toMatch(/Compaction:.*triggers at|preset:/i);
+  // Empty memory gauges and 2048 / 8192 public context usage: one of four cells filled.
+  expect(initial).toBe("bh O ░░░░  P ░░░░  X █░░░"); expect(memory).toMatch(/budget.*unknown|unknown.*budget/i); expect(memory).not.toMatch(/Compaction:.*triggers at|preset:/i);
   Object.assign(runtime.config, { compactAfterPreset: "custom", compactAfterTokens: 1, compactAfterRatio: 0.01, compactReserveTokens: 8191 }); handlers.get("agent_end")!({}, ctx); await commands.get("blackhole-memory").handler("status", ctx);
   expect(status.mock.calls.at(-1)?.[1]).toBe(initial); expect(notify.mock.calls.at(-1)?.[0]).toBe(memory); expect(compact).not.toHaveBeenCalled();
   runtime.config.memory = false; runtime.consolidationInFlight = true; runtime.consolidationPhase = "observer"; handlers.get("turn_end")!({}, ctx);
-  expect(status.mock.calls.at(-1)?.[1]).not.toMatch(/O▕|P▕/); expect(status.mock.calls.at(-1)?.[1]).toContain("[observer]");
+  expect(status.mock.calls.at(-1)?.[1]).toMatch(/^bh X █░░░  ⠋ \[observer\]$/);
+  // Missing public usage must not fall back to the model window or legacy knobs.
+  delete ctx.getContextUsage; handlers.get("agent_end")!({}, ctx);
+  expect(status.mock.calls.at(-1)?.[1]).toMatch(/^bh X \(unknown\)  ⠋ \[observer\]$/);
+  expect(compact).not.toHaveBeenCalled();
   handlers.get("session_shutdown")!(); expect(vi.getTimerCount()).toBe(0);
 });

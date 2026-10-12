@@ -58,7 +58,9 @@ function audit(node: unknown, path: string): void {
   const reference = node.$ref;
   if (reference !== undefined) {
     if (typeof reference !== "string" || !reference.startsWith("#")) throw new Error(`only local $ref values ("#...") are supported at ${path}`);
-    if (!/^#(?:\/.*)?$/.test(reference)) throw new Error(`only JSON-pointer $ref values are supported at ${path}`);
+    if (reference !== "#" && !/^#\/(?:\$defs|definitions)\/[^/]+$/.test(reference)) {
+      throw new Error(`unsupported $ref pointer at ${path}; use "#" or a direct "$defs"/"definitions" reference (inline descendant schemas)`);
+    }
     const sibling = Object.keys(node).find(key => TYPE_SPECIFIC_KEYWORDS.has(key) || SUBSCHEMA_LIST.has(key) || ["type", "enum", "const"].includes(key));
     if (sibling) throw new Error(`$ref at ${path} has unsupported sibling "${sibling}"; use explicit-type allOf instead (draft semantics are not rewritten)`);
   }
@@ -123,7 +125,7 @@ function admitExpandedSchema(root: Record<string, unknown>): void {
       const parts = node.$ref.slice(1).split("/").filter(Boolean).map(part => part.replace(/~1/g, "/").replace(/~0/g, "~"));
       // Zod's converter resolves definition names, not arbitrary descendant pointers.
       // Match ctx.defs precedence even when the reference prefix names the other map.
-      // Count the definition it would actually parse, even for a trailing pointer suffix.
+      // Unsupported descendant pointers are rejected by audit before compilation.
       const definitions = root.$defs || root.definitions || {};
       const target = parts.length === 0 ? root : isRecord(definitions) && Object.hasOwn(definitions, parts[1]) ? definitions[parts[1]] : undefined;
       visit(target, depth + 1);

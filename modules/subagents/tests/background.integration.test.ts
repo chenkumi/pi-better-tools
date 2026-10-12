@@ -58,18 +58,18 @@ for (const mode of ["single", "parallel", "chain", "resume"] as const) {
 			const turn = new AbortController();
 			const accepted = await execute(mode === "resume" ? "subagent_message" : "subagent", mode === "resume" ? args : { ...args, background: true }, turn.signal);
 			assert.equal(accepted.isError, undefined, JSON.stringify(accepted.content));
-			assert.equal(widgets.has(SUBAGENT_WIDGET_KEY), false);
-			const summary = statuses.get(SUBAGENT_WIDGET_KEY)!;
-			assert.match(summary, /Subagents：[12]/); assert.doesNotMatch(summary, /Live panel/);
-			await commands.get('background-jobs').handler('subagents', ctx);
 			assert.equal(widgets.has(SUBAGENT_WIDGET_KEY), true);
+			assert.equal(statuses.has(SUBAGENT_WIDGET_KEY), false, 'no duplicate footer summary');
+			assert.match(panelHistory.at(-1)!, /Jobs · 1 active · Subagents 1/);
 			assert.match(panelHistory.join("\n"), new RegExp(`Live panel ${mode}`));
 			const receipt = (accepted.details as any).background; assert.equal(receipt.status, "queued");
 			assert.ok(receipt.tasks.every((task: any) => task.logPending && !task.liveLogPath && !task.finalLogPath && /^[0-9A-HJKMNP-TV-Z]{26}$/.test(task.subagentSessionId)));
 			for (const task of receipt.tasks) await stat(join(root, "managed", task.subagentSessionId, "manifest.json"));
 			assert.equal(accepted.usage, undefined); turn.abort(); // accepted jobs no longer belong to this tool turn
 			const result = await completion; await Promise.all(liveChecks);
-			assert.equal(widgets.has(SUBAGENT_WIDGET_KEY), false); assert.equal(statuses.has(SUBAGENT_WIDGET_KEY), false); assert.match(panelHistory.join("\n"), /worker · running/);
+			assert.equal(widgets.has(SUBAGENT_WIDGET_KEY), false); assert.equal(statuses.has(SUBAGENT_WIDGET_KEY), false); assert.match(panelHistory.join("\n"), mode === "parallel" || mode === "chain" ? /[12] running \/ [01] queued/ : /Generating reply/);
+			assert.match(panelHistory.join("\n"), /reported (?:12|24) tok\*/);
+			assert.doesNotMatch(JSON.stringify(result), /widgetProgress|widgetStartedAt|Generating reply/);
 			assert.ok(!("widgetTitles" in receipt)); assert.ok(receipt.tasks.every((task: any) => !("title" in task)));
 			assert.equal(result.status, "completed", JSON.stringify(result)); assert.equal(result.tasks.length, mode === "parallel" || mode === "chain" ? 2 : 1);
 			assert.deepEqual(result.tasks.map((task: any) => task.taskId), receipt.tasks.map((task: any) => task.taskId));

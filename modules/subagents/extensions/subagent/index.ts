@@ -31,13 +31,14 @@ import { type Component, Container, Markdown, Spacer, Text, truncateToWidth, vis
 import { Type } from "typebox";
 import { type AgentConfig, type AgentScope, discoverAgents } from "./agents.ts";
 import { buildManagedChildEnvironment, buildSubagentPiArgs } from "./child-args.ts";
-import { BackgroundJobs, slimJobList, slimReceipt, type BackgroundReceipt, type NotificationObservation } from "./background.ts";
+import { BackgroundJobs, slimJobList, slimReceipt, type BackgroundReceipt, type NotificationObservation, type TaskPresentation } from "./background.ts";
 import { renderBackgroundMessage, renderBackgroundResult } from "./background-renderer.ts";
 import { SubagentJobsWidget } from "./live-widget.ts";
 import { publishSubagentMonitor } from "./monitor-capability.ts";
 import { isManagedForegroundChild } from "../../../shell-tools/src/managed-child.js";
 import { BackgroundRecovery } from "../../../shell-tools/src/recovery.js";
 import { registerBackgroundLifecycleGuidance } from "../../../shell-tools/src/background-guidance.js";
+import { panelUsage, safeJobText } from "../../../shell-tools/src/job-view.js";
 import { Semaphore, killProcessTree } from "./concurrency.ts";
 import { selectDispatchDefaults } from "./model-selection.ts";
 import { displayTitle, isValidTitle, MAX_TITLE_LENGTH } from "./title.ts";
@@ -364,6 +365,8 @@ export interface RunnerRuntime {
 	transport?: "json" | "rpc";
 	onInteractive?: (handle: RpcInteraction) => void;
 	onInteraction?: (notice: InteractionNotice) => void;
+	/** Private payload-free UI observer, never tool output or usage accounting. */
+	onPresentation?: (progress: TaskPresentation) => void;
 	/** Internal payload-free notification diagnostics; never host delivery acknowledgment. */
 	onNotificationObservation?: (event: NotificationObservation) => void;
 	agentScope?: AgentScope;
@@ -455,6 +458,19 @@ async function runSingleAgentUnlimited(
 	let progressTimer: ReturnType<typeof setTimeout> | undefined;
 	let progressPending = false;
 	let progressClosed = false;
+	let presentationActivity = "Starting";
+	let usageReported = false;
+	let presentationSignature = "";
+	const presentationTools = new Map<string, string>();
+	let presentationToolsOmitted = false;
+	const publishPresentation = (final = false) => {
+		if (!runtime.onPresentation || progressClosed && !final) return;
+		const data: TaskPresentation = { activity: presentationActivity, usageReported, usage: usageReported ? panelUsage(currentResult.usage) : undefined };
+		const signature = JSON.stringify(data);
+		if (signature === presentationSignature) return;
+		presentationSignature = signature;
+		try { runtime.onPresentation(data); } catch { /* UI failures never alter child execution or diagnostics. */ }
+	};
 	const recordInternalError = (text: string) => {
 		internalDiagnostic = appendBoundedText(internalDiagnostic, `\n[${text}]`, MAX_RENDERED_ERROR_BYTES);
 	};
@@ -477,6 +493,7 @@ async function runSingleAgentUnlimited(
 		emitUpdateNow();
 	};
 	const requestProgressUpdate = (immediate = false) => {
+		publishPresentation(); // Event-driven, signature-deduplicated; background UI needs no progress timer.
 		if (!onUpdate || progressClosed) return;
 		progressPending = true;
 		if (immediate) flushProgress();
@@ -521,7 +538,7 @@ async function runSingleAgentUnlimited(
 		// Only canonical message usage is authoritative. Root results already include
 		// nested execution usage; execution-only fallbacks must not add it again.
 		const usage = isRecord(sourceUsage) ? emptyUsage() : undefined;
-		if (usage) { addUsage(usage, sourceUsage); addUsage(currentResult.usage, sourceUsage); }
+		if (usage) { addUsage(usage, sourceUsage); addUsage(currentResult.usage, sourceUsage); if (panelUsage(sourceUsage)) usageReported = true; }
 		await writeRecord({ type: "tool_result", timestamp: record.timestamp, callId: callAlias(taskId, record.toolCallId ?? `anonymous:${key}`), isError: record.isError === true, content: readableText(record.serialized) }, gate);
 		state.logged = true;
 		if (spool) await loggingIo(() => spool!.remove(record), "remove acknowledged fallback", gate);
@@ -540,6 +557,7 @@ async function runSingleAgentUnlimited(
 		serialized: serializeToolResultContent(content),
 		timestamp: transcriptTimestamp(message.timestamp),
 	});
+	publishPresentation();
 	try {
 		if (signal?.aborted) { wasAborted = true; throw new Error("Subagent dispatch skipped because the parent request was aborted."); }
 		if (!agent) throw new Error(`Unknown agent: "${agentName}". Available agents: ${agents.map((entry) => `"${entry.name}"`).join(", ") || "none"}.`);
@@ -735,6 +753,23 @@ async function runSingleAgentUnlimited(
 				if (event.type === "extension_ui_request") startupDiagnostics?.observeUiRequest();
 				if (rpc) { lastStdoutAt = performance.now(); activity(); }
 				validateKnownEvent(event);
+				if (runtime.onPresentation) {
+					if (event.type === "agent_start" || event.type === "message_start" && isRecord(event.message) && event.message.role === "assistant") {
+						presentationTools.clear(); presentationToolsOmitted = false; presentationActivity = "Generating reply";
+					} else if (event.type === "auto_retry_start") presentationActivity = "Retrying API request";
+					else if (event.type === "message_update" && !presentationTools.size) {
+						const update = event.assistantMessageEvent as Record<string, unknown>;
+						presentationActivity = String(update.type).startsWith("thinking_") ? "Generating reply · thinking observed" : String(update.type).startsWith("toolcall_") ? "Preparing tool request" : "Generating reply";
+					} else if (event.type === "tool_execution_start" || event.type === "tool_execution_update") {
+						if (presentationTools.size < 64 || presentationTools.has(String(event.toolCallId))) presentationTools.set(String(event.toolCallId), safeJobText(String(event.toolName), 64));
+						else presentationToolsOmitted = true;
+						presentationActivity = `Tool running: ${presentationTools.values().next().value ?? "unknown"}${presentationTools.size > 1 ? ` (+${presentationTools.size - 1})` : ""}${presentationToolsOmitted ? " · additional calls omitted" : ""}`;
+					} else if (event.type === "tool_execution_end") {
+						presentationTools.delete(String(event.toolCallId));
+						presentationActivity = presentationTools.size ? `Tool running: ${presentationTools.values().next().value}${presentationTools.size > 1 ? ` (+${presentationTools.size - 1})` : ""}` : presentationToolsOmitted ? "Tool activity · additional calls omitted" : "Tool finished · awaiting continuation";
+					} else if (event.type === "agent_settled") presentationActivity = "Finalizing · awaiting runner settlement";
+					publishPresentation();
+				}
 				// Retry START, queued work and tool continuations invalidate a prior conclusion.
 				// Pi 1.0.0 emits successful auto_retry_end AFTER the recovered message_end;
 				// it finishes recovery, so it must not erase that new terminal conclusion.
@@ -826,6 +861,7 @@ async function runSingleAgentUnlimited(
 				currentResult.usage.turns++;
 				if (isRecord(message.usage)) {
 					addUsage(currentResult.usage, message.usage);
+					if (panelUsage(message.usage)) usageReported = true;
 					currentResult.usage.contextTokens = finiteNumber(message.usage.totalTokens);
 				}
 				if (!currentResult.model && typeof message.model === "string") currentResult.model = message.model;
@@ -973,7 +1009,9 @@ async function runSingleAgentUnlimited(
 		};
 		// Already-aborted children may still finish a healthy log; new aborts interrupt finalization.
 		if (!signal?.aborted) signal?.addEventListener("abort", finalAbort, { once: true });
-		try {
+		// Keep finalization guards inside a function boundary; the existing catch
+		// still owns all failures before rollback/release arbitration below.
+		const finalizeTranscript = async () => {
 			if (io.pendingOperations > 0 || transcriptBroken) throw new Error("Sub-session logging interrupted; active I/O or failed transcript preserved");
 			if (spool) {
 				const iterator = spool.records();
@@ -1007,7 +1045,9 @@ async function runSingleAgentUnlimited(
 				currentResult.logPath = managed.logPath;
 				currentResult.canResume = true;
 			}
-		} catch (error) {
+		};
+		try { await finalizeTranscript(); }
+		catch (error) {
 			const diagnostic = `${errorToString(error)}${writer ? `; partial log: ${writer.partialPath}; final target (rename may still be pending): ${writer.finalPath}` : ""}${spool ? `; spool: ${spool.directory}` : ""}`;
 			currentResult.logError ??= diagnostic;
 			const abandonment = writer?.abandon(diagnostic);
@@ -1027,13 +1067,19 @@ async function runSingleAgentUnlimited(
 		if (managed && !currentResult.canResume && runStarted) currentResult.errorCode ??= "COMMIT_FAILED";
 		if (managed && lockHeld && writerCloseConfirmed && io.pendingOperations === 0 && finalIo.pendingOperations === 0 && cleanupIo.pendingOperations === 0 && !cleanupIo.stopped && childGone) {
 			try {
+				managed.assertWriterSafe();
 				if (!currentResult.canResume && (runStarted || integrityFailure)) {
 					const restored = await cleanupIo.run(() => managed!.blocked(currentResult.errorCode ?? "COMMIT_FAILED", { ...invocationMetadata(currentResult), stderr: appendBoundedText("", stderrDiagnostic, 32 * 1024), diagnostic: internalDiagnostic }, () => !cleanupIo.stopped, rollbackEligible), "block managed run");
 					// The failed run left no durable trace in the native/readable files: the prior verified session stays resumable.
 					if (restored) currentResult.canResume = true;
 				}
 				if (!cleanupIo.stopped && cleanupIo.pendingOperations === 0) await cleanupIo.run(() => managed!.release(), "release managed writer");
-			} catch (error) { currentResult.canResume = false; currentResult.stopReason = "error"; currentResult.errorMessage ??= errorToString(error); currentResult.logError ??= errorToString(error); }
+			} catch (error) {
+				currentResult.canResume = false; currentResult.stopReason = "error";
+				const cleanupError = errorToString(error);
+				currentResult.errorMessage ??= cleanupError;
+				if (!currentResult.logError?.includes(cleanupError)) currentResult.logError = `${currentResult.logError ? `${currentResult.logError}; ` : ""}${cleanupError}; managed writer ownership retained`;
+			}
 		}
 		// A waiting deadline is not an ownership deadline. Late cleanup is elected only after every
 		// actual native/transcript operation, iterator return, writer close and child close barrier.
@@ -1043,6 +1089,7 @@ async function runSingleAgentUnlimited(
 				await Promise.all([childExited, io.whenIdle(), finalIo.whenIdle(), cleanupIo.whenIdle(), spoolIteratorClosed]);
 				if (!managed || !lockHeld) return;
 				if (writer) { writerSettlement = writer.abandon("Interrupted transcript preserved for late writer cleanup"); await writerSettlement; }
+				managed.assertWriterSafe();
 				if (!currentResult.canResume && (runStarted || integrityFailure || managed.manifest.state === "running" || managed.manifest.state === "committing")) {
 					await managed.blocked(currentResult.errorCode ?? "COMMIT_FAILED", invocationMetadata(currentResult), () => true, false);
 				}
@@ -1096,6 +1143,7 @@ async function runSingleAgentUnlimited(
 	}
 	try { runtime.onResourceStats?.({ retainedMessageBytes: capturedMessageBytes + trackedIdentityBytes, maxStdoutRecordBytes, maxStdoutChunkBytes, maxStderrChunkBytes }); } catch { /* test observers cannot affect settlement */ }
 	retainResultSummary(currentResult, currentResult.status === "completed" ? terminalSummary || "No final assistant text was returned." : firstLineSummary(currentResult.errorMessage || (currentResult.status === "aborted" ? "Subagent was aborted." : "Subagent failed; inspect the sub-session log for diagnostics."), 512));
+	publishPresentation(true); // Final private evidence includes canonical usage even when a log write stopped progress.
 	return currentResult;
 }
 
@@ -1217,7 +1265,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 		const epoch = jobs.epoch;
 		try {
 			const cwd = await canonicalCwd(ctx.cwd), owner = ctx.sessionManager.getSessionId();
-			if (jobs.epoch === epoch) widget.bind(ctx, () => jobs.activePanel(owner, cwd));
+			if (jobs.epoch === epoch) widget.bind(ctx, () => jobs.panelJobs(owner, cwd));
 		} catch { /* Monitoring setup cannot affect dispatch/ownership. */ }
 	});
 	const managementRenderer = renderBackgroundResult;
@@ -1283,9 +1331,9 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 			const details = (results: SingleResult[], progress?: LiveProgress[]): SubagentDetails => ({ mode: "single", agentScope, projectAgentsDir: discoverAgents(dispatchCwd, agentScope).projectAgentsDir, ...(params.title ? { title: params.title.trim() } : {}), results, ...(progress ? { progress } : {}) });
 			const debugLog = runtime.debugLog ?? await preflight.run(() => readGlobalDebugLogSetting(runtime.settingsAgentDir ?? getAgentDir()), "read debug configuration");
 			if (signal?.aborted || preflight.stopped) throw new Error("Message submission aborted before acceptance");
-			const receipt = await jobs.submitManaged(owner.parentSessionId, owner.parentCwd, epoch, [config.agent.name], async () => [session.id], async (jobSignal, ids, live, finish, attach, interaction) => {
+			const receipt = await jobs.submitManaged(owner.parentSessionId, owner.parentCwd, epoch, [config.agent.name], async () => [session.id], async (jobSignal, ids, live, finish, attach, interaction, presentation) => {
 				try {
-					const result = await runSingleAgent(dispatchCwd, { modelWasExplicit: true, thinkingLevelWasExplicit: true }, [], config.agent.name, params.message, config.cwd, undefined, jobSignal, undefined, details, owner.parentSessionId, toolCallId, { ...runtime, transport: "rpc", debugLog, agentScope, projectTrusted, resumeSession: session, validateResumeConfig: validate, taskId: ids[0], onLiveLog: (id, path) => live(0, id, path), onInteractive: handle => attach(0, handle), onInteraction: notice => interaction(0, notice) }, params.title);
+					const result = await runSingleAgent(dispatchCwd, { modelWasExplicit: true, thinkingLevelWasExplicit: true }, [], config.agent.name, params.message, config.cwd, undefined, jobSignal, undefined, details, owner.parentSessionId, toolCallId, { ...runtime, transport: "rpc", debugLog, agentScope, projectTrusted, resumeSession: session, validateResumeConfig: validate, taskId: ids[0], onLiveLog: (id, path) => live(0, id, path), onInteractive: handle => attach(0, handle), onInteraction: notice => interaction(0, notice), onPresentation: data => presentation(0, data) }, params.title);
 					finish(0, backgroundResult(result), getResultStatus(result));
 				} finally { release?.(); }
 			}, [params.title], () => {
@@ -1524,13 +1572,13 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 						}
 						if (signal?.aborted) throw new Error("Background submission aborted before acceptance");
 						return sessions.map(session => session.id);
-					}, async (jobSignal, ids, live, finish, attach, interaction) => {
+					}, async (jobSignal, ids, live, finish, attach, interaction, presentation) => {
 						const siblings = new AbortController();
 						const combined = AbortSignal.any([jobSignal, siblings.signal]);
 						const run = async (index: number, previous = "") => {
 							const item = items[index];
 							try {
-								const result = await runSingleAgent(dispatchCwd, item.defaults, agents, item.agent, hasChain ? expandChainTask(item.task, previous) : item.task, item.cwd, hasChain ? index + 1 : undefined, combined, undefined, makeDetails(hasChain ? "chain" : hasTasks ? "parallel" : "single"), parentSessionId, toolCallId, { ...taskRuntime, allocatedSession: sessions[index], taskId: ids[index], onLiveLog: (id, path) => live(index, id, path), onInteractive: handle => attach(index, handle), onInteraction: notice => interaction(index, notice) }, item.title ?? params.title);
+								const result = await runSingleAgent(dispatchCwd, item.defaults, agents, item.agent, hasChain ? expandChainTask(item.task, previous) : item.task, item.cwd, hasChain ? index + 1 : undefined, combined, undefined, makeDetails(hasChain ? "chain" : hasTasks ? "parallel" : "single"), parentSessionId, toolCallId, { ...taskRuntime, allocatedSession: sessions[index], taskId: ids[index], onLiveLog: (id, path) => live(index, id, path), onInteractive: handle => attach(index, handle), onInteraction: notice => interaction(index, notice), onPresentation: data => presentation(index, data) }, item.title ?? params.title);
 								finish(index, backgroundResult(result), getResultStatus(result));
 								return result;
 							} catch (error) { siblings.abort(); throw error; }

@@ -1,0 +1,415 @@
+[
+  {
+    "name": "wsl-availability",
+    "command": [
+      "C:\\Windows\\System32\\wsl.exe",
+      "--list",
+      "--quiet"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": 0,
+    "signal": null,
+    "hardStopped": false,
+    "pid": 25676
+  },
+  {
+    "name": "wsl-node-preflight",
+    "command": [
+      "C:\\Windows\\System32\\wsl.exe",
+      "--distribution",
+      "Ubuntu",
+      "--exec",
+      "/usr/bin/env",
+      "-i",
+      "PATH=/usr/bin:/bin",
+      "HOME=/nonexistent",
+      "PI_BLACKHOLE_PASSIVE=true",
+      "/bin/sh",
+      "-c",
+      "command -v node; node --version"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": 127,
+    "signal": null,
+    "hardStopped": false,
+    "pid": 40460
+  },
+  {
+    "name": "input-blocked-0-r1",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--max-old-space-size=256",
+      "--import",
+      "file:///D:/GitHub/pi-better-tools-main/node_modules/tsx/dist/loader.mjs",
+      "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-pty-web\\probe.mjs",
+      "input",
+      "blocked",
+      "0"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": 0,
+    "signal": null,
+    "hardStopped": false,
+    "pid": 9880
+  },
+  {
+    "name": "input-drain-0-r1",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--max-old-space-size=256",
+      "--import",
+      "file:///D:/GitHub/pi-better-tools-main/node_modules/tsx/dist/loader.mjs",
+      "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-pty-web\\probe.mjs",
+      "input",
+      "drain",
+      "0"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": 0,
+    "signal": null,
+    "hardStopped": false,
+    "pid": 25720
+  },
+  {
+    "name": "input-blocked-0-r2",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--max-old-space-size=256",
+      "--import",
+      "file:///D:/GitHub/pi-better-tools-main/node_modules/tsx/dist/loader.mjs",
+      "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-pty-web\\probe.mjs",
+      "input",
+      "blocked",
+      "0"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": 0,
+    "signal": null,
+    "hardStopped": false,
+    "pid": 10708
+  },
+  {
+    "name": "input-drain-0-r2",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--max-old-space-size=256",
+      "--import",
+      "file:///D:/GitHub/pi-better-tools-main/node_modules/tsx/dist/loader.mjs",
+      "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-pty-web\\probe.mjs",
+      "input",
+      "drain",
+      "0"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": 0,
+    "signal": null,
+    "hardStopped": false,
+    "pid": 48544
+  },
+  {
+    "name": "input-blocked-0-r3",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--max-old-space-size=256",
+      "--import",
+      "file:///D:/GitHub/pi-better-tools-main/node_modules/tsx/dist/loader.mjs",
+      "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-pty-web\\probe.mjs",
+      "input",
+      "blocked",
+      "0"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": 0,
+    "signal": null,
+    "hardStopped": false,
+    "pid": 16808
+  },
+  {
+    "name": "input-drain-0-r3",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--max-old-space-size=256",
+      "--import",
+      "file:///D:/GitHub/pi-better-tools-main/node_modules/tsx/dist/loader.mjs",
+      "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-pty-web\\probe.mjs",
+      "input",
+      "drain",
+      "0"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": 0,
+    "signal": null,
+    "hardStopped": false,
+    "pid": 6272
+  },
+  {
+    "name": "wait-within-0-r1",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--max-old-space-size=256",
+      "--import",
+      "file:///D:/GitHub/pi-better-tools-main/node_modules/tsx/dist/loader.mjs",
+      "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-pty-web\\probe.mjs",
+      "wait",
+      "within",
+      "0"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": 0,
+    "signal": null,
+    "hardStopped": false,
+    "pid": 49956
+  },
+  {
+    "name": "wait-prefix-0-r1",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--max-old-space-size=256",
+      "--import",
+      "file:///D:/GitHub/pi-better-tools-main/node_modules/tsx/dist/loader.mjs",
+      "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-pty-web\\probe.mjs",
+      "wait",
+      "prefix",
+      "0"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": 0,
+    "signal": null,
+    "hardStopped": false,
+    "pid": 42248
+  },
+  {
+    "name": "wait-suffix-0-r1",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--max-old-space-size=256",
+      "--import",
+      "file:///D:/GitHub/pi-better-tools-main/node_modules/tsx/dist/loader.mjs",
+      "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-pty-web\\probe.mjs",
+      "wait",
+      "suffix",
+      "0"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": 0,
+    "signal": null,
+    "hardStopped": false,
+    "pid": 26912
+  },
+  {
+    "name": "wait-within-0-r2",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--max-old-space-size=256",
+      "--import",
+      "file:///D:/GitHub/pi-better-tools-main/node_modules/tsx/dist/loader.mjs",
+      "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-pty-web\\probe.mjs",
+      "wait",
+      "within",
+      "0"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": 0,
+    "signal": null,
+    "hardStopped": false,
+    "pid": 9772
+  },
+  {
+    "name": "wait-prefix-0-r2",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--max-old-space-size=256",
+      "--import",
+      "file:///D:/GitHub/pi-better-tools-main/node_modules/tsx/dist/loader.mjs",
+      "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-pty-web\\probe.mjs",
+      "wait",
+      "prefix",
+      "0"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": 0,
+    "signal": null,
+    "hardStopped": false,
+    "pid": 36052
+  },
+  {
+    "name": "wait-suffix-0-r2",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--max-old-space-size=256",
+      "--import",
+      "file:///D:/GitHub/pi-better-tools-main/node_modules/tsx/dist/loader.mjs",
+      "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-pty-web\\probe.mjs",
+      "wait",
+      "suffix",
+      "0"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": 0,
+    "signal": null,
+    "hardStopped": false,
+    "pid": 12736
+  },
+  {
+    "name": "wait-within-0-r3",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--max-old-space-size=256",
+      "--import",
+      "file:///D:/GitHub/pi-better-tools-main/node_modules/tsx/dist/loader.mjs",
+      "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-pty-web\\probe.mjs",
+      "wait",
+      "within",
+      "0"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": 0,
+    "signal": null,
+    "hardStopped": false,
+    "pid": 21604
+  },
+  {
+    "name": "wait-prefix-0-r3",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--max-old-space-size=256",
+      "--import",
+      "file:///D:/GitHub/pi-better-tools-main/node_modules/tsx/dist/loader.mjs",
+      "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-pty-web\\probe.mjs",
+      "wait",
+      "prefix",
+      "0"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": 0,
+    "signal": null,
+    "hardStopped": false,
+    "pid": 46892
+  },
+  {
+    "name": "wait-suffix-0-r3",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--max-old-space-size=256",
+      "--import",
+      "file:///D:/GitHub/pi-better-tools-main/node_modules/tsx/dist/loader.mjs",
+      "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-pty-web\\probe.mjs",
+      "wait",
+      "suffix",
+      "0"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": 0,
+    "signal": null,
+    "hardStopped": false,
+    "pid": 25728
+  },
+  {
+    "name": "web-control-32768-r1",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--max-old-space-size=256",
+      "--import",
+      "file:///D:/GitHub/pi-better-tools-main/node_modules/tsx/dist/loader.mjs",
+      "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-pty-web\\probe.mjs",
+      "web",
+      "control",
+      "32768"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": 0,
+    "signal": null,
+    "hardStopped": false,
+    "pid": 46736
+  },
+  {
+    "name": "web-angles-32768-r1",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--max-old-space-size=256",
+      "--import",
+      "file:///D:/GitHub/pi-better-tools-main/node_modules/tsx/dist/loader.mjs",
+      "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-pty-web\\probe.mjs",
+      "web",
+      "angles",
+      "32768"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": 0,
+    "signal": null,
+    "hardStopped": false,
+    "pid": 14788
+  },
+  {
+    "name": "web-control-65536-r1",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--max-old-space-size=256",
+      "--import",
+      "file:///D:/GitHub/pi-better-tools-main/node_modules/tsx/dist/loader.mjs",
+      "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-pty-web\\probe.mjs",
+      "web",
+      "control",
+      "65536"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": 0,
+    "signal": null,
+    "hardStopped": false,
+    "pid": 23324
+  },
+  {
+    "name": "web-angles-65536-r1",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--max-old-space-size=256",
+      "--import",
+      "file:///D:/GitHub/pi-better-tools-main/node_modules/tsx/dist/loader.mjs",
+      "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-pty-web\\probe.mjs",
+      "web",
+      "angles",
+      "65536"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": 0,
+    "signal": null,
+    "hardStopped": false,
+    "pid": 40192
+  },
+  {
+    "name": "web-control-131072-r1",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--max-old-space-size=256",
+      "--import",
+      "file:///D:/GitHub/pi-better-tools-main/node_modules/tsx/dist/loader.mjs",
+      "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-pty-web\\probe.mjs",
+      "web",
+      "control",
+      "131072"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": 0,
+    "signal": null,
+    "hardStopped": false,
+    "pid": 13424
+  },
+  {
+    "name": "web-angles-131072-r1",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "--max-old-space-size=256",
+      "--import",
+      "file:///D:/GitHub/pi-better-tools-main/node_modules/tsx/dist/loader.mjs",
+      "D:\\GitHub\\pi-better-tools-main\\plan\\review-20261012-evidence\\verify-pty-web\\probe.mjs",
+      "web",
+      "angles",
+      "131072"
+    ],
+    "cwd": "D:\\GitHub\\pi-better-tools-main",
+    "code": null,
+    "signal": "SIGKILL",
+    "hardStopped": true,
+    "pid": 30748
+  }
+]

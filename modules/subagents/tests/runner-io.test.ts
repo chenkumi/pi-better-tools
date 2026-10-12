@@ -15,6 +15,7 @@ import { IoGate, SUBAGENT_IO_TIMEOUT_MS } from "../extensions/subagent/io-gate.t
 import { SubsessionWriter, MAX_PENDING_LOG_BYTES } from "../extensions/subagent/subsession-log.ts";
 import { ToolResultSpool } from "../extensions/subagent/tool-result-spool.ts";
 import { ManagedSession } from "../extensions/subagent/session-store.ts";
+import { installIoFaultClock } from "./fixtures/runner-io-clock.ts";
 
 function deferred() {
 	let resolve!: () => void;
@@ -34,6 +35,20 @@ async function setup(t: TestContext, mode: Mode) {
 	const entered = deferred();
 	const closed = deferred();
 	const released = deferred();
+	const targets: Partial<Record<Mode, string>> = {
+		slow: "JSONL write", abort: "JSONL write", stall: "JSONL write",
+		"final-stall": "finalize sub-session log", "final-abort": "finalize sub-session log",
+		"header-abort": "create sub-session log", "close-stall": "finalize sub-session log",
+		"spool-read-stall": "read tool fallback", "spool-read-cleanup": "read tool fallback",
+		"managed-close-stall": "close abandoned managed transcript",
+	};
+	const target = targets[mode];
+	const clock = installIoFaultClock(t, target ? [target] : [], mode === "slow" ? 2000 : 300);
+	let faultEntered = false;
+	const enterFault = () => {
+		if (!faultEntered) { clock.arm(); faultEntered = true; }
+		entered.resolve();
+	};
 	let acquired = false;
 	let acquiring: Promise<void> | undefined;
 	const originalAcquire = ManagedSession.prototype.acquire;
@@ -76,7 +91,7 @@ async function setup(t: TestContext, mode: Mode) {
 			const originalClose = handle.close.bind(handle);
 			const sync = handle.sync.bind(handle);
 			t.mock.method(handle, "sync", async () => {
-				if (["final-stall", "final-abort"].includes(mode)) { entered.resolve(); await blocked.promise; }
+				if (["final-stall", "final-abort"].includes(mode)) { enterFault(); await blocked.promise; }
 				return sync();
 			});
 			t.mock.method(handle, "writeFile", async (...writeArgs: Parameters<typeof handle.writeFile>) => {
@@ -84,21 +99,21 @@ async function setup(t: TestContext, mode: Mode) {
 				const target = "tool_result";
 				if (mode === "managed-close-stall" && record.type === target) throw new Error("ENOSPC injected managed write failure");
 				if (["slow", "abort", "stall"].includes(mode) && record.type === target) {
-					entered.resolve();
+					enterFault();
 					await blocked.promise;
 				}
 				return originalWrite(...writeArgs);
 			});
 			t.mock.method(handle, "close", async () => {
 				closeCount++;
-				if (["close-stall", "managed-close-stall"].includes(mode)) { entered.resolve(); await blocked.promise; }
+				if (["close-stall", "managed-close-stall"].includes(mode)) { enterFault(); await blocked.promise; }
 				await originalClose();
 				closed.resolve();
 			});
 		} else if (["spool-read-stall", "spool-read-cleanup"].includes(mode) && String(args[0]).includes("tool-results-") && String(args[0]).endsWith(".json")) {
 			const originalRead = handle.read.bind(handle);
 			t.mock.method(handle, "read", async (...readArgs: any[]) => {
-				entered.resolve();
+				enterFault();
 				await blocked.promise;
 				if (mode === "spool-read-cleanup") await cleanupReadBlocked.promise;
 				return originalRead(...readArgs as [any, any, any, any]);
@@ -110,7 +125,7 @@ async function setup(t: TestContext, mode: Mode) {
 		const creation = (async () => {
 			if (mode === "writer-create-failure") throw new Error("EACCES injected writer creation failure");
 			writer = await originalCreate(options);
-			if (mode === "header-abort") { entered.resolve(); await blocked.promise; }
+			if (mode === "header-abort") { enterFault(); await blocked.promise; }
 			return writer;
 		})();
 		// Track even late creation after the runner's I/O gate has stopped waiting.
@@ -172,7 +187,7 @@ async function setup(t: TestContext, mode: Mode) {
 		[{ name: "worker", description: "test", source: "bundled", filePath: agentPath, systemPrompt: "test" }],
 		"worker", "I/O test", undefined, undefined, controller.signal, undefined,
 		(results, progress) => ({ mode: "single", agentScope: "user", projectAgentsDir: null, results, progress }),
-		"parent", "call", { sessionRootDir: join(root, "managed"), invocation: (args) => ({ command: "mock", args }), inactivityTimeoutMs: 100, ...(mode === "terminal-trailing" ? { settledExitGraceMs: 100 } : {}), ioTimeoutMs: ["slow", "terminal-trailing", "writer-create-failure"].includes(mode) ? 2000 : 300, forceKillDelayMs: 15 });
+		"parent", "call", { sessionRootDir: join(root, "managed"), invocation: (args) => ({ command: "mock", args }), inactivityTimeoutMs: 100, ...(mode === "terminal-trailing" ? { settledExitGraceMs: 100 } : {}), forceKillDelayMs: 15 });
 	return {
 		root, result, controller, release: blocked.resolve, signals,
 		entered: () => Promise.race([entered.promise, result.then(settled => { throw new Error(`Runner settled before injected ${mode} I/O; ${JSON.stringify(settled)}`); })]),
@@ -209,6 +224,32 @@ async function setup(t: TestContext, mode: Mode) {
 		},
 	};
 }
+
+test("fault clock leaves managed preparation at the production budget", async (t) => {
+	const realTimeout = globalThis.setTimeout;
+	const realRun = IoGate.prototype.run;
+	const scheduled: Array<{ label?: string; ms: number }> = [];
+	let activeLabel: string | undefined;
+	t.mock.method(globalThis, "setTimeout", ((callback: () => void, ms: number, ...args: any[]) => {
+		scheduled.push({ label: activeLabel, ms });
+		return realTimeout(callback, ms, ...args);
+	}) as typeof setTimeout);
+	t.mock.method(IoGate.prototype, "run", function<T>(this: IoGate, operation: () => Promise<T>, label: string) {
+		const previous = activeLabel;
+		activeLabel = label;
+		try { return realRun.call(this, operation, label) as Promise<T>; }
+		finally { activeLabel = previous; }
+	});
+	const h = await setup(t, "stall");
+	try {
+		await h.entered();
+		for (const label of ["canonical parent cwd", "snapshot configuration", "allocate managed session", "acquire managed writer", "begin managed run", "create sub-session log"]) {
+			assert.deepEqual(scheduled.filter(timer => timer.label === label).map(timer => timer.ms), [SUBAGENT_IO_TIMEOUT_MS], label);
+		}
+		assert.ok(scheduled.some(timer => timer.label === "JSONL write" && timer.ms === SUBAGENT_IO_TIMEOUT_MS));
+		assert.equal(scheduled.filter(timer => timer.label === undefined && timer.ms === 300).length, 1, "short clock starts only at the entered barrier");
+	} finally { await h.dispose(); }
+});
 
 test("production logging I/O deadline is fixed at 300 seconds", () => {
 	assert.equal(SUBAGENT_IO_TIMEOUT_MS, 300_000);

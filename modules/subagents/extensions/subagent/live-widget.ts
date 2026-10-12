@@ -1,41 +1,33 @@
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
-import { Box, truncateToWidth, type Component } from "@earendil-works/pi-tui";
-import { stripVTControlCharacters } from "node:util";
-
+import type { Component } from "@earendil-works/pi-tui";
 import { acquireBackgroundPanel, BACKGROUND_WIDGET_KEY, type BackgroundPanel, type PanelHost } from "../../../shell-tools/src/background-panel.js";
+import { renderJobs, safeJobText, type PanelJob } from "../../../shell-tools/src/job-view.js";
 export const SUBAGENT_WIDGET_KEY = BACKGROUND_WIDGET_KEY;
 export interface SubagentWidgetRow { jobId: string; taskId?: string; agent?: string; title?: string; status: "queued" | "running" | "finalizing"; cancelRequested: boolean }
-const safe = (text: string) => stripVTControlCharacters(text.slice(0, 256)).replace(/[\r\n\t]/g, " ").replace(/[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/g, "");
-
+/** Compatibility for the existing minimal active projection; production supplies richer job-level data. */
+function legacyJobs(rows: readonly SubagentWidgetRow[]): PanelJob[] {
+  const groups = new Map<string, SubagentWidgetRow[]>();
+  for (const row of rows) { const group = groups.get(row.jobId) ?? []; group.push(row); groups.set(row.jobId, group); }
+  return [...groups].map(([jobId, tasks]) => {
+    const running = tasks.filter(t => t.status === "running").length, queued = tasks.filter(t => t.status === "queued").length;
+    const state = tasks.some(t => t.cancelRequested) ? "cancelling" : running ? "running" : queued ? "queued" : "finalizing";
+    return { kind: "subagents", jobId, label: safeJobText(tasks[0].agent ?? "batch", 64), title: safeJobText(tasks[0].title ?? "", 256), state, active: true,
+      activity: state === "cancelling" ? "Cancel requested · awaiting settlement" : state === "finalizing" ? "Finalizing · finishing cleanup" : `${running} running / ${queued} queued`, usageState: "pending", details: tasks.map(t => `${safeJobText(t.agent ?? "batch", 256)} · ${t.status} · ${safeJobText(t.title ?? "", 256)}`) };
+  });
+}
 export function renderSubagentWidget(rows: readonly SubagentWidgetRow[], theme: Theme): Component {
-  return { invalidate() {}, render(width) {
-    width = Math.max(0, Math.floor(width));
-    const padding = width >= 3 ? 1 : 0, inner = width - padding * 2;
-    const running = rows.filter(row => row.status === "running").length, queued = rows.filter(row => row.status === "queued").length, finalizing = rows.filter(row => row.status === "finalizing").length;
-    const lines = [theme.fg("accent", truncateToWidth(`Background Subagents · ${running} running · ${queued} queued${finalizing ? ` · ${finalizing} finalizing` : ""}`, inner))];
-    const rank = (row: SubagentWidgetRow) => row.status === "running" ? 0 : row.status === "finalizing" ? 1 : 2;
-    const ordered = [...rows].sort((a, b) => rank(a) - rank(b));
-    for (const row of ordered.slice(0, 8)) {
-      const id = `…${safe(row.jobId).slice(-6)}${row.taskId ? `/…${safe(row.taskId).slice(-6)}` : ""}`;
-      lines.push(theme.fg(row.cancelRequested ? "warning" : "dim", truncateToWidth(`${safe(row.agent ?? "batch")} · ${row.status === "finalizing" ? "finalizing · finishing cleanup" : row.status}${row.cancelRequested ? " (cancel requested)" : ""} · ${id}${row.title ? ` · ${safe(row.title)}` : ""}`, inner)));
-    }
-    if (rows.length > 8) lines.push(theme.fg("dim", truncateToWidth(`… ${rows.length - 8} more tasks/batches (running shown first)`, inner)));
-    const bg = theme.getBgAnsi("toolPendingBg");
-    const box = new Box(padding, 0, text => theme.bg("toolPendingBg", text.replace(/\x1b\[(?:0)?m/g, reset => reset + bg)));
-    box.addChild({ render: () => lines, invalidate() {} });
-    return box.render(width);
-  } };
+  return { invalidate() {}, render: width => renderJobs(legacyJobs(rows), theme, width) };
 }
 
 /** Owner-bound, event-driven view. Never performs model/provider/tool work. */
 export class SubagentJobsWidget {
   private ctx?: ExtensionContext;
   private owner?: string;
-  private source?: () => SubagentWidgetRow[];
+  private source?: () => readonly PanelJob[] | readonly SubagentWidgetRow[];
   private token?: object;
   private panel: BackgroundPanel;
   constructor(api?: PanelHost) { this.panel = acquireBackgroundPanel(api); }
-  bind(ctx: ExtensionContext, source: () => SubagentWidgetRow[]) {
+  bind(ctx: ExtensionContext, source: () => readonly PanelJob[] | readonly SubagentWidgetRow[]) {
     this.clear();
     if (ctx.mode !== "tui" || !ctx.hasUI) return;
     try { this.owner = ctx.sessionManager.getSessionId(); this.ctx = ctx; this.source = source; this.token = this.panel.attach("subagents", ctx); }
@@ -47,8 +39,8 @@ export class SubagentJobsWidget {
     if (!ctx) return;
     try {
       if (ctx.sessionManager.getSessionId() !== this.owner) { this.clear(); return; }
-      const rows = this.source!();
-      if (this.token) this.panel.update("subagents", this.token, { count: rows.filter(row => row.status !== "finalizing").length, active: rows.length > 0, signature: JSON.stringify(rows), details: (theme, width) => renderSubagentWidget(rows, theme).render(width) });
+      const rows = this.source!(), jobs = rows.length && "kind" in rows[0] ? rows as readonly PanelJob[] : legacyJobs(rows as readonly SubagentWidgetRow[]);
+      if (this.token) this.panel.update("subagents", this.token, { jobs, signature: JSON.stringify(jobs) });
     } catch { this.clear(); /* UI failure never controls jobs. */ }
   }
   clear() {

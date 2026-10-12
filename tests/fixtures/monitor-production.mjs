@@ -22,9 +22,28 @@ const model = { ...modelRuntime.getModels()[0], id: 'offline-fixture', provider:
 const { session } = await sdk.createAgentSession({ cwd, agentDir, settingsManager: settings, sessionManager: manager, resourceLoader: loader, modelRuntime, model, tools: names });
 const errors = []; await session.bindExtensions({ mode: 'json', onError: e => errors.push(e.error) });
 const observations = [], waiters = new Map();
-session.subscribe(e => { if (e.type !== 'message_end' || e.message.customType !== 'monitor_event') return; observations.push(e.message); for (const row of e.message.details.monitors) if (row.cleanupEvidence.sourceClosed === true && !row.cleanupPending && row.state === 'completed') { waiters.get(row.monitorId)?.(); waiters.delete(row.monitorId); } });
+const settle = (row, waiter) => {
+  if (['failed', 'stopped', 'expired', 'limited'].includes(row.state)) {
+    const { monitorId, state, stopReason, cleanupPending, cleanupEvidence } = row;
+    waiter.reject(new Error(`Monitor source failed: ${JSON.stringify({ monitorId, state, stopReason, cleanupPending, cleanupEvidence })}`));
+  } else if (row.state === 'completed' && !row.cleanupPending && row.cleanupEvidence.sourceClosed === true) waiter.resolve();
+  else return false;
+  return true;
+};
+session.subscribe(e => {
+  if (e.type !== 'message_end' || e.message.customType !== 'monitor_event') return;
+  observations.push(e.message);
+  for (const row of e.message.details.monitors) {
+    const waiter = waiters.get(row.monitorId);
+    if (waiter && settle(row, waiter)) waiters.delete(row.monitorId);
+  }
+});
 const execute = async (name, args) => { const tool = session.agent.state.tools.find(t => t.name === name); assert.ok(tool); return tool.execute(`production-${name}`, args, undefined, undefined); };
-const terminal = id => observations.some(e => e.details.monitors.some(m => m.monitorId === id && m.state === 'completed' && !m.cleanupPending)) ? Promise.resolve() : new Promise(r => waiters.set(id, r));
+const terminal = id => new Promise((resolve, reject) => {
+  const row = observations.flatMap(e => e.details.monitors).findLast(m => m.monitorId === id);
+  const waiter = { resolve, reject };
+  if (!row || !settle(row, waiter)) waiters.set(id, waiter);
+});
 const server = new WebSocketServer({ host: '127.0.0.1', port: 0 }); await once(server, 'listening');
 server.on('connection', ws => { ws.send('production-', { fin: false }); ws.send('ws', { fin: true }); ws.close(1000, 'done'); });
 const heartbeat = setInterval(() => console.log('[monitor-production] Waiting for native notification/close barriers...'), 10000);

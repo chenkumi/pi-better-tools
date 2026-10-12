@@ -12,7 +12,7 @@ No script here automatically changes user settings/auth, deletes logs, removes o
 
 ## Local-source extensions and Blackhole vendoring
 
-The root pins pi-open-tui 0.3.11 and @ff-labs/pi-fff 0.11.0 as npm dependencies. Blackhole is now the local 0.5.12 snapshot in `modules/blackhole/`, replacing npm pi-blackhole 0.5.11. The manifest loads twelve local TS entries and two npm entries (fourteen total). Run `npm ci --ignore-scripts` only at the repository root; no nested install, plugin manager or automatic Pi install is introduced. Upstream nested metadata/scripts are historical; root Pi 1.1.0 remains authoritative.
+The root pins pi-open-tui 0.3.11 and @ff-labs/pi-fff 0.11.0 as npm dependencies. Blackhole is now the local 0.5.12 snapshot in `modules/blackhole/`, replacing npm pi-blackhole 0.5.11. The manifest loads thirteen local TS entries and two npm entries (fifteen total). Run `npm ci --ignore-scripts` only at the repository root; no nested install, plugin manager or automatic Pi install is introduced. Upstream nested metadata/scripts are historical; root Pi 1.1.0 remains authoritative.
 
 For an existing pi-better-tools source mount, the root manifest change is sufficient: do not add another global/project Blackhole entry. Reload/restart after current background work has settled. Existing standalone `npm:pi-blackhole`, pi-open-tui and pi-fff resources must be disabled manually if still selected. This repository does not edit real settings/auth or remove installed standalone packages.
 
@@ -66,13 +66,19 @@ Manifest adds `modules/monitor/src/index.ts` (12 local/14 total entries, five na
 
 The manifest adds `modules/pi-runtime/src/index.ts` as a native entry. Existing source mounts load it on reload/restart unless filtered out; no automatic settings/auth edits occur. Review extension filters if bounded diagnostic recovery is not desired, or use `/runtime-recovery off` for the current session/branch. Automatic recovery is limited to explicit input errors; policy/unknown failures require `/runtime-recover` and UI confirmation, not an unconditional retry. Recovery may incur model cost; state persists inside the existing session without historical backfill or replay. See the module README before changing recovery policy.
 
+## Skill Tools addition (2026-10-12)
+
+新增 `modules/skill-tools/src/index.ts`，透過原生 `resources_discover` 提供封裝在 `modules/skill-tools/skills/` 的 skills。`create-plan` 在本次明確授權下由 `~/.agents/skills/create-plan/` 原樣搬入，避免保留同名全域副本。既有 root source mount 在工作結束後 `/reload`／重啟即可；若 extension filters 使用 allowlist，加入這個入口。
+
+使用 `/skill:create-plan <需求>`；停用時排除該 extension，而非使用 package `skills: []` 或 `--no-skills`（後兩者只控制一般 discovery，不阻止 extension 提供資源）。Module 單獨可用 `pi -e ./modules/skill-tools/src/index.ts`。若需回退，先停用 extension，再將 `skills/create-plan/` 移回 `~/.agents/skills/`，不要兩份同時啟用。安裝／reload 不自動搬移 home 資料，不改 settings、auth 或 trust。
+
 ## Module/resource selection
 
 Use `pi config` or a package entry's `extensions`/`prompts` filters. Paths are relative to the integration root (`modules/...`). Tool activation/exclusions are separate from extension entry filters.
 
 ## Unified TypeScript entry points
 
-All twelve local public Pi entries now use `modules/<name>/src/index.ts`. If package resource filters or explicit `-e` paths referenced `extensions/...` or JSON Schema's root `index.ts`, update them manually to the matching new path. This repository does not rewrite personal/project settings. Exclusion filters referencing an old path no longer exclude the new entry; review filters before reload. Do not load both an old implementation entry and its new forwarding entry, as that registers tools/hooks twice.
+All thirteen local public Pi entries now use `modules/<name>/src/index.ts`. If package resource filters or explicit `-e` paths referenced `extensions/...` or JSON Schema's root `index.ts`, update them manually to the matching new path. This repository does not rewrite personal/project settings. Exclusion filters referencing an old path no longer exclude the new entry; review filters before reload. Do not load both an old implementation entry and its new forwarding entry, as that registers tools/hooks twice.
 
 No module needs a build; `/reload` or restart loads the TS sources. No persistent data or bundled-agent paths are moved.
 

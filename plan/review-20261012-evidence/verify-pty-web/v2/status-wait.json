@@ -1,0 +1,7 @@
+{
+  "state": "completed",
+  "rounds": 3,
+  "children": 9,
+  "allExitZero": true,
+  "fixturesRemoved": true
+}

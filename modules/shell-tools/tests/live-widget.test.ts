@@ -22,11 +22,11 @@ test('real registry events show both shells, retain cancel requests, remove one 
     const a = jobs.submit(view.ctx, 'bash', 'one', undefined, async signal => { entered.resolve(); await first.promise; if (signal.aborted) throw new Error('cancelled'); return result; }, 'build alpha');
     const b = jobs.submit(view.ctx, 'powershell', 'two', undefined, async () => { await second.promise; return result; }, 'build beta');
     assert.deepEqual(Object.keys(a).sort(), ['jobId', 'liveLogPath', 'status']);
-    assert.match(view.text(), /Shell：2/); assert.equal(view.text().split('\n').length, 1); assert.doesNotMatch(view.text(), /build alpha/); view.expand();
+    assert.match(view.text(), /Jobs · 2 active.*Shell 2/); assert.equal(view.text().split('\n').length, 6); assert.match(view.text(), /build alpha/); assert.match(view.text(), /tokens N\/A/);
     assert.match(view.text(), /2 active/); assert.match(view.text(), /bash.*build alpha/); assert.match(view.text(), /powershell.*build beta/);
     assert.match(view.text(), new RegExp(a.jobId.slice(-6))); assert.match(view.text(), new RegExp(b.jobId.slice(-6)));
     await entered.promise;
-    jobs.cancel(view.ctx, a.jobId); assert.match(view.text(), /cancel requested/); assert.match(view.text(), /2 active/);
+    jobs.cancel(view.ctx, a.jobId); assert.match(view.text(), /Cancel requested/); assert.match(view.text(), /2 active/);
     first.resolve(); await endedOne.promise; assert.match(view.text(), /1 active/); assert.doesNotMatch(view.text(), /build alpha/); assert.match(view.text(), /build beta/);
     second.resolve(); await endedTwo.promise; assert.equal(view.widgets.has(SHELL_WIDGET_KEY), false); assert.equal(view.widgets.has('unrelated-widget'), true);
   } finally { first.resolve(); second.resolve(); await jobs.shutdown(); }
@@ -48,7 +48,7 @@ test('throwing UI cannot fail accepted work or suppress its completion', async (
 test('UI binder is TUI-only, deduplicates snapshots and drops stale owners', () => {
   for (const mode of ['rpc', 'json', 'print']) { const view = ui(mode), widget = new ShellJobsWidget(); widget.bind(view.ctx, () => []); widget.refresh(); widget.clear(); assert.equal(view.calls.length, 0); }
   const view = ui(), widget = new ShellJobsWidget(view.api); const rows: any[] = [{ jobId: 'abc', tool: 'bash', status: 'running', command: 'x' }];
-  widget.bind(view.ctx, () => rows); assert.equal(view.widgets.has(SHELL_WIDGET_KEY), false); assert.match(view.text(), /Shell：1/); view.expand(); assert.equal(view.calls.at(-1).options.placement, 'belowEditor');
+  widget.bind(view.ctx, () => rows); assert.equal(view.widgets.has(SHELL_WIDGET_KEY), true); assert.match(view.text(), /Shell 1/); assert.equal(view.calls.at(-1).options.placement, 'aboveEditor');
   const count = view.calls.length; widget.refresh(); widget.refresh(); assert.equal(view.calls.length, count, 'no polling/redraw on identical state');
   view.owner('new-owner'); widget.refresh(); assert.equal(view.widgets.has(SHELL_WIDGET_KEY), false); widget.clear();
 });
@@ -59,7 +59,7 @@ test('bounded Unicode layout, controls, background continuity, resize and dynami
     assert.equal(visibleWidth(line), width); assert.doesNotMatch(plain(line), /[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/);
     for (const reset of line.matchAll(/\x1b\[(?:0)?m/g)) assert.ok(line.startsWith(theme.getBgAnsi(), reset.index! + reset[0].length));
   }
-  assert.ok(component.render(80).length <= 10); assert.match(plain(component.render(80).join('\n')), /12 more active/); assert.equal(JSON.stringify(rows), before);
+  assert.equal(component.render(80).length, 12); assert.match(plain(component.render(80).join('\n')), /More… \(\+15 active\)/); assert.equal(JSON.stringify(rows), before);
   let ansi = '\x1b[48;5;58m'; const dynamic = { ...theme, getBgAnsi: () => ansi, bg: (_: string, s: string) => ansi + s + '\x1b[49m' };
   const changing = renderShellWidget(rows, dynamic); changing.render(80); ansi = '\x1b[48;5;22m'; changing.invalidate(); assert.ok(changing.render(24).every(line => line.startsWith(ansi)));
 });

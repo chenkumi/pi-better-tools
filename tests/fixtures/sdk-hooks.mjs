@@ -146,13 +146,16 @@ async function fixture(options = {}) {
 async function check(name, options, action) {
   console.error(`[sdk-hooks] Checking ${name} on Pi ${expectedVersion}`);
   const f = await fixture(options);
-  let primary;
+  let primaryFailed = false, primary, cleanupFailed = false, cleanup;
   try { await action(f); }
-  catch (error) { primary = error; throw error; }
+  catch (error) { primaryFailed = true; primary = error; }
   finally {
     try { await f.close(); }
-    catch (error) { if (primary) throw new AggregateError([primary, error], `${name}: assertion and cleanup failed`); throw error; }
+    catch (error) { cleanupFailed = true; cleanup = error; }
   }
+  if (primaryFailed && cleanupFailed) throw new AggregateError([primary, cleanup], `${name}: assertion and cleanup failed`);
+  if (cleanupFailed) throw cleanup;
+  if (primaryFailed) throw primary;
   cases.push({ name, status: 'passed' });
 }
 try {

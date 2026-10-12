@@ -14,6 +14,7 @@
  * concurrent pi sessions writing to a shared file.
  */
 import {
+  copyFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -23,6 +24,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { ulid } from "ulid";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -120,15 +122,14 @@ function isEmptyState(s: PendingOMState): boolean {
  * Read pending state for a specific session from its dedicated file.
  * Returns default (empty) state if file doesn't exist or is corrupt.
  */
-function readSessionState(sessionId: string): PendingOMState {
-  const path = pendingPath(sessionId);
-  if (!existsSync(path)) return defaultState();
-
+function readSessionState(sessionId: string, forMutation = false): PendingOMState {
   try {
-    const raw = JSON.parse(readFileSync(path, "utf-8"));
+    const raw = JSON.parse(readFileSync(pendingPath(sessionId), "utf-8"));
     if (isPendingOMState(raw)) return sanitizePendingState(raw);
+    if (forMutation) throw new Error("Invalid pending OM state; refusing to overwrite it");
     return defaultState();
-  } catch {
+  } catch (error) {
+    if (forMutation && (error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
     return defaultState();
   }
 }
@@ -158,21 +159,28 @@ function writeSessionState(sessionId: string, state: PendingOMState): void {
 
   ensureDir();
 
-  // Before writing new state, rename current file to stale as backup
+  // Stage the complete replacement first: failed writes must leave the current
+  // generation readable. Save failures propagate before callers advance cursors.
+  const temporary = join(getAgentDir(), PENDING_DIR, `.pending-${ulid().toUpperCase()}.tmp`);
+  let owned = false;
   try {
-    if (existsSync(path)) {
-      renameSync(path, stalePath(sessionId));
+    try {
+      writeFileSync(temporary, `${JSON.stringify(state, null, 2)}\n`, { flag: "wx", mode: 0o600 });
+      owned = true;
+    } catch (error) {
+      // EEXIST is not our file. Other failures may have created a partial file.
+      owned = (error as NodeJS.ErrnoException)?.code !== "EEXIST";
+      throw error;
     }
-  } catch {
-    /* best-effort — stale backup is optional */
-  }
-
-  try {
-    writeFileSync(path, `${JSON.stringify(state, null, 2)}\n`);
-  } catch {
-    // Best-effort: pending state loss means consolidation may re-process
-    // the same data on the next run — safe (idempotent by design).
-    // Prevents process crash on read-only filesystems.
+    try {
+      if (existsSync(path)) copyFileSync(path, stalePath(sessionId));
+    } catch { /* backup is optional; the main generation remains intact */ }
+    renameSync(temporary, path);
+  } finally {
+    // A partial write can leave our exclusive temporary file behind.
+    if (owned) {
+      try { unlinkSync(temporary); } catch { /* never hide the save error */ }
+    }
   }
 }
 
@@ -255,7 +263,7 @@ function sanitizePendingState(raw: PendingOMState): PendingOMState {
  * result fully subsumes any previous one.
  */
 export function savePendingObservation(sessionId: string, entry: PendingObservation): void {
-  const state = readSessionState(sessionId);
+  const state = readSessionState(sessionId, true);
   state.observation = entry;
   // Append to accumulated batches for LLM context and /blackhole flush.
   // Each batch preserves per-run coverage (coversUpToId) matching the
@@ -268,7 +276,7 @@ export function savePendingObservation(sessionId: string, entry: PendingObservat
  * Save (replace) the latest reflection result for a session.
  */
 export function savePendingReflection(sessionId: string, entry: PendingReflection): void {
-  const state = readSessionState(sessionId);
+  const state = readSessionState(sessionId, true);
   state.reflection = entry;
   // Append to accumulated batches for LLM context and /blackhole flush.
   state.reflectionBatches = [...(state.reflectionBatches ?? []), entry];
@@ -281,7 +289,7 @@ export function savePendingReflection(sessionId: string, entry: PendingReflectio
  * before /blackhole flush.
  */
 export function savePendingDropped(sessionId: string, entry: PendingDropped): void {
-  const state = readSessionState(sessionId);
+  const state = readSessionState(sessionId, true);
   state.dropped = entry;
   state.droppedBatches = [...(state.droppedBatches ?? []), entry];
   writeSessionState(sessionId, state);
@@ -334,7 +342,7 @@ export function readPendingCursors(sessionId: string): PendingOMState["cursors"]
 /** Write cursors to pending state for a session (replaces existing cursors).
  *  Uses assignment (not merge) so deletions from validateCursors persist. */
 export function writePendingCursors(sessionId: string, cursors: PendingOMState["cursors"]): void {
-  const state = readSessionState(sessionId);
+  const state = readSessionState(sessionId, true);
   state.cursors = { ...cursors };
   writeSessionState(sessionId, state);
 }
@@ -354,9 +362,12 @@ export function listPendingSessions(): string[] {
       if (!file.endsWith(PENDING_SUFFIX)) continue;
       const sessionId = file.slice(0, -PENDING_SUFFIX.length);
       if (!sessionId) continue;
-      // Verify the file actually has non-empty data
-      const state = readSessionState(sessionId);
-      if (!isEmptyState(state)) sessions.push(sessionId);
+      // Read-only inventory: one unreadable/corrupt file must not hide the
+      // other valid sessions. Mutation still uses strict reads and fails closed.
+      try {
+        const state = readSessionState(sessionId, true);
+        if (!isEmptyState(state)) sessions.push(sessionId);
+      } catch { /* Not eligible for this read-only listing. */ }
     }
     return sessions;
   } catch {

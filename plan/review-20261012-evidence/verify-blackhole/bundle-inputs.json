@@ -1,0 +1,2490 @@
+{
+  "inputs": {
+    "modules/blackhole/src/om/pending.ts": {
+      "bytes": 13102,
+      "imports": [
+        {
+          "path": "node:fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/cleanup.ts": {
+      "bytes": 12135,
+      "imports": [
+        {
+          "path": "node:fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/project-trust.ts": {
+      "bytes": 1804,
+      "imports": [
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/pi-owned-settings.ts": {
+      "bytes": 1183,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/paths.ts": {
+      "bytes": 2909,
+      "imports": [
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:os",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/session.ts": {
+      "bytes": 2810,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/config.ts": {
+      "bytes": 18736,
+      "imports": [
+        {
+          "path": "node:fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:os",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/paths.ts",
+          "kind": "import-statement",
+          "original": "./paths.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/project-trust.ts",
+          "kind": "import-statement",
+          "original": "../core/project-trust.js"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/paths.ts",
+          "kind": "import-statement",
+          "original": "./paths.js"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/session.ts",
+          "kind": "import-statement",
+          "original": "./session.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/config-env.ts": {
+      "bytes": 9696,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/pi-base/config.ts",
+          "kind": "import-statement",
+          "original": "../pi-base/config.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/unified-config.ts": {
+      "bytes": 44733,
+      "imports": [
+        {
+          "path": "node:fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/core/project-trust.ts",
+          "kind": "import-statement",
+          "original": "./project-trust.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/pi-owned-settings.ts",
+          "kind": "import-statement",
+          "original": "./pi-owned-settings.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/config-env.ts",
+          "kind": "import-statement",
+          "original": "./config-env.js"
+        },
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/config.ts": {
+      "bytes": 772,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/core/unified-config.ts",
+          "kind": "import-statement",
+          "original": "../core/unified-config.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/retryable-error.ts": {
+      "bytes": 8387,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/cooldown.ts": {
+      "bytes": 8214,
+      "imports": [
+        {
+          "path": "node:fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/om/retryable-error.ts",
+          "kind": "import-statement",
+          "original": "./retryable-error.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/debug-log.ts": {
+      "bytes": 4166,
+      "imports": [
+        {
+          "path": "node:async_hooks",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:fs/promises",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/runtime.ts": {
+      "bytes": 38669,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/om/config.ts",
+          "kind": "import-statement",
+          "original": "./config.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/cooldown.ts",
+          "kind": "import-statement",
+          "original": "./cooldown.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/retryable-error.ts",
+          "kind": "import-statement",
+          "original": "./retryable-error.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/pending.ts",
+          "kind": "import-statement",
+          "original": "./pending.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/debug-log.ts",
+          "kind": "import-statement",
+          "original": "./debug-log.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/provider-skip.ts": {
+      "bytes": 2668,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/provider-stream.ts": {
+      "bytes": 19301,
+      "imports": [
+        {
+          "path": "@earendil-works/pi-ai",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/om/debug-log.ts",
+          "kind": "import-statement",
+          "original": "./debug-log.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/worker-attempt.ts": {
+      "bytes": 3208,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/model-budget.ts": {
+      "bytes": 8062,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/core/unified-config.ts",
+          "kind": "import-statement",
+          "original": "../core/unified-config.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/agents/dropper/coverage.ts": {
+      "bytes": 4485,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/agents/dropper/selection.ts": {
+      "bytes": 4373,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/om/agents/dropper/coverage.ts",
+          "kind": "import-statement",
+          "original": "./coverage.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/agents/dropper/prompts.ts": {
+      "bytes": 5146,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/agents/dropper/tool-schema.ts": {
+      "bytes": 614,
+      "imports": [
+        {
+          "path": "typebox",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/agents/observer/prompts.ts": {
+      "bytes": 13214,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/agents/observer/tool-schema.ts": {
+      "bytes": 2255,
+      "imports": [
+        {
+          "path": "typebox",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/agents/reflector/prompts.ts": {
+      "bytes": 9715,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/agents/reflector/tool-schema.ts": {
+      "bytes": 1149,
+      "imports": [
+        {
+          "path": "typebox",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/segment.ts": {
+      "bytes": 4437,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/tokens.ts": {
+      "bytes": 2885,
+      "imports": [
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/core/segment.ts",
+          "kind": "import-statement",
+          "original": "../core/segment.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/prompt-budget.ts": {
+      "bytes": 6367,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/om/agents/dropper/prompts.ts",
+          "kind": "import-statement",
+          "original": "./agents/dropper/prompts.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/agents/dropper/tool-schema.ts",
+          "kind": "import-statement",
+          "original": "./agents/dropper/tool-schema.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/agents/observer/prompts.ts",
+          "kind": "import-statement",
+          "original": "./agents/observer/prompts.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/agents/observer/tool-schema.ts",
+          "kind": "import-statement",
+          "original": "./agents/observer/tool-schema.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/agents/reflector/prompts.ts",
+          "kind": "import-statement",
+          "original": "./agents/reflector/prompts.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/agents/reflector/tool-schema.ts",
+          "kind": "import-statement",
+          "original": "./agents/reflector/tool-schema.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/model-budget.ts",
+          "kind": "import-statement",
+          "original": "./model-budget.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/tokens.ts",
+          "kind": "import-statement",
+          "original": "./tokens.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/serialize.ts": {
+      "bytes": 8551,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/ledger/types.ts": {
+      "bytes": 6806,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/ledger/fold.ts": {
+      "bytes": 4255,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/om/ledger/types.ts",
+          "kind": "import-statement",
+          "original": "./types.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/debug-log.ts",
+          "kind": "import-statement",
+          "original": "../debug-log.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/ledger/progress.ts": {
+      "bytes": 13674,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/om/tokens.ts",
+          "kind": "import-statement",
+          "original": "../tokens.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/ledger/fold.ts",
+          "kind": "import-statement",
+          "original": "./fold.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/ledger/types.ts",
+          "kind": "import-statement",
+          "original": "./types.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/ledger/render-summary.ts": {
+      "bytes": 4794,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/om/tokens.ts",
+          "kind": "import-statement",
+          "original": "../tokens.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/native-compaction-input.ts": {
+      "bytes": 3594,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/generated-summary-spans.ts": {
+      "bytes": 4584,
+      "imports": [
+        {
+          "path": "node:crypto",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/ledger/projection.ts": {
+      "bytes": 12540,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/om/ledger/render-summary.ts",
+          "kind": "import-statement",
+          "original": "./render-summary.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/native-compaction-input.ts",
+          "kind": "import-statement",
+          "original": "../../core/native-compaction-input.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/generated-summary-spans.ts",
+          "kind": "import-statement",
+          "original": "../../core/generated-summary-spans.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/ledger/types.ts",
+          "kind": "import-statement",
+          "original": "./types.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/ledger/recall.ts": {
+      "bytes": 8133,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/om/ledger/types.ts",
+          "kind": "import-statement",
+          "original": "./types.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/ledger/index.ts": {
+      "bytes": 185,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/om/ledger/types.ts",
+          "kind": "import-statement",
+          "original": "./types.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/ledger/progress.ts",
+          "kind": "import-statement",
+          "original": "./progress.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/ledger/fold.ts",
+          "kind": "import-statement",
+          "original": "./fold.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/ledger/projection.ts",
+          "kind": "import-statement",
+          "original": "./projection.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/ledger/recall.ts",
+          "kind": "import-statement",
+          "original": "./recall.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/ledger/render-summary.ts",
+          "kind": "import-statement",
+          "original": "./render-summary.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "synthetic:offline-observer": {
+      "bytes": 340,
+      "imports": [],
+      "format": "esm"
+    },
+    "synthetic:offline-reflector": {
+      "bytes": 118,
+      "imports": [],
+      "format": "esm"
+    },
+    "synthetic:offline-dropper": {
+      "bytes": 92,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/consolidation.ts": {
+      "bytes": 122366,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/core/provider-skip.ts",
+          "kind": "import-statement",
+          "original": "../core/provider-skip.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/debug-log.ts",
+          "kind": "import-statement",
+          "original": "./debug-log.js"
+        },
+        {
+          "path": "./runtime.js",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/om/provider-stream.ts",
+          "kind": "import-statement",
+          "original": "./provider-stream.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/worker-attempt.ts",
+          "kind": "import-statement",
+          "original": "./worker-attempt.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/retryable-error.ts",
+          "kind": "import-statement",
+          "original": "./retryable-error.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/model-budget.ts",
+          "kind": "import-statement",
+          "original": "./model-budget.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/agents/dropper/selection.ts",
+          "kind": "import-statement",
+          "original": "./agents/dropper/selection.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/agents/dropper/coverage.ts",
+          "kind": "import-statement",
+          "original": "./agents/dropper/coverage.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/prompt-budget.ts",
+          "kind": "import-statement",
+          "original": "./prompt-budget.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/tokens.ts",
+          "kind": "import-statement",
+          "original": "./tokens.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/serialize.ts",
+          "kind": "import-statement",
+          "original": "./serialize.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/agents/observer/prompts.ts",
+          "kind": "import-statement",
+          "original": "./agents/observer/prompts.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/pending.ts",
+          "kind": "import-statement",
+          "original": "./pending.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/unified-config.ts",
+          "kind": "import-statement",
+          "original": "../core/unified-config.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/ledger/index.ts",
+          "kind": "import-statement",
+          "original": "./ledger/index.js"
+        },
+        {
+          "path": "synthetic:offline-observer",
+          "kind": "dynamic-import",
+          "original": "./agents/observer/agent.js"
+        },
+        {
+          "path": "synthetic:offline-reflector",
+          "kind": "dynamic-import",
+          "original": "./agents/reflector/agent.js"
+        },
+        {
+          "path": "synthetic:offline-reflector",
+          "kind": "dynamic-import",
+          "original": "./agents/reflector/agent.js"
+        },
+        {
+          "path": "synthetic:offline-dropper",
+          "kind": "dynamic-import",
+          "original": "./agents/dropper/agent.js"
+        },
+        {
+          "path": "synthetic:offline-dropper",
+          "kind": "dynamic-import",
+          "original": "./agents/dropper/agent.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/tool-args.ts": {
+      "bytes": 681,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/content.ts": {
+      "bytes": 8319,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/core/segment.ts",
+          "kind": "import-statement",
+          "original": "./segment.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/tool-args.ts",
+          "kind": "import-statement",
+          "original": "./tool-args.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/sanitize.ts": {
+      "bytes": 441,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/normalize.ts": {
+      "bytes": 3655,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/core/content.ts",
+          "kind": "import-statement",
+          "original": "./content"
+        },
+        {
+          "path": "modules/blackhole/src/core/sanitize.ts",
+          "kind": "import-statement",
+          "original": "./sanitize"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/filter-noise.ts": {
+      "bytes": 1374,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/file-results.ts": {
+      "bytes": 5058,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/core/tool-args.ts",
+          "kind": "import-statement",
+          "original": "./tool-args.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/skill-collapse.ts": {
+      "bytes": 1123,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/extract/goals.ts": {
+      "bytes": 3659,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/core/content.ts",
+          "kind": "import-statement",
+          "original": "../core/content"
+        },
+        {
+          "path": "modules/blackhole/src/core/skill-collapse.ts",
+          "kind": "import-statement",
+          "original": "../core/skill-collapse"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/extract/files.ts": {
+      "bytes": 10151,
+      "imports": [
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/core/tool-args.ts",
+          "kind": "import-statement",
+          "original": "../core/tool-args"
+        },
+        {
+          "path": "modules/blackhole/src/core/file-results.ts",
+          "kind": "import-statement",
+          "original": "../core/file-results.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/extract/file-touch.ts": {
+      "bytes": 41044,
+      "imports": [
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/core/file-results.ts",
+          "kind": "import-statement",
+          "original": "../core/file-results.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/extract/preferences.ts": {
+      "bytes": 4433,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/core/content.ts",
+          "kind": "import-statement",
+          "original": "../core/content"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/extract/commits.ts": {
+      "bytes": 14601,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/brief.ts": {
+      "bytes": 14362,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/core/content.ts",
+          "kind": "import-statement",
+          "original": "./content"
+        },
+        {
+          "path": "modules/blackhole/src/core/file-results.ts",
+          "kind": "import-statement",
+          "original": "./file-results.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/tool-args.ts",
+          "kind": "import-statement",
+          "original": "./tool-args"
+        },
+        {
+          "path": "modules/blackhole/src/core/skill-collapse.ts",
+          "kind": "import-statement",
+          "original": "./skill-collapse"
+        },
+        {
+          "path": "modules/blackhole/src/core/segment.ts",
+          "kind": "import-statement",
+          "original": "./segment.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/build-sections.ts": {
+      "bytes": 11550,
+      "imports": [
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:crypto",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/core/file-results.ts",
+          "kind": "import-statement",
+          "original": "./file-results.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/tool-args.ts",
+          "kind": "import-statement",
+          "original": "./tool-args.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/normalize.ts",
+          "kind": "import-statement",
+          "original": "./normalize.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/content.ts",
+          "kind": "import-statement",
+          "original": "./content"
+        },
+        {
+          "path": "modules/blackhole/src/extract/goals.ts",
+          "kind": "import-statement",
+          "original": "../extract/goals"
+        },
+        {
+          "path": "modules/blackhole/src/extract/files.ts",
+          "kind": "import-statement",
+          "original": "../extract/files"
+        },
+        {
+          "path": "modules/blackhole/src/extract/file-touch.ts",
+          "kind": "import-statement",
+          "original": "../extract/file-touch"
+        },
+        {
+          "path": "modules/blackhole/src/extract/preferences.ts",
+          "kind": "import-statement",
+          "original": "../extract/preferences"
+        },
+        {
+          "path": "modules/blackhole/src/extract/commits.ts",
+          "kind": "import-statement",
+          "original": "../extract/commits"
+        },
+        {
+          "path": "modules/blackhole/src/core/brief.ts",
+          "kind": "import-statement",
+          "original": "./brief"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/format.ts": {
+      "bytes": 3901,
+      "imports": [
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/details.ts": {
+      "bytes": 4350,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/summary-format.ts": {
+      "bytes": 2622,
+      "imports": [
+        {
+          "path": "node:crypto",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/details.ts",
+          "kind": "import-statement",
+          "original": "../details.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/notification-evidence-scan.ts": {
+      "bytes": 2334,
+      "imports": [
+        {
+          "path": "node:fs",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/notification-evidence.ts": {
+      "bytes": 20508,
+      "imports": [
+        {
+          "path": "node:crypto",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/core/notification-evidence-scan.ts",
+          "kind": "import-statement",
+          "original": "./notification-evidence-scan.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/sanitize.ts",
+          "kind": "import-statement",
+          "original": "./sanitize.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/summarize.ts": {
+      "bytes": 19303,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/core/normalize.ts",
+          "kind": "import-statement",
+          "original": "./normalize"
+        },
+        {
+          "path": "modules/blackhole/src/core/filter-noise.ts",
+          "kind": "import-statement",
+          "original": "./filter-noise"
+        },
+        {
+          "path": "modules/blackhole/src/core/build-sections.ts",
+          "kind": "import-statement",
+          "original": "./build-sections"
+        },
+        {
+          "path": "modules/blackhole/src/extract/files.ts",
+          "kind": "import-statement",
+          "original": "../extract/files"
+        },
+        {
+          "path": "modules/blackhole/src/core/format.ts",
+          "kind": "import-statement",
+          "original": "./format"
+        },
+        {
+          "path": "modules/blackhole/src/core/summary-format.ts",
+          "kind": "import-statement",
+          "original": "./summary-format.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/generated-summary-spans.ts",
+          "kind": "import-statement",
+          "original": "./generated-summary-spans.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/notification-evidence.ts",
+          "kind": "import-statement",
+          "original": "./notification-evidence.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/tool-output-budget.ts": {
+      "bytes": 8378,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/core/content.ts",
+          "kind": "import-statement",
+          "original": "./content.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/tokens.ts",
+          "kind": "import-statement",
+          "original": "../om/tokens.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/compaction-chain.ts": {
+      "bytes": 20678,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/details.ts",
+          "kind": "import-statement",
+          "original": "../details.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/tool-output-budget.ts",
+          "kind": "import-statement",
+          "original": "./tool-output-budget.js"
+        },
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/om/tokens.ts",
+          "kind": "import-statement",
+          "original": "../om/tokens.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/manual-pending.ts": {
+      "bytes": 2179,
+      "imports": [
+        {
+          "path": "node:crypto",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/om/pending.ts",
+          "kind": "import-statement",
+          "original": "./pending.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/ledger/index.ts",
+          "kind": "import-statement",
+          "original": "./ledger/index.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/session-lines.ts": {
+      "bytes": 3138,
+      "imports": [
+        {
+          "path": "fs",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/core/global-indices.ts": {
+      "bytes": 2741,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/core/session-lines.ts",
+          "kind": "import-statement",
+          "original": "./session-lines.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/extract/git-status.ts": {
+      "bytes": 4438,
+      "imports": [
+        {
+          "path": "node:child_process",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/hooks/before-compact.ts": {
+      "bytes": 37612,
+      "imports": [
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/core/native-compaction-input.ts",
+          "kind": "import-statement",
+          "original": "../core/native-compaction-input.js"
+        },
+        {
+          "path": "fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/core/summarize.ts",
+          "kind": "import-statement",
+          "original": "../core/summarize"
+        },
+        {
+          "path": "modules/blackhole/src/core/compaction-chain.ts",
+          "kind": "import-statement",
+          "original": "../core/compaction-chain.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/provider-skip.ts",
+          "kind": "import-statement",
+          "original": "../core/provider-skip.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/ledger/index.ts",
+          "kind": "import-statement",
+          "original": "../om/ledger/index.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/ledger/projection.ts",
+          "kind": "import-statement",
+          "original": "../om/ledger/projection.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/debug-log.ts",
+          "kind": "import-statement",
+          "original": "../om/debug-log.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/model-budget.ts",
+          "kind": "import-statement",
+          "original": "../om/model-budget.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/manual-pending.ts",
+          "kind": "import-statement",
+          "original": "../om/manual-pending.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/unified-config.ts",
+          "kind": "import-statement",
+          "original": "../core/unified-config.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/tool-output-budget.ts",
+          "kind": "import-statement",
+          "original": "../core/tool-output-budget.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/global-indices.ts",
+          "kind": "import-statement",
+          "original": "../core/global-indices.js"
+        },
+        {
+          "path": "modules/blackhole/src/extract/git-status.ts",
+          "kind": "import-statement",
+          "original": "../extract/git-status.js"
+        },
+        {
+          "path": "modules/blackhole/src/extract/file-touch.ts",
+          "kind": "import-statement",
+          "original": "../extract/file-touch.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/notification-evidence.ts",
+          "kind": "import-statement",
+          "original": "../core/notification-evidence.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/summary-format.ts",
+          "kind": "import-statement",
+          "original": "../core/summary-format.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/generated-summary-spans.ts",
+          "kind": "import-statement",
+          "original": "../core/generated-summary-spans.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/core/config-env.ts": {
+      "bytes": 2274,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/pi-base/config.ts",
+          "kind": "import-statement",
+          "original": "../config.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/settings/frame.ts": {
+      "bytes": 8139,
+      "imports": [
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/settings/confirm.ts": {
+      "bytes": 3876,
+      "imports": [
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/frame.ts",
+          "kind": "import-statement",
+          "original": "./frame.ts"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/settings/scope-selector.ts": {
+      "bytes": 6384,
+      "imports": [
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/frame.ts",
+          "kind": "import-statement",
+          "original": "./frame.ts"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/settings/fields/action.ts": {
+      "bytes": 1345,
+      "imports": [
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/settings/fields/boolean.ts": {
+      "bytes": 1653,
+      "imports": [
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/settings/fields/custom.ts": {
+      "bytes": 2385,
+      "imports": [
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/settings/inline-edit.ts": {
+      "bytes": 10354,
+      "imports": [
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/settings/fields/enum.ts": {
+      "bytes": 13754,
+      "imports": [
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/frame.ts",
+          "kind": "import-statement",
+          "original": "../frame"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/inline-edit.ts",
+          "kind": "import-statement",
+          "original": "../inline-edit"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/settings/fields/model.ts": {
+      "bytes": 17104,
+      "imports": [
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/frame.ts",
+          "kind": "import-statement",
+          "original": "../frame"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/inline-edit.ts",
+          "kind": "import-statement",
+          "original": "../inline-edit"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/settings/fields/string.ts": {
+      "bytes": 19832,
+      "imports": [
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/inline-edit.ts",
+          "kind": "import-statement",
+          "original": "../inline-edit"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/frame.ts",
+          "kind": "import-statement",
+          "original": "../frame"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/settings/fields/readonly.ts": {
+      "bytes": 1394,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/settings/fields/text.ts": {
+      "bytes": 3747,
+      "imports": [
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/frame.ts",
+          "kind": "import-statement",
+          "original": "../frame"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/settings/fields/index.ts": {
+      "bytes": 1327,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/pi-base/settings/fields/action.ts",
+          "kind": "import-statement",
+          "original": "./action"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/fields/boolean.ts",
+          "kind": "import-statement",
+          "original": "./boolean"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/fields/custom.ts",
+          "kind": "import-statement",
+          "original": "./custom"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/fields/enum.ts",
+          "kind": "import-statement",
+          "original": "./enum"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/fields/model.ts",
+          "kind": "import-statement",
+          "original": "./model"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/fields/string.ts",
+          "kind": "import-statement",
+          "original": "./string"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/fields/readonly.ts",
+          "kind": "import-statement",
+          "original": "./readonly"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/fields/text.ts",
+          "kind": "import-statement",
+          "original": "./text"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/settings/helpers.ts": {
+      "bytes": 609,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/settings/navigation.ts": {
+      "bytes": 2306,
+      "imports": [
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/settings/values.ts": {
+      "bytes": 3530,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/pi-base/settings/helpers.ts",
+          "kind": "import-statement",
+          "original": "./helpers.ts"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/navigation.ts",
+          "kind": "import-statement",
+          "original": "./navigation.ts"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/settings/validate-field.ts": {
+      "bytes": 3567,
+      "imports": [],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/settings/render.ts": {
+      "bytes": 16390,
+      "imports": [
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/frame.ts",
+          "kind": "import-statement",
+          "original": "./frame.ts"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/validate-field.ts",
+          "kind": "import-statement",
+          "original": "./validate-field.ts"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/navigation.ts",
+          "kind": "import-statement",
+          "original": "./navigation.ts"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/values.ts",
+          "kind": "import-statement",
+          "original": "./values.ts"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/settings/body.ts": {
+      "bytes": 26243,
+      "imports": [
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "./validate-field.ts",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/fields/index.ts",
+          "kind": "import-statement",
+          "original": "./fields/index"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/frame.ts",
+          "kind": "import-statement",
+          "original": "./frame"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/inline-edit.ts",
+          "kind": "import-statement",
+          "original": "./inline-edit"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/helpers.ts",
+          "kind": "import-statement",
+          "original": "./helpers.ts"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/navigation.ts",
+          "kind": "import-statement",
+          "original": "./navigation.ts"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/values.ts",
+          "kind": "import-statement",
+          "original": "./values.ts"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/render.ts",
+          "kind": "import-statement",
+          "original": "./render.ts"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/confirm.ts",
+          "kind": "import-statement",
+          "original": "./confirm.ts"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/settings/config-flow.ts": {
+      "bytes": 25126,
+      "imports": [
+        {
+          "path": "modules/blackhole/src/pi-base/settings/confirm.ts",
+          "kind": "import-statement",
+          "original": "./confirm.ts"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/scope-selector.ts",
+          "kind": "import-statement",
+          "original": "./scope-selector.ts"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/body.ts",
+          "kind": "import-statement",
+          "original": "./body.ts"
+        },
+        {
+          "path": "./frame.ts",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/config-manager.ts": {
+      "bytes": 54153,
+      "imports": [
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/session.ts",
+          "kind": "import-statement",
+          "original": "./session.js"
+        },
+        {
+          "path": "node:fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/core/project-trust.ts",
+          "kind": "import-statement",
+          "original": "../core/project-trust.js"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/core/config-env.ts",
+          "kind": "import-statement",
+          "original": "./core/config-env.js"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/config.ts",
+          "kind": "import-statement",
+          "original": "./config.js"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/config-flow.ts",
+          "kind": "import-statement",
+          "original": "./settings/config-flow.js"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/validate-field.ts",
+          "kind": "import-statement",
+          "original": "./settings/validate-field.ts"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/changelog/changelog.ts": {
+      "bytes": 17167,
+      "imports": [
+        {
+          "path": "node:fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:url",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/settings/frame.ts",
+          "kind": "import-statement",
+          "original": "../pi-base/settings/frame.ts"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/pi-base/blackhole-settings.ts": {
+      "bytes": 21225,
+      "imports": [
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/config-manager.ts",
+          "kind": "import-statement",
+          "original": "../pi-base/config-manager.js"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/paths.ts",
+          "kind": "import-statement",
+          "original": "../pi-base/paths.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/config-env.ts",
+          "kind": "import-statement",
+          "original": "../core/config-env.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/unified-config.ts",
+          "kind": "import-statement",
+          "original": "../core/unified-config.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/model-budget.ts",
+          "kind": "import-statement",
+          "original": "../om/model-budget.js"
+        },
+        {
+          "path": "modules/blackhole/src/changelog/changelog.ts",
+          "kind": "import-statement",
+          "original": "../changelog/changelog.js"
+        },
+        {
+          "path": "modules/blackhole/src/core/pi-owned-settings.ts",
+          "kind": "import-statement",
+          "original": "../core/pi-owned-settings.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/om/key-matcher.ts": {
+      "bytes": 444,
+      "imports": [
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/commands/cleanup.ts": {
+      "bytes": 11668,
+      "imports": [
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/om/key-matcher.ts",
+          "kind": "import-statement",
+          "original": "../om/key-matcher.js"
+        },
+        {
+          "path": "modules/blackhole/src/om/cleanup.ts",
+          "kind": "import-statement",
+          "original": "../om/cleanup.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "modules/blackhole/src/commands/pi-vcc.ts": {
+      "bytes": 9440,
+      "imports": [
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/core/project-trust.ts",
+          "kind": "import-statement",
+          "original": "../core/project-trust.js"
+        },
+        {
+          "path": "modules/blackhole/src/hooks/before-compact.ts",
+          "kind": "import-statement",
+          "original": "../hooks/before-compact"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/blackhole-settings.ts",
+          "kind": "dynamic-import",
+          "original": "../pi-base/blackhole-settings.js"
+        },
+        {
+          "path": "modules/blackhole/src/changelog/changelog.ts",
+          "kind": "dynamic-import",
+          "original": "../changelog/changelog.js"
+        },
+        {
+          "path": "modules/blackhole/src/commands/cleanup.ts",
+          "kind": "dynamic-import",
+          "original": "./cleanup.js"
+        },
+        {
+          "path": "modules/blackhole/src/pi-base/blackhole-settings.ts",
+          "kind": "dynamic-import",
+          "original": "../pi-base/blackhole-settings.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "plan/review-20261012-evidence/verify-blackhole/probe.ts": {
+      "bytes": 8300,
+      "imports": [
+        {
+          "path": "node:assert/strict",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:module",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "modules/blackhole/src/om/pending.ts",
+          "kind": "import-statement",
+          "original": "../../../modules/blackhole/src/om/pending.ts"
+        },
+        {
+          "path": "modules/blackhole/src/om/cleanup.ts",
+          "kind": "import-statement",
+          "original": "../../../modules/blackhole/src/om/cleanup.ts"
+        },
+        {
+          "path": "modules/blackhole/src/om/runtime.ts",
+          "kind": "import-statement",
+          "original": "../../../modules/blackhole/src/om/runtime.ts"
+        },
+        {
+          "path": "modules/blackhole/src/om/consolidation.ts",
+          "kind": "import-statement",
+          "original": "../../../modules/blackhole/src/om/consolidation.ts"
+        },
+        {
+          "path": "modules/blackhole/src/commands/pi-vcc.ts",
+          "kind": "import-statement",
+          "original": "../../../modules/blackhole/src/commands/pi-vcc.ts"
+        }
+      ],
+      "format": "esm"
+    }
+  },
+  "outputs": {
+    "plan/review-20261012-evidence/verify-blackhole/probe.bundle.mjs": {
+      "imports": [
+        {
+          "path": "node:fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:os",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:os",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:url",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:assert/strict",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:module",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:async_hooks",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:fs/promises",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-ai",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "typebox",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "typebox",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "typebox",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:crypto",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-tui",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "@earendil-works/pi-coding-agent",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "exports": [],
+      "entryPoint": "plan/review-20261012-evidence/verify-blackhole/probe.ts",
+      "inputs": {
+        "modules/blackhole/src/om/cleanup.ts": {
+          "bytesInOutput": 6732
+        },
+        "modules/blackhole/src/core/project-trust.ts": {
+          "bytesInOutput": 797
+        },
+        "modules/blackhole/src/core/pi-owned-settings.ts": {
+          "bytesInOutput": 1024
+        },
+        "modules/blackhole/src/pi-base/paths.ts": {
+          "bytesInOutput": 1225
+        },
+        "modules/blackhole/src/pi-base/session.ts": {
+          "bytesInOutput": 654
+        },
+        "modules/blackhole/src/pi-base/config.ts": {
+          "bytesInOutput": 9320
+        },
+        "modules/blackhole/src/core/config-env.ts": {
+          "bytesInOutput": 7538
+        },
+        "modules/blackhole/src/core/unified-config.ts": {
+          "bytesInOutput": 19565
+        },
+        "modules/blackhole/src/om/model-budget.ts": {
+          "bytesInOutput": 1070
+        },
+        "synthetic:offline-observer": {
+          "bytesInOutput": 550
+        },
+        "synthetic:offline-reflector": {
+          "bytesInOutput": 313
+        },
+        "synthetic:offline-dropper": {
+          "bytesInOutput": 270
+        },
+        "modules/blackhole/src/pi-base/core/config-env.ts": {
+          "bytesInOutput": 1254
+        },
+        "modules/blackhole/src/pi-base/settings/frame.ts": {
+          "bytesInOutput": 3804
+        },
+        "modules/blackhole/src/pi-base/settings/confirm.ts": {
+          "bytesInOutput": 3148
+        },
+        "modules/blackhole/src/pi-base/settings/scope-selector.ts": {
+          "bytesInOutput": 5619
+        },
+        "modules/blackhole/src/pi-base/settings/fields/action.ts": {
+          "bytesInOutput": 1129
+        },
+        "modules/blackhole/src/pi-base/settings/fields/boolean.ts": {
+          "bytesInOutput": 1734
+        },
+        "modules/blackhole/src/pi-base/settings/fields/custom.ts": {
+          "bytesInOutput": 1714
+        },
+        "modules/blackhole/src/pi-base/settings/inline-edit.ts": {
+          "bytesInOutput": 6390
+        },
+        "modules/blackhole/src/pi-base/settings/fields/enum.ts": {
+          "bytesInOutput": 12834
+        },
+        "modules/blackhole/src/pi-base/settings/fields/model.ts": {
+          "bytesInOutput": 11695
+        },
+        "modules/blackhole/src/pi-base/settings/fields/string.ts": {
+          "bytesInOutput": 13837
+        },
+        "modules/blackhole/src/pi-base/settings/fields/readonly.ts": {
+          "bytesInOutput": 823
+        },
+        "modules/blackhole/src/pi-base/settings/fields/text.ts": {
+          "bytesInOutput": 3268
+        },
+        "modules/blackhole/src/pi-base/settings/fields/index.ts": {
+          "bytesInOutput": 626
+        },
+        "modules/blackhole/src/pi-base/settings/helpers.ts": {
+          "bytesInOutput": 391
+        },
+        "modules/blackhole/src/pi-base/settings/navigation.ts": {
+          "bytesInOutput": 1976
+        },
+        "modules/blackhole/src/pi-base/settings/values.ts": {
+          "bytesInOutput": 2923
+        },
+        "modules/blackhole/src/pi-base/settings/validate-field.ts": {
+          "bytesInOutput": 2618
+        },
+        "modules/blackhole/src/pi-base/settings/render.ts": {
+          "bytesInOutput": 12965
+        },
+        "modules/blackhole/src/pi-base/settings/body.ts": {
+          "bytesInOutput": 21264
+        },
+        "modules/blackhole/src/pi-base/settings/config-flow.ts": {
+          "bytesInOutput": 15406
+        },
+        "modules/blackhole/src/pi-base/config-manager.ts": {
+          "bytesInOutput": 41200
+        },
+        "modules/blackhole/src/changelog/changelog.ts": {
+          "bytesInOutput": 12230
+        },
+        "modules/blackhole/src/pi-base/blackhole-settings.ts": {
+          "bytesInOutput": 19295
+        },
+        "modules/blackhole/src/om/key-matcher.ts": {
+          "bytesInOutput": 177
+        },
+        "modules/blackhole/src/commands/cleanup.ts": {
+          "bytesInOutput": 9060
+        },
+        "plan/review-20261012-evidence/verify-blackhole/probe.ts": {
+          "bytesInOutput": 8688
+        },
+        "modules/blackhole/src/om/pending.ts": {
+          "bytesInOutput": 4838
+        },
+        "modules/blackhole/src/om/config.ts": {
+          "bytesInOutput": 49
+        },
+        "modules/blackhole/src/om/cooldown.ts": {
+          "bytesInOutput": 3913
+        },
+        "modules/blackhole/src/om/retryable-error.ts": {
+          "bytesInOutput": 2963
+        },
+        "modules/blackhole/src/om/debug-log.ts": {
+          "bytesInOutput": 2752
+        },
+        "modules/blackhole/src/om/runtime.ts": {
+          "bytesInOutput": 28486
+        },
+        "modules/blackhole/src/om/provider-stream.ts": {
+          "bytesInOutput": 1069
+        },
+        "modules/blackhole/src/om/worker-attempt.ts": {
+          "bytesInOutput": 1722
+        },
+        "modules/blackhole/src/om/consolidation.ts": {
+          "bytesInOutput": 69791
+        },
+        "modules/blackhole/src/om/agents/dropper/coverage.ts": {
+          "bytesInOutput": 1109
+        },
+        "modules/blackhole/src/om/agents/dropper/selection.ts": {
+          "bytesInOutput": 2724
+        },
+        "modules/blackhole/src/om/agents/dropper/prompts.ts": {
+          "bytesInOutput": 5137
+        },
+        "modules/blackhole/src/om/agents/dropper/tool-schema.ts": {
+          "bytesInOutput": 185
+        },
+        "modules/blackhole/src/om/agents/observer/prompts.ts": {
+          "bytesInOutput": 13247
+        },
+        "modules/blackhole/src/om/agents/observer/tool-schema.ts": {
+          "bytesInOutput": 1682
+        },
+        "modules/blackhole/src/om/agents/reflector/prompts.ts": {
+          "bytesInOutput": 9715
+        },
+        "modules/blackhole/src/om/agents/reflector/tool-schema.ts": {
+          "bytesInOutput": 720
+        },
+        "modules/blackhole/src/om/prompt-budget.ts": {
+          "bytesInOutput": 1244
+        },
+        "modules/blackhole/src/om/tokens.ts": {
+          "bytesInOutput": 939
+        },
+        "modules/blackhole/src/core/segment.ts": {
+          "bytesInOutput": 476
+        },
+        "modules/blackhole/src/om/serialize.ts": {
+          "bytesInOutput": 4944
+        },
+        "modules/blackhole/src/om/ledger/types.ts": {
+          "bytesInOutput": 3837
+        },
+        "modules/blackhole/src/om/ledger/index.ts": {
+          "bytesInOutput": 0
+        },
+        "modules/blackhole/src/om/ledger/fold.ts": {
+          "bytesInOutput": 2180
+        },
+        "modules/blackhole/src/om/ledger/progress.ts": {
+          "bytesInOutput": 6972
+        },
+        "modules/blackhole/src/om/ledger/render-summary.ts": {
+          "bytesInOutput": 2552
+        },
+        "modules/blackhole/src/core/native-compaction-input.ts": {
+          "bytesInOutput": 757
+        },
+        "modules/blackhole/src/core/generated-summary-spans.ts": {
+          "bytesInOutput": 1945
+        },
+        "modules/blackhole/src/om/ledger/projection.ts": {
+          "bytesInOutput": 4667
+        },
+        "modules/blackhole/src/commands/pi-vcc.ts": {
+          "bytesInOutput": 6869
+        },
+        "modules/blackhole/src/hooks/before-compact.ts": {
+          "bytesInOutput": 1132
+        },
+        "modules/blackhole/src/core/format.ts": {
+          "bytesInOutput": 59
+        },
+        "modules/blackhole/src/core/notification-evidence.ts": {
+          "bytesInOutput": 274
+        },
+        "modules/blackhole/src/core/compaction-chain.ts": {
+          "bytesInOutput": 107
+        },
+        "modules/blackhole/src/core/session-lines.ts": {
+          "bytesInOutput": 117
+        }
+      },
+      "bytes": 458886
+    }
+  }
+}

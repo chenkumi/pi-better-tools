@@ -1,0 +1,10 @@
+{
+  "state": "completed",
+  "rounds": [
+    2,
+    3
+  ],
+  "children": 12,
+  "allExitZero": false,
+  "fixturesRemoved": true
+}

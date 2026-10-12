@@ -19,7 +19,6 @@ import { matchesKey, decodeKittyPrintable } from "@earendil-works/pi-tui";
 import { visibleWidth } from "../om/key-matcher.js";
 import {
   analyzeOrphaned,
-  deletePendingFiles,
   deleteOrphanedBatch,
   describeFile,
   type PendingFile,
@@ -71,6 +70,7 @@ function createCleanupPicker(
     bg: (s: string, t: string) => string;
   },
   done: (result: "deleteAll" | "cancel") => void,
+  deleteSelected: (file: PendingFile) => boolean,
 ): {
   render(width: number): string[];
   handleInput(data: string): void;
@@ -230,7 +230,7 @@ function createCleanupPicker(
       if (matchesKey(data, "enter") || matchesKey(data, "return")) {
         const pf = orphaned[selectedIndex];
         if (pf) {
-          deletePendingFiles(pf.sessionId);
+          if (!deleteSelected(pf)) return;
           orphaned.splice(selectedIndex, 1);
           if (orphaned.length === 0) {
             done("cancel");
@@ -265,7 +265,17 @@ function createCleanupPicker(
  * without deleting anything.
  */
 export async function handleCleanup(ctx: ExtensionContext): Promise<void> {
-  const { orphaned } = analyzeOrphaned();
+  const protectedIds = () => [ctx.sessionManager.getSessionId()].filter((id): id is string => typeof id === "string" && id.length > 0);
+  const { orphaned, scanComplete } = analyzeOrphaned(undefined, undefined, protectedIds());
+  if (!scanComplete) {
+    ctx.ui.notify("pi-blackhole: Session scan incomplete; pending cleanup refused.", "warning");
+    return;
+  }
+  const deleteSelected = (pf: PendingFile) => {
+    const deleted = deleteOrphanedBatch([pf], undefined, undefined, protectedIds()) > 0;
+    if (!deleted) ctx.ui.notify("pi-blackhole: Pending file was not deleted (active, unknown, or deletion failed).", "warning");
+    return deleted;
+  };
 
   if (orphaned.length === 0) {
     ctx.ui.notify("pi-blackhole: No orphaned pending files found.", "info");
@@ -291,13 +301,13 @@ export async function handleCleanup(ctx: ExtensionContext): Promise<void> {
   const items = [...orphaned];
   const result = await ctx.ui.custom<"deleteAll" | "cancel" | null>(
     (_tui, theme, _kb, done) => {
-      return createCleanupPicker(items, theme as any, done);
+      return createCleanupPicker(items, theme as any, done, deleteSelected);
     },
     { overlay: true },
   );
 
   if (result === "deleteAll") {
-    const deleted = deleteOrphanedBatch(items);
+    const deleted = deleteOrphanedBatch(items, undefined, undefined, protectedIds());
     const intended = items.length;
     if (deleted === intended) {
       ctx.ui.notify(

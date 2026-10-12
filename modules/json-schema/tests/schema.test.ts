@@ -30,6 +30,15 @@ test("additionalProperties, arrays, anyOf and local $ref are enforced", async ()
   assert.ok(await ref.validate({ r: 1 }));
 });
 
+test("deep and non-definition pointers are refused before synchronous/worker delivery", () => {
+  for (const pattern of [false, true]) {
+    for (const ref of ["#/$defs/W/properties/amount", "#/definitions/W/properties/amount", "#/properties/W", "#/$defs/W/"]) {
+      assert.throws(() => compileSchema(JSON.stringify({ type: "object", $defs: { W: { type: "object", properties: { amount: { type: "number" } } } },
+        properties: { x: { $ref: ref }, ...(pattern ? { tag: { type: "string", pattern: "^a+$" } } : {}) }, required: ["x"] })), /unsupported.*\$ref|\$ref.*unsupported/);
+    }
+  }
+});
+
 test("validation does not rewrite data (defaults are not injected)", async () => {
   const schema = compileSchema(obj({ d: { type: "string", default: "z" } }));
   const data: Record<string, unknown> = {};

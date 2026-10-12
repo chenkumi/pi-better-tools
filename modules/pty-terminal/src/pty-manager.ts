@@ -64,8 +64,6 @@ export interface ManagerOptions {
 	matchPattern?: typeof matchPattern;
 }
 
-/** Longest tail of unread output examined by waitFor, bounding regex cost. */
-const MATCH_WINDOW_CHARS = 256 * 1024;
 /** Minimum pause before re-running waitFor when new output arrived during a failed match. */
 const MATCH_DEBOUNCE_MS = 50;
 
@@ -393,8 +391,9 @@ export class PtySessionManager {
 				if (deadline <= this.now()) return false;
 			}
 			const begin = Math.max(from, session.bufStart);
-			let window = session.buffer.slice(begin - session.bufStart);
-			if (window.length > MATCH_WINDOW_CHARS) window = window.slice(-MATCH_WINDOW_CHARS);
+			// The retained ring already bounds input size; worker capacity/time limits
+			// bound regex cost. Dropping a search-only prefix silently changes matches.
+			const window = session.buffer.slice(begin - session.bufStart);
 			const generation = session.bufStart + session.buffer.length;
 			const remainingBudget = deadline - this.now();
 			const pending = this.matcher(pattern, stripEscapes(window), signal, remainingBudget > 0 ? remainingBudget : MATCH_BUDGET_MS);
