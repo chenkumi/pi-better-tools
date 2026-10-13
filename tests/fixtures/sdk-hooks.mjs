@@ -47,11 +47,12 @@ async function fixture(options = {}) {
   const sessionManager = sdk.SessionManager.inMemory(cwd);
 
   const errors = [], lifecycle = [], trace = [];
-  let api, observedPrompt, resolveThinking, calls = 0, completedStreamEvents = 0, deliveredStreams = 0;
+  let api, observedPrompt, requestedPrompt, resolveThinking, calls = 0, completedStreamEvents = 0, deliveredStreams = 0;
   const observer = pi => {
     api = pi;
     pi.registerProvider(model.provider, { api: model.api, baseUrl: model.baseUrl, apiKey: 'offline-non-secret', models: [model, alternateModel],
-      streamSimple(m, _context, streamOptions) {
+      streamSimple(m, context, streamOptions) {
+        requestedPrompt = ai.getCurrentSystemPrompt(context.messages);
         const stream = ai.createAssistantMessageEventStream();
         const invocation = ++calls;
         queueMicrotask(async () => {
@@ -122,7 +123,7 @@ async function fixture(options = {}) {
     throw error;
   }
   return { session, loader, lifecycle, trace, errors, calls: () => calls, completedStreamEvents: () => completedStreamEvents,
-    observedPrompt: () => observedPrompt, registerLate() { api.registerTool(tool('fixture_late')); },
+    observedPrompt: () => observedPrompt, requestedPrompt: () => requestedPrompt, registerLate() { api.registerTool(tool('fixture_late')); },
     async selectProfile() {
       const previousLevel = session.thinkingLevel, level = previousLevel === 'high' ? 'low' : 'high';
       const delivered = new Promise(resolve => { resolveThinking = resolve; });
@@ -242,10 +243,28 @@ try {
     assert.doesNotMatch(f.session.systemPrompt, /When copying oldText from read output/);
     assert.doesNotMatch(f.session.systemPrompt, /\n- subagent: Delegate tasks/);
     assert.doesNotMatch(f.session.systemPrompt, /\n- web_fetch: Retrieve rendered/);
-    const serialized = JSON.stringify(prompt);
-    assert.match(serialized, /subagent agent catalog/); assert.match(serialized, /OpenAI native web_search/);
+    assert.equal(prompt.forceSystemPrompt, undefined, 'package guidance must not force the complete prompt');
+    assert.match(prompt.sections.pi_subagents_agent_catalog, /subagent agent catalog/);
+    assert.match(prompt.sections.pi_web_tools_native_search, /OpenAI native web_search/);
+    assert.match(prompt.sections.pi_better_tools_background_lifecycle, /Background job lifecycle/);
+    // session.systemPrompt reverts to base options after settlement; inspect the actual request transcript.
+    const requested = f.requestedPrompt();
+    assert.match(requested, /<pi_subagents_agent_catalog>/);
+    assert.match(requested, /<pi_web_tools_native_search>/);
+    assert.match(requested, /<pi_better_tools_background_lifecycle>/);
+    assert.doesNotMatch(requested, /\n- read: Read file contents|When copying oldText from read output|\n- subagent: Delegate tasks|\n- web_fetch: Retrieve rendered/);
     assert.ok(f.session.getCallableToolNames().includes('read')); assert.ok(f.session.getCallableToolNames().includes('subagent'));
     assert.equal(f.calls(), 1);
+    f.session.setActiveToolsByName(['read', 'web_fetch', 'fixture_orchestrator']);
+    await f.session.prompt('OFFLINE_CATALOG_DISABLED', { expandPromptTemplates: false });
+    const disabled = f.observedPrompt();
+    assert.equal(disabled.forceSystemPrompt, undefined);
+    assert.equal(disabled.sections.pi_subagents_agent_catalog, undefined);
+    assert.equal(disabled.sections.pi_better_tools_background_lifecycle, undefined);
+    assert.match(disabled.sections.pi_web_tools_native_search, /OpenAI native web_search/);
+    assert.doesNotMatch(f.requestedPrompt(), /### subagent agent catalog|### Background job lifecycle/);
+    assert.match(f.requestedPrompt(), /OpenAI native web_search/);
+    assert.equal(f.calls(), 2);
   });
   await check('real agent read pipeline retains ordering and awaited stream delivery', { tools: ['read'], withRead: true }, async f => {
     await f.selectProfile();

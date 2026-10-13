@@ -52,7 +52,7 @@ The allowlist is intentionally narrow:
 | Persisted customType | Selected evidence |
 |---|---|
 | `shell-job-completed` | Batched terminal jobs; details own status/exitCode, matching content supplies only public output/error excerpts |
-| `subagent_background` | `task_result` and `query_result` only; task/query/job IDs, terminal result, cleanupPending, root query lateUsage/snapshotUnavailable booleans and structured asOf snapshot |
+| `subagent_background` | `task_result` (including a parallel per-task notice: one task, `scope.taskId`, job still `running`), `job_result` and `query_result` only; task/query/job IDs, terminal result, cleanupPending, root query lateUsage/snapshotUnavailable booleans and structured asOf snapshot |
 | `pi-runtime-recovery` | Bounded attempt/limit, task/error entry IDs, mode and diagnostic class; never a success acknowledgement |
 | `scheduled_prompt` | `subagent_done` (including skipped) and `subagent_error`; no start/inline prompt marker |
 | `background-runtime-recovery-shell` / `background-runtime-recovery-subagent` | Reconciliation findings, validated task state and recorded outcome, last known state, unknown process-tree state, incomplete/omitted diagnostics |

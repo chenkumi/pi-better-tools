@@ -105,9 +105,10 @@ export default function runtime(pi: ExtensionAPI) {
     // A queued/handled input is not proof of a new started user task.
     if (event.source !== 'extension' && !event.streamingBehavior && ctx.isIdle()) inputCandidate = {};
   });
-  pi.on('before_agent_start', (_event, ctx) => {
+  pi.on('before_agent_start', (event, ctx) => {
     if (!owned(ctx)) return;
-    prepared = inputCandidate;
+    // Pi 1.1.0 omits messageType; explicit non-user triggers cannot admit a new task.
+    prepared = 'messageType' in event && event.messageType !== 'user' ? undefined : inputCandidate;
     inputCandidate = undefined;
   });
   pi.on('agent_start', (_event, ctx) => {

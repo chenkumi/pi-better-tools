@@ -58,6 +58,10 @@ File Tools 現覆寫 `read/write/edit/ls` 四工具；`ls` 沿用 host factory�
 
 保存資料不遷移：Subagents `hostContract: "0.99.1"` 保留。升級 SDK 不允許直接把 durable format 字串換為 1.0.0；已有 managed sessions 仍依原 owner／fingerprint／guard 驗證。
 
+## Fork addition
+
+Manifest adds `modules/fork/src/index.ts` (14 local/16 total entries, seven native modules). No new runtime dependency (`ulid` is already a root dependency). The Subagent argument builder now also excludes `fork,fork_status,fork_cancel`; Shell/Subagents readonly capability providers gained an optional count-only callback. Entry filters that exclude native modules by path should add `./modules/fork/src/index.ts` handling; excluding the module in one project while using it in another is not a supported topology (see `modules/fork/README.md`). The tools are inactive until selected.
+
 ## Monitor addition
 
 Manifest adds `modules/monitor/src/index.ts` (12 local/14 total entries, five native modules) and locked direct ws8.22 runtime dependency. Root npm ci --ignore-scripts installs it without required optional native addons. Review resource filters, then reload/restart after existing work settles; tools remain inactive unless explicitly selected. No schema change to bash/subagent, personal configuration edits or old-session migration. Managed children receive no Monitor tools. Monitor IDs/receipts are session/runtime-local; reload stops owned sources and never resurrects jobs or replays uncertain delivery. Stopping a job monitor only unsubscribes. Blackhole producer schema/fixtures are handed off separately; compaction coexistence remains unaccepted until its narrow allowlist/tests are completed. See `modules/monitor/README.md`.

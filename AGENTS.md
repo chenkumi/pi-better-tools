@@ -10,18 +10,19 @@
 
 ## 結構與依賴
 
-- 一個根 package、七個現存來源快照模組（含 PTY、第三方 Schedule Prompt 與 Blackhole）與原生 Note／GPT Speed／重寫 JSON Schema／Pi Runtime／Monitor／Skill Tools；Pi manifest 直接列出十三個本地入口及兩個 npm 依賴入口（pi-open-tui／@ff-labs/pi-fff），不建立新的 plugin manager。
+- 一個根 package、七個現存來源快照模組（含 PTY、第三方 Schedule Prompt 與 Blackhole）與原生 Note／GPT Speed／重寫 JSON Schema／Pi Runtime／Monitor／Skill Tools／Fork；Pi manifest 直接列出十四個本地入口及兩個 npm 依賴入口（pi-open-tui／@ff-labs/pi-fff），不建立新的 plugin manager。
 - 原始碼掛載先在根目錄執行 `npm ci --ignore-scripts`；本機 Pi package 不會自動安裝依賴。Repository `.npmrc` 的 `legacy-peer-deps=true` 避免第三方 peer 自動安裝另一份 host SDK；不代表執行期相容性。Blackhole 整合測試必設 `PI_BLACKHOLE_PASSIVE=true`、隔離 credentials，不呼叫真實背景模型。三個套件設定仍由使用者管理，不在 install/reload 時改寫。
 - 根目錄管理依賴與唯一 lockfile。模組 metadata 保留來源身份與測試命令，不是獨立安裝單元；不要在 `modules/` 執行 `npm install`。
 - Pi、Pi AI、Agent Core、TUI 與 TypeBox 是 host-provided `peerDependencies: "*"`；不能放入 runtime dependencies 或 bundle。
 - 不允許 runtime 依賴來源專案的絕對路徑、symlink 或 `node_modules`。
-- 依使用者要求，十三個本地 Pi 入口統一為 `./modules/<name>/src/index.ts`，直接載入 TS；兩個 npm 第三方入口按其 manifest 從本專案 `node_modules` 載入，不改写第三方實作。薄入口可轉接既有實作。目前沒有模組需要建置產物（`npm run build` 為 no-op）。保留 Subagent guard、bundled agents、prompts 及 File diff worker 的相對位置；入口 filters 遷移見 `docs/migration.md`。
+- 依使用者要求，十四個本地 Pi 入口統一為 `./modules/<name>/src/index.ts`，直接載入 TS；兩個 npm 第三方入口按其 manifest 從本專案 `node_modules` 載入，不改写第三方實作。薄入口可轉接既有實作。目前沒有模組需要建置產物（`npm run build` 為 no-op）。保留 Subagent guard、bundled agents、prompts 及 File diff worker 的相對位置；入口 filters 遷移見 `docs/migration.md`。
 - 記錄來源版本／雜湊與整合差異；匯入基準見 `docs/sources.json`，本地適配見 `docs/adaptations.json`；原生模組另記於 `docs/native-modules.json`。不要把快照更新偽裝成無差異複製。
 
 ## 行為與安全不變量
 
 - 保留現有工具名稱、schema、設定鍵、儲存目錄與授權／trust 語意。不能以整合為由啟用未選的 tools。
 - Skill Tools 透過 `resources_discover` 提供 `modules/skill-tools/skills/`，不在 runtime 複製至 home；停用必須排除 extension（`skills: []`／`--no-skills` 不抑制動態資源）。修改前讀 `modules/skill-tools/README.md`。
+- 修改 Fork 前讀 `modules/fork/README.md`：Fork 是獨立 Pi 行程（非 sandbox）；`fork`／`fork_status`／`fork_cancel` 預設不啟用；Fork 可用 `subagent` 但任何 Subagent 與 Fork 自身都不可建立 Fork（Subagent argument builder 排除、啟動握手、起源標記三層）；快照只在 turn_end 的 canonical 邊界取得、不捏造 tool result；結果只回報原 session、不在背景啟動 parent 模型；quit／reload 扇出取消全部、close 未確認不得宣稱已清理；不跨重啟重跑。管理 extension 必須每個 session 都載入，不以 monkey-patch 補洞。
 - 修改 Monitor 前讀 `modules/monitor/README.md`：四來源唯 owner/canonical cwd/generation，readonly job adapter 不取消 job／query 模型；explicit managed child 不註冊且 execute 拒絕。WS 必須 DNS pin／TLS 驗證、private/insecure 分開 opt-in、禁 redirect/compression、pre-allocation payload cap；close/cancel/submitted 不等於 descendants cleanup／host ack，不跨 reload 重播。
 - Shell `timeoutMs` 是輸出停滯期限，不是總執行時間；保留宿主的取消、輸出與 shell settings。
 - Subagent child 一律經既有 argument builder，保留 `--exclude-tools subagent`、32 submitted／8 active 上限、串流背壓與取消保障。
@@ -40,7 +41,7 @@
 - 整合 scripts 建立後，執行 `npm run build`、`npm run typecheck`、`npm test`、`npm run test:integration` 與 `npm run test:package`；涉及 Web 實際瀏覽器時另執行 `npm run browser:install`、`npm run test:browser`。
 - 測試依變更範圍分組，不要每次都跑全部：
   - `npm test`（單元，約 2 分鐘）：每次修改程式碼後的基本檢查；`npm run typecheck`：修改 TS 型別、介面或 schema 時。
-  - `npm run test:module -- <module>`（該模組的 build／typecheck／單元／整合／真實 host 測試；module 為 blackhole、file-tools、gpt-speed、json-schema、monitor、note-tools、pi-runtime、pty-terminal、schedule-prompt、shell-tools、skill-tools、subagents、web-tools；blackhole 與 schedule-prompt 保留來源 vitest runner）：只修改該模組時執行，不跑其他模組的整合測試。Web 真實瀏覽器測試包含在 `test:module -- web-tools`，需先 `npm run browser:install`。
+  - `npm run test:module -- <module>`（該模組的 build／typecheck／單元／整合／真實 host 測試；module 為 blackhole、file-tools、fork、gpt-speed、json-schema、monitor、note-tools、pi-runtime、pty-terminal、schedule-prompt、shell-tools、skill-tools、subagents、web-tools；blackhole 與 schedule-prompt 保留來源 vitest runner）：只修改該模組時執行，不跑其他模組的整合測試。Web 真實瀏覽器測試包含在 `test:module -- web-tools`，需先 `npm run browser:install`。
   - `npm run test:cross`（所有 manifest extensions 載入、SDK hooks、provenance）：修改根 `package.json`／manifest、`scripts/`、`tests/`、共用 helper、`docs/*.json` provenance、Pi 版本，或同時變更多個模組時。
   - `npm run test:integration`（全部整合）、`npm run test:package`、`npm run check`：只在發布前、升級 Pi／依賴、變更 package `files`／入口／tarball 內容，或使用者明確要求完整驗證時執行。
   - 交付說明須列出實際執行的分組與理由；未執行的分組要明講為未執行，不算通過。

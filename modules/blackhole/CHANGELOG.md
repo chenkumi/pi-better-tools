@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- Notification evidence now retains parallel Subagent per-task `task_result` notices (single task, `scope.taskId`, job still running) and the closing `job_result`.
+
 ---
 
 ## [0.5.12] - 2026-10-08

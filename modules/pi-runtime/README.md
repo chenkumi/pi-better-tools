@@ -5,6 +5,7 @@
 ## 行為
 
 - 預設啟用，每個頂層使用者任務最多 **2 次**恢復，automatic／manual 共用額度。以 Pi 1.1.0 的 idle 非 extension `input` → `before_agent_start` → `agent_start` → 首個非 system 的實際 `message_end(user)` admission，消耗一次性 phase token 後才建立新 task；不是 raw input、preflight 或文字相等就補額度。被其他 handler 消耗、串流排隊或 preflight 失敗不補額度。template／transform／image hints 改變文字不阻止真正新 user task 重置；extension 發出的 prompt、內部 continuation、重試、壓縮、tree 及 reload 不補額度。排隊 steering 屬於目前頂層任務。
+- 若宿主在 `before_agent_start` 提供 `messageType`，明確非 `user` 的 run 會清除 admission 候選；沒有此欄位的 Pi 1.1.0 維持既有證據鏈。`user` 亦可能來自 extension，仍須核對非 extension input 與實際 user message，不能僅憑 trigger 類型重補額度。此分類有單元防護，不代表已完成 Pi 1.2.0 host／production 相容性驗證。
 - 明確 invalid arguments／tool JSON 類錯誤（泛用 invalid_request_error 不足以自動恢復）：在 `agent_before_settle` 追加診斷 `custom_message` draft 並要求一次 continuation，保留其他 extension 的 drafts。相同診斷自動恢復一次後再次出現，就暫停，不盲目重送。
 - 網路／transient、context overflow、auth／billing／quota：維持宿主處理，不增加另一層 retry，也不更換 provider/model。
 - **cyber／policy 及未知錯誤不自動恢復或改寫**。保留待人工 review 診斷；合法用途／授權範圍澄清及明確確認後，才允許有限次診斷回饋。確認不代表解除 OpenAI safeguard、取得 Daybreak 或授予工具權限；禁止為放行而隱藏、拆分或改寫受禁止請求。

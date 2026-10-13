@@ -164,6 +164,26 @@ test('handled or queued input cannot replenish budget through an extension custo
   f.emit('message_end', { message: { role: 'user', content: 'queued prompt' } });
   f.fail('invalid argument four'); assert.equal(f.settle(), undefined);
 });
+test('explicit custom runs discard stale admission candidates; user triggers still require non-extension input', () => {
+  const f = fixture(); f.begin(); f.fail('invalid argument one'); f.settle(); f.fail('invalid argument two'); f.settle();
+  const previous = f.branch.filter(e => e.customType === 'pi-runtime-state').at(-1).data;
+  f.emit('input', { source: 'interactive', text: 'handled input leaves a candidate' });
+  f.emit('before_agent_start', { messageType: 'custom', message: { role: 'custom', content: 'notification' } });
+  f.emit('agent_start');
+  // A user-shaped later message must not consume a candidate prepared by a custom trigger.
+  // This is a defensive event-boundary unit, not a Pi 1.2.0 host-ordering certification.
+  f.emit('message_end', { message: { role: 'user', content: 'later queued user' } });
+  assert.deepEqual(f.branch.filter(e => e.customType === 'pi-runtime-state').at(-1).data, previous);
+  f.emit('input', { source: 'extension', text: 'extension user prompt' });
+  f.emit('before_agent_start', { messageType: 'user', prompt: 'extension user prompt' });
+  f.emit('agent_start'); f.emit('message_end', { message: { role: 'user', content: 'extension user prompt' } });
+  assert.deepEqual(f.branch.filter(e => e.customType === 'pi-runtime-state').at(-1).data, previous);
+  f.emit('input', { source: 'interactive', text: 'new real task' });
+  f.emit('before_agent_start', { messageType: 'user', prompt: 'new real task' });
+  f.emit('agent_start'); f.emit('message_end', { message: { role: 'user', content: 'new real task' } });
+  const next = f.branch.filter(e => e.customType === 'pi-runtime-state').at(-1).data;
+  assert.notEqual(next.taskId, previous.taskId); assert.equal(next.used, 0);
+});
 test('admitted transformed/template user message resets only after the complete host prompt phases', () => {
   const f = fixture(); f.begin(); f.fail('invalid argument one'); f.settle(); f.fail('invalid argument two'); f.settle();
   const previous = f.branch.filter(e => e.customType === 'pi-runtime-state').at(-1).data.taskId;

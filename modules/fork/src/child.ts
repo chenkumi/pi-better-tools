@@ -1,0 +1,193 @@
+import { spawn, type ChildProcess } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
+import { killProcessTree } from "../../subagents/extensions/subagent/concurrency.ts";
+import { getPiInvocation } from "../../subagents/extensions/subagent/index.ts";
+import { RpcPipe } from "../../subagents/extensions/subagent/rpc.ts";
+import { CHANNEL } from "./child-guard.ts";
+import { FORK_GUARD_ENV, FORK_TOOLS, type ForkChildGuard } from "./identity.ts";
+
+export const MAX_LINE_BYTES = 4 * 1024 * 1024;
+export const STDERR_TAIL_BYTES = 8 * 1024;
+export const STARTUP_MS = 90_000;
+export const CLOSE_GRACE_MS = 10_000;
+export const KILL_GRACE_MS = 5_000;
+
+export interface ForkChildSpec {
+	jobId: string;
+	sessionId: string;
+	sessionPath: string;
+	sessionDir: string;
+	cwd: string;
+	model: string;
+	thinkingLevel: string;
+	tools: string[];
+	trusted: boolean;
+	guardPath: string;
+	/** Parent resource/prompt flags forwarded verbatim (already absolute); never contains task text. */
+	forwarded: string[];
+	prompt: string;
+	invocation?: typeof getPiInvocation;
+	spawnImpl?: typeof spawn;
+	/** Test seams for the termination ladder; production uses the constants above. */
+	closeGraceMs?: number;
+	killGraceMs?: number;
+}
+export interface ForkUsage { input: number; output: number; cacheRead: number; cacheWrite: number; total: number; cost: number }
+export interface ForkChildOutcome {
+	status: "completed" | "failed" | "cancelled";
+	output?: string;
+	errorCode?: string;
+	error?: string;
+	usage?: ForkUsage;
+	usageUnknown?: boolean;
+	childClosed: boolean;
+	exitCode?: number | null;
+	stderrTail: string;
+}
+export type ForkPhase = "starting" | "running" | "finalizing" | "cancelling";
+export interface ForkChildHandle { readonly pid?: number; cancel(): Promise<void>; readonly done: Promise<ForkChildOutcome> }
+
+/** Argument vector for the Fork child. The task travels over RPC stdin, never on the command line. */
+export function buildForkPiArgs(spec: Pick<ForkChildSpec, "sessionPath" | "sessionDir" | "model" | "thinkingLevel" | "tools" | "trusted" | "guardPath" | "forwarded">): string[] {
+	const args = ["--mode", "rpc", "--session", spec.sessionPath, "--session-dir", spec.sessionDir, "--model", spec.model, "--thinking", spec.thinkingLevel];
+	if (spec.tools.length) args.push("--tools", spec.tools.join(","));
+	else args.push("--no-tools");
+	args.push("--exclude-tools", FORK_TOOLS.join(","), "-e", spec.guardPath, spec.trusted ? "--approve" : "--no-approve", ...spec.forwarded);
+	return args;
+}
+
+const usageOf = (stats: any): ForkUsage | undefined => {
+	const t = stats?.tokens;
+	if (!t || typeof t.total !== "number") return undefined;
+	const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : 0);
+	return { input: n(t.input), output: n(t.output), cacheRead: n(t.cacheRead), cacheWrite: n(t.cacheWrite), total: n(t.total), cost: n(stats.cost) };
+};
+const delta = (after?: ForkUsage, before?: ForkUsage): ForkUsage | undefined => after && before ? {
+	input: Math.max(0, after.input - before.input), output: Math.max(0, after.output - before.output), cacheRead: Math.max(0, after.cacheRead - before.cacheRead),
+	cacheWrite: Math.max(0, after.cacheWrite - before.cacheWrite), total: Math.max(0, after.total - before.total), cost: Math.max(0, after.cost - before.cost) } : undefined;
+
+/** Opt-in diagnostics (PI_FORK_DEBUG=1): phase names only, never task text, output or credentials. */
+const debug = (jobId: string, message: string) => { if (process.env.PI_FORK_DEBUG) { try { process.stderr.write(`[fork ${jobId.slice(-6)}] ${message}
+`); } catch { /* diagnostics only */ } } };
+
+class Deferred<T> {
+	promise: Promise<T>; resolve!: (value: T) => void; reject!: (error: Error) => void; settled = false;
+	constructor() {
+		this.promise = new Promise<T>((resolve, reject) => { this.resolve = v => { this.settled = true; resolve(v); }; this.reject = e => { this.settled = true; reject(e); }; });
+		this.promise.catch(() => {});
+	}
+}
+
+/** Starts the independent Pi process. Every wait is tied to cancellation or child close; nothing relies on a fixed sleep. */
+export function startForkChild(spec: ForkChildSpec, onPhase: (phase: ForkPhase) => void = () => {}): ForkChildHandle {
+	const token = randomBytes(16).toString("hex");
+	const guard: ForkChildGuard = { forkId: spec.jobId, sessionId: spec.sessionId, cwd: spec.cwd, model: spec.model, thinkingLevel: spec.thinkingLevel, childTrusted: spec.trusted, tools: spec.tools, token };
+	const invocation = (spec.invocation ?? getPiInvocation)(buildForkPiArgs(spec));
+	const proc: ChildProcess = (spec.spawnImpl ?? spawn)(invocation.command, invocation.args, { cwd: spec.cwd, shell: false, windowsHide: true, detached: process.platform !== "win32",
+		stdio: ["pipe", "pipe", "pipe", "ipc"], env: { ...process.env, [FORK_GUARD_ENV]: JSON.stringify(guard) } });
+	const pipe = new RpcPipe(proc);
+	let stderrTail = "", cancelled = false, closed = false, exitCode: number | null | undefined, rejectedCode: string | undefined, spawnError: Error | undefined;
+	let lastAssistant: { stopReason?: string; errorMessage?: string } | undefined;
+	const closedSignal = new Deferred<void>(), verified = new Deferred<{ tools: string[]; sessionFile?: string }>(), quiescent = new Deferred<void>(), cancelSignal = new Deferred<void>();
+	const kill = (signal: NodeJS.Signals) => killProcessTree(proc, signal, { spawn: (command, args, options) => spawn(command, args, options) });
+
+	// A spawn error is not a close: the child may never have existed, but we do not claim cleanup beyond that observation.
+	proc.on("error", error => { spawnError = error; verified.reject(error); quiescent.reject(error); });
+	proc.on("close", code => {
+		closed = true; exitCode = code; pipe.dispose(); closedSignal.resolve();
+		verified.reject(new Error("CHILD_CLOSED: child exited before startup verification"));
+		quiescent.reject(new Error("CHILD_CLOSED: child exited before settlement"));
+	});
+	proc.stderr?.on("data", (chunk: Buffer) => { stderrTail = (stderrTail + chunk.toString("utf8")).slice(-STDERR_TAIL_BYTES); });
+	proc.on("message", (value: unknown) => {
+		const message = value as Record<string, any> | null;
+		if (!message || typeof message !== "object" || message.channel !== CHANNEL || message.token !== token) return;
+		if (message.type === "verified" && Array.isArray(message.tools)) verified.resolve({ tools: message.tools.map(String), sessionFile: typeof message.sessionFile === "string" ? message.sessionFile : undefined });
+		else if (message.type === "rejected") { rejectedCode = String(message.code ?? "REJECTED").slice(0, 64); verified.reject(new Error(`CHILD_REJECTED: ${rejectedCode}`)); }
+		else if (message.type === "settled" && message.quiet === true && verified.settled && promptSent) quiescent.resolve();
+	});
+	let promptSent = false;
+	// Bounded LF-delimited reader: one oversized line is discarded, the stream keeps draining.
+	const handleLine = (line: string) => {
+		if (line.length > MAX_LINE_BYTES || line.charCodeAt(0) !== 123) return;
+		const response = line.includes('"type":"response"');
+		const assistantEnd = line.includes('"type":"message_end"') && line.includes('"role":"assistant"');
+		if (!response && !assistantEnd) return;
+		let event: any; try { event = JSON.parse(line); } catch { return; }
+		if (event.type === "response") { try { pipe.accept(event); } catch { /* uncorrelated response is ignored */ } }
+		else if (event.type === "message_end" && event.message?.role === "assistant") lastAssistant = { stopReason: event.message.stopReason, errorMessage: typeof event.message.errorMessage === "string" ? event.message.errorMessage.slice(0, 500) : undefined };
+	};
+	let buffer = "", discarding = false;
+	proc.stdout?.setEncoding("utf8");
+	proc.stdout?.on("data", (chunk: string) => {
+		buffer += chunk;
+		for (let at = buffer.indexOf("\n"); at >= 0; at = buffer.indexOf("\n")) {
+			const line = buffer.slice(0, at); buffer = buffer.slice(at + 1);
+			if (discarding) { discarding = false; continue; }
+			handleLine(line);
+		}
+		if (buffer.length > MAX_LINE_BYTES) { buffer = ""; discarding = true; }
+	});
+
+	const closeGrace = spec.closeGraceMs ?? CLOSE_GRACE_MS, killGrace = spec.killGraceMs ?? KILL_GRACE_MS;
+	const waitClosed = async (ms: number) => {
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		try { await Promise.race([closedSignal.promise, new Promise<void>(resolve => { timer = setTimeout(resolve, ms); })]); } finally { if (timer) clearTimeout(timer); }
+		return closed;
+	};
+	/** Orderly EOF first, then TERM, then KILL. Returns whether a real `close` was observed. */
+	const shutdown = async (): Promise<boolean> => {
+		try { await pipe.end(); } catch { try { proc.stdin?.destroy(); } catch { /* already closed */ } }
+		if (await waitClosed(closeGrace)) return true;
+		kill("SIGTERM"); if (await waitClosed(killGrace)) return true;
+		kill("SIGKILL"); return waitClosed(killGrace);
+	};
+	const raceCancel = <T>(promise: Promise<T>) => Promise.race([promise, cancelSignal.promise.then(() => { throw Object.assign(new Error("CANCELLED"), { cancelled: true }); })]);
+
+	const run = async (): Promise<ForkChildOutcome> => {
+		debug(spec.jobId, `spawned pid=${proc.pid}`);
+		let usage: ForkUsage | undefined, output: string | undefined, failure: { code: string; message: string } | undefined;
+		try {
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			const startup = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(Object.assign(new Error("startup deadline"), { code: "STARTUP_DEADLINE" })), STARTUP_MS); });
+			let ready: { tools: string[]; sessionFile?: string };
+			try { ready = await raceCancel(Promise.race([verified.promise, startup])); } finally { if (timer) clearTimeout(timer); }
+			const want = new Set(spec.tools), got = new Set(ready.tools.filter(name => !(FORK_TOOLS as readonly string[]).includes(name)));
+			if (want.size !== got.size || [...want].some(name => !got.has(name))) throw Object.assign(new Error("tool set differs from the parent selection"), { code: "CAPABILITY_MISMATCH" });
+			const state = await raceCancel(pipe.request("get_state"));
+			if (state?.sessionId !== spec.sessionId || (typeof state?.sessionFile === "string" && !existsSync(state.sessionFile))) throw Object.assign(new Error("native session identity mismatch"), { code: "CONFIG_CHANGED" });
+			const before = usageOf(await raceCancel(pipe.request("get_session_stats")).catch(() => undefined));
+			debug(spec.jobId, "verified; sending prompt");
+			onPhase("running");
+			promptSent = true;
+			const accepted = await raceCancel(pipe.request("prompt", { message: spec.prompt }));
+			if (accepted?.disposition !== "started") throw Object.assign(new Error(`prompt disposition ${String(accepted?.disposition)}`), { code: "PROMPT_NOT_STARTED" });
+			await raceCancel(quiescent.promise);
+			debug(spec.jobId, "quiescent; collecting result");
+			onPhase("finalizing");
+			const text = await pipe.request("get_last_assistant_text").catch(() => undefined);
+			output = typeof text?.text === "string" ? text.text : undefined;
+			usage = delta(usageOf(await pipe.request("get_session_stats").catch(() => undefined)), before);
+			if (lastAssistant?.stopReason === "error" || lastAssistant?.stopReason === "aborted") failure = { code: "CHILD_MODEL_ERROR", message: lastAssistant.errorMessage ?? `assistant stopped with ${lastAssistant.stopReason}` };
+		} catch (error) {
+			const e = error as { code?: string; message?: string; cancelled?: boolean };
+			if (e?.cancelled || cancelled) cancelled = true;
+			else failure = { code: rejectedCode ?? e?.code ?? (closed ? "CHILD_EXITED" : "CHILD_FAILED"), message: String(e?.message ?? error).slice(0, 500) };
+		}
+		if (cancelled) { onPhase("cancelling"); await Promise.race([pipe.request("abort").catch(() => undefined), waitClosed(1000)]); }
+		debug(spec.jobId, `shutting down (closed=${closed}, cancelled=${cancelled})`);
+		const childClosed = closed ? true : spawnError && proc.pid === undefined ? true : await shutdown();
+		const base = { childClosed, exitCode, stderrTail, ...(usage ? { usage } : { usageUnknown: true }) };
+		if (spawnError) return { ...base, status: "failed", errorCode: "SPAWN_FAILED", error: spawnError.message.slice(0, 500) };
+		if (cancelled) return { ...base, status: "cancelled" };
+		if (failure) return { ...base, status: "failed", errorCode: failure.code, error: failure.message };
+		return { ...base, status: "completed", ...(output !== undefined ? { output } : {}) };
+	};
+	const done = run();
+	return {
+		get pid() { return proc.pid; },
+		done,
+		async cancel() { if (cancelled) return; cancelled = true; cancelSignal.resolve(); },
+	};
+}

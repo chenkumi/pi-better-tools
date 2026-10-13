@@ -1,0 +1,77 @@
+import { chmodSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import type { ForkUsage } from "./child.ts";
+
+export type ForkStatus = "awaiting_snapshot" | "starting" | "running" | "finalizing" | "cancelling" | "completed" | "failed" | "cancelled" | "interrupted";
+export type Delivery = "pending" | "submitted" | "observed" | "unknown" | "not_required";
+export const ACTIVE_STATUSES: readonly ForkStatus[] = ["awaiting_snapshot", "starting", "running", "finalizing", "cancelling"];
+export const isTerminal = (status: ForkStatus) => !ACTIVE_STATUSES.includes(status);
+export const MAX_RESULT_BYTES = 32 * 1024;
+export const MAX_STORED = 64;
+
+/** Plain, secret-free metadata. The task text is kept only as a bounded preview; credentials never enter this file. */
+export interface ForkRecord {
+	schemaVersion: 1;
+	jobId: string;
+	forkSessionId: string;
+	title: string;
+	taskPreview: string;
+	status: ForkStatus;
+	cancelRequested: boolean;
+	origin: { sessionId: string; file?: string; cwd: string };
+	config: { model: string; thinkingLevel: string; trusted: boolean; toolsFingerprint: string; toolCount: number };
+	sessionPath?: string;
+	createdAt: string;
+	startedAt?: string;
+	endedAt?: string;
+	ownerPid: number;
+	result?: { resultId: string; output?: string; outputTruncated?: boolean; errorCode?: string; error?: string; usage?: ForkUsage; usageUnknown?: boolean };
+	cleanup?: { childClosed: boolean; exitCode?: number | null };
+	delivery: Delivery;
+}
+
+export const forksDir = (cwd: string) => join(cwd, ".pi", "forks");
+export const recordPath = (cwd: string, jobId: string) => join(forksDir(cwd), `${jobId}.json`);
+
+/** Atomic replace (temp + rename), owner-only. Throws on failure so callers can mark persistence trouble. */
+export function saveRecord(cwd: string, record: ForkRecord): void {
+	const dir = forksDir(cwd);
+	mkdirSync(dir, { recursive: true });
+	const final = recordPath(cwd, record.jobId), temp = `${final}.${process.pid}.tmp`;
+	writeFileSync(temp, JSON.stringify(record), { mode: 0o600 });
+	try { chmodSync(temp, 0o600); } catch { /* not supported on every platform */ }
+	// Windows refuses to replace a file another process currently has open (EPERM/EBUSY/EACCES); readers are short-lived, so retry briefly.
+	const pause = new Int32Array(new SharedArrayBuffer(4));
+	for (let attempt = 0; ; attempt++) {
+		try { renameSync(temp, final); return; }
+		catch (error) {
+			const code = (error as NodeJS.ErrnoException)?.code;
+			if (attempt < 12 && (code === "EPERM" || code === "EBUSY" || code === "EACCES")) { Atomics.wait(pause, 0, 0, 10 * (attempt + 1)); continue; }
+			try { rmSync(temp, { force: true }); } catch { /* best effort */ }
+			throw error;
+		}
+	}
+}
+
+const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
+const STATUSES = new Set<string>(["awaiting_snapshot", "starting", "running", "finalizing", "cancelling", "completed", "failed", "cancelled", "interrupted"]);
+const DELIVERIES = new Set<string>(["pending", "submitted", "observed", "unknown", "not_required"]);
+export function parseRecord(text: string): ForkRecord | undefined {
+	try {
+		const value = JSON.parse(text);
+		if (!value || value.schemaVersion !== 1 || !ULID.test(value.jobId) || typeof value.forkSessionId !== "string" || !STATUSES.has(value.status) || !DELIVERIES.has(value.delivery)) return undefined;
+		if (typeof value.origin?.sessionId !== "string" || typeof value.origin?.cwd !== "string" || typeof value.createdAt !== "string" || typeof value.ownerPid !== "number") return undefined;
+		return value as ForkRecord;
+	} catch { return undefined; }
+}
+
+/** Bounded newest-first scan; unreadable or foreign files are skipped, never repaired or deleted. */
+export function loadRecords(cwd: string, limit = MAX_STORED): ForkRecord[] {
+	let names: string[];
+	try { names = readdirSync(forksDir(cwd)).filter(name => /^[0-9A-HJKMNP-TV-Z]{26}\.json$/.test(name)).sort().reverse().slice(0, limit); } catch { return []; }
+	const records: ForkRecord[] = [];
+	for (const name of names) {
+		try { const record = parseRecord(readFileSync(join(forksDir(cwd), name), "utf8")); if (record && `${record.jobId}.json` === name) records.push(record); } catch { /* skip */ }
+	}
+	return records;
+}

@@ -39,11 +39,12 @@ async function record(label, action) {
   }
 }
 const required = [
-  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'note-tools', 'gpt-speed', 'json-schema', 'pty-terminal', 'schedule-prompt', 'blackhole', 'pi-runtime', 'monitor', 'skill-tools'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
+  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'note-tools', 'gpt-speed', 'json-schema', 'pty-terminal', 'schedule-prompt', 'blackhole', 'pi-runtime', 'monitor', 'skill-tools', 'fork'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
   'modules/pi-runtime/src/policy.ts',
   'modules/skill-tools/skills/create-plan/SKILL.md',
   ...['core', 'schema', 'lines', 'network', 'sources', 'renderers'].map(name => `modules/monitor/src/${name}.ts`),
   'modules/monitor/LICENSE', 'modules/monitor/package.json',
+  ...['identity', 'snapshot', 'child', 'child-guard', 'manager', 'store', 'args'].map(name => `modules/fork/src/${name}.ts`), 'modules/fork/LICENSE', 'modules/fork/package.json',
   'modules/shell-tools/src/monitor-capability.ts', 'modules/shell-tools/src/monitor-exec.ts', 'modules/shell-tools/src/monitor-publisher.ts',
   'modules/subagents/extensions/subagent/monitor-capability.ts',
   'modules/subagents/extensions/subagent/index.ts', 'modules/subagents/extensions/subagent/child-guard.ts',
@@ -103,6 +104,14 @@ try {
       // Isolated HOME/config and a pinned native-script policy; never grant all scripts.
       await writeFile(join(temp, 'package.json'), JSON.stringify({ name: 'pi-better-tools-production-probe', version: '1.0.0', private: true, type: 'module', allowScripts: { 'node-pty@1.2.0-beta.14': true } }));
       const hostPackages = ['pi-coding-agent', 'pi-ai', 'pi-agent-core', 'pi-tui'].map(name => `@earendil-works/${name}@${version}`);
+      // Host-transitive @earendil-works packages use caret ranges; a fresh install would float to newer releases the 1.1.0 host cannot load
+      // (pi-codemode 1.2.0 drops an export). Pin them to the root lockfile so the production tree matches the verified baseline.
+      const lock = JSON.parse(await readFile(join(root, 'package-lock.json'), 'utf8'));
+      for (const name of ['chord', 'pi-codemode', 'pi-mcp', 'pi-telemetry']) {
+        const locked = lock.packages[`node_modules/@earendil-works/${name}`]?.version;
+        assert.ok(locked, `root lockfile must pin @earendil-works/${name}`);
+        hostPackages.push(`@earendil-works/${name}@${locked}`);
+      }
       await record(`${version}:production-install`, () => runNpm(`production dependency install Pi ${version}`, ['install', '--omit=dev', '--legacy-peer-deps', '--ignore-scripts', '--no-audit', '--no-fund', tarball, ...hostPackages, 'typebox@1.3.27'], { cwd: temp, env, timeoutMs: 600000 }));
       const packageRoot = join(temp, 'node_modules/pi-better-tools');
       const host = join(temp, 'node_modules/@earendil-works/pi-coding-agent');
@@ -234,6 +243,16 @@ try {
       await record(`${version}:monitor-runtime`, async () => {
         const output = await runCommand(`production Pi ${version} Monitor`, process.execPath, [monitorFixture, packageRoot], { cwd: monitorHome, env: { ...isolatedEnv(monitorHome), PI_BETTER_TOOLS_HOST: host }, timeoutMs: 180000 });
         const result = JSON.parse(output.trim().split('\n').at(-1)); assert.equal(result.status, 'passed'); assert.equal(result.host, version); assert.equal(result.providerCalls, 0); assert.deepEqual(result.sources, ['command', 'websocket']); assert.equal(result.sourceCloseObserved, true); return output;
+      });
+      const forkFixture = join(temp, 'fork-production.mjs'), forkProvider = join(temp, 'fork-provider.ts');
+      await copyFile(join(root, 'tests/fixtures/fork-production.mjs'), forkFixture); await copyFile(join(root, 'modules/fork/tests/fixtures/provider.ts'), forkProvider);
+      const forkHome = join(temp, 'home-fork'); await mkdir(forkHome);
+      await record(`${version}:fork-runtime`, async () => {
+        const output = await runCommand(`production Pi ${version} Fork`, process.execPath, [forkFixture, packageRoot, forkProvider],
+          { cwd: forkHome, env: { ...isolatedEnv(forkHome), PI_BETTER_TOOLS_HOST: host }, timeoutMs: 180000 });
+        const result = JSON.parse(output.trim().split('\n').at(-1));
+        assert.equal(result.status, 'passed'); assert.equal(result.host, version); assert.equal(result.providerCalls, 0);
+        assert.deepEqual(result.cases, ['snapshot', 'independent-child', 'report-origin', 'tool-selection']); return output;
       });
       const skillsFixture = join(temp, 'skills-host.mjs');
       await copyFile(join(root, 'modules/skill-tools/tests/fixtures/skills-host.mjs'), skillsFixture);

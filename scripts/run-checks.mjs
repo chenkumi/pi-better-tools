@@ -32,6 +32,7 @@ const groups = {
   build: [],
   typecheck: [moduleTask('file-tools', 'typecheck'),
     ...['shell-tools', 'web-tools', 'pty-terminal', 'subagents'].map(m => ({ label: `${m}:typecheck`, args: ['node_modules/typescript/bin/tsc', '-p', `modules/${m}/tsconfig.json`] })),
+    { label: 'fork:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/fork/tsconfig.json'] },
     { label: 'monitor:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/monitor/tsconfig.json'] },
     { label: 'pi-runtime:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/pi-runtime/tsconfig.json'] },
     { label: 'skill-tools:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/skill-tools/tsconfig.json'] },
@@ -41,9 +42,9 @@ const groups = {
     { label: 'json-schema:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/json-schema/tsconfig.json'] },
     { label: 'blackhole:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/blackhole/tsconfig.json'] }],
   // Scan test directories (not hard-coded lists) so a new *.test.ts is never silently skipped; *.test.mjs there are real-host integration tests.
-  unit: [directTests('skill-tools:test', 'modules/skill-tools/tests', name => !isIntegration(name)), directTests('all-modules:test-tooling', 'tests/unit', () => true), directTests('monitor:test', 'modules/monitor/tests', name => !isIntegration(name)), directTests('pi-runtime:test', 'modules/pi-runtime/tests', name => !isIntegration(name)), ...sourceTests, ...[['note-tools', 'modules/note-tools/tests'], ['gpt-speed', 'modules/gpt-speed/tests'], ['json-schema', 'modules/json-schema/tests']]
+  unit: [directTests('skill-tools:test', 'modules/skill-tools/tests', name => !isIntegration(name)), directTests('all-modules:test-tooling', 'tests/unit', () => true), directTests('monitor:test', 'modules/monitor/tests', name => !isIntegration(name)), directTests('fork:test', 'modules/fork/tests', name => !isIntegration(name)), directTests('pi-runtime:test', 'modules/pi-runtime/tests', name => !isIntegration(name)), ...sourceTests, ...[['note-tools', 'modules/note-tools/tests'], ['gpt-speed', 'modules/gpt-speed/tests'], ['json-schema', 'modules/json-schema/tests']]
     .map(([module, dir]) => directTests(`${module}:test`, dir, name => name.endsWith('.test.ts')))],
-  integration: [directTests('skill-tools:real-host', 'modules/skill-tools/tests', isIntegration), directTests('monitor:integration', 'modules/monitor/tests', isIntegration), directTests('pi-runtime:real-host', 'modules/pi-runtime/tests', isIntegration), directTests('pty-terminal:test:integration', 'modules/pty-terminal/tests', isIntegration),
+  integration: [directTests('skill-tools:real-host', 'modules/skill-tools/tests', isIntegration), directTests('monitor:integration', 'modules/monitor/tests', isIntegration), directTests('fork:real-host', 'modules/fork/tests', isIntegration), directTests('pi-runtime:real-host', 'modules/pi-runtime/tests', isIntegration), directTests('pty-terminal:test:integration', 'modules/pty-terminal/tests', isIntegration),
     directTests('json-schema:workers', 'modules/json-schema/tests', isIntegration),
     // Real-host regressions for reported defects (todo cases document known limits and do not fail the stage).
     directTests('gpt-speed:real-host', 'modules/gpt-speed/tests', isIntegration),

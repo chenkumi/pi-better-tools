@@ -153,7 +153,7 @@ export function reconcileRecovery(entries: readonly any[], branch: readonly any[
       if (Array.isArray(jobs)) for (const j of jobs.slice(0, 32)) if (id(j?.jobId) && terminal.has(j.status)) completedNotices.add(j.jobId);
     } else if (e.type === "custom_message" && kind === "subagent" && e.customType === "subagent_background") {
       const d = object(e.details) ?? object(jsonText(e.content));
-      if (d?.kind === "task_result" && id(d.jobId) && terminal.has(d.status)) completedNotices.add(d.jobId);
+      if ((d?.kind === "task_result" || d?.kind === "job_result") && id(d.jobId) && terminal.has(d.status)) completedNotices.add(d.jobId);
     }
     if (e.type !== "custom_message" || e.customType !== `${RECOVERY_NOTICE}-${kind}`) continue;
     const d = object(e.details);

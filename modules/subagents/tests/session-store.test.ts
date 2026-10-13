@@ -66,7 +66,7 @@ test("API-01 normalizes exactly three create modes and rejects conflicts before 
 test("ARG-01 preserves exclude/@file for managed creation and continuation only", () => {
 	for (const persistence of [{ kind: "new", sessionDir: "/managed/pi", sessionId: ulid().toUpperCase() }, { kind: "resume", sessionDir: "/managed/pi", sessionFile: "/managed/pi/exact.jsonl" }] as const) {
 		const args = buildSubagentPiArgs({ persistence, taskPath: "/task", model: "provider/model", thinkingLevel: "high" });
-		assert.equal(args.at(-1), "@/task"); assert.equal(args[args.indexOf("--exclude-tools") + 1], "subagent,subagent_status,subagent_cancel,subagent_message");
+		assert.equal(args.at(-1), "@/task"); assert.equal(args[args.indexOf("--exclude-tools") + 1], "subagent,subagent_status,subagent_cancel,subagent_message,fork,fork_status,fork_cancel");
 		assert.equal(args.includes("--no-session"), false);
 		assert.equal(args.includes("--session-id"), persistence.kind === "new"); assert.equal(args.includes("--session"), persistence.kind === "resume");
 		for (const arg of ["--continue", "--resume", "--fork", "--approve"]) assert.equal(args.includes(arg), false);

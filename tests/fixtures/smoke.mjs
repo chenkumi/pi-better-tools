@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'u
 const expectedExtensions = manifest.pi.extensions.length;
 assert.ok(manifest.pi.extensions.includes('./modules/note-tools/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/pi-runtime/src/index.ts'));
-assert.equal(expectedExtensions, 15, 'thirteen local entries plus two pinned dependency entries');
+assert.equal(expectedExtensions, 16, 'fourteen local entries plus two pinned dependency entries');
 assert.ok(manifest.pi.extensions.includes('./modules/monitor/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/schedule-prompt/src/index.ts'));
 assert.ok(!manifest.pi.extensions.some(entry => entry.includes('/goal/')));
@@ -19,7 +19,7 @@ const dependencyEntries = {
   '@ff-labs/pi-fff': { version: '0.11.0', entry: './src/index.ts' },
 };
 for (const entry of manifest.pi.extensions.filter(entry => entry.startsWith('./modules/'))) assert.match(entry, /^\.\/modules\/[^/]+\/src\/index\.ts$/);
-assert.equal(manifest.pi.extensions.filter(entry => entry.startsWith('./modules/')).length, 13);
+assert.equal(manifest.pi.extensions.filter(entry => entry.startsWith('./modules/')).length, 14);
 assert.ok(manifest.pi.extensions.includes('./modules/blackhole/src/index.ts'));
 assert.equal(manifest.dependencies['pi-blackhole'], undefined);
 for (const [name, expected] of Object.entries(dependencyEntries)) {

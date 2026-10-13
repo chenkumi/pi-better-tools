@@ -41,7 +41,7 @@ const displayByShape: Partial<Record<Shape, string[]>> = {
   runtimeError: ["message"], schedule: ["output", "error"],
 };
 const statusByShape: Partial<Record<Shape, Set<string>>> = {
-  shellJob: terminal, batch: new Set(["completed", "failed", "aborted"]),
+  shellJob: terminal, batch: new Set(["running", "completed", "failed", "aborted"]),
   task: new Set(["completed", "failed", "aborted", "skipped"]), query: new Set(["accepted", "completed", "failed", "aborted"]),
 };
 /** Defense in depth for common credentials in public output; unknown secrets cannot be inferred. */
@@ -144,12 +144,18 @@ export function projectNotification(entry: any): NotificationEvidence | undefine
     }) };
     shape = "shell";
   } else if (entry.customType === "subagent_background") {
-    if (!["task_result", "query_result"].includes(d.kind) || !validId(d.jobId)) return;
+    if (!["task_result", "job_result", "query_result"].includes(d.kind) || !validId(d.jobId)) return;
     verified = d.kind === "query_result" ? { ...d.interaction, kind: d.kind, jobId: d.jobId } : d;
-    if (!["completed", "failed", "aborted"].includes(verified.status)) return;
+    // Parallel batches announce each settled task while the job is still running: that notice is a single-task
+    // task_result whose scope.taskId names its only task. job_result and unscoped task_result close the job.
+    const scoped = d.kind === "task_result" && object(d.scope) && d.scope.taskId !== undefined;
+    if (scoped) {
+      if (!["running", "completed", "failed", "aborted"].includes(verified.status) || !validId(d.scope.taskId)) return;
+      if (!Array.isArray(d.tasks) || d.tasks.length !== 1 || d.tasks[0]?.taskId !== d.scope.taskId || !["completed", "failed", "aborted"].includes(d.tasks[0].status)) return;
+    } else if (!["completed", "failed", "aborted"].includes(verified.status)) return;
     if (d.kind === "query_result" && (!validId(verified.queryId) || !validId(verified.taskId))) return;
-    if (d.kind === "task_result" && (!Array.isArray(d.tasks) || !d.tasks.length || !d.tasks.every((t: any) => validId(t?.taskId) && ["completed", "failed", "aborted", "skipped"].includes(t.status)))) return;
-    if (d.kind === "task_result" && new Set(d.tasks.map((t: any) => t.taskId)).size !== d.tasks.length) return;
+    if (d.kind !== "query_result" && !scoped && (!Array.isArray(d.tasks) || !d.tasks.length || !d.tasks.every((t: any) => validId(t?.taskId) && ["completed", "failed", "aborted", "skipped"].includes(t.status)))) return;
+    if (d.kind !== "query_result" && new Set(d.tasks.map((t: any) => t.taskId)).size !== d.tasks.length) return;
     const body = parsedContent(entry);
     display = body?.jobId === d.jobId && (d.kind !== "query_result" || body.queryId === verified.queryId) ? { ...displayOnly(body), ...verified } : verified;
     shape = d.kind === "query_result" ? "query" : "batch";

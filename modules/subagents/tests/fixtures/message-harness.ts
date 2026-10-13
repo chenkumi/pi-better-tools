@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-/** Event-driven completion observer; subscribe before tool acceptance, never poll or sleep. */
+/** Event-driven completion observer for the FINAL notice of a job (per-task sibling notices carry scope.taskId and are not completion); subscribe before tool acceptance, never poll or sleep. */
 export function messageHarness() {
 	const notices: any[] = [], waiters: (() => void)[] = [];
 	const sendMessage = (message: any) => { notices.push(message.details); for (const resolve of waiters.splice(0)) resolve(); };
 	async function completion(jobId: string) {
-		for (;;) { const found = notices.find(n => n.kind === "task_result" && n.jobId === jobId); if (found) return found; await new Promise<void>(resolve => waiters.push(resolve)); }
+		for (;;) { const found = notices.find(n => n.jobId === jobId && (n.kind === "job_result" || (n.kind === "task_result" && !n.scope?.taskId))); if (found) return found; await new Promise<void>(resolve => waiters.push(resolve)); }
 	}
 	async function message(tool: any, id: string, args: any, ctx: any) {
 		const receipt = await tool.execute(id, args, undefined, undefined, ctx);

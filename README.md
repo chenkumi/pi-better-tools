@@ -1,6 +1,6 @@
 # Pi Better Tools
 
-單一 Pi extensions package，整合 Subagents、Shell Tools、Precise File Tools、Web Tools 、PTY Terminal 與 Schedule Prompt（第三方 pi-schedule-prompt 快照），加上 JSON Schema structured delivery，並提供本專案原生 Note Tools、GPT Speed、Pi Runtime、Monitor 與 Skill Tools extensions。必要程式碼與資源已納入 `modules/`，不依賴來源專案的本機路徑。
+單一 Pi extensions package，整合 Subagents、Shell Tools、Precise File Tools、Web Tools 、PTY Terminal 與 Schedule Prompt（第三方 pi-schedule-prompt 快照），加上 JSON Schema structured delivery，並提供本專案原生 Note Tools、GPT Speed、Pi Runtime、Monitor、Skill Tools 與 Fork extensions。必要程式碼與資源已納入 `modules/`，不依賴來源專案的本機路徑。
 
 > 本專案採用 [MIT License](LICENSE)。使用者已確認五個來源專案均為其所有，並授權本整合專案採 MIT；封裝測試以根目錄 `LICENSE` 為必要授權檔，不要求重複模組 LICENSE；原有模組授權聲明仍保留，來源與相依套件說明見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。`private: true` 僅用於避免誤發布 npm，不限制未來公開至 GitHub；目前未執行任何遠端發布。
 
@@ -17,7 +17,7 @@ npm run browser:install   # 若需要 web_fetch 的 Chromium
 pi install D:/projects/pi-better-tools
 ```
 
-只在目前使用中的專案安裝：`pi install -l D:/projects/pi-better-tools`。先試用、不改設定：`pi --no-extensions -e D:/projects/pi-better-tools`。十三個本地 extensions 直接載入 `modules/<name>/src/index.ts`，另兩個 npm extensions 使用其原始入口；修改本機程式碼後 `/reload` 或重新啟動 Pi 即可，不必先 build。
+只在目前使用中的專案安裝：`pi install -l D:/projects/pi-better-tools`。先試用、不改設定：`pi --no-extensions -e D:/projects/pi-better-tools`。十四個本地 extensions 直接載入 `modules/<name>/src/index.ts`，另兩個 npm extensions 使用其原始入口；修改本機程式碼後 `/reload` 或重新啟動 Pi 即可，不必先 build。
 
 **若原五個 packages 或獨立 `pi-pty-terminal` 已啟用，請先停用其 extensions**，避免與整合包重複註冊相同工具。這些設定不會自動修改。完整步驟與回退見 [docs/migration.md](docs/migration.md)。
 
@@ -98,6 +98,7 @@ Shell 與 Subagents 會在 `startup`／`resume`／`reload` 載入 session 時，
 | Shell Tools | 覆寫 `bash`、`powershell`；`shell_job_status/cancel` | 同步預設；`background:true` 立即回 jobId／liveLogPath；`timeoutMs` 仍為輸出停滯期限；管理工具需額外選取；PowerShell 僅原生 Windows |
 | File Tools | 覆寫 `read`、`write`、`edit`、`ls` | 絕對行號、32 字元 hash、精準 literal／regex、原子寫入、diff worker；`grep/find` 不再由本模組註冊，可由 FFF override 提供 |
 | Web Tools | `web_fetch`；條件式 REST `web_search`；`/web-tools status`、`/web-tools sources` | OpenAI／Codex 原生搜尋預設啟用、無實驗開關或警告，不註冊同名 function tool；Brave／Exa 要明確設定；無登入／CAPTCHA bypass／PDF |
+| Fork | `fork`／`fork_status`／`fork_cancel`（皆預設不啟用，須明確選取） | 以獨立 Pi 行程繼承來源對話與能力接手任務，跨 session 切換仍續行，完成後只回報原 session；Fork 可用 `subagent`、不可再 Fork，所有 Subagent 不可 Fork；quit／`/reload` 取消全部；完成後以原生 `/resume` 繼續。詳見 `modules/fork/README.md`；不是 OS sandbox |
 | Monitor | `monitor_start/status/stop` | 四來源：command stdout、WS text、readonly shell_job/subagent_job；三工具預設啟用（仍受宿主工具限制），總期限預設5分鐘；不是daemon／PTY／sandbox |
 | Skill Tools | `/skill:create-plan` | 透過 extension 的原生 resource discovery 提供隨包 skills；完整指示按需讀取，不修改使用者 home |
 | Note Tools | `note` | `{ type, content }`；自動分類、產生純時間戳檔名（`TYPE-<UTC 時間戳>.md`，不附加標題），只新增 Markdown 檔案並回報單一相對路徑，不覆寫 |
@@ -118,6 +119,10 @@ Pi **1.0.0** 預設 fullscreen TUI；本專案不自動修改 UI 設定，需要
 根四個 Pi 開發套件／lockfile 升至 1.1.0；runtime 仍使用宿主 peers，不自動更新個人 Pi 安裝或設定。`read` 新增宿主相容的 `outputSchema/structuredContent`：codemode 讀文字仍取得本專案行號／metadata 字串，讀圖片取得可交給 `image()` 的 image block。Shell 繼續沿用宿主內容 renderer，取得 recorded `durationMs` 等修正；API 中斷卡片 resolver 重建 default Box 時沿用宿主 `outputPad`。1.1.0 的 hidden tool 仍保留 `toolSnippets` metadata，由 `hiddenTools` 過濾實際宣告／rules；SDK 回歸檢查實際 system prompt 不洩漏隱藏工具。本節更新目前支援基準，其他 1.0.0 描述保留原功能導入背景，不代表仍維護舊版。
 
 file-tools 只保留 `ls` 搜尋／目錄包裝（`defaultActive:false`），不再註冊 `grep/find` 或提供五行 grep 預覽。需要 FFF 同名搜尋時，在全域 `<agentDir>/pi-fff.json` 設 `{"mode":"override"}`；FFF 提供 `grep/find` 的自己的 schema／renderer。`/fff-mode override` 加 `/reload` 切換當前 session，已保存的 session mode 可能優先於全域設定。不修改第三方套件或全員設定；未選 override 時 host 原生搜尋仍可選用。詳見 [File Tools](modules/file-tools/README.md)。
+
+### 結構化 run-start 指引
+
+Subagents 的 `pi_subagents_agent_catalog`、Web 的 `pi_web_tools_native_search` 與共享 `pi_better_tools_background_lifecycle` 由 `before_agent_start` 各自維護獨立 section，不再因 catalog 而強制替換整份 system prompt；停用工具時移除自己的內容，保留其他 sections、custom prompt 與外部 forced prompt 支援。Runtime 仍使用既有任務 admission 證據鏈；宿主若提供 `messageType`，明確 custom run 不取得新任務候選，`user` 也不等同真人新任務。本輪不升級依賴，支援／驗證基準仍是 Pi 1.1.0，不宣稱已完成 1.2.0 相容驗證。詳見 [架構](docs/architecture.md#structured-run-start-prompt-composition-2026-10-13)。
 
 ### 工具 TUI 顯示
 
@@ -312,7 +317,7 @@ pi -p "Extract company name: Acme" --json-schema $schema --json-output result.js
 }
 ```
 
-十三個模組（subagents、shell-tools、file-tools、web-tools、note-tools、gpt-speed、json-schema、pty-terminal、schedule-prompt、blackhole、pi-runtime、monitor、skill-tools）的公開入口均為 `modules/<name>/src/index.ts`。薄入口轉接既有實作，內部資源位置不變。
+十四個模組（subagents、shell-tools、file-tools、web-tools、note-tools、gpt-speed、json-schema、pty-terminal、schedule-prompt、blackhole、pi-runtime、monitor、skill-tools、fork）的公開入口均為 `modules/<name>/src/index.ts`。薄入口轉接既有實作，內部資源位置不變。
 
 Filters 以整合包 root 為基準；與 tool allowlist 不同，它們控制 extension 是否執行／是否啟動生命週期資源。既有 filters 若使用舊入口路徑，請手動更新為新路徑，見 [入口遷移](docs/migration.md#unified-typescript-entry-points)。
 

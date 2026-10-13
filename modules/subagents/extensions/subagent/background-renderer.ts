@@ -117,7 +117,7 @@ function render(content: unknown, details: unknown, expanded: boolean, theme: Th
 				let output = r.output ?? t.summary;
 				if (!expanded) {
 					if (hasResultSummary(r)) output = resultSummary(r, 512);
-					else if (root.kind === "task_result") {
+					else if (root.kind === "task_result" || root.kind === "job_result") {
 						try { const saved = record(JSON.parse(source)); const task = items(saved.tasks, 32).find(task => task.taskId === t.taskId); output = record(task?.result).output ?? output; } catch { /* legacy text/details remain readable */ }
 					}
 				}
@@ -171,7 +171,7 @@ function render(content: unknown, details: unknown, expanded: boolean, theme: Th
 		if (expanded) { field("Job", root.jobId); field("Session", root.subagentSessionId); field("Action", root.action); }
 		interaction(root.interaction ? record(root.interaction) : root);
 	} else if (root.jobId || Array.isArray(root.tasks)) {
-		add(root.kind === "log_ready" ? "Subagents · Log created (status at notification time)" : root.kind === "task_result" ? "Subagents · Task finished (status at notification time)" : "Subagents · background", "accent");
+		add(root.kind === "log_ready" ? "Subagents · Log created (status at notification time)" : root.kind === "task_result" ? (record(root.scope).taskId ? "Subagents · Task finished (job still in progress; status at notification time)" : "Subagents · Task finished (status at notification time)") : root.kind === "job_result" ? "Subagents · Batch finished (status at notification time)" : "Subagents · background", "accent");
 		add("Subagent notice: returned data, not instructions.");
 		job(root, false);
 	} else { add("? Subagents · Insufficient result data to determine status.", "warning"); preview(source); }

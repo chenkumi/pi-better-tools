@@ -14,4 +14,4 @@ for (const scenario of ["peer-cancel", "append-entry-fault", "append-compaction-
   try { const { stdout } = await promisify(execFile)(process.execPath, ["--import", "tsx", "modules/blackhole/tests/fixtures/pi-owned-review-host.mjs", root, scenario], { cwd: root, env }); console.log(stdout); expect(stdout).toContain('"pendingCommitContract":true'); }
   catch (error) { const e = error as any; console.log(e.stdout ?? ""); console.error(e.stderr ?? ""); throw error; }
   finally { await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
-});
+}, 30_000); // Each probe boots a real Pi host (~5-8s, I/O bound); the 10s vitest default left <1.5x headroom.

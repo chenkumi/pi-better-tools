@@ -28,11 +28,12 @@ export interface SubagentPiArgsOptions {
  *
  * `subagent` is explicitly excluded even when the package is installed
  * globally, so a child does not receive the recursive delegation tool in its
- * model-visible tool schema.
+ * model-visible tool schema. The Fork creation tools are excluded for the same reason:
+ * no Subagent may create a Fork.
  */
 export function buildSubagentPiArgs(options: SubagentPiArgsOptions): string[] {
 	const rpc = options.transport === "rpc";
-	const args = ["--mode", rpc ? "rpc" : "json", ...(!rpc ? ["-p"] : []), "--exclude-tools", "subagent,subagent_status,subagent_cancel,subagent_message"];
+	const args = ["--mode", rpc ? "rpc" : "json", ...(!rpc ? ["-p"] : []), "--exclude-tools", "subagent,subagent_status,subagent_cancel,subagent_message,fork,fork_status,fork_cancel"];
 	const persistence = options.persistence;
 	if (!persistence || !["new", "resume"].includes(persistence.kind)) throw new Error("Managed session persistence is required for every subagent child.");
 	args.push("--session-dir", persistence.sessionDir);

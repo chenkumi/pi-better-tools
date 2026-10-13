@@ -31,5 +31,5 @@ export function publishSubagentMonitor(jobs: BackgroundJobs, ctx: ExtensionConte
   const scope = { sessionId: ctx.sessionManager.getSessionId(), cwd: canonicalMonitorCwd(ctx.cwd) }, epoch = jobs.epoch;
   return publishCapability('subagent_job', scope, epoch, id => subagentMonitorSnapshot(jobs, id, scope.sessionId, scope.cwd), () => {
     try { return jobs.epoch === epoch && ctx.sessionManager.getSessionId() === scope.sessionId && canonicalMonitorCwd(ctx.cwd) === scope.cwd; } catch { return false; }
-  });
+  }, () => jobs.list(scope.sessionId, scope.cwd).filter(job => job.status === 'queued' || job.status === 'running').length);
 }

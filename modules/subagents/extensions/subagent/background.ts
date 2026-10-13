@@ -21,6 +21,10 @@ export interface BackgroundTask {
 	queries?: QueryReceipt[];
 	readOnlyQuery?: boolean;
 }
+/** Per-task notification scope. `taskId` set: one finished sibling; `unnotified` set: final job summary. */
+export interface NotificationScope { taskId?: string; completed: number; total: number; unnotified?: number; notifiedTaskIds?: string[] }
+/** perTaskNotify (parallel batches): announce each task when it settles, then one job_result. */
+export interface BackgroundSubmitOptions { perTaskNotify?: boolean }
 export interface BackgroundReceipt {
 	jobId: string;
 	status: "queued" | "running" | "completed" | "failed" | "aborted";
@@ -44,6 +48,8 @@ interface Job extends BackgroundReceipt {
 	readonlyQueryStarted?: boolean;
 	readonlyQueryNotice?: InteractionNotice & { taskId: string; subagentSessionId?: string; action: "query" };
 	readonlyQueryRunnerError?: string;
+	perTaskNotify?: boolean;
+	notifiedTasks: Set<string>;
 }
 // Shared admission budget across extension instances/reloads; active child permits
 // remain owned by the existing runner. Cancellation retains admission until cleanup.
@@ -100,7 +106,7 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 
 export interface NotificationObservation {
 	phase: "canonical_applied" | "callback_attempted" | "callback_returned" | "callback_threw" | "suppressed";
-	kind: "task_result" | "log_ready" | "control_result" | "query_result";
+	kind: "task_result" | "job_result" | "log_ready" | "control_result" | "query_result";
 	jobId: string;
 	taskId?: string;
 	generation: number;
@@ -115,7 +121,7 @@ export class BackgroundJobs {
 	private observations: NotificationObservation[] = [];
 	private omittedObservations = 0;
 	constructor(
-		private readonly notify: (kind: "task_result" | "log_ready" | "control_result" | "query_result", receipt: BackgroundReceipt, interaction?: InteractionNotice & { taskId: string; subagentSessionId?: string; action: "control" | "query" }) => void,
+		private readonly notify: (kind: "task_result" | "job_result" | "log_ready" | "control_result" | "query_result", receipt: BackgroundReceipt, interaction?: InteractionNotice & { taskId: string; subagentSessionId?: string; action: "control" | "query" }, scope?: NotificationScope) => void,
 		/** Optional process-wide active-child count, used only for diagnostics. */
 		private readonly activeCount?: () => number,
 		/** Optional presentation observer; errors cannot change execution. */
@@ -141,17 +147,19 @@ export class BackgroundJobs {
 		this.observations.push(event);
 		try { this.observer?.(event); } catch { /* diagnostics cannot change lifecycle */ }
 	}
-	private deliver(job: Job, kind: NotificationObservation["kind"], admitted: boolean, interaction?: InteractionNotice & { taskId: string; subagentSessionId?: string; action: "control" | "query" }) {
+	private deliver(job: Job, kind: NotificationObservation["kind"], admitted: boolean, interaction?: InteractionNotice & { taskId: string; subagentSessionId?: string; action: "control" | "query" }, scope?: NotificationScope) {
 		if (!admitted || this.closed || job.generation !== this.generation || this.jobs.get(job.jobId) !== job) {
-			this.observe(job, kind, "suppressed", interaction?.taskId); return;
+			this.observe(job, kind, "suppressed", interaction?.taskId ?? scope?.taskId); return;
 		}
 		if (job.readonlyQueryId && (kind === "task_result" || kind === "log_ready")) { this.observe(job, kind, "suppressed"); return; }
-		this.observe(job, kind, "callback_attempted", interaction?.taskId);
+		const taskId = interaction?.taskId ?? scope?.taskId;
+		this.observe(job, kind, "callback_attempted", taskId);
 		try {
-			this.notify(kind, this.view(job), interaction);
-			this.observe(job, kind, "callback_returned", interaction?.taskId);
+			const view = this.view(job);
+			this.notify(kind, scope?.taskId ? { ...view, tasks: view.tasks.filter(task => task.taskId === scope.taskId) } : view, interaction, scope);
+			this.observe(job, kind, "callback_returned", taskId);
 		} catch {
-			this.observe(job, kind, "callback_threw", interaction?.taskId);
+			this.observe(job, kind, "callback_threw", taskId);
 			void this.shutdown(); // Existing fail-closed behavior; no retry/async host ack.
 		}
 	}
@@ -284,11 +292,11 @@ export class BackgroundJobs {
 		return undefined;
 	}
 	/** Hold admission while allocating real managed identities; no runner is admitted before prepare succeeds. */
-	async submitManaged(owner: string, cwd: string, epoch: number, agents: string[], prepare: (signal: AbortSignal) => Promise<string[]>, run: Parameters<BackgroundJobs["submit"]>[4], titles: readonly (string | undefined)[] = [], beforeAccept?: () => void, readonlyQueryId?: string, toolSignal?: AbortSignal) {
+	async submitManaged(owner: string, cwd: string, epoch: number, agents: string[], prepare: (signal: AbortSignal) => Promise<string[]>, run: Parameters<BackgroundJobs["submit"]>[4], titles: readonly (string | undefined)[] = [], beforeAccept?: () => void, readonlyQueryId?: string, toolSignal?: AbortSignal, options?: BackgroundSubmitOptions) {
 		let start!: () => void, reject!: (error: unknown) => void;
 		const ready = new Promise<void>((resolve, fail) => { start = resolve; reject = fail; });
 		// submit installs its rejection handler before prepare can fail.
-		const receipt = this.submit(owner, cwd, epoch, agents, run, titles, ready, readonlyQueryId);
+		const receipt = this.submit(owner, cwd, epoch, agents, run, titles, ready, readonlyQueryId, options);
 		const job = this.jobs.get(receipt.jobId)!;
 		let preparation: Promise<string[]> | undefined;
 		const abortTool = () => { job.cancelRequested = true; job.controller.abort(); };
@@ -345,7 +353,7 @@ export class BackgroundJobs {
 		}
 		return mode === "control" ? handle.control(text) : handle.query(text);
 	}
-	submit(owner: string, cwd: string, epoch: number, agents: string[], run: (signal: AbortSignal, taskIds: string[], live: (index: number, sessionId: string, path: string) => void, finish: (index: number, result: unknown, status: BackgroundTask["status"]) => void, attach: (index: number, handle: RpcInteraction) => void, interaction: (index: number, notice: InteractionNotice) => void, progress: (index: number, data: TaskPresentation) => void) => Promise<void>, widgetTitles: readonly (string | undefined)[] = [], admission?: Promise<void>, readonlyQueryId?: string) {
+	submit(owner: string, cwd: string, epoch: number, agents: string[], run: (signal: AbortSignal, taskIds: string[], live: (index: number, sessionId: string, path: string) => void, finish: (index: number, result: unknown, status: BackgroundTask["status"]) => void, attach: (index: number, handle: RpcInteraction) => void, interaction: (index: number, notice: InteractionNotice) => void, progress: (index: number, data: TaskPresentation) => void) => Promise<void>, widgetTitles: readonly (string | undefined)[] = [], admission?: Promise<void>, readonlyQueryId?: string, options: BackgroundSubmitOptions = {}) {
 		if (this.closed || epoch !== this.generation) throw new Error("BACKGROUND_RUNTIME_CLOSED: owner session changed during preflight");
 		if (!agents.length || agents.length > MAX_SUBMITTED || submittedTasks + agents.length > MAX_SUBMITTED) throw new Error(`BACKGROUND_CAPACITY: Request not accepted: capacity limit reached. at most ${MAX_SUBMITTED} submitted background tasks process-wide (now ${this.load()}; this request adds ${agents.length}). Next: call subagent_status (no jobId lists your jobs) to see what is still running, subagent_cancel jobs you no longer need, or split the work into smaller batches and submit the rest after task_result completion notifications arrive.`);
 		for (const [id, job] of this.jobs) {
@@ -354,7 +362,7 @@ export class BackgroundJobs {
 		}
 		if (this.jobs.size >= MAX_RETAINED_JOBS) throw new Error(`BACKGROUND_CAPACITY: Request not accepted: capacity limit reached. retained job limit (${MAX_RETAINED_JOBS}) reached with unfinished jobs (now ${this.load()}). Next: call subagent_status to list jobs and subagent_cancel ones you no longer need, then retry.`);
 		const job: Job = { jobId: ulid().toUpperCase(), owner, cwd, generation: this.generation, status: "queued", cancelRequested: false,
-			tasks: agents.map(agent => ({ taskId: ulid().toUpperCase(), agent, status: "queued", logPending: true })), controller: new AbortController(), done: Promise.resolve(), interactive: new Map(), readonlyQueryId, widgetTitles: agents.map((_agent, index) => widgetTitles[index]?.slice(0, 256) ?? ""), widgetProgress: [], widgetStartedAt: Date.now() };
+			tasks: agents.map(agent => ({ taskId: ulid().toUpperCase(), agent, status: "queued", logPending: true })), controller: new AbortController(), done: Promise.resolve(), interactive: new Map(), readonlyQueryId, widgetTitles: agents.map((_agent, index) => widgetTitles[index]?.slice(0, 256) ?? ""), widgetProgress: [], widgetStartedAt: Date.now(), notifiedTasks: new Set(), perTaskNotify: options.perTaskNotify === true && !readonlyQueryId && agents.length > 1 };
 		if (!admission) job.recovery = this.persist?.(owner, cwd, this.snapshot(job));
 		if (readonlyQueryId) Object.assign(job.tasks[0], { queries: [{ queryId: readonlyQueryId, status: "accepted" }], readOnlyQuery: true, logPending: false, canMessage: false });
 		this.jobs.set(job.jobId, job);
@@ -383,6 +391,11 @@ export class BackgroundJobs {
 					if (result && typeof result === "object" && "logPath" in result && result.logPath) { delete task.liveLogPath; delete task.finalLogPath; }
 					if (result && typeof result === "object" && "subagentSessionId" in result && typeof result.subagentSessionId === "string") task.subagentSessionId = result.subagentSessionId;
 					this.record(job); this.changed(job);
+					// A settled sibling is announced on its own; cancellation is covered by job_result.
+					if (job.perTaskNotify && ["completed", "failed", "aborted"].includes(status) && !job.cancelRequested && !job.notifiedTasks.has(task.taskId)) {
+						job.notifiedTasks.add(task.taskId);
+						this.deliver(job, "task_result", admitted, undefined, { taskId: task.taskId, completed: job.tasks.filter(t => ["completed", "failed", "aborted", "skipped"].includes(t.status)).length, total: job.tasks.length });
+					}
 				}, (index, handle) => { if (job.readonlyQueryId) { job.tasks[index].status = "running"; job.readonlyQueryStarted = true; this.record(job); } job.interactive.set(index, handle); this.changed(job); send("log_ready"); }, (index, notice) => {
 					if (notice.kind === "control_result" && notice.status === "applied") this.observe(job, notice.kind, "canonical_applied", job.tasks[index].taskId);
 					if (!this.closed && job.generation === this.generation && this.jobs.get(job.jobId) === job) {
@@ -438,7 +451,8 @@ export class BackgroundJobs {
 					this.record(job, true); this.changed(job);
 					this.deliver(job, "query_result", admitted, notice);
 				} else { this.record(job, true); this.changed(job); }
-				send("task_result");
+				if (job.perTaskNotify) this.deliver(job, "job_result", admitted, undefined, { completed: job.tasks.filter(t => ["completed", "failed", "aborted", "skipped"].includes(t.status)).length, total: job.tasks.length, unnotified: job.tasks.filter(t => !job.notifiedTasks.has(t.taskId)).length, notifiedTaskIds: [...job.notifiedTasks] });
+				else send("task_result");
 			}
 		});
 		return receipt;

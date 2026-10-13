@@ -16,7 +16,7 @@ function optionValue(args: string[], option: string): string | undefined {
 
 function expectSubagentExcluded(args: string[]) {
 	assert.equal(args.filter((arg) => arg === "--exclude-tools").length, 1);
-	assert.deepEqual(optionValue(args, "--exclude-tools")?.split(","), ["subagent", "subagent_status", "subagent_cancel", "subagent_message"]);
+	assert.deepEqual(optionValue(args, "--exclude-tools")?.split(","), ["subagent", "subagent_status", "subagent_cancel", "subagent_message", "fork", "fork_status", "fork_cancel"]);
 }
 
 test("bundled scout inherits the parent model", () => {

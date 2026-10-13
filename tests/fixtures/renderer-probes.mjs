@@ -17,7 +17,7 @@ export function assertToolRenderers(definitions, cwd) {
     let text = '';
     for (const width of [12, 24, 80]) {
       const lines = component.render(width);
-      if (definition.name.startsWith('pty_') || ['note', 'web_fetch', 'web_search', 'shell_job_status', 'shell_job_cancel', 'subagent_status', 'subagent_cancel', 'subagent_message'].includes(definition.name)) {
+      if (definition.name.startsWith('pty_') || ['note', 'fork', 'fork_status', 'fork_cancel', 'web_fetch', 'web_search', 'shell_job_status', 'shell_job_cancel', 'subagent_status', 'subagent_cancel', 'subagent_message'].includes(definition.name)) {
         assert.doesNotMatch(lines.join('\n'), /\x1b\[2J|\x1b\]|[\x07\x80-\x9f\u202a-\u202e\u2066-\u2069]/, `${definition.name}: unsafe display controls`);
       }
       for (const line of lines) assert.ok(visibleWidth(line) <= width, `${definition.name}: line exceeds width ${width}: ${line}`);

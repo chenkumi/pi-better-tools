@@ -18,8 +18,9 @@ const dependencyEntries = [
   './node_modules/@ff-labs/pi-fff/src/index.ts',
 ];
 assert.deepEqual([...manifest.pi.extensions].sort(), [...modules.map(name => `./modules/${name}/src/index.ts`), ...dependencyEntries].sort());
-assert.equal(expectedExtensions, 15, 'thirteen local entries plus two pinned dependency entries');
+assert.equal(expectedExtensions, 16, 'fourteen local entries plus two pinned dependency entries');
 assert.ok(manifest.pi.extensions.includes('./modules/monitor/src/index.ts'));
+assert.ok(manifest.pi.extensions.includes('./modules/fork/src/index.ts'));
 // Each mode spawns an isolated Pi host in its own home, so modes can overlap.
 describe('all manifest extensions', { concurrency: 4 }, () => {
 for (const mode of ['full', 'read-only', 'no-tools', 'exclude', 'brave', 'exa', 'invalid']) {

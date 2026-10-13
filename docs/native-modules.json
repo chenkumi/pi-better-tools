@@ -13,7 +13,7 @@
         { "path": "modules/skill-tools/src/index.ts", "sha256": "4f8f941ef13e657623e326ecbe293547165e3f5ef9135126378a4377cc30aebb", "reason": "Native discovery hook with module-relative packaged skills directory; no tools or lifecycle resources." },
         { "path": "modules/skill-tools/README.md", "sha256": "ffef8af072b64ba911722c53bd162d378cd4fc9cabc77419fdef1093d1ea3687", "reason": "Usage, extension-filter boundary, migration/rollback and validation instructions." },
         { "path": "modules/skill-tools/tsconfig.json", "sha256": "4f93c79be455ac413c94d8986d2821f49c4f4ac8271df09d5e9fa567861bca64", "reason": "Root strict noEmit typecheck target." },
-        { "path": "modules/skill-tools/skills/create-plan/SKILL.md", "sha256": "6dd6032ec12b89c58ec9db1ef7f5509f3688b517e15df84f1cd4f91c08e00b80", "reason": "User-authorized unchanged skill migration; no instructions rewritten." },
+        { "path": "modules/skill-tools/skills/create-plan/SKILL.md", "sha256": "b9bfbb1cf9068ef1ae78e05d9e783edb2f993e60035e5cf260f2163a294a433d", "reason": "User-authorized unchanged skill migration; no instructions rewritten." },
         { "path": "modules/skill-tools/tests/skills.test.ts", "sha256": "cad83e02d0878a5e3d95eec537f797160be27ae052654dd8c7ac9aee2a5a7e33", "reason": "Registration-only, startup/reload path identity and independent result arrays." },
         { "path": "modules/skill-tools/tests/skills.integration.test.mjs", "sha256": "d3d7511b34345893fa9e8ada81707216a95199c904f6b513681abe2bbf3810ad", "reason": "Isolated-home real Pi1.1.0 wrapper, no external provider calls." },
         { "path": "modules/skill-tools/tests/fixtures/skills-host.mjs", "sha256": "6588b6c267cbc54673bb56fa14f0d66d0cc27b73d25ef8e03c775f7a6cc686f6", "reason": "Relocated package discovery, startup/reload, lazy catalogue/body, command expansion, package extension filters and no-tools; reused by production tarball smoke." }
@@ -307,18 +307,45 @@
     },
     {
       "module": "pi-runtime",
+      "runStartPromptSections": { "date": "2026-10-13", "plan": "plan/PLAN-20261013T021200866Z.md", "scope": "Explicit non-user messageType discards the task candidate; missing Pi1.1.0 discriminator retains existing input/source/phase/actual-user-object admission. Defensive synthetic unit only for new discriminator, not Pi1.2.0 host certification; reservations/recovery/boundary/guard behavior unchanged." },
       "safetyBaselineReview": { "handoff": "report/REPORT-20261009T122847317Z.md", "review": "report/REPORT-20261009T123602084Z.md", "acceptance": "Limited six-file static acceptance,0 critical/0 warning; reviewer did not rerun tests. Full current hashes verified against frozen anchors by root owner; tsconfig unchanged and not newly reviewed. Prior worker22unit/14offline modes do not certify root release, retry/Blackhole/overflow coexistence, real provider or universal idle SDK abort." },
       "origin": "User-requested native bounded error-aware recovery (2026-10-09), not an imported snapshot. Explicit-input automatic feedback, human-confirmed policy/unknown review, at most two session-journaled reservations per recognized task; conservative task admission and no safeguard evasion.",
       "license": "MIT (root LICENSE)",
       "entry": "modules/pi-runtime/src/index.ts",
       "files": [
-        { "path": "modules/pi-runtime/src/index.ts", "runtimeSafetyPreviousSha256": "2668bcdb0b7a9a7a88ec4b3f3290d6fbb44817f5d6c60a7be9538894ac301f48", "sha256": "b156df9b4109929587b49931b8a37897b28a20ef565a7666b56d32e8a4414205" },
+        { "path": "modules/pi-runtime/src/index.ts", "runtimeSafetyPreviousSha256": "2668bcdb0b7a9a7a88ec4b3f3290d6fbb44817f5d6c60a7be9538894ac301f48", "promptSectionsPreviousSha256": "b156df9b4109929587b49931b8a37897b28a20ef565a7666b56d32e8a4414205", "sha256": "2d15b138747df97d9e0d7e93d39d9c14e69929c95615e090df3352df60be3e1e" },
         { "path": "modules/pi-runtime/src/policy.ts", "runtimeSafetyPreviousSha256": "f44b0ee025de2b5a5185375d4e7816d957e96be8f5068f76580b532707706c61", "sha256": "3f0ea9b4efd0db82f71ed414dec70a0f1b038b750bdd022af22d424f688c3a6c" },
         { "path": "modules/pi-runtime/tsconfig.json", "sha256": "4f93c79be455ac413c94d8986d2821f49c4f4ac8271df09d5e9fa567861bca64" },
-        { "path": "modules/pi-runtime/README.md", "runtimeSafetyPreviousSha256": "56a3aa1cea11ca7b31919575f81ad9cfa4fdde66540f8e3804604328bd7868af", "sha256": "c237b0cf43e3be4b12c815cffd616a609292af5c33ed89871c2e55acce31b4e2" },
-        { "path": "modules/pi-runtime/tests/recovery.test.ts", "runtimeSafetyPreviousSha256": "57ef6f715be1170bfa4d8aea2bce96ee5de6a9fbf3ad82fd0512fb69af361423", "sha256": "db64f30aad500dc4667e19e87ab34209186476315bee8b934f19658debe0dadb" },
+        { "path": "modules/pi-runtime/README.md", "runtimeSafetyPreviousSha256": "56a3aa1cea11ca7b31919575f81ad9cfa4fdde66540f8e3804604328bd7868af", "promptSectionsPreviousSha256": "c237b0cf43e3be4b12c815cffd616a609292af5c33ed89871c2e55acce31b4e2", "sha256": "4f16bd3815255dc68763c1e31f2659914d613f9924617b56d2d4403aa4476b65" },
+        { "path": "modules/pi-runtime/tests/recovery.test.ts", "runtimeSafetyPreviousSha256": "57ef6f715be1170bfa4d8aea2bce96ee5de6a9fbf3ad82fd0512fb69af361423", "promptSectionsPreviousSha256": "db64f30aad500dc4667e19e87ab34209186476315bee8b934f19658debe0dadb", "sha256": "4198cd83983e27a6e5da36619deec73d67f115370e3525f6b7551d790ffb2b95" },
         { "path": "modules/pi-runtime/tests/runtime.integration.test.mjs", "runtimeSafetyPreviousSha256": "12b11269aeffe4797223c6907849c26e8458d621502488cfdfa96852ccda81bc", "sha256": "4d084cd4068769b37597c5e6ddf5c5e95f00b6632252d7cff75a0bfe471fb272" },
         { "path": "modules/pi-runtime/tests/fixtures/runtime-host.mjs", "runtimeSafetyPreviousSha256": "29a708f5d742cb33ff2bf01f69dc153f8d0e122dcc4e64e11082ec16caa95886", "sha256": "9f22b14e202ebea5fd416752942cd958a28ff1ac1386afc6997d256a4e211b00" }
+      ]
+    },
+    {
+      "module": "fork",
+      "origin": "User-authorized project-native Fork (2026-10-13), not an imported snapshot: independent Pi process inheriting the source conversation and capabilities, cross-session hand-over, Pi1.1.0 only. Plan: plan/PLAN-20261013T035455648Z.md.",
+      "license": "MIT (root LICENSE and modules/fork/LICENSE)",
+      "entry": "modules/fork/src/index.ts",
+      "files": [
+        {"path": "modules/fork/LICENSE", "sha256": "e1cb88a3eed658e32e1e9d7a7a0ebad47efd7ef8049e7335af29fd5bee00ffe8", "reason": "Native MIT notice."},
+        {"path": "modules/fork/README.md", "sha256": "388c7ac2605bbfc31de3b7a1ba4ca4d764c43acc20dfda8448fb299fb786cb66", "reason": "Contract, limits, deployment prerequisite and security boundaries."},
+        {"path": "modules/fork/package.json", "sha256": "c36c8fbaf06e912dbfbc64556858a98cdd2df8dad6e2702da3a233bd538116c6", "reason": "Native metadata, root install authoritative."},
+        {"path": "modules/fork/src/args.ts", "sha256": "c50ec1b84840f39700406286b6212d12c4e39ea0734cd2cbb46028de9de2be52", "reason": "Native Fork implementation."},
+        {"path": "modules/fork/src/child-guard.ts", "sha256": "41d32860523c159fa9f8b45179f2144ee93694053bf5f14f2f33a8afc3331c16", "reason": "Native Fork implementation."},
+        {"path": "modules/fork/src/child.ts", "sha256": "906e500c05246f0508fccc71390e1c04354fbce7331852f5e7f7171ed8690f16", "reason": "Native Fork implementation."},
+        {"path": "modules/fork/src/identity.ts", "sha256": "84dd63570a283c28bfe18cb63e1c883a43d9415fd79471a30bda60dc703e79a4", "reason": "Native Fork implementation."},
+        {"path": "modules/fork/src/index.ts", "sha256": "804c28977279362b1ba04a1c9aa92819873a49bcfc763a793a5e454dbe91aae8", "reason": "Native Fork implementation."},
+        {"path": "modules/fork/src/manager.ts", "sha256": "0e0cc70bf6167a77ba1915bfc81367e9269f3c2618108b0aac930dcc082555fe", "reason": "Native Fork implementation."},
+        {"path": "modules/fork/src/snapshot.ts", "sha256": "4c929d8f6d6a29ff4e7c9a1fe54448955f50410e45ce72bf1295c54d62af583e", "reason": "Native Fork implementation."},
+        {"path": "modules/fork/src/store.ts", "sha256": "c8735b97a020be842d2a15877dda6b9e355309ef331861988402a3530ea7bae4", "reason": "Native Fork implementation."},
+        {"path": "modules/fork/tests/child-guard.test.ts", "sha256": "e9c6aa4a2f8f89df3defc89b5bb0d699222a968b44035ce3056ecfc9013f5ddc", "reason": "Native Fork tests (unit and real-host offline integration)."},
+        {"path": "modules/fork/tests/child.test.ts", "sha256": "4c1db9a171f3641bd62bc88e6765b89c70e738133d9f3fab7372be142c504692", "reason": "Native Fork tests (unit and real-host offline integration)."},
+        {"path": "modules/fork/tests/contracts.test.ts", "sha256": "5ff308b23c45345a77a8fd27887ce90478fa00fd06ef80de11e8481fa638c93e", "reason": "Native Fork tests (unit and real-host offline integration)."},
+        {"path": "modules/fork/tests/fixtures/provider.ts", "sha256": "4c32ca9257029fc0c3b1335a0254ef56f531936f7095d293359bc6f37fa58c0c", "reason": "Offline deterministic provider fixture (no network, no credentials)."},
+        {"path": "modules/fork/tests/manager.test.ts", "sha256": "fc98c2536c1619d1ff84346391828d7e925756e02406b7f5ec746075959dbb88", "reason": "Native Fork tests (unit and real-host offline integration)."},
+        {"path": "modules/fork/tests/real-host.integration.test.ts", "sha256": "008cf33f06f6fea04d7a6a1ece075326ffdf1defc28dd6befdbfc1b019f2c7e0", "reason": "Native Fork tests (unit and real-host offline integration)."},
+        {"path": "modules/fork/tsconfig.json", "sha256": "cf84803c4808ab9d2af3834851589ef6a7c78eb252cb83d5e9e5f353af4d3edc", "reason": "Strict typecheck configuration."}
       ]
     }
   ]

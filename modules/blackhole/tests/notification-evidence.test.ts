@@ -111,6 +111,22 @@ describe("persisted notification evidence (Pi 1.1.0 shapes)", () => {
     const e = { type: "custom_message", id: "recover", customType: "background-runtime-recovery-subagent", details, content: "Reconciliation data" };
     expect(await recall([e], { query: "e:recover" })).toContain("outcome_unknown");
   });
+  it("retains parallel per-task task_result (job still running) and the closing job_result, rejects malformed scopes", async () => {
+    const task = (taskId: string, status: string, output: string) => ({ taskId, status, result: { exitCode: 0, output } });
+    const scoped = { kind: "task_result", jobId: "BATCH", status: "running", cancelRequested: false, tasks: [task("T_FAST", "completed", "fast output")], scope: { taskId: "T_FAST", completed: 1, total: 2 } };
+    const fast = { type: "custom_message", id: "fast", customType: "subagent_background", details: scoped, content: JSON.stringify(scoped) };
+    const closing = { kind: "job_result", jobId: "BATCH", status: "completed", cancelRequested: false, tasks: [task("T_FAST", "completed", "fast output"), task("T_SLOW", "failed", "slow output")], scope: { completed: 2, total: 2, unnotified: 0, notifiedTaskIds: ["T_FAST", "T_SLOW"] } };
+    const summary = { type: "custom_message", id: "summary", customType: "subagent_background", details: closing, content: JSON.stringify(closing) };
+    expect(await recall([fast], { query: "e:fast" })).toContain("fast output");
+    const out = await recall([summary], { query: "e:summary" });
+    expect(out).toContain("T_SLOW"); expect(out).toContain("failed");
+    const bad = (id: string, details: any) => projectNotification({ type: "custom_message", id, customType: "subagent_background", details, content: JSON.stringify(details) });
+    expect(bad("two", { ...scoped, tasks: [...scoped.tasks, task("T_OTHER", "completed", "x")] })).toBeUndefined();
+    expect(bad("mismatch", { ...scoped, scope: { ...scoped.scope, taskId: "T_OTHER" } })).toBeUndefined();
+    expect(bad("running-task", { ...scoped, tasks: [task("T_FAST", "running", "x")] })).toBeUndefined();
+    expect(bad("running-job-result", { ...closing, status: "running" })).toBeUndefined();
+    expect(bad("unscoped-running", { ...scoped, scope: undefined })).toBeUndefined();
+  });
   it("pages a long evidence projection without skipping output and reports inspection incompleteness", async () => {
     const entry = notices()[3];
     const long = { ...entry, id: "long", details: { ...entry.details, output: "BEGIN_MARKER" + "x".repeat(5000) + "END_MARKER" } };
