@@ -1,8 +1,0 @@
-
-Algorithm Hash                                                             Path                                        
---------- ----                                                             ----                                        
-SHA256    0BB01BCE477C2C2D8404B2958901770A7E7D10BB57CA312FA65ABD8DA608E6BC D:\GitHub\pi-better-tools-main\package.json 
-SHA256    5E5DB71379145C3652862F3E626DC16E6F02EF49AB8055F14616C2A9619F0995 D:\GitHub\pi-better-tools-main\package-lo...
-
-
-
