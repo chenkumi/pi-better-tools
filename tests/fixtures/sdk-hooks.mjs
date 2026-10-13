@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -39,10 +39,14 @@ const declaration = name => ({ name, description: 'Offline restored declaration.
 const baseNames = ['read', 'write', 'edit', 'bash', 'powershell', 'grep', 'find', 'ls'];
 const selectedBase = session => session.getActiveToolNames().filter(name => baseNames.includes(name)).sort();
 // File overrides are extension tools activated on registration; defaultTools is not a read-only allowlist.
-const defaultFiles = ['edit', 'read', 'write'];
+const defaultFiles = ['edit', 'find', 'grep', 'read', 'write'];
 
 async function fixture(options = {}) {
   await writeSettings(options.defaults ?? ['read']);
+  // FFF override prunes its alias tools on reload, which Pi treats as a loadout deactivation and so
+  // clears restored pending names. The pending-tool reload contract is therefore pinned to tools-and-ui.
+  const fffConfig = join(agentDir, 'pi-fff.json');
+  if (options.fffMode) await writeFile(fffConfig, JSON.stringify({ mode: options.fffMode })); else await rm(fffConfig, { force: true });
   const settingsManager = await sdk.SettingsManager.create(cwd, agentDir);
   const sessionManager = sdk.SessionManager.inMemory(cwd);
 
@@ -162,7 +166,7 @@ async function check(name, options, action) {
 try {
   await check('defaultTools additions follow the audited release reload contract', {}, async f => {
     assert.deepEqual(selectedBase(f.session), defaultFiles);
-    for (const name of ['monitor_start', 'monitor_status', 'monitor_stop', 'ffgrep', 'fffind']) {
+    for (const name of ['monitor_start', 'monitor_status', 'monitor_stop', 'grep', 'find']) {
       assert.ok(f.session.getActiveToolNames().includes(name), `default activation without defaultTools: ${name}`);
       assert.ok(f.session.getCallableToolNames().includes(name));
     }
@@ -205,9 +209,10 @@ try {
     assert.equal(f.calls(), 0);
   });
   await check('excluded search overrides remain unavailable after reload', { defaults: ['read', 'grep', 'find', 'ls'], exclude: ['grep', 'find', 'ls'] }, async f => {
-    assert.deepEqual(selectedBase(f.session), defaultFiles);
+    const withoutSearch = defaultFiles.filter(name => name !== 'grep' && name !== 'find');
+    assert.deepEqual(selectedBase(f.session), withoutSearch);
     await f.session.reload();
-    assert.deepEqual(selectedBase(f.session), defaultFiles);
+    assert.deepEqual(selectedBase(f.session), withoutSearch);
     for (const name of ['grep', 'find', 'ls']) assert.ok(!f.session.getCallableToolNames().includes(name));
     assert.equal(f.calls(), 0);
   });
@@ -223,7 +228,7 @@ try {
     f.session.setActiveToolsByName(['read']); f.registerLate();
     assert.deepEqual(f.session.getActiveToolNames(), ['read']);
   });
-  await check('reload preserves an active tool that the new factory registers later', {}, async f => {
+  await check('reload preserves an active tool that the new factory registers later', { fffMode: 'tools-and-ui' }, async f => {
     f.registerLate(); f.session.setActiveToolsByName([...f.session.getActiveToolNames(), 'fixture_late']);
     await f.session.reload(); assert.ok(!f.session.getActiveToolNames().includes('fixture_late'));
     f.registerLate(); assert.equal(f.session.getActiveToolNames().includes('fixture_late'), contracts.pendingTools);

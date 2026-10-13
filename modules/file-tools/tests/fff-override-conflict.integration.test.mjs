@@ -6,12 +6,12 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createHost, entry, heartbeat, isolate, log, manifest, text } from '../../../tests/helpers/regression/host.mjs';
 
-test('FFF override owns and executes grep/find before and after reload', { timeout: 120000 }, async () => {
+for (const [label, config] of [['default without pi-fff.json', null], ['explicit override file', { mode: 'override' }]]) test(`FFF override owns and executes grep/find before and after reload (${label})`, { timeout: 120000 }, async () => {
   const env = await isolate('fff-override'); const stop = heartbeat('FFF override'); let host;
   try {
-    await writeFile(join(env.agentDir, 'pi-fff.json'), JSON.stringify({ mode: 'override' }));
+    if (config) await writeFile(join(env.agentDir, 'pi-fff.json'), JSON.stringify(config));
     await writeFile(join(env.cwd, 'override-marker.txt'), 'FFF_OVERRIDE_MARKER\n');
-    const wanted = ['./modules/file-tools/src/index.ts', './node_modules/@ff-labs/pi-fff/src/index.ts'];
+    const wanted = ['./modules/file-tools/src/index.ts', './modules/file-tools/src/fff-override.mjs'];
     const order = (await manifest()).pi.extensions.filter(item => wanted.includes(item));
     assert.deepEqual(order, wanted, 'manifest retains File Tools before FFF');
     host = await createHost({ env, extensionPaths: order.map(entry) });
@@ -38,6 +38,23 @@ test('FFF override owns and executes grep/find before and after reload', { timeo
       assert.match(text(results.find(result => result.toolName === 'grep')), /FFF_OVERRIDE_MARKER/);
       log(`${phase}: FFF native grep/find ownership and execution passed`);
     }
+  } finally {
+    try { await host?.close(); } finally { stop(); await env.cleanup(); }
+  }
+});
+
+test('explicit tools-only file mode is not replaced by the override default', { timeout: 120000 }, async () => {
+  const env = await isolate('fff-tools-only'); const stop = heartbeat('FFF tools-only'); let host;
+  try {
+    await writeFile(join(env.agentDir, 'pi-fff.json'), JSON.stringify({ mode: 'tools-only' }));
+    host = await createHost({ env, extensionPaths: ['./modules/file-tools/src/index.ts', './modules/file-tools/src/fff-override.mjs'].map(entry) });
+    await host.bind();
+    assert.deepEqual(host.loadErrors(), []); assert.deepEqual(host.errors, []);
+    const names = host.session.getAllTools().map(tool => tool.name);
+    for (const name of ['ffgrep', 'fffind']) assert.ok(names.includes(name), `${name} registered in tools-only`);
+    const grep = host.session.getAllTools().find(tool => tool.name === 'grep');
+    assert.notEqual(grep?.sourceInfo?.path, entry('./modules/file-tools/src/fff-override.mjs'));
+    log('explicit tools-only mode preserved');
   } finally {
     try { await host?.close(); } finally { stop(); await env.cleanup(); }
   }

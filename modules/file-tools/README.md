@@ -132,7 +132,7 @@
 
 ## 與 @ff-labs/pi-fff 的共存
 
-File Tools 在 manifest 中先於 pi-fff 載入，但不再佔用 `grep`／`find`。全域 `<agentDir>/pi-fff.json` 設定 `{"mode":"override"}` 後，兩個搜尋工具由 FFF 提供；不修改第三方實作、版本或其他使用者設定。`/fff-mode override` 可切換目前 session 的模式，需 `/reload`，且不改全域檔案；已保存的 session mode 可優先於全域設定。若 resume 後仍非 override，先執行該命令再 reload，或建立新 session。FFF 預設的 tools-and-ui／tools-only 仍可用；不將所有使用者自動改為 override。
+File Tools 在 manifest 中先於 pi-fff 載入，但不再佔用 `grep`／`find`。Manifest 以薄包裝 `src/fff-override.mjs` 載入 FFF：`--fff-mode`、`PI_FFF_MODE`、全域 `<agentDir>/pi-fff.json` 都未指定 mode 時預設 `override`（明確指定其他 mode 不被改動），兩個搜尋工具由 FFF 提供；不修改第三方實作、版本或其他使用者設定。`/fff-mode override` 可切換目前 session 的模式，需 `/reload`，且不改全域檔案；已保存的 session mode 可優先於全域設定。若 resume 後仍非 override，先執行該命令再 reload，或建立新 session。FFF 預設的 tools-and-ui／tools-only 仍可用；不將所有使用者自動改為 override。
 
 `tests/fff-override-conflict.integration.test.mjs` 已從 TODO 升為正式回歸：真實 Pi／manifest順序／原生 FFF，確認 startup 及 reload 的 provider、active/callable、別名停用與實際搜尋結果，無 fake finder。
 

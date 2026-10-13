@@ -78,7 +78,7 @@
             "./modules/schedule-prompt/src/index.ts",
             "./node_modules/pi-open-tui/extensions/open-tui/index.ts",
             "./modules/blackhole/src/index.ts",
-            "./node_modules/@ff-labs/pi-fff/src/index.ts"
+            "./modules/file-tools/src/fff-override.mjs"
         ],
         "prompts": [
             "./modules/subagents/prompts"

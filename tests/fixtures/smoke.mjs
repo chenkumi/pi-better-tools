@@ -16,10 +16,11 @@ assert.ok(manifest.pi.extensions.includes('./modules/schedule-prompt/src/index.t
 assert.ok(!manifest.pi.extensions.some(entry => entry.includes('/goal/')));
 const dependencyEntries = {
   'pi-open-tui': { version: '0.3.11', entry: './extensions/open-tui/index.ts' },
-  '@ff-labs/pi-fff': { version: '0.11.0', entry: './src/index.ts' },
+  '@ff-labs/pi-fff': { version: '0.11.0', entry: './src/index.ts', manifestEntry: './modules/file-tools/src/fff-override.mjs' },
 };
-for (const entry of manifest.pi.extensions.filter(entry => entry.startsWith('./modules/'))) assert.match(entry, /^\.\/modules\/[^/]+\/src\/index\.ts$/);
-assert.equal(manifest.pi.extensions.filter(entry => entry.startsWith('./modules/')).length, 14);
+const localEntries = manifest.pi.extensions.filter(entry => entry.startsWith('./modules/') && entry !== dependencyEntries['@ff-labs/pi-fff'].manifestEntry);
+for (const entry of localEntries) assert.match(entry, /^\.\/modules\/[^/]+\/src\/index\.ts$/);
+assert.equal(localEntries.length, 14);
 assert.ok(manifest.pi.extensions.includes('./modules/blackhole/src/index.ts'));
 assert.equal(manifest.dependencies['pi-blackhole'], undefined);
 for (const [name, expected] of Object.entries(dependencyEntries)) {
@@ -27,9 +28,10 @@ for (const [name, expected] of Object.entries(dependencyEntries)) {
   const dependency = JSON.parse(await readFile(join(packageRoot, 'node_modules', name, 'package.json'), 'utf8'));
   assert.equal(dependency.version, expected.version);
   assert.deepEqual(dependency.pi.extensions, [expected.entry]);
-  const entry = `./node_modules/${name}/${expected.entry.slice(2)}`;
+  const entry = expected.manifestEntry ?? `./node_modules/${name}/${expected.entry.slice(2)}`;
   assert.ok(manifest.pi.extensions.includes(entry), `exact dependency entry for ${name}`);
   assert.ok((await stat(resolve(packageRoot, entry))).isFile());
+  assert.ok((await stat(resolve(packageRoot, 'node_modules', name, expected.entry))).isFile());
 }
 assert.equal(process.env.PI_BLACKHOLE_PASSIVE, 'true', 'fixture must never run real Blackhole model workers');
 const mode = process.argv[3] ?? 'full';
@@ -52,7 +54,7 @@ try {
   const ptyNames = ['pty_spawn', 'pty_read', 'pty_write', 'pty_resize', 'pty_wait_exit', 'pty_kill', 'pty_list'];
   const monitorNames = ['monitor_start', 'monitor_status', 'monitor_stop'];
   const backgroundNames = ['subagent_status', 'subagent_cancel', 'subagent_message', 'shell_job_status', 'shell_job_cancel'];
-  const selection = readOnly ? ['read'] : [...monitorNames, ...backgroundNames, 'read', 'write', 'edit', 'grep', 'find', 'ls', 'bash', ...(process.platform === 'win32' ? ['powershell'] : []), 'subagent', 'note', 'schedule_prompt', ...ptyNames, 'fffind', 'ffgrep', 'web_fetch', ...(['brave', 'exa'].includes(mode) ? ['web_search'] : [])];
+  const selection = readOnly ? ['read'] : [...monitorNames, ...backgroundNames, 'read', 'write', 'edit', 'grep', 'find', 'ls', 'bash', ...(process.platform === 'win32' ? ['powershell'] : []), 'subagent', 'note', 'schedule_prompt', ...ptyNames, 'web_fetch', ...(['brave', 'exa'].includes(mode) ? ['web_search'] : [])];
   const settings = sdk.SettingsManager.inMemory({ defaultTools: selection, retry: { enabled: false }, compaction: { enabled: false }, cacheWarming: 'off', enableInstallTelemetry: false });
   loader = new sdk.DefaultResourceLoader({ cwd, agentDir, settingsManager: settings,
     additionalExtensionPaths: [packageRoot], noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true });
@@ -91,6 +93,7 @@ try {
   assert.ok(loaded.extensions.some(e => e.commands.has('web-tools')));
   assert.ok(loaded.extensions.some(e => e.commands.has('open-tui')), 'npm TUI dependency registered');
   assert.ok(loaded.extensions.some(e => e.commands.has('blackhole')), 'vendored Blackhole registered');
+  // FFF pre-registers its own alias names at load for historical renderers; the override names appear at session_start.
   for (const name of ['fffind', 'ffgrep', 'recall']) assert.ok(names.includes(name), `npm dependency tool ${name}`);
   assert.equal(names.includes('fff-multi-grep'), process.env.PI_FFF_MULTIGREP === '1', 'FFF multi-grep remains upstream opt-in');
   const subagent = definitions.find(d => d.name === 'subagent');
@@ -236,8 +239,6 @@ try {
     const before = await execute('read', { path: 'test.txt', offset: null, limit: null });
     assert.equal(before.details.sha256.length, 32); assert.match(text(before), /1│alpha/);
     assert.equal(before.structuredContent, text(before));
-    assert.match(text(await execute('grep', { pattern: 'alpha', path: null, literal: true, limit: null })), /test\.txt:1: alpha/);
-    assert.match(text(await execute('find', { pattern: 'test.txt', path: null, limit: null })), /test\.txt/);
     assert.match(text(await execute('ls', { path: null, limit: null })), /test\.txt/);
     const edits = await Promise.all(['BETA', 'gamma'].map(newText => execute('edit', { path: 'test.txt', expectedHash: before.details.sha256, edits: [{ oldText: 'beta', newText }] }).then(result => ({ result }), error => ({ error }))));
     assert.equal(edits.filter(r => r.result).length, 1); assert.equal(edits.filter(r => r.error).length, 1);
@@ -247,8 +248,8 @@ try {
       const result = await execute(name, { command: process.platform === 'win32' ? "Write-Output 'SHELL_OK'" : "printf 'SHELL_OK'", timeoutMs: 20000 });
       assert.match(text(result), /SHELL_OK/); assert.ok(result.structuredContent);
     }
-    assert.match(text(await execute('fffind', { pattern: 'test.txt' })), /test\.txt/, 'FFF native finder works in the isolated workspace');
-    assert.match(text(await execute('ffgrep', { pattern: 'alpha' })), /test\.txt/, 'FFF native grep works in the isolated workspace');
+    assert.match(text(await execute('find', { pattern: 'test.txt' })), /test\.txt/, 'FFF native finder works in the isolated workspace');
+    assert.match(text(await execute('grep', { pattern: 'alpha' })), /test\.txt/, 'FFF native grep works in the isolated workspace');
     await assert.rejects(execute('web_fetch', { url: 'http://127.0.0.1/' }), /NETWORK_BLOCKED/);
     // Real before_agent_start composition, without making a provider request.
     const options = { cwd, tools: definitions, skills: [], contextFiles: [], sections: { fixture: 'KEEP_FIXTURE' } };

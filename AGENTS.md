@@ -10,7 +10,7 @@
 
 ## 結構與依賴
 
-- 一個根 package、七個現存來源快照模組（含 PTY、第三方 Schedule Prompt 與 Blackhole）與原生 Note／GPT Speed／重寫 JSON Schema／Pi Runtime／Monitor／Skill Tools／Fork；Pi manifest 直接列出十四個本地入口及兩個 npm 依賴入口（pi-open-tui／@ff-labs/pi-fff），不建立新的 plugin manager。
+- 一個根 package、七個現存來源快照模組（含 PTY、第三方 Schedule Prompt 與 Blackhole）與原生 Note／GPT Speed／重寫 JSON Schema／Pi Runtime／Monitor／Skill Tools／Fork；Pi manifest 直接列出十四個本地入口及一個 npm 依賴入口（pi-open-tui）及 `modules/file-tools/src/fff-override.mjs`（@ff-labs/pi-fff 的薄包裝，預設 override），不建立新的 plugin manager。
 - 原始碼掛載先在根目錄執行 `npm ci --ignore-scripts`；本機 Pi package 不會自動安裝依賴。Repository `.npmrc` 的 `legacy-peer-deps=true` 避免第三方 peer 自動安裝另一份 host SDK；不代表執行期相容性。Blackhole 整合測試必設 `PI_BLACKHOLE_PASSIVE=true`、隔離 credentials，不呼叫真實背景模型。三個套件設定仍由使用者管理，不在 install/reload 時改寫。
 - 根目錄管理依賴與唯一 lockfile。模組 metadata 保留來源身份與測試命令，不是獨立安裝單元；不要在 `modules/` 執行 `npm install`。
 - Pi、Pi AI、Agent Core、TUI 與 TypeBox 是 host-provided `peerDependencies: "*"`；不能放入 runtime dependencies 或 bundle。

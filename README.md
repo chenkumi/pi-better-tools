@@ -118,7 +118,7 @@ Pi **1.0.0** 預設 fullscreen TUI；本專案不自動修改 UI 設定，需要
 
 根四個 Pi 開發套件／lockfile 升至 1.1.0；runtime 仍使用宿主 peers，不自動更新個人 Pi 安裝或設定。`read` 新增宿主相容的 `outputSchema/structuredContent`：codemode 讀文字仍取得本專案行號／metadata 字串，讀圖片取得可交給 `image()` 的 image block。Shell 繼續沿用宿主內容 renderer，取得 recorded `durationMs` 等修正；API 中斷卡片 resolver 重建 default Box 時沿用宿主 `outputPad`。1.1.0 的 hidden tool 仍保留 `toolSnippets` metadata，由 `hiddenTools` 過濾實際宣告／rules；SDK 回歸檢查實際 system prompt 不洩漏隱藏工具。本節更新目前支援基準，其他 1.0.0 描述保留原功能導入背景，不代表仍維護舊版。
 
-file-tools 只保留 `ls` 搜尋／目錄包裝（`defaultActive:false`），不再註冊 `grep/find` 或提供五行 grep 預覽。需要 FFF 同名搜尋時，在全域 `<agentDir>/pi-fff.json` 設 `{"mode":"override"}`；FFF 提供 `grep/find` 的自己的 schema／renderer。`/fff-mode override` 加 `/reload` 切換當前 session，已保存的 session mode 可能優先於全域設定。不修改第三方套件或全員設定；未選 override 時 host 原生搜尋仍可選用。詳見 [File Tools](modules/file-tools/README.md)。
+file-tools 只保留 `ls` 搜尋／目錄包裝（`defaultActive:false`），不再註冊 `grep/find` 或提供五行 grep 預覽。Pi manifest 的 FFF 入口是薄包裝 `modules/file-tools/src/fff-override.mjs`，在 `--fff-mode`、`PI_FFF_MODE` 與全域 `<agentDir>/pi-fff.json` 都未指定 mode 時預設 `override`（明確指定 `tools-and-ui`／`tools-only` 仍照舊）；FFF 提供 `grep/find` 的自己的 schema／renderer。`/fff-mode override` 加 `/reload` 切換當前 session，已保存的 session mode 可能優先於全域設定。不修改第三方套件或全員設定；未選 override 時 host 原生搜尋仍可選用。詳見 [File Tools](modules/file-tools/README.md)。
 
 ### 結構化 run-start 指引
 

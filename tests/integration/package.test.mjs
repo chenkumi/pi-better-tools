@@ -15,7 +15,7 @@ const expectedExtensions = manifest.pi.extensions.length;
 const modules = (await readdir(join(root, 'modules'), { withFileTypes: true })).filter(e => e.isDirectory()).map(e => e.name);
 const dependencyEntries = [
   './node_modules/pi-open-tui/extensions/open-tui/index.ts',
-  './node_modules/@ff-labs/pi-fff/src/index.ts',
+  './modules/file-tools/src/fff-override.mjs',
 ];
 assert.deepEqual([...manifest.pi.extensions].sort(), [...modules.map(name => `./modules/${name}/src/index.ts`), ...dependencyEntries].sort());
 assert.equal(expectedExtensions, 16, 'fourteen local entries plus two pinned dependency entries');
