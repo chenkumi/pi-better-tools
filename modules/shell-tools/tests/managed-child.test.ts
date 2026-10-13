@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import fsPromises from "node:fs/promises";
 import { syncBuiltinESMExports } from "node:module";
-import shell, { withIdleTimeout } from "../extensions/timeout-ms.ts";
+import shell from "../extensions/timeout-ms.ts";
 import guard from "../../subagents/extensions/subagent/child-guard.ts";
 import { BACKGROUND_LIFECYCLE_SECTION, registerBackgroundLifecycleGuidance } from "../src/background-guidance.ts";
 import { consumeManagedChildGuard, isManagedForegroundChild } from "../src/managed-child.ts";
@@ -89,33 +89,6 @@ test("shared Subagents guidance cannot reintroduce background instructions into 
     handler(event);
     assert.ok(!(BACKGROUND_LIFECYCLE_SECTION in event.systemPromptOptions.sections));
   } finally { if (saved === undefined) delete slot.__piSubagentsGuardExpected; else slot.__piSubagentsGuardExpected = saved; }
-});
-
-test("shared foreground idle core refreshes data deadlines without real waits", async context => {
-  context.mock.timers.enable({ apis: ["setTimeout"] });
-  let emit!: (data: Buffer) => void, aborted = false;
-  const operations = { exec: async (_command: string, _cwd: string, options: any) => {
-    assert.equal(options.timeout, undefined, "host absolute timer remains disabled");
-    emit = options.onData;
-    return await new Promise<never>((_resolve, reject) => options.signal.addEventListener("abort", () => {
-      aborted = true; reject(new Error("Command aborted"));
-    }, { once: true }));
-  } };
-  const running = withIdleTimeout(operations).exec("fake", "/", { onData() {}, timeout: 2 });
-  const rejected = assert.rejects(running, /timeout:2/);
-  context.mock.timers.tick(1000); emit(Buffer.from("progress"));
-  context.mock.timers.tick(1500); assert.equal(aborted, false);
-  context.mock.timers.tick(500); await rejected; assert.equal(aborted, true);
-});
-
-test("shared foreground core preserves parent cancellation precedence", async context => {
-  context.mock.timers.enable({ apis: ["setTimeout"] });
-  const controller = new AbortController();
-  const operations = { exec: async (_command: string, _cwd: string, options: any) => await new Promise<never>((_resolve, reject) => {
-    options.signal.addEventListener("abort", () => reject(new Error("Command aborted")), { once: true });
-  }) };
-  const rejected = assert.rejects(withIdleTimeout(operations).exec("fake", "/", { onData() {}, timeout: 2, signal: controller.signal }), /^Error: Command aborted$/);
-  controller.abort(); context.mock.timers.tick(2000); await rejected;
 });
 
 test("ordinary main definitions retain background contract without mode inference", () => {

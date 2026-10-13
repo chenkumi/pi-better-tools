@@ -12,10 +12,12 @@ import { Type } from "typebox";
 import { Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { stripVTControlCharacters } from "node:util";
 
-import { ShellJobs, compactJob, idleTimeoutMessage } from "../src/background-jobs.js";
+import { ShellJobs, compactJob, timeoutMessage } from "../src/background-jobs.js";
 import { registerBackgroundLifecycleGuidance } from "../src/background-guidance.js";
 import { registerApiInterruptionRenderer } from "../src/api-interruption-renderer.js";
 import { isManagedForegroundChild } from "../src/managed-child.js";
+import { AUTO_MONITOR_INTERVAL_MS, canonicalMonitorCwd, requestAutoMonitor } from "../src/monitor-capability.js";
+import { createForegroundHandoff, resolveAutoBackgroundMs } from "../src/foreground-handoff.js";
 import { createShellMonitorPublisher } from "../src/monitor-publisher.js";
 import { renderShellCompletion, renderShellJobResult } from "../src/completion-renderer.js";
 
@@ -52,63 +54,19 @@ const parameters = Type.Object({
   timeoutMs: Type.Optional(
     Type.Integer({
       description:
-        "Idle (stall) timeout in ms: the command is killed after this long with no stdout/stderr output; any output resets it. The timer starts when the command is launched, so process startup counts toward the first output: use a generous value (several seconds). Omit for no timeout. Not a total time limit: continuous output never times out, while quiet long commands (sleep, silent builds) are killed.",
+        "Total timeout in ms, counted from the moment the command is launched (process startup included): the command is killed when it elapses, even if it is still producing output. Set it above the longest expected run time, with several seconds of margin. Omit for no timeout.",
       minimum: 1,
       maximum: MAX_TIMEOUT_MS,
     }),
   ),
 }, { additionalProperties: false });
 
-/** Internal pure-operation seam for deterministic timing/cancellation regression tests. */
-export function withIdleTimeout(operations: BashOperations): BashOperations {
-  return {
-    async exec(command, cwd, { onData, signal, timeout, env }) {
-      if (timeout === undefined) {
-        return operations.exec(command, cwd, { onData, signal, env });
-      }
-
-      const timeoutMs = timeout * 1000;
-      const timeoutController = new AbortController();
-      const executionSignal = signal
-        ? AbortSignal.any([signal, timeoutController.signal])
-        : timeoutController.signal;
-      let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-      let timedOut = false;
-      const refreshTimeout = () => {
-        if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
-        timeoutHandle = setTimeout(() => {
-          timedOut = true;
-          timeoutController.abort();
-        }, timeoutMs);
-      };
-
-      refreshTimeout();
-      try {
-        return await operations.exec(command, cwd, {
-          onData(data) {
-            refreshTimeout();
-            onData(data);
-          },
-          signal: executionSignal,
-          // The local backend's timeout is absolute. Idle timing is managed here.
-          env,
-        });
-      } catch (error) {
-        if (timedOut && !signal?.aborted) throw new Error(`timeout:${timeout}`);
-        throw error;
-      } finally {
-        if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
-      }
-    },
-  };
-}
-
 // The host appends its own diagnostic as the LAST status line (`appendStatus`: output + blank line + status). Only that trailing
 // line is rewritten; identical text earlier in the command output is user data and must stay verbatim. Once rewritten the
 // message no longer matches, so applying this at several catch layers is idempotent.
-const STALLED = /(^|\n)Command timed out after (\S+) seconds\s*$/;
-const stalledMessage = (message: string, foregroundOnly = false) => message.replace(STALLED, (_m, lead: string, seconds: string) => {
-  const text = idleTimeoutMessage(seconds);
+const TIMED_OUT = /(^|\n)Command timed out after (\S+) seconds\s*$/;
+const timedOutMessage = (message: string, foregroundOnly = false) => message.replace(TIMED_OUT, (_m, lead: string, seconds: string) => {
+  const text = timeoutMessage(seconds);
   return lead + (foregroundOnly ? text.replace(/ Use background:true separately if you want asynchronous execution\./, "") : text);
 });
 
@@ -126,7 +84,7 @@ function createConfiguredBashDefinition(pi: ExtensionAPI, ctx: ExtensionContext,
   return createBashToolDefinition(ctx.cwd, {
     shellPath,
     commandPrefix: settings.shellCommandPrefix,
-    operations: wrap(withIdleTimeout(createLocalBashOperations({ shellPath }))),
+    operations: wrap(createLocalBashOperations({ shellPath })),
   });
 }
 
@@ -142,7 +100,7 @@ function registerTimeoutMsOverride(
   // built-in definition with the current session's cwd and shell settings.
   const base = createBase(process.cwd());
 
-  const timeoutGuideline = `For ${name}, timeoutMs is an idle timeout in milliseconds, not seconds and not a total limit; it resets whenever the command writes to stdout or stderr (20000 = stop after 20 seconds without output). The timer starts at launch, before the first output, so avoid very small values. If the command is expected to remain quiet, omit or increase timeoutMs. ${foregroundOnly ? "" : "Use background:true separately if you want asynchronous execution; background mode keeps the same idle timeout."}`;
+  const timeoutGuideline = `For ${name}, timeoutMs is a total time limit in milliseconds, not seconds. The timer starts when the command is launched and the command is stopped when it elapses even if it keeps writing output (20000 = stop after 20 seconds). Set it above the longest expected run time, with margin for startup, or omit it for no limit. ${foregroundOnly ? "" : "Use background:true separately if you want asynchronous execution; background mode applies the same total limit. A foreground command without timeoutMs that is still running after 180 seconds is moved to a background job automatically (same process, not restarted) and you get a job receipt instead of the result; the turn's abort no longer stops it, use shell_job_cancel. A background job started without timeoutMs automatically gets a display-only Monitor that samples it every 180 seconds when monitor_start is selected."}`;
   const platformNote = name === "bash"
     ? "On Windows bash needs Git Bash (or shellPath) and applies shellCommandPrefix."
     : "Windows only; shellCommandPrefix is not applied.";
@@ -157,8 +115,8 @@ function registerTimeoutMsOverride(
     // when selected by defaults, --tools, or setActiveTools().
     defaultActive: false,
     description: foregroundOnly
-      ? `${descriptionWithoutOldTimeout} timeoutMs is an idle timeout in ms. Commands run synchronously until completion. ${platformNote}`
-      : `${descriptionWithoutOldTimeout} timeoutMs is an idle timeout in ms. background:true returns a jobId/liveLogPath receipt (no exit code) and reports completion automatically; shell_job_status/cancel need explicit selection. ${platformNote}`,
+      ? `${descriptionWithoutOldTimeout} timeoutMs is a total time limit in ms from launch. Commands run synchronously until completion. ${platformNote}`
+      : `${descriptionWithoutOldTimeout} timeoutMs is a total time limit in ms from launch (foreground and background). A foreground command without timeoutMs still running after 180s is moved to a background job automatically. background:true returns a jobId/liveLogPath receipt (no exit code) and reports completion automatically; without timeoutMs it also auto-starts a display-only Monitor sampling every 180s; shell_job_status/cancel need explicit selection. ${platformNote}`,
     parameters: foregroundOnly ? Type.Omit(parameters, ["background"], { additionalProperties: false }) : parameters,
     outputSchema: foregroundOnly ? base.outputSchema! : Type.Union([base.outputSchema!, receiptSchema]),
     promptGuidelines: [...(base.promptGuidelines ?? []), timeoutGuideline],
@@ -232,41 +190,86 @@ function registerTimeoutMsOverride(
         const configuredBase = createConfiguredBase(ctx, operations => ({
           exec: (command, cwd, options) => (jobWrap ? jobWrap(operations) : operations).exec(command, cwd, options),
         }));
-        const run = async (executionSignal: AbortSignal | undefined, wrap?: (ops: BashOperations) => BashOperations) => {
+        let handedOff = false;
+        const run = async (executionSignal: AbortSignal | undefined, wrap?: (ops: BashOperations) => BashOperations, updates: typeof onUpdate = background ? undefined : onUpdate) => {
           jobWrap = wrap;
           try {
             if (executionSignal?.aborted && background) throw new Error("Command aborted");
-            const result = await configuredBase.execute(toolCallId, { command, timeout }, executionSignal, background ? undefined : onUpdate, ctx);
+            const result = await configuredBase.execute(toolCallId, { command, timeout }, executionSignal, updates, ctx);
             if (result.isError === true) await logFailure({ kind: "error-result", result });
             return result;
           } catch (error) {
-            if (background) await logFailure({ kind: "exception", error });
+            if (background || handedOff) await logFailure({ kind: "exception", error });
             if (error instanceof Error && input.timeoutMs !== undefined) {
-              const stalled = stalledMessage(error.message, foregroundOnly);
-              if (stalled !== error.message) throw new Error(stalled, { cause: error });
+              const timedOut = timedOutMessage(error.message, foregroundOnly);
+              if (timedOut !== error.message) throw new Error(timedOut, { cause: error });
             }
             throw error;
           }
         };
-        if (background) {
-          if (!jobs) throw new Error("Managed subagent Shell is foreground-only");
-          const receipt = jobs.submit(ctx, name, toolCallId, signal, run, command);
+        const receiptResult = (receipt: { jobId: string; status: "running"; liveLogPath: string }, headline: string) => {
+          // A job without timeoutMs has no upper bound, so ask Monitor for a display-only sampler (best effort).
+          let monitorId: string | undefined;
+          if (input.timeoutMs === undefined) {
+            try { monitorId = requestAutoMonitor({ sessionId: ctx.sessionManager.getSessionId(), cwd: canonicalMonitorCwd(ctx.cwd) }, receipt.jobId); } catch { /* monitor is optional */ }
+          }
+          const monitorNote = monitorId ? `\nMonitor ${monitorId} samples this job every ${AUTO_MONITOR_INTERVAL_MS / 1000}s (display only, no model wake-up; monitor_stop to stop it).` : "";
           // The receipt names only what this loadout can actually do.
           let canQuery = false;
           try { canQuery = pi.getActiveTools?.().includes("shell_job_status") ?? false; } catch { /* host may not expose it */ }
           const next = canQuery
             ? "Progress: shell_job_status or read log tail. Completion is auto-reported."
             : "Progress: read log tail. Completion is auto-reported (shell_job_status/cancel not selected).";
-          return { content: [{ type: "text", text: `Background job accepted; its outcome will be reported when it finishes.\njob ${receipt.jobId} running\nlog ${receipt.liveLogPath}\n${next}` }], details: undefined, structuredContent: receipt };
+          return { content: [{ type: "text" as const, text: `${headline}\njob ${receipt.jobId} running\nlog ${receipt.liveLogPath}\n${next}${monitorNote}` }], details: undefined, structuredContent: receipt };
+        };
+        if (background) {
+          if (!jobs) throw new Error("Managed subagent Shell is foreground-only");
+          return receiptResult(jobs.submit(ctx, name, toolCallId, signal, run, command), "Background job accepted; its outcome will be reported when it finishes.");
         }
-        return await run(signal);
+        const autoMs = jobs && input.timeoutMs === undefined ? resolveAutoBackgroundMs(pi.getSettings?.()) : 0;
+        if (autoMs === 0) return await run(signal);
+        // Safety net for a foreground command without timeoutMs (e.g. an endless loop): after autoMs the SAME process
+        // is adopted by a background job, so the turn is released. The process is never restarted.
+        const handoff = createForegroundHandoff();
+        const foreground = new AbortController();
+        const forwardAbort = () => foreground.abort(signal?.reason);
+        if (signal?.aborted) forwardAbort(); else signal?.addEventListener("abort", forwardAbort, { once: true });
+        const unlink = () => signal?.removeEventListener("abort", forwardAbort);
+        const running = run(foreground.signal, handoff.wrap, onUpdate && (update => { if (!handedOff) onUpdate(update); }));
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const outcome = await Promise.race([
+          running.then(value => ({ value }), error => ({ error })),
+          new Promise<"timer">(resolve => { timer = setTimeout(() => resolve("timer"), autoMs); }),
+        ]);
+        if (timer !== undefined) clearTimeout(timer);
+        if (outcome !== "timer") {
+          unlink();
+          if ("error" in outcome) throw outcome.error;
+          return outcome.value;
+        }
+        if (signal?.aborted) { unlink(); return await running; }
+        let receipt;
+        try {
+          receipt = jobs!.submit(ctx, name, toolCallId, undefined, async (jobSignal, wrap) => {
+            const onJobAbort = () => foreground.abort(jobSignal.reason);
+            if (jobSignal.aborted) onJobAbort(); else jobSignal.addEventListener("abort", onJobAbort, { once: true });
+            try {
+              handoff.attach(wrap, ctx.cwd, jobSignal);
+              return await running;
+            } finally { jobSignal.removeEventListener("abort", onJobAbort); }
+          }, command);
+        } catch {
+          // No capacity (or owner unavailable): stay a normal foreground command, still linked to the turn's abort.
+          try { return await running; } finally { unlink(); }
+        }
+        handedOff = true; unlink();
+        return receiptResult(receipt, `Command still running after ${autoMs / 1000}s without timeoutMs; moved to a background job automatically (the same process keeps running; Esc no longer stops it, use shell_job_cancel). Its outcome will be reported when it finishes.`);
       } catch (error) {
         await logFailure({ kind: "exception", error });
-        // The host formats `timeout:<s>` as an absolute-timeout message, but
-        // here it means an output stall. Make the message accurate.
+        // Replace the host's bare timeout line with one naming timeoutMs and the way out.
         if (input.timeoutMs !== undefined && error instanceof Error) {
-          const stalled = stalledMessage(error.message, foregroundOnly);
-          if (stalled !== error.message) throw new Error(stalled, { cause: error });
+          const timedOut = timedOutMessage(error.message, foregroundOnly);
+          if (timedOut !== error.message) throw new Error(timedOut, { cause: error });
         }
         throw error;
       }
@@ -353,7 +356,7 @@ function registerShells(pi: ExtensionAPI, jobs?: ShellJobs, foregroundOnly = fal
     // Pi's PowerShell tool options accept no shellPath/commandPrefix, so
     // Bash-only shell settings intentionally do not apply here.
     (ctx, wrap = ops => ops) => createPowerShellToolDefinition(ctx.cwd, {
-      operations: wrap(withIdleTimeout(createLocalPowerShellOperations())),
+      operations: wrap(createLocalPowerShellOperations()),
     }),
     jobs,
     foregroundOnly,

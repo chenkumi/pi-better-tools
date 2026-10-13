@@ -1,9 +1,9 @@
-// Regression D17: shell-tools rewrites the FIRST "Command timed out after N seconds" anywhere in a host error into an idle-timeout message,
+// Regression D17: shell-tools rewrites the trailing host "Command timed out after N seconds" line into a total-timeout message,
 // and classifies background job terminal state from the error tail.
 // Levels:
 //   A. real Pi 1.1.0 CLI + real bash: a genuinely failing command (exit 3, no timeout) whose OUTPUT contains the phrase.
 //   B. degraded (child process, mock.module): real extension + real host bash definition, only the process backend is faked so a host
-//      `timeout:N` error and fake output can be produced instantly (no idle waiting). Covers real-timeout and background classification.
+//      `timeout:N` error and fake output can be produced instantly (no real waiting). Covers real-timeout and background classification.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { execFile } from 'node:child_process';
@@ -16,7 +16,7 @@ import { isolatedEnv } from '../../../tests/helpers/environment.mjs';
 import { makeSandbox, root, runCli } from '../../../tests/helpers/regression/run-cli.mjs';
 
 const exec = promisify(execFile);
-const IDLE = '(timeoutMs idle timeout)';
+const TIMEOUT = '(timeoutMs total timeout)';
 
 test('D17-A real CLI (control): host reports a non-zero exit as a result, not a thrown error, so output containing the phrase stays intact', { timeout: 120000 }, async () => {
   const sb = await makeSandbox('d17-a');
@@ -31,7 +31,7 @@ test('D17-A real CLI (control): host reports a non-zero exit as a result, not a 
     assert.equal(result.isError, true);
     assert.match(text, /Command exited with code 3/, 'real failure status must be preserved');
     assert.match(text, /^Command timed out after 1 seconds/m, 'command output must be preserved verbatim');
-    assert.ok(!text.includes(IDLE), 'a command that exited with code 3 must not be reported as an idle timeout');
+    assert.ok(!text.includes(TIMEOUT), 'a command that exited with code 3 must not be reported as a timeout');
   } finally { await sb.cleanup(); }
 });
 
@@ -50,22 +50,22 @@ async function childResult() {
   } finally { await rm(dir, { recursive: true, force: true, maxRetries: 6, retryDelay: 100 }); }
 }
 
-test('D17-B2 degraded: real idle timeout after output containing the phrase keeps output and rewrites only the host tail', { timeout: 120000 }, async () => {
+test('D17-B2 degraded: real timeout after output containing the phrase keeps output and rewrites only the host tail', { timeout: 120000 }, async () => {
   const r = (await childResult()).foregroundRealTimeoutAfterMarkerOutput;
   assert.equal(r.threw, true);
   assert.match(r.text, /^Command timed out after 5 seconds/m, 'earlier command output must not be rewritten');
-  assert.match(r.text, /no output for 1 seconds \(timeoutMs idle timeout\)/, 'the real trailing host diagnostic must become the idle message');
-  assert.equal(r.text.split(IDLE).length - 1, 1, `diagnostic must be rewritten exactly once (idempotent across both catch layers): ${r.text}`);
+  assert.match(r.text, /exceeded the 1 second time limit \(timeoutMs total timeout\)/, 'the real trailing host diagnostic must become the total-timeout message');
+  assert.equal(r.text.split(TIMEOUT).length - 1, 1, `diagnostic must be rewritten exactly once (idempotent across both catch layers): ${r.text}`);
   assert.ok(!/Command timed out after 1 seconds\s*$/.test(r.text), `host absolute-timeout tail left unconverted: ${r.text}`);
 });
 
-test('D17-B3 degraded: background job with a real idle timeout is classified timed_out even if output contains the phrase', { timeout: 120000 }, async () => {
+test('D17-B3 degraded: background job with a real timeout is classified timed_out even if output contains the phrase', { timeout: 120000 }, async () => {
   const r = (await childResult()).backgroundRealTimeoutAfterMarkerOutput;
   assert.equal(r.status, 'timed_out', `job error=${JSON.stringify(r.error)}`);
 });
 
-test('D17-B4 degraded control: a failed background command whose OUTPUT ends with the idle marker is not forged into timed_out', { timeout: 120000 }, async () => {
-  const r = (await childResult()).backgroundForgedIdleMarkerOutput;
+test('D17-B4 degraded control: a failed background command whose OUTPUT ends with the timeout marker is not forged into timed_out', { timeout: 120000 }, async () => {
+  const r = (await childResult()).backgroundForgedTimeoutMarkerOutput;
   assert.equal(r.status, 'failed', `job error=${JSON.stringify(r.error)}`);
   assert.equal(r.exitCode, 1);
 });
@@ -75,5 +75,5 @@ test('D17-B5 degraded: user cancel after output containing the phrase keeps outp
   assert.equal(r.threw, true);
   assert.match(r.text, /^Command timed out after 4 seconds/m, 'command output must be preserved verbatim');
   assert.match(r.text, /Command aborteds*$/);
-  assert.ok(!r.text.includes(IDLE), `user cancellation reported as idle timeout: ${r.text}`);
+  assert.ok(!r.text.includes(TIMEOUT), `user cancellation reported as timeout: ${r.text}`);
 });

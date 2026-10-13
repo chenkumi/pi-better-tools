@@ -1,7 +1,7 @@
 import { Type } from 'typebox';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { isManagedForegroundChild } from '../../shell-tools/src/managed-child.js';
-import { acquireCapability, canonicalMonitorCwd } from '../../shell-tools/src/monitor-capability.js';
+import { AUTO_MONITOR_INTERVAL_MS, acquireCapability, canonicalMonitorCwd, publishAutoMonitor } from '../../shell-tools/src/monitor-capability.js';
 import { MonitorRuntime, realClock, type Clock, type Owner } from './core.js';
 import { monitorRenderers } from './renderers.js';
 import { startSchema, validateStart } from './schema.js';
@@ -16,9 +16,21 @@ export default function monitorExtension(pi: ExtensionAPI, seam: { clock?: Clock
   const clock = seam.clock ?? realClock;
   const runtime = new MonitorRuntime((message, options) => pi.sendMessage(message, options), clock);
   seam.onRuntime?.(runtime); // Internal offline test seam; no tool/configuration surface.
-  let bound: Owner | undefined;
-  pi.on('session_start', async (_event, ctx) => { await runtime.shutdown(); bound = scope(ctx); runtime.bind(bound, () => scope(ctx)); });
-  pi.on('session_shutdown', async () => { bound = undefined; await runtime.shutdown(); });
+  let bound: Owner | undefined, revokeAuto: (() => void) | undefined;
+  /** Shell asks for a display-only sampler on background jobs that have no timeoutMs; honours monitor_start selection and capacity. */
+  const autoMonitor = (ctx: ExtensionContext) => (jobId: string) => {
+    try {
+      if (!pi.getActiveTools().includes('monitor_start')) return undefined;
+      const owner = scope(ctx);
+      if (bound?.sessionId !== owner.sessionId || bound.cwd !== owner.cwd) return undefined;
+      const lease = acquireCapability('shell_job', owner);
+      lease.snapshot(jobId);
+      const input = validateStart({ source: { kind: 'shell_job', jobId, intervalMs: AUTO_MONITOR_INTERVAL_MS }, durationMs: 1800000, wakeAgent: false, label: 'auto: shell job without timeoutMs' });
+      return (runtime.start(input, jobLaunch(lease, jobId, AUTO_MONITOR_INTERVAL_MS, clock)) as { monitorId?: string }).monitorId;
+    } catch { return undefined; }
+  };
+  pi.on('session_start', async (_event, ctx) => { revokeAuto?.(); await runtime.shutdown(); bound = scope(ctx); runtime.bind(bound, () => scope(ctx)); revokeAuto = publishAutoMonitor(bound, autoMonitor(ctx)); });
+  pi.on('session_shutdown', async () => { revokeAuto?.(); revokeAuto = undefined; bound = undefined; await runtime.shutdown(); });
   const eventOwner = (ctx: ExtensionContext) => { try { const o = scope(ctx); return bound?.sessionId === o.sessionId && bound.cwd === o.cwd; } catch { return false; } };
   pi.on('agent_start', (_event, ctx) => { if (eventOwner(ctx)) runtime.setBusy(true); });
   pi.on('agent_settled', (_event, ctx) => { if (eventOwner(ctx)) runtime.setBusy(false); });

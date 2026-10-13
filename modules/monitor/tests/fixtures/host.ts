@@ -85,6 +85,13 @@ try {
   await runtime.settled((afterPreflight.structuredContent as any).monitorId); clock.advance(30000); await new Promise(r => setImmediate(r));
   assert.ok(entryEvents.some(e => e.details.events.some((x: any) => x.text === 'AFTER_PREFLIGHT_BARRIER'))); assert.equal(calls, 1);
   const shell = await execute('bash', { command: 'printf shell-job', background: true }); assert.ok(!shell.isError); const shellId = (shell.structuredContent as any).jobId;
+  // A background job without timeoutMs gets a display-only 180s Monitor from Shell; one with timeoutMs does not.
+  const autoText = (shell.content as any[]).map(part => part.text ?? '').join('');
+  const autoMon = ((await execute('monitor_status', {})).structuredContent as any).monitors.find((m: any) => m.source === 'shell_job' && m.sourcePreview === shellId);
+  assert.ok(autoMon, 'auto monitor registered for background job without timeoutMs'); assert.equal(autoMon.label, 'auto: shell job without timeoutMs'); assert.match(autoText, new RegExp(`Monitor ${autoMon.monitorId} samples this job every 180s`));
+  await execute('monitor_stop', { monitorId: autoMon.monitorId }); await runtime.settled(autoMon.monitorId);
+  const bounded = await execute('bash', { command: 'printf bounded-job', background: true, timeoutMs: 600000 }); assert.ok(!bounded.isError);
+  assert.ok(!((await execute('monitor_status', {})).structuredContent as any).monitors.some((m: any) => m.sourcePreview === (bounded.structuredContent as any).jobId), 'no auto monitor when timeoutMs is set');
   const shellMon = await execute('monitor_start', { source: { kind: 'shell_job', jobId: shellId }, wakeAgent: false }); assert.ok(!shellMon.isError, JSON.stringify(shellMon));
   const shellMonId = (shellMon.structuredContent as any).monitorId;
   await execute('monitor_stop', { monitorId: shellMonId }); await runtime.settled(shellMonId);

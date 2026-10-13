@@ -150,7 +150,7 @@ test('background receipt uses Accepted in while synchronous results keep Took an
     }
     const synchronous = stripAnsi(tool.renderResult({ content: [{ type: 'text', text: 'done' }] }, { expanded: true, isPartial: false }, palette, { ...context, lastComponent: undefined }).render(300).join('\n'));
     assert.match(synchronous, /Took 0\.3s/); assert.doesNotMatch(synchronous, /Accepted in/);
-    assert.match(tool.promptGuidelines.join(' '), /background mode keeps the same idle timeout/);
+    assert.match(tool.promptGuidelines.join(' '), /background mode applies the same total limit/);
   }
   const result = { content: [{ type: 'text', text: '{"jobId":"j","status":"completed"}' }], structuredContent: { jobId: 'j', status: 'completed', exitCode: 0 } };
   const terminal = stripAnsi(tools.get('shell_job_cancel').renderResult(result, { expanded: true, isPartial: false }, palette, {}).render(300).join('\n'));

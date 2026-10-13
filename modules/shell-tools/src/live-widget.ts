@@ -11,7 +11,7 @@ export interface ShellWidgetRow {
 export function shellPanelJobs(rows: readonly ShellWidgetRow[]): PanelJob[] {
   return rows.slice(0, 32).map(row => {
     const active = row.status === "running" || row.status === "cancelling";
-    const activity = row.status === "cancelling" ? "Cancel requested · awaiting settlement" : row.status === "running" ? `Running · ${row.totalBytes ? "output received" : "no output observed"}` : row.status === "timed_out" ? "Output idle timeout" : row.status;
+    const activity = row.status === "cancelling" ? "Cancel requested · awaiting settlement" : row.status === "running" ? `Running · ${row.totalBytes ? "output received" : "no output observed"}` : row.status === "timed_out" ? "Time limit exceeded" : row.status;
     return { kind: "shell", jobId: row.jobId, label: safeJobText(row.tool, 64), title: safeJobText(row.command, 256), state: row.status, active, activity, usageState: "na", startedAt: row.startedAt,
       details: [
         `Command preview: ${safeJobText(row.command, 8192)}`,

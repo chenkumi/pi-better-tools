@@ -1,6 +1,6 @@
 # Shell Tools
 
-覆寫 Pi 內建的 `bash` 與 `powershell` 工具，將以秒為單位的 `timeout` 改為以毫秒為單位的「輸出停滯逾時」`timeoutMs`。其餘執行行為（輸出處理、session 環境、PowerShell UTF-8、Bash `shellPath`／`shellCommandPrefix`）沿用 Pi 內建實作。結果 renderer 亦沿用宿主；命令呼叫的 TUI 預覽限制如下。
+覆寫 Pi 內建的 `bash` 與 `powershell` 工具，將以秒為單位的 `timeout` 改為以毫秒為單位的「總時限」`timeoutMs`（自指令啟動起算）。其餘執行行為（輸出處理、session 環境、PowerShell UTF-8、Bash `shellPath`／`shellCommandPrefix`）沿用 Pi 內建實作。結果 renderer 亦沿用宿主；命令呼叫的 TUI 預覽限制如下。
 
 ## 工具
 
@@ -9,7 +9,7 @@
 | 參數 | 型別 | 說明 |
 |---|---|---|
 | `command` | string（必填） | 要執行的 shell 指令 |
-| `timeoutMs` | integer（選填，1 ～ 2147483647） | 輸出停滯逾時，單位毫秒 |
+| `timeoutMs` | integer（選填，1 ～ 2147483647） | 總逾時，單位毫秒，自指令啟動起算（前景與背景相同） |
 | `background` | boolean（選填，預設 false） | true 時立即回傳背景工作 receipt，完成後自動喚醒 owner session |
 
 - `bash`：使用 Pi 的平台 shell 解析；Windows 需安裝 Git Bash 或設定 `shellPath`。
@@ -45,20 +45,36 @@ Default-shell 卡片改由 self-shell 重建原有 Box，避免外層留白仍�
 
 | 輸入 | 效果 |
 |---:|---|
-| `20000` | 連續 20 秒沒有輸出即停止 |
-| `120000` | 連續 120 秒沒有輸出即停止 |
+| `20000` | 啟動後滿 20 秒即停止，即使仍持續輸出 |
+| `120000` | 啟動後滿 120 秒即停止 |
 | `2147483647` | 不逾時（上限值，相容保留；工具描述已改寫為「省略即不逾時」） |
-| 省略 | 不逾時 |
+| 省略 | 不逾時；背景 job 會自動啟動 Monitor（見下） |
 
-- `timeoutMs` 是停滯期限，不是總時限：持續輸出的指令不會逾時，安靜的長指令（sleep、無輸出的建置）會被終止；此類指令請省略或調大 `timeoutMs`；`background: true` 只是非同步執行，仍使用相同停滯計時器。
-- 計時於 shell 開始執行時啟動，每收到一個 stdout／stderr 資料區塊即重新計時；只有輸出停滯達該時間才會逾時。持續有輸出的指令可執行超過 `timeoutMs`。計時在行程啟動前就開始，行程啟動時間計入第一次輸出的等待；`timeoutMs` 過小（例如數十毫秒）可能在指令尚未輸出前就被終止，建議使用數秒以上的值（工具描述已註明）。
-- Pi 內建的絕對計時器對此覆寫停用。內部以 `timeout:<秒數>` 丟出，宿主會格式化為 `Command timed out after N seconds`；本擴充改寫為 `Command stopped: no output for N seconds (timeoutMs idle timeout). If the command is expected to remain quiet, omit or increase timeoutMs. Use background:true separately if you want asynchronous execution.`，以符合「輸出停滯」語意並提示處置。
-  只改寫宿主附加在錯誤訊息**尾端**的診斷（`appendStatus` 的最後一行）；命令輸出中間出現相同字樣保持原樣，改寫後不再匹配故在多層 catch 中冪等。背景 job 的 `timed_out` 仍只由尾端 `(timeoutMs idle timeout)` marker 判定，不信任命令輸出。回歸測試：`tests/timeout-diagnostics.integration.test.mjs`（以 fake process backend，無 idle／sleep 等待）。
+- `timeoutMs` 是總時限：自指令啟動起算，到期即終止，即使指令仍持續輸出；請設得高於預期最長執行時間，長時間工作可省略或調大。`background: true` 套用相同總時限。
+- 計時使用宿主內建的絕對計時器，於指令啟動時開始，輸出不會重置；行程啟動時間計入總時限，`timeoutMs` 過小（例如數十毫秒）可能在指令尚未輸出前就被終止，建議使用數秒以上的值（工具描述已註明）。本擴充不再自行實作閒置（idle）計時器。
+- 內部以 `timeout:<秒數>` 丟出，宿主會格式化為 `Command timed out after N seconds`；本擴充改寫為 `Command stopped: exceeded the N second time limit (timeoutMs total timeout). If the command legitimately needs more time, increase or omit timeoutMs. Use background:true separately if you want asynchronous execution.`，點名 `timeoutMs` 並提示處置。
+  只改寫宿主附加在錯誤訊息**尾端**的診斷（`appendStatus` 的最後一行）；命令輸出中間出現相同字樣保持原樣，改寫後不再匹配故在多層 catch 中冪等。背景 job 的 `timed_out` 仍只由尾端 `(timeoutMs total timeout)` marker 判定，不信任命令輸出。回歸測試：`tests/timeout-diagnostics.integration.test.mjs`（以 fake process backend，無實際等待）。
 - PowerShell 工具的宿主選項不支援 `shellPath`／`shellCommandPrefix`，這兩項設定僅套用於 Bash。
 - 非正數、小數、非安全整數、超過上限的值會被拒絕。
 - 新的呼叫若帶舊版 `timeout`（秒）欄位會直接報錯，請改用 `timeoutMs`；舊 session 紀錄中的 `timeout` 仍可正常顯示。
 - TUI 以秒顯示（例如 `timeout 20s`）。
-- 省略或使用哨兵值不會停用取消：`AbortSignal` 仍會交由 Pi 的 process tree 終止機制處理。逾時只是停滯門檻，不保證啟動與清理在該時間內完成。
+- 省略或使用哨兵值不會停用取消：`AbortSignal` 仍會交由 Pi 的 process tree 終止機制處理。逾時只是啟動後的時間門檻，不保證啟動與清理在該時間內完成。
+
+### 前景自動轉背景（兜底）
+
+前景（非 `background`）指令未設 `timeoutMs` 時，啟動滿 180 秒仍在執行，會自動轉成背景 job，防止無限迴圈等情況卡住整個回合。**同一個 process 繼續執行，不重跑**：
+
+- 工具呼叫立即回 job receipt（`Command still running after 180s … moved to a background job automatically`），結果改由完成通知／`shell_job_status` 取得；並依下節規則自動啟動 monitor。
+- 交接前的 Esc／回合取消仍照前景行為終止 process；交接後 turn abort 不再停止它，需用 `shell_job_cancel`。與背景 job 語意一致。
+- 交接前的輸出（前 1 MiB 與最近約 8 KiB）重放進 job log；交接前已送給宿主的輸出不會重複回灌，之後的輸出走 job 的 log／tail／上限規則。兩者之間若超過 1 MiB 會有未保留的間隙，job 標示 `outputTruncated`。
+- 交接後不再更新該前景呼叫的串流顯示；job 名額（active 8／retained 32）不足或 owner 不可用時不交接，維持前景。
+- 不適用：有設 `timeoutMs`（該總時限已是上限）、`background:true`、Subagent 前景 child（無背景能力）。
+- 門檻可用 `settings.json` 的 `pi-shell-tools.autoBackgroundMs`（正整數毫秒；`0` 停用；其他值回到預設 180000）調整。
+- 測試：`tests/foreground-handoff.test.ts`（輸出記錄／重放）、`tests/auto-background.integration.test.mjs`（真實 extension＋host bash 定義，fake process，事件驅動，不等待真實門檻）。
+
+### 背景 job 預設 Monitor
+
+`background:true`（或前景自動轉背景）且未設定 `timeoutMs` 時，job 被接受後 Shell 經 `monitor-capability.ts` 的 rendezvous 請求已載入的 Monitor 啟動一個 `shell_job` 來源：`intervalMs` 180000、`wakeAgent:false`（僅 display、不要求模型回合）、`durationMs` 1800000（Monitor 上限）、label `auto: shell job without timeoutMs`。receipt 文字附上 monitorId 與 `monitor_stop` 提示。Best effort：`monitor_start` 未選取（allowlist／exclude／no-tools）、Monitor 未載入、owner／cwd 不符或 4 個 active 上限已滿時靜默略過，不啟用未選工具、不影響 job；Monitor 只讀取 snapshot，停止或到期都不取消 job。前景指令與有設定 `timeoutMs` 的背景 job 不啟動。自動 monitor 佔用 Monitor 的 active 名額。
 
 ### Codemode
 
@@ -106,7 +122,7 @@ text(receipt);
 - 完成先保存結果、關閉 log、記錄 terminal journal，並加入本地待回報集合；以單次 `setImmediate` 合併**當時全部已完成待通知結果**，送出 `shell-job-completed` custom message。主 agent 忙碌也立即提交，不再等待整個 run 的 `agent_settled`；不等其他仍執行中的工作、不輪詢、不固定延遲。不同事件迴圈或已提交後才完成者屬下一批，不回改／回填舊訊息。面板仍只計 running／cancelling，不計待回報結果。
 - Shell 與 Subagent 結果統一使用 `pi.sendMessage(..., { triggerTurn: true, deliverAs: "steer" })`。忙碌時交由 Pi 在目前 assistant＋tool batch 完成後插入，下一次模型請求可見；不插在 tool call／result 中間。閒置時自動觸發回合。若 provider 已在生成 final text，仍須等該則回答結束，不能追溯修改已發出的請求；遵循宿主 steeringMode／既有佇列與 abort 行為，不強迫被取消的主 run 再呼叫模型。
 - 保留原 payload/schema、metadata 與逐項真實 status／exitCode。通知內含 `command`、`outputTruncated`，被截斷時附 log 提示（log 保留前 1 MiB）；command output 是回傳資料，不提升為 system 指令。提交前重檢 owner／generation 並防同步重入；同步提交失敗保留 pending／retention 保護，待新完成或下一個 lifecycle opportunity 再嘗試，不建立重試迴圈。`agent_settled`／compaction／tree handlers 僅提供 pending 重試機會，不是 busy gate、全宿主 idle gate 或新模型互斥。sendMessage 不是送達確認，非 exactly-once；異步宿主失敗仍以 status／journal 為準。
-- 接受前仍檢查工具 signal；接受後使用 job-owned `AbortController`，主回合 signal 不會取消已接受的背景工作。`timeoutMs` 仍由所有 stdout／stderr 區塊刷新，即使輸出已達保留上限亦同；省略／哨兵值不啟動 idle timer。Bash 有效 trust-aware 設定在提交時捕獲，PowerShell 保留宿主 UTF-8。
+- 接受前仍檢查工具 signal；接受後使用 job-owned `AbortController`，主回合 signal 不會取消已接受的背景工作。`timeoutMs` 仍由所有 stdout／stderr 區塊刷新，即使輸出已達保留上限亦同；省略／哨兵值不設時限。Bash 有效 trust-aware 設定在提交時捕獲，PowerShell 保留宿主 UTF-8。
 - 每個 runtime 最多 **8 個 active（含 cancelling）**，不排無限佇列；超額直接拒絕。最多保留 **32 個工作**，新提交時移除最早且已提交完成通知的終結工作與其 log；仍待回報者不可淘汰，若32個皆執行中或待回報，拒絕新提交，不丟棄既有結果。
 - 每個背景 log 只保存最前 **1 MiB**；另在記憶體保留最後 **8 KiB** tail（`outputTail`）。head（`output`）加 tail 的 decoded 合計最多 **32 KiB**：raw forwarding 僅最前 **8,192 bytes**（`(32 KiB − 8 KiB) / 3`，保留最壞 invalid UTF-8 → U+FFFD 三倍膨脹餘裕），且不超過 1000 行；超額仍持續消費 stdout／stderr，但不保存後續輸出，`outputTruncated: true`。背景 log **不是完整輸出**，最多約 32 MiB/runtime；同步原有完整輸出行為不變。log 使用暫存目錄，POSIX 檔案為 `0600`，Windows 沿用 ACL；輸出可能包含機密。
 - quit／reload／new／resume／fork 的 `session_shutdown` 會停止接受、取消所有 jobs、抑制舊 generation 通知、最多等待 2 秒宿主 cleanup，再關閉／移除背景 log。背景工作不跨 replacement/reload 持續，沒有 daemon 或自動恢復。背景 log 目錄（`pi-shell-job-*`）移除以非同步 I/O 重試（Windows 暫時佔用）；retention eviction／受理失敗的刪除不阻塞 receipt，清理 pending 最多32筆，滿載或故障時保留 orphan 供後續人工檢查。每個行程第一次提交背景工作時啟動非同步 best-effort 清掃，不等待結果才回 receipt；以 opendir 串流最多檢查1024個 tmpdir entries（含非 matching entries），不保證一次清空所有 crash 殘留。明確過期的資格仍為：目錄內 `owner.pid` 標記的行程已不存在，或無標記的舊目錄超過 24 小時未被修改；存活行程（含本行程）的目錄與非一般目錄一律不動。異常強制退出或 I/O 清理失敗仍可能留下 bounded 暫存檔／orphan process，不能保證 process tree 全部已停止。
@@ -132,7 +148,7 @@ text(receipt);
 
 工具訊息使用英文。背景 receipt 補 `Background job accepted; its outcome will be reported when it finishes.`，接受時的耗時標為 `Accepted in …`；同步模式仍保留宿主 `Took …`，呼叫標籤 `(timeout 20s)` 不改。完成通知為 `Shell background jobs have finished. Individual outcomes follow.`，不代表所有工作成功，亦不改既有送達限制。
 
-cancelled 即使帶非零 exit code 仍顯示 `cancelled · job cancelled · exit N`，不改稱 failed；timed_out 顯示 `output idle timeout`。completed 缺 exit code 明說未提供，不假造成功。截短提示為 `Only part of the output is retained in this notification. The log retains at most the first 1 MiB.`，不以 outputTruncated 推論磁碟日誌必定不完整。
+cancelled 即使帶非零 exit code 仍顯示 `cancelled · job cancelled · exit N`，不改稱 failed；timed_out 顯示 `time limit exceeded`。completed 缺 exit code 明說未提供，不假造成功。截短提示為 `Only part of the output is retained in this notification. The log retains at most the first 1 MiB.`，不以 outputTruncated 推論磁碟日誌必定不完整。
 
 status／cancel 的 TUI 使用 `Job status`、`Reason`、`Next` 及展開的 `Job ID`／`Exit code`／`Retained output`／`Log` 欄位；模型 JSON/schema 維持。cancelling 明說取消要求與待清理；對終結工作呼叫 cancel 則說 `Job already finished; no new cancellation was requested. The existing outcome is unchanged.`，不假稱新增取消或程序樹已清空。evicted 僅表示保留紀錄淘汰與 log cleanup 已嘗試；missing 僅表示此 session/runtime 找不到紀錄。
 

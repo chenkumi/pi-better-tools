@@ -19,13 +19,13 @@ export const TAIL_BYTES = 8 * 1024;
 export const MAX_RAW_CAPTURE_BYTES = Math.floor((MAX_CAPTURE_BYTES - TAIL_BYTES) / 3);
 const COMMAND_PREVIEW_CHARS = 200;
 const MAX_EVICTED_IDS = 256;
-/** Appended to idle-timeout errors; the job classifier tolerates it after the marker. */
-export const IDLE_TIMEOUT_HINT = " If the command is expected to remain quiet, omit or increase timeoutMs. Use background:true separately if you want asynchronous execution.";
-const IDLE_MARKER = "(timeoutMs idle timeout)";
-export const idleTimeoutMessage = (seconds: string) => `Command stopped: no output for ${seconds} seconds ${IDLE_MARKER}.${IDLE_TIMEOUT_HINT}`;
-const isIdleTimeout = (message: string) => {
+/** Appended to timeout errors; the job classifier tolerates it after the marker. */
+export const TIMEOUT_HINT = " If the command legitimately needs more time, increase or omit timeoutMs. Use background:true separately if you want asynchronous execution.";
+const TIMEOUT_MARKER = "(timeoutMs total timeout)";
+export const timeoutMessage = (seconds: string) => `Command stopped: exceeded the ${seconds} second time limit ${TIMEOUT_MARKER}.${TIMEOUT_HINT}`;
+const isTimeout = (message: string) => {
   const text = message.trimEnd();
-  return text.endsWith(IDLE_MARKER) || text.endsWith(IDLE_MARKER + "." + IDLE_TIMEOUT_HINT);
+  return text.endsWith(TIMEOUT_MARKER) || text.endsWith(TIMEOUT_MARKER + "." + TIMEOUT_HINT);
 };
 
 const JOB_DIR_PREFIX = "pi-shell-job-";
@@ -303,7 +303,7 @@ export class ShellJobs {
       } catch (error) {
         const rawError = job.logError ?? String(error instanceof Error ? error.message : error);
         // Classify the original tail before bounding model-facing diagnostics.
-        const timedOut = isIdleTimeout(rawError);
+        const timedOut = isTimeout(rawError);
         job.error = boundedError(rawError);
         job.status = job.logError ? "failed" : job.controller.signal.aborted ? "cancelled" : timedOut ? "timed_out" : "failed";
       } finally {

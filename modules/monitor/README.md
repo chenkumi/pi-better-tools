@@ -14,6 +14,8 @@
 - `websocket`：`url`、可選 `allowPrivateNetwork`／`allowInsecure`。預設公網 wss；私網與 ws 分別須本次 URL 明確 opt-in。不接受 userinfo、任意 headers、alternate scheme、redirect 或 compression；TLS certificate verification 保留。DNS 所有結果均驗證，actual connect 自訂 lookup 使用同一 immutable IP set，不再次無約束解析；SNI 維持 hostname。固定 direct `ws@8.22.0`，無必要 optional native addon。Handshake 最多15秒且不超總期限；16KiB aggregate payload cap 在 ws receive/reassembly 前執行，binary terminal failure、不自動重連。URL 回報只留 origin，path/query/fragment 不公開。
 - `shell_job`／`subagent_job`：`jobId`、可選 `intervalMs`（預設60000、30000–300000整數）。只取得當前 owner/canonical cwd/runtime-generation readonly capability；缺少 provider、外來 job、revoke 均拒絕。Subagent 必須走既有 provisional view，不公開 private query 答案，不 query 模型／讀 logs。停止只清 sampling timer，不取消被觀察 job。Terminal observation 不冒充第二份 task_result。
 
+`shell_job` 另有 Shell 自動請求：背景 `bash`／`powershell` job 未設 `timeoutMs` 時，Shell 經 `monitor-capability.ts` 的 rendezvous 請 Monitor 啟動 `intervalMs:180000`、`wakeAgent:false`、`durationMs:1800000`、label `auto: shell job without timeoutMs` 的來源。僅在 `monitor_start` 已選取、owner／cwd 相符且仍有 active 名額時接受，否則靜默略過；與手動啟動同一授權、同一限制，不取消被觀察 job。
+
 ### 命令授權範圍（設計決策）
 
 `monitor_start` 的 `source.kind:"command"` 由 Monitor 自行啟動 backend，不經巢狀 `bash` 的 `tool_call` hooks；因此只拒絕 `bash` 的 policy **不會**阻止 Monitor command source，policy 必須針對 `monitor_start`（可檢查 `input.source.command`）。這是目前明訂的授權範圍，不是已證實的權限漏洞，也不會偷偷啟用 `bash`；若產品要求兩者同範圍，需另行決定（例如 `ctx.executeTool`）。`tests/command-authorization.integration.test.mjs` 鎖定：直接 bash 被拒、可針對 `monitor_start` 攔截；「bash-deny 也涵蓋 Monitor」以 `todo` 記錄。

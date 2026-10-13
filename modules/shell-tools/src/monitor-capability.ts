@@ -23,6 +23,22 @@ export function acquireCapability(kind: JobKind, scope: MonitorScope): ReadonlyJ
   assert();
   return Object.freeze({ generation: provider!.generation, snapshot(jobId: string) { assert(); const value = provider!.read(jobId); assert(); return value; } });
 }
+/** Default sampling interval for the Monitor that Shell requests for background jobs without timeoutMs. */
+export const AUTO_MONITOR_INTERVAL_MS = 180000;
+export type AutoMonitorStarter = (jobId: string) => string | undefined;
+// Same rendezvous style as the readonly capability: Shell asks, an installed Monitor decides. No handles are shared.
+const autoKey = Symbol.for('pi-better-tools.monitor.auto-shell-job.v1');
+const autoRoot = globalThis as unknown as Record<symbol, Map<string, AutoMonitorStarter>>;
+const autoRegistry = () => autoRoot[autoKey] ??= new Map();
+export function publishAutoMonitor(scope: MonitorScope, starter: AutoMonitorStarter): () => void {
+  const id = identity('shell_job', scope), starters = autoRegistry();
+  starters.set(id, starter);
+  return () => { if (starters.get(id) === starter) starters.delete(id); };
+}
+/** Best effort: returns the monitorId when an owner-matching Monitor accepted the job, otherwise undefined. Never throws. */
+export function requestAutoMonitor(scope: MonitorScope, jobId: string): string | undefined {
+  try { return autoRegistry().get(identity('shell_job', scope))?.(jobId); } catch { return undefined; }
+}
 /** Count-only bridge for a Fork process to learn whether its own Shell/Subagent jobs are still unfinished. No handles, no output, no cancellation. */
 export function activeJobCounts(scope: MonitorScope): { shell: number; subagents: number } {
   const counts = { shell: 0, subagents: 0 };

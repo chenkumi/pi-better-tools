@@ -78,7 +78,7 @@ test('real local shells return readable receipts, allow foreground work, detach 
       assert.match(host.tools.get(name).description, /need explicit selection/);
       assert.ok(!host.tools.get(name).description.includes('2147483647'));
       assert.ok(!host.tools.get(name).parameters.properties.timeoutMs.description.includes('2147483647'));
-      assert.match(host.tools.get(name).parameters.properties.timeoutMs.description, /Not a total time limit/);
+      assert.match(host.tools.get(name).parameters.properties.timeoutMs.description, /Total timeout in ms/);
       assert.match(host.tools.get(name).description, name === 'bash' ? /Git Bash/ : /shellCommandPrefix is not applied/);
       const accepted = await host.execute(name, { command: nodeCommand(name, script), background: true }, turn.signal);
       assert.match(accepted.content[0].text, /read log tail/i);

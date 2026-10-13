@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ShellJobs } from '../src/background-jobs.js';
-import { canonicalMonitorCwd, publishCapability, acquireCapability } from '../src/monitor-capability.js';
+import { canonicalMonitorCwd, publishCapability, acquireCapability, publishAutoMonitor, requestAutoMonitor } from '../src/monitor-capability.js';
 import { createShellMonitorPublisher } from '../src/monitor-publisher.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -50,4 +50,15 @@ test('review adapter W1: capability rechecks validity AFTER a positive snapshot 
   let valid = true; const scope = { sessionId: 'post-read-fence', cwd: canonicalMonitorCwd(process.cwd()) };
   const revoke = publishCapability('shell_job', scope, 1, () => { valid = false; return { jobId: 'valid-job' }; }, () => valid);
   try { const lease = acquireCapability('shell_job', scope); assert.throws(() => lease.snapshot('valid-job')); } finally { revoke(); }
+});
+test('auto monitor request is scoped, replaceable, revocable and never throws', () => {
+  const scope = { sessionId: 'auto-owner', cwd: canonicalMonitorCwd(process.cwd()) }, seen: string[] = [];
+  assert.equal(requestAutoMonitor(scope, 'job-0'), undefined, 'no installed Monitor means no monitor');
+  const revoke = publishAutoMonitor(scope, id => { seen.push(id); return 'MON1'; });
+  assert.equal(requestAutoMonitor(scope, 'job-1'), 'MON1');
+  assert.equal(requestAutoMonitor({ ...scope, sessionId: 'other' }, 'job-2'), undefined, 'a foreign owner is not served');
+  const revokeNew = publishAutoMonitor(scope, () => { throw new Error('starter failure'); });
+  assert.equal(requestAutoMonitor(scope, 'job-3'), undefined, 'a throwing starter is swallowed');
+  revoke(); assert.equal(requestAutoMonitor(scope, 'job-4'), undefined, 'revoking the replaced starter keeps the newer one');
+  revokeNew(); assert.deepEqual(seen, ['job-1']);
 });

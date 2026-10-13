@@ -85,7 +85,7 @@ export const renderShellCompletion: MessageRenderer = (message, { expanded }, th
     allSucceeded &&= success; hasFailure ||= failed;
     const color = failed ? "error" : success ? "success" : "warning";
     const label = success ? "completed" : failed ? status === "timed_out" ? "timed_out" : "failed" : status || "unknown";
-    const explanation = label === "cancelled" ? " · job cancelled" : label === "timed_out" ? " · output idle timeout" : label === "completed" && !success ? " · job finished; exit code not provided" : "";
+    const explanation = label === "cancelled" ? " · job cancelled" : label === "timed_out" ? " · time limit exceeded" : label === "completed" && !success ? " · job finished; exit code not provided" : "";
     const exit = typeof job.exitCode === "number" && Number.isFinite(job.exitCode) ? ` · exit ${job.exitCode}` : "";
     const duration = typeof job.elapsedMs === "number" && Number.isFinite(job.elapsedMs) && job.elapsedMs >= 0 ? ` · ${(job.elapsedMs / 1000).toFixed(1)}s` : "";
     add(`${success ? "✓" : failed ? "✗" : "!"} Shell ${label}${explanation}${exit}${duration}`, color);

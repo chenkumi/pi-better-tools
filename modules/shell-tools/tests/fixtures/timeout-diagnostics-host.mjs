@@ -1,7 +1,7 @@
 // Child process (run with --experimental-test-module-mocks) for the DEGRADED D17 cases.
 // Real shell-tools extension + real host bash tool definition (which formats `timeout:N` and "Command exited with code N").
 // Only createLocalBashOperations is replaced by a deterministic fake that emits output and then throws/returns immediately,
-// so no idle/sleep wait is needed. Prints one JSON line with the observed foreground errors and background job snapshots.
+// so no real wait is needed. Prints one JSON line with the observed foreground errors and background job snapshots.
 import { mock } from 'node:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -19,7 +19,7 @@ const fakeOps = () => ({
     if (command === 'ABORT_AFTER_MARKER_OUTPUT') { onData(Buffer.from('Command timed out after 4 seconds\n')); cancel.abort(); throw new Error('aborted'); }
     if (command === 'FAIL_WITH_MARKER_OUTPUT') { onData(Buffer.from('Command timed out after 1 seconds\n')); return { exitCode: 3 }; }
     if (command === 'REAL_TIMEOUT_AFTER_MARKER_OUTPUT') { onData(Buffer.from('Command timed out after 5 seconds\n')); throw new Error('timeout:1'); }
-    if (command === 'FORGED_IDLE_MARKER_OUTPUT') { onData(Buffer.from('forged (timeoutMs idle timeout)\n')); return { exitCode: 1 }; }
+    if (command === 'FORGED_TIMEOUT_MARKER_OUTPUT') { onData(Buffer.from('forged (timeoutMs total timeout)\n')); return { exitCode: 1 }; }
     throw new Error(`unexpected fake command ${command}`);
   },
 });
@@ -57,7 +57,7 @@ const result = {
   foregroundRealTimeoutAfterMarkerOutput: await foreground('REAL_TIMEOUT_AFTER_MARKER_OUTPUT', 1000),
   foregroundAbortAfterMarkerOutput: await cancelled('ABORT_AFTER_MARKER_OUTPUT'),
   backgroundRealTimeoutAfterMarkerOutput: await background('REAL_TIMEOUT_AFTER_MARKER_OUTPUT', 1000),
-  backgroundForgedIdleMarkerOutput: await background('FORGED_IDLE_MARKER_OUTPUT', 30000),
+  backgroundForgedTimeoutMarkerOutput: await background('FORGED_TIMEOUT_MARKER_OUTPUT', 30000),
 };
 console.log('D17_RESULT ' + JSON.stringify(result));
 process.exit(0);

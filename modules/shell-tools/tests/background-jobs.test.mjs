@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { test } from 'node:test';
-import { ShellJobs, MAX_ACTIVE_JOBS, MAX_RETAINED_JOBS, MAX_LOG_BYTES, MAX_RAW_CAPTURE_BYTES, TAIL_BYTES, IDLE_TIMEOUT_HINT, idleTimeoutMessage, compactJob } from '../src/background-jobs.ts';
+import { ShellJobs, MAX_ACTIVE_JOBS, MAX_RETAINED_JOBS, MAX_LOG_BYTES, MAX_RAW_CAPTURE_BYTES, TAIL_BYTES, TIMEOUT_HINT, timeoutMessage, compactJob } from '../src/background-jobs.ts';
 
 const boundary = () => new Promise(resolve => setImmediate(resolve));
 const context = id => ({ sessionManager: { getSessionId: () => id }, isIdle: () => true, hasPendingMessages: () => false });
@@ -153,7 +153,7 @@ test('long asynchronous failure preserves timeout tail and bounded head/tail dia
   try {
     const receipt = jobs.submit(ctx, 'bash', 'long-timeout', undefined, async () => {
       await Promise.resolve();
-      throw new Error('HEAD_MARKER ' + 'x'.repeat(100000) + '\nCommand stopped: no output for 1 seconds (timeoutMs idle timeout)');
+      throw new Error('HEAD_MARKER ' + 'x'.repeat(100000) + '\nCommand stopped: exceeded the 1 second time limit (timeoutMs total timeout)');
     });
     await flush();
     const result = jobs.status(ctx, receipt.jobId);
@@ -161,7 +161,7 @@ test('long asynchronous failure preserves timeout tail and bounded head/tail dia
     assert.ok(result.error.length <= 32768);
     assert.match(result.error, /^HEAD_MARKER/);
     assert.match(result.error, /error output omitted/);
-    assert.match(result.error, /\(timeoutMs idle timeout\)$/);
+    assert.match(result.error, /\(timeoutMs total timeout\)$/);
     assert.equal(messages.length, 1);
   } finally { await jobs.shutdown(); }
 });
@@ -238,7 +238,7 @@ test('changed session identity suppresses completion and timeout errors remain d
   const ctx = { isIdle: () => true, hasPendingMessages: () => false, sessionManager: { getSessionId: () => id } };
   jobs.start(ctx);
   try {
-    const receipt = jobs.submit(ctx, 'bash', 'timeout', undefined, async () => { throw new Error('Command stopped: no output for 1 seconds (timeoutMs idle timeout)'); });
+    const receipt = jobs.submit(ctx, 'bash', 'timeout', undefined, async () => { throw new Error('Command stopped: exceeded the 1 second time limit (timeoutMs total timeout)'); });
     await flush();
     assert.equal(jobs.status(ctx, receipt.jobId).status, 'timed_out');
     messages.length = 0;
@@ -351,17 +351,17 @@ test('an existing result wins over a racing cancel; cancelRequested records the 
   } finally { release?.(); await jobs.shutdown(); }
 });
 
-test('idle-timeout hint is appended to the message yet still classifies as timed_out', async () => {
+test('timeout hint is appended to the message yet still classifies as timed_out', async () => {
   const { jobs, ctx } = host();
   try {
-    assert.match(idleTimeoutMessage('5'), /no output for 5 seconds \(timeoutMs idle timeout\)\./);
-    assert.ok(idleTimeoutMessage('5').endsWith(IDLE_TIMEOUT_HINT));
-    assert.match(IDLE_TIMEOUT_HINT, /omit or increase timeoutMs\. Use background:true separately/);
-    const receipt = jobs.submit(ctx, 'bash', 'hint', undefined, async () => { throw new Error('partial output\n' + idleTimeoutMessage('5')); });
+    assert.match(timeoutMessage('5'), /exceeded the 5 second time limit \(timeoutMs total timeout\)\./);
+    assert.ok(timeoutMessage('5').endsWith(TIMEOUT_HINT));
+    assert.match(TIMEOUT_HINT, /increase or omit timeoutMs\. Use background:true separately/);
+    const receipt = jobs.submit(ctx, 'bash', 'hint', undefined, async () => { throw new Error('partial output\n' + timeoutMessage('5')); });
     await flush();
     const result = jobs.status(ctx, receipt.jobId);
     assert.equal(result.status, 'timed_out');
-    assert.match(result.error, /expected to remain quiet/);
+    assert.match(result.error, /legitimately needs more time/);
   } finally { await jobs.shutdown(); }
 });
 
