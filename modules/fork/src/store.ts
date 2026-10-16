@@ -2,9 +2,9 @@ import { chmodSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, wr
 import { join } from "node:path";
 import type { ForkUsage } from "./child.ts";
 
-export type ForkStatus = "awaiting_snapshot" | "starting" | "running" | "finalizing" | "cancelling" | "completed" | "failed" | "cancelled" | "interrupted";
+export type ForkStatus = "awaiting_snapshot" | "starting" | "running" | "blocked" | "finalizing" | "cancelling" | "completed" | "failed" | "cancelled" | "interrupted";
 export type Delivery = "pending" | "submitted" | "observed" | "unknown" | "not_required";
-export const ACTIVE_STATUSES: readonly ForkStatus[] = ["awaiting_snapshot", "starting", "running", "finalizing", "cancelling"];
+export const ACTIVE_STATUSES: readonly ForkStatus[] = ["awaiting_snapshot", "starting", "running", "blocked", "finalizing", "cancelling"];
 export const isTerminal = (status: ForkStatus) => !ACTIVE_STATUSES.includes(status);
 export const MAX_RESULT_BYTES = 32 * 1024;
 export const MAX_STORED = 64;
@@ -27,6 +27,9 @@ export interface ForkRecord {
 	ownerPid: number;
 	result?: { resultId: string; output?: string; outputTruncated?: boolean; errorCode?: string; error?: string; usage?: ForkUsage; usageUnknown?: boolean };
 	cleanup?: { childClosed: boolean; exitCode?: number | null };
+	/** Non-terminal truth: the child's own model call failed while nested jobs are still unfinished, so the
+	 *  Fork cannot make progress on its own. Reported by the child guard, never inferred by the parent. */
+	blocked?: { reason: string; error?: string; pending: { shell: number; subagents: number }; since: string };
 	delivery: Delivery;
 }
 
@@ -54,7 +57,7 @@ export function saveRecord(cwd: string, record: ForkRecord): void {
 }
 
 const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
-const STATUSES = new Set<string>(["awaiting_snapshot", "starting", "running", "finalizing", "cancelling", "completed", "failed", "cancelled", "interrupted"]);
+const STATUSES = new Set<string>(["awaiting_snapshot", "starting", "running", "blocked", "finalizing", "cancelling", "completed", "failed", "cancelled", "interrupted"]);
 const DELIVERIES = new Set<string>(["pending", "submitted", "observed", "unknown", "not_required"]);
 export function parseRecord(text: string): ForkRecord | undefined {
 	try {

@@ -19,6 +19,12 @@ function activity(job: Job): string {
 	}
 	if (status === "awaiting_snapshot") return "awaiting_snapshot · starts at turn end";
 	if (status === "cancelling") return "cancelling · cancel requested, awaiting child close";
+	if (status === "blocked") {
+		// The child's own model call failed; its nested jobs may still be running. Never render this as healthy.
+		const pending = job.record.blocked ? job.record.blocked.pending.shell + job.record.blocked.pending.subagents : 0;
+		const reason = job.record.blocked?.reason ?? "MODEL_ERROR";
+		return pending ? `blocked · ${reason} · waiting for ${pending} unfinished nested job(s)` : `blocked · ${reason}`;
+	}
 	return status;
 }
 
@@ -31,6 +37,7 @@ export function forkPanelJob(job: Job): PanelJob {
 		r.sessionPath ? `Native session: ${r.sessionPath}` : "Native session: not created yet",
 		`Created: ${r.createdAt}${r.startedAt ? ` · Started: ${r.startedAt}` : ""}${r.endedAt ? ` · Ended: ${r.endedAt}` : ""}`,
 		r.cleanup ? `Cleanup: child ${r.cleanup.childClosed ? "closed" : "close NOT confirmed"}${r.cleanup.exitCode !== undefined ? ` · exit ${r.cleanup.exitCode}` : ""}` : "Cleanup: no child close observed yet",
+		...(r.blocked ? [`Blocked since ${r.blocked.since} · ${r.blocked.reason}${r.blocked.error ? ` · ${r.blocked.error}` : ""} · pending shell ${r.blocked.pending.shell} / subagents ${r.blocked.pending.subagents} · the Fork cannot progress until those jobs end`] : []),
 		job.released ? "Permit: released" : "Permit: held until child close is confirmed",
 		`Model: ${r.config.model} · thinking ${r.config.thinkingLevel}`,
 		usageDetails(usage), "Usage is the Fork's own incremental usage, not inherited history.",

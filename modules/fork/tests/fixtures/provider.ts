@@ -1,9 +1,13 @@
 // Deterministic offline provider shared by the parent Pi and its Fork child. No network, no credentials.
-// FORK_SCENARIO: basic | nested-shell (child starts a background shell job, then settles early) | gated (child waits for <capture>/release).
+// FORK_SCENARIO: basic | nested-shell (child starts a background shell job, then settles early) | gated (child waits for <capture>/release)
+//  | interrupted (child starts a long background job, then its own model call is interrupted mid-stream).
 import { existsSync, watch, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createAssistantMessageEventStream, getCurrentTools } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+
+/** Marks the long background job so repeated child turns can tell whether it already started. */
+export const INTERRUPTED_MARKER = "FORK_INTERRUPTED_JOB";
 
 const text = (m: any) => typeof m.content === "string" ? m.content : (m.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("");
 
@@ -33,6 +37,29 @@ export default function (pi: ExtensionAPI) {
 					stream.push({ type: "toolcall_start", contentIndex: 0, partial: message });
 					stream.push({ type: "toolcall_end", contentIndex: 0, toolCall: message.content[0], partial: message });
 					message.stopReason = "toolUse";
+				} else if (!isChild && last?.role === "user" && lastUser.includes("CHECK_STATUS")) {
+					// Lets a test read exactly what fork_status would tell the user.
+					message.content = [{ type: "toolCall", id: "status-call-1", name: "fork_status", arguments: {} }];
+					stream.push({ type: "toolcall_start", contentIndex: 0, partial: message });
+					stream.push({ type: "toolcall_end", contentIndex: 0, toolCall: message.content[0], partial: message });
+					message.stopReason = "toolUse";
+				} else if (scenario === "interrupted" && isChild) {
+					if (!everything.includes(INTERRUPTED_MARKER)) {
+						message.content = [{ type: "toolCall", id: "interrupted-job-1", name: "bash", arguments: { command: `node blocked-job.mjs # ${INTERRUPTED_MARKER}`, background: true } }];
+						stream.push({ type: "toolcall_start", contentIndex: 0, partial: message });
+						stream.push({ type: "toolcall_end", contentIndex: 0, toolCall: message.content[0], partial: message });
+						message.stopReason = "toolUse";
+					} else {
+						// The child's own model call is cut off mid-stream, exactly like the reported quota failure.
+						const partial = "Starting the assigned work";
+						message.content = [{ type: "text", text: partial }];
+						stream.push({ type: "text_start", contentIndex: 0, partial: message });
+						stream.push({ type: "text_delta", contentIndex: 0, delta: partial, partial: message });
+						stream.push({ type: "text_end", contentIndex: 0, content: partial, partial: message });
+						stream.push({ type: "error", reason: "error", error: { ...message, content: [], stopReason: "error", errorMessage: "The user has reached their subscription usage limit" } });
+						stream.end();
+						return;
+					}
 				} else if (scenario === "nested-shell" && isChild && !everything.includes("nested-bash-1")) {
 					message.content = [{ type: "toolCall", id: "nested-bash-1", name: "bash", arguments: { command: "node nested-job.mjs", background: true } }];
 					stream.push({ type: "toolcall_start", contentIndex: 0, partial: message });

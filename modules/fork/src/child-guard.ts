@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { activeJobCounts, canonicalMonitorCwd } from "../../shell-tools/src/monitor-capability.ts";
-import { FORK_TOOLS, consumeForkChildGuard, hasForkMarker } from "./identity.ts";
+import { FORK_MARKER_TYPE, FORK_TOOLS, consumeForkChildGuard, hasForkMarker } from "./identity.ts";
 
 export const CHANNEL = "pi-fork";
 export const POLL_MS = 1000;
@@ -38,6 +38,41 @@ export default function (pi: ExtensionAPI) {
 		} catch { return false; }
 	};
 	const settle = () => send({ type: "settled", quiet: true });
+	/** The session is the authority on whether the model call failed; no counter stands in for it.
+	 *  Only entries written after this Fork's own origin marker count: the inherited snapshot ends with the parent's
+	 *  fork call, so an earlier assistant error belongs to the parent and must not be reported as this Fork's. */
+	const modelError = (ctx: ExtensionContext): string | undefined => {
+		try {
+			const entries = ctx.sessionManager.getEntries() as unknown as Array<Record<string, any>>;
+			let from = 0;
+			for (let i = 0; i < entries.length; i++) if (entries[i]?.type === "custom" && entries[i]?.customType === FORK_MARKER_TYPE) from = i + 1;
+			for (let i = entries.length - 1; i >= from; i--) {
+				const message = entries[i]?.type === "message" ? entries[i]!.message : undefined;
+				if (message?.role !== "assistant") continue;
+				if (message.stopReason !== "error") return undefined;
+				return typeof message.errorMessage === "string" && message.errorMessage ? message.errorMessage.slice(0, 300) : "assistant stopped with error";
+			}
+		} catch { /* unreadable session: report nothing rather than guess */ }
+		return undefined;
+	};
+	/** Report a fatal model error immediately, even while unfinished jobs keep the session from being quiet.
+	 *  A Fork whose own model call failed cannot make progress by itself; staying silent until those jobs end hides
+	 *  that from the parent. This is a truth report only: it never settles, and never claims success. */
+	let blockedSignature: string | undefined;
+	const reportBlocked = (ctx: ExtensionContext): void => {
+		let pending: { shell: number; subagents: number };
+		try { const c = activeJobCounts({ sessionId: ctx.sessionManager.getSessionId(), cwd: canonicalMonitorCwd(ctx.cwd) }); pending = { shell: c.shell, subagents: c.subagents }; } catch { return; }
+		const failure = modelError(ctx);
+		if (!failure || pending.shell + pending.subagents === 0) {
+			// Progress is possible again, or the ordinary quiet path already covers termination.
+			if (blockedSignature !== undefined) { blockedSignature = undefined; send({ type: "unblocked" }); }
+			return;
+		}
+		const signature = `${pending.shell}:${pending.subagents}:${failure}`;
+		if (signature === blockedSignature) return;
+		blockedSignature = signature;
+		send({ type: "blocked", reason: "MODEL_ERROR", error: failure, pending });
+	};
 	pi.on("session_start", (_event, ctx) => {
 		current = ctx;
 		let code: string | undefined;
@@ -58,10 +93,13 @@ export default function (pi: ExtensionAPI) {
 	let stable = 0;
 	pi.on("agent_settled", (_event, ctx) => {
 		current = ctx; stable = 0;
+		reportBlocked(ctx);
 		if (quiet()) { stopPolling(); settle(); return; }
 		// Settled with unfinished nested jobs: a job's own wake-up re-enters agent_settled. When a job ends without waking the agent,
 		// two consecutive quiet ticks (not one) rule out the window between "job finished" and "wake-up turn started".
 		timer ??= setInterval(() => {
+			const active = current;
+			if (active) reportBlocked(active);
 			if (!quiet()) { stable = 0; return; }
 			if (++stable >= 2) { stopPolling(); settle(); }
 		}, POLL_MS);
