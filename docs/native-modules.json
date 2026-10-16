@@ -833,6 +833,11 @@
       "origin": "User-authorized project-native Fork (2026-10-13), not an imported snapshot: independent Pi process inheriting the source conversation and capabilities, cross-session hand-over, Pi1.1.0 only. Plan: plan/PLAN-20261013T035455648Z.md.",
       "license": "MIT (root LICENSE and modules/fork/LICENSE)",
       "entry": "modules/fork/src/index.ts",
+      "blockedReport20261016": {
+        "issue": "issue/ISSUE-20261016T155432962Z.md",
+        "fix": "bb711b850e700052a87a9979ae6594edddcf24f6",
+        "scope": "Non-terminal blocked state for a Fork whose own model call failed while nested jobs keep the session from being quiet. The guard reports the truth immediately instead of waiting for quiet; fork_status and the background panel surface it; the remaining no-deadline gap is recorded, not hidden. Reproduction matrix A-D and verification are recorded in the issue note."
+      },
       "files": [
         {
           "path": "modules/fork/LICENSE",
@@ -843,7 +848,9 @@
           "path": "modules/fork/README.md",
           "refactorPreviousSha256": "94793f6c092b96c4802568e035eb137720a0de9d75e86f5f5e6fd301bdf2173a",
           "forkDefaultActivePreviousSha256": "118e86afc81e4a5a26e373476aa4edd9f6ce4c573873b1ae7a7ff288eaffeb50",
-          "sha256": "b2eed57bdb8112af52fc8caa811d121ba94947d7dfd51341ed2bc9da2c960d3a",
+          "blockedReportPreviousSha256": "b2eed57bdb8112af52fc8caa811d121ba94947d7dfd51341ed2bc9da2c960d3a",
+          "blockedReportAdaptation": "2026-10-16: document the non-terminal blocked truth report, its record fields, and the deliberately unclosed no-deadline gap.",
+          "sha256": "a2ea28158ccd780da37cda77f00996e780de6ba8778196f24ffbaa06d243e872",
           "reason": "Document defaultActive:true without config; preserve host selection, managed-child restrictions, limits and security boundaries."
         },
         {
@@ -858,12 +865,16 @@
         },
         {
           "path": "modules/fork/src/child-guard.ts",
-          "sha256": "41d32860523c159fa9f8b45179f2144ee93694053bf5f14f2f33a8afc3331c16",
+          "blockedReportPreviousSha256": "41d32860523c159fa9f8b45179f2144ee93694053bf5f14f2f33a8afc3331c16",
+          "blockedReportAdaptation": "2026-10-16: report a fatal model error immediately (bounded error text, pending counts, deduplicated) instead of waiting for quiet; only assistant errors after this Fork's origin marker count.",
+          "sha256": "99bdb68602662ed22700d2fc4929dccd07f535a0573b83dd3945ede4a467a7c5",
           "reason": "Native Fork implementation."
         },
         {
           "path": "modules/fork/src/child.ts",
-          "sha256": "4a5ca59485cdc0b80469dfbf994fc02d5ab8dbb58c323b294f66174f7a19398d",
+          "blockedReportPreviousSha256": "4a5ca59485cdc0b80469dfbf994fc02d5ab8dbb58c323b294f66174f7a19398d",
+          "blockedReportAdaptation": "2026-10-16: progress callback widened to carry the blocked report; job counts sanitised to non-negative integers.",
+          "sha256": "7c8b2d7a3b6456270cb5c0f7b3330ca19c6fbe0701383fab818ba5d501b95509",
           "reason": "Native Fork implementation."
         },
         {
@@ -881,12 +892,16 @@
           "path": "modules/fork/src/live-widget.ts",
           "refactorPreviousSha256": "63f51278da48a14897b5342840dbda79f8f3f6b0e56be585315cb5be0fd0d3d6",
           "refactorAdaptation": "2026-10-16 R6: delegate only bind/refresh/clear to shared presentation helper; forkPanelJob and all execution/delivery lifecycle logic unchanged.",
-          "sha256": "76fbd13b1fef62643a35f6ca668140aec8dc03cfc5bfff258ddd7120c7632fa2",
+          "blockedReportPreviousSha256": "76fbd13b1fef62643a35f6ca668140aec8dc03cfc5bfff258ddd7120c7632fa2",
+          "blockedReportAdaptation": "2026-10-16: render a blocked Fork as blocked with its reason and pending job count; never as healthy.",
+          "sha256": "2c230e72fa1167afb5f0dd935d4019b03a117221f75f7773dea652b056982c4c",
           "reason": "Native Fork implementation."
         },
         {
           "path": "modules/fork/src/manager.ts",
-          "sha256": "a846370ac14ca04d32db51cc0e8924ce1c8f5455b300ab9048b66374e25d2170",
+          "blockedReportPreviousSha256": "a846370ac14ca04d32db51cc0e8924ce1c8f5455b300ab9048b66374e25d2170",
+          "blockedReportAdaptation": "2026-10-16: record the blocked truth and status, clear it when progress resumes without regressing finalizing, and expose it through summarize().",
+          "sha256": "d474ef3f833999f00cb3424dfcaf44f95ecde888b18198154102928e6a2807f7",
           "reason": "Native Fork implementation."
         },
         {
@@ -901,8 +916,20 @@
         },
         {
           "path": "modules/fork/src/store.ts",
-          "sha256": "c8735b97a020be842d2a15877dda6b9e355309ef331861988402a3530ea7bae4",
+          "blockedReportPreviousSha256": "c8735b97a020be842d2a15877dda6b9e355309ef331861988402a3530ea7bae4",
+          "blockedReportAdaptation": "2026-10-16: add the active blocked status and its bounded record field; unknown statuses stay rejected.",
+          "sha256": "2a12548d7ca891525a1d597c0ab31ab7570b1c72f2808799104ecd498a8e5b01",
           "reason": "Native Fork implementation."
+        },
+        {
+          "path": "modules/fork/tests/blocked-report.integration.test.ts",
+          "sha256": "62a04c895b4a26d500abbda5fea3d70efa608d097cb85084831591061139e512",
+          "reason": "Real-host regression for the blocked report: visible in fork_status while a nested job runs, still ending as CHILD_MODEL_ERROR once it ends."
+        },
+        {
+          "path": "modules/fork/tests/blocked-report.test.ts",
+          "sha256": "b25c582f01bef9ab96efd897c1bdbefb46db6a4a19a9333c44d197d0644bd8e5",
+          "reason": "Unit regression for the blocked report across guard, child, store and manager."
         },
         {
           "path": "modules/fork/tests/child-guard.test.ts",
@@ -921,7 +948,9 @@
         },
         {
           "path": "modules/fork/tests/fixtures/provider.ts",
-          "sha256": "4c32ca9257029fc0c3b1335a0254ef56f531936f7095d293359bc6f37fa58c0c",
+          "blockedReportPreviousSha256": "4c32ca9257029fc0c3b1335a0254ef56f531936f7095d293359bc6f37fa58c0c",
+          "blockedReportAdaptation": "2026-10-16: add the interrupted scenario (long background job, then a mid-stream model error) and the one-shot status prompt used by the blocked-report tests.",
+          "sha256": "f0e4d65237512f9a1a8120854b787fa7b2289f161ef7e64b239cb88c035ec8b0",
           "reason": "Offline deterministic provider fixture (no network, no credentials)."
         },
         {
