@@ -73,6 +73,22 @@ export class NetworkPolicy {
     return url;
   }
 
+  /** Fresh, all-address validation for a single HTTP connection; callers must pin this address. */
+  async resolveTarget(value: string): Promise<{ url: URL; address: string }> {
+    const url = parseWebUrl(value);
+    const hostname = url.hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
+    if (!this.allowPrivateNetwork && (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local'))) {
+      throw new Error('NETWORK_BLOCKED: Local network destinations are not allowed.');
+    }
+    let addresses: readonly { address: string }[];
+    try { addresses = ipaddr.isValid(hostname) ? [{ address: hostname }] : await this.resolve(hostname); }
+    catch { throw new Error('NETWORK_ERROR: Could not resolve the destination.'); }
+    if (!addresses.length || addresses.some(({ address }) => !ipaddr.isValid(address) || (!this.allowPrivateNetwork && !isPublicAddress(address)))) {
+      throw new Error('NETWORK_BLOCKED: Every resolved address must be public. Private and local addresses cannot be fetched; use a public URL.');
+    }
+    return { url, address: addresses[0]!.address };
+  }
+
   private async checkResolved(hostname: string): Promise<void> {
     let addresses: readonly { address: string }[];
     try { addresses = await this.resolve(hostname); } catch {

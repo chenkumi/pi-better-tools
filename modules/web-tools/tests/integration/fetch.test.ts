@@ -1,3 +1,4 @@
+import './static-http.test.js';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { createServer, type ServerResponse } from 'node:http';

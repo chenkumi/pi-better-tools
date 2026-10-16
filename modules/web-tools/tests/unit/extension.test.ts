@@ -227,9 +227,9 @@ test('web_search description names the configured provider and guidelines requir
   }
   const fetchGuidelines = (harness('brave').definitions.get('web_fetch')!.promptGuidelines as string[]).join('\n');
   assert.match(fetchGuidelines, /BROWSER_UNAVAILABLE/);
-  assert.match(fetchGuidelines, /npm run browser:install/);
+  assert.match(fetchGuidelines, /installation command for this package instance/);
   assert.match(fetchGuidelines, /cause-specific guidance/);
-  assert.match(fetchGuidelines, /Other startup failures do not prove the browser is uninstalled/);
+  assert.match(fetchGuidelines, /other startup failures do not prove the browser is uninstalled/);
   assert.doesNotMatch(fetchGuidelines, /do not retry; tell the user/);
 });
 
