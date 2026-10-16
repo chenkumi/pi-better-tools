@@ -5,12 +5,15 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer, type ServerResponse } from 'node:http';
 import https from 'node:https';
 import { cert, key } from '../fixtures/tls-material.js';
-import type { AddressInfo } from 'node:net';
+import type { AddressInfo, Socket } from 'node:net';
+import { createServer as createRawServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { brotliCompressSync, gzipSync } from 'node:zlib';
+import { chromium } from 'playwright';
+import { FetchService } from '../../src/fetch/service.js';
 import { fetchStatic, pinnedOptions } from '../../src/fetch/http.js';
 import { MAX_HTML_BYTES } from '../../src/fetch/extract.js';
 import { NetworkPolicy } from '../../src/fetch/network.js';
@@ -92,6 +95,38 @@ test('static HTTP real sockets: pinning, redirects, streaming limits and cleanup
   controller.abort(new Error('CANCELLED: test'));
   await Promise.all([rejected, closed]);
   assert.equal((await fetchStatic(`${base}/article`, policy, signal())).status, 200);
+});
+
+test('a 101 upgrade rejects and releases the operation instead of holding the queue', { timeout: 30_000 }, async t => {
+  let upgraded: Socket | undefined;
+  let closeResolve!: () => void;
+  const clientClosed = new Promise<void>(resolve => { closeResolve = resolve; });
+  // Raw TCP: Node emits 'upgrade' (never 'response' or 'error') for a 101, so this is the branch
+  // where an unsettled headers wait used to hold the operation, its queue permit and shutdown.
+  const server = createRawServer(socket => {
+    socket.on('error', () => {});
+    socket.once('data', () => {
+      upgraded = socket;
+      socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n');
+    });
+    socket.on('close', () => { if (socket === upgraded) closeResolve(); });
+  });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  t.after(async () => { server.close(); await once(server, 'close'); });
+  const port = (server.address() as AddressInfo).port;
+  const launch = t.mock.method(chromium, 'launch', async () => { throw new Error("Executable doesn't exist at /none"); });
+  const service = new FetchService({ channel: 'chromium', timeoutMs: 20_000, maxConcurrency: 1, idleTimeoutMs: 0 }, { allowPrivateNetwork: true });
+  try {
+    await assert.rejects(service.fetch({ url: `http://127.0.0.1:${port}/upgrade` }), /UNSUPPORTED_CONTENT: .*101 Upgrade/);
+    await clientClosed;
+    assert.equal(service['operations'].size, 0, 'a settled static fetch must release its operation');
+    // A leaked permit would leave this second fetch queued until its deadline expires.
+    await assert.rejects(service.fetch({ url: `http://127.0.0.1:${port}/other` }), /UNSUPPORTED_CONTENT: .*101 Upgrade/);
+    assert.equal(launch.mock.callCount(), 2, 'each fetch must still attempt its own browser launch');
+  } finally {
+    launch.mock.restore();
+    await service.close();
+  }
 });
 
 test('real missing Chromium executable in isolated process and empty browser cache', { timeout: 60_000 }, async () => {

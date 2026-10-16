@@ -14,14 +14,18 @@ export function resolveDependency(name) {
   return { root: dirname(manifest), version: json(manifest).version };
 }
 
-export function browserInvocation(action, { resolve = resolveDependency, execPath = process.execPath } = {}) {
+export function browserInvocation(action, { resolve = resolveDependency, execPath = process.execPath, cwd = process.cwd(), env = process.env } = {}) {
   const actions = {
     install: ['install', 'chromium', '--no-shell'],
     'install-deps': ['install-deps', 'chromium'],
     setup: ['install', '--with-deps', 'chromium', '--no-shell'],
   };
   if (!Object.hasOwn(actions, action)) throw new Error('Unknown browser action.');
-  return { command: execPath, args: [join(resolve('playwright').root, 'cli.js'), ...actions[action]], cwd: packageRoot, env: process.env };
+  // The Playwright CLI is resolved from this package instance by absolute path, so the child never
+  // needs this package as its cwd. It must keep the caller's cwd instead: a relative
+  // PLAYWRIGHT_BROWSERS_PATH is resolved against the child cwd, and changing it would install into a
+  // different directory than doctor and the running Pi instance report.
+  return { command: execPath, args: [join(resolve('playwright').root, 'cli.js'), ...actions[action]], cwd, env };
 }
 
 // Only known npm CLI locations are considered; never execute a PATH shim or npx download.

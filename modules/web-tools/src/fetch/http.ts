@@ -1,7 +1,7 @@
 import http, { type IncomingMessage, type RequestOptions } from 'node:http';
 import https from 'node:https';
 import { isIP } from 'node:net';
-import { Transform, Writable } from 'node:stream';
+import { Transform, Writable, type Duplex } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createBrotliDecompress, createGunzip, createInflate } from 'node:zlib';
 import { MAX_HTML_BYTES } from './extract.js';
@@ -23,6 +23,9 @@ export function pinnedOptions(url: URL, address: string, signal: AbortSignal): R
 }
 
 function aborted(signal: AbortSignal): void { if (signal.aborted) throw signal.reason; }
+function cancelReason(signal: AbortSignal): Error {
+  return signal.reason instanceof Error ? signal.reason : new Error('CANCELLED: Static HTTP request was cancelled.');
+}
 async function resolveAbortable(policy: NetworkPolicy, value: string, signal: AbortSignal) {
   aborted(signal);
   return new Promise<Awaited<ReturnType<NetworkPolicy['resolveTarget']>>>((resolve, reject) => {
@@ -91,9 +94,33 @@ export async function fetchStatic(value: string, policy: NetworkPolicy, signal: 
       aborted(signal);
       const request = (url.protocol === 'https:' ? https : http).request(url, pinnedOptions(url, address, signal));
       try {
+        // Every terminal path must settle this wait exactly once. A 101 Upgrade emits neither
+        // 'response' nor 'error' (Node hands the socket to 'upgrade' and only then emits 'close'),
+        // so without these listeners a hostile or misconfigured server could hold the operation,
+        // its queue permit and shutdown forever.
         const response = await new Promise<IncomingMessage>((resolve, reject) => {
-          request.once('response', resolve);
-          request.on('error', reject); // Remains attached through body/abort cleanup.
+          let pending = true;
+          const settle = (error?: Error, value?: IncomingMessage) => {
+            if (!pending) return;
+            pending = false;
+            signal.removeEventListener('abort', onCancel);
+            request.off('upgrade', onUpgrade);
+            request.off('close', onClose);
+            if (error) reject(error); else resolve(value!);
+          };
+          const onCancel = () => settle(cancelReason(signal));
+          const onUpgrade = (_response: IncomingMessage, socket: Duplex) => {
+            // The upgraded socket is detached from the request; it must be destroyed explicitly.
+            socket.destroy();
+            settle(new Error('UNSUPPORTED_CONTENT: The server switched to another protocol (HTTP 101 Upgrade), which static HTTP mode does not support. Look for an HTML version instead.'));
+          };
+          const onClose = () => settle(new Error('NETWORK_ERROR: The connection closed before any response.'));
+          request.once('response', (incoming: IncomingMessage) => settle(undefined, incoming));
+          request.once('upgrade', onUpgrade);
+          request.once('close', onClose);
+          signal.addEventListener('abort', onCancel, { once: true });
+          // Stays attached after settlement so a late socket error is never unhandled.
+          request.on('error', (error: Error) => settle(error));
           request.end();
         });
         try {

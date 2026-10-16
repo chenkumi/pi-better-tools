@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { join } from 'node:path';
 import test from 'node:test';
-import { browserInvocation, main, runInvocation } from '../../setup/core.mjs';
+import { browserInvocation, main, packageRoot, runInvocation } from '../../setup/core.mjs';
 import { formatSetupCommand, setupCommand } from '../../setup/commands.mjs';
 
 test('browser operations use own resolved CLI and current Node, never a shell or global playwright', () => {
@@ -14,6 +14,20 @@ test('browser operations use own resolved CLI and current Node, never a shell or
     assert.deepEqual(invocation.args, [join(root, 'cli.js'), ...expected]);
   }
   assert.throws(() => browserInvocation('__proto__', options), /Unknown/);
+});
+
+test('browser installer keeps the caller cwd so a relative browser cache stays with doctor and runtime', () => {
+  const options = { resolve: () => ({ root: join(process.cwd(), 'own install') }), execPath: '/own node' };
+  // Playwright resolves a relative PLAYWRIGHT_BROWSERS_PATH against the child cwd; moving the child
+  // into the package directory would install where doctor and the running instance never look.
+  assert.equal(browserInvocation('install', options).cwd, process.cwd());
+  assert.notEqual(browserInvocation('install', options).cwd, packageRoot);
+  assert.equal(browserInvocation('install', { ...options, cwd: '/caller cwd' }).cwd, '/caller cwd');
+  const env = { ...process.env, PLAYWRIGHT_BROWSERS_PATH: './browser-cache' };
+  delete env.INIT_CWD;
+  const invocation = browserInvocation('install', { ...options, env });
+  assert.equal(invocation.env.PLAYWRIGHT_BROWSERS_PATH, './browser-cache', 'the relative cache must reach the child unmodified');
+  assert.equal(invocation.env.INIT_CWD, undefined, 'no INIT_CWD override may be invented for the child');
 });
 
 test('CLI parsing is strict and help/doctor cannot invoke installers', async () => {

@@ -1,5 +1,18 @@
 {
   "schemaVersion": 1,
+  "webSetupCompatibility20261016": {
+    "plan": "plan/PLAN-20261016T150815022Z.md",
+    "baselineCommit": "e6c46c422b7d5b3b81e89927031fb1a29c461ea2",
+    "includedCheckpointCommit": "580e543677d137f7a1983d15f14776e6a5da594f",
+    "scope": "CP1 plus current CP2-CP5 worktree snapshot: package-local setup CLI/bin and helpers, explicit browser/OS-dependency/PTY setup and readonly doctor; missing-executable-only static HTTP fallback with pinned validated DNS, TLS identity, per-hop checks, bounded transfer, single-settlement headers wait and shared extraction/lifecycle; web/PTY diagnostics, regression fixtures, package smoke and documentation. Native skill changes are inventoried separately in native-modules.json.",
+    "historyPolicy": "webSetupPreviousSha256 preserves each replaced active fingerprint, checked against baseline git content before refresh. Immutable sources, original hashes, older snapshots and unavailable historical-delta fields remain unchanged. New setup files are active rootFiles; new module/test integrations are addedFiles. webSetupCp5PreviousSha256 records the in-plan fingerprint a CP5 review fix replaced, so a baseline value stays in webSetupPreviousSha256 where one exists. No full verification, historical equivalence, release or provider certification is implied.",
+    "knownUnrelatedBaselineMismatches": [
+      "modules/file-tools/extensions/file-tools.ts",
+      "modules/file-tools/README.md",
+      "modules/file-tools/tests/error-display.test.ts",
+      "modules/skill-tools/skills/pi-tools-config/references/sqlite-tools.md"
+    ]
+  },
   "fileAuditIntegration20261016": {
     "plan": "plan/PLAN-20261016T064913464Z.md",
     "scope": "Native standalone File Audit: bounded successful read/write/edit/note observations, manual candidate-only provenance inspection; 17 local/19 manifest entries, module runner, loader/package probes and standalone config reference. No dependency, lock, tool execution, full verifier or user settings changes.",
@@ -1675,7 +1688,8 @@
       "promptSectionsPreviousSha256": "76ad878d361eb65506270c25ff8d7b4ce3c1d396c89745e500f848cf0b0e1662",
       "browserLaunchPreviousSha256": "76ad878d361eb65506270c25ff8d7b4ce3c1d396c89745e500f848cf0b0e1662",
       "browserLaunchAdaptation": "2026-10-16 assert cause-specific browser startup guidelines and reject the former unconditional installation instruction.",
-      "sha256": "7456b32ccebb6542432d88f0db53b5c9fc79a1d836db7ff4909814a18238392e",
+      "webSetupPreviousSha256": "7456b32ccebb6542432d88f0db53b5c9fc79a1d836db7ff4909814a18238392e",
+      "sha256": "0f010028fabc390b96b3a1dd145d5acd7945fc3214b8a49c64dfef0b610f914b",
       "reason": "Add default Codex request/prompt injection, TUI/headless silence, mode/disabled gates and successful opt-in capture tests; no live backend. 2026-10-06 local adaptation (web-tools): actionable next-step error hints, web_search provider field removed (prepareArguments drops legacy argument), dynamic description/guidelines, text slimming. Assertions kept or tightened; not a source-identical copy."
     },
     {
@@ -1820,7 +1834,8 @@
       "defectRepairPreviousSha256": "9b49de8504e2be6275e4b041cb7478987cdd6445dfd2c884a8968553cf31190a",
       "reviewReproductionPreviousSha256": "251302d3af77c15d95d70769ef060a9d0cde0c43f8845dc3530062505890a574",
       "reportRepairPreviousSha256": "06c0cf0316ce8e2a56f2607a556074398c2c4c6415535713e8fa3b3749a409a3",
-      "sha256": "4f4823e11eae95f644219d95c6d03a186dfeeb4378d1744c7800fbf3a1daa48a",
+      "webSetupPreviousSha256": "4f4823e11eae95f644219d95c6d03a186dfeeb4378d1744c7800fbf3a1daa48a",
+      "sha256": "3d9183ccd53f531f65c3e33708ce56b5201badd16d8f8995adc8cddfb9e71021",
       "preMergeRecordedSha256": "3cc4f0ab9b8c580a043a65bbf737398a9711d0cda06ffdb1a26e9b3f5885822c",
       "reason": "Attach target/transport metadata and local PID semantics; Windows node-pty cannot take POSIX signals, use signal-free kill; settle cleanup waiters and prevent buffered output from prematurely finishing exit wait. Git LF normalization only in this merge: fetched bytes exactly reconstruct previous recorded CRLF hash; no runtime edits. 2026-10-06 local adaptation (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts. Assertions kept or tightened; not a source-identical copy. Startup-latency change: node-pty is loaded lazily on the first spawn via createRequire instead of a static import; the spawnPty test seam is unchanged. 2026-10-08 current local snapshot review: MH2/M14-M15/L24-L27: retry debounce/deadline, ready compute budget, single-pass escapes, unread admission protection, buffer slack, exited-write refusal and exit-aware pause reviewed; held-until-termination workers and target trust retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-11 R4: dispose confirmed exited POSIX transport without kill; Windows signal-free backend handle release retained.",
       "checklistReviewPreviousSha256": "e6ab9ef1ed054fd7c9d986e6d8b4a55ad82f91845c2de5cc4114b10eb64a4847",
@@ -1849,7 +1864,7 @@
       "originalSha256": "376b39ee2aaed1b440a186ab4fdb1012f783449536d66b31eca3841f2baf835d",
       "defectRepairPreviousSha256": "794c6d759821c8ee5af39fd68f04fe57d76cd4b8d8060263ce760473c32db833",
       "reviewReproductionPreviousSha256": "2d9d5b848d315bf327b79b77af9b44aeac922baebda87a5e1b3e1c8e3bc6583a",
-      "dependencyUpgradePreviousSha256": "3e0cdde7d478037b557e6c7563d988ff6759f76896175b56c6f374e4093c317a", "sha256": "8923ed0cfa7c88fdae3f2b683ced26dec6ca1c7c3ac8bca7f7c700f066531888",
+      "dependencyUpgradePreviousSha256": "3e0cdde7d478037b557e6c7563d988ff6759f76896175b56c6f374e4093c317a", "webSetupPreviousSha256": "8923ed0cfa7c88fdae3f2b683ced26dec6ca1c7c3ac8bca7f7c700f066531888", "sha256": "a49dc539ecce509319415950c110e1eacd6fbc19d665591206345de86d0f97d1",
       "tokenTrimPreviousSha256": "b2f4d30e80013e3b2f90bab91058d878c05b20c9bfb59bbe0a0bbafe8915b267",
       "reason": "Replace standalone install/publishing guidance with root integration, target schema, SSH/WSL prerequisites, native dependency setup, security and actual test boundaries; preserve source identity/port attribution. Document presentation-only PTY previews and caveats, pinned npm 12 native-script policy and npm-run env adapter; consumer parent project must approve its own setup. 2026-10-06 local adaptation (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: MH2/M14-M15/L24-L27: retry debounce/deadline, ready compute budget, single-pass escapes, unread admission protection, buffer slack, exited-write refusal and exit-aware pause reviewed; held-until-termination workers and target trust retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-11 R4: exited POSIX transport avoids old-PID signals; Windows handles release and opportunistic retention documented. 2026-10-15 user-authorized: deferred-tool activation, fallback and hint moved to Pi Runtime (deferred-tools.ts); modules only declare exposure/namespace.",
       "checklistReviewPreviousSha256": "1d6d339f2490c1c1eda4d0df664af9e63ab1fc60053a8fb7dd68e12da1543e3a",
@@ -1884,7 +1899,8 @@
       "promptSectionsPreviousSha256": "3644ef19289553a610afb43449a37848686c8b6d131bfdaeed05d0cce64c4e21",
       "browserLaunchPreviousSha256": "3644ef19289553a610afb43449a37848686c8b6d131bfdaeed05d0cce64c4e21",
       "browserLaunchAdaptation": "2026-10-16 web_fetch guidelines follow cause-specific BROWSER_UNAVAILABLE guidance instead of unconditionally recommending browser installation.",
-      "sha256": "3d500bd0f88ea5de00b6ac21e20406387154759e31dc2828646c39a499532dd1",
+      "webSetupPreviousSha256": "3d500bd0f88ea5de00b6ac21e20406387154759e31dc2828646c39a499532dd1",
+      "sha256": "eb01c9de4b6d3e13c999cf2c8a2abff5297a84f07bd50c147ce756efc5c13696",
       "reason": "Attach pure Fetch/REST Search renderers. User-requested removal of Codex experimental gate and startup warning; native mode and source capture share exact provider/API eligibility, while enabled/provider gates, unsupported-model diagnostics, conflicts, browser/network behavior and output contracts remain. 2026-10-06 local adaptation (web-tools): actionable next-step error hints, web_search provider field removed (prepareArguments drops legacy argument), dynamic description/guidelines, text slimming. Assertions kept or tightened; not a source-identical copy."
     },
     {
@@ -1954,7 +1970,8 @@
       "promptSectionsPreviousSha256": "55600833c5689587a917a74dac8547d3c885bf2529369fe2f1ae5e38de50f8f2",
       "browserLaunchPreviousSha256": "55600833c5689587a917a74dac8547d3c885bf2529369fe2f1ae5e38de50f8f2",
       "browserLaunchAdaptation": "2026-10-16 document BROWSER_UNAVAILABLE categories, channel/cache-aware installation, permission/dependency/timeout guidance, no blanket reinstall/new-session requirement and existing overall deadline precedence.",
-      "sha256": "67be788ffdd8a001ac28c0a3f72df83a3a569535db60d96d39e8beb6d23a12a6",
+      "webSetupPreviousSha256": "67be788ffdd8a001ac28c0a3f72df83a3a569535db60d96d39e8beb6d23a12a6",
+      "sha256": "c5c4cbe40f31f5c8d7ff7019bff681436fec9d3f7597b69472488db05dd203c5",
       "preChangeSha256": "5f5f1d8c15836abe56ea10966bf83517d9e780adb620765c4bc5c53aa758fdc8",
       "historicalDeltaAudit": "unavailable",
       "localSnapshotReview": "2026-10-03: complete pre-change README inspected against local Web config/provider/network/browser contracts; pre-change bytes match initial commit f14b837.\n2026-10-08 current local snapshot review: H2/M12-M13/L10-L13: current peer-address post-response mitigation (not IP pinning), bounded terminable extraction worker ownership, unnecessary-resource blocking and per-fetch DNS memo reviewed; documented fail-closed/retention/context-close policies retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
@@ -2289,7 +2306,8 @@
       "originalSha256": "ed6bba32451c52c97e63e8f6dc917ec2b1e6366ca2e994e6b4aebeeede9fb013",
       "browserLaunchPreviousSha256": "404cec483453dd6a05b48c8bcf56aebeda5afa7878d9c0d20d6723e947a7737b",
       "browserLaunchAdaptation": "2026-10-16 retain BROWSER_UNAVAILABLE while distinguishing missing Chromium/Chrome executables, missing system dependencies, permission denial, launch timeout and unknown startup failures. Safe static guidance only; no raw logs/cause, installation claims for unknown errors, permanent failure cache or mandatory new session. Existing overall TIMEOUT/CLOSED handling unchanged.",
-      "sha256": "da88b24921396bb6856db9ea9e174348bd449d5b20eb061894257d67257a7f09",
+      "webSetupPreviousSha256": "da88b24921396bb6856db9ea9e174348bd449d5b20eb061894257d67257a7f09",
+      "sha256": "d4a7835f8e6d191e17cd6a4d4dc62541d9f28b7622c6cb4fe881a4d9e8fcda5b",
       "reason": "2026-10-04 code-review stability fixes: 10 MiB cap on proxied responses, media/font subresources aborted, closeContext bounded by a 5s timeout; DNS-rebinding window documented, not fixed. 2026-10-06 local adaptation (web-tools): actionable next-step error hints, web_search provider field removed (prepareArguments drops legacy argument), dynamic description/guidelines, text slimming. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: H2/M12-M13/L10-L13: current peer-address post-response mitigation (not IP pinning), bounded terminable extraction worker ownership, unnecessary-resource blocking and per-fetch DNS memo reviewed; documented fail-closed/retention/context-close policies retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "checklistReviewPreviousSha256": "870d52968b31d9b9c079d7c8e59a19e24b4e2b8d4862f45a6c798990463a2104",
       "checklistReviewBaselineSha256": "600205c419c31dd29538d20ece88b1fb41b80246ba16b50e57240687b2b89301",
@@ -2301,7 +2319,8 @@
       "originalSha256": "586066237f9d9b6f10aa6d6b34d451616aa4dea588da2e8fab9db70942f218b9",
       "browserLaunchPreviousSha256": "418879c3f367dc5bc21a3653369f7e88595636de65c0e7181925e03c03bfa4ac",
       "browserLaunchAdaptation": "2026-10-16 deterministic mocked launch regression cases cover cause-specific guidance, channel-specific installation, sensitive-log suppression and failure-cache reset without DNS/processes or fixed waits. Existing TLS test remains before service initialization.",
-      "sha256": "c95c81c20e63ef84836534f44eaf7cb7715c016fe86cbf1a5c628efaac96ac22",
+      "webSetupPreviousSha256": "c95c81c20e63ef84836534f44eaf7cb7715c016fe86cbf1a5c628efaac96ac22",
+      "sha256": "44c1ecfb58a26abdc074e01d82a2e213a049e3ced987a659245abf3f05a81594",
       "reason": "2026-10-04 code-review stability fixes: tests follow truncation/size-limit behavior; assertions not weakened. 2026-10-06 local adaptation (web-tools): actionable next-step error hints, web_search provider field removed (prepareArguments drops legacy argument), dynamic description/guidelines, text slimming. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: H2/M12-M13/L10-L13: current peer-address post-response mitigation (not IP pinning), bounded terminable extraction worker ownership, unnecessary-resource blocking and per-fetch DNS memo reviewed; documented fail-closed/retention/context-close policies retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "checklistReviewPreviousSha256": "158f1494a90f45db9b49556b70f36d16af42b2dd3d0cd89d9e14e64c04d76424",
       "checklistReviewBaselineSha256": "852aaf7d01ea74044f12a8027dd0b92a2b80be625f5b78a1b99bb313a73053ef",
@@ -2388,7 +2407,8 @@
     {
       "path": "modules/web-tools/src/fetch/network.ts",
       "originalSha256": "d25504f5c2c8097835cb6ed8608105a1029657afd119418ea0387ae183f8aa14",
-      "sha256": "878a4661cf7337d84264ecd678d8b008a654b85b7786e29fea8f323dfb2839ff",
+      "webSetupPreviousSha256": "878a4661cf7337d84264ecd678d8b008a654b85b7786e29fea8f323dfb2839ff",
+      "sha256": "8677a756538a19d756031012ac822ff3d8a01fc0fc42e89ae5bd67153b905921",
       "reason": "2026-10-06 local adaptation (web-tools): actionable next-step error hints, web_search provider field removed (prepareArguments drops legacy argument), dynamic description/guidelines, text slimming. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: H2/M12-M13/L10-L13: current peer-address post-response mitigation (not IP pinning), bounded terminable extraction worker ownership, unnecessary-resource blocking and per-fetch DNS memo reviewed; documented fail-closed/retention/context-close policies retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "checklistReviewPreviousSha256": "b242dffce521795bb6296cb65f8753e40343c6244b59fa4e21195c520dc17f97",
       "checklistReviewBaselineSha256": "878a4661cf7337d84264ecd678d8b008a654b85b7786e29fea8f323dfb2839ff",
@@ -2494,7 +2514,8 @@
       "historicalDeltaAudit": "unavailable",
       "reason": "2026-10-08 current local snapshot review: H2/M12-M13/L10-L13: current peer-address post-response mitigation (not IP pinning), bounded terminable extraction worker ownership, unnecessary-resource blocking and per-fetch DNS memo reviewed; documented fail-closed/retention/context-close policies retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "defectRepairPreviousSha256": "8fb13a781dd152bafed1b6f2727a98609dd2b91ba1edd3a4607154ea34881526",
-      "sha256": "64ef6a125cf7182c0009339550628025aaa5c058945c238663a50e968f87a8ec"
+      "webSetupPreviousSha256": "64ef6a125cf7182c0009339550628025aaa5c058945c238663a50e968f87a8ec",
+      "sha256": "d2d58317f8a552333c4edba5e5ad33d92803b19c88ce22916de3fae9f487a7ba"
     },
     {
       "path": "modules/web-tools/tests/unit/output.test.ts",
@@ -4468,6 +4489,15 @@
     }
   ],
   "addedFiles": [
+    { "path": "modules/pty-terminal/tests/setup-diagnostic.test.ts", "sha256": "eab570ada0e6e5c8ba90e808da7a85ece50f9629a1a503f8b8b6342f2becb903", "reason": "PLAN-20261016T150815022Z CP1: package-instance native setup diagnostic regression; no real installation." },
+    { "path": "modules/pty-terminal/tests/setup.integration.test.mjs", "webSetupCp5PreviousSha256": "41f279ffd99063ae47afdaada7dab7464f758dd23f96b74e59a4617959a4b7ae", "sha256": "551e46715591c2e8859ba6bd668cc1da74703beae1188d6dee47322da22d0d03", "reason": "PLAN-20261016T150815022Z CP1: isolated setup CLI subprocess contract from arbitrary cwd. CP5 adds a read-only probe comparing the doctor executable directory with the real Playwright CLI dry-run location for a relative browser cache from a foreign cwd; no download or cache write." },
+    { "path": "tests/unit/setup.test.mjs", "webSetupCp5PreviousSha256": "dc167d3fbecafbff002ca31b539640b5962e62ea654b7f22b277b33584dddea0", "sha256": "65e4a205355636bfc7de277ac1505ad7503abb1558a27774b1b2a0e0da6ee4b8", "reason": "PLAN-20261016T150815022Z CP1: parsing, dependency resolution, quoting, readonly doctor and explicit consumer approval tests. CP5 adds the caller-cwd and unmodified relative-cache contract for the installer child." },
+    { "path": "modules/web-tools/src/fetch/http.ts", "webSetupCp5PreviousSha256": "078a443516bef320c0c8af8198f8fc177c2b1e75ff51a8ec4e6788dedf13ed0b", "sha256": "f54c32d3dbf497c0808a2d34de7fece68266a60bce7d841d1afa88611781c4ab", "reason": "PLAN-20261016T150815022Z CP2: static HTTP pins validated addresses per redirect, preserves TLS identity and bounds streaming/decoding; no browser-path SSRF certification. CP5 settles the headers wait exactly once on response, error, upgrade (HTTP 101 with socket destroyed), premature close and abort, so a protocol switch can no longer hold the operation, its queue permit or shutdown." },
+    { "path": "modules/web-tools/tests/fixtures/missing-browser.ts", "sha256": "7db7cad9afdc5d19c2d44b38062f9781cc889d4c29bda37ebeb8e47d79b22747", "reason": "PLAN-20261016T150815022Z CP2: isolated real missing-browser process with empty cache; personal browser caches untouched." },
+    { "path": "modules/web-tools/tests/fixtures/tls-material.ts", "sha256": "c22ddc14f0b015b9899b47871fb0edba91777664194eae41e98da82bc33a788e", "reason": "PLAN-20261016T150815022Z CP2: copied existing public test-only certificate/key material; not real credentials." },
+    { "path": "modules/web-tools/tests/integration/static-http.test.ts", "webSetupCp5PreviousSha256": "029b15b94cdaaec2f96183c06f09f38081eb4a56021c1000a0ac2698a84b9ba6", "sha256": "56e12cd34b0904f2d1c96774b3932a68e5c9b18493e631cef781214f77e931ff", "reason": "PLAN-20261016T150815022Z CP2: controlled HTTP/TLS and real missing-browser fallback integration, redirect/network restrictions and static limitations. CP5 adds a raw-socket 101 regression proving rejection, client socket close, a released operation and a reusable queue slot without fixed waits." },
+    { "path": "modules/web-tools/tests/unit/static-http.test.ts", "sha256": "d6ad5ae7a1dbfcd40013c24f39f0e8cc1f28b9ede50b65306558277bdc5cdaf8", "reason": "PLAN-20261016T150815022Z CP2: deterministic transport input, size, charset, cancellation and policy regressions." },
+    { "path": "tests/fixtures/web-setup-production.mjs", "sha256": "e0bef22ab308fffc715c8ec11415fcf0b54d0d381ad9dbc01bdc90c59f95b144", "reason": "PLAN-20261016T150815022Z CP4: isolated production tarball setup/doctor and missing-browser fallback probe; no live provider or implicit OS installation." },
     {
       "path": "modules/shell-tools/src/output-renderer.ts",
       "sha256": "ffcca8ee0ef4fa5481522acb7a0eb6bcd7159a5b6ffc36461e98613e874dd41f",
@@ -5193,12 +5223,14 @@
     },
     {
       "path": "modules/pty-terminal/src/install.mjs",
-      "sha256": "169ff12736b03868dcfbe8b5b584bb06e2702d84c0c9cc497da4f44d5bae68ee",
+      "webSetupPreviousSha256": "169ff12736b03868dcfbe8b5b584bb06e2702d84c0c9cc497da4f44d5bae68ee",
+      "sha256": "2a55a35fa442515ce13a5f86446599690b5edf6d3f51e9291d34628ae5d08dba",
       "reason": "Explicit native setup via active npm CLI and Node subprocess without shell; remove only inherited allow-scripts env key so pinned project policy applies. Preserve other config, errors and progress; no global npm config edits."
     },
     {
       "path": "modules/pty-terminal/tests/install.test.mjs",
-      "sha256": "712e75c587774f29568e8b0f06f787d38e3545962c5a4d5606d9072e49ff4ec3",
+      "webSetupPreviousSha256": "712e75c587774f29568e8b0f06f787d38e3545962c5a4d5606d9072e49ff4ec3",
+      "sha256": "dd8a523dbee6ccd03fe4aa75e918beab48c1186f22b74fe5dfa15e514ddaa83a",
       "reason": "Isolated fake npm launcher verifies exact argv/cwd, case-insensitive inherited-key removal, other env preservation, nonzero exit and missing/unsupported launcher rejection; no real install or credentials."
     },
     {
@@ -7412,9 +7444,14 @@
     "previousJsonRuntimeSha256": "6ce01c7788cfbf67a830a1d267847408216edc089950c326032cfcde61eb6faa",
     "provenanceRegression": "tests/integration/provenance.test.mjs: miniature offline dependency manifests/lock/entries and root drift rejection, plus unchanged original historical-limit regressions.",
     "rootFiles": [
+      { "path": "setup/cli.mjs", "sha256": "78c546889d807d29a44a46307d442447937a3f66193a3640de788e2f6e17b4cf", "reason": "PLAN-20261016T150815022Z CP1: packaged setup CLI bin; explicit invocation only." },
+      { "path": "setup/commands.d.mts", "sha256": "e7332fc37eda5d2b97d13b906aee49f6e1aace97953a4f4c7af00e0c2685b0a4", "reason": "PLAN-20261016T150815022Z CP1: typed package-instance command helper contract." },
+      { "path": "setup/commands.mjs", "sha256": "8e587ad08268c9d003a93edf2007c76d0460b2e776c4ea12beab90cd97f0ad0f", "reason": "PLAN-20261016T150815022Z CP1: quote current Node and this package CLI, not arbitrary npx downloads." },
+      { "path": "setup/core.mjs", "webSetupCp5PreviousSha256": "212dec0cf238d4493cc9020de0092819022bf5d8c61ee6a1ceffc910d9ce70df", "sha256": "abb45f6419b5c649196ef356fbba3e218850354a0780337b5a721555d136329b", "reason": "PLAN-20261016T150815022Z CP1: readonly doctor and explicit package-local browser/dependency/PTY setup; consumer approval retained, no global policy changes. CP5 keeps the caller cwd for browser children so a relative PLAYWRIGHT_BROWSERS_PATH cannot diverge from doctor and the running instance." },
       {
         "path": "eslint.config.mjs",
-        "sha256": "756a162c2f2d5b7c5d87a047e6bc9449a68cddc126be6821eb3ead3c43d7b71d",
+        "webSetupPreviousSha256": "756a162c2f2d5b7c5d87a047e6bc9449a68cddc126be6821eb3ead3c43d7b71d",
+        "sha256": "5b78297ea17e732b1bb4a54258cbe55ea61f1c81a5538357f6532875dfe69154",
         "reason": "2026-10-12 user-authorized root correctness lint configuration; preserve upstream directives, exclude dependencies/artifacts/notes, no runtime bundle or automatic formatting."
       },
       {
@@ -7425,7 +7462,7 @@
         "skillToolsAdaptation": "Add native skill-tools entry and packaged src/skills assets; dependency/lock identity unchanged.",
         "sqliteIntegrationPreviousSha256": "79974365f083071f3d302a1dbb5816134efa262ae8e4989cbc48a52c70df2d32",
         "sqlConnectorPreviousSha256": "bd598c379777a7564c34dc173baadaa3f43fefe2f0f6ff83d90d8c28cd8886f2",
-        "dependencyUpgradePreviousSha256": "882d8d7f64dfa0abdd9074d9651bc9ea02f45e1b37dbb24b21c30b877911fe95", "fileAuditPreviousSha256": "41db63c07199ad7e5f00a7feb0cfe48d8deb5ba8ebe886424ed5961bd5ef1cb4", "sha256": "8f56aa746d9fe20e32a10d2d1146b768aca1cba855bc95f4145b2343032539a8",
+        "dependencyUpgradePreviousSha256": "882d8d7f64dfa0abdd9074d9651bc9ea02f45e1b37dbb24b21c30b877911fe95", "fileAuditPreviousSha256": "41db63c07199ad7e5f00a7feb0cfe48d8deb5ba8ebe886424ed5961bd5ef1cb4", "webSetupPreviousSha256": "8f56aa746d9fe20e32a10d2d1146b768aca1cba855bc95f4145b2343032539a8", "sha256": "7a3688786a6af57c93fb6591daabd0145c83d64ad9fa41bf2ba1f9ddbb80a7ce",
         "monitorPreviousSha256": "ae065e8de453da9240e702351a3cb59e2db1c8432edcf9e0ad2ec02559f28d0f",
         "piRuntimePreviousSha256": "8e7419763728471a1bc7b141ed7ce177baec63cd4264392a88f51c8f74744d58",
         "previousBlackholeVendoringSha256": "de17b817107b94486ad93c642784966b1a925ce2a3427a49613c61018885f0b4",
@@ -7436,7 +7473,7 @@
         "lintStatusPreviousSha256": "570e16cddf81f6aef2b1db0231f4f6af2f8c840868759e9f28f38ce45a5caf3c",
         "lintStatusAdaptation": "2026-10-12 root npm install --save-dev --save-exact --ignore-scripts for lint dependencies and their transitive lock inventory; no module-local installation or audit fix.",
         "sqlConnectorPreviousSha256": "5d9589d53dff14cc4dc3f051853a628537f1cbee6f79f1aa257bcbbaadafe423",
-        "dependencyUpgradePreviousSha256": "7a9bf4596ca4ac82918fd5ed3573fe252ea424317115f6138929632a7ee22c73", "sha256": "c7f35b50fa4b79b3c5c6065e2889c4e9394ce5729c51e1881852dadaa5d0ab03",
+        "dependencyUpgradePreviousSha256": "7a9bf4596ca4ac82918fd5ed3573fe252ea424317115f6138929632a7ee22c73", "webSetupPreviousSha256": "c7f35b50fa4b79b3c5c6065e2889c4e9394ce5729c51e1881852dadaa5d0ab03", "sha256": "0184660173186144adfffbcbadfc744657ff864c072b5a19ab5275865c903c5a",
         "monitorPreviousSha256": "860eacc0fb65c13c68890958362aef37033e05bbeb44391612ddff2a00309d8c",
         "previousBlackholeVendoringSha256": "5b22381c02b082f888a8a2ead8de754ff181fcfcb923c977e932340f24061a39",
         "reason": " 2026-10-09 reviewed Blackhole local snapshot/manifest/verification adaptation; prior integration record preserved under blackholeVendoring."
@@ -7481,7 +7518,7 @@
         "piToolsConfigPreviousSha256": "83760e01830728881c79faa5c16c2099e25f2db0dc005129e8c4b0d1bb8ab4fb",
         "piToolsConfigAdaptation": "2026-10-15 document pi-tools-config command and lazy index of 16 per-module command/config references; no manifest/runtime/config/dependency change.",
         "dependencyUpgradePreviousSha256": "afd9135fb77090c2fdd3251da69bbf6415843b0f09c3170cc4ae199bda5ec06a", "refactorPreviousSha256": "a94177740d501727565f0be9bf42a6fc4aa5081b1d95b37ce1e929c97955b28a",
-        "fileAuditPreviousSha256": "0e12f4f3f69d00f98c8835461374e1446c73a6ff1acbe0a874723b86418cb8ae", "sha256": "028348ff73f954eac5193a98877ef9d1e11092066d8d098697570c5be31fa664",
+        "fileAuditPreviousSha256": "0e12f4f3f69d00f98c8835461374e1446c73a6ff1acbe0a874723b86418cb8ae", "webSetupPreviousSha256": "028348ff73f954eac5193a98877ef9d1e11092066d8d098697570c5be31fa664", "sha256": "cdde3763812ff7e8d928f3e5d26f8f16b0f9346b26de5744f0dcce6aba7e1994",
         "validationRepairAdaptation": "2026-10-10 test grouping, rg prerequisite/env and safe dependency rebuild docs.",
         "monitorPreviousSha256": "1d41c1195a3f2a901a34b83a25167ef92b7f3311ebd6c4c3aa5365265a7e3514",
         "piRuntimePreviousSha256": "1f0e5f36c8587d0c663282d3e038a0b2caf2e71c6b470d0b8d64e51e25532edd",
@@ -7513,7 +7550,7 @@
         "sqliteIntegrationPreviousSha256": "f9ee3df3af931f30bba418e3277f0cc9e1b8dc94a1637d2b3ffd8ac9aa4324ca",
         "sqlConnectorPreviousSha256": "b9dbfb43569bb29954197863a37683bd81cf02d930ed7f6298dedd6386e51cb4",
         "dependencyUpgradePreviousSha256": "5636e5d4690c2edb91211296bb28db972977411042a068ac291c7bccdfd6ff46", "refactorPreviousSha256": "7fbe9d51d4921410ecc225fdf4f180e0d7af101e438e0afaeb61a345bf3476a6",
-        "fileAuditPreviousSha256": "8c0ac6debdbead3f90c90f76c2dd818c79175bbfc8e10feb6544c7bb43491d67", "sha256": "3548e66d4fc4711d3364d3a94e0c338b146f7d397d8679bba11d81e257e7d701",
+        "fileAuditPreviousSha256": "8c0ac6debdbead3f90c90f76c2dd818c79175bbfc8e10feb6544c7bb43491d67", "webSetupPreviousSha256": "3548e66d4fc4711d3364d3a94e0c338b146f7d397d8679bba11d81e257e7d701", "sha256": "2ec90606f429b0141a88e92af7b380f8269f8f1a45b0f2d27c1778ead4d641f5",
         "monitorPreviousSha256": "073a7ba2c4aad2d104cb41bc52c5f2cc8b16b455343045456fb8dbcf40dc449f",
         "piRuntimePreviousSha256": "2c21b3aea0fa5612d7e134d71f541b363aa6e5041890c702c822ad001bae98c6",
         "notificationBatchingPreviousSha256": "9c48e1adcdcaf55e6da9b27b013f59653ed5b9e20ecaf0970397f4b6c4bdbf47",
@@ -7538,7 +7575,7 @@
         "jobsPanelPreviousSha256": "09edc73ff64f6fb837839914b8ce3d570f3b910f06fa4ce6b2a0a042162e39ec",
         "sqliteIntegrationPreviousSha256": "ae8404552d90c6b7e7126e89de4ced2f27598fd74c1418e97b4c13975becb3f9",
         "sqlConnectorPreviousSha256": "326b7373c9a1536976f87f48063fb1c146fc82dc827f68b0fa635038b575237b",
-        "fileAuditPreviousSha256": "33a9a4eaf91073baa08bf1bb277c60a1a4b88078a68eb253686854b774d29a17", "sha256": "a6bf28a630e7142c880e2e794b64e38bf530f54702abc922425334acf59a9d87",
+        "fileAuditPreviousSha256": "33a9a4eaf91073baa08bf1bb277c60a1a4b88078a68eb253686854b774d29a17", "webSetupPreviousSha256": "a6bf28a630e7142c880e2e794b64e38bf530f54702abc922425334acf59a9d87", "sha256": "086fd429fb5705e85f90498b21f4f51b4d404c72e82233c16122c0cf7b3286d6",
         "monitorPreviousSha256": "9a8d2f870bd1e1088be9d48cb00f47ea04545a113b38bc10f187537944299162",
         "piRuntimePreviousSha256": "b9a1d09ea980453bd48e382702e6ae3b2bfc953f5ff780597bf2e85640d4e671",
         "notificationBatchingPreviousSha256": "b6ca4c67d462a8b1fed24eaa64151822f684fb34da84b3461de6a92ac73143b2",
@@ -7561,7 +7598,7 @@
         "skillToolsAdaptation": "Document explicitly authorized one-time skill migration, reload/entry filters and manual rollback.",
         "sqliteIntegrationPreviousSha256": "add1f9c9867bfcbcf4fd6119566be982e2cec768b44ca467f3ba6b43f62ea16b",
         "sqlConnectorPreviousSha256": "22594459a79bb83b43f0e00da6eaec9dca26687647af5fd43ff315310a6cf8f9",
-        "dependencyUpgradePreviousSha256": "bd705c2bfefdbc2e9ebe4d3b57c561b385153afc1d84c274f4bf7b48c6f751fc", "sha256": "1523ddde0911156a4392adbcd2690b84f78c5890e59d4b55d38d1d8be343f6c0",
+        "dependencyUpgradePreviousSha256": "bd705c2bfefdbc2e9ebe4d3b57c561b385153afc1d84c274f4bf7b48c6f751fc", "webSetupPreviousSha256": "1523ddde0911156a4392adbcd2690b84f78c5890e59d4b55d38d1d8be343f6c0", "sha256": "4e6587dfd4ba3596f9339dacd9c4b0d8c4280ba2d8630499d5a291860317ff33",
         "monitorPreviousSha256": "cd5c00c84260f5bd89ea1dd263ce57206424e4adb8185b3535398c584b441628",
         "piRuntimePreviousSha256": "462535864e9da0432abf132be377ce81c59d93c7f87d0d01afee9c4adf1cfc27",
         "previousBlackholeVendoringSha256": "4d6081ac112e4a3c522e2ad26e9f9341624eba20a365a532f1103a2e6d233456",
@@ -7621,7 +7658,7 @@
         "skillToolsAdaptation": "Require new entry/README/SKILL.md in tarball and execute relocated skill fixture with production host.",
         "sqliteIntegrationPreviousSha256": "f2944932065be6f5215234b217c1c310ae98358d1be98fde4c9116c6d5929bf6",
         "sqlConnectorPreviousSha256": "61b1f023a7b3aedefd49d15e36a21b385b6d691829152501ba6b57d2bd37ae33",
-        "dependencyUpgradePreviousSha256": "76dadbce25b13dd2c3df7d780164d2cc8cb9ffa1290f5f2e8589583cb1760925", "fileAuditPreviousSha256": "cea5042c9b9307adb23985150c828e56ad62a6be9274bdb32374dd4537467633", "sha256": "227fc246c077c0719e833a1f4095cdbd6a6722d406584abcb73a159c6111762e",
+        "dependencyUpgradePreviousSha256": "76dadbce25b13dd2c3df7d780164d2cc8cb9ffa1290f5f2e8589583cb1760925", "fileAuditPreviousSha256": "cea5042c9b9307adb23985150c828e56ad62a6be9274bdb32374dd4537467633", "webSetupPreviousSha256": "227fc246c077c0719e833a1f4095cdbd6a6722d406584abcb73a159c6111762e", "sha256": "394ce0c65e1a1fefa3f9855cf5d4b9bdf13d5ee5fefbd15702e41ca077fcbae3",
         "validationRepairAdaptation": "2026-10-10 fail-fast rg prerequisite and per-mode exclusive binary copy; production assertions unchanged.",
         "monitorPreviousSha256": "9a5c5b2068209ef25eeea47dc7597565769aa3792c51611b8475acac74c0cb3d",
         "piRuntimePreviousSha256": "1a0813c27fa5622043a250a658da59b138bef856338d21a84d487920099ca153",
