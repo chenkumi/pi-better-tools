@@ -11,6 +11,11 @@ export type CronJobType = "cron" | "once" | "interval";
 export type CronJobStatus = "success" | "error" | "running";
 
 /**
+ * Shell used by command jobs
+ */
+export type CommandShell = "bash" | "powershell";
+
+/**
  * A scheduled cron job
  */
 export interface CronJob {
@@ -22,8 +27,8 @@ export interface CronJob {
   schedule: string;
   /** Exclusive UTC deadline for new deliveries/starts; absent means unlimited. */
   endAt?: string;
-  /** The prompt to execute */
-  prompt: string;
+  /** The prompt to execute. Absent for command jobs (exactly one of `prompt` / `command` is set). */
+  prompt?: string;
   /** Whether the job is enabled */
   enabled: boolean;
   /** Type of job */
@@ -50,6 +55,14 @@ export interface CronJob {
   extensions?: boolean | string[];
   /** Subagent jobs only. If true, loads all skills. If an array of skill names, only those skills. Default undefined (none). */
   skills?: boolean | string[];
+  /** Command jobs only. Shell command to run instead of a prompt (local adaptation; see command.ts). */
+  command?: string;
+  /** Command jobs only. Shell used to run the command. */
+  shell?: CommandShell;
+  /** Command jobs only. Working directory for the command. */
+  cwd?: string;
+  /** Command jobs only. Output-stall deadline in milliseconds. */
+  timeoutMs?: number;
   /** Session id this job is bound to. When absent, every pi in the cwd loads it. */
   session?: string;
 }
@@ -98,7 +111,32 @@ export const CronToolParams = Type.Object({
   ),
   prompt: Type.Optional(
     Type.String({
-      description: "Required for add. The prompt text to execute",
+      description: "The prompt text to execute. For add, provide exactly one of 'prompt' or 'command'",
+    })
+  ),
+  command: Type.Optional(
+    Type.String({
+      minLength: 1,
+      maxLength: 8000,
+      description:
+        "Shell command to run on schedule instead of a prompt (exactly one of 'prompt' or 'command'). Runs unattended in-process, never starts a model and never wakes the parent; the user must confirm the exact command in an interactive session. Output is shown only in the chat display, never sent to the model.",
+    })
+  ),
+  shell: Type.Optional(
+    StringEnum(["bash", "powershell"], {
+      description: "Command jobs only. Shell used to run the command. Default: powershell on Windows, bash elsewhere.",
+    })
+  ),
+  cwd: Type.Optional(
+    Type.String({
+      minLength: 1,
+      description: "Command jobs only. Working directory, relative to the project. Default: the project directory. A directory outside the project needs explicit user approval.",
+    })
+  ),
+  timeoutMs: Type.Optional(
+    Type.Integer({
+      minimum: 1,
+      description: "Command jobs only. Output-stall deadline in ms: the command is stopped when it prints nothing for this long (not a total limit). Default 300000.",
     })
   ),
   jobId: Type.Optional(

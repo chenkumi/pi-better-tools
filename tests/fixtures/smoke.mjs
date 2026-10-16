@@ -10,7 +10,10 @@ const manifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'u
 const expectedExtensions = manifest.pi.extensions.length;
 assert.ok(manifest.pi.extensions.includes('./modules/note-tools/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/pi-runtime/src/index.ts'));
-assert.equal(expectedExtensions, 16, 'fourteen local entries plus two pinned dependency entries');
+assert.equal(expectedExtensions, 19, 'seventeen local entries plus two pinned dependency entries');
+assert.ok(manifest.pi.extensions.includes('./modules/file-audit/src/index.ts'));
+assert.ok(manifest.pi.extensions.includes('./modules/sql-connector/src/index.ts'));
+assert.ok(manifest.pi.extensions.includes('./modules/sqlite-tools/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/monitor/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/schedule-prompt/src/index.ts'));
 assert.ok(!manifest.pi.extensions.some(entry => entry.includes('/goal/')));
@@ -20,7 +23,7 @@ const dependencyEntries = {
 };
 const localEntries = manifest.pi.extensions.filter(entry => entry.startsWith('./modules/') && entry !== dependencyEntries['@ff-labs/pi-fff'].manifestEntry);
 for (const entry of localEntries) assert.match(entry, /^\.\/modules\/[^/]+\/src\/index\.ts$/);
-assert.equal(localEntries.length, 14);
+assert.equal(localEntries.length, 17);
 assert.ok(manifest.pi.extensions.includes('./modules/blackhole/src/index.ts'));
 assert.equal(manifest.dependencies['pi-blackhole'], undefined);
 for (const [name, expected] of Object.entries(dependencyEntries)) {
@@ -52,9 +55,10 @@ try {
   sdk.initTheme('dark', false);
   const readOnly = mode === 'read-only', noTools = mode === 'no-tools';
   const ptyNames = ['pty_spawn', 'pty_read', 'pty_write', 'pty_resize', 'pty_wait_exit', 'pty_kill', 'pty_list'];
+  const sqliteNames = ['sqlite_open', 'sqlite_close', 'sqlite_status', 'sqlite_query', 'sqlite_execute', 'sqlite_list_tables', 'sqlite_describe_table', 'sqlite_manual'];
   const monitorNames = ['monitor_start', 'monitor_status', 'monitor_stop'];
   const backgroundNames = ['subagent_status', 'subagent_cancel', 'subagent_message', 'shell_job_status', 'shell_job_cancel'];
-  const selection = readOnly ? ['read'] : [...monitorNames, ...backgroundNames, 'read', 'write', 'edit', 'grep', 'find', 'ls', 'bash', ...(process.platform === 'win32' ? ['powershell'] : []), 'subagent', 'note', 'schedule_prompt', ...ptyNames, 'web_fetch', ...(['brave', 'exa'].includes(mode) ? ['web_search'] : [])];
+  const selection = readOnly ? ['read'] : [...monitorNames, ...backgroundNames, 'read', 'write', 'edit', 'grep', 'find', 'ls', 'bash', ...(process.platform === 'win32' ? ['powershell'] : []), 'subagent', 'note', 'schedule_prompt', ...ptyNames, ...sqliteNames, 'web_fetch', ...(['brave', 'exa'].includes(mode) ? ['web_search'] : [])];
   const settings = sdk.SettingsManager.inMemory({ defaultTools: selection, retry: { enabled: false }, compaction: { enabled: false }, cacheWarming: 'off', enableInstallTelemetry: false });
   loader = new sdk.DefaultResourceLoader({ cwd, agentDir, settingsManager: settings,
     additionalExtensionPaths: [packageRoot], noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true });
@@ -66,7 +70,8 @@ try {
   const ownedDefinitions = loaded.extensions.filter(e => manifest.pi.extensions.filter(p => p.startsWith('./modules/') && p !== './modules/blackhole/src/index.ts').some(p => resolve(packageRoot, p) === resolve(e.path))).flatMap(e => [...e.tools.values()].map(t => t.definition));
   // Upstream packages (including vendored Blackhole recall) retain their renderer contracts.
   // Existing owned-tool checks are unchanged; Blackhole's plain custom entry renderer is tested separately.
-  assertToolRenderers(ownedDefinitions, cwd);
+  // SQLite retains the host's default renderer, as in its source extension.
+  assertToolRenderers(ownedDefinitions.filter(d => !d.name.startsWith('sqlite_')), cwd);
   assertMessageRenderers(loaded.extensions);
   await assertLiveWidgetHooks(loaded.extensions, cwd);
   const names = definitions.map(d => d.name);
@@ -82,7 +87,7 @@ try {
   assert.equal(note.parameters.additionalProperties, false);
   assert.deepEqual(Object.keys(note.outputSchema.properties), ['relativePath']);
   assert.equal(note.outputSchema.additionalProperties, false);
-  assert.deepEqual(note.parameters.properties.type.enum, ['plan', 'issue', 'research', 'report', 'task']);
+  assert.deepEqual(note.parameters.properties.type.enum, ['plan', 'design', 'issue', 'research', 'report', 'task']);
   assert.equal(names.includes('web_search'), ['brave', 'exa'].includes(mode));
   assert.deepEqual(loader.getPrompts().prompts.map(p => p.name).sort(), ['implement', 'implement-and-review', 'scout-and-plan']);
   assert.deepEqual(names.filter(name => name.startsWith('schedule_')), ['schedule_prompt'], 'only Schedule Prompt registers schedule_* tools; removed Scheduler tools must not');
@@ -90,6 +95,7 @@ try {
   assert.ok(loaded.extensions.some(e => e.commands.has('schedule-prompt')));
   const schedule = definitions.find(d => d.name === 'schedule_prompt');
   assert.deepEqual(schedule.parameters.properties.action.enum, ['add', 'remove', 'list', 'enable', 'disable', 'update', 'cleanup']);
+  assert.ok(loaded.extensions.some(e => e.commands.has('file-audit')), 'bounded file inspection command registered');
   assert.ok(loaded.extensions.some(e => e.commands.has('web-tools')));
   assert.ok(loaded.extensions.some(e => e.commands.has('open-tui')), 'npm TUI dependency registered');
   assert.ok(loaded.extensions.some(e => e.commands.has('blackhole')), 'vendored Blackhole registered');
@@ -125,12 +131,12 @@ try {
   const model = { ...modelRuntime.getModels()[0], id: 'offline-fixture', provider: 'offline-fixture', api: 'openai-responses' };
   ({ session } = await sdk.createAgentSession({ cwd, agentDir, settingsManager: settings, resourceLoader: loader, modelRuntime, model,
     sessionManager: sdk.SessionManager.inMemory(cwd), ...(noTools ? { noTools: 'all' } : { tools: selection }),
-    ...(mode === 'exclude' ? { excludeTools: ['subagent', 'bash', 'powershell', 'note', 'schedule_prompt', ...ptyNames, ...backgroundNames, ...monitorNames] } : {}) }));
+    ...(mode === 'exclude' ? { excludeTools: ['subagent', 'bash', 'powershell', 'note', 'schedule_prompt', ...ptyNames, ...sqliteNames, ...backgroundNames, ...monitorNames] } : {}) }));
   await session.bindExtensions({ mode: 'json', onError: e => errors.push(e.error) });
   const checkSkills = () => {
     assert.deepEqual(loader.getSkills().diagnostics, []);
-    assert.deepEqual(loader.getSkills().skills.map(skill => skill.name), ['create-plan']);
-    assert.equal(resolve(loader.getSkills().skills[0].filePath), join(packageRoot, 'modules/skill-tools/skills/create-plan/SKILL.md'));
+    const createPlan = loader.getSkills().skills.find(skill => skill.name === 'create-plan');
+    assert.equal(resolve(createPlan.filePath), join(packageRoot, 'modules/skill-tools/skills/create-plan/SKILL.md'));
     assert.equal(session.systemPrompt.includes('Create or revise a software development plan'), !noTools);
     assert.ok(!session.systemPrompt.includes('Plan Title:'), 'skill body is loaded on demand');
   };
@@ -164,7 +170,7 @@ try {
     assert.ok(active.includes(name), `explicit background activation ${name}`);
     assert.ok(callable.includes(name), `background callable ${name}`);
   }
-  if (mode === 'exclude') for (const name of ['subagent', 'bash', 'powershell', 'note', 'schedule_prompt', ...ptyNames, ...backgroundNames, ...monitorNames]) { assert.ok(!active.includes(name)); assert.ok(!callable.includes(name)); }
+  if (mode === 'exclude') for (const name of ['subagent', 'bash', 'powershell', 'note', 'schedule_prompt', ...ptyNames, ...sqliteNames, ...backgroundNames, ...monitorNames]) { assert.ok(!active.includes(name)); assert.ok(!callable.includes(name)); }
   const text = result => result.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
   const execute = async (name, args, signal) => {
     const tool = session.agent.state.tools.find(t => t.name === name); assert.ok(tool, `active tool ${name}`);
@@ -183,6 +189,20 @@ try {
     assert.equal(legacy.isError, true, 'old invocation-addressed message must be refused');
     assert.match(text(legacy), /subagentSessionId/);
   }
+  if (!readOnly && !noTools && mode !== 'exclude') for (const name of sqliteNames) {
+    assert.ok(active.includes(name), `explicit SQLite activation ${name}`);
+    assert.equal(session.getToolDefinition(name).exposure, 'deferred');
+  }
+  if (active.includes('sqlite_open')) {
+    const json = async (name, args = {}) => JSON.parse(text(await execute(name, args)));
+    assert.equal((await json('sqlite_open', { file_path: 'smoke.sqlite' })).success, true);
+    assert.equal((await json('sqlite_status')).filePath, join(cwd, 'smoke.sqlite'));
+    await json('sqlite_execute', { sql: 'CREATE TABLE smoke (value TEXT)' });
+    await json('sqlite_execute', { sql: 'INSERT INTO smoke VALUES (?)', bindings: ['SQLITE_OK'] });
+    assert.deepEqual((await json('sqlite_query', { sql: 'SELECT value FROM smoke' })).rows, [['SQLITE_OK']]);
+    assert.equal((await json('sqlite_close')).success, true);
+    assert.equal((await json('sqlite_status')).isOpen, false);
+  }
   if (active.includes('pty_spawn')) {
     await assert.rejects(execute('pty_spawn', { target: 'missing', command: 'node' }), /Unknown PTY target/);
     const spawned = await execute('pty_spawn', { command: process.execPath, args: ['-e', "process.stdout.write('PTY_OK');process.exit(7)"] });
@@ -199,8 +219,8 @@ try {
   }
   if (active.includes('note')) {
     await assert.rejects(execute('note', { type: 'task', content: '  ' }), /NOTE_EMPTY/);
-    const contents = ['# Plan\nalpha\n', '# Issue\nUTF-8: 中文 😀', '\n# Research\nleading blank line', '# Report\r\nexact', '# Task'];
-    for (const [i, type] of ['plan', 'issue', 'research', 'report', 'task'].entries()) {
+    const contents = ['# Plan\nalpha\n', '# Design\nstructure', '# Issue\nUTF-8: 中文 😀', '\n# Research\nleading blank line', '# Report\r\nexact', '# Task'];
+    for (const [i, type] of ['plan', 'design', 'issue', 'research', 'report', 'task'].entries()) {
       const created = await execute('note', { type, content: contents[i] });
       assert.deepEqual(Object.keys(created.details), ['relativePath'], 'note result exposes only the single relative path');
       const file = join(cwd, created.details.relativePath);
@@ -219,7 +239,7 @@ try {
       }
     }
   } else {
-    for (const type of ['plan', 'issue', 'research', 'report', 'task']) await assert.rejects(stat(join(cwd, type)), { code: 'ENOENT' });
+    for (const type of ['plan', 'design', 'issue', 'research', 'report', 'task']) await assert.rejects(stat(join(cwd, type)), { code: 'ENOENT' });
   }
   if (active.includes('schedule_prompt')) {
     // session_start created storage under the isolated workspace; a one-hour once-job never fires during the probe and shutdown stops its timer.
@@ -253,7 +273,7 @@ try {
     await assert.rejects(execute('web_fetch', { url: 'http://127.0.0.1/' }), /NETWORK_BLOCKED/);
     // Real before_agent_start composition, without making a provider request.
     const options = { cwd, tools: definitions, skills: [], contextFiles: [], sections: { fixture: 'KEEP_FIXTURE' } };
-    const result = await session.extensionRunner.emitBeforeAgentStart('[[fixture]] smoke', undefined, options);
+    const result = await session.extensionRunner.emitBeforeAgentStart({ messageType: 'user', prompt: '[[fixture]] smoke' }, options);
     assert.equal(result.systemPromptOptions.sections.fixture, 'KEEP_FIXTURE');
     const lifecycle = result.systemPromptOptions.sections.pi_better_tools_background_lifecycle;
     const hasBackgroundTools = active.some(name => ['bash', 'powershell', 'shell_job_status', 'shell_job_cancel', 'subagent', 'subagent_status', 'subagent_cancel', 'subagent_message'].includes(name));

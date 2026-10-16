@@ -9,7 +9,7 @@ const RENDEZVOUS = "pi-better-tools:background-panel:v2";
 export type PanelHost = Partial<Pick<ExtensionAPI, "events" | "registerCommand">>;
 export interface PanelSnapshot { jobs: readonly PanelJob[]; signature: string }
 type Entry = { token: object; ctx: ExtensionContext; owner: string; snapshot?: PanelSnapshot };
-const kinds: PanelKind[] = ["subagents", "shell"];
+const kinds: PanelKind[] = ["subagents", "shell", "fork"];
 
 /** Presentation only. Registry ownership, admission, cancellation and messages stay in each module. */
 export class BackgroundPanel {
@@ -159,10 +159,10 @@ export function acquireBackgroundPanel(api?: PanelHost): BackgroundPanel {
       if (request?.protocol === RENDEZVOUS && typeof request.offer === "function") request.offer(shared);
     });
     api?.registerCommand?.("background-jobs", {
-      description: "Background jobs above the editor; More opens a bounded list: more | subagents | shell | all | collapse (TUI only)",
+      description: "Background jobs above the editor; More opens a bounded list: more | subagents | shell | fork | all | collapse (TUI only)",
       handler: async (args, ctx) => {
         const target = args.trim() || "more";
-        if (!["more", "subagents", "shell", "all", "collapse"].includes(target)) { ctx.ui.notify("Usage: /background-jobs [more|subagents|shell|all|collapse]", "warning"); return; }
+        if (!["more", "subagents", "shell", "fork", "all", "collapse"].includes(target)) { ctx.ui.notify("Usage: /background-jobs [more|subagents|shell|fork|all|collapse]", "warning"); return; }
         if (target === "collapse") { shared.toggle("collapse", ctx); return; }
         if (ctx.mode !== "tui" || !ctx.hasUI) return;
         shared.toggle(target === "more" ? "all" : target as PanelKind | "all", ctx);

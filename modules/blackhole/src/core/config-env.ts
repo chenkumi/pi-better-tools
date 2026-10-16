@@ -10,14 +10,8 @@
  * trio + compaction/compaction-engine vars.)
  */
 import type { CacheRetention } from "@earendil-works/pi-ai";
-import { readBooleanEnv, readPositiveIntEnv } from "../pi-base/config.js";
-
-export interface EnvParser {
-  /** Env var name */
-  var: string;
-  /** Custom parse function (receives raw string, returns parsed value) */
-  parse: (raw: string, current: unknown) => unknown;
-}
+import type { EnvOverride } from "../pi-base/core/config-env.js";
+export { applyEnvOverrides, type EnvParser, type EnvOverride } from "../pi-base/core/config-env.js";
 
 /**
  * Supported `SimpleStreamOptions.cacheRetention` values (pi-ai). Lives here so
@@ -47,61 +41,6 @@ export function normalizeCacheRetention(v: unknown): CacheRetention | undefined 
  * configuration is rejected above this bound.
  */
 export const MAX_TIMER_DELAY_MS = 2_147_483_647;
-
-export type EnvOverride = string | EnvParser;
-
-/**
- * Apply env overrides onto a config object. Field types are inferred from
- * the defaults (boolean → truthy parsing, positive integer → int parsing,
- * anything else → float). Returns a NEW object; input is not mutated.
- */
-export function applyEnvOverrides<T extends object>(
-  config: T,
-  env: Record<string, EnvOverride>,
-  defaults: Record<string, unknown>,
-): T {
-  const result: Record<string, unknown> = {
-    ...(config as Record<string, unknown>),
-  };
-
-  for (const [key, value] of Object.entries(env)) {
-    if (!value) continue;
-
-    const defaultValue = defaults[key];
-
-    if (typeof value === "string") {
-      if (typeof defaultValue === "boolean") {
-        result[key] = readBooleanEnv(value, (result[key] as boolean) ?? (defaultValue as boolean));
-      } else if (typeof defaultValue === "number") {
-        if (Number.isInteger(defaultValue) && defaultValue > 0) {
-          result[key] = readPositiveIntEnv(
-            value,
-            (result[key] as number) ?? (defaultValue as number),
-          );
-        } else {
-          // Float — parse and preserve
-          const raw = process.env[value]?.trim();
-          if (raw) {
-            const parsed = Number.parseFloat(raw);
-            if (Number.isFinite(parsed)) {
-              result[key] = parsed;
-            }
-          }
-        }
-      }
-    } else {
-      const raw = process.env[value.var]?.trim();
-      if (raw) {
-        const parsed = value.parse(raw, result[key]);
-        if (parsed !== undefined) {
-          result[key] = parsed;
-        }
-      }
-    }
-  }
-
-  return result as T;
-}
 
 /**
  * The declarative PI_BLACKHOLE_* env-var map. Keys are UnifiedConfig field

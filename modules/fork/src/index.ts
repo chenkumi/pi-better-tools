@@ -5,7 +5,8 @@ import { Type } from "typebox";
 import { stripVTControlCharacters } from "node:util";
 import { consumeManagedChildGuard } from "../../shell-tools/src/managed-child.ts";
 import { consumeForkChildGuard } from "./identity.ts";
-import { acceptFork, onSessionShutdown, onSessionStart, onTurnEnd, ownedJobs, requestCancel, summarize } from "./manager.ts";
+import { renderForkResult } from "./result-renderer.ts";
+import { RESULT_TYPE, acceptFork, onSessionShutdown, onSessionStart, onTurnEnd, ownedJobs, requestCancel, summarize } from "./manager.ts";
 
 const display = (value: unknown, max = 300) => typeof value === "string" ? stripVTControlCharacters(value.slice(0, max * 4)).replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f‪-‮⁦-⁩]/g, "").slice(0, max) : "";
 const renderers = (name: string) => ({
@@ -21,6 +22,8 @@ export default function (pi: ExtensionAPI) {
 	// Subagent and Fork children never register creation tools; the schema is also excluded by their argument builders.
 	if (consumeManagedChildGuard() || consumeForkChildGuard()) return;
 
+	pi.registerMessageRenderer(RESULT_TYPE, renderForkResult);
+
 	pi.registerTool(defineTool({
 		name: "fork",
 		label: "Fork",
@@ -30,7 +33,7 @@ export default function (pi: ExtensionAPI) {
 		promptSnippet: "Hand a task to an independent background Pi that inherits this conversation; the result is reported back here.",
 		promptGuidelines: ["Use fork for long, self-contained work that benefits from this conversation's full context; use subagent for fresh-context workers."],
 		annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
-		defaultActive: false,
+		defaultActive: true,
 		parameters: Type.Object({
 			task: Type.String({ description: "What the Fork must do. It sees this conversation up to the end of the current turn." }),
 			title: Type.Optional(Type.String({ description: "Short label (<=120 chars) shown in status and the result notice." })),
@@ -53,7 +56,7 @@ export default function (pi: ExtensionAPI) {
 		label: "Fork status",
 		description: "Read-only status of Forks created from THIS conversation. Without jobId lists up to 32; with jobId shows one including its bounded result.",
 		annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-		defaultActive: false,
+		defaultActive: true,
 		parameters: Type.Object({ jobId: Type.Optional(Type.String()) }, { additionalProperties: false }),
 		async execute(_id, params, _signal, _onUpdate, ctx) {
 			const jobs = ownedJobs(ctx);
@@ -73,7 +76,7 @@ export default function (pi: ExtensionAPI) {
 		label: "Fork cancel",
 		description: "Request cancellation of a Fork created from THIS conversation. Cancellation is a request: status stays cancelling until the child process actually closes.",
 		annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
-		defaultActive: false,
+		defaultActive: true,
 		parameters: Type.Object({ jobId: Type.String() }, { additionalProperties: false }),
 		async execute(_id, params, _signal, _onUpdate, ctx) {
 			const job = ownedJobs(ctx).find(candidate => candidate.record.jobId === params.jobId);

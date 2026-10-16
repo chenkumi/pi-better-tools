@@ -10,7 +10,6 @@ description: Create or revise a software development plan when the user requests
 
 ```markdown
 Plan Title: <計畫標題>
-Plan Goal: <計畫目標>
 Plan Path: <既有計畫的精確路徑；尚未建立則填 not yet created>
 ```
 

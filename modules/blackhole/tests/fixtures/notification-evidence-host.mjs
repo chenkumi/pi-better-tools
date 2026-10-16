@@ -119,5 +119,5 @@ try {
   assert.match(await recall({ query: `e:${evidenceEntries[0].id}` }), /HOST_FAIL/);
   assert.deepEqual(errors, []); assert.equal(providerCalls, 0);
   assert.deepEqual(JSON.parse(await readFile(join(agentDir, 'auth.json'), 'utf8')), {});
-  console.log(JSON.stringify({ piVersion: '1.1.0', summaryMode, appendChain: summaryMode === 'append', nativeCompact: true, persisted: true, resumed: true, recall: true, oldIndicesStable: true, notifications: notifications.length, successiveCompact: true, providerCalls }));
+  console.log(JSON.stringify({ piVersion: '1.2.0', summaryMode, appendChain: summaryMode === 'append', nativeCompact: true, persisted: true, resumed: true, recall: true, oldIndicesStable: true, notifications: notifications.length, successiveCompact: true, providerCalls }));
 } finally { session?.dispose(); delete globalThis[Symbol.for('blackhole-pi-owned-test-audit')]; }

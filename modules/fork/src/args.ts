@@ -27,7 +27,8 @@ export function forwardParentArgs(argv: readonly string[], launchCwd: string, jo
 		const candidate = absolute(value);
 		if (existsSync(candidate)) { args.push(flag, candidate); continue; }
 		const file = join(forksDir(workCwd), `${jobId}.${createHash("sha256").update(flag).digest("hex").slice(0, 8)}.prompt.txt`);
-		writeFileSync(file, value, { mode: 0o600, flag: "wx" });
+		try { writeFileSync(file, value, { mode: 0o600, flag: "wx" }); }
+		catch (error) { removeTemporary(temporaryFiles); throw error; } // never touches the foreign path that made "wx" fail
 		temporaryFiles.push(file);
 		args.push(flag, file);
 	}

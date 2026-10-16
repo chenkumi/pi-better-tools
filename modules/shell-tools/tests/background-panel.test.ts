@@ -6,6 +6,7 @@ import { BackgroundPanel, BACKGROUND_WIDGET_KEY, acquireBackgroundPanel, type Pa
 import { JobsOverlay, panelUsage, renderJobs, usageLabel, type PanelJob } from '../src/job-view.js';
 import { ShellJobsWidget } from '../src/live-widget.js';
 import { SubagentJobsWidget } from '../../subagents/extensions/subagent/live-widget.ts';
+import { BackgroundJobs } from '../../subagents/extensions/subagent/background.ts';
 const theme: any = { fg: (_: string, s: string) => `\x1b[32m${s}\x1b[0m`, getBgAnsi: () => '\x1b[48;5;58m', bg: (_: string, s: string) => '\x1b[48;5;58m' + s + '\x1b[49m' };
 function view() {
   let owner = 'owner', renders = 0, customCalls = 0, overlay: any, draft = '保留輸入中的文字', rows = 40;
@@ -92,12 +93,21 @@ test('non-TUI/foreign owners never open, modify or bind; empty registry never op
   assert.equal(await panel.openMore({ ...ui.ctx, sessionManager: { getSessionId: () => 'other' } }), false);
   assert.equal(ui.calls.length, calls); assert.equal(ui.customCalls(), 0); const empty = new BackgroundPanel(); assert.equal(await empty.openMore(ui.ctx), false);
 });
-test('both real adapters use one key, aggregate batch tasks into one job; all disposal releases only owned key', () => {
+test('both real adapters use one key, aggregate batch tasks into one job; all disposal releases only owned key', async () => {
   const hosts = hostPair(), ui = view(), shell = new ShellJobsWidget(hosts.create()), sub = new SubagentJobsWidget(hosts.create());
-  shell.bind(ui.ctx, () => [{ jobId: 'shell', tool: 'powershell', status: 'running', command: 'test command' }]);
-  sub.bind(ui.ctx, () => [{ jobId: 'batch', taskId: 'one', agent: 'worker', status: 'running', title: 'Build component', cancelRequested: false }, { jobId: 'batch', taskId: 'two', agent: 'reviewer', status: 'queued', cancelRequested: false }]);
-  const text = plain(ui.component().render(120).join('\n')); assert.match(text, /2 active/); assert.match(text, /test command/); assert.match(text, /1 running \/ 1 queued/);
-  shell.clear(); assert.match(plain(ui.component().render(80).join('\n')), /Build component/); sub.clear(); assert.equal(ui.widgets.size, 0);
+  let enter!: () => void, release!: () => void;
+  const entered = new Promise<void>(resolve => { enter = resolve; }), pending = new Promise<void>(resolve => { release = resolve; });
+  const jobs = new BackgroundJobs(() => {});
+  try {
+    jobs.submit('owner', '/cwd', jobs.epoch, ['worker', 'reviewer'], async (_signal, _ids, live) => {
+      live(0, 'session', '/live.partial'); enter(); await pending;
+    }, ['Build component']);
+    await entered;
+    shell.bind(ui.ctx, () => [{ jobId: 'shell', tool: 'powershell', status: 'running', command: 'test command' }]);
+    sub.bind(ui.ctx, () => jobs.panelJobs('owner', '/cwd'));
+    const text = plain(ui.component().render(120).join('\n')); assert.match(text, /2 active/); assert.match(text, /test command/); assert.match(text, /1 running \/ 1 queued/);
+    shell.clear(); assert.match(plain(ui.component().render(80).join('\n')), /Build component/); sub.clear(); assert.equal(ui.widgets.size, 0);
+  } finally { release(); shell.clear(); sub.clear(); await jobs.shutdown(); }
 });
 test('width/height/Unicode/control caps and theme background continuity; resize invalidates hitbox', () => {
   const { ui, panel, shell, sub } = setup(); const malicious = job('1'); malicious.title = '\x1b]0;x\x07\x1b[2J\u202e界😀\n\t' + 'long'.repeat(500);

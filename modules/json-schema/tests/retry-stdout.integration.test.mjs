@@ -1,5 +1,5 @@
 // R01: a transient provider error followed by Pi's native retry succeeding (as text, and as json_output).
-// Level: real Pi 1.1.0 CLI (print mode, retry enabled with 1ms backoff, offline scripted provider) + real json-schema entry.
+// Level: real Pi 1.2.0 CLI (print mode, retry enabled with 1ms backoff, offline scripted provider) + real json-schema entry.
 //
 // POLICY IS UNDECIDED (README lists upstream error as a non-delivery condition; whether a recovered retry may be accepted is not specified).
 // So the hard assertions are policy-neutral invariants that both "fail-fast" and "accept recovered success" must satisfy:

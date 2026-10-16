@@ -10,9 +10,17 @@
 pi -e ./modules/skill-tools/src/index.ts
 ```
 
-提供 `skills/create-plan/SKILL.md`，使用 `/skill:create-plan <需求>` 或讓模型依 description 選用。完整指示按需讀取，不會整份預先注入 system prompt。
+提供 `skills/create-plan/SKILL.md`、`skills/draft-plan/SKILL.md`（將想法或修改目標以最小呈現草稿——wireframe、具體輸入輸出、轉換表——讓使用者判斷差異，設計開始即建立設計文件並即時記錄每項決策，原生新增）、`skills/execute-plan/SKILL.md`（通用的計畫執行流程，不綁定特定計畫產生者；受 git 管理時於開始前 commit 起始狀態、計畫有 checkpoint 時逐一 commit 作為回滾點，原生新增）與 `skills/write-prompt/SKILL.md`（撰寫提示詞／skill 的通用最佳實踐，原生新增，整理自 OpenAI 與 Anthropic 官方提示指南），使用 `/skill:create-plan <需求>`、`/skill:draft-plan <想法>`、`/skill:execute-plan <計畫>`、`/skill:write-prompt <需求>` 或讓模型依 description 選用。完整指示按需讀取，不會整份預先注入 system prompt。
 
 停用時，在 package 的 `extensions` filters 排除 `modules/skill-tools/src/index.ts`；不會刪除 skill 檔案。這是 extension 動態提供的資源，不是根 manifest 的 `pi.skills`：package `skills: []`／Pi `--no-skills` 只停用一般 skill discovery，不能停用已啟用 extension 的 `resources_discover`。需要完全停用本模組 skills，請停用這個 extension。既有 project trust 規則由 Pi 管理，不自動授權。
+
+## pi-tools-config：模組指令與設定索引
+
+`skills/pi-tools-config/SKILL.md` 使用英文 description，依使用者要求放寬原本的 50 字元限制，直接列出需要 config 的功能／工具：資料庫連線、PTY named targets、搜尋 provider／credentials、自訂 agents、排程預設、模型速度、壓縮／記憶及 Shell／File 設定；不依賴套件名稱作為觸發詞。只有建立／修改／排查 config，或資料庫連線的必要設定缺失／未知時適用，排除已配置工具的日常操作與應用程式功能開發。使用 `/skill:pi-tools-config <設定問題>`，或由模型依 description 選用。
+
+入口只保留共通設定原則與索引；`references/` 的 17 份文件一一對應本專案所有本地模組，各自說明工具／slash commands、config 路徑與作用範圍、最小範例、套用方式及安全限制。沒有專屬 config 的模組明確註記，不捏造設定鍵。技能文件只連結 `pi-tools-config/` 內部資源，不連結其他模組 README、repository 文件或外部範例；必要設定資訊直接收錄於 references。整個技能目錄可獨立搬移，不依賴 package 目錄布局、原來源專案或 home 副本。
+
+本技能不新增 runtime 工具／設定，也不自行讀寫真實 credentials 或全域設定。依賴既有遞迴 resource discovery 與整個 skills 目錄的封裝規則，新增後 `/reload` 即可。
 
 ## 維護
 

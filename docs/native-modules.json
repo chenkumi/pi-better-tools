@@ -1,59 +1,415 @@
 {
   "schemaVersion": 1,
+  "refactoringCleanup20261016": {
+    "plan": "plan/PLAN-20261016T010604383Z.md",
+    "scope": "R3 removes disconnected Runtime debug-log/helper-only tests instead of introducing new recovery I/O. R6 Fork delegates only owner-bound TUI binding to Shell widget-binding.ts; projections, manager, guards, permits, cancellation and origin-only delivery are unchanged. README changes document exact boundaries; historical/native hashes remain preserved.",
+    "removedUninventoriedFiles": [
+      { "path": "modules/pi-runtime/src/debug-log.ts", "previousSha256": "9b3ed0db5ed46b713cdc36003d487c17b5cb132b85dd340a5d649e2ea1ca9e1e", "reason": "No production import/call path; no current logging requirement found. It was not in the previous native files inventory." },
+      { "path": "modules/pi-runtime/tests/debug-log.test.ts", "previousSha256": "8b406f27873998172ed43aaeb5e2b05af8eda85ebf8b95f13c0c2304acd1811a", "reason": "Tests only the disconnected helper, not Runtime recovery wiring; existing policy/recovery/host tests retained." }
+    ]
+  },
+  "dependencyMonitorUpgrade20261016": {
+    "plan": "plan/PLAN-20261016T001223504Z.md",
+    "scope": "Pi 1.3.0 host assertions retain original probes. Monitor adds registered custom-message themed renderer, bounded legacy fallback and sanitized named event/snapshot fields; wakeAgent added to receipts/batch per-source metadata only. Default true already sent triggerTurn:true/followUp; false remains model-visible without a new turn. Busy/owner/throttle/quota/no-ack policy unchanged. Tests add pure display boundaries and real offline host default-true turn/context evidence, retaining false/no-provider assertions. Previous fingerprints below preserved; historical claims not re-certified."
+  },
   "scope": "Project-native modules requested after the five-source integration. Not imported snapshots or changes to any original source project.",
   "filenameAndIdChanges": "2026-10-08 user request: Note uses TYPE-YYYYMMDDTHHmmssSSSZ.md without title/slug; removed slug helpers/tests, retained timestamp collision/no-overwrite/content/legacy-file tests. All project-generated ULIDs use ulid().toUpperCase(), including GPT settings temp names and JSON delivery/extraction session IDs. Historical slug/lowercase descriptions below are superseded; source origins and prior audit limits remain unchanged.",
   "modules": [
+    {
+      "module": "file-audit",
+      "origin": "User-requested native bounded recent read/write/edit/note activity and manual incremental provenance inspection. Independent implementation; third-party trackers are conceptual references, not source imports.",
+      "license": "MIT (root LICENSE)",
+      "entry": "modules/file-audit/src/index.ts",
+      "plan": "plan/PLAN-20261016T064913464Z.md",
+      "tuiAB20261016": {
+        "plan": "plan/PLAN-20261016T075343069Z.md",
+        "scope": "Test-only node-pty real Pi 1.3.0 regular/fullscreen A/B, isolated homes/workspaces and non-billed scripted provider. Assert actual report frame, note/failure/dedup, capacity/window and equal normalized semantic request payloads after onPayload hooks. No production source, settings, manifest, dependency or tool changes.",
+        "tokenMeasurement": "Optional isolated js-tiktoken@1.0.21 o200k_base serializes semantic system prompt/tools/messages once, separately from untouched transcript evidence. Raw and fixture-path/note-timestamp-normalized estimates are not provider framing, cache accounting or billed usage.",
+        "previousReadmeSha256": "ac920050232529df1ed2d2ed67234afed8e310567fed3c6373b2b65b67cc2316"
+      },
+      "workflowExperiment20261016": {
+        "plan": "plan/PLAN-20261016T082114246Z.md",
+        "scope": "Test-only external overwrite after successful real PTY read, clean/late/evicted A/B/C closing policies, real feature-only test and independent fresh-process runtime oracle. C executes the unmodified full verifier against a valid synthetic inventory; preload counts actual reads without changing hashes/assertions. Explicit operator policy/repair, not native automatic blocking or autonomous model repair. No product source, settings, manifest or dependency changes.",
+        "previousReadmeSha256": "32ffa6a5fb8657fe69ae667eca593e130fe7e7d668e2bf1207962ba78b3078ee",
+        "previousFixtureHashes": {
+          "modules/file-audit/tests/fixtures/tui-ab.mjs": "b30e288722169343c8d70d9b8700809a0208ed1e3e3063e2b1ce72824ba09d03",
+          "modules/file-audit/tests/fixtures/tui-observer.ts": "aed88632462977ebe03625c776e54ab45f2f4626fffdde7a1d4b9ed78816687c"
+        }
+      },
+      "files": [
+        { "path": "modules/file-audit/README.md", "sha256": "07a9fcc0572f27bd18f9ef263ce3f55f884886eec23c4f39b8e878aadcb64560" },
+        { "path": "modules/file-audit/src/activity-window.ts", "sha256": "7b1d1078747989f1e08b62e22c03030d9eb23f662749ae38701cc2bcfe76a31c" },
+        { "path": "modules/file-audit/src/commands.ts", "sha256": "9465ede5a073d5239b2ebe1057f86a8d6741083f9f94ed97388a2a65ceac0f28" },
+        { "path": "modules/file-audit/src/events.ts", "sha256": "f29c3ecf7fd9aeba580ab9619f64761356fe66c35bfb37dbd1c9267bca9e8944" },
+        { "path": "modules/file-audit/src/index.ts", "sha256": "77a75f4bbc7c02dbad04a8c46d596346cbb337e98ac1e942070fa4d50350340f" },
+        { "path": "modules/file-audit/src/paths.ts", "sha256": "04650853d6cc5c64d7c78fe4b9f26ae3990f50eebc5f5d8ced93a98ce608a24c" },
+        { "path": "modules/file-audit/src/presentation.ts", "sha256": "d2c76f0abd116a9b84672a362acadff64d88389ba227bd43ba5a7f454a8dd2f5" },
+        { "path": "modules/file-audit/src/provenance.ts", "sha256": "deef7bd87af81d9e64672932d41725873cbab832f7a267b588f3ecf1091f7928" },
+        { "path": "modules/file-audit/tests/activity-window.test.ts", "sha256": "9a27eab25326d3a83c00e77a92a91ee14208ba43ad05c21f6ce40f3a6ae1d4ef" },
+        { "path": "modules/file-audit/tests/commands.test.ts", "sha256": "7c98d7ebeb5703bf362fc6fda1d13a1dd74f2fe18c9071f75d10d4044d6133db" },
+        { "path": "modules/file-audit/tests/events.test.ts", "sha256": "8d01d4fce75d116600541f5b9e05acd03d41aa31747a0f50a42f8ec7899bab92" },
+        { "path": "modules/file-audit/tests/fixtures/host.mjs", "sha256": "9a7b9df2ec91a93607fb889d1168dbd030382384b2901d1416b0abb1346f6ea7" },
+        { "path": "modules/file-audit/tests/fixtures/inventory.ts", "sha256": "22b3f39b697813bece358eb310f574cb691612edba2f478b3eef65feb701f97d" },
+        { "path": "modules/file-audit/tests/fixtures/tui-ab.mjs", "sha256": "fb3e14001b048d1850d5f20bc032694309d3f81341c56d7838fcd8b00c2626bc" },
+        { "path": "modules/file-audit/tests/fixtures/tui-observer.ts", "sha256": "e21f2a51b7395583d6757538048ebd8a9e979137cacefc6b87eab4255b2e3f22" },
+        { "path": "modules/file-audit/tests/fixtures/tui-workflow.mjs", "sha256": "73b2a48ad643481c8432096a549ddfb6d5173faa2b240a246c3914fbf98d15be" },
+        { "path": "modules/file-audit/tests/fixtures/workflow-observer.ts", "sha256": "785483bf16a889dbdf41624fdefcf0ebc4b46fad6c73edd68b8e001fcad63059" },
+        { "path": "modules/file-audit/tests/fixtures/full-verifier-metrics.mjs", "sha256": "8481f16b982723be5c507c6ced2e2ea847be9510837a05a40af9806a7e6f6569" },
+        { "path": "modules/file-audit/tests/host.integration.test.mjs", "sha256": "b4e1e206b2101c82893bec562fdf18220e96246f48a3d3d9fd9612eca87f09e2" },
+        { "path": "modules/file-audit/tests/paths.test.ts", "sha256": "77dfbb14c02c33629192d1716d9910e29c0d64a3838caa696bc4ba83a5694c10" },
+        { "path": "modules/file-audit/tests/presentation.test.ts", "sha256": "b68499207886f47bd819afac241917a190664de516e320a52541d40fad14d32f" },
+        { "path": "modules/file-audit/tests/provenance.test.ts", "sha256": "ccd8654e5ac50b2a83df974e5b81e5af1d480b0566f8873b0d306813cae1ee6f" },
+        { "path": "modules/file-audit/tests/scan.test.ts", "sha256": "4feaa04d9513545c4f9771ebcbae6f11bd60a2d1feab5538ff2b674493f6ba6b" },
+        { "path": "modules/file-audit/tests/tui-ab.integration.test.mjs", "sha256": "a5a8098ae6fad985b2816703c4a20fe574001fca2f8fa10973caf1319e464b0e" },
+        { "path": "modules/file-audit/tests/tui-workflow.integration.test.mjs", "sha256": "2ccb7ec6847cd8bce277779d0254cca397fed5e273e34f837a0da9f393154873" },
+        { "path": "modules/file-audit/tsconfig.json", "sha256": "cf84803c4808ab9d2af3834851589ef6a7c78eb252cb83d5e9e5f353af4d3edc" }
+      ]
+    },
     {
       "module": "skill-tools",
       "origin": "2026-10-12 user-requested native extension providing bundled skills via Pi 1.1.0 resources_discover; create-plan moved byte-for-byte from the user's Agent Skills directory, not an imported upstream snapshot.",
       "license": "MIT (root LICENSE)",
       "entry": "modules/skill-tools/src/index.ts",
-      "migration": { "skill": "create-plan", "originalLocation": "~/.agents/skills/create-plan/SKILL.md", "originalSha256": "6dd6032ec12b89c58ec9db1ef7f5509f3688b517e15df84f1cd4f91c08e00b80", "policy": "Authorized one-time move; runtime never copies/deletes home files or changes settings. Original frontmatter/body preserved." },
+      "piToolsConfig": {
+        "date": "2026-10-15",
+        "scope": "User-requested standalone skill with a lazy index and 16 per-module references. User-approved expanded English description routes configuration creation/change/troubleshooting and missing/unknown database setup by concrete capabilities/tool names, not package identity. Former 50-character limit removed; routine configured-tool use and application implementation excluded. No runtime/dependency/real-settings/credentials/upstream changes.",
+        "routingValidation": "Static configuration/boundary metadata contracts and real Pi 1.2.0 full folded-description catalogue visibility, startup/reload/relocation/no-tools/filter checks. No paid model semantic-trigger benchmark; catalogue injection does not prove automatic selection accuracy.",
+        "baseline": "Pi 1.2.0 integrated behavior. User-corrected standalone skill: all document links stay inside pi-tools-config, with no repository/module README/schema/example file dependencies.",
+        "previousReadmeSha256": "044c8409da143ec40c4b765082f800911a490481479ad5d0d44b3373d7c31f57",
+        "previousHostFixtureSha256": "6b927ee1e70f8cb31e247e188c07c426bd53b228c28d1f1bdf9677c9c4cf0db0",
+        "verification": "Standalone-copy regression was red on the existing ../../../../README.md link, then green after removing all out-of-skill documentation links. Copy only the skill to a temporary directory, require relative in-skill existing targets and valid JSON examples. Owning typecheck/unit/offline Pi 1.2.0 host acceptance passed; no live provider/database/remote target certification."
+      },
+      "migration": {
+        "skill": "create-plan",
+        "originalLocation": "~/.agents/skills/create-plan/SKILL.md",
+        "originalSha256": "6dd6032ec12b89c58ec9db1ef7f5509f3688b517e15df84f1cd4f91c08e00b80",
+        "policy": "Authorized one-time move; runtime never copies/deletes home files or changes settings. Original frontmatter/body preserved."
+      },
       "files": [
-        { "path": "modules/skill-tools/src/index.ts", "sha256": "4f8f941ef13e657623e326ecbe293547165e3f5ef9135126378a4377cc30aebb", "reason": "Native discovery hook with module-relative packaged skills directory; no tools or lifecycle resources." },
-        { "path": "modules/skill-tools/README.md", "sha256": "ffef8af072b64ba911722c53bd162d378cd4fc9cabc77419fdef1093d1ea3687", "reason": "Usage, extension-filter boundary, migration/rollback and validation instructions." },
-        { "path": "modules/skill-tools/tsconfig.json", "sha256": "4f93c79be455ac413c94d8986d2821f49c4f4ac8271df09d5e9fa567861bca64", "reason": "Root strict noEmit typecheck target." },
-        { "path": "modules/skill-tools/skills/create-plan/SKILL.md", "sha256": "b9bfbb1cf9068ef1ae78e05d9e783edb2f993e60035e5cf260f2163a294a433d", "reason": "User-authorized unchanged skill migration; no instructions rewritten." },
-        { "path": "modules/skill-tools/tests/skills.test.ts", "sha256": "cad83e02d0878a5e3d95eec537f797160be27ae052654dd8c7ac9aee2a5a7e33", "reason": "Registration-only, startup/reload path identity and independent result arrays." },
-        { "path": "modules/skill-tools/tests/skills.integration.test.mjs", "sha256": "d3d7511b34345893fa9e8ada81707216a95199c904f6b513681abe2bbf3810ad", "reason": "Isolated-home real Pi1.1.0 wrapper, no external provider calls." },
-        { "path": "modules/skill-tools/tests/fixtures/skills-host.mjs", "sha256": "6588b6c267cbc54673bb56fa14f0d66d0cc27b73d25ef8e03c775f7a6cc686f6", "reason": "Relocated package discovery, startup/reload, lazy catalogue/body, command expansion, package extension filters and no-tools; reused by production tarball smoke." }
+        {
+          "path": "modules/skill-tools/skills/pi-tools-config/SKILL.md",
+          "standalonePreviousSha256": "bb25dc2414543b6104be0b190688ca72b06d4277feddd73493850027392b8dc0",
+          "configRoutingPreviousSha256": "18f9d800fe809c4fef7e03e6aed12f5da67cd13b0124f7353729f92c2840bbb4",
+          "fileAuditPreviousSha256": "d5ba4718b7e89d3f0074a578422c892f2cd808bd2d95f5ac78e05cbb8f9e2b21",
+          "sha256": "fefe6c47330bca22e71c7c6c3b5f8c1144f41713f640a04a868ed2c85f0e086a",
+          "reason": "Native lazy module-config index with expanded English configuration-intent metadata, explicit routine-use/application-development exclusions and self-contained references."
+        },
+        {
+          "path": "modules/skill-tools/skills/pi-tools-config/references/blackhole.md",
+          "standalonePreviousSha256": "734a8b38a2a5c00bf68d0c2fd1dfdc2bed952f345205454874d5af0931e3a388",
+          "sha256": "b03b4ef206dee7e16fc1fc764d0bd4c82515318ff32f19aa55807bfc874985d8",
+          "reason": "Commands, layered config, memory model cost and Pi-owned compaction controls."
+        },
+        {
+          "path": "modules/skill-tools/skills/pi-tools-config/references/file-audit.md",
+          "sha256": "7aad9522babe80f45da7a929c4c8a3fb45b7f654d8850760d46e07538831d335",
+          "reason": "Standalone File Audit command/session limits, metadata requirements, tool coverage and opt-out reference; no external skill-directory links."
+        },
+        {
+          "path": "modules/skill-tools/skills/pi-tools-config/references/file-tools.md",
+          "standalonePreviousSha256": "a971797a08c163f9ce298341ecd60c45de62badffb6807d6694594aff4efdbfa",
+          "sha256": "e3a53c3d3362f1bf57d3a93f940b8777bf58568dd9b09364bd842cd5fa4026f4",
+          "reason": "File commands, global diagnostics and distinct FFF mode configuration."
+        },
+        {
+          "path": "modules/skill-tools/skills/pi-tools-config/references/fork.md",
+          "standalonePreviousSha256": "678a2117bd9a5b789a53bae91949d033327912b67147b6d32babbacf50785ddf",
+          "forkDefaultActivePreviousSha256": "44a6aa95840b3aaa282e1b4537feedc7586b128d375862a437daf64a05a19c17",
+          "sha256": "84abcb385351ba4d8f49c7843150c1c918f9babb4f44203242a778ca7d3f6d92",
+          "reason": "User-requested default-active Fork tools without config; host selection and managed-child restrictions retained. Inherited capabilities, artifacts and lifecycle limits unchanged."
+        },
+        {
+          "path": "modules/skill-tools/skills/pi-tools-config/references/gpt-speed.md",
+          "standalonePreviousSha256": "56f4281f3a50c9439c976cd1893b7a0c5318c0b6fa75fecbbf43f9754cf7e629",
+          "sha256": "4357dfbd95c7a78399b192fb0e472e938cd78ad5d7bf90f1ffceac2d16e79bfc",
+          "reason": "Speed commands, global/project scope and model eligibility."
+        },
+        {
+          "path": "modules/skill-tools/skills/pi-tools-config/references/json-schema.md",
+          "standalonePreviousSha256": "91e4a7a44b14958cedfa182c447bdc7ba4752a89e3a6a16c531e5ad4557ad5a1",
+          "sha256": "62a60ae5e9304adf561762cbe2edec6bff1062675a5442623f421bf2925e369d",
+          "reason": "CLI-only schema/output flags, validation and print-mode constraints."
+        },
+        {
+          "path": "modules/skill-tools/skills/pi-tools-config/references/monitor.md",
+          "standalonePreviousSha256": "033d19e473519ae47957aec146af43976f8fd4c1000201c705aa36e19a8a3327",
+          "sha256": "0c2d97047b718f8dea7592280c031cf0ea79a2a60374a199c94f7ec4b1d31a6d",
+          "reason": "Per-invocation sources, security opt-ins, quotas and readonly job monitoring."
+        },
+        {
+          "path": "modules/skill-tools/skills/pi-tools-config/references/note-tools.md",
+          "standalonePreviousSha256": "f7c771a7aebf6c5e090bc47d3d1c757c4cac191584f8555e2a627229045538d3",
+          "sha256": "bab73a1944a316467158b23c6e0a4246a9146479a389cc32ffc875db4b60cf39",
+          "reason": "No-config note input, generated paths and create-only behavior."
+        },
+        {
+          "path": "modules/skill-tools/skills/pi-tools-config/references/pi-runtime.md",
+          "standalonePreviousSha256": "bd21aa645fbbb2cd874a557bca0d2ce78fd575f0f7294dbe8911d49fb4a73ce5",
+          "sha256": "db75f11477f95aaab5c1d1e889921265d1290b0ed9d1d02ce508ea02e0824a5e",
+          "reason": "Recovery commands/session scope and centrally managed deferred discovery."
+        },
+        {
+          "path": "modules/skill-tools/skills/pi-tools-config/references/pty-terminal.md",
+          "standalonePreviousSha256": "0c712ad282dfe1778d6013302901db96087ea847a7bfb898680f5d691b762e89",
+          "sha256": "c6fc7746d3fe8719f3e3d50288303b2f509373f4d18c9e746b72d8df7a239dd9",
+          "reason": "Deferred PTY commands, trusted target configuration and supported environment matching."
+        },
+        {
+          "path": "modules/skill-tools/skills/pi-tools-config/references/schedule-prompt.md",
+          "standalonePreviousSha256": "ea2a417dda5b93dd09e5b9f93dc1c5be23858d1d39b1798a8c3ce636de567c62",
+          "sha256": "0f22c066ee68e629b6b8d841dbffd5c1a4ea800a0beef2fa6e22747f87f63f42",
+          "reason": "Deferred scheduling, job/config scope, deadlines and confirmed command-job settings."
+        },
+        {
+          "path": "modules/skill-tools/skills/pi-tools-config/references/shell-tools.md",
+          "standalonePreviousSha256": "9272fd6fa8e5901e55007289d77aafd36fc4b451bab0ff480cf32c8f013404e6",
+          "sha256": "8dc8e0c4f1fbbb52f54b097e115799144126bba02887583cc26069956757f543",
+          "reason": "Shell commands, effective settings, fixed-home diagnostics and total timeout semantics."
+        },
+        {
+          "path": "modules/skill-tools/skills/pi-tools-config/references/skill-tools.md",
+          "standalonePreviousSha256": "3a2861228312cbf63b8081a4a0547a87aef1b0ea860583e7db7deaf68f1f577b",
+          "configRoutingPreviousSha256": "dff24a508aaffa8418ddc8836eca08a27c1c6020bbc12a14889ebe9967fd7d9c",
+          "sha256": "2d2ebb276f3dbbbf630a57b296c753ddfb6b81612b6d38ecb20b3bda7003482b",
+          "reason": "Skill discovery, command usage, extension-filter disablement and no private config keys."
+        },
+        {
+          "path": "modules/skill-tools/skills/pi-tools-config/references/sql-connector.md",
+          "standalonePreviousSha256": "46d4bfb57cbbba830b149fe897d524321ce0c68188a4a5930095b815b7df1dc1",
+          "sha256": "0d36181f42ee0b04ad68b78d59f3034cd71fdfcd9a2a88e220647642e8b1ad8d",
+          "reason": "Engine discovery, trusted connection config, environment references and optional ODBC setup."
+        },
+        {
+          "path": "modules/skill-tools/skills/pi-tools-config/references/sqlite-tools.md",
+          "standalonePreviousSha256": "788e0aa94cda67ba0f889997824339c3741110acdca37a33691dd710417298fb",
+          "sha256": "72db177da9df00d9d77d6bf796dc460e5f0603e7ddbed80a4e87240ff9e3bdc0",
+          "reason": "SQLite discovery, fixed/manual precedence, cwd resolution and reload behavior."
+        },
+        {
+          "path": "modules/skill-tools/skills/pi-tools-config/references/subagents.md",
+          "standalonePreviousSha256": "a00505b127513053c7c77467f2304ae4f485380378f84ee68113146ba0603c21",
+          "sha256": "15611573b9d07e4f838a860e23074ccf87e176c918aa521fe3337ad6e22b17e4",
+          "reason": "Agent tools, custom-agent locations/scopes and global-only diagnostics setting."
+        },
+        {
+          "path": "modules/skill-tools/skills/pi-tools-config/references/web-tools.md",
+          "standalonePreviousSha256": "dab2e13376ab9c2fce5b8c022a34f57c23363405cb26609a298d8a751c2651a8",
+          "sha256": "1ca15bde5997441de31d67a4d0e8722fa76957681ed4b43f9655049e3f354af3",
+          "reason": "Search providers, fixed/default config path, environment credentials and browser setup."
+        },
+        {
+          "path": "modules/skill-tools/tests/pi-tools-config.test.ts",
+          "standalonePreviousSha256": "341433b7829bc8f121ef95f944f2165cdfd7d28880bd0fb968ee329c8a3027e0",
+          "configRoutingPreviousSha256": "6be9e7ca2454f9ac48120f99535a960cb755cc02d095229ce5375152d9d543b1",
+          "sha256": "fa8a4d6a73fa0da499f1f53e2f019637becb5aabf4933a21fea9c1eef3440d7f",
+          "reason": "Configuration-focused folded English metadata/capabilities/exclusions, exact module coverage, standalone-contained links and JSON examples; no obsolete 50-character assertion or simulated semantic classifier."
+        },
+        {
+          "path": "modules/skill-tools/src/index.ts",
+          "sha256": "4f8f941ef13e657623e326ecbe293547165e3f5ef9135126378a4377cc30aebb",
+          "reason": "Native discovery hook with module-relative packaged skills directory; no tools or lifecycle resources."
+        },
+        {
+          "path": "modules/skill-tools/README.md",
+          "standalonePreviousSha256": "9dcd9073bbc01099bacb88029c822bb1d1b0a8c732dd0f9e9b5b6db28dfcc9a3",
+          "configRoutingPreviousSha256": "e3bc504f3b44e53e72a851ab70fb761e09c4b10fee9e70cbdb002522eb226849",
+          "fileAuditPreviousSha256": "ffaec803485b2f74022a29aed6b4c83ec4f693f467c5e441039c22f235ac8551",
+          "sha256": "7391acb72d943002f73a308e9add2352c8ea2e55c1c486aab63bdd656c55a75f",
+          "reason": "Usage, extension-filter boundary, migration/rollback and validation instructions."
+        },
+        {
+          "path": "modules/skill-tools/tsconfig.json",
+          "sha256": "4f93c79be455ac413c94d8986d2821f49c4f4ac8271df09d5e9fa567861bca64",
+          "reason": "Root strict noEmit typecheck target."
+        },
+        {
+          "path": "modules/skill-tools/skills/create-plan/SKILL.md",
+          "sha256": "66c848dfe5278a9f9b1f5a622f32fb23d7ad35cef7ad8ed65812246c24cc9851",
+          "reason": "User-authorized unchanged skill migration; no instructions rewritten."
+        },
+        {
+          "path": "modules/skill-tools/skills/draft-plan/SKILL.md",
+          "sha256": "c6ca684a34ebd624d742717b710a750f0320715989543befc5edadb5a45eac5d",
+          "reason": "2026-10-15 user-requested native skill: turns an idea/change goal into minimal reviewable drafts (wireframe, concrete I/O, transition tables), creates the design document (note type design when available) before the first draft and records each user decision immediately; under 100 lines, English description under 50 words."
+        },
+        {
+          "path": "modules/skill-tools/skills/execute-plan/SKILL.md",
+          "sha256": "a96e17d1c65afca7fb5026eabf7733af7c653194f158659bc0e4350d453fc0a4",
+          "reason": "2026-10-15 user-requested native skill: generic plan execution (no coupling to any plan producer); git baseline commit before start and per-checkpoint commits as rollback points when the cwd is git-managed; verification retries (default 3, user-overridable) logged in the plan as [n/N] Error|Succeed lines; plan progress markers, verification logs and checkpoint commit hashes updated in real time (limit precedence: user > plan field > 3), never batched after completion; under 100 lines, English description under 50 words."
+        },
+        {
+          "path": "modules/skill-tools/skills/write-prompt/SKILL.md",
+          "sha256": "626bdab8afce9fcd5c836447d393f967e87a6f3e13d10da7f1afafd3b408abd2",
+          "reason": "2026-10-15 user-requested native skill: general prompt/skill writing best practices distilled from OpenAI GPT-6 and Anthropic Sonnet 5.5/Opus 5.5/Fable 5.1 prompting guides; description kept English and under 50 words."
+        },
+        {
+          "path": "modules/skill-tools/tests/skills.test.ts",
+          "sha256": "cad83e02d0878a5e3d95eec537f797160be27ae052654dd8c7ac9aee2a5a7e33",
+          "reason": "Registration-only, startup/reload path identity and independent result arrays."
+        },
+        {
+          "path": "modules/skill-tools/tests/skills.integration.test.mjs",
+          "dependencyUpgradePreviousSha256": "15ec2240e22bd0ba6bd3ab7cce1a44c60d8e978d8552c6ce801d4acaaa919ee0", "sha256": "d53bc5b294e184c7b857b25a12eea71c16c6ec203eac2bb7e2b1eff285e99d1d",
+          "reason": "Isolated-home real Pi1.1.0 wrapper, no external provider calls."
+        },
+        {
+          "path": "modules/skill-tools/tests/fixtures/skills-host.mjs",
+          "configRoutingPreviousSha256": "c41eae49431378366c182a52b32ac4b02a5fe379207954249a027575bffaba62",
+          "dependencyUpgradePreviousSha256": "a7a703ccb6c8a7bbbd37a4deacf0fec0cbfd026fb3eee4d25e41db9c73c53f8a", "sha256": "3c277dfbb33739a22520c0935ae5cce60ad3adfa8b718f07ae394530ee6a44f2",
+          "reason": "Relocated package discovery, startup/reload, lazy catalogue/body, command expansion, package extension filters and no-tools; reused by production tarball smoke."
+        }
       ]
     },
     {
       "module": "monitor",
-      "reentryRepairRound": { "reviewFinding": "report/REPORT-20261009T131356545Z.md:R1/P3", "evidence": "plan/evidence/monitor-reentry-20261009-v1", "scope": "Selected/retry event identity reservation prevents snapshot coalescing from miscounting successful submission; charged bytes/quotas and unreserved-latest policy retained. FakeClock sync success/throw/lifecycle fences/32large fairness/unknown terminal plus owning module typecheck/unit/integration.", "acceptance": "Worker repair provenance, pending independent re-review; previous root/package green is historical, not latest-source acceptance or Blackhole timing/coexistence approval. Runtime and all other native metadata unchanged." },
+      "reentryRepairRound": {
+        "reviewFinding": "report/REPORT-20261009T131356545Z.md:R1/P3",
+        "evidence": "plan/evidence/monitor-reentry-20261009-v1",
+        "scope": "Selected/retry event identity reservation prevents snapshot coalescing from miscounting successful submission; charged bytes/quotas and unreserved-latest policy retained. FakeClock sync success/throw/lifecycle fences/32large fairness/unknown terminal plus owning module typecheck/unit/integration.",
+        "acceptance": "Worker repair provenance, pending independent re-review; previous root/package green is historical, not latest-source acceptance or Blackhole timing/coexistence approval. Runtime and all other native metadata unchanged."
+      },
       "origin": "User-authorized project-native Monitor v1, not an imported snapshot: command stdout, WebSocket text, readonly Shell/Subagent jobs; Pi1.1.0 only. Blackhole producer handoff separate.",
       "license": "MIT (root LICENSE and modules/monitor/LICENSE)",
       "entry": "modules/monitor/src/index.ts",
       "files": [
-        { "path": "modules/monitor/LICENSE", "sha256": "e1cb88a3eed658e32e1e9d7a7a0ebad47efd7ef8049e7335af29fd5bee00ffe8", "reason": "Native MIT notice." },
-        { "path": "modules/monitor/package.json", "sha256": "ea7a9c245eb65c2f443941510502f1c952b779dfd2ca119e1cef7ab0617995d8", "reason": "Native metadata, root install authoritative." },
-        { "path": "modules/monitor/README.md", "monitorReviewPreviousSha256": "0d1ad637ef6e2612eb34bc658593078de5f80f340f384a3ac906cfe9cc55755e", "monitorReentryPreviousSha256": "7886027c4a677adbaa3580d8058cd1e125ad01ece6b36ba99dc5ff9fb70f600b", "defectRepairPreviousSha256": "250bf1a4cae8343bc09761f6925f045a14f861235f969c4f318548cc12a73a7a", "monitorDefaultActivePreviousSha256": "f39d35ebb769bd6490b5d0fc42a6e7047d73f70560206c087c9a6e53a90825d6", "sha256": "abbcedec65159c074f4a78207afae5b68c2bf15b3b5ae686f35165ff668afea7", "reason": "Contract, limits, security and producer schema/handoff." },
-        { "path": "modules/monitor/src/core.ts", "monitorReviewPreviousSha256": "93596276c588b022c6d7ef4a7f9a3129b698d2996103f4b52ef36c6a845372b1", "monitorReentryPreviousSha256": "b820336ee6d66e146d23354ad23fd9dddd9bd1d399999fe05439c4adf1f7b07f", "sha256": "1b96dbe4caca25b1ce80c99567a79eef6724a4582c43a3aa1e676c60c26f91d6", "reason": "Owner-generation bounded lifecycle/events/submission/cleanup evidence." },
-        { "path": "modules/monitor/src/index.ts", "monitorReviewPreviousSha256": "7387daf19ec49737352811e445e9bb0e8d2bf163e02d8e81ad1a8dc462df7123", "monitorDefaultActivePreviousSha256": "32126a70a9e35cc081d4eb650ffeaa86eb8b7b65f0a29921212fc642aabddd19", "sha256": "c11e6492f6ad29802714e39f4aef68e037a8e161fa5c5ff66004dfef069482f6", "reason": "2026-10-10 user-requested defaultActive:true; unchanged managed-child, selection and owner guards." },
-        { "path": "modules/monitor/src/lines.ts", "sha256": "b1850b315e6ff26749136b317bdda09698c1dd78fe3774ba58905e25b3f3a4ef", "reason": "Bounded byte-line parsing before decode and UTF8 preview." },
-        { "path": "modules/monitor/src/network.ts", "sha256": "6d28a3ede858ba93c2e708bf5d8f7d7b699e51998ca1e9f68fe013e9f2e54c04", "reason": "Validated pinned DNS/TLS/options for direct ws8.22." },
-        { "path": "modules/monitor/src/renderers.ts", "sha256": "e7a96971e9989b88ae67f3a318469a556182864cd7941350b352401ccfd4f897", "reason": "Bounded presentation with truthful source-close/no-ack wording." },
-        { "path": "modules/monitor/src/schema.ts", "sha256": "1c3986112c27ade8c53d6aece3f8694ba2241e265bd1ee4634fc3d1a3537e86c", "reason": "Strict discriminated inputs, limits/defaults." },
-        { "path": "modules/monitor/src/sources.ts", "sha256": "f1fcef4e422c60641eaf0db41e7ec42e8de7e695addf2ac953eff47f5f9961da", "reason": "Four source adapters, actual close and readonly job timer ownership." },
-        { "path": "modules/monitor/tests/command.integration.test.ts", "sha256": "906bf06b9597f9f9510ca4853ed52de076ebc65547b83d0c334da365f564f678", "reason": "Actual command cancel/expiry/event-limit close barriers." },
-        { "path": "modules/monitor/tests/core.test.ts", "sha256": "0268c391e634440693fcb5820afab313631865bb88158ce25e3a7a9d2bc1ea75", "reason": "Deterministic-clock limits/lifecycle/delivery/parser regressions." },
-        { "path": "modules/monitor/tests/fixtures/host.ts", "monitorReviewPreviousSha256": "ee8633727511b5d055d9b6f6907755b29aa9b8a4e30c9272d448e2a58dd9df4e", "monitorDefaultActivePreviousSha256": "ff346f8667b2d687819cf15f3e71142f7ebbe596c8177a4fdb1523a683d199a9", "sha256": "c744507305e137b0f76d0c87799043db5825b8c6b0dc15fa64267322ab6473b0", "reason": "Actual offline Pi four-source/load-order/child/reload fixture." },
-        { "path": "modules/monitor/tests/fixtures/offline-provider.ts", "sha256": "56ab88728b3e415365328aa9356e869d3e863bafa9f7ed06524baa95c811b511", "reason": "Local synthetic provider and child event/file barriers, no external requests." },
-        { "path": "modules/monitor/tests/fixtures/producer.ts", "sha256": "49ff840abb34aa64238fcf73ae9ef0158800e582a0ea8b0d051a1efb6442abfb", "reason": "Actual producer/Pi persisted-entry fixtures for parent Blackhole handoff." },
-        { "path": "modules/monitor/tests/fixtures/tls-material.ts", "sha256": "154874ae3a5e7b539bbf0235ef7695f780667671deef42cd7738fcbac95e9652", "reason": "Public generated test-only TLS material, excluded from tarball/runtime." },
-        { "path": "modules/monitor/tests/host.integration.test.mjs", "sha256": "b392cf036918d4184354b0460d2f01d2b40b09cf9e0ab2cc453cb21a2c93b069", "reason": "Isolated real offline Pi1.1 host subprocess acceptance." },
-        { "path": "modules/monitor/tests/network.integration.test.ts", "sha256": "d0155e27187a34eb8bfb66204d831719ef49216975c4a1972a98c63c0e77f865", "reason": "Installed ws actual DNS-pin/TLS/SNI/wrong-name/untrusted-CA/redirect tests." },
-        { "path": "modules/monitor/tests/producer.test.ts", "sha256": "5ce159ff3884c721e47003142a38b1f63576ffb9c611b86f0d69203d1d92f17f", "reason": "Stable narrow producer fixture/unknown-cleanup validation." },
-        { "path": "modules/monitor/tests/renderers.test.ts", "sha256": "c7750bd41e76e568f46fc2e0027a6afe5b01e7a5a1d25163896f2924b09a1e97", "reason": "Red-green source-close renderer evidence." },
-        { "path": "modules/monitor/tests/sources.integration.test.ts", "monitorReviewPreviousSha256": "06f4f981d3b5fa82ba02e0968f2da90c3c5db886c1ab80a9c92eb0c040a42401", "sha256": "f6b8c10d2e2dd5e7e1dd1ab51c1c7720d2c4e796a6eaf92e76a39bbe2acb139c", "reason": "Actual stdout/stderr/WS fragments/binary/payload/job lease transports." },
-        { "path": "modules/monitor/tests/review-core.test.ts", "monitorReentryPreviousSha256": "3901fd52edc11c9870da01a9035a621bd390d9e76017d18766792754aafe1120", "sha256": "64a8a4a7dea843c0ca24fce5675e9aa196e7780992c427370d583c41add015c7", "reason": "Review red/green deferred-close, four-source/byte-cap fairness, capacity/startup/reentry/wake regressions; deterministic clock." },
-        { "path": "modules/monitor/tests/status.test.ts", "monitorDefaultActivePreviousSha256": "e80b4ffe9d60b9e5df2f921d204c66ce25c012d232fa565758a7dfc57785b956", "sha256": "721fbf9a999b9fd226fa76acffe874bf6291f73e4984246dd1edf6f9eefb5581", "reason": "Direct execution rejects non-record status inputs before readonly list." },
-        { "path": "modules/monitor/tsconfig.json", "sha256": "cf84803c4808ab9d2af3834851589ef6a7c78eb252cb83d5e9e5f353af4d3edc", "reason": "Root strict typecheck target." }
+        {
+          "path": "modules/monitor/LICENSE",
+          "sha256": "e1cb88a3eed658e32e1e9d7a7a0ebad47efd7ef8049e7335af29fd5bee00ffe8",
+          "reason": "Native MIT notice."
+        },
+        {
+          "path": "modules/monitor/package.json",
+          "sha256": "ea7a9c245eb65c2f443941510502f1c952b779dfd2ca119e1cef7ab0617995d8",
+          "reason": "Native metadata, root install authoritative."
+        },
+        {
+          "path": "modules/monitor/README.md",
+          "monitorReviewPreviousSha256": "0d1ad637ef6e2612eb34bc658593078de5f80f340f384a3ac906cfe9cc55755e",
+          "monitorReentryPreviousSha256": "7886027c4a677adbaa3580d8058cd1e125ad01ece6b36ba99dc5ff9fb70f600b",
+          "defectRepairPreviousSha256": "250bf1a4cae8343bc09761f6925f045a14f861235f969c4f318548cc12a73a7a",
+          "monitorDefaultActivePreviousSha256": "f39d35ebb769bd6490b5d0fc42a6e7047d73f70560206c087c9a6e53a90825d6",
+          "dependencyUpgradePreviousSha256": "6afb9a9768dca7f4bd0af0cb63b258595b8dc6f41fc8c81a1521004442968549", "sha256": "05fbebb447ec1a2b8a9d14f6cad3cddbbe0a7ed250ca68feb527ce0d0b707ca6",
+          "reason": "Contract, limits, security and producer schema/handoff."
+        },
+        {
+          "path": "modules/monitor/src/core.ts",
+          "monitorReviewPreviousSha256": "93596276c588b022c6d7ef4a7f9a3129b698d2996103f4b52ef36c6a845372b1",
+          "monitorReentryPreviousSha256": "b820336ee6d66e146d23354ad23fd9dddd9bd1d399999fe05439c4adf1f7b07f",
+          "dependencyUpgradePreviousSha256": "f78cc5e574fa7061ef8fefc62d382380765e62de6dc3fa71d3a9f3436c330963", "sha256": "85d17a8c5f09e0d39f221a93c927eabc37cbeb548b6720ea0c21b3eb3f92f97f",
+          "reason": "Owner-generation bounded lifecycle/events/submission/cleanup evidence."
+        },
+        {
+          "path": "modules/monitor/src/index.ts",
+          "monitorReviewPreviousSha256": "7387daf19ec49737352811e445e9bb0e8d2bf163e02d8e81ad1a8dc462df7123",
+          "monitorDefaultActivePreviousSha256": "32126a70a9e35cc081d4eb650ffeaa86eb8b7b65f0a29921212fc642aabddd19",
+          "dependencyUpgradePreviousSha256": "9ff20052fcd3211b465511d8e5417677d0fed5599161fbb62f58f16f6869b728", "sha256": "5805133dca77e4ea5bc6981ae5ac237943ce4ba3e218db2059733da48f448c8d",
+          "reason": "2026-10-10 user-requested defaultActive:true; unchanged managed-child, selection and owner guards."
+        },
+        {
+          "path": "modules/monitor/src/lines.ts",
+          "sha256": "b1850b315e6ff26749136b317bdda09698c1dd78fe3774ba58905e25b3f3a4ef",
+          "reason": "Bounded byte-line parsing before decode and UTF8 preview."
+        },
+        {
+          "path": "modules/monitor/src/network.ts",
+          "sha256": "6d28a3ede858ba93c2e708bf5d8f7d7b699e51998ca1e9f68fe013e9f2e54c04",
+          "reason": "Validated pinned DNS/TLS/options for direct ws8.22."
+        },
+        {
+          "path": "modules/monitor/src/renderers.ts",
+          "dependencyUpgradePreviousSha256": "e7a96971e9989b88ae67f3a318469a556182864cd7941350b352401ccfd4f897", "sha256": "d32ec6141e3ea76a5a3d26321a1f94a0082c04fd27e15269ac045c9c2dc6980c",
+          "reason": "Bounded presentation with truthful source-close/no-ack wording."
+        },
+        {
+          "path": "modules/monitor/src/schema.ts",
+          "sha256": "1c3986112c27ade8c53d6aece3f8694ba2241e265bd1ee4634fc3d1a3537e86c",
+          "reason": "Strict discriminated inputs, limits/defaults."
+        },
+        {
+          "path": "modules/monitor/src/sources.ts",
+          "sha256": "f1fcef4e422c60641eaf0db41e7ec42e8de7e695addf2ac953eff47f5f9961da",
+          "reason": "Four source adapters, actual close and readonly job timer ownership."
+        },
+        {
+          "path": "modules/monitor/tests/command.integration.test.ts",
+          "sha256": "906bf06b9597f9f9510ca4853ed52de076ebc65547b83d0c334da365f564f678",
+          "reason": "Actual command cancel/expiry/event-limit close barriers."
+        },
+        {
+          "path": "modules/monitor/tests/core.test.ts",
+          "sha256": "0268c391e634440693fcb5820afab313631865bb88158ce25e3a7a9d2bc1ea75",
+          "reason": "Deterministic-clock limits/lifecycle/delivery/parser regressions."
+        },
+        {
+          "path": "modules/monitor/tests/fixtures/host.ts",
+          "monitorReviewPreviousSha256": "ee8633727511b5d055d9b6f6907755b29aa9b8a4e30c9272d448e2a58dd9df4e",
+          "monitorDefaultActivePreviousSha256": "ff346f8667b2d687819cf15f3e71142f7ebbe596c8177a4fdb1523a683d199a9",
+          "dependencyUpgradePreviousSha256": "89254d028b305d1037c65bb0261f7197a538edef2dc5bb7f15597f4e8481cfbd", "sha256": "a59a1434e3f2e2db43407f1e376f314e3f8cdaf7beea8061f7093214b60c6b24",
+          "reason": "Actual offline Pi four-source/load-order/child/reload fixture."
+        },
+        {
+          "path": "modules/monitor/tests/fixtures/offline-provider.ts",
+          "sha256": "56ab88728b3e415365328aa9356e869d3e863bafa9f7ed06524baa95c811b511",
+          "reason": "Local synthetic provider and child event/file barriers, no external requests."
+        },
+        {
+          "path": "modules/monitor/tests/fixtures/producer.ts",
+          "sha256": "49ff840abb34aa64238fcf73ae9ef0158800e582a0ea8b0d051a1efb6442abfb",
+          "reason": "Actual producer/Pi persisted-entry fixtures for parent Blackhole handoff."
+        },
+        {
+          "path": "modules/monitor/tests/fixtures/tls-material.ts",
+          "sha256": "154874ae3a5e7b539bbf0235ef7695f780667671deef42cd7738fcbac95e9652",
+          "reason": "Public generated test-only TLS material, excluded from tarball/runtime."
+        },
+        {
+          "path": "modules/monitor/tests/host.integration.test.mjs",
+          "dependencyUpgradePreviousSha256": "05337b0a83a65aa81349eaf828169e6b4591f71da749d32c96df6f8e53d82031", "sha256": "4588bc58c8c5ee219506c0798d4ac8a48006db5d344f995d567b39cf797b79a9",
+          "reason": "Isolated real offline Pi1.1 host subprocess acceptance."
+        },
+        {
+          "path": "modules/monitor/tests/network.integration.test.ts",
+          "sha256": "d0155e27187a34eb8bfb66204d831719ef49216975c4a1972a98c63c0e77f865",
+          "reason": "Installed ws actual DNS-pin/TLS/SNI/wrong-name/untrusted-CA/redirect tests."
+        },
+        {
+          "path": "modules/monitor/tests/producer.test.ts",
+          "sha256": "5ce159ff3884c721e47003142a38b1f63576ffb9c611b86f0d69203d1d92f17f",
+          "reason": "Stable narrow producer fixture/unknown-cleanup validation."
+        },
+        {
+          "path": "modules/monitor/tests/renderers.test.ts",
+          "dependencyUpgradePreviousSha256": "c7750bd41e76e568f46fc2e0027a6afe5b01e7a5a1d25163896f2924b09a1e97", "sha256": "a2936450cef95588a694e10574896c836ee6590186e39ec76e8d03af23acd217",
+          "reason": "Red-green source-close renderer evidence."
+        },
+        {
+          "path": "modules/monitor/tests/sources.integration.test.ts",
+          "monitorReviewPreviousSha256": "06f4f981d3b5fa82ba02e0968f2da90c3c5db886c1ab80a9c92eb0c040a42401",
+          "sha256": "f6b8c10d2e2dd5e7e1dd1ab51c1c7720d2c4e796a6eaf92e76a39bbe2acb139c",
+          "reason": "Actual stdout/stderr/WS fragments/binary/payload/job lease transports."
+        },
+        {
+          "path": "modules/monitor/tests/review-core.test.ts",
+          "monitorReentryPreviousSha256": "3901fd52edc11c9870da01a9035a621bd390d9e76017d18766792754aafe1120",
+          "sha256": "64a8a4a7dea843c0ca24fce5675e9aa196e7780992c427370d583c41add015c7",
+          "reason": "Review red/green deferred-close, four-source/byte-cap fairness, capacity/startup/reentry/wake regressions; deterministic clock."
+        },
+        {
+          "path": "modules/monitor/tests/status.test.ts",
+          "monitorDefaultActivePreviousSha256": "e80b4ffe9d60b9e5df2f921d204c66ce25c012d232fa565758a7dfc57785b956",
+          "dependencyUpgradePreviousSha256": "721fbf9a999b9fd226fa76acffe874bf6291f73e4984246dd1edf6f9eefb5581", "sha256": "dc85e75f9b0fd24ce83cdeaa73667de30dc8ddb51508d2a2d585931fd2d1cba4",
+          "reason": "Direct execution rejects non-record status inputs before readonly list."
+        },
+        {
+          "path": "modules/monitor/tsconfig.json",
+          "sha256": "cf84803c4808ab9d2af3834851589ef6a7c78eb252cb83d5e9e5f353af4d3edc",
+          "reason": "Root strict typecheck target."
+        }
       ]
     },
     {
       "module": "note-tools",
+      "streamingByteCount": "User-requested presentation-only change: renderCall shows receiving/received UTF-8 content bytes on a separate line using argsComplete, reuses Text, and preserves preview, execution, schema and model-facing results. Unit coverage includes streaming updates, CJK/emoji, thousands separators, malformed partial arguments, component reuse and narrow widths.",
       "origin": "User-requested native note extension: args {type, content}; five categories; automatically name and create Markdown files, return saved paths; subsequent operations use file tools.",
       "license": "MIT (root LICENSE)",
       "entry": "modules/note-tools/src/index.ts",
@@ -65,7 +421,9 @@
         },
         {
           "path": "modules/note-tools/extensions/note.ts",
-          "defectRepairPreviousSha256": "17f5f87d48ca609ecc6609a82cab2cc83a7cab75d12cd7baa570c00633cbabd5", "sha256": "84bd3ab8df301db593ccbb10e15b8fd6ca1de7a95855955b492def2d198de9ab",
+          "defectRepairPreviousSha256": "17f5f87d48ca609ecc6609a82cab2cc83a7cab75d12cd7baa570c00633cbabd5",
+          "streamingByteCountPreviousSha256": "8a2dd29f149f3b4a728dd8630a9ea1a4143292ac63ae53e2c4cabec0c6e98b69",
+          "sha256": "0553a85f0196dfe0bb36fd8cabc736cecc5bb6613e2bf9392e76878f1247ce89",
           "preChangeSha256": "b224c95b00c707d879e886507aa21d9be8258a6a4693b2523e12d7708175f2a4",
           "previousRecordedSha256": "b753ab14a2ffe217509ed09555fb73553f8da694f70acf928785e57492562ea3",
           "historicalDeltaAudit": "unavailable",
@@ -76,7 +434,9 @@
         },
         {
           "path": "modules/note-tools/tests/note.test.ts",
-          "defectRepairPreviousSha256": "66810acdb3ec9fcfaec9086a768be04b451b33eefe50245144b473577494d889", "sha256": "5db5b963ae3307663e18800976b13d9c1ea6ace48a2d49f0f7b38f4905cfcb9f",
+          "defectRepairPreviousSha256": "66810acdb3ec9fcfaec9086a768be04b451b33eefe50245144b473577494d889",
+          "streamingByteCountPreviousSha256": "dc7d7b15d4eabb63169dca53f5483acc350ea86296269f11e43771c2b5d8ed84",
+          "sha256": "6b9fd20527c4eee2fe8e1a83a35b148747db6876b4be29b84d2ac6c4e6632290",
           "reason": "Update compact timestamp assertions; add UTC rollover, lexical sorting, legacy-file retention and 1000-collision exhaustion regressions without removing existing assertions. 2026-10-06 local adaptation (note-tools): slug filename TYPE-<UTC timestamp>[-slug].md (CJK preserved, 40 code points), NOTE_EMPTY error, single relative path result. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: L20-L23: single relativePath output, bounded fence-aware title discovery and exclusive-create/collision preservation reviewed; max999ms collision offset retained intentionally. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
           "preChangeSha256": "b5d6895104641e88ae2fd06d2fb41b9f955df86c1b7fb8732b0a26e0ae4bb603",
           "checklistReviewPreviousSha256": "71dec5d32ba9d557175be46a73a68457f2fe1195d76b2c4df6b6c60dc760b664",
@@ -92,7 +452,9 @@
         },
         {
           "path": "modules/note-tools/README.md",
-          "defectRepairPreviousSha256": "238b9671e58167be9340d56e2dc1d10f6aaa3851d8188db3a968d51b990d64c3", "sha256": "424f439f76998f5afc71c1d7a393a240f1ec85456e17be2c57be39d51e0fa51d",
+          "defectRepairPreviousSha256": "238b9671e58167be9340d56e2dc1d10f6aaa3851d8188db3a968d51b990d64c3",
+          "streamingByteCountPreviousSha256": "52a070681b9f8eaafac30f3c7b961af57874ff9c412df85c0eacacd7d5d68d88",
+          "sha256": "a2d845592d23c1886fe512c3d4ffdbd1068f0a89197963a0eccfc767563e96fe",
           "preChangeSha256": "d48131a0ac81493e67c45b929ec37227d720ce122566362a40ab850638154171",
           "previousRecordedSha256": "ab18ee3335437ce91af7fcdd1e8dbdc6198ab2c9989c0de37adf967b41e92bb9",
           "historicalDeltaAudit": "unavailable",
@@ -116,7 +478,8 @@
         },
         {
           "path": "modules/gpt-speed/extensions/gpt-speed.ts",
-          "defectRepairPreviousSha256": "e04b78278f40d70c514eebe32db8b353b4d6489b9884c532a31774d3f7e410d3", "sha256": "c8794423004f255a3d50c0bc5addb2dc4768367cd3790f0d40650bf20c1ea691",
+          "defectRepairPreviousSha256": "e04b78278f40d70c514eebe32db8b353b4d6489b9884c532a31774d3f7e410d3",
+          "sha256": "c8794423004f255a3d50c0bc5addb2dc4768367cd3790f0d40650bf20c1ea691",
           "checklistReviewPreviousSha256": "566852a410666e7bb252333536cd378a1279c019d1604197e837b627730f0bb5",
           "checklistReviewBaselineSha256": "ee66d2d818e06441394ef787fadca73a798450a36fca26bc7d7c4d208fea5a8d",
           "localSnapshotReview": "2026-10-08 current local snapshot review: M16: canonical settings target, dangling/error fail-closed behavior, bounded synchronous ELOCKED retry, lock-held mode read/chmod preservation and read-merge persistence reviewed without real user settings. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
@@ -126,7 +489,8 @@
         },
         {
           "path": "modules/gpt-speed/tests/gpt-speed.test.ts",
-          "defectRepairPreviousSha256": "ea71a53b69b75daac205611f04d0fde7efa6c951be2492b8e836aa6aeb2b13b3", "sha256": "481660e3b6156451e815eb4ba53311efee9aa601835a500f0c3cc54283770310",
+          "defectRepairPreviousSha256": "ea71a53b69b75daac205611f04d0fde7efa6c951be2492b8e836aa6aeb2b13b3",
+          "sha256": "481660e3b6156451e815eb4ba53311efee9aa601835a500f0c3cc54283770310",
           "checklistReviewPreviousSha256": "bc3e042d832456c917db5995ca71c68f591230ae1a7090cd6b2b916099e46651",
           "checklistReviewBaselineSha256": "beb9df1b145d14be35c32f57d9eb6bb10543c8aa5a6a5ebe28d60a509d238325",
           "localSnapshotReview": "2026-10-08 current local snapshot review: M16: canonical settings target, dangling/error fail-closed behavior, bounded synchronous ELOCKED retry, lock-held mode read/chmod preservation and read-merge persistence reviewed without real user settings. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
@@ -141,7 +505,8 @@
         },
         {
           "path": "modules/gpt-speed/README.md",
-          "defectRepairPreviousSha256": "8fc46055821cb738a66b1d9872e8f0e920c8a93d4b638c8ec19a9d56eaef6236", "sha256": "3980ead77793f1145c968a7c48667128c24da91c8c75cf59f0b944bd1d825634",
+          "defectRepairPreviousSha256": "8fc46055821cb738a66b1d9872e8f0e920c8a93d4b638c8ec19a9d56eaef6236",
+          "sha256": "3980ead77793f1145c968a7c48667128c24da91c8c75cf59f0b944bd1d825634",
           "previousRecordedSha256": "770e36fd3ec7a872da87ad776f37a2b396ae2d38d42b1852169f0a0002aacbe4",
           "historicalDeltaAudit": "unavailable",
           "localSnapshotReview": "2026-10-03: complete README inspected against root documented pattern/tiers/settings policy and existing local tests; current bytes match initial commit f14b837, earlier recorded bytes unavailable.\n2026-10-08 current local snapshot review: M16: canonical settings target, dangling/error fail-closed behavior, bounded synchronous ELOCKED retry, lock-held mode read/chmod preservation and read-merge persistence reviewed without real user settings.",
@@ -153,27 +518,78 @@
     },
     {
       "module": "json-schema",
-      "reportRepair20261012": { "finding": "MISC-004", "report": "report/REPORT-20261012T085500226Z.md", "scope": "Fail startup on deep/non-definition/trailing-slash local pointers rather than silently converting to the whole definition. Only root# and direct definition refs accepted. Native audit/test/README updated; previous fingerprints preserved, no draft/provider-schema or delivery-path rewrite.", "validation": "Original regression red1 then schema suite green9; final module/root outcomes recorded in report-fixes-20261012 evidence, no full-release/provider claim." },
-      "reviewFollowupC1": { "date": "2026-10-11", "report": "report/REPORT-20261011T132908489Z.md", "meaningfulRed": 3, "sameCoreGreen": 3, "scope": "Expanded-work admission tracks installed converter $defs || definitions precedence; bounded depth8 leaf256 and depth12 startup-only refusal, including host pre-registration. No provider schema/draft rewrite or universal recursive-data CPU bound.", "validation": "Worker terminal completion: typecheck,44 units,9 worker/boundary and2 offline actual-host wrappers passed; limited read-only follow-up accepted in report/REPORT-20261011T133118922Z.md (0 new must-fix/warning; reviewer did not rerun tests). Earlier root cross/typecheck/unit results precede this follow-up." },
-      "reviewReproductionRepairs": { "date": "2026-10-11", "baseline": "800ced0", "report": "report/REPORT-20261011T130233001Z.md", "findings": ["R2", "R3", "R10", "R11"], "reportedMeaningfulRed": 3, "reportedSameCaseGreen": 3, "boundary": "Native rewrite inventory, not imported adaptation. Only confirmed assigned defects repaired; supplementary guards are green-only. Windows actual filesystem and offline worker/host probes do not certify Linux/macOS, universal schema CPU bounds or providers." },
+      "reportRepair20261012": {
+        "finding": "MISC-004",
+        "report": "report/REPORT-20261012T085500226Z.md",
+        "scope": "Fail startup on deep/non-definition/trailing-slash local pointers rather than silently converting to the whole definition. Only root# and direct definition refs accepted. Native audit/test/README updated; previous fingerprints preserved, no draft/provider-schema or delivery-path rewrite.",
+        "validation": "Original regression red1 then schema suite green9; final module/root outcomes recorded in report-fixes-20261012 evidence, no full-release/provider claim."
+      },
+      "reviewFollowupC1": {
+        "date": "2026-10-11",
+        "report": "report/REPORT-20261011T132908489Z.md",
+        "meaningfulRed": 3,
+        "sameCoreGreen": 3,
+        "scope": "Expanded-work admission tracks installed converter $defs || definitions precedence; bounded depth8 leaf256 and depth12 startup-only refusal, including host pre-registration. No provider schema/draft rewrite or universal recursive-data CPU bound.",
+        "validation": "Worker terminal completion: typecheck,44 units,9 worker/boundary and2 offline actual-host wrappers passed; limited read-only follow-up accepted in report/REPORT-20261011T133118922Z.md (0 new must-fix/warning; reviewer did not rerun tests). Earlier root cross/typecheck/unit results precede this follow-up."
+      },
+      "reviewReproductionRepairs": {
+        "date": "2026-10-11",
+        "baseline": "800ced0",
+        "report": "report/REPORT-20261011T130233001Z.md",
+        "findings": [
+          "R2",
+          "R3",
+          "R10",
+          "R11"
+        ],
+        "reportedMeaningfulRed": 3,
+        "reportedSameCaseGreen": 3,
+        "boundary": "Native rewrite inventory, not imported adaptation. Only confirmed assigned defects repaired; supplementary guards are green-only. Windows actual filesystem and offline worker/host probes do not certify Linux/macOS, universal schema CPU bounds or providers."
+      },
       "stabilityRepair": "2026-10-07 user-authorized BUG001/002 local repairs, not an upstream update; stricter schema subset documented. No dependency, flag, delivery-path or credential changes.",
       "origin": "Project-native rewrite (2026-10-02) of structured print-mode output, written from the documented behavior only; replaces the former @nqbao/pi-json-schema import, whose source is no longer available. zod 4 validates; flags are --json-schema and --json-output; extraction fallback is always best-effort.",
       "license": "MIT (root LICENSE)",
       "entry": "modules/json-schema/src/index.ts",
       "files": [
-        { "path": "modules/json-schema/src/validation-schema.mjs", "sha256": "f5166908b692b08f9e47faa75780c0699aab747c9210e10ad96741dbde16e712", "reason": "2026-10-11 R2 shared schema-position-only default annotation pruning; instance enum/const/data preserved." },
-        { "path": "modules/json-schema/src/validation-schema.d.mts", "sha256": "359956cde11742b69cb3df5d774ba5c4dfae93bcf7b0b5ab1fc910c0954f21d2", "reason": "2026-10-11 R2 native declaration for shared runtime validation helper." },
-        { "path": "modules/json-schema/tests/review-regressions.test.ts", "sha256": "18bfacab976af051098c13a2e178bc3e7b8e34364ec47e2d871c59b97dc39c39", "reason": "2026-10-11 retained R2/R3/R10/R11 sync validation, ref-sibling, expanded DAG counter and actual Windows filesystem regressions; reported same core red3/green3." },
-        { "path": "modules/json-schema/tests/review-validation.integration.test.mjs", "reviewFollowupPreviousSha256": "45b039535c2d5bb2226a3a00345b6321e1788a28ad97d619632cd07c0603925d", "sha256": "460076cded0b153cf18af11a84d6c8c78263cad3a49e06c84d8415d5eafd8155", "reason": "2026-10-11 R2 actual worker/offline recovery and R10 host pre-registration admission regressions; C1 dual-map admission red3/green3 boundary regression added without weakening original cases; no real provider." },
-        { "path": "modules/json-schema/tests/review-c1.test.ts", "sha256": "d55a93ee80c3efd3ec09bbe92810c05af622d3c56ae13817f179cd62abd981a3", "reason": "2026-10-11 C1 bounded leaf counter and startup-only dual-map DAG refusal red3/green3; small dual-map/provider-schema preservation guard." },
-        { "path": "modules/json-schema/tests/review-guards.test.ts", "sha256": "ce71f6e028c278c7aee9c4b97cfa9924363b4524e4919d4b0e3b12304ae4e4d1", "reason": "2026-10-11 supplementary green-only native schema-position/data preservation, recursive ref/allOf and delivery collision/rename ownership guards; not extra baseline red evidence." },
+        {
+          "path": "modules/json-schema/src/validation-schema.mjs",
+          "sha256": "f3d5be96253130976783cf35d6f599b3d2463bb1553413bc67d0b8a193927ca5",
+          "reason": "2026-10-11 R2 shared schema-position-only default annotation pruning; instance enum/const/data preserved."
+        },
+        {
+          "path": "modules/json-schema/src/validation-schema.d.mts",
+          "sha256": "1ae801b1e04434b8382a4bc1269ee8dee4d4617d568102daa3455705d8370b68",
+          "reason": "2026-10-11 R2 native declaration for shared runtime validation helper."
+        },
+        {
+          "path": "modules/json-schema/tests/review-regressions.test.ts",
+          "sha256": "18bfacab976af051098c13a2e178bc3e7b8e34364ec47e2d871c59b97dc39c39",
+          "reason": "2026-10-11 retained R2/R3/R10/R11 sync validation, ref-sibling, expanded DAG counter and actual Windows filesystem regressions; reported same core red3/green3."
+        },
+        {
+          "path": "modules/json-schema/tests/review-validation.integration.test.mjs",
+          "reviewFollowupPreviousSha256": "45b039535c2d5bb2226a3a00345b6321e1788a28ad97d619632cd07c0603925d",
+          "sha256": "460076cded0b153cf18af11a84d6c8c78263cad3a49e06c84d8415d5eafd8155",
+          "reason": "2026-10-11 R2 actual worker/offline recovery and R10 host pre-registration admission regressions; C1 dual-map admission red3/green3 boundary regression added without weakening original cases; no real provider."
+        },
+        {
+          "path": "modules/json-schema/tests/review-c1.test.ts",
+          "sha256": "d55a93ee80c3efd3ec09bbe92810c05af622d3c56ae13817f179cd62abd981a3",
+          "reason": "2026-10-11 C1 bounded leaf counter and startup-only dual-map DAG refusal red3/green3; small dual-map/provider-schema preservation guard."
+        },
+        {
+          "path": "modules/json-schema/tests/review-guards.test.ts",
+          "sha256": "ce71f6e028c278c7aee9c4b97cfa9924363b4524e4919d4b0e3b12304ae4e4d1",
+          "reason": "2026-10-11 supplementary green-only native schema-position/data preservation, recursive ref/allOf and delivery collision/rename ownership guards; not extra baseline red evidence."
+        },
         {
           "path": "modules/json-schema/src/index.ts",
           "sha256": "8909f73091f3997045822b0312f227d1a10fbbb6a1e61ed0cb071b08a96a9d88"
         },
         {
           "path": "modules/json-schema/extensions/json-schema.ts",
-          "defectRepairPreviousSha256": "8e45d2c0135e1c34c8eb867d805aa560a601f307f8ce8b9bf061cb5469e6c589", "sha256": "f87a662ff10a522ebe254a50720eea883a50522b10e438538c5f35bdec392cd6",
+          "defectRepairPreviousSha256": "8e45d2c0135e1c34c8eb867d805aa560a601f307f8ce8b9bf061cb5469e6c589",
+          "sha256": "eba7748fae2b85a31c37ebfeb3e2ffd65ed41ac083d2f73ca75f5f57181f5a21",
           "preChangeSha256": "54b24fcdd98e16d99f5d7a6f1e1719d78ef95833540d14bdbf578a352c2e235a",
           "reason": " 2026-10-06 local adaptation (json-schema): description merged, README documents validation-failure semantics and provider compatibility warning. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: M8-M9/L32-L33: retained original assistant text, schema-valid candidate selection, bounded reusable validation pool and Windows delivery rename retry reviewed; conservative pattern policy and cancellation/termination capacity retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
           "checklistReviewPreviousSha256": "cb6e89aec983c86b472fa497f1267add9efcc2c4bf8c9c3f7fce01367e8adff8",
@@ -184,7 +600,10 @@
         },
         {
           "path": "modules/json-schema/src/schema.ts",
-          "reviewReproductionPreviousSha256": "3fa4cc833cbb46361e9bdcd15fb5f2735c86d0f4432ce3b6063682408a848db5", "reviewFollowupPreviousSha256": "3672fa49f8965db1dfeff28a982702be7b7ac4cf1ef8843b956ebdb7304e75a9", "reportRepairPreviousSha256": "85f26826471a5ad4f573606c391de829207b2271b7dec935892e8e3e91a90ea6", "sha256": "0ed1bc0272fc0dd4f0dd2594d7fae28e11cc0304a76b795fc6909bc309026be6",
+          "reviewReproductionPreviousSha256": "3fa4cc833cbb46361e9bdcd15fb5f2735c86d0f4432ce3b6063682408a848db5",
+          "reviewFollowupPreviousSha256": "3672fa49f8965db1dfeff28a982702be7b7ac4cf1ef8843b956ebdb7304e75a9",
+          "reportRepairPreviousSha256": "85f26826471a5ad4f573606c391de829207b2271b7dec935892e8e3e91a90ea6",
+          "sha256": "86de0d18393d17b3bfcae4beb89f405b644281709e4ddf78f2187544e93cacd8",
           "reason": "2026-10-06 lazy zod loading retained. 2026-10-07 user-authorized BUG001/002 repairs: fail startup on enum/const ignored siblings or type conflicts; conservative linear patterns protect host synchronous pre-execute validation (including draft-07 additionalItems tuple tails in audit/pattern detection); accepted pattern schemas validate in terminable cancellable workers (2s, max4, held-until-exit permits), and extension delivery paths await results. 2026-10-08 current local snapshot review: M8-M9/L32-L33: retained original assistant text, schema-valid candidate selection, bounded reusable validation pool and Windows delivery rename retry reviewed; conservative pattern policy and cancellation/termination capacity retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-11 R2/R3/R10: shared schema-position default pruning without raw-data mutation, ref-sibling audit and precompile expanded-work budget. C1 follow-up: resolve the same definition map as the installed converter to close dual-map admission bypass.",
           "checklistReviewPreviousSha256": "15756df6f84a6a3495fb621788a97b54a41327d3f08a50e9b064335c2c2e9c6a",
           "checklistReviewBaselineSha256": "c422f5855e644613696f8cd78ce9f90dcaf1030993ea113a11deb2880c925aef",
@@ -199,7 +618,8 @@
         },
         {
           "path": "modules/json-schema/src/validation-worker.mjs",
-          "reviewReproductionPreviousSha256": "e60450d870ce7c5d74397d5ae32edad9fdf787024f340874637d5ef34016eb3e", "sha256": "9d2db9c90568cded3802f5e3411d8b88a9133822401ca50aaa8959052b667231",
+          "reviewReproductionPreviousSha256": "e60450d870ce7c5d74397d5ae32edad9fdf787024f340874637d5ef34016eb3e",
+          "sha256": "0259b885bb5770424636767d85d40046b685ede7ba9b4e698f0536db184ac88b",
           "reason": "2026-10-07 BUG002 pure zod validation worker; packaged relative runtime asset. 2026-10-08 current local snapshot review: M8-M9/L32-L33: retained original assistant text, schema-valid candidate selection, bounded reusable validation pool and Windows delivery rename retry reviewed; conservative pattern policy and cancellation/termination capacity retained. 2026-10-11 R2: worker uses shared default annotation pruning so missing required input cannot pass via defaults.",
           "checklistReviewPreviousSha256": "7332b979e592cd93bb64aeb93be38df16506ea10baa7aadac4d3f4d116594f7e",
           "checklistReviewBaselineSha256": "7332b979e592cd93bb64aeb93be38df16506ea10baa7aadac4d3f4d116594f7e",
@@ -232,7 +652,8 @@
         },
         {
           "path": "modules/json-schema/src/delivery.ts",
-          "reviewReproductionPreviousSha256": "af4f4ef2997adcfa4d8f2f077f791de284078ca161aa5414189c1ade3c471cdd", "sha256": "d6bdf30c7af36621d9405551c3abe629a40484f7dd54f52b36ec763fa5925e10",
+          "reviewReproductionPreviousSha256": "af4f4ef2997adcfa4d8f2f077f791de284078ca161aa5414189c1ade3c471cdd",
+          "sha256": "d6bdf30c7af36621d9405551c3abe629a40484f7dd54f52b36ec763fa5925e10",
           "checklistReviewPreviousSha256": "0cb224e72947698a0db18ab37d1d8755221549809ee190de13b32a348845e1fc",
           "checklistReviewBaselineSha256": "a82cc24ccdc7faf734ffadd658f64ae86175c4b231e2268d2377e9cfe8862540",
           "localSnapshotReview": "2026-10-08 current local snapshot review: M8-M9/L32-L33: retained original assistant text, schema-valid candidate selection, bounded reusable validation pool and Windows delivery rename retry reviewed; conservative pattern policy and cancellation/termination capacity retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
@@ -242,7 +663,8 @@
         },
         {
           "path": "modules/json-schema/tests/schema.test.ts",
-          "reportRepairPreviousSha256": "94d86ea2814dc61b8ff064867cc8ce4ec0911b2dd0017251f9337dd366db2f8f", "sha256": "1b51b92c3e4f31d18063c897b4ca0f5869b0e204d3cd1da39a5287134f0a6413"
+          "reportRepairPreviousSha256": "94d86ea2814dc61b8ff064867cc8ce4ec0911b2dd0017251f9337dd366db2f8f",
+          "sha256": "1b51b92c3e4f31d18063c897b4ca0f5869b0e204d3cd1da39a5287134f0a6413"
         },
         {
           "path": "modules/json-schema/tests/extract.test.ts",
@@ -278,7 +700,11 @@
         },
         {
           "path": "modules/json-schema/README.md",
-          "defectRepairPreviousSha256": "15ba1dc1cc72eb3a45917a2a6f3f61dc5560b66defd815fc97ef17fa7a9f1985", "reviewReproductionPreviousSha256": "fc13f878c1e8bf3d7caf9c605d84f7a00fd52cdd8010e99e828039ba51676e64", "reviewFollowupPreviousSha256": "7b3a1eb8c0c5a2eddb8395511393c508fae591a97225fc6cbede7737d845b306", "reportRepairPreviousSha256": "f9ac242a1363cad9509b1fb94c65a76c21a5a37059fd8abd72f47e0732812832", "sha256": "2778b2f9fbb1844fc39c1f8bcb0b75b80c442ee7625ee3efe180257eeb218d78",
+          "defectRepairPreviousSha256": "15ba1dc1cc72eb3a45917a2a6f3f61dc5560b66defd815fc97ef17fa7a9f1985",
+          "reviewReproductionPreviousSha256": "fc13f878c1e8bf3d7caf9c605d84f7a00fd52cdd8010e99e828039ba51676e64",
+          "reviewFollowupPreviousSha256": "7b3a1eb8c0c5a2eddb8395511393c508fae591a97225fc6cbede7737d845b306",
+          "reportRepairPreviousSha256": "f9ac242a1363cad9509b1fb94c65a76c21a5a37059fd8abd72f47e0732812832",
+          "sha256": "2778b2f9fbb1844fc39c1f8bcb0b75b80c442ee7625ee3efe180257eeb218d78",
           "preChangeSha256": "d958f41be3768e319f816e1707dbbff41bb4c25e591152392796a5088c52bde6",
           "reason": " 2026-10-06 local adaptation (json-schema): description merged, README documents validation-failure semantics and provider compatibility warning. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: M8-M9/L32-L33: retained original assistant text, schema-valid candidate selection, bounded reusable validation pool and Windows delivery rename retry reviewed; conservative pattern policy and cancellation/termination capacity retained. 2026-10-11 R2/R3/R10/R11: raw-required validation, explicit ref-sibling rejection, expanded-work admission and short exclusive delivery temporary documented. C1: actual converter definition-map precedence is explicitly documented.",
           "checklistReviewPreviousSha256": "b50c3f1c168e10f939b4439d9aae71eaafa83a4d72c9a1203424d84059d4e8a0",
@@ -307,19 +733,88 @@
     },
     {
       "module": "pi-runtime",
-      "runStartPromptSections": { "date": "2026-10-13", "plan": "plan/PLAN-20261013T021200866Z.md", "scope": "Explicit non-user messageType discards the task candidate; missing Pi1.1.0 discriminator retains existing input/source/phase/actual-user-object admission. Defensive synthetic unit only for new discriminator, not Pi1.2.0 host certification; reservations/recovery/boundary/guard behavior unchanged." },
-      "safetyBaselineReview": { "handoff": "report/REPORT-20261009T122847317Z.md", "review": "report/REPORT-20261009T123602084Z.md", "acceptance": "Limited six-file static acceptance,0 critical/0 warning; reviewer did not rerun tests. Full current hashes verified against frozen anchors by root owner; tsconfig unchanged and not newly reviewed. Prior worker22unit/14offline modes do not certify root release, retry/Blackhole/overflow coexistence, real provider or universal idle SDK abort." },
+      "runStartPromptSections": {
+        "date": "2026-10-13",
+        "plan": "plan/PLAN-20261013T021200866Z.md",
+        "scope": "Explicit non-user messageType discards the task candidate; missing Pi1.1.0 discriminator retains existing input/source/phase/actual-user-object admission. Defensive synthetic unit only for new discriminator, not Pi1.2.0 host certification; reservations/recovery/boundary/guard behavior unchanged."
+      },
+      "safetyBaselineReview": {
+        "handoff": "report/REPORT-20261009T122847317Z.md",
+        "review": "report/REPORT-20261009T123602084Z.md",
+        "acceptance": "Limited six-file static acceptance,0 critical/0 warning; reviewer did not rerun tests. Full current hashes verified against frozen anchors by root owner; tsconfig unchanged and not newly reviewed. Prior worker22unit/14offline modes do not certify root release, retry/Blackhole/overflow coexistence, real provider or universal idle SDK abort."
+      },
       "origin": "User-requested native bounded error-aware recovery (2026-10-09), not an imported snapshot. Explicit-input automatic feedback, human-confirmed policy/unknown review, at most two session-journaled reservations per recognized task; conservative task admission and no safeguard evasion.",
       "license": "MIT (root LICENSE)",
       "entry": "modules/pi-runtime/src/index.ts",
       "files": [
-        { "path": "modules/pi-runtime/src/index.ts", "runtimeSafetyPreviousSha256": "2668bcdb0b7a9a7a88ec4b3f3290d6fbb44817f5d6c60a7be9538894ac301f48", "promptSectionsPreviousSha256": "b156df9b4109929587b49931b8a37897b28a20ef565a7666b56d32e8a4414205", "sha256": "2d15b138747df97d9e0d7e93d39d9c14e69929c95615e090df3352df60be3e1e" },
-        { "path": "modules/pi-runtime/src/policy.ts", "runtimeSafetyPreviousSha256": "f44b0ee025de2b5a5185375d4e7816d957e96be8f5068f76580b532707706c61", "sha256": "3f0ea9b4efd0db82f71ed414dec70a0f1b038b750bdd022af22d424f688c3a6c" },
-        { "path": "modules/pi-runtime/tsconfig.json", "sha256": "4f93c79be455ac413c94d8986d2821f49c4f4ac8271df09d5e9fa567861bca64" },
-        { "path": "modules/pi-runtime/README.md", "runtimeSafetyPreviousSha256": "56a3aa1cea11ca7b31919575f81ad9cfa4fdde66540f8e3804604328bd7868af", "promptSectionsPreviousSha256": "c237b0cf43e3be4b12c815cffd616a609292af5c33ed89871c2e55acce31b4e2", "sha256": "4f16bd3815255dc68763c1e31f2659914d613f9924617b56d2d4403aa4476b65" },
-        { "path": "modules/pi-runtime/tests/recovery.test.ts", "runtimeSafetyPreviousSha256": "57ef6f715be1170bfa4d8aea2bce96ee5de6a9fbf3ad82fd0512fb69af361423", "promptSectionsPreviousSha256": "db64f30aad500dc4667e19e87ab34209186476315bee8b934f19658debe0dadb", "sha256": "4198cd83983e27a6e5da36619deec73d67f115370e3525f6b7551d790ffb2b95" },
-        { "path": "modules/pi-runtime/tests/runtime.integration.test.mjs", "runtimeSafetyPreviousSha256": "12b11269aeffe4797223c6907849c26e8458d621502488cfdfa96852ccda81bc", "sha256": "4d084cd4068769b37597c5e6ddf5c5e95f00b6632252d7cff75a0bfe471fb272" },
-        { "path": "modules/pi-runtime/tests/fixtures/runtime-host.mjs", "runtimeSafetyPreviousSha256": "29a708f5d742cb33ff2bf01f69dc153f8d0e122dcc4e64e11082ec16caa95886", "sha256": "9f22b14e202ebea5fd416752942cd958a28ff1ac1386afc6997d256a4e211b00" }
+        {
+          "path": "modules/pi-runtime/src/index.ts",
+          "runtimeSafetyPreviousSha256": "2668bcdb0b7a9a7a88ec4b3f3290d6fbb44817f5d6c60a7be9538894ac301f48",
+          "promptSectionsPreviousSha256": "b156df9b4109929587b49931b8a37897b28a20ef565a7666b56d32e8a4414205",
+          "sha256": "8849f5e4c2c423b9abc488cbe337191ee5a7985e2855d3517a55f06e288371b3",
+          "deferredSharedPreviousSha256": "517e8e20f389d6362ec1587b1d90addd14f6376d319793de699e88247302376c"
+        },
+        {
+          "path": "modules/pi-runtime/src/policy.ts",
+          "runtimeSafetyPreviousSha256": "f44b0ee025de2b5a5185375d4e7816d957e96be8f5068f76580b532707706c61",
+          "sha256": "c810db29e75f7558b21179830f31cde91d986f7abce06901ed24c6c4e045838e"
+        },
+        {
+          "path": "modules/pi-runtime/tsconfig.json",
+          "sha256": "4f93c79be455ac413c94d8986d2821f49c4f4ac8271df09d5e9fa567861bca64"
+        },
+        {
+          "path": "modules/pi-runtime/README.md",
+          "runtimeSafetyPreviousSha256": "56a3aa1cea11ca7b31919575f81ad9cfa4fdde66540f8e3804604328bd7868af",
+          "promptSectionsPreviousSha256": "c237b0cf43e3be4b12c815cffd616a609292af5c33ed89871c2e55acce31b4e2",
+          "sqliteIntegrationPreviousSha256": "b7e8e1bf1211e64b7a670718482342594be68a29a42cfec23a4a3de51650c876",
+          "sqlConnectorPreviousSha256": "14ff096a082c9739c2b7397b1befee97229c7aeec6ddeff7af099a36ac507cb5",
+          "refactorPreviousSha256": "4d4712998d32838268d05b3ab922ad4755d30eeae694094eb8743e19d3bfbd2d",
+          "sha256": "83b1732b33d000f54789d2edab08d6424523ad70c9f395936b8212e8a0c037dd",
+          "deferredSharedPreviousSha256": "ad117a0d5dc3bd01c0d47a1614e35d57fcd87b4c2ac44f0ab8ed4e1900be3591"
+        },
+        {
+          "path": "modules/pi-runtime/tests/recovery.test.ts",
+          "runtimeSafetyPreviousSha256": "57ef6f715be1170bfa4d8aea2bce96ee5de6a9fbf3ad82fd0512fb69af361423",
+          "promptSectionsPreviousSha256": "db64f30aad500dc4667e19e87ab34209186476315bee8b934f19658debe0dadb",
+          "sha256": "4198cd83983e27a6e5da36619deec73d67f115370e3525f6b7551d790ffb2b95"
+        },
+        {
+          "path": "modules/pi-runtime/tests/runtime.integration.test.mjs",
+          "runtimeSafetyPreviousSha256": "12b11269aeffe4797223c6907849c26e8458d621502488cfdfa96852ccda81bc",
+          "dependencyUpgradePreviousSha256": "98291788e4ede6277905fefbcea6372672f5950be7c0895c30018cf70ba7b0ef", "sha256": "d07c2c5644d0898d5158357debbf1fe6da0f00e43c89ee139b68afc54995fe39"
+        },
+        {
+          "path": "modules/pi-runtime/tests/fixtures/runtime-host.mjs",
+          "runtimeSafetyPreviousSha256": "29a708f5d742cb33ff2bf01f69dc153f8d0e122dcc4e64e11082ec16caa95886",
+          "dependencyUpgradePreviousSha256": "216e6dbfccdfad4bb914d5011bde068863c0486eff858205fb5e1d1ee0db807a", "sha256": "fd96a6435b2f6443cecd695df5eafdb6faa3da0747081ab050abcbbf9f408d0a"
+        },
+        {
+          "path": "modules/pi-runtime/src/deferred-tools.ts",
+          "sha256": "d52ff39204bcda9ea9e06b7939ea0d83e6e7b7db234245bf73270049f92fab16",
+          "reason": "2026-10-15 user-authorized: deferred-tool activation, fallback and hint moved to Pi Runtime (deferred-tools.ts); modules only declare exposure/namespace."
+        },
+        {
+          "path": "modules/pi-runtime/tests/deferred-tools.test.ts",
+          "sha256": "1ac7d369a0dd8060309227ffc45e94f23b1b3e505138dcc61b9fdeb812c7d600",
+          "reason": "2026-10-15 user-authorized: deferred-tool activation, fallback and hint moved to Pi Runtime (deferred-tools.ts); modules only declare exposure/namespace."
+        },
+        {
+          "path": "modules/pi-runtime/tests/deferred-tools.integration.test.mjs",
+          "sha256": "b306a6c33323032d56c33a2dedca974d6a81ea4d83e46020ff22fafd2139b126",
+          "reason": "2026-10-15 user-authorized: deferred-tool activation, fallback and hint moved to Pi Runtime (deferred-tools.ts); modules only declare exposure/namespace.",
+          "crossToolPreviousSha256": "5242f98b50c9014dfa3cf770d3178f53ab41321b2d987fd3928dc10cc128316e"
+        },
+        {
+          "path": "modules/pi-runtime/src/cross-tool-guidance.ts",
+          "sha256": "dba4ccab24a0dc5fd0a57200a33ed5511a57fa931119bf75c35833630afdff22",
+          "reason": "2026-10-15 user-authorized: cross-module tool rules section injected by Pi Runtime (cross-tool-guidance.ts)."
+        },
+        {
+          "path": "modules/pi-runtime/tests/cross-tool-guidance.test.ts",
+          "sha256": "e907764035a0d69bbd337b3ea3745df098e5d831101ce6bb3fd9785981a4a5f5",
+          "reason": "2026-10-15 user-authorized: cross-module tool rules section injected by Pi Runtime (cross-tool-guidance.ts)."
+        }
       ]
     },
     {
@@ -328,24 +823,124 @@
       "license": "MIT (root LICENSE and modules/fork/LICENSE)",
       "entry": "modules/fork/src/index.ts",
       "files": [
-        {"path": "modules/fork/LICENSE", "sha256": "e1cb88a3eed658e32e1e9d7a7a0ebad47efd7ef8049e7335af29fd5bee00ffe8", "reason": "Native MIT notice."},
-        {"path": "modules/fork/README.md", "sha256": "388c7ac2605bbfc31de3b7a1ba4ca4d764c43acc20dfda8448fb299fb786cb66", "reason": "Contract, limits, deployment prerequisite and security boundaries."},
-        {"path": "modules/fork/package.json", "sha256": "c36c8fbaf06e912dbfbc64556858a98cdd2df8dad6e2702da3a233bd538116c6", "reason": "Native metadata, root install authoritative."},
-        {"path": "modules/fork/src/args.ts", "sha256": "c50ec1b84840f39700406286b6212d12c4e39ea0734cd2cbb46028de9de2be52", "reason": "Native Fork implementation."},
-        {"path": "modules/fork/src/child-guard.ts", "sha256": "41d32860523c159fa9f8b45179f2144ee93694053bf5f14f2f33a8afc3331c16", "reason": "Native Fork implementation."},
-        {"path": "modules/fork/src/child.ts", "sha256": "906e500c05246f0508fccc71390e1c04354fbce7331852f5e7f7171ed8690f16", "reason": "Native Fork implementation."},
-        {"path": "modules/fork/src/identity.ts", "sha256": "84dd63570a283c28bfe18cb63e1c883a43d9415fd79471a30bda60dc703e79a4", "reason": "Native Fork implementation."},
-        {"path": "modules/fork/src/index.ts", "sha256": "804c28977279362b1ba04a1c9aa92819873a49bcfc763a793a5e454dbe91aae8", "reason": "Native Fork implementation."},
-        {"path": "modules/fork/src/manager.ts", "sha256": "0e0cc70bf6167a77ba1915bfc81367e9269f3c2618108b0aac930dcc082555fe", "reason": "Native Fork implementation."},
-        {"path": "modules/fork/src/snapshot.ts", "sha256": "4c929d8f6d6a29ff4e7c9a1fe54448955f50410e45ce72bf1295c54d62af583e", "reason": "Native Fork implementation."},
-        {"path": "modules/fork/src/store.ts", "sha256": "c8735b97a020be842d2a15877dda6b9e355309ef331861988402a3530ea7bae4", "reason": "Native Fork implementation."},
-        {"path": "modules/fork/tests/child-guard.test.ts", "sha256": "e9c6aa4a2f8f89df3defc89b5bb0d699222a968b44035ce3056ecfc9013f5ddc", "reason": "Native Fork tests (unit and real-host offline integration)."},
-        {"path": "modules/fork/tests/child.test.ts", "sha256": "4c1db9a171f3641bd62bc88e6765b89c70e738133d9f3fab7372be142c504692", "reason": "Native Fork tests (unit and real-host offline integration)."},
-        {"path": "modules/fork/tests/contracts.test.ts", "sha256": "5ff308b23c45345a77a8fd27887ce90478fa00fd06ef80de11e8481fa638c93e", "reason": "Native Fork tests (unit and real-host offline integration)."},
-        {"path": "modules/fork/tests/fixtures/provider.ts", "sha256": "4c32ca9257029fc0c3b1335a0254ef56f531936f7095d293359bc6f37fa58c0c", "reason": "Offline deterministic provider fixture (no network, no credentials)."},
-        {"path": "modules/fork/tests/manager.test.ts", "sha256": "fc98c2536c1619d1ff84346391828d7e925756e02406b7f5ec746075959dbb88", "reason": "Native Fork tests (unit and real-host offline integration)."},
-        {"path": "modules/fork/tests/real-host.integration.test.ts", "sha256": "008cf33f06f6fea04d7a6a1ece075326ffdf1defc28dd6befdbfc1b019f2c7e0", "reason": "Native Fork tests (unit and real-host offline integration)."},
-        {"path": "modules/fork/tsconfig.json", "sha256": "cf84803c4808ab9d2af3834851589ef6a7c78eb252cb83d5e9e5f353af4d3edc", "reason": "Strict typecheck configuration."}
+        {
+          "path": "modules/fork/LICENSE",
+          "sha256": "e1cb88a3eed658e32e1e9d7a7a0ebad47efd7ef8049e7335af29fd5bee00ffe8",
+          "reason": "Native MIT notice."
+        },
+        {
+          "path": "modules/fork/README.md",
+          "refactorPreviousSha256": "94793f6c092b96c4802568e035eb137720a0de9d75e86f5f5e6fd301bdf2173a",
+          "forkDefaultActivePreviousSha256": "118e86afc81e4a5a26e373476aa4edd9f6ce4c573873b1ae7a7ff288eaffeb50",
+          "sha256": "b2eed57bdb8112af52fc8caa811d121ba94947d7dfd51341ed2bc9da2c960d3a",
+          "reason": "Document defaultActive:true without config; preserve host selection, managed-child restrictions, limits and security boundaries."
+        },
+        {
+          "path": "modules/fork/package.json",
+          "sha256": "c36c8fbaf06e912dbfbc64556858a98cdd2df8dad6e2702da3a233bd538116c6",
+          "reason": "Native metadata, root install authoritative."
+        },
+        {
+          "path": "modules/fork/src/args.ts",
+          "sha256": "66611b1462e8f79dba2f0a8cdbe1f16bdd2673e68885b97d5e6354a07ed2f5bc",
+          "reason": "Native Fork implementation."
+        },
+        {
+          "path": "modules/fork/src/child-guard.ts",
+          "sha256": "41d32860523c159fa9f8b45179f2144ee93694053bf5f14f2f33a8afc3331c16",
+          "reason": "Native Fork implementation."
+        },
+        {
+          "path": "modules/fork/src/child.ts",
+          "sha256": "4a5ca59485cdc0b80469dfbf994fc02d5ab8dbb58c323b294f66174f7a19398d",
+          "reason": "Native Fork implementation."
+        },
+        {
+          "path": "modules/fork/src/identity.ts",
+          "sha256": "84dd63570a283c28bfe18cb63e1c883a43d9415fd79471a30bda60dc703e79a4",
+          "reason": "Native Fork implementation."
+        },
+        {
+          "path": "modules/fork/src/index.ts",
+          "forkDefaultActivePreviousSha256": "41268ad8a5d98f43f2ec57805e4f9f0d891e0f38fbd9135103da5a5eb56e80d4",
+          "sha256": "d53d534b9db8e33740838d498b53de3eb5093aedabc93e7fa5292576f921cf89",
+          "reason": "User-requested defaultActive:true for all three Fork tools; no forced activation, config changes or guard/lifecycle changes."
+        },
+        {
+          "path": "modules/fork/src/live-widget.ts",
+          "refactorPreviousSha256": "63f51278da48a14897b5342840dbda79f8f3f6b0e56be585315cb5be0fd0d3d6",
+          "refactorAdaptation": "2026-10-16 R6: delegate only bind/refresh/clear to shared presentation helper; forkPanelJob and all execution/delivery lifecycle logic unchanged.",
+          "sha256": "76fbd13b1fef62643a35f6ca668140aec8dc03cfc5bfff258ddd7120c7632fa2",
+          "reason": "Native Fork implementation."
+        },
+        {
+          "path": "modules/fork/src/manager.ts",
+          "sha256": "a846370ac14ca04d32db51cc0e8924ce1c8f5455b300ab9048b66374e25d2170",
+          "reason": "Native Fork implementation."
+        },
+        {
+          "path": "modules/fork/src/result-renderer.ts",
+          "sha256": "57af9b4fb7ab3981d336945643d06f368318f82142c90ff5b1642594dfd4a2d9",
+          "reason": "Native Fork implementation."
+        },
+        {
+          "path": "modules/fork/src/snapshot.ts",
+          "sha256": "4c929d8f6d6a29ff4e7c9a1fe54448955f50410e45ce72bf1295c54d62af583e",
+          "reason": "Native Fork implementation."
+        },
+        {
+          "path": "modules/fork/src/store.ts",
+          "sha256": "c8735b97a020be842d2a15877dda6b9e355309ef331861988402a3530ea7bae4",
+          "reason": "Native Fork implementation."
+        },
+        {
+          "path": "modules/fork/tests/child-guard.test.ts",
+          "sha256": "e9c6aa4a2f8f89df3defc89b5bb0d699222a968b44035ce3056ecfc9013f5ddc",
+          "reason": "Native Fork tests (unit and real-host offline integration)."
+        },
+        {
+          "path": "modules/fork/tests/child.test.ts",
+          "sha256": "4c1db9a171f3641bd62bc88e6765b89c70e738133d9f3fab7372be142c504692",
+          "reason": "Native Fork tests (unit and real-host offline integration)."
+        },
+        {
+          "path": "modules/fork/tests/contracts.test.ts",
+          "sha256": "5ff308b23c45345a77a8fd27887ce90478fa00fd06ef80de11e8481fa638c93e",
+          "reason": "Native Fork tests (unit and real-host offline integration)."
+        },
+        {
+          "path": "modules/fork/tests/fixtures/provider.ts",
+          "sha256": "4c32ca9257029fc0c3b1335a0254ef56f531936f7095d293359bc6f37fa58c0c",
+          "reason": "Offline deterministic provider fixture (no network, no credentials)."
+        },
+        {
+          "path": "modules/fork/tests/live-widget.test.ts",
+          "sha256": "991c4cebbd125bcc97f71d0cddcc7ab7baca304f9ab42596186215be655d7a02",
+          "reason": "Native Fork tests (unit and real-host offline integration)."
+        },
+        {
+          "path": "modules/fork/tests/manager.test.ts",
+          "sha256": "fc98c2536c1619d1ff84346391828d7e925756e02406b7f5ec746075959dbb88",
+          "reason": "Native Fork tests (unit and real-host offline integration)."
+        },
+        {
+          "path": "modules/fork/tests/result-renderer.test.ts",
+          "sha256": "eaa6b6eae321219025e27ff8a242a23a7d17423dd4f67c0edc7b016aa83d8a67",
+          "reason": "Native Fork tests (unit and real-host offline integration)."
+        },
+        {
+          "path": "modules/fork/tests/real-host.integration.test.ts",
+          "dependencyUpgradePreviousSha256": "008cf33f06f6fea04d7a6a1ece075326ffdf1defc28dd6befdbfc1b019f2c7e0",
+          "forkDefaultActivePreviousSha256": "b4f0a7497264475f06663b830e26d0f820927ea86d6d6f63c57fcbc4d516dc0d",
+          "sha256": "7a8330c0f30d35f136058707a8dd4ac885dd19c76d2433eabff97f96d4f5cd19",
+          "forkDefaultActiveAdaptation": "Existing real-host happy path now omits --tools and defaultTools, asserts all three Fork tools are active and the child inherits exactly the parent selection minus Fork tools. Original snapshot, delivery, close and cold-resume assertions retained.",
+          "reason": "2026-10-16 dependency-upgrade verification exposed a Windows test-environment omission: nested Shell exited127 node not found. Preserve ProgramFiles/ProgramFiles(x86) like the root isolation helper so Git Bash is discoverable; original nested-marker/completion/capability assertions and all product code unchanged. Scoped diagnostic replay reproduced the exact missing marker and failed job, not premature Fork completion. Final module outcome recorded in the plan."
+        },
+        {
+          "path": "modules/fork/tsconfig.json",
+          "sha256": "cf84803c4808ab9d2af3834851589ef6a7c78eb252cb83d5e9e5f353af4d3edc",
+          "reason": "Strict typecheck configuration."
+        }
       ]
     }
   ]

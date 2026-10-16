@@ -1,6 +1,6 @@
 # Monitor v1（原生）
 
-入口 `modules/monitor/src/index.ts`；僅支援 Pi **1.1.0**。三個工具均 `defaultActive:true`，一般 session 載入即預設啟用 `monitor_start`、`monitor_status`、`monitor_stop`，不需加入 `defaultTools`；explicit `--tools`、`--exclude-tools`、`--no-tools` 及手動停用仍由宿主控制，不強制改 loadout；載入不建立來源、timer 或模型請求。Explicit managed-child marker 下完全不註冊，直接 execute 同樣拒絕。不是 OS daemon、排程器、PTY 或 sandbox。
+入口 `modules/monitor/src/index.ts`；僅支援 Pi **1.3.0**。三個工具均 `defaultActive:true`，一般 session 載入即預設啟用 `monitor_start`、`monitor_status`、`monitor_stop`，不需加入 `defaultTools`；explicit `--tools`、`--exclude-tools`、`--no-tools` 及手動停用仍由宿主控制，不強制改 loadout；載入不建立來源、timer 或模型請求。Explicit managed-child marker 下完全不註冊，直接 execute 同樣拒絕。不是 OS daemon、排程器、PTY 或 sandbox。
 
 ## 使用
 
@@ -10,7 +10,7 @@
 
 `monitor_start` 的 `source` 必須是以下一種（未知欄位拒絕）：
 
-- `command`：`tool:"bash"|"powershell"`、`command`。使用 trust-aware 有效 Shell settings、宿主 shell resolver/environment/detached tracking/cancellation；Monitor 窄 adapter 保留 stdout/stderr 分流及實際 `close`。stdin ignored、非 PTY；PowerShell 僅原生 Windows。Legacy WSL stdin-command transport 明確拒絕，不退回另一 shell。Pi 1.1.0 的內部 backend 相對安裝 host 解析，缺少能力或版本不同 fail closed，未複製／包入 host code；既有 Shell foreground/background execution 不改。
+- `command`：`tool:"bash"|"powershell"`、`command`。使用 trust-aware 有效 Shell settings、宿主 shell resolver/environment/detached tracking/cancellation；Monitor 窄 adapter 保留 stdout/stderr 分流及實際 `close`。stdin ignored、非 PTY；PowerShell 僅原生 Windows。Legacy WSL stdin-command transport 明確拒絕，不退回另一 shell。Pi 1.3.0 的內部 backend 相對安裝 host 解析，缺少能力或版本不同 fail closed，未複製／包入 host code；既有 Shell foreground/background execution 不改。
 - `websocket`：`url`、可選 `allowPrivateNetwork`／`allowInsecure`。預設公網 wss；私網與 ws 分別須本次 URL 明確 opt-in。不接受 userinfo、任意 headers、alternate scheme、redirect 或 compression；TLS certificate verification 保留。DNS 所有結果均驗證，actual connect 自訂 lookup 使用同一 immutable IP set，不再次無約束解析；SNI 維持 hostname。固定 direct `ws@8.22.0`，無必要 optional native addon。Handshake 最多15秒且不超總期限；16KiB aggregate payload cap 在 ws receive/reassembly 前執行，binary terminal failure、不自動重連。URL 回報只留 origin，path/query/fragment 不公開。
 - `shell_job`／`subagent_job`：`jobId`、可選 `intervalMs`（預設60000、30000–300000整數）。只取得當前 owner/canonical cwd/runtime-generation readonly capability；缺少 provider、外來 job、revoke 均拒絕。Subagent 必須走既有 provisional view，不公開 private query 答案，不 query 模型／讀 logs。停止只清 sampling timer，不取消被觀察 job。Terminal observation 不冒充第二份 task_result。
 
@@ -20,6 +20,14 @@
 
 `monitor_start` 的 `source.kind:"command"` 由 Monitor 自行啟動 backend，不經巢狀 `bash` 的 `tool_call` hooks；因此只拒絕 `bash` 的 policy **不會**阻止 Monitor command source，policy 必須針對 `monitor_start`（可檢查 `input.source.command`）。這是目前明訂的授權範圍，不是已證實的權限漏洞，也不會偷偷啟用 `bash`；若產品要求兩者同範圍，需另行決定（例如 `ctx.executeTool`）。`tests/command-authorization.integration.test.mjs` 鎖定：直接 bash 被拒、可針對 `monitor_start` 攔截；「bash-deny 也涵蓋 Monitor」以 `todo` 記錄。
 共通 `durationMs` 預設300000、1000–1800000整數，包含 startup；不是 Shell idle `timeoutMs`。`wakeAgent` 預設true；false 的 display custom message 不要求模型回合。`stopAfterEvents` 可選1–600，計採納資料事件；`label` 可選80字、清控制碼。Start 立即回 pending receipt；acceptance 後 runtime 接管，不跟著原工具 call 的晚到 abort 停止。Status `{monitorId?}` 唯讀，省略列最多32；Stop `{monitorId}` 冪等、可能先回 stopping/cleanupPending。
+
+## TUI 與 Agent 投遞
+
+`monitor_event` 已註冊原生訊息 renderer，與 Shell／Fork 通知使用相同主題背景面板與內距，依狀態用 success／error／pending；收合顯示來源狀態、短 ID 與末三筆事件，原生展開看完整 IDs、最多32筆事件及具名 job snapshot 欄位。顯示清理 ANSI／控制碼／bidi、依終端欄寬截短／換行、最多300行；renderer 不執行工具、不修改模型正文或 details，不將來源輸出當作終結／清理證據。舊的 prose＋JSON body 可有界解析；缺欄位安全顯示 unknown，不重寫已存訊息。
+
+- `wakeAgent:true`（預設）：`pi.sendMessage` 的 `triggerTurn:true, deliverAs:"followUp"`，要求 Agent 回合；主 Agent 忙碌時由目前 busy gate 等 `agent_settled` 後再提交，並保留每owner30秒節流。
+- `wakeAgent:false`：custom message 仍保存並加入模型上下文，只是不主動要求新模型回合；下次正常請求可讀到，不是只有使用者看得到。Shell 自動 Monitor 固定此模式，避免每次採樣額外呼叫模型；原 Shell job 完成通知另行喚醒。
+- 面板分別顯示 `Agent turn requested`／`Display only · no Agent turn requested`；batch 中任一選中來源為true即要求turn。舊訊息缺少欄位顯示 unavailable，receipt 與新批次 metadata 都提供每來源 `wakeAgent`。這是請求模式而非 host acknowledgment，不保證 Agent 一定產生文字回覆。
 
 ## 限制與證據
 
@@ -43,11 +51,11 @@ Pi custom message：`customType:"monitor_event"`、`display:true`，固定 untru
 
 - `schemaVersion:1`、`batchSequence`（owner runtime 遞增）。
 - `events[]`：`eventId`／`monitorId`（uppercase ULID）、`sequence`（per-monitor）、`observedAt`、`category:"data"|"system"`、`kind`、可選 `text`／`snapshot`、`partial`、`originalBytes`。
-- `monitors[]`：`monitorId`、`source`、`state`、可選 `stopReason`、`cleanupPending`、`cleanupEvidence`、`omitted`。Command cleanup：`sourceClosed`、`exitCode?`、`signal?`、`spawnError?`、`processTreeState:"unknown"`；WS：`closeCode?`／有界 `closeReason?`；job：`timerCleared`／`observedJobCanceled:false`。
+- `monitors[]`：`monitorId`、`source`、`wakeAgent`、`state`、可選 `stopReason`、`cleanupPending`、`cleanupEvidence`、`omitted`。Command cleanup：`sourceClosed`、`exitCode?`、`signal?`、`spawnError?`、`processTreeState:"unknown"`；WS：`closeCode?`／有界 `closeReason?`；job：`timerCleared`／`observedJobCanceled:false`。
 - `partial`；`submission:{state:"submitted",hostAcknowledgment:"unknown"}` 只描述提交意圖／callback返回，非真正持久化ack。
 
 `tests/fixtures/producer.ts` 的 `buildProducerFixtures()` 用實際核心與 Pi SessionManager 產生 success/failure/rate/expiry/cleanup-unknown persisted custom_message fixtures；`tests/producer.test.ts` 驗證 host shape。交由父agent接 Blackhole allowlist，代表性異常／terminal引用，不把每tick塞summary、不改old #N。本模組未修改Blackhole，不能宣稱壓縮共存已驗收。
 
 ## 驗證
 
-根 `npm run test:module -- monitor` 包含 strict typecheck、deterministic-clock單元、local command/WS transports、installed ws DNS/TLS/redirect probes、隔離離線 Pi1.1.0 host 的兩載入順序／四sources／managed child／reload。`tests/fixtures/monitor-production.mjs` 是乾淨 production deps 真實loader的 command＋WS／readonly provider registration probe；由根package runner複製執行。外部providers=0；合成provider只本地stub。人工TUI、真實遠端端點、其它OS與付費provider未由這些測試證明。
+根 `npm run test:module -- monitor` 包含 strict typecheck、deterministic-clock單元、local command/WS transports、installed ws DNS/TLS/redirect probes、隔離離線 Pi1.3.0 host 的兩載入順序／四sources／managed child／reload。`tests/fixtures/monitor-production.mjs` 是乾淨 production deps 真實loader的 command＋WS／readonly provider registration probe；由根package runner複製執行。外部providers=0；合成provider只本地stub。真實宿主 fixture 另驗預設true實際觸發離線模型回合且上下文含來源marker，false不新增回合；renderer測試含展開／收合、窄寬／Unicode、控制碼、legacy與unknown。人工TUI、真實遠端端點、其它OS與付費provider未由這些測試證明。

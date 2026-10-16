@@ -808,7 +808,7 @@ for (const mixedModes of [false, true]) {
 }
 
 for (const withUi of [false, true]) {
-	test(`untrusted project agent ignores confirmProjectAgents=false (${withUi ? "UI asks and denial cancels" : "no UI refuses"})`, async (t) => {
+	test(`untrusted project agent ignores a legacy confirmProjectAgents=false (${withUi ? "UI asks and denial cancels" : "no UI refuses"})`, async (t) => {
 		const root = await mkdtemp(join(tmpdir(), "pi-trust-test-"));
 		try {
 			const agentsDir = join(root, CONFIG_DIR_NAME, "agents");

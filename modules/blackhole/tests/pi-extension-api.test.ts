@@ -15,6 +15,7 @@ describe("extension API double", () => {
         process.execPath,
         [
           tsc,
+          "--ignoreConfig",
           "--noEmit",
           "--strict",
           "--skipLibCheck",

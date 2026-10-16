@@ -22,20 +22,20 @@ class ManualClock implements Clock {
   clear = (id: unknown) => { this.tasks.delete(id as number); };
   advance(ms: number) { this.time += ms; for (const [id, task] of [...this.tasks]) if (task.at <= this.time) { this.tasks.delete(id); task.fn(); } }
 }
-assert.equal(sdk.VERSION, '1.1.0'); sdk.initTheme('dark', false);
+assert.equal(sdk.VERSION, '1.3.0'); sdk.initTheme('dark', false);
 const mode = process.argv[2] ?? 'shell-first', home = homedir(), cwd = await import('node:fs/promises').then(fs => fs.realpath(join(home, 'workspace')).catch(async () => { await fs.mkdir(join(home, 'workspace')); return fs.realpath(join(home, 'workspace')); }));
 const agentDir = join(home, '.pi/agent'); await mkdir(agentDir, { recursive: true }); await writeFile(join(agentDir, 'auth.json'), '{}');
 const childProvider = fileURLToPath(new URL('./offline-provider.ts', import.meta.url));
 const monitorPath = fileURLToPath(new URL('../../src/index.ts', import.meta.url));
 await mkdir(join(cwd, 'config'), { recursive: true }); await writeFile(join(cwd, 'config/auth.json'), '{}');
 await writeFile(join(cwd, 'config/settings.json'), JSON.stringify({ extensions: [childProvider, monitorPath], defaultTools: ['barrier'], compaction: { enabled: false }, retry: { enabled: false }, cacheWarming: 'off', defaultProjectTrust: 'never' }));
-let runtime!: MonitorRuntime, calls = 0, rejectPreflight = false;
+let runtime!: MonitorRuntime, calls = 0, rejectPreflight = false, modelSawMonitor = false;
 const clock = new ManualClock();
 const monitorFactory: sdk.ExtensionFactory = pi => monitorExtension(pi, { clock, onRuntime: r => { runtime = r; } });
 const childLauncher = fileURLToPath(new URL('../../../subagents/tests/fixtures/background-child.mjs', import.meta.url));
 const cli = join(dirname(fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))), 'bundle/cli.js');
 const subagentFactory: sdk.ExtensionFactory = pi => subagentExtension(pi, { debugLog: false, sessionRootDir: join(cwd, 'managed'), settingsAgentDir: join(cwd, 'config'), invocation: args => ({ command: process.execPath, args: [childLauncher, cwd, cli, ...args] }) });
-const observer: sdk.ExtensionFactory = pi => { offlineProvider(pi); pi.on('before_provider_request', () => { calls++; }); pi.on('before_agent_start', event => { if (rejectPreflight) (event.systemPromptOptions as any).selectedTools = null; }); };
+const observer: sdk.ExtensionFactory = pi => { offlineProvider(pi); pi.on('context', event => { modelSawMonitor ||= JSON.stringify(event.messages).includes('MONITOR_WAKE_MODEL_BARRIER'); }); pi.on('before_provider_request', () => { calls++; }); pi.on('before_agent_start', event => { if (rejectPreflight) (event.systemPromptOptions as any).selectedTools = null; }); };
 const factories = mode === 'monitor-first' ? [monitorFactory, shellExtension, subagentFactory, observer] : [shellExtension, subagentFactory, monitorFactory, observer];
 const names = ['monitor_start', 'monitor_status', 'monitor_stop'];
 const settings = sdk.SettingsManager.inMemory({ defaultTools: [], retry: { enabled: false }, compaction: { enabled: false }, cacheWarming: 'off', defaultProjectTrust: 'never' });
@@ -130,6 +130,21 @@ try {
     await childEntered; assert.throws(() => childLease.snapshot(jobId)); releaseChild(); await reloading;
   } finally { releaseShell(); releaseChild(); ShellJobs.prototype.shutdown = shellShutdown; BackgroundJobs.prototype.shutdown = childShutdown; await reloading; }
   assert.deepEqual((await execute('monitor_status', {})).structuredContent, { monitors: [] }); assert.equal((await execute('monitor_status', { monitorId: oldId })).isError, true);
+  // Default wakeAgent must cause an actual model request, not just a visible
+  // transcript event. Observe the converted model context at the host boundary.
+  const beforeWakeCalls = calls;
+  let finishWake!: () => void;
+  const woke = new Promise<void>(resolve => { finishWake = resolve; });
+  const unsubscribe = session.subscribe(event => { if (event.type === 'agent_settled' && modelSawMonitor) finishWake(); });
+  try {
+    const wake = await execute('monitor_start', { source: { kind: 'command', tool: 'bash', command: "printf 'MONITOR_WAKE_MODEL_BARRIER\\n'" } });
+    assert.ok(!wake.isError, JSON.stringify(wake));
+    const wakeId = (wake.structuredContent as any).monitorId;
+    assert.equal(runtime.status(wakeId).wakeAgent, true);
+    await runtime.settled(wakeId); clock.advance(30000); await woke; await session.waitForIdle();
+    assert.equal(calls, beforeWakeCalls + 1, 'default wakeAgent must trigger exactly one offline model call');
+    assert.equal(modelSawMonitor, true, 'Monitor source text must reach model context');
+  } finally { unsubscribe(); }
   assert.deepEqual(errors, []);
   console.log(JSON.stringify({ status: 'passed', host: sdk.VERSION, mode, sources: ['command', 'websocket', 'shell_job', 'subagent_job'], providerCalls: 0, fixtureModelCalls: calls, childClosed: true, noAck: true }));
 } finally { await session.extensionRunner!.emit({ type: 'session_shutdown', reason: 'quit' }); session.dispose(); }

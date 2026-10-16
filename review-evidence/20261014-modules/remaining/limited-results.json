@@ -1,0 +1,72 @@
+{
+  "samples": [
+    {
+      "id": "G5-003",
+      "iteration": 1,
+      "seam": "runCommand boundary outcome substitution; no OS child/pipe, does not test close-wait timer",
+      "drain": {
+        "pending": 0,
+        "cleanupFailures": []
+      },
+      "cleanupDiagnosticEmitted": false,
+      "nativeFailureReproduced": false,
+      "classification": "partial observation only; not counted as confirmed product defect"
+    },
+    {
+      "id": "G5-005",
+      "iteration": 1,
+      "seam": "direct logger API, async append barrier, bounded 16x16KiB events; not actual OM event-rate pipeline",
+      "preservedEvents": 17,
+      "bufferedPayloadBytes": 262144,
+      "finalLogBytes": 263820,
+      "hardLimitFailureObserved": false,
+      "classification": "capacity risk remains unverified; bounded sample does not prove unbounded exhaustion"
+    },
+    {
+      "id": "G5-003",
+      "iteration": 2,
+      "seam": "runCommand boundary outcome substitution; no OS child/pipe, does not test close-wait timer",
+      "drain": {
+        "pending": 0,
+        "cleanupFailures": []
+      },
+      "cleanupDiagnosticEmitted": false,
+      "nativeFailureReproduced": false,
+      "classification": "partial observation only; not counted as confirmed product defect"
+    },
+    {
+      "id": "G5-005",
+      "iteration": 2,
+      "seam": "direct logger API, async append barrier, bounded 16x16KiB events; not actual OM event-rate pipeline",
+      "preservedEvents": 17,
+      "bufferedPayloadBytes": 262144,
+      "finalLogBytes": 527640,
+      "hardLimitFailureObserved": false,
+      "classification": "capacity risk remains unverified; bounded sample does not prove unbounded exhaustion"
+    },
+    {
+      "id": "G5-003",
+      "iteration": 3,
+      "seam": "runCommand boundary outcome substitution; no OS child/pipe, does not test close-wait timer",
+      "drain": {
+        "pending": 0,
+        "cleanupFailures": []
+      },
+      "cleanupDiagnosticEmitted": false,
+      "nativeFailureReproduced": false,
+      "classification": "partial observation only; not counted as confirmed product defect"
+    },
+    {
+      "id": "G5-005",
+      "iteration": 3,
+      "seam": "direct logger API, async append barrier, bounded 16x16KiB events; not actual OM event-rate pipeline",
+      "preservedEvents": 17,
+      "bufferedPayloadBytes": 262144,
+      "finalLogBytes": 791460,
+      "hardLimitFailureObserved": false,
+      "classification": "capacity risk remains unverified; bounded sample does not prove unbounded exhaustion"
+    }
+  ],
+  "cleanup": true,
+  "evidenceLimit": "Unit fault injection/limited load only; not real native close-unconfirmed, OM hook rate or resource exhaustion proof"
+}

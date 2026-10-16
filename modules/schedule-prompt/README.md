@@ -105,6 +105,21 @@ The widget displays below your editor (only when jobs exist):
   ✓ review-pr     Feb 13 15:30    review PR #123            in 2h     never    0
 ```
 
+### Shell command jobs (local adaptation)
+
+A job can run a shell **command** instead of a prompt: `schedule_prompt add` with exactly one of `prompt` or `command` (plus optional `shell` = `bash`|`powershell`, `cwd`, `timeoutMs`), the `/schedule-prompt` Jobs overlay (`m`) or the dialog menu (`Add shell command job`).
+
+- **Confirmation**: the exact command, shell, directory and stall timeout are shown and must be confirmed in an interactive session (a tool call without a UI is refused). Changing the command, shell or directory, or enabling a command job, asks again; a peer edit made while a dialog was open is refused rather than silently enabled.
+- **Execution**: runs in this Pi process through the same Shell backend helper as Monitor (Pi's shell resolution, environment and process-tree cancellation), never starts a model and never wakes the parent. Overlapping runs of one job are skipped; at most 4 command runs are active at once.
+- **Directory**: default is the project directory. It is re-resolved (realpath) at every fire and never falls back. A directory outside the project runs only after this process approved exactly that command/shell/directory (the approval is in memory, never persisted, and is lost on reload); otherwise the run is refused and one error marker is shown per failure streak.
+- **Timeout**: `timeoutMs` (default 300000) is an *output-stall* deadline, not a total limit: the command is stopped after that long without output. Stopping is a cancellation request; descendant processes that survive may keep running, and the result says so.
+- **Output**: only the last ~500 characters appear in a display-only chat marker (`command_start`/`command_done`/`command_error`); model-visible content is empty, so output is never sent to the model.
+- **Not a sandbox**: the command has your permissions. Stored jobs run without a fresh approval inside the trusted project, exactly like prompt jobs.
+
+### Deferred loading (local adaptation)
+
+`schedule_prompt` is registered as a deferred tool (namespace `schedule`) so its large definition is not sent until needed. This module only declares `exposure` and `namespace`; activating `tool_search`, the fallback without it and the prompt hint are handled once for every module by Pi Runtime (`modules/pi-runtime/README.md`, "Deferred 工具"), with no `defaultTools` setting needed. Tool name, parameters, `.pi/schedule-prompts*.json` storage and trust semantics are unchanged; a tool excluded by `--tools`/`--exclude-tools` is neither declared nor loadable.
+
 ### Manual commands
 
 `/schedule-prompt` opens a two-item menu:

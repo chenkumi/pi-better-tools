@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { validationPool } from "./validation-pool.ts";
 export { VALIDATION_BUDGET_MS } from "./validation-pool.ts";
 import { assertSafeSchemaPattern } from "./pattern-policy.ts";
-import { withoutSchemaDefaults } from "./validation-schema.mjs";
+import { toZodSchema } from "./validation-schema.mjs";
 
 import type { ZodType } from "zod";
 
@@ -82,6 +82,11 @@ function audit(node: unknown, path: string): void {
       if (!values.every(value => types.some(type => matches(value, type)))) throw new Error(`"type" at ${path} cannot conflict with enum/const values`);
     }
   }
+  if (Array.isArray(node.required) && node.additionalProperties === false) {
+    const declared = isRecord(node.properties) ? node.properties : {};
+    const missing = node.required.find(name => !Object.hasOwn(declared, name));
+    if (missing !== undefined) throw new Error(`"required" name "${String(missing)}" at ${path} is not declared in properties while additionalProperties is false`);
+  }
   const constrains = Object.keys(node).find((keyword) => TYPE_SPECIFIC_KEYWORDS.has(keyword));
   const anchored = "type" in node || "$ref" in node || "enum" in node || "const" in node;
   if (constrains && !anchored) throw new Error(`"${constrains}" at ${path} needs an explicit "type" (it would be ignored otherwise)`);
@@ -157,7 +162,7 @@ export function compileSchema(text: string): CompiledSchema {
 
   let validator: ZodType;
   try {
-    validator = loadZod().z.fromJSONSchema(withoutSchemaDefaults(parsed) as never);
+    validator = loadZod().z.fromJSONSchema(toZodSchema(parsed) as never);
   } catch (error) {
     throw new Error(`schema cannot be compiled: ${error instanceof Error ? error.message : String(error)}`);
   }

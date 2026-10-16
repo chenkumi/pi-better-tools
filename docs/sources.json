@@ -1,6 +1,58 @@
 {
   "modules": [
     {
+      "module": "sql-connector",
+      "packageName": "pi-sql-connector",
+      "version": "0.1.0",
+      "sourcePath": "D:/projects/pi-sql-connector",
+      "sourceCommit": null,
+      "importedAt": "2026-10-15",
+      "sourceManifestSha256": "a01f94779cce8b780392babffdecc7d4ea506c21db0673c66a8a00146bf1b0b0",
+      "sourceLockSha256": "e4df0a8e0ca6eb664d3b7c2eeaf68dd3788bc199d7e959ec43a14cb9be3399bd",
+      "files": [
+        { "path": "src/index.ts", "sourceFile": "extensions/index.ts", "sha256": "1d9bd021290ed221afca9f2d272d4c005073afbe72ce4cadb0643ceb02bc003c" },
+        { "path": "src/config.ts", "sha256": "048d36837ce05a629031ce114bf6fab8b90daf443ecb3b4a1ad6541522f9bbe0" },
+        { "path": "src/runtime.ts", "sha256": "8e5bca546a73bf486091d12ed34dfe95b74c2c8986b50525b540e2d9ba2458a5" },
+        { "path": "src/tools.ts", "sha256": "f563b24c1975bf05854b2310b1571d1801b215497a04f42ad5943149604d25e2" },
+        { "path": "src/prompt.ts", "sha256": "06895db2177f025a21ff8018ac632d69a2fde9ed053ba68c9c377a73afcb5740" },
+        { "path": "src/types.ts", "sha256": "bfeab12ee7256995fcc419c66870fdc2c0df29b93faa7b7acf877fe5ad4de00b" },
+        { "path": "src/output.ts", "sha256": "85ba37357a1f3ef0d17f24ced2b2328065efd2aefd432a0a060b0480ae87d94b" },
+        { "path": "src/security/sql-policy.ts", "sha256": "a5f84aac140cb45640cde9c664a638a87df45dae4d3ff099263ba2884f5e32fb" },
+        { "path": "test/config.test.ts", "sha256": "ccfa41160c89b14edfbdc2a635d9b2db203f129c785cda09e0ff919532581329" },
+        { "path": "test/extension.test.ts", "sha256": "221a204029ee9e2ff379e33ff6db60a84498c6dcd1e9e6943d56110ff3f3506b" },
+        { "path": "test/security-and-prompt.test.ts", "sha256": "fc95a66757dd2d98a89dd33ec8ba91114a98ec70f579d9ca2d77be800e9d97fc" },
+        { "path": "README.md", "sha256": "ea1eb27c92d2490545298ecb14e4aa70e170016c002c916686e8850b17e63538" },
+        { "path": "tsconfig.json", "sha256": "eaf3aef05da611725356b70503195a9f82ab763f0358fcc19eb4e37904a4d65a" },
+        { "path": "examples/sql-connector.example.json", "sha256": "fa4db55cda4927ff4f7d6f8c559c19c3b8d608ce65a131c3ff9f14a849021abd" }
+      ],
+      "adaptations": [],
+      "licenseStatus": "User-owned source declares MIT; no source LICENSE file exists; root MIT applies to integration",
+      "sourceMetadata": "Local directory without .git; original manifest/lock hashes recorded only. Root pins source-locked mysql2 3.24.4, mssql 12.7.2, pg 8.23.0, optional msnodesqlv8 5.5.0 and type packages; no nested installation unit, source node_modules, project settings or credentials imported. Original Pi 0.85.1 dev baseline is historical; integrated host is Pi 1.2.0."
+    },
+    {
+      "module": "sqlite-tools",
+      "packageName": "pi-sqlite-tools",
+      "version": "0.1.0",
+      "sourcePath": "D:/projects/pi-sqlite-tools",
+      "sourceCommit": null,
+      "importedAt": "2026-10-15",
+      "sourceManifestSha256": "aa82a550ebb5788c00a8123d259bd0667ce41048d10bd3387fec1eba3227494c",
+      "sourceLockSha256": "0c557cd12779c533994ffc1a5f4066d83d865400792fffa59c55dd02ded8c93f",
+      "files": [
+        { "path": "src/index.ts", "sourceFile": "extensions/sqlite/index.ts", "sha256": "9c590036e2d49c95034c53bbd4a5d3f820b900385bdc3e79a2a5822e8f9a157b" },
+        { "path": "src/sqlite-manager.ts", "sourceFile": "extensions/sqlite/sqlite-manager.ts", "sha256": "5819ca6500305bf256231a922be04a6c0ef37eb7c1c149cd1d35479dfff942bc" },
+        { "path": "tests/extension.test.ts", "sourceFile": "extensions/sqlite/test/extension.test.ts", "sha256": "20c5068b96ca12470127b4f81e930610645dddd151da80977dcd7c228fc3124b" },
+        { "path": "tests/sqlite-manager.test.ts", "sourceFile": "extensions/sqlite/test/sqlite-manager.test.ts", "sha256": "d00f9c41826480bf2f1318f2c2ef5f754752e12d03d137337981a73b60b4442f" },
+        { "path": "tests/sdk.integration.test.ts", "sourceFile": "extensions/sqlite/test/sdk.test.ts", "sha256": "fc5af7716e4a78c6e66909e0f374d38225588fd8d887fd9a1068ab98fdabda91" },
+        { "path": "README.md", "sha256": "7aadb369df5bfbebfffa53e2a573e4cd378a7f88d980d0a119a4ba269923b96d" },
+        { "path": "LICENSE", "sha256": "4a0ffb556276897231cb5e03df942352f2474e8f809841cc17a26ef36ede6d54" },
+        { "path": "tsconfig.json", "sha256": "f15e05f39213632c79e8ca14480679a843b6f5e72e89887eafe7a6544937b327" }
+      ],
+      "adaptations": [],
+      "licenseStatus": "User-owned source; original MIT notice preserved",
+      "sourceMetadata": "Local directory without .git. sourceFile maps relocated files to immutable original paths for --originals verification. Root manifest/lockfile is the only install unit; no source node_modules, settings, database, manifest or lockfile is imported. Node-native SQLite manager unchanged; deferred namespace/hint metadata and Pi 1.2.0 test adaptation are recorded separately."
+    },
+    {
       "module": "pty-terminal",
       "packageName": "pi-pty-terminal",
       "version": "0.1.0",

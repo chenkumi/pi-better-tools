@@ -13,29 +13,35 @@ export const renderScheduledMessage: MessageRenderer = (message, { expanded }, t
   // Legacy skipped messages had no structured flag. Match only our exact
   // historical runner reason, not arbitrary model text beginning with Skipped.
   const skipped = d.skipped === true || (d.mode === "subagent_done" && d.output === "Skipped: deadline reached or job unavailable before prompt start");
-  const failed = d.mode === "subagent_error";
-  const done = d.mode === "subagent_done" && !skipped;
-  const label = skipped ? "skipped" : failed ? "failed" : done ? "finished" : d.mode === "subagent_start" ? "starting" : legacy || d.mode ? "message (status unknown)" : "delivered (not completed)";
+  const isCommand = typeof d.mode === "string" && d.mode.startsWith("command_");
+  const failed = d.mode === "subagent_error" || d.mode === "command_error";
+  const done = (d.mode === "subagent_done" || d.mode === "command_done") && !skipped;
+  const label = skipped ? "skipped" : failed ? "failed" : done ? "finished" : d.mode === "subagent_start" || d.mode === "command_start" ? "starting" : legacy || d.mode ? "message (status unknown)" : "delivered (not completed)";
   const background = skipped ? "toolPendingBg" : failed ? "toolErrorBg" : done ? "toolSuccessBg" : "toolPendingBg";
   const color = skipped ? "warning" : failed ? "error" : done ? "success" : "accent";
   const rows: { text: string; color: Parameters<typeof theme.fg>[0] }[] = [{ text: `${skipped ? "!" : failed ? "✗" : done ? "✓" : "○"} Scheduled ${label}: ${clean(d.jobName, 240).replace(/\n/g, " ") || "Unknown"}`, color }];
   if (d.model) rows.push({ text: `Model: ${clean(d.model, 240).replace(/\n/g, " ")}`, color: "dim" });
+  const shellName = clean(d.shell, 32).replace(/\n/g, " ");
+  const commandRow = () => `Command${shellName ? ` (${shellName})` : ""}: ${clean(d.command, expanded ? 8000 : 240).replace(/\n/g, " ")}`;
+  if (isCommand && d.command) rows.push({ text: commandRow(), color: "accent" });
   if (expanded) {
     rows.push({ text: `Job: ${clean(d.jobId, 200) || "(unknown)"}`, color: "dim" });
+    if (isCommand && d.cwd) rows.push({ text: `Directory: ${clean(d.cwd, 4000).replace(/\n/g, " ")}`, color: "dim" });
+    if (isCommand && typeof d.exitCode === "number" && Number.isFinite(d.exitCode)) rows.push({ text: `Exit code: ${d.exitCode}`, color: "dim" });
     if (d.prompt) rows.push({ text: `Prompt: ${clean(d.prompt)}`, color: "dim" });
   }
   const sourceOutput = failed ? d.error : d.output ?? (legacy ? content : undefined);
   const output = clean(sourceOutput);
   if (output) {
-    rows.push({ text: skipped ? "Reason:" : failed ? "Error:" : "Result (untrusted):", color: failed ? "error" : "dim" });
+    rows.push({ text: skipped ? "Reason:" : failed ? "Error:" : isCommand ? "Command output (untrusted):" : "Result (untrusted):", color: failed ? "error" : "dim" });
     const lines = output.split("\n").filter(line => line.trim());
     rows.push({ text: expanded ? output : lines.slice(0, 3).map(line => truncateToWidth(line, 240)).join("\n"), color: failed ? "error" : "dim" });
     if (typeof sourceOutput === "string" && sourceOutput.length > 16000) {
       rows.push({ text: "… Display truncated (message content unchanged)", color: "warning" });
     }
-  } else if (done || failed || skipped) rows.push({ text: "(No result retained in this message)", color: "dim" });
+  } else if (done || failed || skipped) rows.push({ text: isCommand ? "(No output retained)" : "(No result retained in this message)", color: "dim" });
   else if (!expanded && d.prompt) rows.push({ text: `Prompt: ${clean(d.prompt, 240).replace(/\n/g, " ")}`, color: "dim" });
-  if (!expanded) rows.push({ text: "Expand for job ID, prompt and retained result", color: "dim" });
+  if (!expanded) rows.push({ text: isCommand ? "Expand for job ID, command and retained result" : "Expand for job ID, prompt and retained result", color: "dim" });
   return {
     render(width) {
       const outerWidth = Math.max(0, Math.floor(width));

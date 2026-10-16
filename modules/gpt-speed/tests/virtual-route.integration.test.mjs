@@ -3,7 +3,7 @@
 // Correct behaviour: service_tier must follow the model that actually receives the request.
 // Status: a virtual selected model is never injected (api === 'pi-virtual'); injection for a virtual->GPT route stays todo.
 // Run: node --import tsx --test modules/gpt-speed/tests/virtual-route.integration.test.mjs
-// Fidelity: real Pi 1.1.0 host + real gpt-speed extension + real virtual-model routing; the physical providers are
+// Fidelity: real Pi 1.2.0 host + real gpt-speed extension + real virtual-model routing; the physical providers are
 // offline fakes that call options.onPayload (= before_provider_request hooks) exactly like a real provider and record the result.
 // No real OpenAI service is involved, so acceptance of `priority`/`ultrafast` by a real service is NOT verified here.
 import assert from 'node:assert/strict';

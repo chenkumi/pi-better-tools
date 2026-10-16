@@ -3,6 +3,7 @@ import * as path from "path";
 import type { CronJob, CronStore } from "./types.js";
 import { deadlineState } from "./deadline.js";
 import { intervalError, parseInterval } from "./interval.js";
+import { jobKindError } from "./command.js";
 
 const RENAME_RETRIES = 5;
 
@@ -18,12 +19,13 @@ function isJobShape(value: unknown): value is CronJob {
   const selections = (v: unknown) => v === undefined || typeof v === "boolean" ||
     (Array.isArray(v) && v.every((item) => typeof item === "string"));
   return typeof j.id === "string" && j.id.length > 0 && typeof j.name === "string" &&
-    typeof j.schedule === "string" && typeof j.prompt === "string" &&
+    typeof j.schedule === "string" && (j.prompt === undefined || typeof j.prompt === "string") &&
+    jobKindError(j as Partial<CronJob>) === undefined &&
     typeof j.enabled === "boolean" && ["cron", "once", "interval"].includes(j.type as string) &&
     (j.intervalMs === undefined || (typeof j.intervalMs === "number" && Number.isFinite(j.intervalMs) && j.intervalMs > 0)) &&
     (j.type !== "interval" || typeof j.intervalMs === "number") &&
     (j.runCount === undefined || (typeof j.runCount === "number" && Number.isSafeInteger(j.runCount) && j.runCount >= 0)) &&
-    ["createdAt", "lastRun", "nextRun", "description", "session"].every(optionalString) &&
+    ["createdAt", "lastRun", "nextRun", "description", "session", "cwd"].every(optionalString) &&
     (j.model === undefined || (typeof j.model === "string" && j.model.trim().length > 0)) &&
     (j.notify === undefined || typeof j.notify === "boolean") &&
     (j.lastStatus === undefined || ["running", "success", "error"].includes(j.lastStatus as string)) &&

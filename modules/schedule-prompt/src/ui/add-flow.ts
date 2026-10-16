@@ -11,7 +11,9 @@ import { CronScheduler } from "../scheduler.js";
 import { deadlineLabel, normalizeEndAt, validateJobDeadline } from "../deadline.js";
 import type { ScheduleSettings } from "../settings.js";
 import type { CronStorage } from "../storage.js";
-import type { CronJob } from "../types.js";
+import type { CommandShell, CronJob } from "../types.js";
+import { MAX_TIMEOUT_MS } from "../../../shell-tools/src/timeout-ms.mjs";
+import { COMMAND_SHELLS, commandSpecLines, defaultCommandShell, isValidCommandTimeout, resolveCommandCwd } from "../command.js";
 
 export async function runAddFlow(
   ctx: ExtensionCommandContext,
@@ -19,6 +21,7 @@ export async function runAddFlow(
   scheduler: CronScheduler,
   settings: ScheduleSettings,
   mySessionId: string | undefined,
+  kind: "prompt" | "command" = "prompt",
 ): Promise<void> {
   const name = await ctx.ui.input("Job Name", "Enter a name for this scheduled prompt");
   if (!name) return;
@@ -83,8 +86,44 @@ export async function runAddFlow(
     }
   }
 
-  const prompt = await ctx.ui.input("Prompt", "Enter the prompt to execute");
-  if (!prompt) return;
+  let prompt: string | undefined;
+  let command: string | undefined;
+  let shell: CommandShell | undefined;
+  let cwd: string | undefined;
+  let timeoutMs: number | undefined;
+  if (kind === "command") {
+    const rawCommand = await ctx.ui.input("Command", "Shell command to run on every trigger");
+    if (!rawCommand || !rawCommand.trim()) return;
+    command = rawCommand;
+    const fallback = defaultCommandShell();
+    const shellChoice = await ctx.ui.select("Shell", [fallback, ...COMMAND_SHELLS.filter((s) => s !== fallback)]);
+    if (!shellChoice) return;
+    shell = shellChoice as CommandShell;
+
+    // Empty keeps the default (the project directory, not frozen); a given one is stored as its real path.
+    let cwdHint = "Directory relative to the project (empty = project directory)";
+    while (true) {
+      const raw = await ctx.ui.input("Directory", cwdHint);
+      if (raw === undefined) return;
+      if (raw.trim() === "") break;
+      const resolved = resolveCommandCwd(ctx.cwd, raw.trim());
+      if (resolved.ok) { cwd = resolved.cwd; break; }
+      cwdHint = resolved.error;
+    }
+
+    let timeoutHint = "Output-stall deadline in ms (empty = default 300000)";
+    while (true) {
+      const raw = await ctx.ui.input("Stall timeout (ms)", timeoutHint);
+      if (raw === undefined) return;
+      if (raw.trim() === "") break;
+      const value = Number(raw.trim());
+      if (/^\d+$/.test(raw.trim()) && isValidCommandTimeout(value)) { timeoutMs = value; break; }
+      timeoutHint = `Must be an integer from 1 to ${MAX_TIMEOUT_MS}`;
+    }
+  } else {
+    prompt = await ctx.ui.input("Prompt", "Enter the prompt to execute");
+    if (!prompt) return;
+  }
 
   // Last decision before save. Default option is listed first, picked up
   // from the global `defaultJobScope` setting — so hitting enter takes the
@@ -101,9 +140,12 @@ export async function runAddFlow(
 
   const human = CronScheduler.describeSchedule(jobType, schedule);
   const scopeLabel = session ? "session-bound" : "shared (any pi here)";
+  const detail = command !== undefined
+    ? commandSpecLines(ctx.cwd, { command, shell, cwd, timeoutMs }).join("\n")
+    : `Prompt: ${prompt}`;
   const confirmed = await ctx.ui.confirm(
-    "Confirm",
-    `Save "${name}"?\nSchedule: ${human}\n${deadlineLabel(endAt)}\nScope: ${scopeLabel}\nPrompt: ${prompt}`,
+    command !== undefined ? "Confirm scheduled command" : "Confirm",
+    `Save "${name}"?\nSchedule: ${human}\n${deadlineLabel(endAt)}\nScope: ${scopeLabel}\n${detail}`,
   );
   if (!confirmed) return;
 
@@ -113,6 +155,10 @@ export async function runAddFlow(
     schedule,
     endAt,
     prompt,
+    command,
+    shell,
+    cwd,
+    timeoutMs,
     enabled: true,
     type: jobType,
     intervalMs,
@@ -127,7 +173,11 @@ export async function runAddFlow(
     ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
     return;
   }
+  if (command !== undefined && !scheduler.approveCommand(job)) {
+    ctx.ui.notify("The working directory is no longer available; nothing was saved.", "error");
+    return;
+  }
   storage.addJob(job);
   scheduler.addJob(job);
-  ctx.ui.notify(`Created scheduled prompt: ${name} (${human})`, "info");
+  ctx.ui.notify(`Created scheduled ${command !== undefined ? "command" : "prompt"}: ${name} (${human})`, "info");
 }

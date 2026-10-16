@@ -114,7 +114,7 @@ test(`packaged extension with real Pi ${hostVersion} loader`, { timeout: 120000 
     });
 
     const advanced = typeof sdk.createCodemodeExtension === "function";
-    if (hostVersion === "1.1.0") assert.equal(advanced, true, `Pi ${hostVersion} must execute the advanced probes, not silently skip them`);
+    if (hostVersion === "1.3.0") assert.equal(advanced, true, `Pi ${hostVersion} must execute the advanced probes, not silently skip them`);
     const events = [];
     let tools;
     let parallelSuccess;

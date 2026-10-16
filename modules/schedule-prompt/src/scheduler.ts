@@ -6,6 +6,11 @@ import type { CronStorage } from "./storage.js";
 import { isProjectTrusted } from "./trust.js";
 import { runSubagentOnce, type SubagentResult } from "./subagent.js";
 import type { CronChangeEvent, CronJob, CronJobType } from "./types.js";
+import {
+  COMMAND_ABORT_GRACE_MS, COMMAND_CLOSE_WAIT_MS, COMMAND_EXIT_IDLE_MS, COMMAND_OUTPUT_TAIL_BYTES, CommandApprovals,
+  DEFAULT_COMMAND_TIMEOUT_MS, MAX_CONCURRENT_COMMANDS, defaultCommandShell, resolveCommandCwd,
+} from "./command.js";
+import { execMonitorCommand } from "../../shell-tools/src/monitor-exec.ts";
 
 /** Result of `CronScheduler.validateSchedule`. On success, `schedule` is the
  *  resolved form to persist (ISO for `once`, original for `cron`/`interval`). */
@@ -44,6 +49,11 @@ export class CronScheduler {
   private activeSubagents = new Set<AbortController>();
   /** Model jobs with a run in flight: a slow run must not be overlapped by its next tick. */
   private runningSubagentJobs = new Set<string>();
+  /** Command jobs with a run in flight (a slow command is never overlapped by its next tick) and their controllers. */
+  private runningCommandJobs = new Set<string>();
+  private activeCommands = new Set<AbortController>();
+  /** In-process only: specs a person approved for a directory outside the project (never persisted). */
+  private commandApprovals = new CommandApprovals();
   /** Exception only for this scheduler's once auto-disable during an admitted run. */
   private autoDisabledOnceJobs = new Set<string>();
   /** Admission is closed by stop(); reopened only by an explicit start(). */
@@ -122,6 +132,10 @@ export class CronScheduler {
       controller.abort();
     }
     this.activeSubagents.clear();
+    for (const controller of this.activeCommands) controller.abort();
+    this.activeCommands.clear();
+    this.runningCommandJobs.clear();
+    this.commandApprovals.clear();
     this.runningSubagentJobs.clear();
     this.autoDisabledOnceJobs.clear();
   }
@@ -318,7 +332,7 @@ export class CronScheduler {
   private sameOnce(expected: CronJob, fresh: CronJob): boolean {
     return fresh.enabled && fresh.type === "once" && fresh.session === expected.session &&
       CronScheduler.isLoadedFor(fresh, this.ctx.sessionManager.getSessionId()) &&
-      (["schedule", "prompt", "model", "endAt", "notify", "extensions", "skills"] as const)
+      (["schedule", "prompt", "model", "endAt", "notify", "extensions", "skills", "command", "shell", "cwd", "timeoutMs"] as const)
         .every(key => JSON.stringify(fresh[key]) === JSON.stringify(expected[key]));
   }
 
@@ -471,7 +485,9 @@ export class CronScheduler {
     const job = fresh;
     if (!this.checkDeadline(job)) return false;
 
-    console.log(`Executing scheduled prompt: ${job.name} (${job.id})`);
+    console.log(`Executing scheduled ${job.command !== undefined ? "command" : "prompt"}: ${job.name} (${job.id})`);
+
+    if (job.command !== undefined) return this.executeCommandJob(job);
 
     if (job.model) {
       return this.executeJobInSubagent(job);
@@ -504,7 +520,7 @@ export class CronScheduler {
 
       // Then send the actual prompt to the agent — this is the single LLM-visible delivery.
       if (!this.readyAfterPreparation(job, previousStatus)) return false;
-      this.pi.sendUserMessage(job.prompt, { deliverAs: "followUp" });
+      this.pi.sendUserMessage(job.prompt!, { deliverAs: "followUp" });
 
       // Increment the freshly read counter within the same locked mutation,
       // so another session's completed run cannot be overwritten.
@@ -580,7 +596,7 @@ export class CronScheduler {
       try {
         let result: SubagentResult;
         try {
-          result = await runSubagentOnce(this.ctx, job.prompt, model, controller.signal,
+          result = await runSubagentOnce(this.ctx, job.prompt!, model, controller.signal,
             { extensions: job.extensions, skills: job.skills }, () => {
               if (controller.signal.aborted) return false;
               const fresh = this.storage.getJob(job.id);
@@ -698,6 +714,157 @@ export class CronScheduler {
         // Outer backstop: anything else (e.g. storage write failure) shouldn't
         // escape the IIFE as an unhandled rejection.
         console.error(`Subagent completion handler failed for job ${job.id}:`, error);
+      }
+    })();
+    this.childRuns.add(run);
+    void run.finally(() => this.childRuns.delete(run));
+    return true;
+  }
+
+  /**
+   * Record that a person approved exactly this command/shell/directory for this process. Required only for a
+   * directory outside the project; prompt jobs trivially qualify. Returns false when the directory is unusable.
+   */
+  approveCommand(job: CronJob): boolean {
+    if (job.command === undefined) return true;
+    const resolved = resolveCommandCwd(this.ctx.cwd, job.cwd);
+    if (!resolved.ok) return false;
+    this.commandApprovals.approve(job.command, job.shell ?? defaultCommandShell(), resolved.cwd);
+    return true;
+  }
+
+  /** Refused before any process exists: one chat marker per failure streak, one change event per tick. */
+  private refuseCommand(job: CronJob, shell: string, error: string, cwd?: string): false {
+    const firstOfStreak = job.lastStatus !== "error";
+    this.storage.updateJob(job.id, { lastRun: new Date().toISOString(), lastStatus: "error" });
+    this.emitChange({ type: "error", jobId: job.id, error });
+    if (firstOfStreak) this.postCommandMarker("command_error", job, shell, cwd ?? job.cwd, { error });
+    return false;
+  }
+
+  /** Visible-only marker: output stays in `details` (display/state); model-visible content is empty and never wakes the parent. */
+  private postCommandMarker(mode: string, job: CronJob, shell: string, cwd: string | undefined, extra: Record<string, unknown> = {}): void {
+    try {
+      this.pi.sendMessage(
+        { customType: "scheduled_prompt", content: [], display: true,
+          details: { jobId: job.id, jobName: job.name, mode, command: job.command, shell, cwd, ...extra } },
+        { triggerTurn: false },
+      );
+    } catch (error) {
+      console.error(`Failed to post ${mode} marker for job ${job.id}:`, error);
+    }
+  }
+
+  /**
+   * Run a shell command job through the Shell backend helper (same shell resolution, environment and process-tree
+   * cancellation as Monitor). Fire-and-forget like subagent runs; the result is a display marker only.
+   */
+  private executeCommandJob(job: CronJob): boolean {
+    const shell = job.shell ?? defaultCommandShell();
+    if (this.runningCommandJobs.has(job.id)) {
+      console.warn(`Skipping job ${job.id} (${job.name}): previous run is still in progress`);
+      return false;
+    }
+    if (this.activeCommands.size >= MAX_CONCURRENT_COMMANDS) {
+      console.warn(`Skipping job ${job.id} (${job.name}): ${MAX_CONCURRENT_COMMANDS} command runs already active`);
+      this.emitChange({ type: "error", jobId: job.id, error: "Skipped: too many scheduled command runs active" });
+      return false;
+    }
+    // Resolved at every fire: a swapped link or deleted directory is caught, and there is never a fallback directory.
+    const resolved = resolveCommandCwd(this.ctx.cwd, job.cwd);
+    if (!resolved.ok) return this.refuseCommand(job, shell, resolved.error);
+    if (resolved.outsideProject && !this.commandApprovals.isApproved(job.command!, shell, resolved.cwd)) {
+      return this.refuseCommand(job, shell, `Working directory ${resolved.cwd} is outside the project and was not approved in this session; re-enable or re-add the job to approve it`, resolved.cwd);
+    }
+    const cwd = resolved.cwd, command = job.command!;
+    const previousStatus = job.lastStatus;
+    this.storage.updateJob(job.id, { lastStatus: "running" });
+    this.emitChange({ type: "fire", job });
+    if (!this.readyAfterPreparation(job, previousStatus)) return false;
+    this.postCommandMarker("command_start", job, shell, cwd);
+    if (!this.readyAfterPreparation(job, previousStatus)) return false;
+
+    const controller = new AbortController();
+    this.activeCommands.add(controller);
+    this.runningCommandJobs.add(job.id);
+    const stallMs = job.timeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS;
+
+    const run = (async () => {
+      let chunks: Buffer[] = [], size = 0, truncated = false;
+      let stallTimer: ReturnType<typeof setTimeout> | undefined, closeTimer: ReturnType<typeof setTimeout> | undefined;
+      let stalled = false, closed: { code: number | null; signal: NodeJS.Signals | null; spawnError: boolean } | undefined, thrown: string | undefined;
+      const armStall = () => {
+        if (stallTimer) clearTimeout(stallTimer);
+        stallTimer = setTimeout(() => { stalled = true; controller.abort(); }, stallMs);
+      };
+      const append = (data: Buffer) => {
+        armStall();
+        chunks.push(data); size += data.length;
+        if (size > COMMAND_OUTPUT_TAIL_BYTES * 2) {
+          const all = Buffer.concat(chunks);
+          chunks = [all.subarray(all.length - COMMAND_OUTPUT_TAIL_BYTES)]; size = chunks[0].length; truncated = true;
+        }
+      };
+      const tail = (): string => {
+        let all = Buffer.concat(chunks);
+        if (all.length > COMMAND_OUTPUT_TAIL_BYTES) { all = all.subarray(all.length - COMMAND_OUTPUT_TAIL_BYTES); truncated = true; }
+        let start = 0;
+        // A window that starts inside a multi-byte character must not leak a replacement character.
+        if (truncated) while (start < all.length && start < 4 && (all[start] & 0xc0) === 0x80) start++;
+        return all.subarray(start).toString("utf8").trim();
+      };
+      armStall();
+      // Close wait: after an abort, stop waiting for the pipes when a surviving descendant holds them open.
+      const abortedWait = new Promise<void>((resolve) => {
+        controller.signal.addEventListener("abort", () => { closeTimer = setTimeout(resolve, COMMAND_CLOSE_WAIT_MS); }, { once: true });
+      });
+      try {
+        try {
+          await Promise.race([
+            execMonitorCommand(this.pi, this.ctx, shell, command, controller.signal, {
+              stdout: append, stderr: append, started() {},
+              closed(code, signal, spawnError) { closed = { code, signal, spawnError }; },
+            }, undefined, { cwd, abortGraceMs: COMMAND_ABORT_GRACE_MS, exitIdleMs: COMMAND_EXIT_IDLE_MS }),
+            abortedWait,
+          ]);
+        } catch (error) {
+          thrown = error instanceof Error ? error.message : String(error);
+        } finally {
+          if (stallTimer) clearTimeout(stallTimer);
+          if (closeTimer) clearTimeout(closeTimer);
+          this.activeCommands.delete(controller);
+          this.runningCommandJobs.delete(job.id);
+        }
+
+        // stop() (shutdown/switch) aborted this run: pi may be invalidated, so touch neither storage nor chat.
+        if (controller.signal.aborted && !stalled) return;
+
+        const output = tail();
+        const shown = output.length > 500 ? `…${output.slice(-500)}` : output;
+        const withOutput = (message: string) => (shown ? `${message}\n${shown}` : message);
+        let error: string | undefined;
+        if (thrown !== undefined) error = withOutput(`Command could not run: ${thrown}`);
+        else if (stalled) error = withOutput(`Command produced no output for ${stallMs} ms and was stopped; cancellation was only requested, and descendant processes may still be running`);
+        else if (!closed) error = withOutput("Command ended without reporting an exit status");
+        else if (closed.spawnError) error = withOutput("Command could not be started");
+        else if (closed.signal) error = withOutput(`Command was terminated by signal ${closed.signal}`);
+        else if (closed.code !== 0) error = withOutput(`Command exited with code ${closed.code}`);
+
+        const nextRun = this.getNextRun(job.id);
+        if (error === undefined) {
+          this.storage.updateJobWith(job.id, (latest) => ({
+            lastRun: new Date().toISOString(), lastStatus: "success",
+            runCount: (latest.runCount ?? job.runCount ?? 0) + 1, nextRun: nextRun?.toISOString(),
+          }));
+          this.emitChange({ type: "fire", job });
+          this.postCommandMarker("command_done", job, shell, cwd, { exitCode: 0, output: shown });
+        } else {
+          this.storage.updateJob(job.id, { lastRun: new Date().toISOString(), lastStatus: "error", nextRun: nextRun?.toISOString() });
+          this.emitChange({ type: "error", jobId: job.id, error });
+          this.postCommandMarker("command_error", job, shell, cwd, { error, output: shown, ...(closed?.code !== undefined && closed.code !== null ? { exitCode: closed.code } : {}) });
+        }
+      } catch (error) {
+        console.error(`Command completion handler failed for job ${job.id}:`, error);
       }
     })();
     this.childRuns.add(run);

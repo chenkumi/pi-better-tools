@@ -34,7 +34,7 @@ async function fixture(run) {
     const packageManifest = { dependencies: {}, pi: { extensions: [] } }, lock = { packages: {} };
     for (const dependency of adaptations.localSourceNpmSuite.packages) {
       packageManifest.dependencies[dependency.name] = dependency.version;
-      packageManifest.pi.extensions.push(`./node_modules/${dependency.name}/index.ts`);
+      packageManifest.pi.extensions.push(dependency.name === '@ff-labs/pi-fff' ? './modules/file-tools/src/fff-override.mjs' : `./node_modules/${dependency.name}/index.ts`);
       lock.packages[`node_modules/${dependency.name}`] = { version: dependency.version, integrity: dependency.integrity, resolved: dependency.resolved };
       const dependencyRoot = join(root, 'node_modules', dependency.name);
       await mkdir(dependencyRoot, { recursive: true });

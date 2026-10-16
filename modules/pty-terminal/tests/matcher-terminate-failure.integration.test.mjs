@@ -24,7 +24,7 @@ test('D12: capacity must stay held while a worker is unterminated, and the origi
   };
   let host;
   try {
-    host = await createHost({ env, extensionPaths: [entry('modules/pty-terminal/src/index.ts')] });
+    host = await createHost({ env, defaultTools: ['read', 'pty_spawn', 'pty_write', 'pty_read', 'pty_resize', 'pty_wait_exit', 'pty_kill', 'pty_list'], extensionPaths: [entry('modules/pty-terminal/src/index.ts')] });
     await host.bind(); assert.deepEqual(host.loadErrors(), []);
     // The child prints a line that makes ^(a|aa)+$ backtrack (passes the nested-quantifier heuristic) exponentially: the worker never finishes by itself.
     const program = "console.log('a'.repeat(60) + '!'); setInterval(() => {}, 1000)";

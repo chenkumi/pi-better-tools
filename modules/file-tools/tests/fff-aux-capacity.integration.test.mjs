@@ -1,7 +1,7 @@
 // STATUS: todo / known-upstream (@ff-labs/pi-fff 0.11.0). Placed in file-tools only because tests/ has no auto-discovered integration directory; see report.
 // D14: AuxFinderPool.acquire() counts only completed entries; slots are not reserved while FilePicker creation is awaited,
 // so concurrent acquires for DIFFERENT roots exceed MAX_AUX (3).
-// Level: real Pi 1.1.0 AgentSession + real pi-fff 0.11.0 (real tool path, real AuxFinderPool/FilePickerFactory). DEGRADED:
+// Level: real Pi 1.2.0 AgentSession + real pi-fff 0.11.0 (real tool path, real AuxFinderPool/FilePickerFactory). DEGRADED:
 // the native FileFinder is a deferred-promise fake at the SDK boundary (waitForScan is the barrier); no native DLL.
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';

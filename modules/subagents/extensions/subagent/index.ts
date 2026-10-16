@@ -1169,21 +1169,20 @@ const AgentScopeSchema = StringEnum(["user", "project", "both"] as const, {
 	default: "user",
 });
 const ThinkingLevelSchema = Type.String({
-	description: "Omit by default; pass only when explicitly requested by the user or a skill. Pi thinking level (off, minimal, low, medium, high, xhigh, max). Checked after resolving the model; unknown or unsupported levels are ignored and defaults are used.",
+	description: "Omit by default; pass only when requested by the user or a skill. Pi thinking level (off, minimal, low, medium, high, xhigh, max); unknown or unsupported levels are ignored in favor of defaults.",
 });
 const SubagentParams = Type.Object({
-	background: Type.Optional(Type.Boolean({ description: "Run as a background job and return actual managed session IDs before returning; completion follows up automatically (do not poll). Send later instructions with subagent_message using subagentSessionId." })),
+	background: Type.Optional(Type.Boolean({ description: "Run as a background job and return managed session IDs; completion follows up automatically (do not poll)." })),
 
 	agent: Type.Optional(Type.String({ description: "Name of the agent to invoke (for single mode)" })),
 	task: Type.Optional(Type.String({ description: "Task to delegate (for single mode)" })),
 	title: Type.Optional(TitleSchema),
 	tasks: Type.Optional(Type.Array(TaskItem, { description: "Array of {agent, task, title?, cwd?} for parallel execution" })),
 	chain: Type.Optional(Type.Array(ChainItem, { description: "Array of {agent, task, title?, cwd?} for sequential execution" })),
-	provider: Type.Optional(Type.String({ description: "Omit by default; pass only when the user or a skill explicitly requests a model/provider override. Requires a bare model ID and combines as provider/model; an unregistered selection is ignored." })),
-	model: Type.Optional(Type.String({ description: "Omit by default; pass only when explicitly requested by the user or a skill. Exact model ID or provider/model; a registered selection overrides the agent/current session model. Unknown or ambiguous selections are ignored and defaults are used." })),
+	provider: Type.Optional(Type.String({ description: "Omit by default; pass only when requested by the user or a skill. Requires a bare model ID (combined as provider/model); unregistered selections are ignored." })),
+	model: Type.Optional(Type.String({ description: "Omit by default; pass only when requested by the user or a skill. Exact model ID or provider/model; unknown or ambiguous selections are ignored in favor of defaults." })),
 	thinkingLevel: Type.Optional(ThinkingLevelSchema),
 	agentScope: Type.Optional(AgentScopeSchema),
-	confirmProjectAgents: Type.Optional(Type.Boolean({ description: "Deprecated and ignored: untrusted project-local agents always require approval.", default: true })),
 	cwd: Type.Optional(Type.String({ description: "Working directory for the agent process (single mode)" })),
 });
 
@@ -1409,7 +1408,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 			return new Text(theme.fg("toolTitle", `Message Subagent ${displayTitle(args?.mode) || "control"} ${displayTitle(args?.subagentSessionId ?? (args as any)?.taskId) || "…"}${displayTitle(args?.title) ? ` · ${displayTitle(args.title)}` : ""}`), 0, 0);
 		},
 		renderResult: managementRenderer,
-		description: "Send instructions to an existing subagentSessionId owned by this parent/canonical cwd. mode defaults to control: literal control to a running interactive child, or asynchronous background resume after strict ready/checkpoint/config/trust validation. queued/startup/finalizing/canceling/busy are rejected; no cross-invocation queue, retries or unknown-delivery replay. Accepted is not completed; task_result follows up for resume. applied confirms conversation insertion, not that the requested work finished. Optional title is display-only for the new invocation. query is disposable and read-only for both a live interactive child and a completed ready session: ready queries verify ownership/config/trust/checkpoint, hold an exclusive read lease, and use a guarded temporary query worker without resuming or changing the original conversation. Query acceptance is not an answer; query_result follows up with independent usage/asOf. Busy/capacity/cancelled requests remain rejected but are expected refusals, not runtime faults; never retry automatically. Do not select a route using stale canMessage/canResume knowledge.",
+		description: "Send instructions to an existing subagentSessionId owned by this parent/canonical cwd. mode defaults to control: literal control to a running interactive child, or asynchronous background resume of a ready session after strict validation; queued/startup/finalizing/canceling/busy are rejected, with no queue, retries or replay. mode query is a disposable read-only question to a live child or a completed ready session; it never resumes or changes the original conversation. Accepted is not completed: task_result follows up for resume, query_result (with independent usage/asOf) for query. applied confirms conversation insertion, not that the requested work finished. Optional title is display-only for the new invocation. Busy/capacity/cancelled rejections are expected refusals, not runtime faults: never retry automatically or select a route using stale canMessage/canResume knowledge.",
 		parameters: Type.Object({ subagentSessionId: Type.String({ minLength: 1, description: "Complete stable managed session ID; not jobId/taskId or a path." }), message: Type.String({ minLength: 1, maxLength: 65536 }), mode: Type.Optional(StringEnum(["control", "query"] as const, { default: "control" })), title: Type.Optional(TitleSchema) }),
 		outputSchema: Type.Object({ subagentSessionId: Type.String(), mode: StringEnum(["control", "query"] as const), action: Type.Optional(StringEnum(["control", "resume", "query"] as const)), status: Type.String(), jobId: Type.Optional(Type.String()), taskId: Type.Optional(Type.String()), messageId: Type.Optional(Type.String()), queryId: Type.Optional(Type.String()), background: Type.Optional(ReceiptSchema), errorCode: Type.Optional(Type.String()), observedState: Type.Optional(Type.String()), nextAction: Type.Optional(Type.String()), error: Type.Optional(Type.String()) }, { additionalProperties: true }),
 		async execute(id, params, signal, _update, ctx) {
@@ -1448,28 +1447,20 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 		name: "subagent",
 		label: "Subagent",
 		description: [
-			"Delegate tasks to specialized agents with isolated context. background:true returns a queued job receipt and a task_result completion notification is submitted via steer when finished (parallel tasks mode: one task_result per task as each settles, then a job_result summary for the whole batch); subagent_status (omit jobId to list) and subagent_cancel manage jobs. Background work stops on exit, reload or session replacement. Parallel workers must not write the same files.",
-			"Create only: provide exactly one mode: single (agent + task), parallel (tasks array), or chain (steps with {previous}). Continue existing conversations with subagent_message({subagentSessionId, message}); do not pass resume to subagent.",
-			"Every initial task automatically saves a managed native session; background acceptance includes its stable ID, even while queued. Session identity does not mean checkpoint ready or interactive. There is no non-persistent mode or resumable parameter.",
+			"Delegate tasks to specialized agents with isolated context. Create only: provide exactly one mode: single (agent + task), parallel (tasks array; workers must not write the same files), or chain (steps run in order, each complete assistant-text output is passed as {previous}, stops at the first failed step). Continue existing conversations with subagent_message({subagentSessionId, message}); do not pass resume to subagent.",
 			`Dispatch limits: parallel mode accepts at most ${MAX_PARALLEL_TASKS} tasks and chain mode at most ${MAX_CHAIN_STEPS} steps; at most ${MAX_CONCURRENCY} children run at once across all subagent calls in this process.`,
-			"Chain steps run in order, pass each complete assistant-text output into {previous}, and stop at the first failed step.",
-			"Each task records its non-reasoning child transcript in a sub-session JSONL log; parent results contain only assistant output, status, usage, and the log path.",
-			"Omit provider, model, and thinkingLevel by default; pass overrides only when explicitly requested by the user or a skill. Resolve the model first, then check its supported thinking levels before spawning each child. Unknown or ambiguous models and unknown or unsupported thinking levels are ignored in favor of defaults. provider requires a bare model ID; alternatively pass provider/model as model.",
-			"Child Pi processes always exclude the subagent tool, so subagents cannot recursively dispatch further subagents through this tool.",
-			"Default agent scope is \"user\": bundled package agents plus user agents.",
-			`User agents are loaded from ${path.join(getAgentDir(), "agents")}. To enable project-local agents in ${CONFIG_DIR_NAME}/agents, set agentScope: "both" (or "project").`,
+			"Every initial task automatically saves a managed native session whose stable ID is returned, even while queued; an ID does not mean checkpoint ready or interactive. background:true returns a queued job receipt and submits a task_result via steer as each task settles (parallel mode then adds one job_result for the whole batch); subagent_status (omit jobId to list) and subagent_cancel manage jobs. Background work stops on exit, reload or session replacement.",
+			"Each task records its non-reasoning child transcript in a sub-session JSONL log; parent results contain only assistant output, status, usage, and the log path. Child Pi processes always exclude the subagent tool, so there is no recursive dispatch.",
+			`Default agent scope is "user" (bundled package agents plus user agents from ${path.join(getAgentDir(), "agents")}); set agentScope: "both" (or "project") to use project-local agents in ${CONFIG_DIR_NAME}/agents.`,
 		].join(" "),
 		promptSnippet: "Delegate a self-contained task to an isolated subagent context",
 		promptGuidelines: [
-			"Omit model, provider, and thinkingLevel unless the user or a skill explicitly specifies them. Do not choose overrides on your own; invalid selections fall back to defaults after model-first validation.",
-			"Supply a title of at most 50 characters describing what the subagent will do; for parallel/chain dispatch put a specific title on each item. Title is a TUI label, not a replacement for the complete task.",
-			"Initial subagent dispatches have clean isolated context, with no parent conversation. Include the goal, complete action, relevant paths/references, constraints/non-goals, operating instructions, and handoff format.",
-			"Every task is automatically persisted. A child can return questions and exit normally; send subagent_message using its returned subagentSessionId after a decision. Do not keep it alive waiting for decisions.",
-			"Use subagent_message with the complete subagentSessionId and concrete new instructions; the system routes control versus asynchronous resume using current safe state, not your old canMessage/canResume snapshot. It loads only the child's native history, not the parent chat. Do not repost logs or omit necessary new information.",
-			"After background:true, do not poll subagent_status or sleep; continue other work or end the turn and wait for task_result notifications (parallel: one per task as it settles; job_result marks the whole batch done). Call subagent_status (omit jobId to list jobs) only after a reload or when the user asks.",
-			"Use parallel tasks only for independent work; use a single task or chain when steps depend on each other. Every parallel worker that edits files must be told the exact files/directories it may change, and scopes must not overlap.",
-			"Cancel a background job with subagent_cancel (termination is requested, not confirmed). subagent_message steers or queries a running task; it is not cancellation.",
-			"Ask the child for a one-line conclusion first, details written to a file with only the path returned, and an overall length limit, so the result stays small in your context.",
+			"Omit model, provider, and thinkingLevel unless the user or a skill explicitly specifies them; invalid selections fall back to defaults.",
+			"Give every task a title of at most 50 characters (a TUI label, not a replacement for the complete task); for parallel/chain dispatch put a specific title on each item.",
+			"Initial subagent dispatches have clean isolated context, with no parent conversation: include the goal, complete action, relevant paths/references, constraints/non-goals, and handoff format. Ask for a one-line conclusion first, details written to a file with only the path returned, and an overall length limit.",
+			"Use parallel tasks only for independent work, and tell each file-editing worker the exact files/directories it may change (scopes must not overlap); use a single task or chain when steps depend on each other.",
+			"Every task is automatically persisted. When a child returns questions and exits, answer with subagent_message using its complete subagentSessionId and concrete new information (do not repost logs); the system chooses control versus asynchronous resume from current safe state, not an old canMessage/canResume snapshot. subagent_message is not cancellation.",
+			"After background:true, do not poll subagent_status or sleep; continue other work or end the turn and wait for task_result/job_result notifications. Call subagent_status only after a reload or when the user asks. Cancel with subagent_cancel (termination is requested, not confirmed).",
 		],
 		parameters: SubagentParams,
 
@@ -1528,7 +1519,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 				return { content: [{ type: "text", text: `Request not accepted: capacity limit reached. Too many chain steps (${params.chain.length}). Max is ${MAX_CHAIN_STEPS}.` }], details: makeDetails("chain")([]), isError: true };
 			}
 
-			// Fail closed: the model-supplied confirmProjectAgents is ignored (it can no longer disable approval).
+			// Fail closed: untrusted project agents always need approval; the removed legacy confirmProjectAgents parameter, if still sent, is ignored.
 			if ((agentScope === "project" || agentScope === "both") && !ctx.isProjectTrusted()) {
 				const requestedNames = new Set<string>();
 				if (params.chain) for (const step of params.chain) requestedNames.add(step.agent);

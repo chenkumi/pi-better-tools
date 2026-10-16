@@ -3,6 +3,7 @@ import { Socket } from 'node:net';
 import { TLSSocket } from 'node:tls';
 import test from 'node:test';
 import { Worker } from 'node:worker_threads';
+import { chromium } from 'playwright';
 import { extractHtml, extractHtmlIsolated, MAX_EXTRACTED_BYTES, MAX_HTML_BYTES, MAX_EXTRACTION_WORKERS, prewarmExtractionWorker, shutdownExtractionWorkers } from '../../src/fetch/extract.js';
 import { isPublicAddress, NetworkPolicy, parseWebUrl } from '../../src/fetch/network.js';
 import { certificateOrEmpty, installPlaywrightTlsCompatibility } from '../../src/fetch/playwright-tls-compat.js';
@@ -24,6 +25,42 @@ test('Playwright TLS compatibility handles a destroyed socket certificate result
   installPlaywrightTlsCompatibility();
   installPlaywrightTlsCompatibility();
   assert.deepEqual(socket.getPeerCertificate(), {});
+});
+
+test('browser launch failures retain their code with safe, cause-specific guidance', async (t) => {
+  const cases: Array<{ channel: 'chromium' | 'chrome'; error: unknown; expected: RegExp; install?: boolean }> = [
+    { channel: 'chromium', error: new Error("browserType.launch: Executable doesn't exist at C:/SECRET/chrome.exe"), expected: /Playwright Chromium executable was not found/, install: true },
+    { channel: 'chrome', error: new Error("browserType.launch: Chromium distribution 'chrome' is not found at C:/SECRET/chrome.exe"), expected: /Google Chrome executable was not found.*Install Google Chrome/, install: true },
+    { channel: 'chromium', error: new Error('browserType.launch: Host system is missing dependencies to run browsers. SECRET'), expected: /system dependencies are missing.*npm run browser:install-deps/ },
+    { channel: 'chromium', error: new Error('browserType.launch: Host system is missing dependencies!\nSECRET.dll'), expected: /system dependencies are missing/ },
+    { channel: 'chromium', error: new Error('browserType.launch: error while loading shared libraries: SECRET.so'), expected: /system dependencies are missing/ },
+    { channel: 'chromium', error: Object.assign(new Error('SECRET'), { code: 'EACCES' }), expected: /permission was denied/ },
+    { channel: 'chromium', error: new Error('browserType.launch: Failed to launch: Error: spawn SECRET EPERM'), expected: /permission was denied/ },
+    { channel: 'chromium', error: Object.assign(new Error('SECRET'), { name: 'TimeoutError' }), expected: /Browser startup timed out/ },
+    { channel: 'chromium', error: new Error('browserType.launch: Target page, context or browser has been closed\nSECRET'), expected: /Browser startup failed.*not confirmed/ },
+    { channel: 'chromium', error: 'SECRET', expected: /Browser startup failed.*not confirmed/ },
+  ];
+  for (const entry of cases) {
+    const launch = t.mock.method(chromium, 'launch', async () => { throw entry.error; });
+    const service = new FetchService({ channel: entry.channel, timeoutMs: 1000, maxConcurrency: 1, idleTimeoutMs: 0 });
+    try {
+      // Exercise the actual launch catch without DNS, workers, real processes or elapsed-time waits.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await assert.rejects(service['getBrowser'](), (error: Error) => {
+          assert.match(error.message, /^BROWSER_UNAVAILABLE:/);
+          assert.match(error.message, entry.expected);
+          assert.doesNotMatch(error.message, /SECRET|start a new session|Do not retry/);
+          assert.equal(error.message.includes('npm run browser:install`'), entry.install === true);
+          assert.equal(error.cause, undefined, 'raw Playwright diagnostics must not leak through cause');
+          return true;
+        });
+      }
+      assert.equal(launch.mock.callCount(), 2, 'launch failures must not be permanently cached');
+    } finally {
+      launch.mock.restore();
+      await service.close();
+    }
+  }
 });
 
 test('HTML extraction suppresses jsdom diagnostics from malformed CSS', () => {

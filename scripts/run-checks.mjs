@@ -20,18 +20,20 @@ const directTests = (label, dir, keep, extra = {}) => {
   if (files.length === 0) throw new Error(`${label}: no test files matched in ${dir}`);
   return { label, args: ['--import', tsx, '--test', `--test-concurrency=${extra.concurrency ?? 1}`, ...files], ...extra };
 };
-const sourceTests = [directTests('pty-terminal:test', 'modules/pty-terminal/tests', name => !isIntegration(name)), directTests('subagents:test', 'modules/subagents/tests', name => !isIntegration(name)),
+const sourceTests = [directTests('sqlite-tools:test', 'modules/sqlite-tools/tests', name => !isIntegration(name)), directTests('pty-terminal:test', 'modules/pty-terminal/tests', name => !isIntegration(name)), directTests('subagents:test', 'modules/subagents/tests', name => !isIntegration(name)),
   directTests('shell-tools:test:unit', 'modules/shell-tools/tests', name => !isIntegration(name)),
   moduleTask('file-tools', 'test'), moduleTask('file-tools', 'test:tooling'),
   directTests('web-tools:test', 'modules/web-tools/tests/unit', () => true, { concurrency: 4 }),
   // Schedule Prompt keeps its source vitest runner (heavy vi.mock use); modules/schedule-prompt/test is therefore not scanned by node --test.
+  { label: 'sql-connector:test', args: ['node_modules/vitest/vitest.mjs', 'run', '--root', 'modules/sql-connector', '--exclude', '**/tests/**'] },
   { label: 'schedule-prompt:test', args: ['node_modules/vitest/vitest.mjs', 'run', '--root', 'modules/schedule-prompt'] },
   { label: 'blackhole:test', args: ['scripts/blackhole-tests.mjs', '--suite=unit'] }];
 const groups = {
   // No module ships compiled artifacts any more; the group stays so `npm run build` / prepack remain valid no-ops.
   build: [],
   typecheck: [moduleTask('file-tools', 'typecheck'),
-    ...['shell-tools', 'web-tools', 'pty-terminal', 'subagents'].map(m => ({ label: `${m}:typecheck`, args: ['node_modules/typescript/bin/tsc', '-p', `modules/${m}/tsconfig.json`] })),
+    ...['shell-tools', 'web-tools', 'pty-terminal', 'subagents', 'sqlite-tools', 'sql-connector'].map(m => ({ label: `${m}:typecheck`, args: ['node_modules/typescript/bin/tsc', '-p', `modules/${m}/tsconfig.json`] })),
+    { label: 'file-audit:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/file-audit/tsconfig.json'] },
     { label: 'fork:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/fork/tsconfig.json'] },
     { label: 'monitor:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/monitor/tsconfig.json'] },
     { label: 'pi-runtime:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/pi-runtime/tsconfig.json'] },
@@ -42,9 +44,9 @@ const groups = {
     { label: 'json-schema:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/json-schema/tsconfig.json'] },
     { label: 'blackhole:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/blackhole/tsconfig.json'] }],
   // Scan test directories (not hard-coded lists) so a new *.test.ts is never silently skipped; *.test.mjs there are real-host integration tests.
-  unit: [directTests('skill-tools:test', 'modules/skill-tools/tests', name => !isIntegration(name)), directTests('all-modules:test-tooling', 'tests/unit', () => true), directTests('monitor:test', 'modules/monitor/tests', name => !isIntegration(name)), directTests('fork:test', 'modules/fork/tests', name => !isIntegration(name)), directTests('pi-runtime:test', 'modules/pi-runtime/tests', name => !isIntegration(name)), ...sourceTests, ...[['note-tools', 'modules/note-tools/tests'], ['gpt-speed', 'modules/gpt-speed/tests'], ['json-schema', 'modules/json-schema/tests']]
+  unit: [directTests('file-audit:test', 'modules/file-audit/tests', name => !isIntegration(name)), directTests('skill-tools:test', 'modules/skill-tools/tests', name => !isIntegration(name)), directTests('all-modules:test-tooling', 'tests/unit', () => true), directTests('monitor:test', 'modules/monitor/tests', name => !isIntegration(name)), directTests('fork:test', 'modules/fork/tests', name => !isIntegration(name)), directTests('pi-runtime:test', 'modules/pi-runtime/tests', name => !isIntegration(name)), ...sourceTests, ...[['note-tools', 'modules/note-tools/tests'], ['gpt-speed', 'modules/gpt-speed/tests'], ['json-schema', 'modules/json-schema/tests']]
     .map(([module, dir]) => directTests(`${module}:test`, dir, name => name.endsWith('.test.ts')))],
-  integration: [directTests('skill-tools:real-host', 'modules/skill-tools/tests', isIntegration), directTests('monitor:integration', 'modules/monitor/tests', isIntegration), directTests('fork:real-host', 'modules/fork/tests', isIntegration), directTests('pi-runtime:real-host', 'modules/pi-runtime/tests', isIntegration), directTests('pty-terminal:test:integration', 'modules/pty-terminal/tests', isIntegration),
+  integration: [directTests('file-audit:real-host', 'modules/file-audit/tests', isIntegration), directTests('sql-connector:real-host', 'modules/sql-connector/tests', isIntegration), directTests('sqlite-tools:real-host', 'modules/sqlite-tools/tests', isIntegration), directTests('skill-tools:real-host', 'modules/skill-tools/tests', isIntegration), directTests('monitor:integration', 'modules/monitor/tests', isIntegration), directTests('fork:real-host', 'modules/fork/tests', isIntegration), directTests('pi-runtime:real-host', 'modules/pi-runtime/tests', isIntegration), directTests('pty-terminal:test:integration', 'modules/pty-terminal/tests', isIntegration),
     directTests('json-schema:workers', 'modules/json-schema/tests', isIntegration),
     // Real-host regressions for reported defects (todo cases document known limits and do not fail the stage).
     directTests('gpt-speed:real-host', 'modules/gpt-speed/tests', isIntegration),

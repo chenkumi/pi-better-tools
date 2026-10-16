@@ -16,7 +16,7 @@ test('D11: an unconfirmed PTY transport must remain recoverable after shutdown/r
   pty.spawn = (...args) => { const handle = realSpawn.apply(pty, args); const kill = handle.kill.bind(handle); const record = { handle, kill, exited: false }; handle.onExit(() => { record.exited = true; }); real.push(record); handle.kill = () => {}; return handle; };
   let host;
   try {
-    host = await createHost({ env, extensionPaths: [entry('modules/pty-terminal/src/index.ts')] });
+    host = await createHost({ env, defaultTools: ['read', 'pty_spawn', 'pty_write', 'pty_read', 'pty_resize', 'pty_wait_exit', 'pty_kill', 'pty_list'], extensionPaths: [entry('modules/pty-terminal/src/index.ts')] });
     await host.bind(); assert.deepEqual(host.loadErrors(), []);
     log('spawning a real PTY child through the real tool path');
     const [spawned] = await host.callTools({ name: 'pty_spawn', arguments: { command: process.execPath, args: ['-e', 'setInterval(()=>{},1000)'] } });

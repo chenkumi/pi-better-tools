@@ -1,5 +1,5 @@
 import { mkdir, open, realpath, rm } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { StringEnum } from "@earendil-works/pi-ai";
 import { defineTool, withFileMutationQueue, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
@@ -12,31 +12,34 @@ const displayText = (value: unknown, max = 2000) => typeof value === "string"
 /** Generous UTF-8 byte cap for one note (a note is a document, not a data dump). */
 export const MAX_NOTE_BYTES = 8 * 1024 * 1024;
 
-const noteTypes = ["plan", "issue", "research", "report", "task"] as const;
+const noteTypes = ["plan", "design", "issue", "research", "report", "task"] as const;
 
 export const noteTool = defineTool({
   name: "note",
   label: "Note",
   description:
-    "Save a NEW Markdown document as plan, issue, research, report or task. Required for such documents: do NOT use write and do NOT choose a file name or folder. " +
+    "Save a NEW Markdown document as plan, design, issue, research, report or task. Required for such documents: do NOT use write and do NOT choose a file name or folder. " +
     "The tool picks <cwd>/<type>/TYPE-YYYYMMDDTHHmmssSSSZ.md (UTC; no title suffix), never overwrites, and returns the path; send the complete document in one call. " +
     "Use it when asked to write down, record, save or log such a document, or when finished work deserves a record. Not for source code or existing files: to change a note afterwards use read/edit on the returned path.",
-  promptSnippet: "Save a new plan/issue/research/report/task Markdown document; file name is auto-generated and the saved path is returned.",
+  promptSnippet: "Save a new plan/design/issue/research/report/task Markdown document; file name is auto-generated and the saved path is returned.",
   promptGuidelines: [
-    "Create plan/issue/research/report/task documents with note { type, content }, not write.",
+    "Create plan/design/issue/research/report/task documents with note { type, content }, not write.",
   ],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   parameters: Type.Object({
-    type: StringEnum(noteTypes, { description: "Category and folder: plan = approach/design/roadmap; issue = bug/problem/risk; research = findings; report = results/summary/review; task = to-do." }),
+    type: StringEnum(noteTypes, { description: "Category and folder: plan = approach/steps/roadmap; design = design document (architecture, interfaces, decisions); issue = bug/problem/risk; research = findings; report = results/summary/review; task = to-do." }),
     content: Type.String({ description: "The full Markdown document, including a title heading, written verbatim. Do not include a file name." }),
   }, { additionalProperties: false }),
   outputSchema: Type.Object({
     relativePath: Type.String(),
   }, { additionalProperties: false }),
-  renderCall(args, theme) {
+  renderCall(args, theme, context) {
     const type = displayText(args?.type, 20) || "…";
     const title = displayText(args?.content, 300).split("\n").find(line => line.trim())?.replace(/^#+\s*/, "").slice(0, 100) || "";
-    return new Text(`${theme.fg("toolTitle", theme.bold("note"))} ${theme.fg("accent", type)}${title ? ` · ${theme.fg("muted", title)}` : ""}`, 0, 0);
+    const bytes = typeof args?.content === "string" ? Buffer.byteLength(args.content, "utf8") : 0;
+    const component = context.lastComponent instanceof Text ? context.lastComponent : new Text("", 0, 0);
+    component.setText(`${theme.fg("toolTitle", theme.bold("note"))} ${theme.fg("accent", type)}${title ? ` · ${theme.fg("muted", title)}` : ""}\n${theme.fg("muted", `${context.argsComplete ? "received" : "receiving"} ${bytes.toLocaleString("en-US")} bytes`)}`);
+    return component;
   },
   renderResult(result, { isPartial }, theme, context) {
     const text = result.content.filter(block => block.type === "text").map(block => block.text).join("\n");
@@ -78,8 +81,21 @@ export const noteTool = defineTool({
           // Exclusive creation is the cross-process no-overwrite guard. Do not cancel
           // mid-write: once started, finish writing and report the resulting path.
           const handle = await open(path, "wx", 0o644);
-          try { await handle.writeFile(params.content, "utf8"); }
+          try {
+            // Post-create re-verification: if <cwd>/<type> was swapped for a junction/symlink after the check above,
+            // the empty file we just created landed outside the workspace. Remove it (it is ours, created with wx)
+            // before any content is written. Narrows the window; it is not an atomic guarantee against a persistent attacker.
+            const [cwdNow, createdNow] = await Promise.all([realpath(ctx.cwd), realpath(path)]);
+            const where = relative(cwdNow, dirname(createdNow));
+            if (where === "" || where === ".." || where.startsWith(".." + sep) || isAbsolute(where)) {
+              await handle.close().catch(() => {});
+              await rm(createdNow, { force: true }).catch(() => {});
+              throw new Error(`NOTE_DIRECTORY_ESCAPE: ${params.type}/ resolved outside the workspace during creation; the file was removed.`);
+            }
+            await handle.writeFile(params.content, "utf8");
+          }
           catch (error) {
+            if (error instanceof Error && error.message.startsWith("NOTE_DIRECTORY_ESCAPE")) throw error;
             // We created this file (wx), so a partial result from e.g. ENOSPC is ours to remove.
             await handle.close().catch(() => {});
             await rm(path, { force: true }).catch(() => {});

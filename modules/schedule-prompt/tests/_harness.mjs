@@ -47,12 +47,16 @@ export async function installGlobalExtensions(sb, paths) {
  * Start the real Pi CLI. mode 'rpc' keeps stdin open; mode 'json'/'text' runs -p with the given prompt.
  * Returns an object with send, events, stdout, stderr, badLines, waitFor, finish and file paths.
  */
+// schedule_prompt is deferred (Pi Runtime activates tool_search for real sessions). Scripted sessions call it directly, so they select it
+// explicitly, which also keeps the default tool set they had before the tool was deferred.
+const toolArgs = (extensions, extraArgs) => extensions.includes(scheduleEntry) && !extraArgs.includes('--tools') ? ['--tools', 'read,bash,edit,write,schedule_prompt'] : [];
+
 export function startPi(sb, { script = [], extensions = [], mode = 'rpc', approve = false, prompt = 'Do the task.', env = {}, extraArgs = [], label = 'pi' }) {
   const paths = { script: join(sb.home, 'script.json'), requests: join(sb.home, 'requests.jsonl'), events: join(sb.home, 'events.jsonl'), timers: join(sb.home, 'timers.jsonl') };
   const ready = writeFile(paths.script, JSON.stringify(script));
   const argv = [cli, ...(mode === 'rpc' ? ['--mode', 'rpc'] : mode === 'json' ? ['-p', '--mode', 'json'] : ['-p']),
     '--offline', approve ? '--approve' : '--no-approve', '--no-extensions', '--no-skills', '--no-themes', '--no-context-files', '--no-prompt-templates',
-    '-e', providerFile, ...extensions.flatMap(e => ['-e', e]), '--model', 'repro-offline/fixture', '--thinking', 'off', ...extraArgs, ...(mode === 'rpc' ? [] : [prompt])];
+    '-e', providerFile, ...extensions.flatMap(e => ['-e', e]), '--model', 'repro-offline/fixture', '--thinking', 'off', ...toolArgs(extensions, extraArgs), ...extraArgs, ...(mode === 'rpc' ? [] : [prompt])];
   const childEnv = { ...isolatedEnv(sb.home), REPRO_SCRIPT: paths.script, REPRO_LOG: paths.requests, REPRO_EVENTS: paths.events, REPRO_TIMER_LOG: paths.timers, ...env };
   const state = { events: [], stdout: '', stderr: '', badLines: [], waiters: new Set(), closed: false, code: undefined };
   let child, closedP;

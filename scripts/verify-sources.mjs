@@ -47,7 +47,7 @@ for (const module of manifest.modules) {
     }
     assert.equal(await digest(join(root, path)), change?.sha256 ?? file.sha256, `snapshot changed without reviewed adaptation: ${path}`);
     if (checkOriginal) {
-      assert.equal(await digest(join(module.sourcePath, file.path)), file.sha256, `original changed: ${module.sourcePath}/${file.path}`);
+      assert.equal(await digest(join(module.sourcePath, file.sourceFile ?? file.path)), file.sha256, `original changed: ${module.sourcePath}/${file.path}`);
       sourceFiles++;
     }
     verified++;
@@ -102,7 +102,9 @@ for (const dependency of suite.packages) {
   assert.equal(installed.version, dependency.version);
   assert.equal(installed.license, dependency.license);
   assert.ok(installed.pi.extensions.includes(dependency.entry), `unrecognized dependency entry ${dependency.name}`);
-  assert.ok(packageManifest.pi.extensions.includes(`./node_modules/${dependency.name}/${dependency.entry.replace(/^\.\//, '')}`));
+  // @ff-labs/pi-fff loads through the project's thin override wrapper (modules/file-tools/src/fff-override.mjs), not directly.
+  const manifestEntry = dependency.name === '@ff-labs/pi-fff' ? './modules/file-tools/src/fff-override.mjs' : `./node_modules/${dependency.name}/${dependency.entry.replace(/^\.\//, '')}`;
+  assert.ok(packageManifest.pi.extensions.includes(manifestEntry), `manifest entry missing for ${dependency.name}`);
   assert.ok((await stat(resolve(dependencyRoot, dependency.entry))).isFile());
 }
 const finalIntegration = adaptations.localSourceSuiteFinalIntegration;

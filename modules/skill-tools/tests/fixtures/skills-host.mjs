@@ -7,7 +7,7 @@ const root = resolve(process.argv[2]);
 const host = process.env.PI_BETTER_TOOLS_HOST;
 const sdk = await import(host ? pathToFileURL(join(host, 'dist/index.js')).href : '@earendil-works/pi-coding-agent');
 const { createAssistantMessageEventStream } = await import(host ? pathToFileURL(join(host, '../pi-ai/dist/compat.js')).href : '@earendil-works/pi-ai/compat');
-assert.equal(sdk.VERSION, '1.1.0');
+assert.equal(sdk.VERSION, '1.3.0');
 const agentDir = process.env.PI_CODING_AGENT_DIR;
 const cwd = join(agentDir, 'workspace');
 const relocated = join(agentDir, 'relocated-package');
@@ -17,6 +17,9 @@ await cp(join(root, 'modules/skill-tools/src'), join(relocated, 'src'), { recurs
 await cp(join(root, 'modules/skill-tools/skills'), join(relocated, 'skills'), { recursive: true });
 await writeFile(join(relocated, 'package.json'), JSON.stringify({ name: 'isolated-skill-package', pi: { extensions: ['./src/index.ts'] } }));
 const skillPath = join(relocated, 'skills/create-plan/SKILL.md');
+const configSkillPath = join(relocated, 'skills/pi-tools-config/SKILL.md');
+const configReference = join(relocated, 'skills/pi-tools-config/references/sql-connector.md');
+assert.equal(await readFile(configReference, 'utf8'), await readFile(join(root, 'modules/skill-tools/skills/pi-tools-config/references/sql-connector.md'), 'utf8'));
 assert.equal(await readFile(skillPath, 'utf8'), await readFile(join(root, 'modules/skill-tools/skills/create-plan/SKILL.md'), 'utf8'));
 let externalCalls = 0;
 globalThis.fetch = async () => { externalCalls++; throw new Error('Network forbidden in skill fixture'); };
@@ -59,11 +62,22 @@ try {
     const check = () => {
       const { skills, diagnostics } = loader.getSkills();
       assert.deepEqual(diagnostics, []);
-      assert.equal(skills.length, enabled ? 1 : 0);
+      if (!enabled) assert.equal(skills.length, 0);
       assert.equal(session.systemPrompt.includes('Create or revise a software development plan'), enabled && !noTools);
       assert.ok(!session.systemPrompt.includes('Plan Title:'), 'full skill body is not eagerly injected');
+      assert.equal(session.systemPrompt.includes('Use when users need to create, change, or troubleshoot configuration'), enabled && !noTools);
+      assert.ok(!session.systemPrompt.includes('# Pi Tools 設定索引'), 'configuration index body is loaded lazily');
+      assert.ok(!session.systemPrompt.includes('MSSQL SQL Authentication 使用 username/password'), 'reference bodies are not eagerly injected');
       assert.deepEqual(session.getActiveToolNames(), noTools ? [] : ['read'], 'resource provider does not activate tools');
-      if (enabled) { assert.equal(skills[0].name, 'create-plan'); assert.equal(resolve(skills[0].filePath), skillPath); }
+      if (enabled) {
+        assert.ok(skills.some(skill => skill.name === 'create-plan'), 'bundled create-plan skill is provided');
+        assert.equal(resolve(skills.find(skill => skill.name === 'create-plan').filePath), skillPath);
+        const configSkill = skills.find(skill => skill.name === 'pi-tools-config');
+        assert.equal(resolve(configSkill.filePath), configSkillPath);
+        assert.ok(configSkill.description.includes('required connection configuration is missing or unknown.'));
+        assert.ok(configSkill.description.endsWith('Do not use for routine operations with already-configured tools or for implementing these features in application code.'));
+        if (!noTools) assert.ok(session.systemPrompt.includes(configSkill.description), 'complete folded description reaches the skill catalogue without truncation');
+      }
     };
     check();
     await session.reload();
@@ -75,10 +89,18 @@ try {
       assert.ok(expanded.includes('Plan Title:'));
       assert.ok(expanded.endsWith('Offline acceptance request'));
     } else assert.equal(expanded, '/skill:create-plan Offline acceptance request');
+    await session.prompt('/skill:pi-tools-config Explain SQL Connector configuration');
+    if (enabled) {
+      assert.match(expanded, /^<skill name="pi-tools-config" location=/);
+      assert.ok(expanded.includes(configSkillPath));
+      assert.ok(expanded.includes('references/sql-connector.md'));
+      assert.ok(expanded.endsWith('Explain SQL Connector configuration'));
+      assert.ok(!expanded.includes('MSSQL SQL Authentication 使用 username/password'), 'command expands index, not all references');
+    } else assert.equal(expanded, '/skill:pi-tools-config Explain SQL Connector configuration');
     session.dispose(); session = undefined;
   }
   assert.deepEqual(errors, []);
-  assert.equal(streamCalls, 3);
+  assert.equal(streamCalls, 6);
   assert.equal(externalCalls, 0);
   console.log(JSON.stringify({ status: 'passed', host: sdk.VERSION, providerCalls: externalCalls,
     cases: ['startup', 'reload', 'relocated', 'lazy-body', 'skill-command', 'extension-filter', 'no-tools'] }));

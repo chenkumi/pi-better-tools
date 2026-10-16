@@ -61,7 +61,7 @@ export async function createHost(options) {
   const sdk = await import('@earendil-works/pi-coding-agent');
   const ai = await import('@earendil-works/pi-ai');
   sdk.initTheme('dark', false);
-  await writeFile(join(env.agentDir, 'settings.json'), JSON.stringify({ defaultTools: ['read'], retry: { enabled: false }, compaction: { enabled: false },
+  await writeFile(join(env.agentDir, 'settings.json'), JSON.stringify({ defaultTools: options.defaultTools ?? ['read'], retry: { enabled: false }, compaction: { enabled: false },
     cacheWarming: 'off', enableInstallTelemetry: false, defaultProjectTrust: 'never' }));
   const settingsManager = await sdk.SettingsManager.create(env.cwd, env.agentDir, { projectTrusted: options.projectTrusted ?? false });
   const sessionManager = sdk.SessionManager.inMemory(env.cwd);

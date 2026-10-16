@@ -3,11 +3,12 @@ import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { ulid } from "ulid";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { ForkJobsWidget } from "./live-widget.ts";
 import { forwardParentArgs, removeTemporary } from "./args.ts";
 import { startForkChild, type ForkChildHandle, type ForkChildOutcome, type ForkChildSpec } from "./child.ts";
 import { FORK_TOOLS, forkCreationRefusal } from "./identity.ts";
 import { writeForkSession } from "./snapshot.ts";
-import { ACTIVE_STATUSES, MAX_RESULT_BYTES, isTerminal, loadRecords, saveRecord, type Delivery, type ForkRecord, type ForkStatus } from "./store.ts";
+import { MAX_RESULT_BYTES, isTerminal, loadRecords, saveRecord, type Delivery, type ForkRecord, type ForkStatus } from "./store.ts";
 
 export const MAX_ACTIVE_FORKS = 4;
 export const MAX_RETAINED_FORKS = 32;
@@ -15,7 +16,7 @@ export const MAX_TASK_BYTES = 100 * 1024;
 export const RESULT_TYPE = "fork-result";
 const GUARD_PATH = fileURLToPath(new URL("./child-guard.ts", import.meta.url));
 
-export interface Binding { gen: number; pi: ExtensionAPI; ctx: ExtensionContext; sessionId: string; file?: string; cwd: string }
+export interface Binding { gen: number; widget: ForkJobsWidget; pi: ExtensionAPI; ctx: ExtensionContext; sessionId: string; file?: string; cwd: string }
 export interface Job {
 	record: ForkRecord;
 	handle?: ChildHandle;
@@ -67,7 +68,11 @@ export function acceptFork(pi: ExtensionAPI, ctx: ExtensionContext, params: { ta
 	if (params.title !== undefined && (typeof params.title !== "string" || params.title.length > 120)) throw new Error("FORK_INVALID_ARGUMENTS: title must be a string of at most 120 characters.");
 	if (!s.admission) throw new Error("FORK_NOT_ACCEPTING: this Pi process is shutting down or reloading.");
 	if (activeCount(s) >= MAX_ACTIVE_FORKS) throw new Error(`FORK_CAPACITY: Request not accepted: capacity limit reached. At most ${MAX_ACTIVE_FORKS} unfinished Forks per Pi process.`);
-	if ([...s.jobs.values()].filter(job => isTerminal(job.record.status) && job.released).length + activeCount(s) >= MAX_RETAINED_FORKS * 2) evict(s);
+	if ([...s.jobs.values()].filter(job => isTerminal(job.record.status) && job.released).length + activeCount(s) >= MAX_RETAINED_FORKS * 2) {
+		evict(s);
+		// Undelivered (pending) results are never evicted, so the window must refuse instead of growing without bound.
+		if (s.jobs.size >= MAX_RETAINED_FORKS * 2) throw new Error(`FORK_CAPACITY: Request not accepted: ${MAX_RETAINED_FORKS * 2} Fork records are retained with undelivered results.`);
+	}
 	const sm = ctx.sessionManager, file = sm.getSessionFile(), sessionDir = sm.getSessionDir();
 	if (!file || !sessionDir) throw new Error("FORK_REQUIRES_PERSISTED_SESSION: the current conversation has no native session file (--no-session or in-memory).");
 	if (!ctx.model) throw new Error("FORK_CAPABILITY_UNAVAILABLE: no model is selected; a Fork must inherit the parent's model.");
@@ -184,7 +189,7 @@ export function deliver(job: Job, binding = state().binding): void {
 export function onSessionStart(pi: ExtensionAPI, ctx: ExtensionContext): void {
 	const s = state(), sm = ctx.sessionManager;
 	s.admission = true;
-	const binding: Binding = { gen: ++s.gen, pi, ctx, sessionId: sm.getSessionId(), file: sm.getSessionFile(), cwd: canonical(ctx.cwd) };
+	const binding: Binding = { gen: ++s.gen, widget: new ForkJobsWidget(pi), pi, ctx, sessionId: sm.getSessionId(), file: sm.getSessionFile(), cwd: canonical(ctx.cwd) };
 	s.binding = binding;
 	try {
 		for (const record of loadRecords(binding.cwd)) {
@@ -202,6 +207,7 @@ export function onSessionStart(pi: ExtensionAPI, ctx: ExtensionContext): void {
 		}
 	} catch { /* a damaged store never blocks the session */ }
 	for (const job of s.jobs.values()) deliver(job, binding);
+	binding.widget.bind(ctx, () => ownedJobs(ctx));
 	refreshUi();
 }
 
@@ -210,7 +216,7 @@ export async function onSessionShutdown(reason: string): Promise<void> {
 	const s = state();
 	const leaving = s.binding;
 	s.binding = undefined;
-	if (leaving) { try { leaving.ctx.ui.setStatus("pi-fork", undefined); } catch { /* disposed UI */ } }
+	leaving?.widget.clear();
 	if (reason === "quit" || reason === "reload") {
 		s.admission = false;
 		s.epoch++;
@@ -252,11 +258,5 @@ export function summarize(job: Job, detail = false): Record<string, unknown> {
 }
 
 function refreshUi() {
-	const s = state(), ctx = s.binding?.ctx;
-	if (!ctx) return;
-	try {
-		if (!ctx.hasUI) return;
-		const mine = ownedJobs(ctx).filter(job => ACTIVE_STATUSES.includes(job.record.status));
-		ctx.ui.setStatus("pi-fork", mine.length ? `Fork: ${mine.length} active` : undefined);
-	} catch { /* disposed UI */ }
+	try { state().binding?.widget.refresh(); } catch { /* UI failure never controls Forks */ }
 }

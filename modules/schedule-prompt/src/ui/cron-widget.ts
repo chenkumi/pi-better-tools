@@ -193,7 +193,8 @@ export class CronWidget {
       const scheduleText = theme.fg("dim", schedulePadded);
 
       // Prompt (max 25 chars, pad before coloring)
-      const promptRaw = job.prompt.length > 25 ? job.prompt.substring(0, 22) + "..." : job.prompt;
+      const promptSource = job.command !== undefined ? `$ ${job.command}` : job.prompt ?? "";
+      const promptRaw = promptSource.length > 25 ? promptSource.substring(0, 22) + "..." : promptSource;
       const promptPadded = promptRaw.padEnd(25);
       const promptText = theme.fg("dim", promptPadded);
 

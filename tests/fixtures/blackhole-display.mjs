@@ -6,7 +6,7 @@ import * as sdk from '@earendil-works/pi-coding-agent';
 import { Agent } from '@earendil-works/pi-agent-core';
 
 assert.equal(process.env.PI_BLACKHOLE_PASSIVE, 'true');
-assert.equal(sdk.VERSION, '1.1.0');
+assert.equal(sdk.VERSION, '1.3.0');
 const root = resolve(process.argv[2]);
 const agentDir = process.env.PI_CODING_AGENT_DIR;
 const cwd = join(agentDir, 'workspace');

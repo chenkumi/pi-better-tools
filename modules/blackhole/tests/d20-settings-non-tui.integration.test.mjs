@@ -1,6 +1,6 @@
 // D20: "/blackhole settings" must never hang. Real AgentSession + real extension runner + real Blackhole command.
 // - Non-TUI (RPC/json/print): ctx.ui.custom must not be opened; the command returns supported text.
-//   The RPC custom() stub copies Pi 1.1.0 modes/rpc/rpc-mode.js (`async custom() { return undefined; }`, factory never runs).
+//   The RPC custom() stub copies Pi 1.2.0 modes/rpc/rpc-mode.js (`async custom() { return undefined; }`, factory never runs).
 // - TUI with a custom() that resolves undefined without running the factory, or rejects, must also settle.
 import test from 'node:test';
 import assert from 'node:assert/strict';

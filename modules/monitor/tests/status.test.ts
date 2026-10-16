@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import monitorExtension from '../src/index.ts';
+import { renderMonitorEvent } from '../src/renderers.ts';
 import type { MonitorRuntime } from '../src/core.ts';
 test('Monitor defaults active without starting sources or timers', () => {
   const tools: any[] = [];
-  monitorExtension({ registerTool: (tool: any) => tools.push(tool), on() {}, sendMessage() { assert.fail('registration must not send'); } } as any, {
+  monitorExtension({ registerMessageRenderer(name: string, renderer: any) { assert.equal(name, 'monitor_event'); assert.equal(renderer, renderMonitorEvent); }, registerTool: (tool: any) => tools.push(tool), on() {}, sendMessage() { assert.fail('registration must not send'); } } as any, {
     clock: { now: () => 0, set() { assert.fail('registration must not start timers'); }, clear() {} },
   });
   assert.deepEqual(tools.map(tool => tool.name), ['monitor_start', 'monitor_status', 'monitor_stop']);
@@ -12,7 +13,7 @@ test('Monitor defaults active without starting sources or timers', () => {
 });
 test('review S3: saved status definition rejects non-record direct execution before readonly list', async () => {
   const tools = new Map<string, any>(), handlers = new Map<string, any>(); let runtime!: MonitorRuntime, lists = 0;
-  monitorExtension({ registerTool: (t: any) => tools.set(t.name, t), on: (name: string, fn: any) => handlers.set(name, fn), getActiveTools: () => ['monitor_status'], sendMessage() {} } as any, { onRuntime: r => { runtime = r; } });
+  monitorExtension({ registerMessageRenderer() {}, registerTool: (t: any) => tools.set(t.name, t), on: (name: string, fn: any) => handlers.set(name, fn), getActiveTools: () => ['monitor_status'], sendMessage() {} } as any, { onRuntime: r => { runtime = r; } });
   const ctx = { cwd: process.cwd(), sessionManager: { getSessionId: () => 'strict-status' } };
   await handlers.get('session_start')({}, ctx);
   const list = runtime.list.bind(runtime); runtime.list = (...args) => { lists++; return list(...args); };

@@ -102,7 +102,7 @@ Brave 使用 Web Search endpoint；Exa 使用 Search endpoint（`type: "auto"`�
 - 移除 script、導覽等非正文元素，保留程式碼、列表、表格與安全的絕對連結。
 - 每次呼叫使用獨立 browser context，cookies／storage 不共用；browser 共用並於閒置後回收。取消只影響該次抓取，session shutdown／reload 時清理 browser。
 - 回傳 title、URL、HTTP status 與警告（模型可見文字不含取得時間，仍在 data）；不是 AI 摘要。`Final URL` 行僅在與請求 URL 不同時顯示（`data.finalUrl` 永遠保留）。
-- 錯誤訊息附下一步提示（仍不含 Playwright log、headers 或 DNS 細節）：`BROWSER_UNAVAILABLE` 指示執行 `npm run browser:install` 且不要重試；`NETWORK_BLOCKED` 說明私有／本機位址不可抓、請改用公開 URL；`TIMEOUT` 建議調整 `waitForSelector` 或換頁；`UNSUPPORTED_CONTENT`（PDF、下載等）建議改找 HTML 版本。
+- 錯誤訊息附下一步提示（仍不含 Playwright log、headers 或 DNS 細節）：`BROWSER_UNAVAILABLE` 保留錯誤碼，依已知啟動診斷分類：Playwright executable 缺少時提示以相同使用者／browser cache 環境執行 `npm run browser:install`；Chrome executable 缺少時提示安裝 Google Chrome，或明確改用 `fetch.channel: "chromium"` 並安裝；系統依賴缺失時提示 Linux／WSL 經使用者同意執行 `npm run browser:install-deps`；權限拒絕時檢查 executable／cache 權限與 OS 安全政策；啟動逾時時檢查負載／啟動限制及 `fetch.timeoutMs`；其他失敗只回報啟動失敗、未確認瀏覽器缺失。依分類檢查後才重試，不一律要求重裝或開新 session。整體 fetch deadline 仍優先回報既有 `TIMEOUT`；`NETWORK_BLOCKED` 說明私有／本機位址不可抓、請改用公開 URL；`TIMEOUT` 建議調整 `waitForSelector` 或換頁；`UNSUPPORTED_CONTENT`（PDF、下載等）建議改找 HTML 版本。
 - HTTP 錯誤、不支援內容或空內容視為失敗。反爬與登入頁偵測僅為啟發式。
 - 不處理 PDF、影音或下載；不登入、不繞過 CAPTCHA 或付費牆、不使用個人 cookies。
 

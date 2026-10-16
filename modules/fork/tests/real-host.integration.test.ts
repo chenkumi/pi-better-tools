@@ -22,15 +22,15 @@ function isolated() {
 	writeFileSync(join(config, "auth.json"), "{}");
 	writeFileSync(join(config, "settings.json"), JSON.stringify({ compaction: { enabled: false }, retry: { enabled: false }, cacheWarming: "off", defaultProjectTrust: "never" }));
 	const env: Record<string, string> = {};
-	for (const key of ["PATH", "Path", "PATHEXT", "SystemRoot", "SYSTEMROOT", "WINDIR", "COMSPEC", "TEMP", "TMP"]) if (process.env[key]) env[key] = process.env[key]!;
+	for (const key of ["PATH", "Path", "PATHEXT", "SystemRoot", "SYSTEMROOT", "WINDIR", "COMSPEC", "TEMP", "TMP", "ProgramFiles", "ProgramFiles(x86)"]) if (process.env[key]) env[key] = process.env[key]!;
 	Object.assign(env, { PI_FORK_DEBUG: "1", PI_CODING_AGENT_DIR: config, HOME: root, USERPROFILE: root, APPDATA: join(root, "appdata"), LOCALAPPDATA: join(root, "localappdata"), PI_OFFLINE: "1", PI_TELEMETRY: "0", PI_SKIP_VERSION_CHECK: "1", FORK_CAPTURE: capture });
 	return { root, ws, sessions, capture, env };
 }
 
 /** Drives one real RPC Pi. Every wait is bound to the single deadline and to process exit. */
-function startPi(env: Record<string, string>, ws: string, sessions: string, extra: string[], tools = "read,fork,fork_status") {
+function startPi(env: Record<string, string>, ws: string, sessions: string, extra: string[], tools: string | null = "read,fork,fork_status") {
 	const args = [cli, "--mode", "rpc", "--offline", "--no-extensions", "--no-context-files", "--no-skills", "--no-prompt-templates", "--no-themes", "-e", forkEntry, "-e", provider,
-		"--model", "fork-offline/m", "--thinking", "off", "--tools", tools, "--session-dir", sessions, ...extra];
+		"--model", "fork-offline/m", "--thinking", "off", ...(tools === null ? [] : ["--tools", tools]), "--session-dir", sessions, ...extra];
 	const proc = spawn(process.execPath, args, { cwd: ws, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
 	const events: any[] = []; let stderr = "", buffer = "";
 	const waiters: Array<{ test: (events: any[]) => boolean; resolve: () => void }> = [];
@@ -68,7 +68,7 @@ test("real Pi: fork snapshot, independent child, report back, cold /resume stays
 	let parent: ReturnType<typeof startPi> | undefined;
 	try {
 		console.log("[progress] Starting real parent Pi (RPC, offline)");
-		parent = startPi(iso.env, iso.ws, iso.sessions, []);
+		parent = startPi(iso.env, iso.ws, iso.sessions, [], null);
 		parent.send({ id: "p1", type: "prompt", message: "DO_FORK please" });
 		await parent.waitFor("fork result notice", events => customResults(events).length > 0);
 		console.log("[progress] Fork result observed; waiting for the parent's follow-up turn to settle");
@@ -109,7 +109,8 @@ test("real Pi: fork snapshot, independent child, report back, cold /resume stays
 		assert.ok(child.length >= 1 && root.length >= 2);
 		assert.ok(!child.some(r => r.pid === root[0].pid), "child is a separate process");
 		assert.ok(root[0].tools.includes("fork") && root[0].tools.includes("read"));
-		assert.deepEqual(child[0].tools, ["read"], "child inherits the exact parent selection minus Fork tools");
+		for (const name of ["fork", "fork_status", "fork_cancel"]) assert.ok(root[0].tools.includes(name), `${name} is active without --tools or defaultTools`);
+		assert.deepEqual([...child[0].tools].sort(), root[0].tools.filter((name: string) => !["fork", "fork_status", "fork_cancel"].includes(name)).sort(), "child inherits the exact parent selection minus Fork tools");
 		assert.ok(JSON.stringify(child[0].messages).includes("DO_FORK please"), "child sees the inherited conversation");
 		assert.equal(child[0].roles.at(-1), "user");
 

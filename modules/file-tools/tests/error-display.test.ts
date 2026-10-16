@@ -42,7 +42,7 @@ function registeredRenderer(name = "edit"): Renderer {
   assert.equal(typeof renderer, "function");
   return renderer as Renderer;
 }
-const theme = { fg: (_color: string, text: string) => text };
+const theme = { fg: (_color: string, text: string) => text, bold: (text: string) => text };
 const renderText = (component: Component) => component.render(400).join("\n");
 
 // Freeze all model-visible objects so accidental renderer mutations fail immediately.
@@ -53,6 +53,64 @@ function frozenResult(text: string, details?: Result["details"]): Result {
   if (details) Object.freeze(details);
   return Object.freeze(result);
 }
+
+describe("write/edit streaming UTF-8 byte counts", () => {
+  type CallRenderer = (args: unknown, colors: typeof theme, context: {
+    cwd: string; argsComplete: boolean; expanded: boolean; isPartial: boolean; lastComponent?: Component;
+  }) => Component;
+  function renderer(name: string): CallRenderer {
+    const tools: Array<Record<string, unknown>> = [];
+    fileToolsExtension({ registerTool: (tool: Record<string, unknown>) => tools.push(tool), on: () => () => {} } as never);
+    return tools.find(tool => tool.name === name)!.renderCall as CallRenderer;
+  }
+  const context = { cwd: process.cwd(), argsComplete: false, expanded: false, isPartial: true };
+
+  it("updates write counts, preserves the host preview and stops saying receiving when args complete", () => {
+    const render = renderer("write");
+    const args = Object.freeze({ path: "sample.txt", content: "a" });
+    const component = render(args, theme, context);
+    assert.match(renderText(component), /^receiving 1 bytes\s*$/m);
+    assert.match(renderText(component), /write.*sample\.txt[\s\S]*a/);
+    assert.equal(render({ ...args, content: "abc中😀" }, theme, { ...context, lastComponent: component }), component);
+    assert.match(renderText(component), /receiving 10 bytes/);
+    render({ ...args, content: "abc中😀" }, theme, { ...context, argsComplete: true, lastComponent: component });
+    assert.match(renderText(component), /^received 10 bytes\s*$/m);
+    render({ ...args, content: "a".repeat(2257) + "中文測" }, theme, { ...context, argsComplete: true, lastComponent: component });
+    assert.match(renderText(component), /received 2,266 bytes/);
+    assert.doesNotMatch(renderText(component), /receiving|written/);
+    assert.deepEqual(args, { path: "sample.txt", content: "a" });
+  });
+
+  it("sums only edit newText, not match text, flags, capture expansion or replaceAll occurrences", () => {
+    const render = renderer("edit");
+    const args = Object.freeze({ path: "sample.txt", edits: Object.freeze([
+      Object.freeze({ oldText: "PRIVATE_MATCH", newText: "中😀", replaceAll: true }),
+      Object.freeze({ regex: "(PRIVATE_REGEX)", newText: "$1", replacementMode: "template" }),
+      Object.freeze({ oldText: "delete", newText: "" }),
+    ]) });
+    const component = render(args, theme, context);
+    assert.match(renderText(component), /^receiving 9 bytes\s*$/m);
+    assert.match(renderText(component), /text:file\/all, regex:file, text:file/);
+    assert.doesNotMatch(renderText(component), /PRIVATE_MATCH|PRIVATE_REGEX|中|😀/);
+    assert.equal(render({ ...args, edits: [{ oldText: "x", newText: "longer" }] }, theme, { ...context, lastComponent: component }), component);
+    assert.match(renderText(component), /receiving 6 bytes/);
+    render(args, theme, { ...context, argsComplete: true, lastComponent: component });
+    assert.match(renderText(component), /^received 9 bytes\s*$/m);
+    assert.doesNotMatch(renderText(component), /receiving|applied/);
+  });
+
+  it("tolerates missing, empty and incomplete arguments and resets reused counts", () => {
+    for (const name of ["write", "edit"]) {
+      const render = renderer(name);
+      let lastComponent: Component | undefined;
+      for (const args of [undefined, null, {}, { content: "", edits: [] }, { content: null, edits: [null, {}, { newText: 42 }] }]) {
+        lastComponent = render(args, theme, { ...context, lastComponent });
+        assert.match(renderText(lastComponent), /receiving 0 bytes/);
+      }
+      for (const width of [12, 40]) assert.ok(lastComponent!.render(width).length > 0);
+    }
+  });
+});
 
 describe("BUG-007 error payload validation", () => {
   for (const example of malformed) {

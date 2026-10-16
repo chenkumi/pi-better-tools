@@ -25,7 +25,7 @@ import {
   createTestConfigManager,
   resetConfigTestState,
   createTestAgentDir,
-} from "./config-test-helpers.ts";
+} from "../../tests/fixtures/config-test-helpers.ts";
 import { parseSessionEntries } from "@earendil-works/pi-coding-agent";
 import { createSettingsModal } from "./settings/modal.ts";
 

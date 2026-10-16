@@ -1,6 +1,7 @@
-import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
+import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
-import { acquireBackgroundPanel, BACKGROUND_WIDGET_KEY, type BackgroundPanel, type PanelHost } from "./background-panel.js";
+import { BACKGROUND_WIDGET_KEY, type PanelHost } from "./background-panel.js";
+import { JobsWidgetBinding } from "./widget-binding.js";
 import { renderJobs, safeJobText, type PanelJob } from "./job-view.js";
 export const SHELL_WIDGET_KEY = BACKGROUND_WIDGET_KEY;
 export interface ShellWidgetRow {
@@ -29,32 +30,6 @@ export function renderShellWidget(rows: readonly ShellWidgetRow[], theme: Theme)
 }
 
 /** UI-only observer: no timers, tools, model messages, or job-control side effects. */
-export class ShellJobsWidget {
-  private ctx?: ExtensionContext;
-  private owner?: string;
-  private source?: () => ShellWidgetRow[];
-  private token?: object;
-  private panel: BackgroundPanel;
-  constructor(api?: PanelHost) { this.panel = acquireBackgroundPanel(api); }
-  bind(ctx: ExtensionContext, source: () => ShellWidgetRow[]) {
-    this.clear();
-    if (ctx.mode !== "tui" || !ctx.hasUI) return;
-    try { this.owner = ctx.sessionManager.getSessionId(); this.ctx = ctx; this.source = source; this.token = this.panel.attach("shell", ctx); }
-    catch { /* Observability cannot fail admission. */ }
-    this.refresh();
-  }
-  refresh() {
-    const ctx = this.ctx;
-    if (!ctx) return;
-    try {
-      if (ctx.sessionManager.getSessionId() !== this.owner) { this.clear(); return; }
-      const jobs = shellPanelJobs(this.source!());
-      if (this.token) this.panel.update("shell", this.token, { jobs, signature: JSON.stringify(jobs) });
-    } catch { this.clear(); /* UI failure never changes execution or notifications. */ }
-  }
-  clear() {
-    const token = this.token;
-    this.ctx = undefined; this.owner = undefined; this.source = undefined; this.token = undefined;
-    try { if (token) this.panel.detach("shell", token); } catch { /* disposed UI */ }
-  }
+export class ShellJobsWidget extends JobsWidgetBinding<ShellWidgetRow> {
+  constructor(api?: PanelHost) { super("shell", shellPanelJobs, api); }
 }

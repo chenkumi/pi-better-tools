@@ -11,7 +11,7 @@ const heartbeat = setInterval(() => console.error('[schedule-deadline] Host prob
 let session;
 const errors = [];
 try {
-  assert.equal(sdk.VERSION, '1.1.0');
+  assert.equal(sdk.VERSION, '1.3.0');
   assert.equal(resolve(process.env.PI_CODING_AGENT_DIR), resolve(agentDir));
   await mkdir(agentDir, { recursive: true });
   await mkdir(join(cwd, '.pi'), { recursive: true });

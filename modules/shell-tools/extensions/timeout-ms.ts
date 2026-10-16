@@ -20,6 +20,7 @@ import { AUTO_MONITOR_INTERVAL_MS, canonicalMonitorCwd, requestAutoMonitor } fro
 import { createForegroundHandoff, resolveAutoBackgroundMs } from "../src/foreground-handoff.js";
 import { createShellMonitorPublisher } from "../src/monitor-publisher.js";
 import { renderShellCompletion, renderShellJobResult } from "../src/completion-renderer.js";
+import { renderShellOutput } from "../src/output-renderer.js";
 
 /** Polling a running job repeats this text each time; keep it short (full tail stays in structuredContent). */
 const RUNNING_TAIL_CHARS = 2000;
@@ -54,7 +55,7 @@ const parameters = Type.Object({
   timeoutMs: Type.Optional(
     Type.Integer({
       description:
-        "Total timeout in ms, counted from the moment the command is launched (process startup included): the command is killed when it elapses, even if it is still producing output. Set it above the longest expected run time, with several seconds of margin. Omit for no timeout.",
+        "Total timeout in ms from launch (process startup included): the command is killed when it elapses, even if still producing output. Omit for no timeout.",
       minimum: 1,
       maximum: MAX_TIMEOUT_MS,
     }),
@@ -100,7 +101,7 @@ function registerTimeoutMsOverride(
   // built-in definition with the current session's cwd and shell settings.
   const base = createBase(process.cwd());
 
-  const timeoutGuideline = `For ${name}, timeoutMs is a total time limit in milliseconds, not seconds. The timer starts when the command is launched and the command is stopped when it elapses even if it keeps writing output (20000 = stop after 20 seconds). Set it above the longest expected run time, with margin for startup, or omit it for no limit. ${foregroundOnly ? "" : "Use background:true separately if you want asynchronous execution; background mode applies the same total limit. A foreground command without timeoutMs that is still running after 180 seconds is moved to a background job automatically (same process, not restarted) and you get a job receipt instead of the result; the turn's abort no longer stops it, use shell_job_cancel. A background job started without timeoutMs automatically gets a display-only Monitor that samples it every 180 seconds when monitor_start is selected."}`;
+  const timeoutGuideline = `For ${name}, timeoutMs is a total time limit in milliseconds, not seconds (20000 = stop after 20 seconds). Set it above the longest expected run time, with margin for startup, or omit it for no limit${foregroundOnly ? "." : "; background mode applies the same total limit."}`;
   const platformNote = name === "bash"
     ? "On Windows bash needs Git Bash (or shellPath) and applies shellCommandPrefix."
     : "Windows only; shellCommandPrefix is not applied.";
@@ -116,7 +117,7 @@ function registerTimeoutMsOverride(
     defaultActive: false,
     description: foregroundOnly
       ? `${descriptionWithoutOldTimeout} timeoutMs is a total time limit in ms from launch. Commands run synchronously until completion. ${platformNote}`
-      : `${descriptionWithoutOldTimeout} timeoutMs is a total time limit in ms from launch (foreground and background). A foreground command without timeoutMs still running after 180s is moved to a background job automatically. background:true returns a jobId/liveLogPath receipt (no exit code) and reports completion automatically; without timeoutMs it also auto-starts a display-only Monitor sampling every 180s; shell_job_status/cancel need explicit selection. ${platformNote}`,
+      : `${descriptionWithoutOldTimeout} timeoutMs is a total time limit in ms from launch (foreground and background). A foreground command without timeoutMs still running after 180s is moved to a background job automatically (same process, not restarted) and you get a job receipt; the turn's abort no longer stops it, use shell_job_cancel. background:true returns a jobId/liveLogPath receipt (no exit code) and reports completion automatically; without timeoutMs it also auto-starts a display-only Monitor sampling every 180s; shell_job_status/cancel need explicit selection. ${platformNote}`,
     parameters: foregroundOnly ? Type.Omit(parameters, ["background"], { additionalProperties: false }) : parameters,
     outputSchema: foregroundOnly ? base.outputSchema! : Type.Union([base.outputSchema!, receiptSchema]),
     promptGuidelines: [...(base.promptGuidelines ?? []), timeoutGuideline],
@@ -147,7 +148,7 @@ function registerTimeoutMsOverride(
         const timing = typeof context.state.startedAt === "number" ? `\nAccepted in ${((context.state.endedAt - context.state.startedAt) / 1000).toFixed(1)}s` : "";
         return new Text(theme.fg("muted", display(text, 8192) + timing), 0, 0);
       }
-      return base.renderResult!(result as Parameters<NonNullable<typeof base.renderResult>>[0], options, theme, context);
+      return renderShellOutput(base.renderResult!, result as Parameters<NonNullable<typeof base.renderResult>>[0], options, theme, context);
     }),
     async execute(toolCallId, input, signal, onUpdate, ctx) {
       const startedAt = performance.now();

@@ -14,7 +14,7 @@ test('Blackhole Pi 1.1.0 native cut retains the newest final and persists only t
     const output = await runCommand('blackhole Pi 1.1.0 native-cut compact/resume', process.execPath,
       ['tests/fixtures/blackhole-display.mjs', root], { cwd: root, env: isolatedEnv(home), timeoutMs: 180000 });
     const result = JSON.parse(output.trim().split('\n').at(-1));
-    assert.equal(result.contract, 'pi-owned-native-cut-display-v1'); assert.equal(result.host, '1.1.0');
+    assert.equal(result.contract, 'pi-owned-native-cut-display-v1'); assert.equal(result.host, '1.3.0');
     for (const key of ['nativeCut', 'persisted', 'resumed', 'rendered', 'duplicateSafe', 'displayOnly', 'noModelCopyDuplicate']) assert.equal(result[key], true, key);
     assert.deepEqual(result.counterSemantics, { modelStreamCalls: 'main-agent-streamFunction-invocations', actualExternalFetchCalls: 'global-fetch-attempts', providerCalls: 'compatibility-alias-of-actualExternalFetchCalls' });
     for (const key of ['modelStreamCalls', 'actualExternalFetchCalls', 'providerCalls']) assert.equal(result[key], 0, key);
@@ -40,7 +40,7 @@ test('ROOT W1 actual Agent.prompt proves the shared model counter and rejects wr
     const output = await runCommand('actual Pi 1.1.0 Agent.prompt stream-counter control', process.execPath,
       ['tests/fixtures/blackhole-display.mjs', root, '--counter-control'], { cwd: root, env: isolatedEnv(home), timeoutMs: 180000 });
     const result = JSON.parse(output.trim().split('\n').at(-1));
-    assert.equal(result.contract, 'pi-agent-stream-counter-control-v1'); assert.equal(result.host, '1.1.0');
+    assert.equal(result.contract, 'pi-agent-stream-counter-control-v1'); assert.equal(result.host, '1.3.0');
     assert.deepEqual(result.counterSemantics, { modelStreamCalls: 'main-agent-streamFunction-invocations', actualExternalFetchCalls: 'global-fetch-attempts', providerCalls: 'compatibility-alias-of-actualExternalFetchCalls' });
     assert.deepEqual(result.controls.map(row => row.wiring), ['fixture-shared-installer', 'intentional-wrong-instance-field']);
     const [positive, negative] = result.controls;

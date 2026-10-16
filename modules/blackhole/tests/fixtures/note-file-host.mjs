@@ -92,5 +92,5 @@ try {
   assert.ok((await readFile(file, 'utf8')).startsWith(persistedBefore));
   for (const [path, snapshot] of snapshots) { const bytes = await readFile(join(cwd, path)); assert.deepEqual(bytes, snapshot.bytes); assert.equal(createHash('sha256').update(bytes).digest('hex'), snapshot.hash); }
   assert.deepEqual(errors, []); assert.equal(providerCalls, 0); assert.deepEqual(JSON.parse(await readFile(join(agentDir, 'auth.json'), 'utf8')), {});
-  console.log(JSON.stringify({ piVersion: '1.1.0', producerExecuted: true, nativeCompact: true, resumed: true, fileLists: true, malformedFileAttemptsExcluded: true, drilldown: true, originalArguments: true, fixtureBytesAndHashesUnchanged: true, providerCalls }));
+  console.log(JSON.stringify({ piVersion: '1.2.0', producerExecuted: true, nativeCompact: true, resumed: true, fileLists: true, malformedFileAttemptsExcluded: true, drilldown: true, originalArguments: true, fixtureBytesAndHashesUnchanged: true, providerCalls }));
 } finally { session?.dispose(); }

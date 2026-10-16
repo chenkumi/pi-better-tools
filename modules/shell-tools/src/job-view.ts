@@ -2,7 +2,7 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Box, SelectList, matchesKey, truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component } from "@earendil-works/pi-tui";
 import { stripVTControlCharacters } from "node:util";
 
-export type PanelKind = "subagents" | "shell";
+export type PanelKind = "subagents" | "shell" | "fork";
 export type UsageState = "pending" | "reported" | "unknown" | "na";
 export interface PanelUsage { input: number; output: number; cacheRead: number; cacheWrite: number; totalTokens: number; cost: number }
 /** Plain presentation only; never a receipt, execution registry or accounting ledger. */
@@ -46,7 +46,7 @@ export function orderedJobs(jobs: readonly PanelJob[]): PanelJob[] {
 }
 export function jobHeading(job: PanelJob): string {
   const icon = job.state === "queued" ? "◷" : job.state === "finalizing" || job.state === "cancelling" ? "◐" : job.active ? "●" : job.state === "completed" ? "✓" : "○";
-  return `${icon} ${job.kind === "shell" ? "SH" : "SA"} ${safeJobText(job.label, 64)}${job.title ? ` · ${safeJobText(job.title, 256)}` : ""}`;
+  return `${icon} ${job.kind === "shell" ? "SH" : job.kind === "fork" ? "FK" : "SA"} ${safeJobText(job.label, 64)}${job.title ? ` · ${safeJobText(job.title, 256)}` : ""}`;
 }
 /** Five JOBS total, two physical rows each. Small terminals reserve space for editor/footer/chat. */
 export function renderJobs(jobs: readonly PanelJob[], theme: Theme, width: number, terminalRows = 40): string[] {
@@ -55,8 +55,8 @@ export function renderJobs(jobs: readonly PanelJob[], theme: Theme, width: numbe
   if (!active.length) return [];
   const limit = Math.min(5, Math.max(0, Math.floor((terminalRows - 10) / 2)));
   const padding = width >= 3 ? 1 : 0, inner = width - padding * 2;
-  const sub = active.filter(j => j.kind === "subagents").length;
-  const lines = [theme.fg("accent", truncateToWidth(`Jobs · ${active.length} active · Subagents ${sub} / Shell ${active.length - sub}`, inner))];
+  const sub = active.filter(j => j.kind === "subagents").length, fork = active.filter(j => j.kind === "fork").length;
+  const lines = [theme.fg("accent", truncateToWidth(`Jobs · ${active.length} active · Subagents ${sub} / Shell ${active.length - sub - fork}${fork ? ` / Fork ${fork}` : ""}`, inner))];
   for (const job of active.slice(0, limit)) {
     const suffix = width >= 40 ? `  …${safeJobText(job.jobId, 256).slice(-6)}` : "";
     const heading = truncateToWidth(jobHeading(job), Math.max(0, inner - visibleWidth(suffix)));

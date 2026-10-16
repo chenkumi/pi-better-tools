@@ -11,9 +11,11 @@ import { deadlineLabel, validateJobDeadline } from "../deadline.js";
 import type { ScheduleSettings } from "../settings.js";
 import type { CronStorage } from "../storage.js";
 import type { CronJob } from "../types.js";
+import { commandSpecLines } from "../command.js";
 import { runAddFlow } from "./add-flow.js";
 
 const ADD = "Add job";
+const ADD_COMMAND = "Add shell command job";
 const CLEANUP = "Cleanup disabled jobs";
 const BACK = "Back";
 
@@ -37,13 +39,17 @@ export async function runJobsMenu(
     const mine = storage.getAllJobs().filter((j) => CronScheduler.isLoadedFor(j, mySessionId));
     const labelToJob = new Map(mine.map((j) => [describe(j, scheduler), j] as const));
     const disabled = mine.filter((j) => !j.enabled);
-    const options = [...labelToJob.keys(), ADD, ...(disabled.length > 0 ? [CLEANUP] : []), BACK];
+    const options = [...labelToJob.keys(), ADD, ADD_COMMAND, ...(disabled.length > 0 ? [CLEANUP] : []), BACK];
     const title = mine.length === 0 ? "Jobs (no scheduled prompts)" : `Jobs (${mine.length})`;
     const choice = await ctx.ui.select(title, options);
     if (!choice || choice === BACK) return;
 
     if (choice === ADD) {
       await runAddFlow(ctx, storage, scheduler, settings, mySessionId);
+      continue;
+    }
+    if (choice === ADD_COMMAND) {
+      await runAddFlow(ctx, storage, scheduler, settings, mySessionId, "command");
       continue;
     }
     if (choice === CLEANUP) {
@@ -66,6 +72,15 @@ export async function runJobsMenu(
       } catch (error) {
         ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
         continue;
+      }
+      if (enabled && fresh.command !== undefined) {
+        // A command runs unattended: re-confirm the exact spec, then record this process's approval.
+        const confirmed = await ctx.ui.confirm("Confirm enabling scheduled command", [`Enable "${fresh.name}"?`, ...commandSpecLines(ctx.cwd, fresh)].join("\n"));
+        if (!confirmed) continue;
+        if (!scheduler.approveCommand(fresh)) {
+          ctx.ui.notify("The working directory is no longer available; the job stays disabled.", "error");
+          continue;
+        }
       }
       storage.updateJob(fresh.id, { enabled });
       scheduler.updateJob(fresh.id, { ...fresh, enabled });

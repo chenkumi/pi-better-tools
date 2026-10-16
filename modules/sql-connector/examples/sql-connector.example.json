@@ -1,0 +1,24 @@
+{
+  "mysql": {
+    "host": "127.0.0.1",
+    "port": 3306,
+    "username": "root",
+    "password": "${MYSQL_PASSWORD}",
+    "database": "app"
+  },
+  "mssql": {
+    "host": "localhost",
+    "instanceName": "SQLEXPRESS01",
+    "database": "master",
+    "windowsAuth": true,
+    "odbcDriver": "ODBC Driver 18 for SQL Server",
+    "trustServerCertificate": true
+  },
+  "pgsql": {
+    "host": "127.0.0.1",
+    "port": 5432,
+    "username": "pi_reader",
+    "password": "${PGPASSWORD}",
+    "database": "analytics"
+  }
+}

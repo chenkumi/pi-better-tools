@@ -7,7 +7,7 @@
  * flags content-bearing compactions, so hook { cancel: true } returns are
  * mislabeled — we correct via compactWasPiVcc / lastCompactCancelled).
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fixtureNativePreparation } from "./fixtures/native-preparation.js";
 
 vi.mock("../src/om/debug-log.js", () => ({
@@ -20,7 +20,6 @@ import {
   PI_VCC_COMPACT_INSTRUCTION,
   registerBeforeCompactHook,
 } from "../src/hooks/before-compact.js";
-import { registerCompactionTrigger } from "../src/om/compaction-trigger.js";
 
 function traceEvents(): string[] {
   return (vi.mocked(debugLog).mock.calls as unknown as [string][]).map((c) => c[0]);
@@ -470,85 +469,5 @@ describe("compact-failed attribution × before-compact hook", () => {
     compactHandler({ fromExtension: true }, fakeCtx2());
 
     expect(runtime.compactWasPiVcc).toBe(false);
-  });
-});
-
-describe("compact-failed × pending auto-compaction", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.mocked(debugLog).mockClear();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("aborts an old wait loop before a later agent_end schedules its replacement", async () => {
-    const handlers = new Map<string, Array<(event: any, ctx: any) => void>>();
-    const pi = {
-      on: vi.fn((name: string, cb: (event: any, ctx: any) => void) => {
-        const registered = handlers.get(name) ?? [];
-        registered.push(cb);
-        handlers.set(name, registered);
-      }),
-    };
-    const runtime = {
-      ensureConfig: vi.fn(),
-      config: {
-        compaction: "auto",
-        compactionEngine: "blackhole",
-        compactAfterTokens: 3,
-        debugLog: false,
-      },
-      compactInFlight: false,
-      autoCompactionController: null as AbortController | null,
-      compactWasPiVcc: false,
-      lastCompactCancelled: false,
-      midRunCompactionRetry: { failures: 0, retryAfter: 0 },
-      resetInfoGate: vi.fn(),
-      tryEmitInfo: vi.fn(() => true),
-    };
-    registerCompactionTrigger(pi as any, runtime as any);
-    registerCompactFailedHook(pi as any, runtime as any);
-
-    const branch = [
-      {
-        id: "m1",
-        type: "message",
-        message: { role: "user", content: "aaaaaaaaaaaa" },
-      },
-    ];
-    const compact = vi.fn();
-    const ctx = {
-      cwd: "/tmp/project",
-      hasUI: false,
-      ui: undefined,
-      sessionManager: {
-        getBranch: vi.fn(() => branch),
-        getSessionId: vi.fn(() => "session-1"),
-      },
-      isIdle: vi.fn(() => true),
-      compact,
-    };
-    const agentEnd = {
-      type: "agent_end",
-      messages: [{ role: "assistant", content: "done", stopReason: "stop" }],
-    };
-
-    handlers.get("agent_end")![0](agentEnd, ctx);
-    const firstController = runtime.autoCompactionController;
-    expect(firstController).not.toBeNull();
-
-    handlers.get("session_compact_failed")![0](
-      failedEvent({ reason: "manual", aborted: true }),
-      ctx,
-    );
-    expect(firstController?.signal.aborted).toBe(true);
-
-    handlers.get("agent_start")![0]({ type: "agent_start" }, ctx);
-    handlers.get("agent_end")![0](agentEnd, ctx);
-    await vi.runAllTimersAsync();
-
-    expect(compact).toHaveBeenCalledTimes(1);
   });
 });

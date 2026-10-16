@@ -39,9 +39,16 @@ async function record(label, action) {
   }
 }
 const required = [
-  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'note-tools', 'gpt-speed', 'json-schema', 'pty-terminal', 'schedule-prompt', 'blackhole', 'pi-runtime', 'monitor', 'skill-tools', 'fork'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
+  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'note-tools', 'gpt-speed', 'json-schema', 'pty-terminal', 'schedule-prompt', 'blackhole', 'pi-runtime', 'monitor', 'skill-tools', 'fork', 'sqlite-tools', 'sql-connector', 'file-audit'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
+  ...['activity-window', 'events', 'paths', 'provenance', 'commands', 'presentation'].map(name => `modules/file-audit/src/${name}.ts`),
+  'modules/sqlite-tools/src/sqlite-manager.ts',
+  ...['config', 'runtime', 'tools', 'prompt', 'types', 'output', 'security/sql-policy'].map(name => `modules/sql-connector/src/${name}.ts`),
+  'modules/sql-connector/examples/sql-connector.example.json',
   'modules/pi-runtime/src/policy.ts',
   'modules/skill-tools/skills/create-plan/SKILL.md',
+  'modules/skill-tools/skills/draft-plan/SKILL.md',
+  'modules/skill-tools/skills/execute-plan/SKILL.md',
+  'modules/skill-tools/skills/write-prompt/SKILL.md',
   ...['core', 'schema', 'lines', 'network', 'sources', 'renderers'].map(name => `modules/monitor/src/${name}.ts`),
   'modules/monitor/LICENSE', 'modules/monitor/package.json',
   ...['identity', 'snapshot', 'child', 'child-guard', 'manager', 'store', 'args'].map(name => `modules/fork/src/${name}.ts`), 'modules/fork/LICENSE', 'modules/fork/package.json',
@@ -102,17 +109,17 @@ try {
       const bootstrapHome = join(temp, 'bootstrap'); await mkdir(bootstrapHome);
       const env = isolatedEnv(bootstrapHome);
       // Isolated HOME/config and a pinned native-script policy; never grant all scripts.
-      await writeFile(join(temp, 'package.json'), JSON.stringify({ name: 'pi-better-tools-production-probe', version: '1.0.0', private: true, type: 'module', allowScripts: { 'node-pty@1.2.0-beta.14': true } }));
+      await writeFile(join(temp, 'package.json'), JSON.stringify({ name: 'pi-better-tools-production-probe', version: '1.0.0', private: true, type: 'module', allowScripts: { [`node-pty@${rootManifest.dependencies['node-pty']}`]: true } }));
       const hostPackages = ['pi-coding-agent', 'pi-ai', 'pi-agent-core', 'pi-tui'].map(name => `@earendil-works/${name}@${version}`);
-      // Host-transitive @earendil-works packages use caret ranges; a fresh install would float to newer releases the 1.1.0 host cannot load
-      // (pi-codemode 1.2.0 drops an export). Pin them to the root lockfile so the production tree matches the verified baseline.
+      // Host-transitive @earendil-works packages use caret ranges; a fresh install would float to newer releases the pinned host may not load
+      // (a previous host drop made pi-codemode 1.2.0 lose an export). Pin them to the root lockfile so the production tree matches the verified baseline.
       const lock = JSON.parse(await readFile(join(root, 'package-lock.json'), 'utf8'));
-      for (const name of ['chord', 'pi-codemode', 'pi-mcp', 'pi-telemetry']) {
+      for (const name of ['pi-codemode', 'pi-mcp', 'pi-telemetry']) {
         const locked = lock.packages[`node_modules/@earendil-works/${name}`]?.version;
         assert.ok(locked, `root lockfile must pin @earendil-works/${name}`);
         hostPackages.push(`@earendil-works/${name}@${locked}`);
       }
-      await record(`${version}:production-install`, () => runNpm(`production dependency install Pi ${version}`, ['install', '--omit=dev', '--legacy-peer-deps', '--ignore-scripts', '--no-audit', '--no-fund', tarball, ...hostPackages, 'typebox@1.3.27'], { cwd: temp, env, timeoutMs: 600000 }));
+      await record(`${version}:production-install`, () => runNpm(`production dependency install Pi ${version}`, ['install', '--omit=dev', '--legacy-peer-deps', '--ignore-scripts', '--no-audit', '--no-fund', tarball, ...hostPackages, `typebox@${rootManifest.devDependencies.typebox}`], { cwd: temp, env, timeoutMs: 600000 }));
       const packageRoot = join(temp, 'node_modules/pi-better-tools');
       const host = join(temp, 'node_modules/@earendil-works/pi-coding-agent');
       // The supported workflow mounts a source directory with its own installed node_modules.
@@ -237,6 +244,25 @@ try {
           assert.equal(exited, true, 'extraction worker termination must be confirmed');
         }
         return 'Packaged extraction core loaded with production dependencies, text/markdown reuse and worker termination verified.';
+      });
+      const sqlFixture = join(temp, 'sql-connector-production.mjs');
+      await copyFile(join(root, 'modules/sql-connector/tests/fixtures/sdk-host.mjs'), sqlFixture);
+      const sqlHome = join(temp, 'home-sql-connector'); await mkdir(sqlHome);
+      await record(`${version}:sql-connector-runtime`, async () => {
+        const output = await runCommand(`production Pi ${version} SQL Connector`, process.execPath, [sqlFixture, packageRoot, 'search'], { cwd: sqlHome, env: { ...isolatedEnv(sqlHome), PI_BETTER_TOOLS_HOST: host }, timeoutMs: 120000 });
+        const result = JSON.parse(output.trim().split('\n').at(-1));
+        assert.equal(result.status, 'passed'); assert.equal(result.host, version); assert.equal(result.networkCalls, 0); assert.equal(result.databaseConnections, 0);
+        return output;
+      });
+      const auditFixture = join(temp, 'file-audit-host.mjs');
+      await copyFile(join(root, 'modules/file-audit/tests/fixtures/host.mjs'), auditFixture);
+      const auditHome = join(temp, 'home-file-audit'); await mkdir(auditHome);
+      await record(`${version}:file-audit-runtime`, async () => {
+        const output = await runCommand(`production Pi ${version} File Audit`, process.execPath, [auditFixture, packageRoot, 'files'],
+          { cwd: auditHome, env: { ...isolatedEnv(auditHome), PI_BETTER_TOOLS_HOST: host }, timeoutMs: 120000 });
+        const result = JSON.parse(output.trim().split('\n').at(-1));
+        assert.equal(result.status, 'passed'); assert.equal(result.host, version); assert.equal(result.networkCalls, 0);
+        assert.ok(result.cases.includes('note-read-edit-dedup')); assert.ok(result.cases.includes('new-and-resume')); return output;
       });
       const monitorFixture = join(temp, 'monitor-production.mjs'); await copyFile(join(root, 'tests/fixtures/monitor-production.mjs'), monitorFixture);
       const monitorHome = join(temp, 'home-monitor'); await mkdir(monitorHome);

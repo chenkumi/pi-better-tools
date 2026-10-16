@@ -3,16 +3,24 @@
 ## Before enabling the integration
 
 1. Back up the relevant Pi settings file. Review `pi list` and `pi config` in both personal/project scopes.
-2. Disable the extension resources of the old five standalone packages and pi-pty-terminal. Preserve their folders, credentials and persistent state. Different package identities do not deduplicate same-named tools.
+2. Disable the extension resources of the old five standalone packages, pi-pty-terminal, pi-sqlite-tools and pi-sql-connector. Preserve their folders, credentials and persistent state. Different package identities do not deduplicate same-named tools.
 3. In this repository run `npm ci --ignore-scripts`, `npm run pty:install` and `npm run build`; install Chromium explicitly if Fetch is needed.
 4. Run `pi install D:/projects/pi-better-tools`, or use `-l` for the intended project. Project packages require the existing trust policy; do not enable automatic approve just to avoid errors.
 5. Reload/restart Pi. Check the loaded tools, and `/web-tools status`.
 
 No script here automatically changes user settings/auth, deletes logs, removes old packages or edits data left behind by the removed Scheduler module.
 
+## SQL Connector integration
+
+Disable the standalone pi-sql-connector extension before enabling `modules/sql-connector/src/index.ts`. Root install supplies the pinned drivers; retain the target project's trusted `.pi/agent/sql-connector.json` and password environment references without copying the source project's settings. Search the configured engine (`mysql`, `mssql`, `pgsql`) with tool_search. Only configured engines register tools. `/sql-connector-reload` remains available. Windows Authentication requires explicit `npm rebuild msnodesqlv8 --foreground-scripts` in the package root and the matching system ODBC driver; no native/system setup runs at reload. Existing SQLite configuration remains independent.
+
+## SQLite Tools integration
+
+SQLite is included at `modules/sqlite-tools/src/index.ts`; disable the standalone pi-sqlite-tools extension before reload to avoid duplicate tool names. Keep existing `SQLITE_PATH` or trusted project `.pi/agent/sqlite.json`; no config/database copy is required. Use `tool_search` query `sqlite` to load its deferred tools. Fixed mode still omits open/close. This package does not change personal settings or read the source project's configuration.
+
 ## Local-source extensions and Blackhole vendoring
 
-The root pins pi-open-tui 0.3.11 and @ff-labs/pi-fff 0.11.0 as npm dependencies. Blackhole is now the local 0.5.12 snapshot in `modules/blackhole/`, replacing npm pi-blackhole 0.5.11. The manifest loads thirteen local TS entries and two npm entries (fifteen total). Run `npm ci --ignore-scripts` only at the repository root; no nested install, plugin manager or automatic Pi install is introduced. Upstream nested metadata/scripts are historical; root Pi 1.1.0 remains authoritative.
+The root pins pi-open-tui 0.3.11 and @ff-labs/pi-fff 0.11.0 as npm dependencies. Blackhole is now the local 0.5.12 snapshot in `modules/blackhole/`, replacing npm pi-blackhole 0.5.11. The manifest loads sixteen local TS entries and two npm entries (eighteen total). Run `npm ci --ignore-scripts` only at the repository root; no nested install, plugin manager or automatic Pi install is introduced. Upstream nested metadata/scripts are historical; root Pi 1.3.0 remains authoritative.
 
 For an existing pi-better-tools source mount, the root manifest change is sufficient: do not add another global/project Blackhole entry. Reload/restart after current background work has settled. Existing standalone `npm:pi-blackhole`, pi-open-tui and pi-fff resources must be disabled manually if still selected. This repository does not edit real settings/auth or remove installed standalone packages.
 
@@ -168,3 +176,13 @@ The Scheduler module was removed (2026-10-06; unrelated to the later Schedule Pr
 3. Reload/restart and confirm only one owner per tool name.
 
 Do not delete shared schedules/native sessions/logs as part of rollback. No rollback can undo completed tool side effects, and cancellation does not establish arbitrary descendant-process termination.
+
+## Pi 1.3.0 and dependency upgrade (2026-10-16)
+
+The four root Pi development packages and real-host assertions now target only 1.3.0; the Shell Monitor backend gate is pinned to that installed version. Runtime peers remain host-provided. Run root `npm ci --ignore-scripts`, explicit `npm run pty:install` and `npm run browser:install` for the updated node-pty beta.15 and Playwright 1.64.1. No personal Pi install, settings/auth, historical session or managed hostContract migration occurs. TypeScript 6.0.3 (not unsupported 7.x), Node 22 types and explicit Vite for Vitest 5 are compatibility choices, not unexamined latest tags.
+
+Reload after current work settles to load the new `monitor_event` renderer. Existing saved details/body remain readable; old wake metadata is unknown. New receipts/metadata include wakeAgent. Default true already requests an Agent followUp turn; false is model-visible data without a new turn request, and automatic Shell monitors intentionally stay false. UI rendering never changes this delivery policy.
+
+## Pi 1.2.0 development upgrade (historical)
+
+根四個 Pi devDependencies／唯一 lockfile 現固定為 1.2.0（`@earendil-works/chord` 不再是依賴）。`emitBeforeAgentStart(trigger, options)` 簽章更新，Shell 的 Monitor 執行閘門改為 "requires Pi 1.2.0"。不再維護 1.1.0 或更早版本；上方 1.1.0 章節保留為歷史。

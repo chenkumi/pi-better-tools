@@ -3,7 +3,7 @@ import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-a
 import { isManagedForegroundChild } from '../../shell-tools/src/managed-child.js';
 import { AUTO_MONITOR_INTERVAL_MS, acquireCapability, canonicalMonitorCwd, publishAutoMonitor } from '../../shell-tools/src/monitor-capability.js';
 import { MonitorRuntime, realClock, type Clock, type Owner } from './core.js';
-import { monitorRenderers } from './renderers.js';
+import { monitorRenderers, renderMonitorEvent } from './renderers.js';
 import { startSchema, validateStart } from './schema.js';
 import { commandLaunch, jobLaunch, websocketLaunch } from './sources.js';
 import { parseEndpoint } from './network.js';
@@ -13,6 +13,7 @@ function output(value: unknown, isError = false) { const data = JSON.parse(JSON.
 /** Native Monitor v1; registration is not activation and no factory-time resources start. */
 export default function monitorExtension(pi: ExtensionAPI, seam: { clock?: Clock; onRuntime?: (runtime: MonitorRuntime) => void } = {}) {
   if (isManagedForegroundChild()) return;
+  pi.registerMessageRenderer('monitor_event', renderMonitorEvent);
   const clock = seam.clock ?? realClock;
   const runtime = new MonitorRuntime((message, options) => pi.sendMessage(message, options), clock);
   seam.onRuntime?.(runtime); // Internal offline test seam; no tool/configuration surface.

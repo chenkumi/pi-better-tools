@@ -10,7 +10,7 @@ test('real Pi background guidance follows selection, forced prompts and reload w
       const { session, cwd } = await fixture.createSession({ tools });
       const before = session.agent.state.tools.map(tool => tool.name);
       const enabled = tools.some(name => name !== 'read');
-      const emit = () => session.extensionRunner.emitBeforeAgentStart('offline hook probe', undefined, {
+      const emit = () => session.extensionRunner.emitBeforeAgentStart({ messageType: 'user', prompt: 'offline hook probe' }, {
         cwd, tools: session.agent.state.tools, skills: [], contextFiles: [], customPrompt: 'KEEP_CUSTOM',
         forceSystemPrompt: 'KEEP_FORCED', sections: { other: 'KEEP_OTHER' },
       });

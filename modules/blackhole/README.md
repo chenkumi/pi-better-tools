@@ -2,6 +2,8 @@
 
 ## Pi Better Tools 本地整合
 
+重構清理（2026-10-16）：移除未接入的舊 `om/compaction-trigger.ts`／`om/inline-compaction.ts` 與 0.5.2 專用 migration notice；原生壓縮、失敗歸屬及 pending commit 防護維持。通用 env override 引擎統一由 `pi-base/core/config-env.ts` 提供，專用 env map 與原 export 路徑保留；非搜尋 enum／number 選單共用 `pi-base/settings/list-submenu.ts`。ConfigManager 測試 helper 搬至 `tests/fixtures/`，不隨產品打包。舊設定讀取相容、歷史 CHANGELOG 與原始來源雜湊不改。
+
 ### 本地現行模式：Pi-only trigger ownership
 
 本整合只在公開 `session_before_compact` 替換摘要，**Pi 控制啟動時點、threshold／reserve、manual／overflow、cut、persist／rebuild、retry／cancel**；允許 Pi 在 final 後進行原生 threshold 壓縮及原生 callback replay。不安裝 private inline adapter，不註冊 Blackhole `agent_end`／`turn_end` threshold 排程或 idle polling，也不包裝 `prepareRequest`／provider stream。
@@ -48,7 +50,7 @@ Status-bar provenance（2026-10-12）：目前 `src/om/status-bar.ts` 與 `tests
 
 測試分組修正：根 unit 明確使用 `--suite=unit` 排除 `tests/integration/**`；native Vitest 分組由 integration／module runner 顯式執行，單一 worker、檔案序列，保留全部案例。手動 runner 未指定 suite 仍執行全部（序列），也可用 `--suite=integration <filter>` 選取 native probes。Unit 10 秒不變；`pi-owned` 使用既有 process helper 的 30 秒程序預算／8 秒終止確認 grace，以及 45 秒 Vitest 外層收尾預算；取消或終止要求不等於 descendants 全部停止，失敗不能當作通過。不改 runtime 邏輯、信任界線或斷言。
 
-本地測試適配：根 `scripts/blackhole-tests.mjs` 保留隔離 HOME／空 credentials／`PI_BLACKHOLE_PASSIVE=true`，但不將 agentDir 環境覆寫蓋過各案例的 SDK mock。`tests/unit-isolation.setup.ts` 僅允許六個明確列出的純 config／mock command 測試暫時移除 passive 覆寫，其他案例維持 passive，並在每案例前後還原。Vitest `.js` alias 限相對來源 import，不改寫宿主 file URL；Windows fixtures 使用 `tmpdir()`／`dirname()`／正規化 Git map keys；唯讀故障注入 EROFS，不依賴 chmod 或 skip；worker deadline 測試以實際 invocation event barrier 對齊 fake clock，不加長 deadline。根 TypeScript compiler 透過 Node resolution 定位，不要求模組內 node_modules。
+本地測試適配：根 `scripts/blackhole-tests.mjs` 保留隔離 HOME／空 credentials／`PI_BLACKHOLE_PASSIVE=true`，但不將 agentDir 環境覆寫蓋過各案例的 SDK mock。`tests/unit-isolation.setup.ts` 僅允許五個明確列出的純 config／mock command 測試暫時移除 passive 覆寫，其他案例維持 passive，並在每案例前後還原。Vitest `.js` alias 限相對來源 import，不改寫宿主 file URL；Windows fixtures 使用 `tmpdir()`／`dirname()`／正規化 Git map keys；唯讀故障注入 EROFS，不依賴 chmod 或 skip；worker deadline 測試以實際 invocation event barrier 對齊 fake clock，不加長 deadline。根 TypeScript compiler 透過 Node resolution 定位，不要求模組內 node_modules。
 
 ---
 

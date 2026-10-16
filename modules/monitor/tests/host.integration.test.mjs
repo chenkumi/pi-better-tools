@@ -11,6 +11,6 @@ for (const mode of ['shell-first', 'monitor-first']) test(`real offline Pi1.1.0 
   const home = await mkdtemp(join(tmpdir(), 'pi-monitor-host-')); await mkdir(join(home, 'tmp'));
   try {
     const output = await runCommand(`monitor host ${mode}`, process.execPath, ['--import', import.meta.resolve('tsx'), fixture, mode], { cwd: home, env: { ...isolatedEnv(home), TEMP: join(home, 'tmp'), TMP: join(home, 'tmp'), TMPDIR: join(home, 'tmp') }, timeoutMs: 90000 });
-    const result = JSON.parse(output.trim().split('\n').at(-1)); assert.equal(result.status, 'passed'); assert.equal(result.host, '1.1.0'); assert.equal(result.providerCalls, 0); assert.equal(result.childClosed, true);
+    const result = JSON.parse(output.trim().split('\n').at(-1)); assert.equal(result.status, 'passed'); assert.equal(result.host, '1.3.0'); assert.equal(result.providerCalls, 0); assert.equal(result.childClosed, true);
   } finally { await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
 });

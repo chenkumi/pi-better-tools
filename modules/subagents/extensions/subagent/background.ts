@@ -1,5 +1,4 @@
 import { ulid } from "ulid";
-import type { SubagentWidgetRow } from "./live-widget.ts";
 import { panelUsage, safeJobText, usageDetails, type PanelJob, type PanelUsage } from "../../../shell-tools/src/job-view.js";
 export interface TaskPresentation { activity: string; usage?: PanelUsage; usageReported: boolean }
 import type { RecoverySnapshot, RecoveryWriter } from "../../../shell-tools/src/recovery.js";
@@ -166,14 +165,6 @@ export class BackgroundJobs {
 	private changed(job?: Job) {
 		if (job && (this.closed || job.generation !== this.generation)) return;
 		try { this.onChange?.(); } catch { /* UI/observer failures are isolated. */ }
-	}
-	/** Minimal UI-only projection; never copies outputs or queries/controls. */
-	activePanel(owner: string, cwd: string): SubagentWidgetRow[] {
-		if (this.closed) return [];
-		return [...this.jobs.values()].filter(job => job.owner === owner && job.cwd === cwd && job.generation === this.generation && (job.status === "queued" || job.status === "running")).flatMap(job => {
-			const rows: SubagentWidgetRow[] = job.tasks.flatMap((task, index) => task.status === "queued" || task.status === "running" ? [{ jobId: job.jobId, taskId: task.taskId, agent: `${task.agent}${task.readOnlyQuery ? " (query)" : ""}`.slice(0, 256), title: job.widgetTitles[index], status: task.status, cancelRequested: job.cancelRequested }] : []);
-			return rows.length ? rows : [{ jobId: job.jobId, status: "finalizing" as const, cancelRequested: job.cancelRequested }];
-		});
 	}
 	/** Owned retained metadata only, grouped by job. No output/prompt/query answers or execution handles escape. */
 	panelJobs(owner: string, cwd: string): PanelJob[] {

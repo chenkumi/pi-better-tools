@@ -47,6 +47,15 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
     process.exitCode = 1;
   };
   const clone = (value: unknown) => JSON.parse(JSON.stringify(value)) as unknown;
+  /**
+   * Host order: tool_execution_start carries the model's raw arguments, then Pi coerces a copy (Value.Convert, optional-null
+   * stripping, JSON Schema coercion) and passes that to execute. Validate and deliver the raw arguments, not the coerced copy.
+   */
+  const rawArguments = new Map<string, unknown>();
+  pi.on("tool_execution_start", (event) => {
+    if (!active || event.toolName !== TOOL) return;
+    try { rawArguments.set(event.toolCallId, clone(event.args)); } catch { /* not JSON-serialisable: fall back to host arguments */ }
+  });
 
   pi.on("session_start", (_event, ctx) => {
     const schemaText = pi.getFlag("json-schema");
@@ -77,8 +86,9 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
       description: "Submit the final structured result. Call this exactly once, as the LAST step after all other work is done; the arguments themselves are the result (not wrapped in another object) and must match the required schema. Do not also answer in prose.",
       promptSnippet: "Submit the final structured result",
       parameters: Type.Unsafe(schema.jsonSchema),
-      async execute(_id: string, params: unknown, signal?: AbortSignal) {
-        const data = clone(params);
+      async execute(id: string, params: unknown, signal?: AbortSignal) {
+        const data = rawArguments.has(id) ? rawArguments.get(id) : clone(params);
+        rawArguments.delete(id);
         const reason = await schema!.validate(data, signal);
         if (reason !== undefined) throw new Error(`${TOOL} arguments do not match the schema: ${reason}`);
         const text = JSON.stringify(data);
@@ -145,6 +155,7 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
       messages[index] = { ...message, content: suppressedContent[restored++] as Array<{ type?: string }> };
     }
     suppressedContent = [];
+    rawArguments.clear();
     transcript = [...transcript, ...messages];
     // An upstream error or abort is a failed run; never try to recover a result from it.
     const last = [...event.messages].reverse().find((message) => (message as { role?: string }).role === "assistant") as { stopReason?: string; errorMessage?: string } | undefined;

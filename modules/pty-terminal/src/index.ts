@@ -23,11 +23,21 @@ const spawnParameters = Type.Object({
 	env: Type.Optional(Type.Record(Type.String(), Type.String(), { description: "Additional environment variables." })),
 });
 
+/** Every PTY tool; kept in step with the registrations below by extension.test.ts. */
+export const PTY_TOOL_NAMES = ["pty_spawn", "pty_write", "pty_read", "pty_resize", "pty_wait_exit", "pty_kill", "pty_list"] as const;
+// Deferred: not declared to the model until tool_search loads them (one search loads the whole namespace). Activation of
+// tool_search, the fallback without it and the discovery hint are handled once for all modules by pi-runtime.
+const PTY_EXPOSURE = {
+	exposure: "deferred",
+	namespace: { name: "pty", description: "Persistent pseudo-terminal sessions for interactive programs and TUIs on local, WSL or SSH targets." },
+} as const;
+
 export default function (pi: ExtensionAPI) {
 	const sessions = new PtySessionManager({ orphans: sharedOrphanRegistry() });
 
 	pi.registerTool({
 		name: "pty_spawn",
+		...PTY_EXPOSURE,
 		...ptyRenderers("spawn"),
 		label: "PTY spawn",
 		description: "Spawn a process in a persistent pseudo-terminal on local (default) or a configured WSL/SSH target, for interactive programs/TUIs that need continuous input. One-off commands: use shell; long-running background work: use a shell background job. PTY gives no structured exit code. Remote sessions require pty_read to inspect connection errors.",
@@ -75,6 +85,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.registerTool({
 		name: "pty_write",
+		...PTY_EXPOSURE,
 		...ptyRenderers("write"),
 		label: "PTY write",
 		description: "Write input to a PTY session: data (control escapes such as \\x03 for Ctrl+C, \\r for Enter, \\t for Tab; write \\\\ or \\x5c for a literal backslash, e.g. C:\\\\new or C:\\x5cnew; a lone backslash before r/n/f/t/v/x/u is otherwise decoded) and/or keys (named keys, sent after data). Optional readAfterMs waits that long after writing, then drains and returns output like pty_read.",
@@ -105,6 +116,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.registerTool({
 		name: "pty_read",
+		...PTY_EXPOSURE,
 		...ptyRenderers("read"),
 		label: "PTY read",
 		description: "Read and drain accumulated PTY output (capped at 2,000 lines/50 KiB; the rest stays buffered). If nothing is pending, waits up to timeoutMs (default 1000; 5000 when waitFor or settleMs is set). Cancelling only stops the wait; the session stays.",
@@ -130,6 +142,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.registerTool({
 		name: "pty_resize",
+		...PTY_EXPOSURE,
 		...ptyRenderers("resize"),
 		label: "PTY resize",
 		description: "Resize a PTY session's terminal dimensions.",
@@ -147,6 +160,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.registerTool({
 		name: "pty_wait_exit",
+		...PTY_EXPOSURE,
 		...ptyRenderers("wait_exit"),
 		label: "PTY wait for exit",
 		description: "Wait for a PTY process to exit and return its transport exit code. On timeout returns exitCode -1 with timedOut:true. SSH exit 255 may be a connection error.",
@@ -164,6 +178,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.registerTool({
 		name: "pty_kill",
+		...PTY_EXPOSURE,
 		...ptyRenderers("kill"),
 		label: "PTY kill",
 		description: "Terminate the local PTY transport; escalates to SIGKILL on POSIX if it does not exit. The session is released only once the transport exited (check released); otherwise it is retained. POSIX defaults to SIGHUP; Windows ignores the signal argument. Remote/WSL background-process termination is not guaranteed.",
@@ -181,6 +196,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.registerTool({
 		name: "pty_list",
+		...PTY_EXPOSURE,
 		...ptyRenderers("list"),
 		label: "PTY list",
 		description: "List active and exited PTY sessions that have not been released.",
@@ -196,7 +212,9 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	// A previous instance whose shutdown could not confirm transport exit parked its sessions; re-adopt them for this workspace.
-	pi.on("session_start", async (_event, ctx) => { sessions.recover(ctx.cwd); });
+	pi.on("session_start", async (_event, ctx) => {
+		sessions.recover(ctx.cwd);
+	});
 
 	pi.on("session_shutdown", async () => {
 		const result = await sessions.shutdown();

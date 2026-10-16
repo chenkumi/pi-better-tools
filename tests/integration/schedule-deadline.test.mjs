@@ -15,7 +15,7 @@ test('Schedule Prompt endAt: real Pi 1.1.0 loader, tool schema and session lifec
       [join(root, 'tests/fixtures/schedule-deadline.mjs'), root], { cwd: home, env: isolatedEnv(home), timeoutMs: 150000 });
     const result = JSON.parse(output.trim().split('\n').at(-1));
     assert.equal(result.passed, true);
-    assert.equal(result.hostVersion, '1.1.0');
+    assert.equal(result.hostVersion, '1.3.0');
     assert.deepEqual(result.checks, ['startup', 'schema-null', 'add', 'update', 'enable', 'session-reinitialize', 'no-provider']);
   } finally { await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
 });

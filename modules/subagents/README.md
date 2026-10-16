@@ -27,7 +27,8 @@ Catalog 不強制替換完整 system prompt，與 Web／共享背景指引各自
 | `model` | 預設省略；只有使用者或 skill 明確指定時才傳入。exact model ID 或 `provider/model`；未知／歧義選擇忽略並使用預設值 |
 | `thinkingLevel` | 預設省略；只有使用者或 skill 明確指定時才傳入。`off`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max`；未知／目標模型不支援的等級忽略並使用預設值 |
 | `agentScope` | `"user"`（預設）、`"project"`、`"both"` |
-| `confirmProjectAgents` | 已棄用且被忽略（保留 schema 相容）；模型傳入值不能關閉核准。專案未信任且使用 project 來源 agent 時：有 UI 一律先確認，無 UI 直接拒絕 |
+
+`confirmProjectAgents` 已自 schema 移除（原本即被忽略）；舊呼叫端若仍傳入會被忽略，不能關閉核准。專案未信任且使用 project 來源 agent 時：有 UI 一律先確認，無 UI 直接拒絕。
 
 `provider`、`model`、`thinkingLevel` 預設不傳；只有使用者或 skill 明確指定才作為本次所有 subagents 的 override，代理不可自行猜測。`provider` 不可與 `provider/model` 格式的 `model` 併用。`resumable` 參數已移除，傳入會回傳 `INVALID_DISPATCH`。
 
@@ -128,6 +129,8 @@ startup/resume/reload 時 bounded 核對同 owner/cwd 的 session-wide inventory
 - SDK 嵌入必須使用 `await runtime.dispose()`（AgentSessionRuntime）觸發 extension shutdown；直接 `session.dispose()` 不發送 shutdown，無法保證背景 cleanup。通知 callback 若因 owner/context 失效而拋錯，runtime 會 fail closed：取消其 jobs、拒絕新 admission、抑制後續 callback，不重試通知。若宿主靜默接受失效 callback，extension 無法自行偵測，因此宿主仍須正確 dispose runtime。
 
 ### 即時背景工作 TUI 面板
+
+記憶體內 UI 統一使用 `panelJobs()` 的 `PanelJob[]`，已移除舊 `activePanel()`／`SubagentWidgetRow`／`legacyJobs()` 雙軌 adapter；有效 owner/cwd、metadata 上限與不修改 receipt 的測試轉至現行投影。Owner-bound 綁定共用 Shell `src/widget-binding.ts`，不共用執行 registry，也不改持久化格式、歷史訊息 renderer 或 usage。
 
 背景工作自動在輸入欄上方 `aboveEditor` 顯示 Jobs 面板，與 Shell **合計最多五個 job，每個兩行**，最多12行（header＋10工作行＋More／註記）。Parallel／chain 以一個 job 聚合，顯示 running／queued／finished task 數量，不把 task 數當 job 數或 OS process 數；More 詳細列 task／session ID。狀態來自相同 owner／canonical cwd／runtime epoch 的 registry；cancel requested 只表示要求，finalizing 仍等待 runner／commit／rollback／release，不偽稱 completed。生命週期與最近觀察到的活動分開：Generating reply、thinking observed、Preparing tool request、Tool running、Retrying API request；不展示 thinking／prompt／工具參數內容。
 

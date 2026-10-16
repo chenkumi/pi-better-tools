@@ -48,7 +48,7 @@ const object = (v: unknown): Record<string, unknown> => v && typeof v === "objec
 export function noteResultPath(p: ToolPair): string | undefined {
   if (p.call.name !== "note" || !succeeded(p)) return;
   const { type, content } = p.call.args;
-  if (typeof type !== "string" || !["plan", "issue", "research", "report", "task"].includes(type) || typeof content !== "string" || !content.trim()) return;
+  if (typeof type !== "string" || !["plan", "design", "issue", "research", "report", "task"].includes(type) || typeof content !== "string" || !content.trim()) return;
   const path = object(p.result?.details).relativePath;
   // Validate a workspace-relative returned path, not a guessed filename/date.
   if (typeof path !== "string" || path.length > 1024 || /[\\:\u0000-\u001f\u007f]/.test(path)) return;

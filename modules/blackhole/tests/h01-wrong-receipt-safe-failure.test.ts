@@ -1,5 +1,5 @@
 /**
- * H01 (Pi 1.1.0 host defect, see h01-duplicate-summary-upstream.integration.test.mjs): with duplicate summaries the
+ * H01 (Pi 1.2.0 host defect, see h01-duplicate-summary-upstream.integration.test.mjs): with duplicate summaries the
  * host may emit session_compact referencing an OLDER checkpoint. Blackhole must fail safe: acknowledge a pending
  * flush only for the exact entry that carries the receipt and sits after the receipt's branch tip. Anything else must
  * leave pending state intact (no commit/clear) so the batch is retried.

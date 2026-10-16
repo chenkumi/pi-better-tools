@@ -228,6 +228,9 @@ test('web_search description names the configured provider and guidelines requir
   const fetchGuidelines = (harness('brave').definitions.get('web_fetch')!.promptGuidelines as string[]).join('\n');
   assert.match(fetchGuidelines, /BROWSER_UNAVAILABLE/);
   assert.match(fetchGuidelines, /npm run browser:install/);
+  assert.match(fetchGuidelines, /cause-specific guidance/);
+  assert.match(fetchGuidelines, /Other startup failures do not prove the browser is uninstalled/);
+  assert.doesNotMatch(fetchGuidelines, /do not retry; tell the user/);
 });
 
 test('web_search model-visible text omits the Provider line and clips long snippets, while structured data keeps them whole', async () => {

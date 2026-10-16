@@ -1,7 +1,7 @@
 // STATUS: todo / known-upstream (@ff-labs/pi-fff 0.11.0).
 // D15: neither AuxFinderPool nor the main finder (ensureFinder/destroyFinder) has a shutdown generation fence: a finder whose
 // native creation resolves AFTER session_shutdown is still published and never destroyed.
-// Level: real Pi 1.1.0 AgentSession + real pi-fff 0.11.0 (real tool path, session_start path, real shutdown event emit).
+// Level: real Pi 1.2.0 AgentSession + real pi-fff 0.11.0 (real tool path, session_start path, real shutdown event emit).
 // DEGRADED: the native FileFinder is a deferred-promise fake at the SDK boundary; no native DLL, no reload re-creation.
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';

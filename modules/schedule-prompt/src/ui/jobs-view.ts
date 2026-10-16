@@ -10,6 +10,7 @@ import { CronScheduler } from "../scheduler.js";
 import { deadlineLabel, validateJobDeadline } from "../deadline.js";
 import type { CronStorage } from "../storage.js";
 import type { CronJob } from "../types.js";
+import { commandLabel } from "../command.js";
 
 type ConfirmState =
   | { kind: "remove"; id: string; name: string }
@@ -38,6 +39,7 @@ export class JobsView implements Component {
     private theme: any,
     private requestRender: () => void,
     private done: () => void,
+    private runAddCommand?: () => Promise<void>,
   ) {
     this.refresh();
   }
@@ -103,6 +105,15 @@ export class JobsView implements Component {
       if (this.selectedIndex < max) this.selectedIndex++;
       return;
     }
+    if (matchesKey(data, "m") && this.runAddCommand) {
+      this.runAddCommand()
+        .catch((err) => console.error("[pi-schedule-prompt] add command flow failed:", err))
+        .finally(() => {
+          this.refresh();
+          this.requestRender();
+        });
+      return;
+    }
     if (matchesKey(data, "a")) {
       this.runAdd()
         .catch((err) => console.error("[pi-schedule-prompt] add flow failed:", err))
@@ -126,6 +137,12 @@ export class JobsView implements Component {
         this.actionError = undefined;
       } catch (error) {
         this.actionError = error instanceof Error ? error.message : String(error);
+        this.requestRender();
+        return;
+      }
+      // The row and details show the exact command and directory; enabling it here is the person's explicit act.
+      if (enabled && fresh.command !== undefined && !this.scheduler.approveCommand(fresh)) {
+        this.actionError = "The working directory is no longer available; the job stays disabled.";
         this.requestRender();
         return;
       }
@@ -178,7 +195,7 @@ export class JobsView implements Component {
       lines.push(` ${this.theme.fg("accent", this.theme.bold("Jobs"))}  —  a add   q quit`);
     } else {
       lines.push(
-        ` ${this.theme.fg("accent", this.theme.bold("Jobs"))}  —  ↑↓ select   a add   t toggle   s scope   x remove   c cleanup   q quit`,
+        ` ${this.theme.fg("accent", this.theme.bold("Jobs"))}  —  ↑↓ select   a add   m add command   t toggle   s scope   x remove   c cleanup   q quit`,
       );
     }
     lines.push(rule);
@@ -219,7 +236,12 @@ export class JobsView implements Component {
       lines.push(this.theme.fg("dim", ` Selected: ${sel.name} (${sel.id})`));
       lines.push(this.theme.fg("dim", ` ${meta}`));
       lines.push(this.theme.fg("dim", truncateToWidth(` ${deadlineLabel(sel.endAt)}`, Math.max(1, width))));
-      lines.push(this.theme.fg("dim", ` Prompt: ${truncate(sel.prompt, 200)}`));
+      if (sel.command !== undefined) {
+        lines.push(this.theme.fg("dim", truncateToWidth(` ${commandLabel(sel)}`, Math.max(1, width))));
+        lines.push(this.theme.fg("dim", truncateToWidth(` Directory: ${sel.cwd ?? "(project directory)"}`, Math.max(1, width))));
+      } else {
+        lines.push(this.theme.fg("dim", ` Prompt: ${truncate(sel.prompt ?? "", 200)}`));
+      }
     }
     lines.push(rule);
 
@@ -252,7 +274,7 @@ export class JobsView implements Component {
       CronScheduler.describeSchedule(job.type, job.schedule),
       SCHED_W,
     ).padEnd(SCHED_W);
-    const prompt = truncate(job.prompt, PROMPT_W).padEnd(PROMPT_W);
+    const prompt = truncate(job.command !== undefined ? `$ ${job.command}` : job.prompt ?? "", PROMPT_W).padEnd(PROMPT_W);
     const tag = !job.session && !isForeign ? this.theme.fg("dim", " [shared]") : "";
 
     return ` ${indicator} ${icon} ${name}  ${sched}  ${prompt}${tag}`;

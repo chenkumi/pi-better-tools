@@ -10,7 +10,7 @@ import noteExtension, { MAX_NOTE_BYTES, noteTool } from "../extensions/note.ts";
 
 const timestamp = Date.UTC(2026, 0, 2, 3, 4, 5, 6);
 const firstName = "PLAN-20260102T030405006Z.md";
-const types = ["plan", "issue", "research", "report", "task"] as const;
+const types = ["plan", "design", "issue", "research", "report", "task"] as const;
 const execute = (cwd: string, args: Static<typeof noteTool.parameters>, signal?: AbortSignal) =>
   noteTool.execute("test-note", args, signal, undefined, { cwd } as ExtensionToolContext);
 async function workspace(t: TestContext) {
@@ -25,7 +25,34 @@ test("extension registers only note without I/O or lifecycle hooks", () => {
   assert.deepEqual(tools, [noteTool]);
 });
 
-test("schema accepts exactly type/content and the five categories", () => {
+test("call renderer updates streaming UTF-8 counts without changing arguments or preview", () => {
+  const theme = { fg: (_color: string, text: string) => text, bold: (text: string) => text };
+  const render = noteTool.renderCall!;
+  const context: Parameters<typeof render>[2] = {
+    args: undefined, toolCallId: "test-note", invalidate: () => {}, lastComponent: undefined, state: {},
+    cwd: process.cwd(), executionStarted: false, argsComplete: false, expanded: false, isPartial: true,
+    showImages: false, isError: false, durationMs: undefined, outputPad: 0,
+  };
+  const colors = theme as Parameters<typeof render>[1];
+  const args = Object.freeze({ type: "plan" as const, content: "# 中文😀\nPRIVATE_BODY" });
+  const component = render(args, colors, context);
+  const text = () => component.render(400).join("\n");
+  assert.match(text(), /note plan · 中文😀/);
+  assert.match(text(), /^receiving 25 bytes\s*$/m);
+  assert.doesNotMatch(text(), /PRIVATE_BODY/);
+  assert.equal(render({ type: "plan", content: "a".repeat(2257) + "中文測" }, colors,
+    { ...context, argsComplete: true, lastComponent: component }), component);
+  assert.match(text(), /^received 2,266 bytes\s*$/m);
+  assert.doesNotMatch(text(), /receiving|written|Saved/);
+  assert.deepEqual(args, { type: "plan", content: "# 中文😀\nPRIVATE_BODY" });
+  for (const partial of [undefined, null, {}, { content: "" }, { content: null }, { content: 42 }]) {
+    render(partial as unknown as Parameters<typeof render>[0], colors, { ...context, lastComponent: component });
+    assert.match(text(), /^receiving 0 bytes\s*$/m);
+  }
+  for (const width of [12, 40]) assert.ok(component.render(width).length > 0);
+});
+
+test("schema accepts exactly type/content and the six categories", () => {
   for (const type of types) assert.equal(Check(noteTool.parameters, { type, content: "" }), true); // schema stays permissive; execute rejects blank content
   for (const args of [
     { type: "../outside", content: "x" }, { type: "PLAN", content: "x" },

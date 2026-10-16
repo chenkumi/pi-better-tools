@@ -6,15 +6,14 @@
  * don't have to mash Enter to scroll through 20+ entries.
  */
 
-import { getSelectListTheme } from "@earendil-works/pi-coding-agent";
 import {
   matchesKey,
-  SelectList,
   truncateToWidth,
   type Component,
   type SelectItem,
 } from "@earendil-works/pi-tui";
 import { formatHintLine } from "../frame";
+import { createListSubmenu } from "../list-submenu";
 import { deleteWordBackward } from "../inline-edit";
 import type { EnumField, FieldRenderContext, FieldRenderer, SubmenuFactory } from "../types";
 
@@ -58,63 +57,12 @@ function makeEnumSubmenu(
         label: `${idx + 1}. ${labelFor(field, value)}${activeSuffix}`,
       };
     });
-    const list = new SelectList(
+    return createListSubmenu({
       items,
-      Math.min(items.length, MAX_VISIBLE_ROWS),
-      getSelectListTheme(),
-    );
-    const idx = field.options.indexOf(current);
-    list.setSelectedIndex(idx >= 0 ? idx : 0);
-    list.onSelect = (item) => done(item.value);
-    list.onCancel = () => done();
-
-    const component: Component = {
-      render(width: number): string[] {
-        const lines = [...list.render(width)];
-        lines.push("");
-        const hints = [
-          { key: "↑↓", label: "select" },
-          ...(items.length > 1 ? [{ key: `1-${Math.min(9, items.length)}`, label: "choose" }] : []),
-          { key: "enter/space", label: "save" },
-          ...(field.default !== undefined ? [{ key: "alt+r", label: "reset" }] : []),
-          { key: "esc", label: "cancel" },
-        ];
-        const hintText = `  ${formatHintLine(hints, ctx.theme)}`;
-        lines.push(truncateToWidth(hintText, width, "…", true));
-        return lines;
-      },
-      invalidate(): void {
-        list.invalidate();
-      },
-      handleInput(data: string): void {
-        if (matchesKey(data, "alt+r") && field.default !== undefined) {
-          const defaultIdx = field.options.indexOf(field.default);
-          if (defaultIdx >= 0) {
-            list.setSelectedIndex(defaultIdx);
-            ctx.tui.requestRender();
-          }
-          return;
-        }
-        if (data === " ") {
-          const item = list.getSelectedItem();
-          if (item) {
-            done(item.value);
-            return;
-          }
-        }
-        const num = parseInt(data, 10);
-        if (data.length === 1 && !isNaN(num) && num >= 1 && num <= Math.min(9, items.length)) {
-          const item = items[num - 1];
-          if (item) {
-            done(item.value);
-            return;
-          }
-        }
-        list.handleInput(data);
-        ctx.tui.requestRender();
-      },
-    };
-    return component;
+      selectedIndex: field.options.indexOf(current),
+      defaultIndex: () => field.default === undefined ? undefined : field.options.indexOf(field.default),
+      decode: value => value,
+    }, ctx, done);
   };
 }
 

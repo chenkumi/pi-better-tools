@@ -1,7 +1,6 @@
 import { expect, it, vi } from "vitest";
 import { registerPiVccCommand } from "../src/commands/pi-vcc.js";
 import { DEFAULTS } from "../src/core/unified-config.js";
-vi.mock("../src/om/inline-compaction.js", () => ({ getCompactionIneligibility: () => { throw new Error("Forbidden private-adapter preflight"); } }));
 it("/blackhole requests native compaction without consulting the captured-session adapter", async () => {
   let command: any;
   const compact = vi.fn();

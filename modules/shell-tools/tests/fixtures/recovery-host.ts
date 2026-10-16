@@ -12,7 +12,7 @@ const mode = process.argv[2], file = process.argv[3];
 const root = fileURLToPath(new URL("../../../../", import.meta.url));
 const home = homedir(), agentDir = join(home, ".pi/agent"), cwd = join(home, "workspace");
 await mkdir(agentDir, { recursive: true }); await mkdir(cwd, { recursive: true });
-assert.equal(resolve(process.env.PI_CODING_AGENT_DIR!), resolve(agentDir)); assert.equal(sdk.VERSION, "1.1.0");
+assert.equal(resolve(process.env.PI_CODING_AGENT_DIR!), resolve(agentDir)); assert.equal(sdk.VERSION, "1.3.0");
 await writeFile(join(agentDir, "auth.json"), "{}");
 globalThis.fetch = async () => { throw new Error("Network forbidden in recovery fixture"); };
 let api!: sdk.ExtensionAPI, ctx!: sdk.ExtensionContext, calls = 0;

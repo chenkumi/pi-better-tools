@@ -30,7 +30,7 @@ async function recall(entries: any[], params: any, branch = entries, budget = 48
     return result.content[0].text as string;
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
-describe("persisted notification evidence (Pi 1.1.0 shapes)", () => {
+describe("persisted notification evidence (Pi 1.2.0 shapes)", () => {
   it("redacts quoted credentials and terminal controls without exposing private result fields", () => {
     const source = notices()[3];
     const projected = projectNotification({ ...source, details: { ...source.details, output: 'api_key="QUOTED_SECRET" password=PLAIN_SECRET \u001b]52;c;OSC_SECRET\u0007 \u202e', credentials: { password: "PRIVATE_SECRET" } } });

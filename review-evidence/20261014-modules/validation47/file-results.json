@@ -1,0 +1,205 @@
+{
+  "environment": {
+    "node": "v26.8.1",
+    "platform": "win32"
+  },
+  "seam": "real registered tools, fs link ENOTSUP fault injection, event barrier before fallback write",
+  "samples": [
+    {
+      "id": "G4-001",
+      "iteration": 1,
+      "observedWhilePending": "",
+      "final": "complete payload",
+      "exclusiveNoOverwrite": true,
+      "hardLinkControlComplete": true
+    },
+    {
+      "id": "G4-002",
+      "iteration": 1,
+      "shape": "short",
+      "bytes": 1048589,
+      "elapsedMs": 345.11540000000014,
+      "memoryBefore": {
+        "rss": 218419200,
+        "heapTotal": 123482112,
+        "heapUsed": 79874744,
+        "external": 7204042,
+        "arrayBuffers": 2650582
+      },
+      "memoryAfter": {
+        "rss": 248283136,
+        "heapTotal": 144338944,
+        "heapUsed": 74640256,
+        "external": 10474213,
+        "arrayBuffers": 4872188
+      },
+      "diskAndFeedbackCorrect": true
+    },
+    {
+      "id": "G4-002",
+      "iteration": 1,
+      "shape": "long",
+      "bytes": 1048589,
+      "elapsedMs": 241.91499999999996,
+      "memoryBefore": {
+        "rss": 250388480,
+        "heapTotal": 145391616,
+        "heapUsed": 75724824,
+        "external": 11527049,
+        "arrayBuffers": 5920777
+      },
+      "memoryAfter": {
+        "rss": 265371648,
+        "heapTotal": 154861568,
+        "heapUsed": 85413136,
+        "external": 16246149,
+        "arrayBuffers": 9591288
+      },
+      "diskAndFeedbackCorrect": true
+    },
+    {
+      "id": "G4-003",
+      "iteration": 1,
+      "bytes": 400001,
+      "elapsedMs": 1029.3456000000006,
+      "feedbackBytes": 321,
+      "diskAndFeedbackCorrect": true
+    },
+    {
+      "id": "cleanup-check",
+      "iteration": 1,
+      "noOwnedTempFiles": true
+    },
+    {
+      "id": "G4-001",
+      "iteration": 2,
+      "observedWhilePending": "",
+      "final": "complete payload",
+      "exclusiveNoOverwrite": true,
+      "hardLinkControlComplete": true
+    },
+    {
+      "id": "G4-002",
+      "iteration": 2,
+      "shape": "short",
+      "bytes": 1048589,
+      "elapsedMs": 239.1202999999996,
+      "memoryBefore": {
+        "rss": 369876992,
+        "heapTotal": 135495680,
+        "heapUsed": 65713760,
+        "external": 7856698,
+        "arrayBuffers": 2250410
+      },
+      "memoryAfter": {
+        "rss": 364331008,
+        "heapTotal": 151547904,
+        "heapUsed": 82024096,
+        "external": 11527049,
+        "arrayBuffers": 5920777
+      },
+      "diskAndFeedbackCorrect": true
+    },
+    {
+      "id": "G4-002",
+      "iteration": 2,
+      "shape": "long",
+      "bytes": 1048589,
+      "elapsedMs": 242.57240000000002,
+      "memoryBefore": {
+        "rss": 366440448,
+        "heapTotal": 152600576,
+        "heapUsed": 83093688,
+        "external": 12575638,
+        "arrayBuffers": 6969366
+      },
+      "memoryAfter": {
+        "rss": 380461056,
+        "heapTotal": 162070528,
+        "heapUsed": 92755880,
+        "external": 17294738,
+        "arrayBuffers": 10639877
+      },
+      "diskAndFeedbackCorrect": true
+    },
+    {
+      "id": "G4-003",
+      "iteration": 2,
+      "bytes": 400001,
+      "elapsedMs": 989.5158000000001,
+      "feedbackBytes": 321,
+      "diskAndFeedbackCorrect": true
+    },
+    {
+      "id": "cleanup-check",
+      "iteration": 2,
+      "noOwnedTempFiles": true
+    },
+    {
+      "id": "G4-001",
+      "iteration": 3,
+      "observedWhilePending": "",
+      "final": "complete payload",
+      "exclusiveNoOverwrite": true,
+      "hardLinkControlComplete": true
+    },
+    {
+      "id": "G4-002",
+      "iteration": 3,
+      "shape": "short",
+      "bytes": 1048589,
+      "elapsedMs": 241.63150000000041,
+      "memoryBefore": {
+        "rss": 364920832,
+        "heapTotal": 136949760,
+        "heapUsed": 67593104,
+        "external": 7208334,
+        "arrayBuffers": 2250586
+      },
+      "memoryAfter": {
+        "rss": 367484928,
+        "heapTotal": 153001984,
+        "heapUsed": 83754712,
+        "external": 10878477,
+        "arrayBuffers": 4872204
+      },
+      "diskAndFeedbackCorrect": true
+    },
+    {
+      "id": "G4-002",
+      "iteration": 3,
+      "shape": "long",
+      "bytes": 1048589,
+      "elapsedMs": 242.2579999999998,
+      "memoryBefore": {
+        "rss": 368373760,
+        "heapTotal": 154054656,
+        "heapUsed": 84824088,
+        "external": 11927066,
+        "arrayBuffers": 5920793
+      },
+      "memoryAfter": {
+        "rss": 382857216,
+        "heapTotal": 163524608,
+        "heapUsed": 94462848,
+        "external": 16646166,
+        "arrayBuffers": 9591304
+      },
+      "diskAndFeedbackCorrect": true
+    },
+    {
+      "id": "G4-003",
+      "iteration": 3,
+      "bytes": 400001,
+      "elapsedMs": 998.8197000000009,
+      "feedbackBytes": 321,
+      "diskAndFeedbackCorrect": true
+    },
+    {
+      "id": "cleanup-check",
+      "iteration": 3,
+      "noOwnedTempFiles": true
+    }
+  ],
+  "cleanup": true
+}

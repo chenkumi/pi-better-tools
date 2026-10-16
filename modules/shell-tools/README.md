@@ -1,6 +1,6 @@
 # Shell Tools
 
-覆寫 Pi 內建的 `bash` 與 `powershell` 工具，將以秒為單位的 `timeout` 改為以毫秒為單位的「總時限」`timeoutMs`（自指令啟動起算）。其餘執行行為（輸出處理、session 環境、PowerShell UTF-8、Bash `shellPath`／`shellCommandPrefix`）沿用 Pi 內建實作。結果 renderer 亦沿用宿主；命令呼叫的 TUI 預覽限制如下。
+覆寫 Pi 內建的 `bash` 與 `powershell` 工具，將以秒為單位的 `timeout` 改為以毫秒為單位的「總時限」`timeoutMs`（自指令啟動起算）。其餘執行行為（輸出處理、session 環境、PowerShell UTF-8、Bash `shellPath`／`shellCommandPrefix`）沿用 Pi 內建實作。結果 renderer 沿用宿主的輸出清理、警告與計時，只調整輸出區塊的 TUI 排列；命令呼叫的 TUI 預覽限制如下。
 
 ## 工具
 
@@ -30,6 +30,12 @@
 ## 命令呼叫 TUI 預覽
 
 `bash`／`powershell` 的命令呼叫區塊最多 **5 個實際終端行**（包含窄欄折行）。超過時顯示前 4 行，第 5 行為 `...`；欄寬足夠時仍保留 `(timeout Ns)`。未超過者完整呈現，resize／streaming 更新重新計算。這個上限只套用呼叫預覽，不縮減實際執行命令、模型 arguments、結果輸出或背景通知；宿主外層內距另計。沿用宿主 Text component reuse 與 timing state，不改 timeout／取消／activation 行為。
+
+## 終端輸出 TUI
+
+`bash`／`powershell` 的終端輸出每個實際顯示行（含空白行與折行）以 `▌` 標示。收合保留最後 **5 個實際終端行**；省略提示改為 `65 earlier lines, ctrl+o to expand`，位於輸出區塊下方、宿主警告／`Took …`（執行中為 `Elapsed …`）上方，前後以空白行分隔。快捷鍵由目前 keybindings 產生，窄欄提示會截短；行數先扣除 `▌` 寬度再依折行計算，resize 時重新計算。展開顯示已保留的完整輸出並保留 `▌`，不顯示 earlier-lines 提示。
+
+這是 Pi 1.3.0 宿主元件排列的顯示層適配：保留宿主的 ANSI／binary 清理、image fallback、full-output／truncation 警告、計時 state 與元件 reuse，不解析命令輸出判斷 UI 狀態。警告與耗時不加 `▌`。背景接受 receipt／完成通知、模型結果、session、命令執行與 timeout／取消語意不變；不影響 `!`／`!!` 使用者 shell。極窄欄下宿主警告／計時 Text 的既有最小寬度行為不在此適配範圍。
 
 ## API 中斷工具卡片
 
@@ -99,6 +105,8 @@ Windows 上可用 `tools.powershell({ command, timeoutMs })`。該 shell 必須�
 這是模型操作指引，不是從輸出文字自動取消的 runtime heuristic；既有 registry／通知／取消與清理機制不變。
 
 ### 即時 TUI 面板
+
+Shell／Subagents／Fork 的 owner-bound `bind`／`refresh`／`clear` 共用 `src/widget-binding.ts`；只共用 UI context、producer token 與顯示更新，各自的資料投影、執行 registry、取消、通知及生命週期仍獨立。
 
 Jobs 面板自動掛在輸入欄上方 `aboveEditor`，Shell＋Subagents **合計最多五個 job，每個兩行**（tool／command preview／短ID＋狀態），最多12行；窄欄截短不折行，高度不足減少列數，More 顯示省略數。只列目前 owner/runtime 的背景 Bash／PowerShell，running／cancelling 直到 registry settlement；取消要求不冒充程序樹已停止。Shell 顯示 Running／output received 或 no output observed，沒有輸出不自行推斷卡住；工具本身沒有模型用量帳本，固定顯示 `tokens N/A`，不推算命令內呼叫 AI 的 token。
 

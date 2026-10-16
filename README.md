@@ -1,12 +1,16 @@
 # Pi Better Tools
 
-單一 Pi extensions package，整合 Subagents、Shell Tools、Precise File Tools、Web Tools 、PTY Terminal 與 Schedule Prompt（第三方 pi-schedule-prompt 快照），加上 JSON Schema structured delivery，並提供本專案原生 Note Tools、GPT Speed、Pi Runtime、Monitor、Skill Tools 與 Fork extensions。必要程式碼與資源已納入 `modules/`，不依賴來源專案的本機路徑。
+單一 Pi extensions package，整合 Subagents、Shell Tools、Precise File Tools、Web Tools、SQLite Tools、SQL Connector、PTY Terminal 與 Schedule Prompt（第三方 pi-schedule-prompt 快照），加上 JSON Schema structured delivery，並提供本專案原生 Note Tools、File Audit、GPT Speed、Pi Runtime、Monitor、Skill Tools 與 Fork extensions。必要程式碼與資源已納入 `modules/`，不依賴來源專案的本機路徑。
 
 > 本專案採用 [MIT License](LICENSE)。使用者已確認五個來源專案均為其所有，並授權本整合專案採 MIT；封裝測試以根目錄 `LICENSE` 為必要授權檔，不要求重複模組 LICENSE；原有模組授權聲明仍保留，來源與相依套件說明見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。`private: true` 僅用於避免誤發布 npm，不限制未來公開至 GitHub；目前未執行任何遠端發布。
 
+## 重構整理（2026-10-16）
+
+移除未接入的 Blackhole 舊壓縮 trigger／private inline adapter、過期版本通知與 Runtime 孤立日誌 helper；ConfigManager 測試 helper 不再隨產品打包。Blackhole 共用 env 解析及非搜尋選單，Shell／Subagents／Fork 共用純 UI binding，Subagents 面板只保留現行 `PanelJob[]` 投影。工具、設定、持久化格式、原生壓縮與各自執行／取消／通知契約不變；來源身份與歷史雜湊保留，細節見 [架構](docs/architecture.md)。
+
 ## 本機安裝
 
-需要 Node.js **`^22.22.2 || ^24.15.0 || >=26.0.0`**（與 jsdom 30 的 runtime 需求一致） 與 `@earendil-works/*` namespace 的 Pi。只支援 Pi **1.1.0**（開發基準與 production smoke 皆為 1.1.0），不代表其他 Pi 版本相容。
+需要 Node.js **`^22.22.2 || ^24.15.0 || >=26.0.0`**（與 jsdom 30 的 runtime 需求一致） 與 `@earendil-works/*` namespace 的 Pi。只支援 Pi **1.3.0**（開發基準與 production smoke 皆為 1.3.0；不維護 1.2.0 或更早版本），不代表其他 Pi 版本相容。
 
 ```powershell
 cd D:\projects\pi-better-tools
@@ -17,17 +21,17 @@ npm run browser:install   # 若需要 web_fetch 的 Chromium
 pi install D:/projects/pi-better-tools
 ```
 
-只在目前使用中的專案安裝：`pi install -l D:/projects/pi-better-tools`。先試用、不改設定：`pi --no-extensions -e D:/projects/pi-better-tools`。十四個本地 extensions 直接載入 `modules/<name>/src/index.ts`，另兩個 npm extensions 使用其原始入口；修改本機程式碼後 `/reload` 或重新啟動 Pi 即可，不必先 build。
+只在目前使用中的專案安裝：`pi install -l D:/projects/pi-better-tools`。先試用、不改設定：`pi --no-extensions -e D:/projects/pi-better-tools`。十七個本地 extensions 直接載入 `modules/<name>/src/index.ts`，另兩個 npm extensions 使用其原始入口；修改本機程式碼後 `/reload` 或重新啟動 Pi 即可，不必先 build。
 
-**若原五個 packages 或獨立 `pi-pty-terminal` 已啟用，請先停用其 extensions**，避免與整合包重複註冊相同工具。這些設定不會自動修改。完整步驟與回退見 [docs/migration.md](docs/migration.md)。
+**若原五個 packages 或獨立 `pi-pty-terminal`／`pi-sqlite-tools`／`pi-sql-connector` 已啟用，請先停用其 extensions**，避免與整合包重複註冊相同工具。這些設定不會自動修改。完整步驟與回退見 [docs/migration.md](docs/migration.md)。
 
 Pi-managed npm／git package 安裝會處理 runtime dependencies；本機路徑不會自動替你執行 npm install。Chromium 不在 tarball 裡，extension 載入時也不下載／啟動瀏覽器。解壓 tarball 後可在安裝目錄執行 `npm run browser:install`；勿在 runtime-only tarball 執行 repository 的 build／test scripts。
 
 ### 本地 Blackhole 與兩個 npm Pi packages（原始碼掛載）
 
-根 `dependencies` 固定包含 `pi-open-tui@0.3.11`、`@ff-labs/pi-fff@0.11.0`。Blackhole 0.5.12 原始碼已納入 `modules/blackhole/`，Pi 改載入 `./modules/blackhole/src/index.ts`，不再依賴 npm 的 `pi-blackhole`。`npm ci --ignore-scripts` 會安裝兩個 npm packages；manifest 為十三個本地入口加兩個 npm 入口，共十五個。仍維持 `private: true`，不需要 npm 發布、bundledDependencies 或 postinstall 呼叫 pi install。
+根 `dependencies` 固定包含 `pi-open-tui@0.3.11`、`@ff-labs/pi-fff@0.11.0`。Blackhole 0.5.12 原始碼已納入 `modules/blackhole/`，Pi 改載入 `./modules/blackhole/src/index.ts`，不再依賴 npm 的 `pi-blackhole`。`npm ci --ignore-scripts` 會安裝兩個 npm packages；manifest 為十七個本地入口加兩個 npm 入口，共十九個。仍維持 `private: true`，不需要 npm 發布、bundledDependencies 或 postinstall 呼叫 pi install。
 
-換機請下載／複製本專案原始碼及 lockfile，在新機重新執行上述安裝步驟，然後只掛載本專案目錄；不要跨 OS／CPU 複製 node_modules。**本機掛載不會自動執行 npm install**。Repository `.npmrc` 設 `legacy-peer-deps=true`，避免依賴 peers 自動安裝另一份 Pi SDK；Blackhole 快照的上游開發版本／peer 範圍只作歷史 metadata，整合基準為 Pi 1.1.0，不以此設定宣稱相容。
+換機請下載／複製本專案原始碼及 lockfile，在新機重新執行上述安裝步驟，然後只掛載本專案目錄；不要跨 OS／CPU 複製 node_modules。**本機掛載不會自動執行 npm install**。Repository `.npmrc` 設 `legacy-peer-deps=true`，避免依賴 peers 自動安裝另一份 Pi SDK；Blackhole 快照的上游開發版本／peer 範圍只作歷史 metadata，整合基準為 Pi 1.3.0，不以此設定宣稱相容。
 
 啟用整合入口前，請手動停用原本 `npm:pi-open-tui`、`npm:pi-blackhole`、`npm:@ff-labs/pi-fff` 的獨立 extension 資源，避免 hooks／commands／tools 重複載入。Repository 不會改寫真實 Pi settings 或卸載它們。`pi config` 的既有 extension filters 仍有效；只掛載單一 module 入口不會載入全部套件。
 
@@ -93,14 +97,17 @@ Shell 與 Subagents 會在 `startup`／`resume`／`reload` 載入 session 時，
 | 模組 | 工具／命令 | 注意事項 |
 | --- | --- | --- |
 | Subagents | `subagent`、`subagent_status/cancel/message`；三個 workflow prompts | `subagent` 建立 single／parallel／chain（同步預設，支援 `background:true`）；`subagent_message` 以 session ID 發送指示，自動 control 或安全續接；query 保持唯讀 |
+| SQL Connector | `mysql_state/query/update`、`mssql_state/query/update`、`pgsql_state/query/update`；`/sql-connector-reload` | trusted 專案 `.pi/agent/sql-connector.json` 掛載；僅配置的引擎註冊 deferred 工具，以 `tool_search` 搜尋對應引擎。每次寫入需 UI 確認；Windows Authentication 另需原生 driver／ODBC。詳見 `modules/sql-connector/README.md` |
+| SQLite Tools | `sqlite_open/close/status/query/execute/list_tables/describe_table/manual` | deferred `sqlite` namespace；讀取資料庫前以 `tool_search` 搜尋 `sqlite`。保留 manual／fixed mode、專案 trust 與 shutdown 關閉連線；詳見 `modules/sqlite-tools/README.md` |
 | PTY Terminal | `pty_spawn/write/read/resize/wait_exit/kill/list` | `target` 預設 local；named WSL／SSH targets；session 綁定 target，關閉 transport 不保證遠端背景程序停止 |
 | Schedule Prompt | `schedule_prompt`；`/schedule-prompt` | 排程週期／一次性 prompt（cron、ISO、`+10s`、`5m`）；可指定 `model` 以 in-process 背景 session 執行。資料存於 `<cwd>/.pi/schedule-prompts.json`，設定於 `<cwd>/.pi/schedule-prompts-settings.json`（全域 `<agentDir>/schedule-prompts-settings.json` 為手動預設）；預設綁定建立它的 session。僅 session 存活期間觸發，不是 OS 排程或 daemon |
 | Shell Tools | 覆寫 `bash`、`powershell`；`shell_job_status/cancel` | 同步預設；`background:true` 立即回 jobId／liveLogPath；`timeoutMs` 為自啟動起算的總時限（前景／背景相同）；背景 job 未設 `timeoutMs` 時自動啟動 180 秒 display-only Monitor；前景無 `timeoutMs` 指令滿 180 秒自動轉背景（同一 process，兜底防無限迴圈，可由 `pi-shell-tools.autoBackgroundMs` 調整或設 0 停用）；管理工具需額外選取；PowerShell 僅原生 Windows |
 | File Tools | 覆寫 `read`、`write`、`edit`、`ls` | 絕對行號、32 字元 hash、精準 literal／regex、原子寫入、diff worker；`grep/find` 不再由本模組註冊，可由 FFF override 提供 |
 | Web Tools | `web_fetch`；條件式 REST `web_search`；`/web-tools status`、`/web-tools sources` | OpenAI／Codex 原生搜尋預設啟用、無實驗開關或警告，不註冊同名 function tool；Brave／Exa 要明確設定；無登入／CAPTCHA bypass／PDF |
-| Fork | `fork`／`fork_status`／`fork_cancel`（皆預設不啟用，須明確選取） | 以獨立 Pi 行程繼承來源對話與能力接手任務，跨 session 切換仍續行，完成後只回報原 session；Fork 可用 `subagent`、不可再 Fork，所有 Subagent 不可 Fork；quit／`/reload` 取消全部；完成後以原生 `/resume` 繼續。詳見 `modules/fork/README.md`；不是 OS sandbox |
+| Fork | `fork`／`fork_status`／`fork_cancel`（皆預設啟用，仍受宿主工具限制） | 以獨立 Pi 行程繼承來源對話與能力接手任務，跨 session 切換仍續行，完成後只回報原 session；Fork 可用 `subagent`、不可再 Fork，所有 Subagent 不可 Fork；quit／`/reload` 取消全部；完成後以原生 `/resume` 繼續。詳見 `modules/fork/README.md`；不是 OS sandbox |
 | Monitor | `monitor_start/status/stop` | 四來源：command stdout、WS text、readonly shell_job/subagent_job；三工具預設啟用（仍受宿主工具限制），總期限預設5分鐘；不是daemon／PTY／sandbox |
-| Skill Tools | `/skill:create-plan` | 透過 extension 的原生 resource discovery 提供隨包 skills；完整指示按需讀取，不修改使用者 home |
+| Skill Tools | `/skill:create-plan`、`/skill:pi-tools-config` 等隨包技能 | 原生 resource discovery、按需讀取；pi-tools-config 以 SKILL.md 索引 17 份逐模組指令／config references，不修改使用者 home |
+| File Audit | `/file-audit [status\|check\|clear\|limits]` | 成功 read/write/edit/note 的近期活動；預設 4 runs／50 個不同檔案，只在手動 check 才做有 byte 上限的 provenance 檢查；不掃完整歷史、不自動刷新 hash。詳見 [File Audit](modules/file-audit/README.md) |
 | Note Tools | `note` | `{ type, content }`；自動分類、產生純時間戳檔名（`TYPE-<UTC 時間戳>.md`，不附加標題），只新增 Markdown 檔案並回報單一相對路徑，不覆寫 |
 | GPT Speed | `/fast`、`/ultrafast`、`/normal` | GPT >= 5.6 的 luna／terra／sol／astra pattern；Ultrafast 在 luna／terra 降為 Fast；TUI 顯示實際速度 |
 | Pi Runtime | `/runtime-recovery status`、`on`、`off`、`/runtime-recover <澄清>` | 每個可識別使用者任務最多 2 次診斷恢復；明確輸入錯誤可自動續行，cyber／policy／未知錯誤須人工 review 與 UI 確認；不啟用工具或更換模型 |
@@ -122,7 +129,7 @@ file-tools 只保留 `ls` 搜尋／目錄包裝（`defaultActive:false`），不
 
 ### 結構化 run-start 指引
 
-Subagents 的 `pi_subagents_agent_catalog`、Web 的 `pi_web_tools_native_search` 與共享 `pi_better_tools_background_lifecycle` 由 `before_agent_start` 各自維護獨立 section，不再因 catalog 而強制替換整份 system prompt；停用工具時移除自己的內容，保留其他 sections、custom prompt 與外部 forced prompt 支援。Runtime 仍使用既有任務 admission 證據鏈；宿主若提供 `messageType`，明確 custom run 不取得新任務候選，`user` 也不等同真人新任務。本輪不升級依賴，支援／驗證基準仍是 Pi 1.1.0，不宣稱已完成 1.2.0 相容驗證。詳見 [架構](docs/architecture.md#structured-run-start-prompt-composition-2026-10-13)。
+Subagents 的 `pi_subagents_agent_catalog`、Web 的 `pi_web_tools_native_search` 與共享 `pi_better_tools_background_lifecycle` 由 `before_agent_start` 各自維護獨立 section，不再因 catalog 而強制替換整份 system prompt；停用工具時移除自己的內容，保留其他 sections、custom prompt 與外部 forced prompt 支援。Runtime 仍使用既有任務 admission 證據鏈；宿主若提供 `messageType`，明確 custom run 不取得新任務候選，`user` 也不等同真人新任務。支援／驗證基準已升為 Pi 1.3.0（根 devDependencies 與 lockfile），不再維護 1.2.0 或更早版本。詳見 [架構](docs/architecture.md#structured-run-start-prompt-composition-2026-10-13)。
 
 ### 工具 TUI 顯示
 
@@ -202,11 +209,17 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 
 需要協助實際連線時，只需提供 **SSH host alias** 與 **Mac 上的專案絕對路徑**，並明確授權實連；不需要提供密碼。若一定要使用帳號密碼，需另行實作讓使用者直接在終端機輸入、不經過模型的互動登入介面；目前 extension 未提供此功能。
 
+### 2026-10-16 依賴更新
+
+根 lockfile 同步更新 Pi 1.3.0、jsdom 30.1.3、Playwright 1.64.1、nanoid 6、SQL drivers 與型別／lint 工具。node-pty 沿用既有 beta channel 升至 1.2.0-beta.15，不降到 npm latest tag 的 1.1.0。TypeScript 使用 ESLint parser 支援的 6.0.3（不強裝不支援的 7.x），Node 型別採最低支援 Node 22 的最新 22.x。Vitest 5 的 Vite peer 在根 devDependencies 明確宣告，因本專案使用 legacy-peer-deps、不自動安裝 peers。更新後重新執行 `npm ci --ignore-scripts`、`npm run pty:install`、`npm run browser:install`；不更新個人 Pi 安裝或設定。
+
 ### Monitor v1
 
 入口 `modules/monitor/src/index.ts`，三工具 `defaultActive:true`，不需加入 `defaultTools`，explicit allowlist／exclude／no-tools／手動停用仍有效；managed child 完全不註冊並拒絕直接 execute。`monitor_start` 支援 command stdout、WebSocket text、既有 Shell/Subagent readonly job snapshots；`monitor_status`／`monitor_stop` 只操作本 session/canonical cwd/generation。總期限預設5分鐘、上限30分鐘（不是Shell輸出停滯timeout）；4 active、32 retained、固定 byte/rate/buffer bounds。WS預設公網wss，private與ws需本URL分別opt-in；驗證後DNS pin、TLS/SNI、禁redirect/compression、16KiB preallocation cap；root direct `ws@8.22.0`。Job停止只清timer，不取消原工作／query模型；command stderr僅診斷、stdin ignored。Legacy WSL stdin transport拒絕，不偷偷換shell。
 
-`wakeAgent` 預設true；false仍提交display custom `monitor_event`但不要求turn。Busy由agent_start/agent_settled維持，ordered data／bounded batches，submitted不代表host ack／persisted；cancel/exit不代表source close／descendants cleanup，reload不恢復或重播。完整schema／limits／Blackhole producer交接與驗證邊界見 [Monitor README](modules/monitor/README.md)。Blackhole allowlist接線另由父agent協調，未因此宣稱壓縮共存已通過。
+`monitor_event` 使用與 Shell／Fork 通知一致的主題背景面板，不再直接顯示 raw JSON；收合顯示來源狀態與末三筆事件，展開顯示完整 IDs 與此通知保留的資料，控制碼只在顯示層清理，最多300行。
+
+`wakeAgent` 預設true，使用 `triggerTurn:true, deliverAs:"followUp"`；false仍提交模型可見的display custom `monitor_event`，但不主動要求turn（下次合法模型請求可見，不是永遠只給使用者）。Shell 自動建立的 Monitor 固定為false，原 Shell job 完成通知另會喚醒 Agent。面板標示 Agent turn requested／Display only，舊資料沒有 wakeAgent 欄位時顯示 unknown；不以顯示成功冒稱模型送達確認。Busy由agent_start/agent_settled維持，ordered data／bounded batches，submitted不代表host ack／persisted；cancel/exit不代表source close／descendants cleanup，reload不恢復或重播。完整schema／limits／Blackhole producer交接與驗證邊界見 [Monitor README](modules/monitor/README.md)。Blackhole allowlist接線另由父agent協調，未因此宣稱壓縮共存已通過。
 
 ### Extension 提供的 skills
 
@@ -218,7 +231,7 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 { "type": "report", "content": "# Report\n\nVerification results…\n" }
 ```
 
-`type` 限定 `plan | issue | research | report | task`，寫入呼叫時工作目錄下的 `./<type>/<TYPE>-<UTC timestamp>.md`，採緊湊 UTC 格式 `YYYYMMDDTHHmmssSSSZ`，例如 `./report/REPORT-20261001T043000123Z.md`；保留毫秒與時間排序，既有筆記不更名。目錄不存在會自動建立；內容以 UTF-8 原樣保存，同名檔案會換名、不覆寫。文字結果、details 與 structuredContent 均只回報相對路徑（`relativePath`），不暴露絕對路徑；後續直接使用 `read`／`edit`／`write` 操作。
+`type` 限定 `plan | design | issue | research | report | task`，寫入呼叫時工作目錄下的 `./<type>/<TYPE>-<UTC timestamp>.md`，採緊湊 UTC 格式 `YYYYMMDDTHHmmssSSSZ`，例如 `./report/REPORT-20261001T043000123Z.md`；保留毫秒與時間排序，既有筆記不更名。目錄不存在會自動建立；內容以 UTF-8 原樣保存，同名檔案會換名、不覆寫。文字結果、details 與 structuredContent 均只回報相對路徑（`relativePath`），不暴露絕對路徑；後續直接使用 `read`／`edit`／`write` 操作。
 
 獨立入口：`modules/note-tools/src/index.ts`。若使用 `--tools` 明確 allowlist，請加入 `note` 才能啟用；exclusions／no-tools 仍優先。`defaultTools` 不是 extension tools 的全域 allowlist。完整契約見 [Note Tools README](modules/note-tools/README.md)。
 
@@ -317,7 +330,7 @@ pi -p "Extract company name: Acme" --json-schema $schema --json-output result.js
 }
 ```
 
-十四個模組（subagents、shell-tools、file-tools、web-tools、note-tools、gpt-speed、json-schema、pty-terminal、schedule-prompt、blackhole、pi-runtime、monitor、skill-tools、fork）的公開入口均為 `modules/<name>/src/index.ts`。薄入口轉接既有實作，內部資源位置不變。
+十七個模組（subagents、shell-tools、file-tools、web-tools、note-tools、file-audit、gpt-speed、json-schema、pty-terminal、schedule-prompt、blackhole、pi-runtime、monitor、skill-tools、fork、sqlite-tools、sql-connector）的公開入口均為 `modules/<name>/src/index.ts`。薄入口轉接既有實作，內部資源位置不變。
 
 Filters 以整合包 root 為基準；與 tool allowlist 不同，它們控制 extension 是否執行／是否啟動生命週期資源。既有 filters 若使用舊入口路徑，請手動更新為新路徑，見 [入口遷移](docs/migration.md#unified-typescript-entry-points)。
 

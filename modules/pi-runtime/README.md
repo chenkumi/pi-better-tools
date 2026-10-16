@@ -35,6 +35,28 @@ TUI dialog 的拒絕／Escape 取消不提交；確認期間若 session／tree�
 
 恢復額度先記錄再提交，保守保留不確定送達的費用／嘗試額度。手動 `pi.sendMessage` 是 submission，不是送達／成功確認，不提供 exactly-once 或自動補送。Session state 寫入失敗會停止恢復。取消、shutdown、owner/runtime 換代優先；沒有 polling／sleep／factory timer。
 
+## Deferred 工具（本專案各模組共用）
+
+本專案的模組要延遲載入工具時，只需在 `registerTool` 加 `exposure: "deferred"` 與 `namespace: { name, description }`，不必自帶任何啟用或提示程式；目前使用者為 `pty-terminal`（`pty`）、`schedule-prompt`（`schedule`）、`sqlite-tools`（`sqlite`，讀取資料庫前以 `tool_search` 尋找 SQLite tools）與 `sql-connector`（已配置的 `mysql`／`mssql`／`pgsql`）。Pi Runtime 的 `deferred-tools.ts` 統一處理：
+
+- **全新 session（`startup`／`new`）**：若已登記但未啟用 `tool_search`，以 `setActiveTools` 加入它，因此不需要 `defaultTools: "+tool_search"`。`resume`／`fork` 還原已記錄的工具集，`reload` 保留當前工具集，皆不變更。
+- **沒有登記的 `tool_search`**（例如 `--tools` allowlist 排除）：直接宣告本專案的 deferred 工具，與未延遲前相同；被 allowlist 排除的工具本來就不會註冊。
+- **提示**：`tool_search` 啟用時，系統提示加一段 `### Deferred tools`，每個仍未載入的 namespace 一行（含查詢字串）；全部載入後消失，並處理 `forceSystemPrompt`。
+- 只管理來源檔案位於本專案 `modules/` 的工具；第三方（如 MCP）的 deferred 工具不受影響，也不列入提示。
+- 這是有意的例外：Pi Runtime 會替使用者啟用 `tool_search`（不改使用者 settings 檔）。不要在各模組內重複這段程式。
+
+## 跨模組工具規則
+
+`cross-tool-guidance.ts` 注入 system prompt section `pi_better_tools_cross_tool_rules`（約 300 tokens）。只放跨模組規則：檔案修改走 `edit`／`write`、不經 shell 重導向或 `sed`（file-tools 與 shell）；`subagent`／`fork` 的分工與委派原則；完成前先驗證；失敗處理與破壞性動作先確認。
+
+- 各區塊只在其提到的工具已啟用時出現（例如沒有 `subagent`／`fork` 就沒有委派區塊，只有 `fork` 時不提 `subagent`）。
+- 單一模組的工具用法（`note`、web、SQLite、`monitor`、`recall` 等）由該模組自己注入，不放這裡；Pi 內建 prompt 已有或工具描述已涵蓋的內容也不重複。
+- 與背景工作生命週期段落（Shell／Subagents 共用）分開，不重複其取消與通知規則；處理 `forceSystemPrompt` 的方式與其相同。
+
+## 重構清理
+
+2026-10-16 移除未被入口或 recovery 流程引用的 `src/debug-log.ts` 及僅驗證該孤立 helper 的測試；沒有接入或新增 failure logging，沒有新增 `pi-runtime.debugLog` 設定。現有 `policy.ts` 診斷遮罩、session reservation、恢復與人工確認流程不變。
+
 ## 整合與驗證
 
 入口 `./modules/pi-runtime/src/index.ts`；runtime helpers 僅使用 root 既有 ulid 與 host-provided Pi peers，無模組獨立安裝／bundle。

@@ -157,7 +157,7 @@ export function startForkChild(spec: ForkChildSpec, onPhase: (phase: ForkPhase) 
 			if (want.size !== got.size || [...want].some(name => !got.has(name))) throw Object.assign(new Error("tool set differs from the parent selection"), { code: "CAPABILITY_MISMATCH" });
 			const state = await raceCancel(pipe.request("get_state"));
 			if (state?.sessionId !== spec.sessionId || (typeof state?.sessionFile === "string" && !existsSync(state.sessionFile))) throw Object.assign(new Error("native session identity mismatch"), { code: "CONFIG_CHANGED" });
-			const before = usageOf(await raceCancel(pipe.request("get_session_stats")).catch(() => undefined));
+			const before = usageOf(await raceCancel(pipe.request("get_session_stats")).catch((error: { cancelled?: boolean }) => { if (error?.cancelled) throw error; return undefined; }));
 			debug(spec.jobId, "verified; sending prompt");
 			onPhase("running");
 			promptSent = true;

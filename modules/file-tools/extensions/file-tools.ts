@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createReadToolDefinition, createWriteToolDefinition, withFileMutationQueue } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
+import { Container, Text, type Component } from "@earendil-works/pi-tui";
 import { readFile, stat } from "node:fs/promises";
 import { stripVTControlCharacters } from "node:util";
 import { Type } from "typebox";
@@ -24,6 +24,11 @@ import { resolveToolPath } from "../src/path-utils.js";
 import { findUniqueSkillFallbackPath } from "../src/skill-paths.js";
 import { hintMissingSubagentLog } from "../src/subagent-log-paths.js";
 import { registerSearchTools } from "../src/search-tools.js";
+
+class WriteCallWithCount extends Container {
+  preview?: Component;
+  readonly count = new Text("", 0, 0);
+}
 
 const HASH_PATTERN = `^(missing|[a-fA-F0-9]{${SHA256_TOKEN_LENGTH}}|[a-fA-F0-9]{64})$`;
 const strictObject = { additionalProperties: false } as const;
@@ -540,7 +545,17 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
     parameters: writeSchema,
     constrainedSampling: { type: "json_schema", strict: "prefer" },
     prepareArguments: prepareWithFailureLogging(debugLog, "write", prepareWriteArguments),
-    renderCall: builtinWrite.renderCall,
+    renderCall(args, theme, context) {
+      const component = context.lastComponent instanceof WriteCallWithCount ? context.lastComponent : new WriteCallWithCount();
+      // Keep the host's preview/highlight cache separate from our wrapper.
+      component.preview = builtinWrite.renderCall!(args, theme, { ...context, lastComponent: component.preview });
+      const bytes = typeof args?.content === "string" ? Buffer.byteLength(args.content, "utf8") : 0;
+      component.count.setText(theme.fg("muted", `${context.argsComplete ? "received" : "receiving"} ${bytes.toLocaleString("en-US")} bytes`));
+      component.clear();
+      component.addChild(component.preview);
+      component.addChild(component.count);
+      return component;
+    },
     renderResult(result, { expanded, isPartial }, theme, context) {
       const text = result.content.filter(block => block.type === "text").map(block => block.text).join("\n");
       if (context.isError) return new Text(theme.fg("error", formatFileToolErrorForDisplay(text, expanded, "write")), 0, 0);
@@ -591,15 +606,12 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
       "Edit one UTF-8 file with exact-text or regex replacements, validated against one snapshot and committed atomically with a model-visible diff.",
     promptSnippet: "Edit exact text or regex matches with optional line ranges and replace-all behavior",
     promptGuidelines: [
-      "Prefer oldText without lineRange when the exact text is unique in the whole file; this remains stable when earlier lines move.",
-      "Use lineRange as a 1-based inclusive initial search window, not a line replacement boundary. If oldText is not found there, a unique whole-file literal match is applied automatically; repeated whole-file matches remain an error. Regex edits do not use this fallback, and a regex lineRange window is matched as a standalone string (^, $, lookbehind and lookahead cannot see outside it).",
+      "Prefer oldText without lineRange when the exact text is unique in the whole file; use lineRange only to disambiguate or limit replaceAll. lineRange is a 1-based inclusive initial search window, not a line replacement boundary: if oldText is not found there, a unique whole-file literal match is applied automatically (repeated matches remain an error). Regex edits do not use this fallback, and a regex lineRange window is matched as a standalone string (^, $, lookbehind and lookahead cannot see outside it).",
       "After AMBIGUOUS_MATCH or a ranged miss, use returned candidateRanges to choose a narrower lineRange or include more exact surrounding text.",
       "Use replaceAll=true only when every match in the selected scope should change. Otherwise the selected scope must contain exactly one match.",
-      "Use JavaScript ECMAScript RegExp syntax for regex patterns, not Python/PCRE syntax. Pass flags separately via regexFlags: for multiline ^/$ use regexFlags='m' rather than a bare inline flag such as (?m). Only i, m, s, u are accepted, each at most once; never pass g. Use replaceAll=true when every match in the selected scope should change.",
-      "Use replacementMode=template only with regex when capture substitution such as $1 is required; use literal for ordinary replacement text.",
+      "Use JavaScript ECMAScript RegExp syntax for regex patterns, not Python/PCRE syntax. Pass flags separately via regexFlags: for multiline ^/$ use regexFlags='m' rather than a bare inline flag such as (?m). Only i, m, s, u are accepted, each at most once; never pass g. Use replacementMode=template only when capture substitution such as $1 is required; use literal otherwise.",
       "Pass the 32-character SHA-256 version token from the latest read as edit.expectedHash whenever available so stale edits fail safely. You may reuse the sha256After returned by the previous edit as the next expectedHash.",
-      "Each edits item needs exactly one non-empty oldText or regex plus newText. Whole-file matching is the default; omit lineRange unless disambiguating.",
-      "All edits in one edit call refer to the original pre-edit snapshot and must target non-overlapping text.",
+      "Each edits item needs exactly one non-empty oldText or regex plus newText. All edits in one call refer to the original pre-edit snapshot and must target non-overlapping text.",
     ],
     parameters: editSchema,
     constrainedSampling: { type: "json_schema", strict: "prefer" },
@@ -607,8 +619,11 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
     renderCall(args, theme, context) {
       const component = context.lastComponent instanceof Text ? context.lastComponent : new Text("", 0, 0);
       const preview = formatEditCallPreview(args);
+      const bytes = Array.isArray(args?.edits)
+        ? args.edits.reduce((total, edit) => total + (typeof edit?.newText === "string" ? Buffer.byteLength(edit.newText, "utf8") : 0), 0)
+        : 0;
       component.setText(
-        `${theme.fg("toolTitle", theme.bold("edit"))} ${theme.fg("accent", preview.path)} ${theme.fg("dim", `[${preview.ranges}]`)}`,
+        `${theme.fg("toolTitle", theme.bold("edit"))} ${theme.fg("accent", preview.path)} ${theme.fg("dim", `[${preview.ranges}]`)}\n${theme.fg("muted", `${context.argsComplete ? "received" : "receiving"} ${bytes.toLocaleString("en-US")} bytes`)}`,
       );
       return component;
     },

@@ -14,7 +14,7 @@ test('Pi 1.1.0 bounded recovery, policy approval, cancellation, repeat, reload a
       [join(root, 'modules/pi-runtime/tests/fixtures/runtime-host.mjs'), root],
       { cwd: home, env: { ...isolatedEnv(home), TEMP: join(home, 'tmp'), TMP: join(home, 'tmp'), TMPDIR: join(home, 'tmp') }, timeoutMs: 150000 });
     const result = JSON.parse(output.trim().split('\n').at(-1));
-    assert.equal(result.status, 'passed'); assert.equal(result.host, '1.1.0'); assert.equal(result.providerCalls, 0);
+    assert.equal(result.status, 'passed'); assert.equal(result.host, '1.3.0'); assert.equal(result.providerCalls, 0);
     assert.deepEqual(result.cases.map(c => c.mode), ['success', 'limit', 'repeat', 'transform', 'template', 'policy', 'cancel', 'reload', 'no-session', 'tree', 'handled', 'preflight', 'withdrawn', 'safety']); assert.ok(result.cases.every(c => c.status === 'passed'));
   } finally { await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
 });

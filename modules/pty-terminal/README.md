@@ -18,6 +18,14 @@
 
 只有 spawn 指定 target；後續使用 sessionId。不改其他 shell/file 工具的執行位置。PTY 合併終端輸出並可能有 ANSI 控制碼，不提供逐指令結構化 stdout/stderr/exit code；互動 shell 的 exitCode 是 shell 結束碼。
 
+## 動態載入（tool_search）
+
+七個 PTY 工具以 `exposure: "deferred"` 註冊並歸入同一個 `pty` namespace，不隨每次請求送給模型（約 1,400 tokens）。本模組只宣告 exposure 與 namespace；啟用 `tool_search`、無 `tool_search` 時的直接宣告、以及系統提示的載入提示，全部由 **Pi Runtime** 統一處理（見 `modules/pi-runtime/README.md`「Deferred 工具」），不需要任何 `defaultTools` 設定。
+
+- 模型查 `pty` 一次載入全部七個；`/reload` 保留已載入的工具。
+- `--tools` allowlist 或 `--exclude-tools` 排除的 PTY 工具不會註冊，因此既不宣告、也不能被 `tool_search` 載入。
+- 載入工具會改變工具清單；對無法表達此變更的 provider，Pi 會送完整 transcript checkpoint，可能使該次 prompt cache 失效。PTY 屬低頻工具，影響有限。
+
 ## TUI 顯示
 
 七個工具都有 call/result renderer，顯示 session、target、local transport PID、輸出與 transport exit／逾時狀態；list 收合列出前三筆，展開最多五十筆。read 以清理 ANSI／控制字元的文字預覽顯示，收合最多十二行，展開看已回傳內容；不是 terminal emulator，完整畫面控制碼仍保留於模型可見 output。write 不預覽輸入，spawn 不預覽 args/env；這不是全面敏感資料遮蔽。kill 明示 session 已釋放／termination requested，不冒稱遠端程序樹停止。Renderer 只改 UI，不修改工具結果、activation、target resolution 或 PTY lifecycle，也不執行／drain PTY。
@@ -71,9 +79,9 @@
 
 ## 安裝及驗證
 
-從根目錄執行 `npm ci --ignore-scripts`，再明確執行 `npm run pty:install`（只 rebuild node-pty 的 native setup；無預編譯支援時需本機編譯工具）。使用符合根 manifest 的 Node 與 Pi 1.1.0 開發基準。原來源採用的 `node-pty` 1.2.0-beta.14 保留為固定 runtime dependency，未宣稱 beta 等同 stable 或所有 OS/architecture 都已實測。
+從根目錄執行 `npm ci --ignore-scripts`，再明確執行 `npm run pty:install`（只 rebuild node-pty 的 native setup；無預編譯支援時需本機編譯工具）。使用符合根 manifest 的 Node 與 Pi 1.3.0 開發基準。`node-pty` 沿用原來源的 beta channel，升為固定 runtime dependency 1.2.0-beta.15，未宣稱 beta 等同 stable 或所有 OS/architecture 都已實測。
 
-根 manifest 的 npm 12 `allowScripts` 只允許固定 `node-pty@1.2.0-beta.14`，未允許任意 dependency scripts。`pty:install` 用目前 npm CLI／Node subprocess（無 shell）重建此套件，僅移除 npm run 帶入的 `npm_config_allow_scripts`（含大小寫變體），讓 project policy 生效；保留其他設定／環境，不修改使用者全域 npm 設定。一般 consumer 安裝須自行核可其 project 的 native setup；dependency 的 policy 不代表 parent project 自動核可。
+根 manifest 的 npm 12 `allowScripts` 只允許固定 `node-pty@1.2.0-beta.15`，未允許任意 dependency scripts。`pty:install` 用目前 npm CLI／Node subprocess（無 shell）重建此套件，僅移除 npm run 帶入的 `npm_config_allow_scripts`（含大小寫變體），讓 project policy 生效；保留其他設定／環境，不修改使用者全域 npm 設定。一般 consumer 安裝須自行核可其 project 的 native setup；dependency 的 policy 不代表 parent project 自動核可。
 
 根 `npm run typecheck`／`npm test` 包含此模組；loader 與真實 production tarball 使用真正本機 PTY。WSL/SSH argv/settings 單元測試不等於真實遠端連線驗證。原來源 POSIX shell 測試改用平台原生 Node fixtures，保留互動、drain、exit 及 kill 斷言。
 

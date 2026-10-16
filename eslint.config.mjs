@@ -13,7 +13,7 @@ const files = [
 ];
 
 export default [
-  { ignores: ['**/node_modules/**', '**/dist/**', '**/coverage/**', '**/.pi/**', '**/plan/**', '**/report/**', '**/research/**', '**/issue/**', '**/task/**'] },
+  { ignores: ['**/node_modules/**', '**/dist/**', '**/coverage/**', '**/.pi/**', '**/plan/**', '**/report/**', '**/research/**', '**/design/**', '**/issue/**', '**/task/**'] },
   {
     files,
     languageOptions: { ecmaVersion: 'latest', sourceType: 'module' },

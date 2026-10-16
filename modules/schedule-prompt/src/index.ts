@@ -21,6 +21,13 @@ import { CronWidget } from "./ui/cron-widget.js";
 import { JobsView } from "./ui/jobs-view.js";
 import { runJobsMenu } from "./ui/jobs-menu.js";
 
+// Local adaptation: schedule_prompt is deferred so its large definition is not sent until tool_search loads it. Activation of
+// tool_search, the fallback without it and the discovery hint are handled once for all modules by pi-runtime.
+const EXPOSURE = {
+  exposure: "deferred",
+  namespace: { name: "schedule", description: "Schedule prompts or shell commands to run later or on a recurring schedule in this session." },
+} as const;
+
 export default async function (pi: ExtensionAPI) {
   let storage: CronStorage;
   let scheduler: CronScheduler;
@@ -46,7 +53,7 @@ export default async function (pi: ExtensionAPI) {
     () => { requireAdmitted(); return scheduler; },
     () => settings.defaultJobScope ?? "session",
   );
-  pi.registerTool(tool);
+  pi.registerTool({ ...tool, ...EXPOSURE } as typeof tool);
 
   // --- Session initialization ---
 
@@ -150,10 +157,10 @@ export default async function (pi: ExtensionAPI) {
           // Hide the Jobs overlay while the add flow's dialogs are open —
           // otherwise it sits on top of them and steals input.
           let jobsOverlay: OverlayHandle | undefined;
-          const wrappedRunAdd = async () => {
+          const wrapAdd = (kind: "prompt" | "command") => async () => {
             jobsOverlay?.setHidden(true);
             try {
-              await runAddFlow(ctx, storage, scheduler, settings, mySessionId);
+              await runAddFlow(ctx, storage, scheduler, settings, mySessionId, kind);
             } finally {
               jobsOverlay?.setHidden(false);
               jobsOverlay?.focus();
@@ -165,10 +172,11 @@ export default async function (pi: ExtensionAPI) {
                 storage,
                 scheduler,
                 mySessionId,
-                wrappedRunAdd,
+                wrapAdd("prompt"),
                 theme,
                 () => tui.requestRender(),
                 () => done(undefined),
+                wrapAdd("command"),
               ),
             {
               overlay: true,

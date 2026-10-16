@@ -79,6 +79,27 @@ export class FetchQueue {
   }
 }
 
+/** Classify known Playwright launch diagnostics without exposing paths or call logs. */
+function browserLaunchError(error: unknown, channel: FetchOptions['channel']): Error {
+  const message = error instanceof Error ? error.message : '';
+  const summary = message.split('\n', 1)[0] ?? '';
+  let guidance: string;
+  if (/^(?:browserType\.launch: )?(?:Executable doesn't exist at |Chromium distribution '[^']+' is not found)/.test(summary)) {
+    guidance = channel === 'chrome'
+      ? 'Google Chrome executable was not found. Install Google Chrome, or set fetch.channel to "chromium" and run `npm run browser:install`.'
+      : 'Playwright Chromium executable was not found. Install it with `npm run browser:install` in the package directory using the same user and browser-cache environment as Pi.';
+  } else if (/Host system is missing dependencies|error while loading shared libraries/.test(message)) {
+    guidance = 'Browser system dependencies are missing. On Linux/WSL, review and run `npm run browser:install-deps` with user approval; on other systems, check the required browser runtime dependencies.';
+  } else if ((error instanceof Error && 'code' in error && ['EACCES', 'EPERM'].includes(String(error.code))) || /\b(?:EACCES|EPERM)\b/.test(summary)) {
+    guidance = 'Browser launch permission was denied. Check executable/cache permissions and OS security policy; reinstalling the browser is not necessarily required.';
+  } else if (error instanceof Error && error.name === 'TimeoutError') {
+    guidance = 'Browser startup timed out. Check system load and browser startup restrictions; consider increasing fetch.timeoutMs. A missing browser is not confirmed.';
+  } else {
+    guidance = 'Browser startup failed; a missing browser is not confirmed. Check browser runtime compatibility, OS security policy and available resources before retrying.';
+  }
+  return new Error(`BROWSER_UNAVAILABLE: ${guidance}`);
+}
+
 /** Browser-side network checks are best-effort SSRF defense, not a real sandbox.
  * Use a restricted container/egress proxy when fetching actively hostile pages. */
 export class FetchService {
@@ -119,9 +140,9 @@ export class FetchService {
         browser.on('disconnected', () => { if (this.browser === browser) this.browser = undefined; });
         this.scheduleIdle();
         return browser;
-      }).catch(() => {
+      }).catch((error: unknown) => {
         if (this.closed) throw new Error('CLOSED: Fetch service is closed.');
-        throw new Error('BROWSER_UNAVAILABLE: Could not launch Chromium. Install the Playwright browser with `npm run browser:install`, then start a new session. Do not retry web_fetch until it is installed.');
+        throw browserLaunchError(error, this.options.channel);
       }).finally(() => { this.launching = undefined; });
     }
     return this.launching;

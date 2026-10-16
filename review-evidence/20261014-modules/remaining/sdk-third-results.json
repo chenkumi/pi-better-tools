@@ -1,0 +1,50 @@
+{
+  "host": "1.2.0",
+  "isolatedHome": "C:\\Users\\KY6584\\AppData\\Local\\Temp\\pi-review-sdk-2cdPyT",
+  "runtimeThird": true,
+  "samples": [
+    {
+      "id": "G6-001",
+      "iteration": 3,
+      "variant": "growth-after-start",
+      "seam": "real Pi SDK loader/runtime hooks, native SessionManager seeded with fixture JSONL before bind; public appendCustomEntry growth during synthetic request",
+      "initialEntries": 99980,
+      "entriesAtFirstRequest": 100015,
+      "entriesAfter": 100020,
+      "fixtureModelCalls": 2,
+      "recoveries": 1,
+      "used": 1,
+      "contextIncludesRecovery": true,
+      "errors": []
+    },
+    {
+      "id": "G6-001",
+      "iteration": 3,
+      "variant": "under-bound-control",
+      "seam": "real Pi SDK loader/runtime hooks, native SessionManager seeded with fixture JSONL before bind; public appendCustomEntry growth during synthetic request",
+      "initialEntries": 99980,
+      "entriesAtFirstRequest": 99985,
+      "entriesAfter": 99990,
+      "fixtureModelCalls": 2,
+      "recoveries": 1,
+      "used": 1,
+      "contextIncludesRecovery": true,
+      "errors": []
+    },
+    {
+      "id": "G6-001",
+      "iteration": 3,
+      "variant": "over-bound-at-start-control",
+      "seam": "real Pi SDK loader/runtime hooks, native SessionManager seeded with fixture JSONL before bind; public appendCustomEntry growth during synthetic request",
+      "initialEntries": 100010,
+      "entriesAtFirstRequest": 100014,
+      "entriesAfter": 100015,
+      "fixtureModelCalls": 1,
+      "recoveries": 0,
+      "used": 0,
+      "contextIncludesRecovery": false,
+      "errors": []
+    }
+  ],
+  "cleanup": true
+}

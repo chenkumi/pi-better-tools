@@ -1,5 +1,7 @@
 import type { ExtensionAPI, ExtensionContext, SessionBoundaryDraft } from '@earendil-works/pi-coding-agent';
 import { ulid } from 'ulid';
+import { registerCrossToolGuidance } from './cross-tool-guidance.js';
+import { registerDeferredTools } from './deferred-tools.js';
 import { diagnostic, feedback, LIMIT, MESSAGE_TYPE, STATE_TYPE, type Diagnostic } from './policy.js';
 
 interface State {
@@ -29,6 +31,8 @@ function validState(value: unknown): value is State {
 
 /** Native, bounded diagnostic recovery. Never replaces the host's provider/retry machinery. */
 export default function runtime(pi: ExtensionAPI) {
+  registerDeferredTools(pi);
+  registerCrossToolGuidance(pi);
   let owner: string | undefined, generation = 0, stopped = true, healthy = true, enabled = true;
   let state: State | undefined, confirming = false;
   // Pi 1.1.0 has no public run ID. A one-shot phase token follows its admitted

@@ -3,8 +3,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { stripVTControlCharacters } from "node:util";
 import { after, afterEach, before, test } from "node:test";
 import { createPiFixture, render, text } from "./helpers/pi-fixture.mjs";
+
+const plain = line => stripVTControlCharacters(line).trimEnd();
 
 let fixture;
 let heartbeat;
@@ -35,7 +38,7 @@ function markerCommand(name, marker) {
     : `Set-Content -LiteralPath '${marker.replace(/'/g, "''")}' -Value forbidden`;
 }
 
-test("package loader preserves upstream metadata and host rendering except accepted background timing", { timeout }, async () => {
+test("package loader preserves upstream metadata, output, and host timing apart from output rails", { timeout }, async () => {
   // Do not apply a registry allowlist: inspect the inactive PowerShell definition on Unix too.
   const { session, resourceLoader, cwd } = await fixture.createSession({ defaultTools: shellNames });
   assert.equal(resourceLoader.getExtensions().extensions.length, 1);
@@ -56,8 +59,8 @@ test("package loader preserves upstream metadata and host rendering except accep
     assert.deepEqual(definition.constrainedSampling, builtin.constrainedSampling);
     assert.equal(typeof definition.renderCall, "function");
     assert.equal(typeof definition.renderResult, "function");
-    // The authorized background receipt timing needs a wrapper, not function identity.
-    // Prove exact host rendering for every delegation branch with isolated contexts.
+    // Output rails are display-only; host text, diagnostics and timing stay intact.
+    // Compare without rail styling for every delegation branch with isolated contexts.
     const receipt = { content: [{ type: "text", text: "Background job accepted" }], structuredContent: { jobId: "fixture-job", status: "running", liveLogPath: "/existing/log" } };
     const palette = { fg: (_color, value) => value };
     const renderCases = [
@@ -73,8 +76,8 @@ test("package loader preserves upstream metadata and host rendering except accep
       const adaptedContext = context(), builtinContext = context();
       try {
         assert.deepEqual(
-          definition.renderResult(sample.result, options, palette, adaptedContext).render(width),
-          builtin.renderResult(sample.result, options, palette, builtinContext).render(width),
+          definition.renderResult(sample.result, options, palette, adaptedContext).render(width).map(line => plain(line).replace("▌", "")),
+          builtin.renderResult(sample.result, options, palette, builtinContext).render(width).map(plain),
           `${name} host delegation parity at width ${width}`,
         );
       } finally {
@@ -92,6 +95,64 @@ test("package loader preserves upstream metadata and host rendering except accep
     }
     assert.ok(definition.promptGuidelines.some((item) => item.includes("milliseconds")));
     assert.ok(!definition.description.includes("timeout in seconds"));
+  }
+});
+
+test("shell output rails keep the omission hint below output and above timing across resize and expansion", { timeout }, async () => {
+  const { session } = await fixture.createSession({ defaultTools: shellNames });
+  const { visibleWidth } = await import("@earendil-works/pi-tui");
+  const palette = { fg: (_color, value) => value };
+  for (const name of ["bash", "powershell"]) {
+    const definition = session.getToolDefinition(name);
+    const output = Array.from({ length: 70 }, (_, i) => i === 67 ? "" : `line ${i + 1} 繁體中文`).join("\n");
+    const result = { content: [{ type: "text", text: output }], details: undefined };
+    const context = { state: { startedAt: 1000, endedAt: 51200 }, invalidate() {}, showImages: false };
+    let component = definition.renderResult(result, { expanded: false, isPartial: false }, palette, context);
+    for (const width of [80, 20, 80, 1, 0, 80]) {
+      const rows = component.render(width).map(plain);
+      assert.ok(component.children[0].render(width).every(row => visibleWidth(row) <= width));
+      // The unmodified host timer Text has its own minimum-width behavior.
+      if (width < 20) continue;
+      assert.ok(rows.every(row => visibleWidth(row) <= width));
+      const marked = rows.filter(row => row.startsWith("▌"));
+      assert.equal(marked.length, 5);
+      assert.ok(marked.includes("▌"), "blank terminal rows also have a rail");
+      const hint = rows.findIndex(row => /earlier lines/.test(row));
+      const took = rows.findIndex(row => /Took 50\.2s/.test(row));
+      assert.ok(hint > rows.findLastIndex(row => row.startsWith("▌")));
+      assert.ok(took > hint);
+      assert.doesNotMatch(rows[hint], /^\.\.\.|\(|\)/);
+      if (width === 80) assert.match(rows[hint], /to expand$/);
+      assert.match(rows[hint], /^65 earlier lines,/);
+    }
+    context.lastComponent = component;
+    component = definition.renderResult(result, { expanded: true, isPartial: false }, palette, context);
+    const expanded = component.render(80).map(plain);
+    assert.equal(expanded.filter(row => row.startsWith("▌")).length, 70);
+    assert.ok(!expanded.some(row => row.includes("earlier lines")));
+    assert.ok(expanded.includes("Took 50.2s"));
+    context.lastComponent = component;
+    component = definition.renderResult(result, { expanded: false, isPartial: true }, palette, context);
+    try {
+      const partial = component.render(80).map(plain);
+      assert.equal(partial.filter(row => row.startsWith("▌")).length, 5);
+      assert.ok(partial.some(row => row.startsWith("Elapsed ")));
+    } finally { clearInterval(context.state.interval); }
+    // Command text that looks like UI metadata must remain terminal output.
+    const fake = { content: [{ type: "text", text: "... (65 earlier lines, ctrl+o to expand)\nTook 999s" }] };
+    const fakeRows = definition.renderResult(fake, { expanded: false, isPartial: false }, palette, context).render(80).map(plain);
+    assert.ok(fakeRows.includes("▌... (65 earlier lines, ctrl+o to expand)"));
+    assert.ok(fakeRows.includes("▌Took 999s"));
+    assert.equal(result.content[0].text, output, "model-facing data is unchanged");
+    const wrapped = definition.renderResult({ content: [{ type: "text", text: "X".repeat(120) }] }, { expanded: false, isPartial: false }, palette, context);
+    assert.ok(wrapped.render(20).map(plain).some(row => row.startsWith("2 earlier lines,")));
+    assert.ok(!wrapped.render(80).map(plain).some(row => row.includes("earlier lines")));
+    const warned = definition.renderResult({ ...result, details: { fullOutputPath: "/tmp/output.log", truncation: { truncated: true, truncatedBy: "lines", outputLines: 70, totalLines: 100 } } }, { expanded: false, isPartial: false }, palette, context).render(120).map(plain);
+    const warning = warned.findIndex(row => row.startsWith("[Full output:"));
+    assert.ok(warning > warned.findIndex(row => row.startsWith("65 earlier lines,")));
+    assert.ok(warning < warned.findIndex(row => row.startsWith("Took ")));
+    const empty = definition.renderResult({ content: [{ type: "text", text: "" }] }, { expanded: true, isPartial: false }, palette, context).render(80).map(plain);
+    assert.ok(!empty.some(row => row.startsWith("▌") || row.includes("earlier lines")));
   }
 });
 

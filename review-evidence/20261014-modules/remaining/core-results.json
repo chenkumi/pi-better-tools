@@ -1,0 +1,176 @@
+{
+  "samples": [
+    {
+      "id": "G1-003",
+      "iteration": 1,
+      "seam": "real SessionManager, acceptFork, fs writes; second prompt EIO injection",
+      "error": "FORK_STORE_UNAVAILABLE: Injected second prompt write EIO",
+      "orphanPromptCount": 1,
+      "orphanContents": [
+        "first inline review prompt"
+      ],
+      "metadataCount": 1,
+      "registryJobs": 0,
+      "spawned": 0
+    },
+    {
+      "id": "G1-002",
+      "iteration": 1,
+      "seam": "real admission/snapshot/store/session replacement with controlled child outcome; no real children",
+      "admitted": 65,
+      "retained": 65,
+      "pending": 65,
+      "maxActive": 1,
+      "activeAfter": 0,
+      "documentedRetained": 32
+    },
+    {
+      "id": "G3-001",
+      "iteration": 1,
+      "clockOffsetMs": 0,
+      "schedulingDelays": [
+        30000
+      ],
+      "elapsedMs": 0,
+      "buffered": 1,
+      "firstBatchSubmitted": 1
+    },
+    {
+      "id": "G3-001",
+      "iteration": 1,
+      "clockOffsetMs": -600000,
+      "schedulingDelays": [
+        630000
+      ],
+      "elapsedMs": -600000,
+      "buffered": 1,
+      "firstBatchSubmitted": 1
+    },
+    {
+      "id": "G3-002",
+      "iteration": 1,
+      "seam": "real product-launched Chromium; owned close rejection injection",
+      "serviceCloseResolved": true,
+      "stillConnected": true,
+      "canCreateContextAfterServiceClose": true,
+      "serviceHasBrowserOwner": false,
+      "retainedClosingPromises": 0,
+      "originalCloseCleanupConfirmed": true
+    },
+    {
+      "id": "G1-003",
+      "iteration": 2,
+      "seam": "real SessionManager, acceptFork, fs writes; second prompt EIO injection",
+      "error": "FORK_STORE_UNAVAILABLE: Injected second prompt write EIO",
+      "orphanPromptCount": 1,
+      "orphanContents": [
+        "first inline review prompt"
+      ],
+      "metadataCount": 1,
+      "registryJobs": 0,
+      "spawned": 0
+    },
+    {
+      "id": "G1-002",
+      "iteration": 2,
+      "seam": "real admission/snapshot/store/session replacement with controlled child outcome; no real children",
+      "admitted": 65,
+      "retained": 65,
+      "pending": 65,
+      "maxActive": 1,
+      "activeAfter": 0,
+      "documentedRetained": 32
+    },
+    {
+      "id": "G3-001",
+      "iteration": 2,
+      "clockOffsetMs": 0,
+      "schedulingDelays": [
+        30000
+      ],
+      "elapsedMs": 0,
+      "buffered": 1,
+      "firstBatchSubmitted": 1
+    },
+    {
+      "id": "G3-001",
+      "iteration": 2,
+      "clockOffsetMs": -600000,
+      "schedulingDelays": [
+        630000
+      ],
+      "elapsedMs": -600000,
+      "buffered": 1,
+      "firstBatchSubmitted": 1
+    },
+    {
+      "id": "G3-002",
+      "iteration": 2,
+      "seam": "real product-launched Chromium; owned close rejection injection",
+      "serviceCloseResolved": true,
+      "stillConnected": true,
+      "canCreateContextAfterServiceClose": true,
+      "serviceHasBrowserOwner": false,
+      "retainedClosingPromises": 0,
+      "originalCloseCleanupConfirmed": true
+    },
+    {
+      "id": "G1-003",
+      "iteration": 3,
+      "seam": "real SessionManager, acceptFork, fs writes; second prompt EIO injection",
+      "error": "FORK_STORE_UNAVAILABLE: Injected second prompt write EIO",
+      "orphanPromptCount": 1,
+      "orphanContents": [
+        "first inline review prompt"
+      ],
+      "metadataCount": 1,
+      "registryJobs": 0,
+      "spawned": 0
+    },
+    {
+      "id": "G1-002",
+      "iteration": 3,
+      "seam": "real admission/snapshot/store/session replacement with controlled child outcome; no real children",
+      "admitted": 65,
+      "retained": 65,
+      "pending": 65,
+      "maxActive": 1,
+      "activeAfter": 0,
+      "documentedRetained": 32
+    },
+    {
+      "id": "G3-001",
+      "iteration": 3,
+      "clockOffsetMs": 0,
+      "schedulingDelays": [
+        30000
+      ],
+      "elapsedMs": 0,
+      "buffered": 1,
+      "firstBatchSubmitted": 1
+    },
+    {
+      "id": "G3-001",
+      "iteration": 3,
+      "clockOffsetMs": -600000,
+      "schedulingDelays": [
+        630000
+      ],
+      "elapsedMs": -600000,
+      "buffered": 1,
+      "firstBatchSubmitted": 1
+    },
+    {
+      "id": "G3-002",
+      "iteration": 3,
+      "seam": "real product-launched Chromium; owned close rejection injection",
+      "serviceCloseResolved": true,
+      "stillConnected": true,
+      "canCreateContextAfterServiceClose": true,
+      "serviceHasBrowserOwner": false,
+      "retainedClosingPromises": 0,
+      "originalCloseCleanupConfirmed": true
+    }
+  ],
+  "cleanup": true
+}

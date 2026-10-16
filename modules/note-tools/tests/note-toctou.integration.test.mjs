@@ -21,9 +21,9 @@ const outside = join(sandbox.home, 'outside');
 const target = resolve(sandbox.cwd, 'report');
 const model = { id: 'offline', name: 'Offline', reasoning: false, input: ['text'], contextWindow: 128000, maxTokens: 2048, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } };
 
-// KNOWN LIMITATION (todo): the threat model does not cover an external writer swapping an ancestor directory between the realpath check
-// and open(). The assertion states the desired behaviour; `todo` keeps it visible without failing CI. See modules/note-tools/README.md.
-test('R05 note must not create a file outside cwd when <cwd>/<type> is swapped to a junction after the realpath check', { timeout: 90000, todo: 'known limitation: ancestor-directory TOCTOU is outside the note threat model (see README)' }, async () => {
+// note.ts re-verifies realpath(<created file>) right after the exclusive create and removes the empty file if it escaped the
+// workspace. A persistent attacker re-swapping after that check is still out of scope (see modules/note-tools/README.md).
+test('R05 note must not create a file outside cwd when <cwd>/<type> is swapped to a junction after the realpath check', { timeout: 90000 }, async () => {
   await mkdir(outside, { recursive: true });
   const original = fsp.realpath;
   let swapped = false;

@@ -13,7 +13,9 @@
 
 ## TUI 顯示
 
-`read`／`write` 呼叫沿用宿主 renderer；`read` 成功、syntax highlighting 與圖片附件亦保留宿主行為。`[FILE_TOOL_ERROR]` 由專用 renderer 顯示操作、錯誤碼、訊息及 recovery，展開可看路徑／行範圍，不原樣輸出錯誤 JSON。`write` 成功顯示寫入 bytes，展開顯示路徑與 SHA-256；`edit` 展開顯示完整 diff。兩者的 renderer 皆讀 `details`（結構化欄位），`write` 在宿主未提供 `details` 時退回解析文字（相容精簡單行與舊的多行 JSON）。三者共用錯誤 formatter。成功結果的模型文字已精簡（見下方各工具），完整資料只在 `details`；失敗輸出（`[FILE_TOOL_ERROR]`、錯誤碼、recovery）不縮減。
+`read` 呼叫沿用宿主 renderer；`write` 包裝宿主 renderer，保留內容預覽、展開與語法高亮快取，於預覽下方顯示 UTF-8 bytes 計數；`read` 成功、syntax highlighting 與圖片附件亦保留宿主行為。`[FILE_TOOL_ERROR]` 由專用 renderer 顯示操作、錯誤碼、訊息及 recovery，展開可看路徑／行範圍，不原樣輸出錯誤 JSON。`write` 成功顯示寫入 bytes，展開顯示路徑與 SHA-256；`edit` 展開顯示完整 diff。兩者的 renderer 皆讀 `details`（結構化欄位），`write` 在宿主未提供 `details` 時退回解析文字（相容精簡單行與舊的多行 JSON）。三者共用錯誤 formatter。成功結果的模型文字已精簡（見下方各工具），完整資料只在 `details`；失敗輸出（`[FILE_TOOL_ERROR]`、錯誤碼、recovery）不縮減。
+
+`write`／`edit` 參數串流接收時於獨立一行動態顯示 `receiving N bytes`，參數完整後改為 `received N bytes`；`edit` 位於呼叫標題下方，`write` 保留於內容預覽下方（包含失敗／取消後的呼叫顯示，不代表提交成功）。統一以 `Buffer.byteLength(text, "utf8")` 計算 UTF-8 bytes：`write` 計算目前 `content`，與成功結果的 bytes 使用相同計量方式；`edit` 對 schema 的 `edits` 陣列加總各項字串 `newText` 的 bytes，不計 `oldText`／`regex`，也不展開 capture template 或乘上 `replaceAll` 的匹配次數，因此不是最終檔案大小。空／尚未收到的內容計為 0；數字使用英文千分位。計數只表示已收到的參數內容，不是磁碟寫入進度；原子提交、成功結果與模型可見內容不變。
 
 ## `read`
 
