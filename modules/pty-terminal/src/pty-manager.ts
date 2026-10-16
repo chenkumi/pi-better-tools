@@ -2,12 +2,20 @@ import { realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import type { IPty, spawn } from "node-pty";
+import { setupCommand } from "../../../setup/commands.mjs";
 import { filterEnv, type EnvPolicy } from "./env.ts";
 import { matchPattern, MATCH_BUDGET_MS } from "./matcher.ts";
 import { stripEscapes, truncatePtyOutput, type OutputFormat } from "./output.ts";
 
 /** node-pty is a native addon; load it on first spawn so Pi startup does not pay for it. */
-const lazySpawn: typeof spawn = (...args) => (createRequire(import.meta.url)("node-pty") as typeof import("node-pty")).spawn(...args);
+const lazySpawn: typeof spawn = (...args) => {
+	let native: typeof import("node-pty");
+	try { native = createRequire(import.meta.url)("node-pty") as typeof import("node-pty"); }
+	catch {
+		throw new Error(`PTY native dependency could not load. Diagnose with ${setupCommand(["doctor"])}. After consumer approval, run ${setupCommand(["pty", "setup"])}. No setup was attempted.`);
+	}
+	return native.spawn(...args);
+};
 
 /** Output buffer cap per session (UTF-16 code units, ~2 MiB of ASCII). Oldest output is dropped first. */
 export const MAX_BUFFER_CHARS = 2 * 1024 * 1024;

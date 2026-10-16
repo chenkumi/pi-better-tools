@@ -13,7 +13,11 @@
     "engines": {
         "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
     },
+    "bin": {
+        "pi-better-tools": "setup/cli.mjs"
+    },
     "files": [
+        "setup",
         "modules/*/README.md",
         "modules/*/LICENSE",
         "modules/subagents/extensions",
@@ -102,10 +106,10 @@
         "test:browser": "node scripts/run-checks.mjs browser",
         "test:package": "node scripts/package-smoke.mjs",
         "check": "npm run build && npm run typecheck && npm run lint && npm test && npm run test:integration && npm run test:package",
-        "pty:install": "node modules/pty-terminal/src/install.mjs",
-        "browser:install": "playwright install chromium --no-shell",
-        "browser:install-deps": "playwright install-deps chromium",
-        "setup:browser": "playwright install --with-deps chromium --no-shell",
+        "pty:install": "node setup/cli.mjs pty setup",
+        "browser:install": "node setup/cli.mjs browser install",
+        "browser:install-deps": "node setup/cli.mjs browser install-deps",
+        "setup:browser": "node setup/cli.mjs browser setup",
         "sources:verify": "node scripts/verify-sources.mjs",
         "prepack": "npm run build"
     },
