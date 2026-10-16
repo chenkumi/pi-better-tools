@@ -1,5 +1,11 @@
 {
   "schemaVersion": 1,
+  "webSetupCompatibility20261016": {
+    "plan": "plan/PLAN-20261016T150815022Z.md",
+    "baselineCommit": "e6c46c422b7d5b3b81e89927031fb1a29c461ea2",
+    "scope": "Only six changed skill-tools files: standalone pi-tools-config setup routing, package-local CLI/doctor instructions, missing-browser static HTTP limitations, explicit browser/dependency installation and consumer-approved PTY setup; corresponding metadata and real-host fixtures. No runtime skills copy, user settings or unrelated SQLite reference refresh.",
+    "historyPolicy": "webSetupPreviousSha256 preserves active fingerprints verified against baseline git bytes. Original migration records, earlier hashes and unavailable historical deltas remain unchanged. This snapshot does not certify full-project verification or model routing accuracy."
+  },
   "refactoringCleanup20261016": {
     "plan": "plan/PLAN-20261016T010604383Z.md",
     "scope": "R3 removes disconnected Runtime debug-log/helper-only tests instead of introducing new recovery I/O. R6 Fork delegates only owner-bound TUI binding to Shell widget-binding.ts; projections, manager, guards, permits, cancellation and origin-only delivery are unchanged. README changes document exact boundaries; historical/native hashes remain preserved.",
@@ -91,7 +97,8 @@
           "standalonePreviousSha256": "bb25dc2414543b6104be0b190688ca72b06d4277feddd73493850027392b8dc0",
           "configRoutingPreviousSha256": "18f9d800fe809c4fef7e03e6aed12f5da67cd13b0124f7353729f92c2840bbb4",
           "fileAuditPreviousSha256": "d5ba4718b7e89d3f0074a578422c892f2cd808bd2d95f5ac78e05cbb8f9e2b21",
-          "sha256": "fefe6c47330bca22e71c7c6c3b5f8c1144f41713f640a04a868ed2c85f0e086a",
+          "webSetupPreviousSha256": "fefe6c47330bca22e71c7c6c3b5f8c1144f41713f640a04a868ed2c85f0e086a",
+          "sha256": "59143e778eb3b8e3b3238e0878f2ad85c01cc9270b9d7528e3479b25fd626eb9",
           "reason": "Native lazy module-config index with expanded English configuration-intent metadata, explicit routine-use/application-development exclusions and self-contained references."
         },
         {
@@ -151,7 +158,8 @@
         {
           "path": "modules/skill-tools/skills/pi-tools-config/references/pty-terminal.md",
           "standalonePreviousSha256": "0c712ad282dfe1778d6013302901db96087ea847a7bfb898680f5d691b762e89",
-          "sha256": "c6fc7746d3fe8719f3e3d50288303b2f509373f4d18c9e746b72d8df7a239dd9",
+          "webSetupPreviousSha256": "c6fc7746d3fe8719f3e3d50288303b2f509373f4d18c9e746b72d8df7a239dd9",
+          "sha256": "dedc292828454982e5902dd8d1cb610c198a54a1419b02fb047f818a42c44873",
           "reason": "Deferred PTY commands, trusted target configuration and supported environment matching."
         },
         {
@@ -194,14 +202,16 @@
         {
           "path": "modules/skill-tools/skills/pi-tools-config/references/web-tools.md",
           "standalonePreviousSha256": "dab2e13376ab9c2fce5b8c022a34f57c23363405cb26609a298d8a751c2651a8",
-          "sha256": "1ca15bde5997441de31d67a4d0e8722fa76957681ed4b43f9655049e3f354af3",
+          "webSetupPreviousSha256": "1ca15bde5997441de31d67a4d0e8722fa76957681ed4b43f9655049e3f354af3",
+          "sha256": "db145a45fb8a35535c79b865d1c290c9516350400796e0a8c9130e60544bf989",
           "reason": "Search providers, fixed/default config path, environment credentials and browser setup."
         },
         {
           "path": "modules/skill-tools/tests/pi-tools-config.test.ts",
           "standalonePreviousSha256": "341433b7829bc8f121ef95f944f2165cdfd7d28880bd0fb968ee329c8a3027e0",
           "configRoutingPreviousSha256": "6be9e7ca2454f9ac48120f99535a960cb755cc02d095229ce5375152d9d543b1",
-          "sha256": "fa8a4d6a73fa0da499f1f53e2f019637becb5aabf4933a21fea9c1eef3440d7f",
+          "webSetupPreviousSha256": "fa8a4d6a73fa0da499f1f53e2f019637becb5aabf4933a21fea9c1eef3440d7f",
+          "sha256": "1e4ac15ad59189105844456418c6c421e5355191c3a680a3a7fcf2b6c8be1ba5",
           "reason": "Configuration-focused folded English metadata/capabilities/exclusions, exact module coverage, standalone-contained links and JSON examples; no obsolete 50-character assertion or simulated semantic classifier."
         },
         {
@@ -214,7 +224,8 @@
           "standalonePreviousSha256": "9dcd9073bbc01099bacb88029c822bb1d1b0a8c732dd0f9e9b5b6db28dfcc9a3",
           "configRoutingPreviousSha256": "e3bc504f3b44e53e72a851ab70fb761e09c4b10fee9e70cbdb002522eb226849",
           "fileAuditPreviousSha256": "ffaec803485b2f74022a29aed6b4c83ec4f693f467c5e441039c22f235ac8551",
-          "sha256": "7391acb72d943002f73a308e9add2352c8ea2e55c1c486aab63bdd656c55a75f",
+          "webSetupPreviousSha256": "7391acb72d943002f73a308e9add2352c8ea2e55c1c486aab63bdd656c55a75f",
+          "sha256": "4b1fc6f455922fe287879895a8ad487e85faf03b77d7090dd6ae934364d41aa8",
           "reason": "Usage, extension-filter boundary, migration/rollback and validation instructions."
         },
         {
@@ -255,7 +266,7 @@
         {
           "path": "modules/skill-tools/tests/fixtures/skills-host.mjs",
           "configRoutingPreviousSha256": "c41eae49431378366c182a52b32ac4b02a5fe379207954249a027575bffaba62",
-          "dependencyUpgradePreviousSha256": "a7a703ccb6c8a7bbbd37a4deacf0fec0cbfd026fb3eee4d25e41db9c73c53f8a", "sha256": "3c277dfbb33739a22520c0935ae5cce60ad3adfa8b718f07ae394530ee6a44f2",
+          "dependencyUpgradePreviousSha256": "a7a703ccb6c8a7bbbd37a4deacf0fec0cbfd026fb3eee4d25e41db9c73c53f8a", "webSetupPreviousSha256": "3c277dfbb33739a22520c0935ae5cce60ad3adfa8b718f07ae394530ee6a44f2", "sha256": "c4b09042a99b62d7e983c1779730cb23af26e9a02c097756af035e8141f648ad",
           "reason": "Relocated package discovery, startup/reload, lazy catalogue/body, command expansion, package extension filters and no-tools; reused by production tarball smoke."
         }
       ]

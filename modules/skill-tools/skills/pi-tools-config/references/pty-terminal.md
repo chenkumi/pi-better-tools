@@ -28,6 +28,17 @@
 
 ## 安裝與驗證
 
-在 package 根目錄 `npm run pty:install` 明確建立 node-pty native setup。SSH 先由使用者驗證 alias／key／known_hosts；不關閉 host-key 檢查或自動 Git 同步。以 `pty_spawn { target: "remote", command: "sh" }` 建立後，read 輸出與 wait_exit 才能確認 transport 狀態。
+```text
+pi-better-tools doctor
+pi-better-tools pty setup
+```
+
+上述短命令只適用已安裝套件的 bin 在 PATH，且是目前 Pi 使用的那份套件；不需位於 repository。Pi-managed 安裝可能不提供 PATH 命令，應使用診斷提供的「目前 Node＋此安裝實例 setup/cli.mjs」絕對命令；無提示時先確認實際安裝路徑。命令形式與跨平台範例見 [Web 安裝說明](web-tools.md)，將末尾 `browser install` 換成 `pty setup`。不要由已搬移的 skill 位置猜套件路徑，也不要用 npx 下載另一個版本。
+
+`doctor` 不啟動 PTY、不寫設定或安裝；`pty setup` 是明確的 native setup 操作，針對此安裝實例解析到的 node-pty，而非目前 cwd 的任意套件。安裝時若使用 `--ignore-scripts` 或禁止 native scripts，先依 consumer project 的政策核可 node-pty；本套件不把自己的 allowScripts 當成 parent project 的授權、不覆寫全域 npm 設定。沒有適用的 prebuild 時仍需本機編譯工具；禁止跨 OS／CPU 共用 node_modules。`npm run pty:install` 保留為開發者別名，不是安裝後唯一入口。
+
+CLI 要求解析到的 node-pty 所屬最外層 consumer `package.json` 已精確核可實際版本（本版為 `allowScripts: { "node-pty@1.2.0-beta.15": true }`），不是 dependency 自己的 manifest，也不接受 wildcard 代替。只在使用者明確同意後合併該鍵，不覆寫其他設定。沒有可讀 consumer manifest 的全域／特殊安裝 layout 會拒絕；改用該安裝管理者核可的 native setup，或使用明確 consumer project，不偷偷建立 manifest。其他 `ignore-scripts` 設定仍保留，所以 setup exit 0 後仍需 doctor／實際 spawn 證據。
+
+SSH 先由使用者驗證 alias／key／known_hosts；不關閉 host-key 檢查或自動 Git 同步。以 `pty_spawn { target: "remote", command: "sh" }` 建立後，read 輸出與 wait_exit 才能確認 transport 狀態；native setup 成功不證明 SSH／WSL 或遠端命令可用。
 
 本機 kill 不保證遠端子程序樹停止；PTY 不提供每個 shell 指令的結構化 exit code。設定 target 不會移動其他 file／shell 工具的 cwd。

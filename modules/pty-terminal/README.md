@@ -79,9 +79,11 @@
 
 ## 安裝及驗證
 
-從根目錄執行 `npm ci --ignore-scripts`，再明確執行 `npm run pty:install`（只 rebuild node-pty 的 native setup；無預編譯支援時需本機編譯工具）。使用符合根 manifest 的 Node 與 Pi 1.3.0 開發基準。`node-pty` 沿用原來源的 beta channel，升為固定 runtime dependency 1.2.0-beta.15，未宣稱 beta 等同 stable 或所有 OS/architecture 都已實測。
+Repository 從根目錄執行 `npm ci --ignore-scripts`，再明確執行 `npm run pty:install`。發布後使用此安裝實例的 `pi-better-tools doctor`／`pi-better-tools pty setup`，不依 cwd；若該 bin 不在 PATH 或對應另一份套件，使用 runtime 錯誤提供的目前 Node＋`setup/cli.mjs` 絕對命令（Windows PowerShell／POSIX shell）。舊 script 轉接同一實作，只 rebuild 解析到的 node-pty native setup；無預編譯支援時需本機編譯工具。Doctor 只讀 presence/loading 檢查、不啟動 PTY；native load 失敗與一般 spawn 錯誤分開，後者不誤導為一定要重裝。使用符合根 manifest 的 Node 與 Pi 1.3.0 開發基準。`node-pty` 沿用原來源的 beta channel，升為固定 runtime dependency 1.2.0-beta.15，未宣稱 beta 等同 stable 或所有 OS/architecture 都已實測。
 
-根 manifest 的 npm 12 `allowScripts` 只允許固定 `node-pty@1.2.0-beta.15`，未允許任意 dependency scripts。`pty:install` 用目前 npm CLI／Node subprocess（無 shell）重建此套件，僅移除 npm run 帶入的 `npm_config_allow_scripts`（含大小寫變體），讓 project policy 生效；保留其他設定／環境，不修改使用者全域 npm 設定。一般 consumer 安裝須自行核可其 project 的 native setup；dependency 的 policy 不代表 parent project 自動核可。
+根 manifest 的 `allowScripts` 只允許固定 `node-pty@1.2.0-beta.15`，未允許任意 dependency scripts。CLI 先要求最外層 consumer `package.json` 已有 `allowScripts["node-pty@<實際版本>"]: true`（無論 npm 版本），hoisted／nested layout 都不拿 dependency 自身 policy 代替 consumer 授權。只以該 dependency 的絕對路徑 rebuild，cwd／prefix 綁 consumer，不重建目前 cwd 的其他依賴；npm CLI 從 `npm_execpath` 或目前 Node 旁標準路徑解析，不執行 PATH shim 或下載 npm。僅移除 npm run 帶入的 `npm_config_allow_scripts`（含大小寫變體），保留 ignore-scripts 等其他設定／環境，不修改使用者全域 npm 設定。
+
+沒有可讀 consumer manifest 的全域／特殊 package-manager layout 會明確拒絕並提示改用安裝管理者核可的 native setup，或移至明確 consumer project；不偷偷建立 manifest 或繞過 policy。安裝返回成功仍應用 doctor／實際本機 spawn 驗證，尤其是 consumer 禁止 scripts 時。內建 `/skill:pi-tools-config` 的 PTY reference 包含完整安裝後說明，無 repository 文件依賴。
 
 根 `npm run typecheck`／`npm test` 包含此模組；loader 與真實 production tarball 使用真正本機 PTY。WSL/SSH argv/settings 單元測試不等於真實遠端連線驗證。原來源 POSIX shell 測試改用平台原生 Node fixtures，保留互動、drain、exit 及 kill 斷言。
 

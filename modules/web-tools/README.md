@@ -2,13 +2,15 @@
 
 提供網頁抓取與網路搜尋工具：
 
-- **`web_fetch`**：以 Playwright Chromium headless 渲染公開網頁，輸出清理後的 Markdown 或純文字。
+- **`web_fetch`**：優先以 Playwright Chromium headless 渲染公開網頁；所選瀏覽器 executable 明確缺少時改用靜態 HTTP，兩者共用正文抽取並輸出清理後的 Markdown 或純文字。
 - **`web_search`**：依 `provider` 設定分三種模式：
   - `openai`（預設）：只在 OpenAI 請求中注入原生 `web_search`，不註冊同名 function tool，也不處理 OpenAI 密鑰（由 Pi 管理）。
   - `brave`／`exa`：註冊自訂 `web_search` 工具，回傳來源與供應商 snippets，不呼叫摘要模型。
 - **`/web-tools`** 指令：`status`、`sources`。
 
-整合包需要 Node.js `^22.22.2 || ^24.15.0 || >=26.0.0`，依根 manifest 為準。Chromium 不會在載入 extension 時下載或啟動；在 package 根目錄執行 `npm run browser:install` 僅下載瀏覽器，Linux／WSL2 可明確執行 `npm run setup:browser` 一併安裝系統依賴（可能要求 sudo），或以 `npm run browser:install-deps` 單獨安裝系統依賴；`fetch.channel: "chrome"` 可改用本機 Google Chrome（不使用個人 profile）。瀏覽器在第一次 `web_fetch` 時才啟動。
+整合包需要 Node.js `^22.22.2 || ^24.15.0 || >=26.0.0`，依根 manifest 為準。Chromium 不會在安裝套件或載入 extension 時下載；瀏覽器在第一次 `web_fetch` 時才嘗試啟動。發布後使用套件 CLI `pi-better-tools doctor` 唯讀診斷、`pi-better-tools browser install` 僅下載 Chromium、`pi-better-tools browser install-deps` 明確安裝 Linux／WSL2 系統依賴（可能要求 sudo，須使用者同意）。只在 PATH 的 bin 對應此安裝實例時使用短命令；否則複製診斷提供的目前 Node＋`setup/cli.mjs` 絕對路徑命令，不依 cwd，也不以 npx 安裝另一版 Playwright。安裝與執行 Pi 使用同一使用者及 `PLAYWRIGHT_BROWSERS_PATH`。`fetch.channel: "chrome"` 明確選擇本機 Google Chrome（不使用個人 profile）；Chromium 安裝命令不安裝 Chrome 或改設定。
+
+Repository 的 `npm run browser:install`、`browser:install-deps`、`setup:browser` 保留為同一 CLI 的開發別名。完整安裝後操作也收錄於內建 `/skill:pi-tools-config` 的 Web reference，不要求 repository 或全域 bin 存在。
 
 安裝與跨平台驗證命令以[根 README](../../README.md)為準，請勿在模組目錄獨立安裝依賴。
 
@@ -97,13 +99,14 @@ Brave 使用 Web Search endpoint；Exa 使用 Search endpoint（`type: "auto"`�
 { "url": "https://example.com/docs", "format": "markdown", "extraction": "auto", "waitForSelector": "main" }
 ```
 
-- 等待 DOMContentLoaded 與有界限的內容就緒，不依賴 networkidle。
+- 瀏覽器路徑等待 DOMContentLoaded 與有界限的內容就緒，不依賴 networkidle。
+- HTTP 相容模式只在啟動診斷確認 executable 缺少時使用，回報靜態內容警告，不執行 JavaScript、不載入子資源／cookie、不追蹤 meta refresh；不是 CAPTCHA／網站錯誤的繞過方式。`waitForSelector` 需要 browser，缺少時明確失敗，不靜默忽略。兩模式共用同一 queue、總 deadline、AbortSignal 與抽取 worker，不永久快取啟動失敗、不重設 timeout；也不修復 npm playwright 套件遺失。
 - 以 Readability 擷取正文，必要時回退 main／body，並回報實際使用的 extraction。JSDOM／Readability 解析在可終止的 worker thread（`src/fetch/extract-worker.mjs`，1 GiB heap 上限）內執行，不阻塞主執行緒；取消、逾時或 shutdown 時直接 terminate worker；完成的 worker 最多保留 2 個、閒置 30 秒後回收（冷啟動載入 jsdom 約需數秒，首次 fetch 時與瀏覽器啟動並行預熱）。HTML 位元組上限在送進 worker 前亦檢查；活動 worker 保持 Node event loop 存活，只有閒置 worker 才 unref；啟動／執行失敗與退出均移出 pool，重用時保留生命週期監聽器並清除單次 job 監聽器。活動／閒置／終止中的 worker 合計最多 6 個，取消不先釋放名額，必須等實際 exit 或 terminate 完成；名額滿時回報 BUSY。shutdown 會停止新 worker、終止並等待所有活動／閒置／終止中的 worker；若終止失敗，不假裝 worker 已退出或提前重用其名額。
 - 移除 script、導覽等非正文元素，保留程式碼、列表、表格與安全的絕對連結。
 - 每次呼叫使用獨立 browser context，cookies／storage 不共用；browser 共用並於閒置後回收。取消只影響該次抓取，session shutdown／reload 時清理 browser。
 - 回傳 title、URL、HTTP status 與警告（模型可見文字不含取得時間，仍在 data）；不是 AI 摘要。`Final URL` 行僅在與請求 URL 不同時顯示（`data.finalUrl` 永遠保留）。
-- 錯誤訊息附下一步提示（仍不含 Playwright log、headers 或 DNS 細節）：`BROWSER_UNAVAILABLE` 保留錯誤碼，依已知啟動診斷分類：Playwright executable 缺少時提示以相同使用者／browser cache 環境執行 `npm run browser:install`；Chrome executable 缺少時提示安裝 Google Chrome，或明確改用 `fetch.channel: "chromium"` 並安裝；系統依賴缺失時提示 Linux／WSL 經使用者同意執行 `npm run browser:install-deps`；權限拒絕時檢查 executable／cache 權限與 OS 安全政策；啟動逾時時檢查負載／啟動限制及 `fetch.timeoutMs`；其他失敗只回報啟動失敗、未確認瀏覽器缺失。依分類檢查後才重試，不一律要求重裝或開新 session。整體 fetch deadline 仍優先回報既有 `TIMEOUT`；`NETWORK_BLOCKED` 說明私有／本機位址不可抓、請改用公開 URL；`TIMEOUT` 建議調整 `waitForSelector` 或換頁；`UNSUPPORTED_CONTENT`（PDF、下載等）建議改找 HTML 版本。
-- HTTP 錯誤、不支援內容或空內容視為失敗。反爬與登入頁偵測僅為啟發式。
+- 錯誤訊息附下一步提示（仍不含 Playwright log、headers 或 DNS 細節）：`BROWSER_UNAVAILABLE` 保留錯誤碼，依已知啟動診斷分類：Playwright executable 缺少且要求 selector 時提示以相同使用者／browser cache 環境執行此安裝實例的 `browser install` CLI；Chrome executable 缺少時提示安裝 Google Chrome，或明確改用 `fetch.channel: "chromium"` 並安裝；系統依賴缺失時提示 Linux／WSL 經使用者同意執行此安裝實例的 `browser install-deps` CLI；權限拒絕時檢查 executable／cache 權限與 OS 安全政策；啟動逾時時檢查負載／啟動限制及 `fetch.timeoutMs`；其他失敗只回報啟動失敗、未確認瀏覽器缺失。依分類檢查後才重試，不一律要求重裝或開新 session。整體 fetch deadline 仍優先回報既有 `TIMEOUT`；`NETWORK_BLOCKED` 說明私有／本機位址不可抓、請改用公開 URL；`TIMEOUT` 建議調整 `waitForSelector` 或換頁；`UNSUPPORTED_CONTENT`（PDF、下載等）建議改找 HTML 版本。
+- HTTP 錯誤、不支援內容或空內容視為失敗。HTTP 相容路徑要求明確的 `text/html`、`application/xhtml+xml` 或 `text/plain` Content-Type；缺少 header 也拒絕，不做內容 sniffing（比 browser 路徑保守）。Plain text 先 escape 後抽取，BOM／HTTP charset／HTML early meta charset 依序解析；未知 charset 拒絕。反爬與登入頁偵測僅為啟發式。
 - 不處理 PDF、影音或下載；不登入、不繞過 CAPTCHA 或付費牆、不使用個人 cookies。
 
 ### `web_search`（僅 `brave`／`exa` 模式註冊）
@@ -136,6 +139,7 @@ Brave 使用 Web Search endpoint；Exa 使用 Search endpoint（`type: "auto"`�
 - 超長結果存於 OS temp 的 `pi-web-tools-*` 目錄並回傳絕對路徑，可用 `read` 分頁讀取；POSIX 檔案為 `0600`，Windows 依賴使用者 profile／temp 的 ACL。暫存檔不會在 shutdown 時刪除，亦可能被 OS 清理。
 - 兩個工具宣告 `outputSchema`：`{ text, data?, dataOmitted, truncated, fullOutputPath? }`；structuredContent 超過 64 KiB 時省略 `data` 並設 `dataOmitted`。
 - Playwright 會先緩衝網路回應再檢查大小，這些限制不是總流量或峰值記憶體上限。
+- HTTP 相容路徑分別在 wire／解壓後串流限制 5 MiB，decoded HTML 亦限制 5 MiB；支援 gzip／deflate／br。超限或取消會銷毀串流並等待本機 request close，不表示遠端處理已停止。
 
 ## 安全行為與限制
 
@@ -144,7 +148,8 @@ Brave 使用 Web Search endpoint；Exa 使用 Search endpoint（`type: "auto"`�
 - 主頁面 redirect 以 abort 後重新 goto 處理，redirect 回應上的 Set-Cookie 不會寫入 browser cookie jar（已知限制）；子資源 redirect 同樣由 Node 端手動追蹤。
 - context 關閉設有 5 秒上限，逾時仍會釋放佇列名額，瀏覽器由 idle／shutdown 清理。
 - 為逐跳驗證 redirect，網路請求經 Playwright context request 取回後交給 browser；部分重新導向子資源的相對 URL 語意可能與一般瀏覽不同。
-- 不是完整安全沙箱：DNS 檢查與實際連線各自解析，仍有 DNS rebinding 競態。Playwright `route.fetch` 不提供固定已驗證 IP 的連線選項，因此未實作 IP pinning；已加入事後緩解：每個 `route.fetch` 回應在交給瀏覽器前，以 `APIResponse.serverAddr()` 檢查實際連線的對端位址，非公開或缺少位址即 fail closed（`NETWORK_BLOCKED`），每個 redirect 跳點都檢查。此緩解只能阻止回應內容被使用，惡意 DNS 仍可能讓請求本身已送達內部位址（盲 SSRF，例如帶副作用的 GET/POST）；完整防護仍需 OS／container egress 控制。同一次 fetch 內每個 hostname 僅做一次 DNS 檢查（結果含失敗皆快取），實際連線位址則逐回應檢查，且 Chromium 會執行遠端 JavaScript；高敏感環境需以 OS／container 控制 egress。不適合作為公開或多租戶抓取服務。
+- HTTP 相容路徑以 Node HTTP(S) 逐跳檢查 URL／所有 DNS 位址並綁定已核可 IP；保留原 hostname 的 Host／SNI／TLS 憑證驗證，不修改全域 dispatcher 或自動使用代理。僅 GET，串流限制傳輸與解壓後內容，取消會關閉 request／response。此路徑的 pinning 不代表下面的瀏覽器限制已修復，也不是 OS sandbox。
+- 瀏覽器路徑不是完整安全沙箱：DNS 檢查與實際連線各自解析，仍有 DNS rebinding 競態。Playwright `route.fetch` 不提供固定已驗證 IP 的連線選項，因此未實作 IP pinning；已加入事後緩解：每個 `route.fetch` 回應在交給瀏覽器前，以 `APIResponse.serverAddr()` 檢查實際連線的對端位址，非公開或缺少位址即 fail closed（`NETWORK_BLOCKED`），每個 redirect 跳點都檢查。此緩解只能阻止回應內容被使用，惡意 DNS 仍可能讓請求本身已送達內部位址（盲 SSRF，例如帶副作用的 GET/POST）；完整防護仍需 OS／container egress 控制。同一次 fetch 內每個 hostname 僅做一次 DNS 檢查（結果含失敗皆快取），實際連線位址則逐回應檢查，且 Chromium 會執行遠端 JavaScript；高敏感環境需以 OS／container 控制 egress。不適合作為公開或多租戶抓取服務。
   R04 回歸：`tests/integration/fetch.test.ts` 鎖定現況（盲請求仍送達、僅阻止回應使用），「私有目標零請求」以 `todo` 記錄，不使 CI 變紅。
 - 頁面與搜尋內容是不可信的外部資料，清理 HTML 不能消除 prompt injection；網頁與搜尋結果會進入 Pi 對話並傳送給模型供應商。
 - Pi 的 offline 設定不等於阻擋本模組的網路；如需阻擋請使用 OS／container 網路政策。

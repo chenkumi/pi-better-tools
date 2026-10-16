@@ -16,7 +16,7 @@ pi -e ./modules/skill-tools/src/index.ts
 
 ## pi-tools-config：模組指令與設定索引
 
-`skills/pi-tools-config/SKILL.md` 使用英文 description，依使用者要求放寬原本的 50 字元限制，直接列出需要 config 的功能／工具：資料庫連線、PTY named targets、搜尋 provider／credentials、自訂 agents、排程預設、模型速度、壓縮／記憶及 Shell／File 設定；不依賴套件名稱作為觸發詞。只有建立／修改／排查 config，或資料庫連線的必要設定缺失／未知時適用，排除已配置工具的日常操作與應用程式功能開發。使用 `/skill:pi-tools-config <設定問題>`，或由模型依 description 選用。
+`skills/pi-tools-config/SKILL.md` 使用英文 description，依使用者要求放寬原本的 50 字元限制，直接列出需要 config 的功能／工具：資料庫連線、PTY named targets、搜尋 provider／credentials、自訂 agents、排程預設、模型速度、壓縮／記憶及 Shell／File 設定；不依賴套件名稱作為觸發詞。建立／修改／排查 config、資料庫連線的必要設定缺失／未知，以及 Chromium／PTY native 元件安裝與 setup CLI 診斷時適用，排除已配置工具的日常操作與應用程式功能開發。Web／PTY references 內建發布後 CLI、安裝實例定位、HTTP fallback 與權限／cache 說明，不依賴使用者目前 cwd、repository scripts 或技能所在的 package 位置。使用 `/skill:pi-tools-config <設定問題>`，或由模型依 description 選用。
 
 入口只保留共通設定原則與索引；`references/` 的 17 份文件一一對應本專案所有本地模組，各自說明工具／slash commands、config 路徑與作用範圍、最小範例、套用方式及安全限制。沒有專屬 config 的模組明確註記，不捏造設定鍵。技能文件只連結 `pi-tools-config/` 內部資源，不連結其他模組 README、repository 文件或外部範例；必要設定資訊直接收錄於 references。整個技能目錄可獨立搬移，不依賴 package 目錄布局、原來源專案或 home 副本。
 
