@@ -7658,7 +7658,7 @@
         "skillToolsAdaptation": "Require new entry/README/SKILL.md in tarball and execute relocated skill fixture with production host.",
         "sqliteIntegrationPreviousSha256": "f2944932065be6f5215234b217c1c310ae98358d1be98fde4c9116c6d5929bf6",
         "sqlConnectorPreviousSha256": "61b1f023a7b3aedefd49d15e36a21b385b6d691829152501ba6b57d2bd37ae33",
-        "dependencyUpgradePreviousSha256": "76dadbce25b13dd2c3df7d780164d2cc8cb9ffa1290f5f2e8589583cb1760925", "fileAuditPreviousSha256": "cea5042c9b9307adb23985150c828e56ad62a6be9274bdb32374dd4537467633", "webSetupPreviousSha256": "227fc246c077c0719e833a1f4095cdbd6a6722d406584abcb73a159c6111762e", "sha256": "394ce0c65e1a1fefa3f9855cf5d4b9bdf13d5ee5fefbd15702e41ca077fcbae3",
+        "dependencyUpgradePreviousSha256": "76dadbce25b13dd2c3df7d780164d2cc8cb9ffa1290f5f2e8589583cb1760925", "fileAuditPreviousSha256": "cea5042c9b9307adb23985150c828e56ad62a6be9274bdb32374dd4537467633", "webSetupPreviousSha256": "227fc246c077c0719e833a1f4095cdbd6a6722d406584abcb73a159c6111762e", "webSetupCp4PreviousSha256": "394ce0c65e1a1fefa3f9855cf5d4b9bdf13d5ee5fefbd15702e41ca077fcbae3", "sha256": "9d86ebcc8b895e61a8d4a3ea979e3747a4729e587690f427af2758a759772dfa",
         "validationRepairAdaptation": "2026-10-10 fail-fast rg prerequisite and per-mode exclusive binary copy; production assertions unchanged.",
         "monitorPreviousSha256": "9a5c5b2068209ef25eeea47dc7597565769aa3792c51611b8475acac74c0cb3d",
         "piRuntimePreviousSha256": "1a0813c27fa5622043a250a658da59b138bef856338d21a84d487920099ca153",
