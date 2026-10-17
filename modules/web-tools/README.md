@@ -73,6 +73,7 @@ Repository 的 `npm run browser:install`、`browser:install-deps`、`setup:brows
 `native` 保留 `openai` 的全部行為，另外對 **Pi `google` provider 的 `gemini-3`／`gemini-4` 系列**（例如 `gemini-3-pro`、`gemini-4-argon`）注入 Gemini 的伺服器端 Google Search：在 `config.tools` 追加 `{ "googleSearch": {} }`，並設 `config.toolConfig.includeServerSideToolInvocations: true`。兩者都是 Gemini 3 起「內建工具與 function calling 併用」的必要條件。
 
 - 注入的鍵必須是 camelCase：Pi 的 `@google/genai` 只把已知欄位映到 request body，寫成 `google_search` 或頂層 `tools` 會被默默丟掉。
+- 真實 API 實測（2026-10-17）：`gemini-3.8-flash`／`gemini-4-argon` 帶 `googleSearch` + function declarations 均回 200，未被拒。模型**自己決定是否搜尋**：`gemini-4-argon` 那次有觸發（`provider_stream_event` 可看到 `groundingMetadata.webSearchQueries` 與 `groundingChunks`），`gemini-3.8-flash` 那次沒觸發，所以「請求沒 400」**不**等於「有搜尋」。有觸發時模型會寫出 `vertexaisearch.cloud.google.com/grounding-api-redirect/...` 轉址 URL，而不是來源網站原 URL。
 - Gemini 2.5／2.0 不注入（官方只保證 Gemini 3 以後能與 function declarations 併用），`google-vertex` 也不注入（Vertex 不支援混用，且 SDK 對上述 flag 直接報錯）。兩者都會顯示 inactive 原因。
 - 用法同 OpenAI 原生搜尋：不註冊 `web_search` tool、不碰 Gemini 密鑰。若另一 extension 以 client tool 形式提供 `web_search` function declaration，會中止該請求並報 `TOOL_CONFLICT`，不默默移除對方工具。
 - 來源：Pi 目前不解碼 `groundingMetadata`／`url_citation`，所以模型看不到來源物件；指引文字因此要求把完整 URL 寫進回答。需要可靠來源清單時仍請用 `provider: "native"` 以外的 REST 供應商。
