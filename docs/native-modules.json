@@ -50,7 +50,12 @@
         { "path": "modules/file-audit/src/index.ts", "sha256": "77a75f4bbc7c02dbad04a8c46d596346cbb337e98ac1e942070fa4d50350340f" },
         { "path": "modules/file-audit/src/paths.ts", "sha256": "04650853d6cc5c64d7c78fe4b9f26ae3990f50eebc5f5d8ced93a98ce608a24c" },
         { "path": "modules/file-audit/src/presentation.ts", "sha256": "d2c76f0abd116a9b84672a362acadff64d88389ba227bd43ba5a7f454a8dd2f5" },
-        { "path": "modules/file-audit/src/provenance.ts", "sha256": "deef7bd87af81d9e64672932d41725873cbab832f7a267b588f3ecf1091f7928" },
+        {
+          "path": "modules/file-audit/src/provenance.ts",
+          "checkRepairPreviousSha256": "deef7bd87af81d9e64672932d41725873cbab832f7a267b588f3ecf1091f7928",
+          "sha256": "ee547149fbef4dcbb48c7bbf576a544e2d78e0be58fdb044644774352e83fe3e",
+          "reason": "Native bounded recent read/write/edit/note activity and manual provenance inspection. 2026-10-17 check repair: a candidate keeps the caller's workspace spelling and falls back to its real location only when that spelling is unsafe, so a filesystem alias (Windows 8.3 short name, junction, case) can no longer make an in-workspace file look like an escape and be silently skipped."
+        },
         { "path": "modules/file-audit/tests/activity-window.test.ts", "sha256": "9a27eab25326d3a83c00e77a92a91ee14208ba43ad05c21f6ce40f3a6ae1d4ef" },
         { "path": "modules/file-audit/tests/commands.test.ts", "sha256": "7c98d7ebeb5703bf362fc6fda1d13a1dd74f2fe18c9071f75d10d4044d6133db" },
         { "path": "modules/file-audit/tests/events.test.ts", "sha256": "8d01d4fce75d116600541f5b9e05acd03d41aa31747a0f50a42f8ec7899bab92" },
@@ -65,7 +70,12 @@
         { "path": "modules/file-audit/tests/paths.test.ts", "sha256": "77dfbb14c02c33629192d1716d9910e29c0d64a3838caa696bc4ba83a5694c10" },
         { "path": "modules/file-audit/tests/presentation.test.ts", "sha256": "b68499207886f47bd819afac241917a190664de516e320a52541d40fad14d32f" },
         { "path": "modules/file-audit/tests/provenance.test.ts", "sha256": "ccd8654e5ac50b2a83df974e5b81e5af1d480b0566f8873b0d306813cae1ee6f" },
-        { "path": "modules/file-audit/tests/scan.test.ts", "sha256": "4feaa04d9513545c4f9771ebcbae6f11bd60a2d1feab5538ff2b674493f6ba6b" },
+        {
+          "path": "modules/file-audit/tests/scan.test.ts",
+          "checkRepairPreviousSha256": "4feaa04d9513545c4f9771ebcbae6f11bd60a2d1feab5538ff2b674493f6ba6b",
+          "sha256": "33d5a441df712afaf4cf2b4bfebf11b9c6dc1759356c1567144a7dab1854b0d3",
+          "reason": "Native file-audit scan tests. 2026-10-17 check repair: adds a deterministic junction-alias case (red before the provenance fix) asserting an aliased workspace still reports matched/matched/matched/untracked."
+        },
         { "path": "modules/file-audit/tests/tui-ab.integration.test.mjs", "sha256": "a5a8098ae6fad985b2816703c4a20fe574001fca2f8fa10973caf1319e464b0e" },
         { "path": "modules/file-audit/tests/tui-workflow.integration.test.mjs", "sha256": "2ccb7ec6847cd8bce277779d0254cca397fed5e273e34f837a0da9f393154873" },
         { "path": "modules/file-audit/tsconfig.json", "sha256": "cf84803c4808ab9d2af3834851589ef6a7c78eb252cb83d5e9e5f353af4d3edc" }

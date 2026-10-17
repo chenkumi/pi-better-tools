@@ -1610,8 +1610,9 @@
     {
       "path": "modules/schedule-prompt/src/types.ts",
       "originalSha256": "ad4ab21618ed1e3130ea26a90e2b619da3fa9b4625bb6240386e8d902be6aa8f",
-      "sha256": "3a475d7fc911ac2d5d85da5c8e049a4556e53bcd4f59c6c8494f637ac19b8b9e",
-      "reason": "2026-10-07 optional endAt job field and string/null tool schema; null clears on update only, legacy actions/types unchanged."
+      "checkRepairPreviousSha256": "3a475d7fc911ac2d5d85da5c8e049a4556e53bcd4f59c6c8494f637ac19b8b9e",
+      "sha256": "0676c074a8536d7f4a63cd3f18fbd2769965085633064cec88c99f9b1be82f36",
+      "reason": "2026-10-07 optional endAt job field and string/null tool schema; null clears on update only, legacy actions/types unchanged. 2026-10-17 check repair: adds the isCommandJob type guard the command-approval path imports, mirroring the scheduler's own command discrimination."
     },
     {
       "path": "modules/schedule-prompt/src/tool.ts",
@@ -1632,8 +1633,9 @@
       "path": "modules/schedule-prompt/src/ui/jobs-view.ts",
       "originalSha256": "ba3a25f6edbacee58ee3b3448d5d0ba1e1f026a1fddd45cc32951a045838852e",
       "reviewReproductionPreviousSha256": "82a411dba301ef8357a85837fb230eb7400d3997374c1af55c520dec5cfca985",
-      "sha256": "9bb4b5fbfa25b5ae12099ea9ccda4705804b9dae24ba0c85d81167bd8116f452",
-      "reason": "2026-10-07 fresh deadline enable guard, actionable width-bounded error and selected deadline details; foreign jobs remain read-only. 2026-10-11 R13: TUI cleanup uses locked fresh batch preserving peer re-enable/rebind."
+      "checkRepairPreviousSha256": "9bb4b5fbfa25b5ae12099ea9ccda4705804b9dae24ba0c85d81167bd8116f452",
+      "sha256": "82cf6d8872cb5d59992131118fbd324cb392f18bde29c7e7bf5d40fa5eeca562",
+      "reason": "2026-10-07 fresh deadline enable guard, actionable width-bounded error and selected deadline details; foreign jobs remain read-only. 2026-10-11 R13: TUI cleanup uses locked fresh batch preserving peer re-enable/rebind. 2026-10-17 check repair: enabling a command opens a paged review of the exact spec and approves only through toggleReviewedJob under the lock, so a peer change wins over the stale review."
     },
     {
       "path": "modules/schedule-prompt/src/ui/cron-widget.ts",
@@ -2562,7 +2564,8 @@
       "remainingTestsRepairPreviousSha256": "ea63498257e35fbd3748acacac704a634f640f320fb5a43362d0728c15c60ffb",
       "remainingTestsRepair": "Document reviewed current status-bar acceptance with missing historical contents and Low coverage limits.",
       "refactorPreviousSha256": "ef162c9619539575c44d265a5f1ec55cf9936838abc5e23abc80827c9fa863cd",
-      "sha256": "c70e7fe0417f44e2b3eb7ece57bc93813806f38562c3cdf73cc0335ed89b41f6",
+      "checkRepairPreviousSha256": "c70e7fe0417f44e2b3eb7ece57bc93813806f38562c3cdf73cc0335ed89b41f6",
+      "sha256": "bfbd781a0c8d667dd411688369635efbd44cac28cfdb829f13de13ae60495089",
       "validationRepairAdaptation": "2026-10-10 unit/native grouping and process budgets documentation only.",
       "previousTestHarnessRepairSha256": "91ae8a69279d7ac7c8c8bcc5326b159fee8687881cf3a839e6eeeaaf30887f0c",
       "previousNotificationEvidenceReason": "Add local installation, behavior, regression and verification boundary above unchanged upstream documentation. Normalize source CRLF working-tree bytes to repository-required LF; semantic content unchanged by this normalization. Subsequent 2026-10-09 semantic adaptation: document isolated unit passive allowlist, relative-only import alias, portable fixtures, EROFS injection and worker invocation barriers.",
@@ -2595,8 +2598,9 @@
     {
       "path": "modules/blackhole/CHANGELOG.md",
       "originalSha256": "a9c8105291a4178b7f124e950b15120fceede8fbb785ef36dd282cfb4d069455",
-      "sha256": "1c943001aec167c4d595f86b5c2e03f861e4c85ee1f3653d5de815f3f9e00bf5",
-      "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
+      "checkRepairPreviousSha256": "1c943001aec167c4d595f86b5c2e03f861e4c85ee1f3653d5de815f3f9e00bf5",
+      "sha256": "9be20b9eb527ebf5aceb3d84ac87de93f14207c7fd84e02518d8d423184f2bf0",
+      "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change. 2026-10-17 check repair: records that the previously documented cleanup is now applied to the tree."
     },
     {
       "path": "modules/blackhole/LICENSE",
@@ -4595,8 +4599,9 @@
     },
     {
       "path": "modules/schedule-prompt/src/ui/jobs-menu.ts",
-      "sha256": "8f5532ed55bffbd8c9049acf1206a5074f4bd68e5ae83054df8dc7d049c901d8",
-      "reason": "2026-10-11 R13 newly added active provenance for already tracked HEAD file, not created this round; historical nested D10 hash unchanged. RPC cleanup uses locked disabled-job batch, preserving peer re-enable/rebind."
+      "checkRepairPreviousSha256": "8f5532ed55bffbd8c9049acf1206a5074f4bd68e5ae83054df8dc7d049c901d8",
+      "sha256": "4f85cf029649eefe0ac5b3abbde2b54d7253e892dc601106803f6ea42e6dfdd6",
+      "reason": "2026-10-11 R13 newly added active provenance for already tracked HEAD file, not created this round; historical nested D10 hash unchanged. RPC cleanup uses locked disabled-job batch, preserving peer re-enable/rebind. 2026-10-17 check repair: the Enable path now toggles through toggleReviewedJob, so a job changed while the confirmation was pending is never enabled."
     },
     {
       "path": "modules/schedule-prompt/src/interval.ts",
@@ -5778,8 +5783,9 @@
     },
     {
       "path": "modules/blackhole/tests/unit-isolation-policy.test.ts",
-      "sha256": "b3f3de79066f9810c3440afac98767234b9a31ab52c32c47183ea28269c48252",
-      "reason": "Five isolation regressions: exact allowlist, host/runtime/worker exclusions, nested/foreign basename rejection and inherited passive restoration across cases."
+      "checkRepairPreviousSha256": "b3f3de79066f9810c3440afac98767234b9a31ab52c32c47183ea28269c48252",
+      "sha256": "0cba92a291d4bd2f360223020eeea5bca59f7f68e0ee5522a3ac314e0dc2673f",
+      "reason": "Five isolation regressions: exact allowlist, host/runtime/worker exclusions, nested/foreign basename rejection and inherited passive restoration across cases. 2026-10-17 check repair: the worker exclusion names worker-attempt.test.ts after the removed legacy suite."
     },
     {
       "path": "modules/blackhole/tests/cosmetic-host-order.test.ts",
