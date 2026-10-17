@@ -39,7 +39,4 @@ description: Use when the user asks to refactor or simplify existing code by rem
 
 ## 交付格式
 
-- 修改摘要：每項修改的依據（為何可刪／可合併）與受影響契約。
-- 驗證：實際執行的檢查與結果，區分既有失敗、新增回歸與環境阻礙；未執行的檢查寫明原因。
-- 待決與剩餘風險：因必要性不明而保留的項目、未覆蓋的行為。
-- 只做分析時，改交候選清單與各自的證據、風險與建議驗證方法。
+交付內容的結構依 [references/report.md](references/report.md)。
