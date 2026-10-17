@@ -198,7 +198,10 @@ export class ShellJobs {
   }
 
   submit(ctx: ExtensionContext, tool: string, toolCallId: string, signal: AbortSignal | undefined,
-    run: (signal: AbortSignal, wrap: (ops: BashOperations) => BashOperations) => Promise<ShellResult>, command = "") {
+    run: (signal: AbortSignal, wrap: (ops: BashOperations) => BashOperations) => Promise<ShellResult>, command = "",
+    /** Runs synchronously once the job owns a controller, before the deferred runner may start. An adopted
+     *  foreground process must be cancellable even if that boundary never runs (owner replaced first). */
+    onAccepted?: (signal: AbortSignal) => void) {
     this.assertOwner(ctx);
     if (signal?.aborted) throw new Error("Command aborted before background acceptance");
     const active = [...this.jobs.values()].filter(j => j.status === "running" || j.status === "cancelling");
@@ -246,6 +249,16 @@ export class ShellJobs {
     try { job.monitorCwd = canonicalMonitorCwd(ctx.cwd); } catch { /* Monitor must refuse unavailable cwd evidence; Shell behavior is unchanged. */ }
     this.jobs.set(job.jobId, job);
     this.refreshWidget();
+    try { onAccepted?.(job.controller.signal); }
+    catch (error) {
+      this.jobs.delete(job.jobId);
+      this.closeLog(job);
+      // No command was handed to a runner: record the refusal as terminal instead of leaving an
+      // accepted-but-never-started entry for the next load to report as an orphan.
+      job.recovery?.update({ jobId: job.jobId, toolCallId: job.toolCallId, state: "failed", started: false, cancelRequested: false, terminal: true });
+      housekeep(() => removeJobDirectory(directory));
+      throw error;
+    }
     // A later event-loop boundary ensures even immediate completion cannot precede the receipt.
     job.done = new Promise<void>(resolve => setImmediate(resolve)).then(async () => {
       try {

@@ -61,7 +61,10 @@ const extensionFactories = [pi => {
       return { content: [{ type: 'text', text: 'Gate released' }], details: undefined };
     },
   });
-  pi.on('before_agent_start', event => { if (mode === 'preflight-failed') event.systemPromptOptions.selectedTools = null; });
+  // Only the first run fails before it starts. Every later run must still reach the model: the fixture
+  // asserts one model call after the failure, so failing each run would deadlock on the batch promise.
+  let preflightFailures = 0;
+  pi.on('before_agent_start', event => { if (mode === 'preflight-failed' && preflightFailures++ === 0) event.systemPromptOptions.selectedTools = null; });
   pi.on('agent_end', () => { if (mode === 'queued' && !queued) { queued = true; pi.sendUserMessage('OTHER_QUEUED_WORK', { deliverAs: 'followUp' }); } });
   pi.on('agent_settled', () => { if (sawBatch) batchSettled.resolve(); });
 }];
