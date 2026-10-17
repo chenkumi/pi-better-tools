@@ -1,5 +1,10 @@
 {
   "schemaVersion": 1,
+  "scanFix20261017": {
+    "plan": "plan/SCAN-20261017T050000Z.md",
+    "baselineCommit": "4180c9796f5ccdffb821b4891b058b06f6d72596",
+    "scope": "Fixes for scan findings BUG-001..BUG-011 (sql-connector, sqlite-tools, shell-tools, fork, pty-terminal, schedule-prompt). Imported snapshots were not re-imported; these are local adaptations with regression tests."
+  },
   "webSetupCompatibility20261016": {
     "plan": "plan/PLAN-20261016T150815022Z.md",
     "baselineCommit": "e6c46c422b7d5b3b81e89927031fb1a29c461ea2",
@@ -1510,16 +1515,36 @@
   },
   "files": [
     { "path": "modules/sql-connector/src/index.ts", "originalSha256": "1d9bd021290ed221afca9f2d272d4c005073afbe72ce4cadb0643ceb02bc003c", "sha256": "ec86d7911cd77789aa11fa5f483112d0d29418b99b565520a7954626452eb9e1", "reason": "Relocate entry; preserve configured-only registration/trust/status/reload/shutdown. Replace full-system-prompt hook with loaded engine state tool guidance; shared Runtime owns deferred hints." },
-    { "path": "modules/sql-connector/src/runtime.ts", "originalSha256": "8e5bca546a73bf486091d12ed34dfe95b74c2c8986b50525b540e2d9ba2458a5", "sha256": "e0f5d4d988ce6a1182050ee359d13b6e004a4dc3d14b6985db18fa28c2218e28", "reason": "Only defer require of optional mssql/msnodesqlv8 until Windows Authentication adapter construction; driver/query/pool/cancellation semantics unchanged." },
+    { "path": "modules/sql-connector/src/runtime.ts", "originalSha256": "8e5bca546a73bf486091d12ed34dfe95b74c2c8986b50525b540e2d9ba2458a5", "scanFix20261017PreviousSha256": "e0f5d4d988ce6a1182050ee359d13b6e004a4dc3d14b6985db18fa28c2218e28", "scanFix20261017Adaptation": "2026-10-17 PG extended protocol + BEGIN READ ONLY reads; MySQL START TRANSACTION READ ONLY + 30s client read timeout, queueLimit 32; failed connections discarded; MSSQL close waits for an in-progress connect.", "sha256": "9c6a777e8e7bf32b5d6799bf6a97606d7d70b1b18a572df7efb2f0013f8fc1b2", "reason": "Only defer require of optional mssql/msnodesqlv8 until Windows Authentication adapter construction; driver/query/pool/cancellation semantics unchanged." },
     { "path": "modules/sql-connector/src/tools.ts", "originalSha256": "f563b24c1975bf05854b2310b1571d1801b215497a04f42ad5943149604d25e2", "sha256": "246aeeeedc9aa0e598a79662a4b865591eb054a565fed08e2ecaba921a38c9f4", "reason": "All engine tools deferred in existing engine namespaces; short discovery description and loaded-state guidance. Preserve schemas, SQL validation, bindings, UI confirmation and execution." },
     { "path": "modules/sql-connector/test/extension.test.ts", "originalSha256": "221a204029ee9e2ff379e33ff6db60a84498c6dcd1e9e6943d56110ff3f3506b", "sha256": "ca4d21405e8a25634b70d9c16211f71abe8c1f3f7acc54ff7917abeac23b1e67", "reason": "Relocated import; configured-only/status/placeholder assertions retained, assert deferred namespace and guidance instead of old full-prompt replacement; close fixture runtime." },
-    { "path": "modules/sql-connector/README.md", "originalSha256": "ea1eb27c92d2490545298ecb14e4aa70e170016c002c916686e8850b17e63538", "dependencyUpgradePreviousSha256": "86c1571dba25ab233425b719c6d8e6281170fa70423fecb130693eadf755f388", "sha256": "a06234dafa0c72eb53521fd12e0dd82e26d7808d5a42efd35bfedb4e7eb7bb9d", "reason": "Integrated root install, deferred discovery, trust/configuration and explicit optional native driver guidance; live-database validation limits." },
+    { "path": "modules/sql-connector/README.md", "originalSha256": "ea1eb27c92d2490545298ecb14e4aa70e170016c002c916686e8850b17e63538", "dependencyUpgradePreviousSha256": "86c1571dba25ab233425b719c6d8e6281170fa70423fecb130693eadf755f388", "scanFix20261017PreviousSha256": "a06234dafa0c72eb53521fd12e0dd82e26d7808d5a42efd35bfedb4e7eb7bb9d", "scanFix20261017Adaptation": "2026-10-17 document engine-aware lexical policy, MSSQL statement keywords, PG extended/read-only and MySQL read-only/timeout/queue defenses and their limits.", "sha256": "ba288f9d307d32d39e8c61046dd3b9ae7bcda3917a13f600042ac3c142f577d8", "reason": "Integrated root install, deferred discovery, trust/configuration and explicit optional native driver guidance; live-database validation limits." },
     { "path": "modules/sql-connector/tsconfig.json", "originalSha256": "eaf3aef05da611725356b70503195a9f82ab763f0358fcc19eb4e37904a4d65a", "sha256": "88e4b426a7cdaaa1800793e5dc0130401195c8494cf0b78462b7f4f5122aa982", "reason": "Include relocated src/test plus integration test directory; original strict options retained." },
     {
       "path": "modules/sqlite-tools/src/index.ts",
       "originalSha256": "9c590036e2d49c95034c53bbd4a5d3f820b900385bdc3e79a2a5822e8f9a157b",
-      "sha256": "049ecb49a4dcb001b1438c73559b53e8de3c07c467e5d814a6258bb5b1a44493",
+      "scanFix20261017PreviousSha256": "049ecb49a4dcb001b1438c73559b53e8de3c07c467e5d814a6258bb5b1a44493",
+      "scanFix20261017Adaptation": "2026-10-17 24h sweep of saved truncated outputs; manual/tool text describes read bounds, creation message and unchanged journal mode.",
+      "sha256": "aec2c082539bc2b420cdc88f13383ac925695d9afa8df10ea12be6141b9b59d0",
       "reason": "Deferred exposure and sqlite namespace/short discovery description on all eight tools; no local activation or prompt hook."
+    },
+    {
+      "path": "modules/sql-connector/src/security/sql-policy.ts",
+      "originalSha256": "a5f84aac140cb45640cde9c664a638a87df45dae4d3ff099263ba2884f5e32fb",
+      "sha256": "5e179addb7c94d826088e6e924c62ef5eced88eb4594295b38e59f0e754f449e",
+      "reason": "2026-10-17 scan fix (BUG-001): engine-aware lexical split (PG dollar quotes and nested comments, MSSQL ]] escapes and nested comments, MySQL backticks/#/-- rule), backslashes in MySQL/PG literals denied, MSSQL statement-start keywords denied in reads and updates, NUL and unterminated identifiers denied. Existing allowlist, LIMIT/TOP and WHERE rules unchanged."
+    },
+    {
+      "path": "modules/sql-connector/src/output.ts",
+      "originalSha256": "85ba37357a1f3ef0d17f24ced2b2328065efd2aefd432a0a060b0480ae87d94b",
+      "sha256": "59319ad7ce18b41d034704829d06ceb8e02f9c19d90add39f35ee7dd6312287f",
+      "reason": "2026-10-17 scan fix (BUG-006): incremental byte accounting for the 48 KiB row prefix instead of re-serializing every prefix; identical row selection (regression compares the original definition)."
+    },
+    {
+      "path": "modules/sqlite-tools/src/sqlite-manager.ts",
+      "originalSha256": "5819ca6500305bf256231a922be04a6c0ef37eb7c1c149cd1d35479dfff942bc",
+      "sha256": "35fb81958fa5a53240afedd8adc08a37379f41ea1a01f81c4c8e72e95eff24a8",
+      "reason": "2026-10-17 scan fix (BUG-003/004): no PRAGMA journal_mode=WAL on open; creation of a missing path reported; query streams rows with 10,000-row/8 MiB bound and 1 KiB BLOB prefix (truncated flag)."
     },
     {
       "path": "modules/sqlite-tools/tests/extension.test.ts",
@@ -1530,7 +1555,9 @@
     {
       "path": "modules/sqlite-tools/tests/sqlite-manager.test.ts",
       "originalSha256": "d00f9c41826480bf2f1318f2c2ef5f754752e12d03d137337981a73b60b4442f",
-      "sha256": "183904b3c35d5d02fa79d7609c3e7dde9ee2fe2ec3b9042416a7db2114e6d907",
+      "scanFix20261017PreviousSha256": "183904b3c35d5d02fa79d7609c3e7dde9ee2fe2ec3b9042416a7db2114e6d907",
+      "scanFix20261017Adaptation": "2026-10-17 regressions for unchanged journal mode, creation message and row/byte/BLOB read bounds; existing assertions unchanged.",
+      "sha256": "2fc47d6cd5390e57090006c871316a0e298644e590dabc8fbbff2c1b8a0961fc",
       "reason": "Relocated src import only."
     },
     {
@@ -1542,7 +1569,9 @@
     {
       "path": "modules/sqlite-tools/README.md",
       "originalSha256": "7aadb369df5bfbebfffa53e2a573e4cd378a7f88d980d0a119a4ba269923b96d",
-      "sha256": "5bc6cbae0434347961747c5b5361959e7cf2013eadfab98b5e3c09fe1326e906",
+      "scanFix20261017PreviousSha256": "5bc6cbae0434347961747c5b5361959e7cf2013eadfab98b5e3c09fe1326e906",
+      "scanFix20261017Adaptation": "2026-10-17 document streamed 10,000-row/8 MiB read bound, BLOB prefix, unchanged journal mode, creation message and 24h saved-output retention.",
+      "sha256": "4845f7678a138178240f120fa3c0181327c91c90a674b54b1392fd9db575eb55",
       "reason": "Integrated usage, shared deferred hint, root baseline and preserved lifecycle/settings/safety."
     },
     {
@@ -1591,7 +1620,9 @@
       "originalSha256": "ced07505c568d66ebe0c3ef5251fdb505a7574bce46538fdae07403f7038175d",
       "defectRepairPreviousSha256": "cf296d91b207b52f40ad7a1e6d081a6d6c451f828e6c066d37e51754458fa647",
       "reviewReproductionPreviousSha256": "d5b8ce0137bbfad230845fbf43a869042e0077b99012fd35cd276afb964b5a9b",
-      "sha256": "f952497e9875a1dcdfe2607aa81ccf5a5c95c1d97297dd70e5e4b4513aa6adc9",
+      "scanFix20261017PreviousSha256": "f952497e9875a1dcdfe2607aa81ccf5a5c95c1d97297dd70e5e4b4513aa6adc9",
+      "scanFix20261017Adaptation": "2026-10-17 document bounded retry and error report for lock release.",
+      "sha256": "1c403721178aca4788250386dccb048be0496a4b5691cb2179d99faf9d28f56c",
       "reason": "2026-10-07 local endAt contract, usage/UI examples, trigger-not-cancellation limitations, compatibility and integrated test commands. Upstream identity preserved. 2026-10-08 current local snapshot review: M5-M7/L14-L19: user-authorized local third-party adaptation for terminal skipped-once error, widget snapshot/coalescing, owner-token fail-closed locking/corruption reread, job shape validation, locked fresh counters and session recovery boundary; v1 paths/schema/identity/license retained, not upstream-identical. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-11 R12/R13/R14: generation/locked once settlement, batch cleanup and validated derived interval contracts and limits. 2026-10-15 documents deferred loading of schedule_prompt. 2026-10-15 user-authorized: deferred-tool activation, fallback and hint moved to Pi Runtime (deferred-tools.ts); modules only declare exposure/namespace.",
       "checklistReviewPreviousSha256": "87fd01d7183ecf52371e96ae8faad4ce5eeeed8e03ab662d9f965f30ab78be3e",
       "checklistReviewBaselineSha256": "f732f9901394c2640edc25c8b61ba7455455135b5f3b5e414f3995a7a9bd4df9",
@@ -1838,7 +1869,9 @@
       "reviewReproductionPreviousSha256": "251302d3af77c15d95d70769ef060a9d0cde0c43f8845dc3530062505890a574",
       "reportRepairPreviousSha256": "06c0cf0316ce8e2a56f2607a556074398c2c4c6415535713e8fa3b3749a409a3",
       "webSetupPreviousSha256": "4f4823e11eae95f644219d95c6d03a186dfeeb4378d1744c7800fbf3a1daa48a",
-      "sha256": "3d9183ccd53f531f65c3e33708ce56b5201badd16d8f8995adc8cddfb9e71021",
+      "scanFix20261017PreviousSha256": "3d9183ccd53f531f65c3e33708ce56b5201badd16d8f8995adc8cddfb9e71021",
+      "scanFix20261017Adaptation": "2026-10-17 waitFor retry pause is at least twice the failed attempt cost (50..1000ms); matching semantics unchanged.",
+      "sha256": "c231bbda728828d4161e801e800cf6095b7714fa7ba58db0a4868a3f42b92f01",
       "preMergeRecordedSha256": "3cc4f0ab9b8c580a043a65bbf737398a9711d0cda06ffdb1a26e9b3f5885822c",
       "reason": "Attach target/transport metadata and local PID semantics; Windows node-pty cannot take POSIX signals, use signal-free kill; settle cleanup waiters and prevent buffered output from prematurely finishing exit wait. Git LF normalization only in this merge: fetched bytes exactly reconstruct previous recorded CRLF hash; no runtime edits. 2026-10-06 local adaptation (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts. Assertions kept or tightened; not a source-identical copy. Startup-latency change: node-pty is loaded lazily on the first spawn via createRequire instead of a static import; the spawnPty test seam is unchanged. 2026-10-08 current local snapshot review: MH2/M14-M15/L24-L27: retry debounce/deadline, ready compute budget, single-pass escapes, unread admission protection, buffer slack, exited-write refusal and exit-aware pause reviewed; held-until-termination workers and target trust retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-11 R4: dispose confirmed exited POSIX transport without kill; Windows signal-free backend handle release retained.",
       "checklistReviewPreviousSha256": "e6ab9ef1ed054fd7c9d986e6d8b4a55ad82f91845c2de5cc4114b10eb64a4847",
@@ -1867,7 +1900,7 @@
       "originalSha256": "376b39ee2aaed1b440a186ab4fdb1012f783449536d66b31eca3841f2baf835d",
       "defectRepairPreviousSha256": "794c6d759821c8ee5af39fd68f04fe57d76cd4b8d8060263ce760473c32db833",
       "reviewReproductionPreviousSha256": "2d9d5b848d315bf327b79b77af9b44aeac922baebda87a5e1b3e1c8e3bc6583a",
-      "dependencyUpgradePreviousSha256": "3e0cdde7d478037b557e6c7563d988ff6759f76896175b56c6f374e4093c317a", "webSetupPreviousSha256": "8923ed0cfa7c88fdae3f2b683ced26dec6ca1c7c3ac8bca7f7c700f066531888", "sha256": "a49dc539ecce509319415950c110e1eacd6fbc19d665591206345de86d0f97d1",
+      "dependencyUpgradePreviousSha256": "3e0cdde7d478037b557e6c7563d988ff6759f76896175b56c6f374e4093c317a", "webSetupPreviousSha256": "8923ed0cfa7c88fdae3f2b683ced26dec6ca1c7c3ac8bca7f7c700f066531888", "scanFix20261017PreviousSha256": "a49dc539ecce509319415950c110e1eacd6fbc19d665591206345de86d0f97d1", "scanFix20261017Adaptation": "2026-10-17 document cost-adaptive waitFor retry pause (2x attempt cost, 50..1000ms).", "sha256": "71d9cac7698f7fe9b98f5111649cee979ac65523fec83cfaee41d56545f49e7e",
       "tokenTrimPreviousSha256": "b2f4d30e80013e3b2f90bab91058d878c05b20c9bfb59bbe0a0bbafe8915b267",
       "reason": "Replace standalone install/publishing guidance with root integration, target schema, SSH/WSL prerequisites, native dependency setup, security and actual test boundaries; preserve source identity/port attribution. Document presentation-only PTY previews and caveats, pinned npm 12 native-script policy and npm-run env adapter; consumer parent project must approve its own setup. 2026-10-06 local adaptation (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: MH2/M14-M15/L24-L27: retry debounce/deadline, ready compute budget, single-pass escapes, unread admission protection, buffer slack, exited-write refusal and exit-aware pause reviewed; held-until-termination workers and target trust retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-11 R4: exited POSIX transport avoids old-PID signals; Windows handles release and opportunistic retention documented. 2026-10-15 user-authorized: deferred-tool activation, fallback and hint moved to Pi Runtime (deferred-tools.ts); modules only declare exposure/namespace.",
       "checklistReviewPreviousSha256": "1d6d339f2490c1c1eda4d0df664af9e63ab1fc60053a8fb7dd68e12da1543e3a",
@@ -2243,7 +2276,9 @@
       "outputPresentationPreviousSha256": "bcfe0100db61f5b8f0cb4655196f574633db671ecd282be687bd814dbb8cc2b6",
       "outputPresentationAdaptation": "2026-10-16 document output rail/hint ordering, visual-row budget and unchanged execution/host timing boundaries.",
       "checkRepairPreviousSha256": "88544722750ab00792ff37b5de3b28c2d206994bbbec680e8e7ee41ea66a1d75",
-      "sha256": "a2eed7c7efbb05ebb2c71c47f59db6ccda9b6da5ac55994ae28f1d9e5c826503",
+      "scanFix20261017PreviousSha256": "a2eed7c7efbb05ebb2c71c47f59db6ccda9b6da5ac55994ae28f1d9e5c826503",
+      "scanFix20261017Adaptation": "2026-10-17 document per event-loop-turn coalescing of output-driven panel redraws.",
+      "sha256": "dbaa8ccbe6d20cb28c06c89d9b8c573d10a70d1d0ee575a963d30fee0bedf64d",
       "notificationBatchingPreviousSha256": "496539ba1fb125f18cb6fa1e517345023195e4a8e73665cb8d037b82d8911cf7",
       "reason": "User-requested UUID→ULID: documentation updated for ULID identifiers (legacy UUID noted where still accepted). 2026-10-05 async adaptation: User-authorized session-owned background/control/query implementation or offline regression contract adaptation; synchronous defaults and existing safety assertions retained. 2026-10-06 local adaptation (shell-tools): background job status/list fields and jobId-less listing, tail ring buffer, MAX_RAW_CAPTURE_BYTES 8192, cancel race fix, compactJob text slimming, timeoutMs description, receipt decided dynamically via getActiveTools. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: L28-L30: existing bounded directory removal retry/dead-owner sweep and startup-inclusive idle-timeout documentation verified with module typecheck/unit/integration; per-output owner/generation fence retained as safety-relevant negligible overhead. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: L28-L30 existing protections preserved; additionally user-authorized informational background notice/output wording now explains returned data is not instructions and not an error label, without changing payload/schema, authoritative outcomes, cancellation or followUp delivery; corresponding TUI/agent notification regressions reviewed. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: L28-L30 existing protections preserved; additionally user-authorized informational background notice/output wording now explains returned data is not instructions and not an error label, without changing payload/schema, authoritative outcomes, cancellation or followUp delivery; corresponding TUI/agent notification regressions reviewed. English comparison-table messages now distinguish acceptance latency, authoritative cancellation with nonzero exit, notification versus disk-log retention, terminal cancel no-op, capacity refusal and retained-history errors; status/cancel TUI uses bounded named fields. Idle-timeout hint separates background execution from the unchanged timeout timer; (timeout 20s), synchronous host rendering, schema, trust and lifecycle preserved. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 authorized session-load background reconciliation: payload-free versioned journal before allocation/runner admission; persistent-conversation fence; bounded same-owner/cwd inventory and active-branch evidence dedup; neutral model-visible triggerTurn:false notices; no restart, child resume, control replay, lock/native mutation or process-tree termination claim. 2026-10-11 R19: bounded detached asynchronous sweep/eviction, actual shutdown removal barrier and residual I/O limits documented.",
       "previousAsyncRecordedSha256": "4cf1899449bd49eded5204b56f79c4d5162c9cbf0f0f604577841a0a7ea30a5d",
@@ -2442,7 +2477,9 @@
       "path": "modules/schedule-prompt/src/storage.ts",
       "originalSha256": "ed73aa9abe61325af0cd370ddab977eb9789d2fb27ab47771c7080edcb378c7f",
       "reviewReproductionPreviousSha256": "f24af3bfc82e2b43f4c98663d68628d5b9437db8f1677302056b97047e7a126c",
-      "sha256": "1154638194536ccd6025e7c31fcda0a921da3bad92566cf2721f62de10f13462",
+      "scanFix20261017PreviousSha256": "1154638194536ccd6025e7c31fcda0a921da3bad92566cf2721f62de10f13462",
+      "scanFix20261017Adaptation": "2026-10-17 retry transient EBUSY/EPERM/EACCES/ENOTEMPTY lock release with the existing rename backoff; report a release that still fails. No lock stealing.",
+      "sha256": "41b682f794ad4d43282a72f947951588a92f7f7e3071340576a9259e702d0bc2",
       "reason": "2026-10-06 stability review: read-modify-write guarded by a bounded, stale-stealing directory lock for multiple pi processes in one cwd; per-process temp file names with EPERM/EBUSY rename retry and temp cleanup; unreadable or shape-invalid stores are moved to schedule-prompts.json.corrupt-<ts> instead of being silently overwritten. File format and path unchanged. Source tests pass unmodified. 2026-10-07 local endAt: conditional expiration re-reads under an acquired lock, never falls through to unlocked cutoff mutation, preserves latest deadline/scope/stats and clears nextRun; wait budget uses monotonic performance.now and checks even vanished-lock retries. 2026-10-08 current local snapshot review: M5-M7/L14-L19: user-authorized local third-party adaptation for terminal skipped-once error, widget snapshot/coalescing, owner-token fail-closed locking/corruption reread, job shape validation, locked fresh counters and session recovery boundary; v1 paths/schema/identity/license retained, not upstream-identical. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-11 R12/R13/R14: conditional no-write settlement, lock-held session-aware batch removal and strict persisted interval-cache consistency.",
       "checklistReviewPreviousSha256": "8420c8cbbb9f7e5fb3ece4f32d94920340d927e9675901e716218580bbc92366",
       "checklistReviewBaselineSha256": "77d795b905852f93a4c130d1d2e36adb89f9991438a4900c6280ab2199c3a567",
@@ -5487,7 +5524,9 @@
       "reviewReproductionPreviousSha256": "dc67677eee650be66304682b51182ec26a80244d635f5ad6fcda612253fc9b15",
       "jobsPanelPreviousSha256": "946d7bb48eaca8da541cc967a988c4925c3d5a5a40b27da3989d25cbe1096325",
       "checkRepairPreviousSha256": "9919d7e3dc772197a66465ddefc62db51d80ded719c698df2df0dc1657d63796",
-      "sha256": "4e2fa33716edf2c27e45011a94b31ce81b17239bd1ae11e6aaf4d59e1595bf98",
+      "scanFix20261017PreviousSha256": "4e2fa33716edf2c27e45011a94b31ce81b17239bd1ae11e6aaf4d59e1595bf98",
+      "scanFix20261017Adaptation": "2026-10-17 output-driven widget refresh coalesced per event-loop turn (setImmediate, cleared on shutdown); lifecycle refreshes stay immediate; no polling.",
+      "sha256": "590a3839df5ba40c2d5a0d53f4f11e48277a346a97ba816edc836ee4806ee94d",
       "monitorPreviousSha256": "876ad9c808dbd29ea0ca087fff12ebb1b55d40ec08105d7f96602d25b364daa1",
       "monitorAdaptation": "Pure verified readonly snapshot; no cancellation/log reads/lazy owner adoption.",
       "notificationBatchingPreviousSha256": "70cbab603f36254199cf1864843b7f9199666d18d427fbbb131442c15fdf4ee0",
@@ -5502,7 +5541,9 @@
       "path": "modules/shell-tools/tests/background-jobs.test.mjs",
       "completionSteeringPreviousSha256": "50d0f7fb6c8f39c5476151c6474e5508a7abb1c3d47290915027c6a18e1feb81",
       "reviewReproductionPreviousSha256": "f6abaf6e1a0f2a79b688c63421af73c8b7d6bffa56a46b4a4573e0e1b0b74381",
-      "sha256": "faaddcf5075490b4aafa52b1ddb239d413a321818f483391be745cb89d2bf36c",
+      "scanFix20261017PreviousSha256": "faaddcf5075490b4aafa52b1ddb239d413a321818f483391be745cb89d2bf36c",
+      "scanFix20261017Adaptation": "2026-10-17 regression: 200-chunk burst causes at most 3 redraws (red: 201).",
+      "sha256": "44c1941d24a0db3cb9f7b34b1b0292d9f8635447b85e576bcd3b988778e9c0e3",
       "notificationBatchingPreviousSha256": "13093988dc84d6631a32989213e1a0575fa4a26dea62cfc549d147551a1be788",
       "reason": "Offline background/RPC/control/query acceptance, isolation, shutdown, resource limits or actual-host continuation regression; isolated workspace/provider, no paid API or real credentials. 2026-10-06 local adaptation (shell-tools): background job status/list fields and jobId-less listing, tail ring buffer, MAX_RAW_CAPTURE_BYTES 8192, cancel race fix, compactJob text slimming, timeoutMs description, receipt decided dynamically via getActiveTools. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: L28-L30: existing bounded directory removal retry/dead-owner sweep and startup-inclusive idle-timeout documentation verified with module typecheck/unit/integration; per-output owner/generation fence retained as safety-relevant negligible overhead. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: L28-L30 existing protections preserved; additionally user-authorized informational background notice/output wording now explains returned data is not instructions and not an error label, without changing payload/schema, authoritative outcomes, cancellation or followUp delivery; corresponding TUI/agent notification regressions reviewed. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: L28-L30 existing protections preserved; additionally user-authorized informational background notice/output wording now explains returned data is not instructions and not an error label, without changing payload/schema, authoritative outcomes, cancellation or followUp delivery; corresponding TUI/agent notification regressions reviewed. English comparison-table messages now distinguish acceptance latency, authoritative cancellation with nonzero exit, notification versus disk-log retention, terminal cancel no-op, capacity refusal and retained-history errors; status/cancel TUI uses bounded named fields. Idle-timeout hint separates background execution from the unchanged timeout timer; (timeout 20s), synchronous host rendering, schema, trust and lifecycle preserved. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-11 R19: await async stale helper and actual shutdown removal settlement, not fixed event-loop turns; eligibility assertions retained.",
       "checklistReviewPreviousSha256": "637f69972ef888e6859883792de07e4226185f7f964bf52ef0aaa66b8056011f",
@@ -5559,11 +5600,38 @@
     },
     {
       "path": "modules/pty-terminal/tests/pty-read.test.ts",
-      "sha256": "d352c5c331110df691dbc0ed6edfbe00b9d3ddf496e4266451e8c5dd5b0f1c9d",
+      "scanFix20261017PreviousSha256": "d352c5c331110df691dbc0ed6edfbe00b9d3ddf496e4266451e8c5dd5b0f1c9d",
+      "scanFix20261017Adaptation": "2026-10-17 regression for cost-adaptive retry pause; existing assertions unchanged.",
+      "sha256": "e33e66dfa7d97a5925895135848dd1969d8d93477bf8de87d2061359eab72cf6",
       "reason": "2026-10-06 new local file (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts. 2026-10-08 current local snapshot review: MH2/M14-M15/L24-L27: retry debounce/deadline, ready compute budget, single-pass escapes, unread admission protection, buffer slack, exited-write refusal and exit-aware pause reviewed; held-until-termination workers and target trust retained.",
       "checklistReviewPreviousSha256": "f0a0fb3d4c491e82488932caf6a927ee7dc8dba1857309c69d1231781a2fc695",
       "checklistReviewBaselineSha256": "f0a0fb3d4c491e82488932caf6a927ee7dc8dba1857309c69d1231781a2fc695",
       "localSnapshotReview": "2026-10-08 current local snapshot review: MH2/M14-M15/L24-L27: retry debounce/deadline, ready compute budget, single-pass escapes, unread admission protection, buffer slack, exited-write refusal and exit-aware pause reviewed; held-until-termination workers and target trust retained."
+    },
+    {
+      "path": "modules/sql-connector/test/policy-bypass.test.ts",
+      "sha256": "62a5af20e645efd817682657f2226e56a706c9ee6f89b7fe2fe71161c8d790cc",
+      "reason": "2026-10-17 scan fix regressions: read-only policy bypasses (BUG-001) per engine plus allowed legitimate forms."
+    },
+    {
+      "path": "modules/sql-connector/test/runtime.test.ts",
+      "sha256": "36325fec5706fb126e062bc726c87a0606652071b0520594b213b11b9766c468",
+      "reason": "2026-10-17 scan fix regressions with mocked drivers: PG extended protocol/read-only transaction, MySQL read-only transaction/timeout/queue/destroy-on-failure."
+    },
+    {
+      "path": "modules/sql-connector/test/output.test.ts",
+      "sha256": "3aa39b903a063e1b4dcbff0b4ecad8e05082e2b055a8306306baea44f3d2941f",
+      "reason": "2026-10-17 scan fix regression: formatRows keeps the original 48 KiB prefix."
+    },
+    {
+      "path": "modules/sqlite-tools/tests/output-sweep.test.ts",
+      "sha256": "e3a2fd6f2aed2dfe1de836fcc89b58911800bf5c809ae1983720168099a82bbd",
+      "reason": "2026-10-17 scan fix regression: 24h saved-output sweep keeps fresh and foreign files."
+    },
+    {
+      "path": "modules/schedule-prompt/test/storage-lock-release.test.ts",
+      "sha256": "3287bd89158dc74159c96381322ccb0ae189ca395266968d09163c5e56673a87",
+      "reason": "2026-10-17 scan fix regressions: transient lock release retry and reported persistent failure."
     },
     {
       "path": "modules/schedule-prompt/tsconfig.json",
