@@ -1,13 +1,28 @@
 import mssql from "mssql";
 import { createRequire } from "node:module";
 import mysql from "mysql2/promise";
-import { Pool as PgPool, type PoolClient } from "pg";
+import { Pool as PgPool, type PoolClient, type QueryConfig } from "pg";
 import type { DatabaseConfig, Engine, QueryExecution, SqlConnectorConfig, SqlScalar, StateExecution, UpdateExecution } from "./types.js";
 import { SqlConnectorError } from "./types.js";
 
 const QUERY_TIMEOUT_MS = 30_000;
+/** Bounded waiting for a pooled connection; a full queue fails instead of growing without limit. */
+const MYSQL_QUEUE_LIMIT = 32;
 const require = createRequire(import.meta.url);
 type QueryParams = SqlScalar[] | Record<string, SqlScalar> | undefined;
+
+/**
+ * Always use the extended query protocol. Without values, node-postgres otherwise sends a
+ * simple query, which the server executes as a multi-statement batch.
+ */
+export function pgQueryConfig(sql: string, params: SqlScalar[] | undefined): QueryConfig & { queryMode: "extended" } {
+  return { text: sql, values: params ?? [], queryMode: "extended" };
+}
+
+/** mysql2 executes one prepared statement; the client-side timeout bounds reads only (see README). */
+export function mysqlReadOptions(sql: string): { sql: string; timeout: number } {
+  return { sql, timeout: QUERY_TIMEOUT_MS };
+}
 
 interface Adapter {
   state(signal?: AbortSignal): Promise<StateExecution>;
@@ -55,7 +70,7 @@ class MysqlAdapter implements Adapter {
       ssl: config.ssl ? {} : undefined,
       waitForConnections: true,
       connectionLimit: 4,
-      queueLimit: 0,
+      queueLimit: MYSQL_QUEUE_LIMIT,
       connectTimeout: 10_000,
       multipleStatements: false,
     });
@@ -73,6 +88,14 @@ class MysqlAdapter implements Adapter {
     try {
       aborted(signal);
       return await operation(connection);
+    } catch (error) {
+      // A timed-out or failed connection may still be running the statement or hold an open
+      // transaction: never return it to the pool.
+      if (!destroyed) {
+        destroyed = true;
+        connection.destroy();
+      }
+      throw error;
     } finally {
       signal?.removeEventListener("abort", onAbort);
       if (!destroyed) connection.release();
@@ -96,7 +119,13 @@ class MysqlAdapter implements Adapter {
       throw new SqlConnectorError("POLICY_DENIED", "mysql_query params must be a JSON array.");
     }
     try {
-      const [rows] = await this.withConnection(signal, (connection) => connection.execute(sql, params ?? []));
+      const [rows] = await this.withConnection(signal, async (connection) => {
+        // Defense in depth behind the SQL policy: the server rejects writes to non-temporary tables.
+        await connection.query("START TRANSACTION READ ONLY");
+        const result = await connection.execute(mysqlReadOptions(sql), params ?? []);
+        await connection.query("ROLLBACK");
+        return result;
+      });
       return { rows: rowsFrom(rows), rowCount: rowsFrom(rows).length };
     } catch (error) {
       return databaseError("mysql", error, signal);
@@ -125,6 +154,7 @@ class MysqlAdapter implements Adapter {
 
 class MssqlAdapter implements Adapter {
   private readonly pool: mssql.ConnectionPool;
+  private connecting?: Promise<unknown>;
 
   constructor(private readonly config: DatabaseConfig) {
     // ODBC native bindings are optional; load them only for Windows Authentication.
@@ -149,7 +179,12 @@ class MssqlAdapter implements Adapter {
 
   private async connectedPool(signal?: AbortSignal): Promise<mssql.ConnectionPool> {
     aborted(signal);
-    if (!this.pool.connected) await this.pool.connect();
+    if (!this.pool.connected) {
+      const connecting = this.connecting ??= this.pool.connect().finally(() => {
+        if (this.connecting === connecting) this.connecting = undefined;
+      });
+      await connecting;
+    }
     aborted(signal);
     return this.pool;
   }
@@ -212,6 +247,8 @@ class MssqlAdapter implements Adapter {
   }
 
   async close(): Promise<void> {
+    // mssql refuses to close a connecting pool; wait for that attempt, then close what it opened.
+    await this.connecting?.catch(() => undefined);
     if (this.pool.connected) await this.pool.close();
   }
 }
@@ -247,6 +284,13 @@ class PgsqlAdapter implements Adapter {
     try {
       aborted(signal);
       return await operation(client);
+    } catch (error) {
+      // Discard a client that failed mid-transaction instead of pooling its unknown state.
+      if (!released) {
+        released = true;
+        client.release(error instanceof Error ? error : new Error("SQL connector request failed"));
+      }
+      throw error;
     } finally {
       signal?.removeEventListener("abort", onAbort);
       if (!released) client.release();
@@ -270,7 +314,13 @@ class PgsqlAdapter implements Adapter {
       throw new SqlConnectorError("POLICY_DENIED", "pgsql_query params must be a JSON array.");
     }
     try {
-      const result = await this.withClient(signal, (client) => client.query({ text: sql, values: params ?? [] }));
+      const result = await this.withClient(signal, async (client) => {
+        // Defense in depth behind the SQL policy: one extended-protocol statement in a read-only transaction.
+        await client.query("BEGIN READ ONLY");
+        const rows = await client.query(pgQueryConfig(sql, params));
+        await client.query("ROLLBACK");
+        return rows;
+      });
       return { rows: rowsFrom(result.rows), rowCount: result.rowCount };
     } catch (error) {
       return databaseError("pgsql", error, signal);
@@ -282,7 +332,7 @@ class PgsqlAdapter implements Adapter {
       throw new SqlConnectorError("POLICY_DENIED", "pgsql_update params must be a JSON array.");
     }
     try {
-      const result = await this.withClient(signal, (client) => client.query({ text: sql, values: params ?? [] }));
+      const result = await this.withClient(signal, (client) => client.query(pgQueryConfig(sql, params)));
       return { affectedRows: result.rowCount ?? 0 };
     } catch (error) {
       return databaseError("pgsql", error, signal);
