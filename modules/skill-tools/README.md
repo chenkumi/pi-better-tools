@@ -10,7 +10,7 @@
 pi -e ./modules/skill-tools/src/index.ts
 ```
 
-提供 `skills/create-plan/SKILL.md`、`skills/draft-plan/SKILL.md`（將想法或修改目標以最小呈現草稿——wireframe、具體輸入輸出、轉換表——讓使用者判斷差異，設計開始即建立設計文件並即時記錄每項決策，原生新增）、`skills/execute-plan/SKILL.md`（通用的計畫執行流程，不綁定特定計畫產生者；受 git 管理時於開始前 commit 起始狀態、計畫有 checkpoint 時逐一 commit 作為回滾點，原生新增）與 `skills/write-prompt/SKILL.md`（撰寫提示詞／skill 的通用最佳實踐，原生新增，整理自 OpenAI 與 Anthropic 官方提示指南），使用 `/skill:create-plan <需求>`、`/skill:draft-plan <想法>`、`/skill:execute-plan <計畫>`、`/skill:write-prompt <需求>` 或讓模型依 description 選用。完整指示按需讀取，不會整份預先注入 system prompt。
+提供 `skills/create-plan/SKILL.md`、`skills/draft-plan/SKILL.md`（將想法或修改目標以最小呈現草稿——wireframe、具體輸入輸出、轉換表——讓使用者判斷差異，設計開始即建立設計文件並即時記錄每項決策，原生新增）、`skills/execute-plan/SKILL.md`（通用的計畫執行流程，不綁定特定計畫產生者；受 git 管理時於開始前 commit 起始狀態、計畫有 checkpoint 時逐一 commit 作為回滾點，原生新增）與 `skills/write-prompt/SKILL.md`（撰寫提示詞／skill 的通用最佳實踐，原生新增，整理自 OpenAI 與 Anthropic 官方提示指南），以及 `skills/expert-lens/SKILL.md`（使用者要專家級、更深入而非更長的回答時，先以四個問題——專家主動多做的事、第一手素材、具體方法與工具、獨立於雙方的正確性證據——重寫題目再執行，原生新增），以及 `skills/verify-findings/SKILL.md`（複審 scan bug／reliability 問題：每項由乾淨子代理獨立審查，僅有固定且穩定重現的才成立並列入報告，原生新增），使用 `/skill:create-plan <需求>`、`/skill:expert-lens <問題>`、`/skill:verify-findings <掃描報告>`、`/skill:draft-plan <想法>`、`/skill:execute-plan <計畫>`、`/skill:write-prompt <需求>` 或讓模型依 description 選用。完整指示按需讀取，不會整份預先注入 system prompt。
 
 停用時，在 package 的 `extensions` filters 排除 `modules/skill-tools/src/index.ts`；不會刪除 skill 檔案。這是 extension 動態提供的資源，不是根 manifest 的 `pi.skills`：package `skills: []`／Pi `--no-skills` 只停用一般 skill discovery，不能停用已啟用 extension 的 `resources_discover`。需要完全停用本模組 skills，請停用這個 extension。既有 project trust 規則由 Pi 管理，不自動授權。
 
