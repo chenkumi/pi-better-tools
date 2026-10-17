@@ -60,6 +60,23 @@ test("waitFor matches ANSI-stripped output after the bounded retry debounce", as
 	assert.equal(clock.timerCount, 0);
 });
 
+test("an expensive failed waitFor attempt widens the retry pause to twice its own cost", async () => {
+	let attempts = 0;
+	let advance!: (ms: number) => void;
+	const { manager, clock, sessionId, emit } = harness({ matchPattern: async (pattern, input) => { attempts++; advance(300); return pattern.test(input); } });
+	advance = ms => clock.advance(ms);
+	const read = track(manager.readEx(sessionId, { timeoutMs: 10_000, waitFor: compileWaitFor("ready>") }));
+	await flush();
+	assert.equal(attempts, 1);
+	emit("ready>"); await flush();
+	clock.advance(50); await flush();
+	assert.equal(attempts, 1, "the 50ms floor does not apply after a 300ms attempt");
+	assert.equal(read.settled, false);
+	clock.advance(550); await flush();
+	assert.equal(attempts, 2);
+	assert.equal(read.value?.wait, "matched");
+});
+
 test("waitFor times out on the total limit and reports it; output stays unconsumed until consume()", async () => {
 	const { manager, clock, sessionId, emit } = harness();
 	const read = track(manager.readEx(sessionId, { timeoutMs: 500, waitFor: /never/ }));

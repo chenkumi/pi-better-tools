@@ -74,6 +74,10 @@ export interface ManagerOptions {
 
 /** Minimum pause before re-running waitFor when new output arrived during a failed match. */
 const MATCH_DEBOUNCE_MS = 50;
+/** A failed attempt (ANSI strip on this thread, worker start and copy) is followed by a pause of at least
+ *  this multiple of its own duration, so continuous output over a large buffer cannot keep the CPU busy. */
+const MATCH_COST_FACTOR = 2;
+const MAX_MATCH_DEBOUNCE_MS = 1_000;
 
 export interface DroppedRange { from: number; to: number }
 
@@ -398,6 +402,7 @@ export class PtySessionManager {
 				await this.waitFor(session, Math.min(retryAt - this.now(), Math.max(0, deadline - this.now())), signal, undefined, session.exitWaiters);
 				if (deadline <= this.now()) return false;
 			}
+			const attemptStarted = this.now();
 			const begin = Math.max(from, session.bufStart);
 			// The retained ring already bounds input size; worker capacity/time limits
 			// bound regex cost. Dropping a search-only prefix silently changes matches.
@@ -413,7 +418,8 @@ export class PtySessionManager {
 				throw error;
 			} finally { this.matches.delete(pending); }
 			if (matched) return true;
-			retryAt = this.now() + MATCH_DEBOUNCE_MS;
+			const attemptMs = this.now() - attemptStarted;
+			retryAt = this.now() + Math.min(MAX_MATCH_DEBOUNCE_MS, Math.max(MATCH_DEBOUNCE_MS, MATCH_COST_FACTOR * attemptMs));
 			// Output may arrive while the worker is running; do not miss its notification.
 			if (session.bufStart + session.buffer.length !== generation && deadline > this.now()) continue;
 			const remaining = deadline - this.now();
