@@ -151,12 +151,26 @@ type Job = {
 export class ShellJobs {
   private jobs = new Map<string, Job>();
   private widget: ShellJobsWidget;
-  private refreshWidget() { this.widget.refresh(); }
+  private refreshWidget() {
+    if (this.outputRefresh) { clearImmediate(this.outputRefresh); this.outputRefresh = undefined; }
+    this.widget.refresh();
+  }
+  /** Output chunks arrive in bursts: one projection/redraw per event-loop turn, not one per chunk.
+   *  Driven by the existing stdout/stderr events; no polling. */
+  private refreshWidgetForOutput() {
+    if (this.outputRefresh || this.stopped) return;
+    const generation = this.generation;
+    this.outputRefresh = setImmediate(() => {
+      this.outputRefresh = undefined;
+      if (!this.stopped && generation === this.generation) this.widget.refresh();
+    });
+  }
   private generation = 0;
   private stopped = false;
   private owner?: string;
   private currentSession?: () => string;
   private notification?: ReturnType<typeof setImmediate>;
+  private outputRefresh?: ReturnType<typeof setImmediate>;
   private pending = new Set<Job>();
   private dispatching = false;
   private evicted = new Set<string>();
@@ -302,7 +316,7 @@ export class ShellJobs {
               job.capturedBytes += captured.length;
               if (captured.length) options.onData(captured);
               if (captured.length !== data.length || logged.length !== data.length) job.outputTruncated = true;
-              this.refreshWidget(); // Existing stdout/stderr event, not polling or output parsing.
+              this.refreshWidgetForOutput(); // Existing stdout/stderr event, not polling or output parsing.
             },
           }),
         }));
@@ -488,6 +502,8 @@ export class ShellJobs {
     this.stopped = true;
     this.generation++;
     this.widget.clear();
+    if (this.outputRefresh) clearImmediate(this.outputRefresh);
+    this.outputRefresh = undefined;
     if (this.notification) clearImmediate(this.notification);
     this.notification = undefined;
     this.pending.clear();

@@ -409,3 +409,29 @@ test('stale job directory sweep removes only dead-owner or long-untouched unmark
     for (const kept of [alive, own, freshUnmarked, skipped, unrelated]) assert.ok(fs.existsSync(kept), kept);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
+
+test('an output burst redraws the TUI panel once per event-loop turn, not once per chunk', async () => {
+  let setWidgetCalls = 0;
+  const ctx = { ...context('owner'), mode: 'tui', hasUI: true, ui: { setStatus() {}, setWidget() { setWidgetCalls++; } } };
+  const jobs = new ShellJobs({ sendMessage() {} });
+  jobs.start(ctx);
+  let release;
+  try {
+    jobs.submit(ctx, 'bash', 'burst', undefined, async (signal, wrap) => {
+      await wrap({ async exec(_c, _d, { onData }) {
+        for (let i = 0; i < 200; i++) onData(Buffer.from(`chunk ${i}\n`));
+        await new Promise(resolve => { release = resolve; });
+        return { exitCode: 0 };
+      } }).exec('burst', '.', { signal, onData() {} });
+      return success('done');
+    }, 'burst');
+    await boundary(); await boundary();
+    const afterBurst = setWidgetCalls;
+    await boundary(); await boundary();
+    assert.ok(afterBurst >= 1, 'the running job is shown');
+    assert.ok(afterBurst <= 3, `200 chunks caused ${afterBurst} redraws`);
+    assert.equal(setWidgetCalls, afterBurst, 'no redraw happens without new output');
+    release();
+    await flush();
+  } finally { await jobs.shutdown(); }
+});

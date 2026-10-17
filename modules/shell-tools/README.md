@@ -113,7 +113,7 @@ Jobs 面板自動掛在輸入欄上方 `aboveEditor`，Shell＋Subagents **合�
 
 `/background-jobs`／`more`／`all` 開有界浮層；`shell`／`subagents` 篩選，`collapse` 明確隱藏常駐面板，more／all 恢復。↑↓ 選取、Enter 詳細、Tab 最近完成／全部、Esc 返回／關閉回 editor，保持輸入草稿；只有主動開啟才取焦點，背景事件不重開浮層。Fullscreen 可左鍵點完整 More 標籤，一般模式保留 terminal mouse。完成逐項移出常駐面板，但 More 可查看目前 retained registry 的完整ID、命令預覽、開始／結束時間、exit、取消要求與既有 log 路徑／輸出 byte 統計；不讀 log／输出、不恢復跨 reload 或已淘汰工作。命令／ID 只做顯示層 ANSI／控制碼／bidi 清理，Unicode 按欄寬截短，不重寫原參數。
 
-共用 key `pi-better-tools-background-jobs`，純 UI helper 透過公開 pi.events rendezvous 協調；不共用 job registry，不替換 footer／Schedule Prompt 或移除其他狀態／widgets，footer 不重複 Jobs 摘要，不啟用未選 tools。僅 TUI+hasUI，RPC／JSON／print 不掛面板；單模組與兩種載入順序均支援。沿用 stdout／stderr、取消／完成事件更新，無 polling／ticker／模型請求，owner／generation／producer lease／disposed pointer／shutdown 防護保留，UI 例外不改執行、通知或結果。只列背景工作，不列前景、其他 owner/runtime 或 OS 行程。等待背景工作結束後 `/reload` 載入。
+共用 key `pi-better-tools-background-jobs`，純 UI helper 透過公開 pi.events rendezvous 協調；不共用 job registry，不替換 footer／Schedule Prompt 或移除其他狀態／widgets，footer 不重複 Jobs 摘要，不啟用未選 tools。僅 TUI+hasUI，RPC／JSON／print 不掛面板；單模組與兩種載入順序均支援。沿用 stdout／stderr、取消／完成事件更新（同一 event-loop 回合內的連續輸出 chunk 合併為一次重繪），無 polling／ticker／模型請求，owner／generation／producer lease／disposed pointer／shutdown 防護保留，UI 例外不改執行、通知或結果。只列背景工作，不列前景、其他 owner/runtime 或 OS 行程。等待背景工作結束後 `/reload` 載入。
 
 ```javascript
 const receipt = await tools.bash({ command: "npm test", background: true });
