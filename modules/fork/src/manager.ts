@@ -8,7 +8,7 @@ import { forwardParentArgs, removeTemporary } from "./args.ts";
 import { startForkChild, type ForkChildHandle, type ForkChildOutcome, type ForkChildSpec } from "./child.ts";
 import { FORK_TOOLS, forkCreationRefusal } from "./identity.ts";
 import { writeForkSession } from "./snapshot.ts";
-import { MAX_RESULT_BYTES, isTerminal, loadRecords, saveRecord, type Delivery, type ForkRecord, type ForkStatus } from "./store.ts";
+import { MAX_RESULT_BYTES, isTerminal, loadRecords, pruneRecords, saveRecord, type Delivery, type ForkRecord, type ForkStatus } from "./store.ts";
 
 export const MAX_ACTIVE_FORKS = 4;
 export const MAX_RETAINED_FORKS = 32;
@@ -91,6 +91,7 @@ export function acceptFork(pi: ExtensionAPI, ctx: ExtensionContext, params: { ta
 		saveRecord(cwd, record); // The workspace store must work before we accept anything.
 		Object.assign(forwarded, forwardParentArgs(deps.argv(), deps.launchCwd(), jobId, cwd));
 	} catch (error) { removeTemporary(forwarded.temporaryFiles); throw new Error(`FORK_STORE_UNAVAILABLE: ${String((error as Error)?.message ?? error).slice(0, 200)}`); }
+	pruneRecords(cwd); // Old finished records beyond the bounded scan would otherwise accumulate in the workspace forever.
 	const prompt = `You are a Fork: an independent continuation of the conversation above, running in your own process with the same tools and permissions. You cannot create further Forks. Complete the following task and finish with a concise final report of the results.\n\nTask:\n${params.task}`;
 	s.jobs.set(jobId, { record, released: false, acceptLeafId: sm.getLeafId(), sessionDir, tools, prompt, forwarded });
 	refreshUi();

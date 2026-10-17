@@ -68,13 +68,33 @@ export function parseRecord(text: string): ForkRecord | undefined {
 	} catch { return undefined; }
 }
 
+const recordNames = (cwd: string) => readdirSync(forksDir(cwd)).filter(name => /^[0-9A-HJKMNP-TV-Z]{26}\.json$/.test(name)).sort().reverse();
+
 /** Bounded newest-first scan; unreadable or foreign files are skipped, never repaired or deleted. */
 export function loadRecords(cwd: string, limit = MAX_STORED): ForkRecord[] {
 	let names: string[];
-	try { names = readdirSync(forksDir(cwd)).filter(name => /^[0-9A-HJKMNP-TV-Z]{26}\.json$/.test(name)).sort().reverse().slice(0, limit); } catch { return []; }
+	try { names = recordNames(cwd).slice(0, limit); } catch { return []; }
 	const records: ForkRecord[] = [];
 	for (const name of names) {
 		try { const record = parseRecord(readFileSync(join(forksDir(cwd), name), "utf8")); if (record && `${record.jobId}.json` === name) records.push(record); } catch { /* skip */ }
 	}
 	return records;
+}
+
+/** Best effort: deletes records the bounded scan can no longer see, but only finished ones whose result needs no delivery.
+ *  Unfinished, undelivered, unreadable or foreign files are kept. Returns the number removed. */
+export function pruneRecords(cwd: string, keep = MAX_STORED, maxDeletes = MAX_STORED): number {
+	let removed = 0;
+	let names: string[];
+	try { names = recordNames(cwd).slice(keep); } catch { return 0; }
+	for (const name of names) {
+		if (removed >= maxDeletes) break;
+		try {
+			const path = join(forksDir(cwd), name), record = parseRecord(readFileSync(path, "utf8"));
+			if (!record || `${record.jobId}.json` !== name || !isTerminal(record.status) || record.delivery === "pending") continue;
+			rmSync(path, { force: true });
+			removed++;
+		} catch { /* keep it */ }
+	}
+	return removed;
 }

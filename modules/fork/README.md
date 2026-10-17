@@ -30,7 +30,7 @@
 ## 儲存
 
 - 原生對話：來源 session 的 sessionDir 內一份 JSONL。
-- Metadata／結果：`<cwd>/.pi/forks/<jobId>.json`（owner-only、原子替換）：role／origin／設定指紋（工具名單雜湊，非內容）／狀態／有界結果／用量／cleanup 證據／delivery 狀態／`blocked` 真相（`reason`、有界錯誤文字、`pending` 計數、`since`）。任務文字只保存 500 字預覽；不保存 credentials。`blocked.error` 與完成後的 `result.error` 同源、同邊界、同權限，不引入新的敏感資料類別。
+- Metadata／結果：`<cwd>/.pi/forks/<jobId>.json`（owner-only、原子替換）：role／origin／設定指紋（工具名單雜湊，非內容）／狀態／有界結果／用量／cleanup 證據／delivery 狀態／`blocked` 真相（`reason`、有界錯誤文字、`pending` 計數、`since`）。任務文字只保存 500 字預覽；不保存 credentials。載入只掃描最新 64 筆；受理新 Fork 時，最多刪除 64 筆比這更舊、已終態且不需送達（delivery 非 `pending`）的紀錄，未完成、未送達、無法解析或不屬於本模組格式的檔案一律保留。`blocked.error` 與完成後的 `result.error` 同源、同邊界、同權限，不引入新的敏感資料類別。
 - 不寫入使用者全域 settings／auth／排程資料。
 
 ## 部署與限制（CP1 實測）
