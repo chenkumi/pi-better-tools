@@ -4,7 +4,7 @@
 
 - **`web_fetch`**：優先以 Playwright Chromium headless 渲染公開網頁；所選瀏覽器 executable 明確缺少時改用靜態 HTTP，兩者共用正文抽取並輸出清理後的 Markdown 或純文字。
 - **`web_search`**：依 `provider` 設定分兩種模式：
-  - `openai`（預設）／`native`：注入目前模型自己的原生搜尋（hosted search），不註冊同名 function tool，也不處理供應商密鑰（由 Pi 管理）。`openai` 僅限 OpenAI 家族 API（行為與舊版相同）；`native` 另外支援 Pi `google` provider 的 Gemini 3／4 系列（`googleSearch` grounding），其餘模型維持 inactive 警告。
+  - `openai`（預設）／`native`：注入目前模型自己的原生搜尋（hosted search），不註冊同名 function tool，也不處理供應商密鑰（由 Pi 管理）。`openai` 僅限 OpenAI 家族 API（行為與舊版相同）；`native` 另外支援 Pi `google` provider 的 Gemini 3／4 系列（`googleSearch` grounding）與 Pi `anthropic` provider 的 Claude（`web_search_20250305`），其餘模型維持 inactive 警告。
   - `brave`／`exa`／`deepseek`：註冊自訂 `web_search` 工具，回傳來源與供應商 snippets，不呼叫摘要模型。
 - **`/web-tools`** 指令：`status`、`sources`。
 
@@ -25,7 +25,7 @@ Repository 的 `npm run browser:install`、`browser:install-deps`、`setup:brows
 | 鍵 | 預設 | 範圍／說明 |
 | --- | --- | --- |
 | `version` | `1` | 僅接受 `1` |
-| `provider` | `"openai"` | `openai`（僅 OpenAI 家族原生搜尋）／`native`（依模型 API 選原生搜尋）／`brave`／`exa`／`deepseek` |
+| `provider` | `"openai"` | `openai`（僅 OpenAI 家族原生搜尋）／`native`（依模型 API 選原生搜尋：OpenAI 家族、Gemini 3／4、Anthropic）／`brave`／`exa`／`deepseek` |
 | `enabled` | `true` | 只控制搜尋；`web_fetch` 不受影響 |
 | `numResults` | `5` | 1–10，僅 REST 搜尋（Brave／Exa／DeepSeek） |
 | `searchTimeoutMs` | `60000` | 1000–120000，僅 REST 搜尋 |
@@ -64,7 +64,7 @@ Repository 的 `npm run browser:install`、`browser:install-deps`、`setup:brows
 
 `openai-codex` 使用相同的預設 OpenAI 搜尋設定，不需要額外 opt-in；本 extension 不顯示 Codex 實驗性警告。已移除 `providers.openai.experimentalCodex`，舊設定請刪除該欄位後 `/reload`（保留未知欄位拒絕規則）。設定錯誤與不支援模型的診斷仍保留；是否接受請求取決於實際後端及認證。
 
-### Gemini 原生搜尋（`provider: "native"`）
+### Gemini／Anthropic 原生搜尋（`provider: "native"`）
 
 ```json
 { "provider": "native" }
@@ -76,6 +76,11 @@ Repository 的 `npm run browser:install`、`browser:install-deps`、`setup:brows
 - Gemini 2.5／2.0 不注入（官方只保證 Gemini 3 以後能與 function declarations 併用），`google-vertex` 也不注入（Vertex 不支援混用，且 SDK 對上述 flag 直接報錯）。兩者都會顯示 inactive 原因。
 - 用法同 OpenAI 原生搜尋：不註冊 `web_search` tool、不碰 Gemini 密鑰。若另一 extension 以 client tool 形式提供 `web_search` function declaration，會中止該請求並報 `TOOL_CONFLICT`，不默默移除對方工具。
 - 來源：Pi 目前不解碼 `groundingMetadata`／`url_citation`，所以模型看不到來源物件；指引文字因此要求把完整 URL 寫進回答。需要可靠來源清單時仍請用 `provider: "native"` 以外的 REST 供應商。
+
+**Anthropic（`anthropic-messages`）**：對 Pi `anthropic` provider 注入 `{"type":"web_search_20250305","name":"web_search","max_uses":8}`。Anthropic 不相容端點（例如 `kimi-coding` 或自訂 proxy）預設不注入，因為沒實測，只顯示 inactive 原因。
+
+- Pi 1.3.0 會丟棄回應中的 `server_tool_use`／`web_search_tool_result` 與 citations。真實 API 實測（`plan/PLAN-20261017T153936832Z.md` Step 4）：後續輪次缺少這些 block 的歷史 **會被接受（200）**，只失去「檢索上下文還原」與來源顯示；保留 block 卻移除 `encrypted_content` 才回 400。因為連線不會被弄壞，本模組不需要 block replay。
+- 代價是模型看不到來源物件，因此指引要求回答自行寫出完整 URL；`pause_turn` 的續傳仍未實測。
 
 ### Brave／Exa／DeepSeek
 

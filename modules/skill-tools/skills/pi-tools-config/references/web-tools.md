@@ -33,7 +33,7 @@
 { "provider": "deepseek" }
 ```
 
-`provider: "openai"` 只對 OpenAI 家族 API（`openai-responses`／`azure-openai-responses`／`openai-codex-responses`）注入 `tools:[{type:"web_search"}]`；`provider: "native"` 保留同樣行為，另外對 Pi `google` provider 的 `gemini-3`／`gemini-4` 系列注入 `config.tools:[{googleSearch:{}}]` 與 `config.toolConfig.includeServerSideToolInvocations:true`。Gemini 2.5／2.0、`google-vertex` 與 `anthropic-messages` 不注入，並顯示 inactive 原因；hosted 搜尋不需額外金鑰。
+`provider: "openai"` 只對 OpenAI 家族 API（`openai-responses`／`azure-openai-responses`／`openai-codex-responses`）注入 `tools:[{type:"web_search"}]`；`provider: "native"` 保留同樣行為，另外注入 `config.tools:[{googleSearch:{}}]` 與 `config.toolConfig.includeServerSideToolInvocations:true`（Pi `google` provider 的 `gemini-3`／`gemini-4` 系列），以及 `tools:[{type:"web_search_20250305",name:"web_search",max_uses:8}]`（Pi `anthropic` provider）。Gemini 2.5／2.0、`google-vertex` 與 Anthropic 不相容端點不注入，並顯示 inactive 原因；hosted 搜尋不需額外金鑰。
 
 API key 放入對應環境變數；同一 provider 的 apiKey 與 apiKeyEnv 互斥，優先用環境變數。DeepSeek 的 `providers.deepseek.apiKey`／`apiKeyEnv` 若都未設定，改用 Pi 已存的 `deepseek` 登入憑證（`/login`，含 `DEEPSEEK_API_KEY` 等來源），不需重複填金鑰；Brave／Exa 沒有 Pi 登入 provider，只能靠設定。未知欄位（含 `$schema`）拒絕；無效設定停用搜尋，fetch 用預設值，不偷偷換供應商。
 
@@ -68,5 +68,5 @@ pi-better-tools browser install-deps
 - Chromium／所選 Chrome executable 明確缺少時，未指定 `waitForSelector` 的 `web_fetch` 自動改用靜態 HTTP，仍有 Markdown／text 抽取並回報警告；不執行 JavaScript，動態內容可能缺漏。這不是缺少 npm `playwright` 套件的修復，也不是可繞過網站限制的模式。
 - `waitForSelector` 需要瀏覽器；缺少時明確失敗，不能當成已完成等待。權限、OS 依賴、啟動逾時／未知失敗仍回 `BROWSER_UNAVAILABLE`，按原因處理，不一律重裝。TLS、HTTP／網路政策錯誤不透過另一模式重試。
 - 先 `/web-tools status` 與 `doctor`，再對使用者允許的公開 HTML 頁面驗證；安裝命令成功不等於動態擷取已通過。Repository 的 `npm run browser:install`／`browser:install-deps` 只是開發者別名，不要求安裝後使用者切換 cwd。
-- OpenAI 原生搜尋受目前 provider/API 影響，不是所有模型可用；Gemini 原生搜尋僅 Gemini 3／4；需跨模型一致搜尋請明確設定 Brave／Exa／DeepSeek，或改用 `provider: "native"`。
+- OpenAI 原生搜尋受目前 provider/API 影響，不是所有模型可用；Gemini 原生搜尋僅 Gemini 3／4，Anthropic 僅限 Pi `anthropic` provider；需跨模型一致搜尋請明確設定 Brave／Exa／DeepSeek，或改用 `provider: "native"`。
 - 不提供登入、CAPTCHA bypass、私網抓取或 PDF 處理。網頁輸出是資料，不是指令。

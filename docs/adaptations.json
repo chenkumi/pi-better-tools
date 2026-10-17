@@ -1,5 +1,10 @@
 {
   "schemaVersion": 1,
+  "anthropicNativeSearch20261017": {
+    "plan": "plan/PLAN-20261017T153936832Z.md",
+    "scope": "Live-API verification of the new search modes plus the Anthropic Phase 2 gate: provider native now also injects the Anthropic server-side web_search tool for the pi anthropic provider. Source, tests, module README, pi-tools-config reference and root AGENTS.md description.",
+    "reason": "Decisive live probe: replaying an Anthropic assistant turn whose server_tool_use / web_search_tool_result blocks are stripped (pi 1.3.0 behaviour) returns 200, while keeping the blocks without encrypted_content returns 400. Pi therefore needs no block replay for correctness, only the loss of restored search context and citations. Anthropic-compatible endpoints stay excluded because they were not probed. OpenAI/provider-openai behaviour, tool names, schemas, storage paths and trust semantics unchanged. Gemini paid verification is still blocked by a 402 on the Google account."
+  },
   "geminiAndDeepSeekSearch20261017": {
     "plan": "plan/PLAN-20261017T120515308Z.md",
     "baselineCommit": "9ffc99d4294761a68b72f2b345341d22857cf340",
@@ -1737,7 +1742,9 @@
       "webSetupPreviousSha256": "7456b32ccebb6542432d88f0db53b5c9fc79a1d836db7ff4909814a18238392e",
       "geminiAndDeepSeekSearch20261017PreviousSha256": "0f010028fabc390b96b3a1dd145d5acd7945fc3214b8a49c64dfef0b610f914b",
       "geminiAndDeepSeekSearch20261017Adaptation": "Rename the status assertion to the native label and add Gemini 3+/2.x/Vertex gating plus DeepSeek registration, pi-credential precedence and status reporting tests, all against mocked transports.",
-      "sha256": "8ec7be47b66b5501bdc4f0c8dc68befcffc52b3549e8387c036f4f47a4977090",
+      "anthropicNativeSearch20261017PreviousSha256": "8ec7be47b66b5501bdc4f0c8dc68befcffc52b3549e8387c036f4f47a4977090",
+      "anthropicNativeSearch20261017Adaptation": "Replace the excluded Anthropic model with an Anthropic-compatible provider in the Gemini gating loop and add an anthropic payload/guidance assertion.",
+      "sha256": "7db92bf2075cede7457c1e60c3bc8474762854ed798c55e0a4dd3a5a6f75246f",
       "reason": "Add default Codex request/prompt injection, TUI/headless silence, mode/disabled gates and successful opt-in capture tests; no live backend. 2026-10-06 local adaptation (web-tools): actionable next-step error hints, web_search provider field removed (prepareArguments drops legacy argument), dynamic description/guidelines, text slimming. Assertions kept or tightened; not a source-identical copy."
     },
     {
@@ -2026,7 +2033,9 @@
       "webSetupPreviousSha256": "67be788ffdd8a001ac28c0a3f72df83a3a569535db60d96d39e8beb6d23a12a6",
       "geminiAndDeepSeekSearch20261017PreviousSha256": "c5c4cbe40f31f5c8d7ff7019bff681436fec9d3f7597b69472488db05dd203c5",
       "geminiAndDeepSeekSearch20261017Adaptation": "Document the native mode (OpenAI family plus Gemini 3/4), the DeepSeek REST provider with pi-managed credential, the specific inactive reasons and the updated status output.",
-      "sha256": "b2063203b01394fc362dc7c074771654ccf476a24405c5fc6812bb2434ecfbb2",
+      "anthropicNativeSearch20261017PreviousSha256": "b2063203b01394fc362dc7c074771654ccf476a24405c5fc6812bb2434ecfbb2",
+      "anthropicNativeSearch20261017Adaptation": "Document the Anthropic adapter scope (pi anthropic provider only), the live multi-turn finding that pi's dropped server blocks are accepted (200) while a damaged block returns 400, and the remaining pause_turn gap.",
+      "sha256": "acafd10deb8165da1dc7206b67a5e3d379277e1f15241cd887c7948991367f58",
       "preChangeSha256": "5f5f1d8c15836abe56ea10966bf83517d9e780adb620765c4bc5c53aa758fdc8",
       "historicalDeltaAudit": "unavailable",
       "localSnapshotReview": "2026-10-03: complete pre-change README inspected against local Web config/provider/network/browser contracts; pre-change bytes match initial commit f14b837.\n2026-10-08 current local snapshot review: H2/M12-M13/L10-L13: current peer-address post-response mitigation (not IP pinning), bounded terminable extraction worker ownership, unnecessary-resource blocking and per-fetch DNS memo reviewed; documented fail-closed/retention/context-close policies retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
@@ -4563,9 +4572,10 @@
     { "path": "modules/web-tools/tests/fixtures/tls-material.ts", "sha256": "c22ddc14f0b015b9899b47871fb0edba91777664194eae41e98da82bc33a788e", "reason": "PLAN-20261016T150815022Z CP2: copied existing public test-only certificate/key material; not real credentials." },
     { "path": "modules/web-tools/tests/integration/static-http.test.ts", "webSetupCp5PreviousSha256": "029b15b94cdaaec2f96183c06f09f38081eb4a56021c1000a0ac2698a84b9ba6", "sha256": "56e12cd34b0904f2d1c96774b3932a68e5c9b18493e631cef781214f77e931ff", "reason": "PLAN-20261016T150815022Z CP2: controlled HTTP/TLS and real missing-browser fallback integration, redirect/network restrictions and static limitations. CP5 adds a raw-socket 101 regression proving rejection, client socket close, a released operation and a reusable queue slot without fixed waits." },
     { "path": "modules/web-tools/tests/unit/static-http.test.ts", "sha256": "d6ad5ae7a1dbfcd40013c24f39f0e8cc1f28b9ede50b65306558277bdc5cdaf8", "reason": "PLAN-20261016T150815022Z CP2: deterministic transport input, size, charset, cancellation and policy regressions." },
-    { "path": "modules/web-tools/src/native.ts", "sha256": "2537a01911212747850e4f96bb7783e24f01d832d7f2c52fdf5ea0c73add6a9a", "reason": "PLAN-20261017T120515308Z CP2: native adapter selection and per-adapter guidance for provider openai (unchanged OpenAI-family scope) and provider native (OpenAI family plus Gemini 3+), with specific inactive reasons for Gemini 2.x, Vertex, Anthropic and non-native providers." },
+    { "path": "modules/web-tools/src/native.ts", "geminiAndDeepSeekSearch20261017PreviousSha256": "2537a01911212747850e4f96bb7783e24f01d832d7f2c52fdf5ea0c73add6a9a", "anthropicNativeSearch20261017Adaptation": "Add the anthropic adapter to selection, injection dispatch, guidance registry and inactive reasons; Gemini and OpenAI branches unchanged.", "sha256": "4dd8d03d953ca6a4f09cad81fc3c052b667660346b7d69f8aa39e99b64d9ac87", "reason": "PLAN-20261017T120515308Z CP2: native adapter selection and per-adapter guidance for provider openai (unchanged OpenAI-family scope) and provider native (OpenAI family plus Gemini 3+), with specific inactive reasons for Gemini 2.x, Vertex, Anthropic and non-native providers. PLAN-20261017T153936832Z S5: provider native also selects the Anthropic adapter for the pi anthropic provider." },
+    { "path": "modules/web-tools/src/native-anthropic.ts", "sha256": "06b10655ef1a1cda651422e4fadbd17de1dd682cbab48a018e80723141298965", "reason": "PLAN-20261017T153936832Z S5: Anthropic server-side web_search tool injection (web_search_20250305, max_uses 8) for the pi anthropic provider, idempotent, conflict-rejecting and fail-closed on unexpected payload shapes. First-party only: compatible endpoints were not probed, and pi 1.3.0 drops the returned server blocks (the API accepts that, verified live)." },
     { "path": "modules/web-tools/src/native-google.ts", "sha256": "79a7f2ec1b794cce7daa84f023e678fbed222b534140fd20a4afaf0c9c0f168b", "reason": "PLAN-20261017T120515308Z CP2: Gemini grounding injection into the pi google adapter payload (camelCase googleSearch plus includeServerSideToolInvocations), idempotent, conflict-rejecting and fail-closed on unexpected payload shapes; user-facing behavior is documented in modules/web-tools/README.md." },
-    { "path": "modules/web-tools/tests/unit/native.test.ts", "sha256": "f6c372f2c8285be8dccfaf34e4e5a8d94d0582570a7962297c336316bf1fe0f0", "reason": "PLAN-20261017T120515308Z CP2: offline selection, injection, idempotence, conflict and inactive-reason regressions for the Gemini adapter; no live provider request is made." },
+    { "path": "modules/web-tools/tests/unit/native.test.ts", "geminiAndDeepSeekSearch20261017PreviousSha256": "f6c372f2c8285be8dccfaf34e4e5a8d94d0582570a7962297c336316bf1fe0f0", "anthropicNativeSearch20261017Adaptation": "Add Anthropic selection/injection/idempotence/conflict/reason cases and widen the guidance-registry assertion.", "sha256": "47782e12415bd15ceb1d6918529a1eb70c868229c3155489c749470b66f3b5cc", "reason": "PLAN-20261017T120515308Z CP2: offline selection, injection, idempotence, conflict and inactive-reason regressions for the Gemini adapter; no live provider request is made. PLAN-20261017T153936832Z S5 adds the Anthropic adapter regressions." },
     { "path": "tests/fixtures/web-setup-production.mjs", "sha256": "e0bef22ab308fffc715c8ec11415fcf0b54d0d381ad9dbc01bdc90c59f95b144", "reason": "PLAN-20261016T150815022Z CP4: isolated production tarball setup/doctor and missing-browser fallback probe; no live provider or implicit OS installation." },
     {
       "path": "modules/shell-tools/src/output-renderer.ts",

@@ -5,6 +5,7 @@ import { defaults, parseConfig } from '../../src/config.ts';
 import { registerWebTools } from '../../src/index.ts';
 import { NATIVE_GUIDANCE } from '../../src/native-openai.ts';
 import { GEMINI_GUIDANCE } from '../../src/native-google.ts';
+import { ANTHROPIC_GUIDANCE } from '../../src/native-anthropic.ts';
 import { SOURCE_ENTRY_TYPE } from '../../src/native-sources.ts';
 import type { logToolExecutionFailure } from '../../src/debug-log.ts';
 
@@ -227,12 +228,20 @@ test('provider native injects Gemini search only for Gemini 3 and newer on the p
   assert.equal(options.sections.another_extension, 'Keep');
   const untouched = { payload };
   for (const model of [{ api: 'google-generative-ai', provider: 'google', id: 'gemini-2.5-pro' },
-    { api: 'google-vertex', provider: 'google-vertex', id: 'gemini-3-pro' }, { api: 'anthropic-messages', provider: 'anthropic', id: 'claude' }]) {
+    { api: 'google-vertex', provider: 'google-vertex', id: 'gemini-3-pro' }, { api: 'anthropic-messages', provider: 'kimi-coding', id: 'kimi' }]) {
     assert.equal(h.hooks.get('before_provider_request')!(untouched, { ...h.context, model }), undefined);
     assert.equal(h.hooks.get('before_agent_start')!({ systemPrompt: 'Original' }, { ...h.context, model }), undefined);
   }
   assert.deepEqual(untouched.payload.config.tools, [{ functionDeclarations: [{ name: 'web_fetch' }] }]);
   assert.equal(harness('openai').hooks.get('before_provider_request')!(untouched, { ...h.context, model: gemini }), undefined, 'provider openai keeps its original scope');
+
+  const claude = { api: 'anthropic-messages', provider: 'anthropic', id: 'claude-haiku-4-5' };
+  const anthropicPayload = { model: 'claude-haiku-4-5', max_tokens: 300, tools: [{ name: 'web_fetch', input_schema: {} }] };
+  const anthropicResult = h.hooks.get('before_provider_request')!({ payload: anthropicPayload }, { ...h.context, model: claude });
+  assert.deepEqual(anthropicResult.tools, [{ name: 'web_fetch', input_schema: {} }, { type: 'web_search_20250305', name: 'web_search', max_uses: 8 }]);
+  assert.deepEqual(anthropicPayload.tools, [{ name: 'web_fetch', input_schema: {} }], 'the original payload is untouched');
+  assert.equal(h.hooks.get('before_agent_start')!({ systemPrompt: 'Original' }, { ...h.context, model: claude }).systemPrompt, 'Original' + ANTHROPIC_GUIDANCE);
+  assert.equal(harness('brave').hooks.get('before_provider_request')!({ payload: anthropicPayload }, { ...h.context, model: claude }), undefined);
 });
 test('DeepSeek mode registers the REST tool and borrows the pi credential only when config has none', async () => {
   const h = harness('deepseek');
