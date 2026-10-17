@@ -1,19 +1,27 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { StringEnum } from '@earendil-works/pi-ai';
 import { Type } from 'typebox';
-import { CONFIG_PATH, defaults, loadConfig, resolveKey } from './config.ts';
+import { CONFIG_PATH, defaults, loadConfig, resolveKey, type Credential, type Provider } from './config.ts';
 import { injectNativeSearch, NATIVE_GUIDANCE, supportsNativeSearch, type ModelIdentity } from './native-openai.ts';
 import { clip, sanitizeText, toolOutput } from './output.ts';
 import { executeWithDebugLog, logToolExecutionFailure } from './debug-log.ts';
 import { fetchOutputSchema, searchOutputSchema, webToolMetadata } from './tool-schemas.ts';
 import { captureNativeSources, formatSourceRecord, readSourceRecord, SOURCE_ENTRY_TYPE, type NativeSourceRecord, type ParsedProviderEvent } from './native-sources.ts';
-import { search } from './search.ts';
+import { search, type PiCredentialResolver } from './search.ts';
 import type { FetchService } from './fetch/service.ts';
 import { webRenderers } from './renderers.ts';
 
 export default function webTools(pi: ExtensionAPI) { return registerWebTools(pi, loadConfig); }
 
 const PROMPT_SECTION = 'pi_web_tools_native_search';
+const REST_PROVIDERS = ['brave', 'exa', 'deepseek'] as const;
+const PROVIDER_LABELS: Record<(typeof REST_PROVIDERS)[number], string> = { brave: 'Brave', exa: 'Exa', deepseek: 'DeepSeek' };
+const isRestProvider = (provider: Provider): provider is (typeof REST_PROVIDERS)[number] => (REST_PROVIDERS as readonly string[]).includes(provider);
+/** DeepSeek is the only REST provider with a Pi login; explicit config credentials still win in search.ts. */
+const piCredential = (ctx: ExtensionContext): PiCredentialResolver => async provider => {
+  const registry = (ctx as { modelRegistry?: { getApiKeyForProvider(name: string): Promise<string | undefined> } }).modelRegistry;
+  return await registry?.getApiKeyForProvider(provider)?.catch(() => undefined);
+};
 // Injected readers/reporters keep tests away from real settings and stdout.
 export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig,
   report: (message: string) => void = message => process.stderr.write(`[pi-web-tools] ${message}\n`),
@@ -87,13 +95,14 @@ export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig
     },
   });
 
-  if (!configError && config.enabled && config.provider !== 'openai') {
+  if (!configError && config.enabled && isRestProvider(config.provider)) {
+    const label = PROVIDER_LABELS[config.provider];
     pi.registerTool({
       name: 'web_search', label: 'Web Search',
       ...webRenderers('search'),
       ...webToolMetadata, ...{ outputSchema: searchOutputSchema },
-      description: `Search the web using ${config.provider === 'exa' ? 'Exa' : 'Brave'} (configured provider). Returns source URLs and provider snippets, not fetched full pages. Use web_fetch for full content. Output is bounded to 24 KiB/1000 lines.`,
-      promptSnippet: 'Search the web via Brave or Exa for sources and snippets',
+      description: `Search the web using ${label} (configured provider). Returns source URLs and provider snippets, not fetched full pages. Use web_fetch for full content. Output is bounded to 24 KiB/1000 lines.`,
+      promptSnippet: `Search the web via ${label} for sources and snippets`,
       promptGuidelines: [
         'Cite the source URL for every claim drawn from web_search results.',
         'After web_search, read the 1-3 most relevant results with web_fetch; do not conclude from snippets alone.',
@@ -111,7 +120,7 @@ export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig
       async execute(_id, args, signal, _onUpdate, ctx) {
         return executeWithDebugLog(ctx, 'web_search', async () => {
         const combined = signal ? AbortSignal.any([signal, shutdown.signal]) : shutdown.signal;
-        const result = await search(config, args, combined);
+        const result = await search(config, args, combined, undefined, piCredential(ctx));
         const brief = (s: string) => { const chars = [...s]; return chars.length > 600 ? `${chars.slice(0, 600).join('')}…` : s; };
         const text = [`Query: ${result.query}`, 'External, untrusted search results:', '',
           ...result.results.map((r, i) => `[${i + 1}] ${r.title}\n${r.url}${r.snippet ? `\n${brief(r.snippet)}` : ''}${r.publishedAt ? `\nPublished: ${r.publishedAt}` : ''}`),
@@ -201,11 +210,15 @@ export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig
         message = sources ? formatSourceRecord(sources) : 'No captured native sources on this branch. captureSources is opt-in and requires pi >=0.99.0 stream events.';
       } else if (args.trim() && args.trim() !== 'status') message = 'Usage: /web-tools status|sources';
       else {
-        const available = (p: 'brave' | 'exa') => { try { resolveKey(config.providers[p]); return 'configured (not validated)'; } catch { return 'missing'; } };
+        const available = (p: Credential) => { try { resolveKey(p); return 'configured (not validated)'; } catch { return 'missing'; } };
+        const explicitDeepSeek = !!(config.providers.deepseek.apiKey || config.providers.deepseek.apiKeyEnv);
+        const deepSeek = explicitDeepSeek ? available(config.providers.deepseek)
+          : (await piCredential(ctx)('deepseek')) ? 'pi-managed (not validated)' : 'missing';
         message = [`Config: ${CONFIG_PATH}`, configError ?? `Search: ${config.enabled ? config.provider : 'disabled'}`,
           `Native OpenAI for current model: ${native(ctx.model) ? 'enabled (backend capability not guaranteed)' : `inactive (${inactiveReason(ctx.model)})`}`,
           `Source capture: ${config.providers.openai.captureSources ? 'configured (effective only on native-supported requests; requires pi >=0.99.0)' : 'disabled (opt-in)'}`,
-          `Brave credential: ${available('brave')}`, `Exa credential: ${available('exa')}`,
+          `Brave credential: ${available(config.providers.brave)}`, `Exa credential: ${available(config.providers.exa)}`,
+          `DeepSeek credential: ${deepSeek}`,
           `Browser service: ${fetchService ? 'initialized; browser launched on demand' : 'not initialized'}`,
           'Configuration changes require /reload. OpenAI credentials are managed by pi.',
         ].join('\n');

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 
-export type Provider = 'openai' | 'brave' | 'exa';
+export type Provider = 'openai' | 'native' | 'brave' | 'exa' | 'deepseek';
 export interface Credential { apiKey?: string; apiKeyEnv?: string }
 export interface Config {
   version: 1;
@@ -10,14 +10,15 @@ export interface Config {
   enabled: boolean;
   numResults: number;
   searchTimeoutMs: number;
-  providers: { openai: { captureSources: boolean }; brave: Credential; exa: Credential };
+  providers: { openai: { captureSources: boolean }; brave: Credential; exa: Credential; deepseek: Credential };
   fetch: { channel: 'chromium' | 'chrome'; timeoutMs: number; maxConcurrency: number; idleTimeoutMs: number };
 }
 // Explicit override only; changing pi's agentDir must not silently migrate secrets.
 export const CONFIG_PATH = process.env.PI_WEB_TOOLS_CONFIG ?? join(homedir(), '.pi', 'agent', 'web-search.json');
 export const defaults = (): Config => ({
   version: 1, provider: 'openai', enabled: true, numResults: 5, searchTimeoutMs: 60000,
-  providers: { openai: { captureSources: false }, brave: { apiKeyEnv: 'BRAVE_API_KEY' }, exa: { apiKeyEnv: 'EXA_API_KEY' } },
+  // An empty DeepSeek credential means "use Pi's stored `deepseek` credential"; brave/exa have no Pi login provider.
+  providers: { openai: { captureSources: false }, brave: { apiKeyEnv: 'BRAVE_API_KEY' }, exa: { apiKeyEnv: 'EXA_API_KEY' }, deepseek: {} },
   fetch: { channel: 'chromium', timeoutMs: 30000, maxConcurrency: 2, idleTimeoutMs: 60000 },
 });
 function invalid(path: string): never { throw new Error(`CONFIG_INVALID: ${path}`); }
@@ -51,7 +52,7 @@ export function parseConfig(value: unknown): Config {
   keys(o, ['version', 'provider', 'enabled', 'numResults', 'searchTimeoutMs', 'providers', 'fetch'], 'root');
   if (o.version !== undefined && o.version !== 1) invalid('version');
   if (o.provider !== undefined) {
-    if (!['openai', 'brave', 'exa'].includes(o.provider as string)) invalid('provider');
+    if (!['openai', 'native', 'brave', 'exa', 'deepseek'].includes(o.provider as string)) invalid('provider');
     c.provider = o.provider as Provider;
   }
   if (o.enabled !== undefined) c.enabled = boolean(o.enabled, 'enabled');
@@ -59,8 +60,8 @@ export function parseConfig(value: unknown): Config {
   if (o.searchTimeoutMs !== undefined) c.searchTimeoutMs = integer(o.searchTimeoutMs, 1000, 120000, 'searchTimeoutMs');
   if (o.providers !== undefined) {
     const p = object(o.providers, 'providers');
-    keys(p, ['openai', 'brave', 'exa'], 'providers');
-    for (const name of ['brave', 'exa'] as const) if (p[name] !== undefined) c.providers[name] = credential(p[name], `providers.${name}`);
+    keys(p, ['openai', 'brave', 'exa', 'deepseek'], 'providers');
+    for (const name of ['brave', 'exa', 'deepseek'] as const) if (p[name] !== undefined) c.providers[name] = credential(p[name], `providers.${name}`);
     if (p.openai !== undefined) {
       const a = object(p.openai, 'providers.openai');
       keys(a, ['captureSources'], 'providers.openai');
