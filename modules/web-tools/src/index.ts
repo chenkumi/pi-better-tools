@@ -2,7 +2,8 @@ import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-a
 import { StringEnum } from '@earendil-works/pi-ai';
 import { Type } from 'typebox';
 import { CONFIG_PATH, defaults, loadConfig, resolveKey, type Credential, type Provider } from './config.ts';
-import { injectNativeSearch, NATIVE_GUIDANCE, supportsNativeSearch, type ModelIdentity } from './native-openai.ts';
+import { supportsNativeSearch, type ModelIdentity } from './native-openai.ts';
+import { NATIVE_GUIDANCE_BY_ADAPTER, NATIVE_GUIDANCES, injectNative, isNativeProvider, nativeInactiveReason, selectNative } from './native.ts';
 import { clip, sanitizeText, toolOutput } from './output.ts';
 import { executeWithDebugLog, logToolExecutionFailure } from './debug-log.ts';
 import { fetchOutputSchema, searchOutputSchema, webToolMetadata } from './tool-schemas.ts';
@@ -45,20 +46,19 @@ export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig
     });
     return servicePromise;
   }
-  const native = (model: ModelIdentity | undefined) =>
-    !configError && config.enabled && config.provider === 'openai' && supportsNativeSearch(model);
+  // A configuration error fails closed: no adapter, therefore no injection.
+  const nativeAdapter = (model: ModelIdentity | undefined) => configError ? undefined : selectNative(config, model);
+  const native = (model: ModelIdentity | undefined) => nativeAdapter(model) !== undefined;
   const inactiveReason = (model: ModelIdentity | undefined): string => {
     if (configError) return 'invalid configuration';
     if (!config.enabled) return 'search disabled';
-    if (config.provider !== 'openai') return 'REST search selected';
-    if (model?.api === 'pi-virtual') return 'virtual routing is unsupported: actual request provider metadata is unavailable; no injection or automatic fallback';
-    return 'model/API is unsupported';
+    return nativeInactiveReason(config, model);
   };
   const notices = new Set<string>();
   const warnInactive = (ctx: ExtensionContext) => {
-    if (configError || !config.enabled || config.provider !== 'openai' || native(ctx.model)) return;
+    if (configError || !config.enabled || !isNativeProvider(config.provider) || native(ctx.model)) return;
     const reason = inactiveReason(ctx.model);
-    if (!notices.has(reason)) { notices.add(reason); notify(ctx, `OpenAI native search inactive: ${reason}. Explicitly configure Brave/Exa and /reload for cross-model search.`, 'warning'); }
+    if (!notices.has(reason)) { notices.add(reason); notify(ctx, `Native search inactive: ${reason}. Explicitly configure Brave/Exa/DeepSeek, or "provider": "native", and /reload for cross-model search.`, 'warning'); }
   };
 
   pi.registerTool({
@@ -140,32 +140,35 @@ export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig
   }
   pi.on('before_provider_request', (event, ctx) => {
     warnInactive(ctx);
-    if (!native(ctx.model)) return;
-    try { return injectNativeSearch(event.payload); }
+    const adapter = nativeAdapter(ctx.model);
+    if (!adapter) return;
+    try { return injectNative(adapter, event.payload); }
     catch (error) { ctx.abort(); throw error; } // runner swallows errors: abort must remain.
   });
   pi.on('before_agent_start', (event, ctx) => {
     warnInactive(ctx);
-    const enabled = native(ctx.model) && !pi.getActiveTools().includes('web_search');
+    const adapter = nativeAdapter(ctx.model);
+    const guidance = adapter && !pi.getActiveTools().includes('web_search') ? NATIVE_GUIDANCE_BY_ADAPTER[adapter] : undefined;
     const options = event.systemPromptOptions as typeof event.systemPromptOptions & { sections?: Record<string, string>; forceSystemPrompt?: string };
     if (options?.sections) {
-      if (enabled) options.sections[PROMPT_SECTION] = NATIVE_GUIDANCE.trim();
+      if (guidance) options.sections[PROMPT_SECTION] = guidance.trim();
       else delete options.sections[PROMPT_SECTION];
       if (options.forceSystemPrompt === undefined) return;
     }
-    // Old hosts lack sections. Respect another extension's forced prompt and avoid duplication.
-    const base = (options?.forceSystemPrompt ?? event.systemPrompt).replace(NATIVE_GUIDANCE, '');
-    const prompt = base + (enabled ? NATIVE_GUIDANCE : '');
+    // Old hosts lack sections. Respect another extension's forced prompt and avoid duplicating any of our variants.
+    const base = NATIVE_GUIDANCES.reduce((prompt, text) => prompt.replace(text, ''), options?.forceSystemPrompt ?? event.systemPrompt);
+    const prompt = base + (guidance ?? '');
     if (prompt !== event.systemPrompt) return { systemPrompt: prompt };
   });
 
   const pending = new Map<string, NativeSourceRecord>();
   const sourceKey = (r: { api: string; provider: string; model: string; responseId: string }) => JSON.stringify([r.api, r.provider, r.model, r.responseId]);
-  if (!configError && config.enabled && config.provider === 'openai' && config.providers.openai.captureSources) {
+  if (!configError && config.enabled && isNativeProvider(config.provider) && config.providers.openai.captureSources) {
     // Local compatibility boundary: 0.85.1 accepts unknown registrations but never emits this newer event.
     const onStream = pi.on as unknown as (name: 'provider_stream_event', fn: (event: ParsedProviderEvent, ctx: ExtensionContext) => void) => void;
     onStream('provider_stream_event', (event, ctx) => {
-      if (stopped || !native(ctx.model)) return;
+      // Only OpenAI-family events carry hosted-search sources; Gemini grounding is not decoded by pi.
+      if (stopped || !supportsNativeSearch(ctx.model)) return;
       const sources = captureNativeSources(event);
       if (!sources) return;
       if (pending.size >= 4) pending.delete(pending.keys().next().value!);
@@ -215,7 +218,7 @@ export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig
         const deepSeek = explicitDeepSeek ? available(config.providers.deepseek)
           : (await piCredential(ctx)('deepseek')) ? 'pi-managed (not validated)' : 'missing';
         message = [`Config: ${CONFIG_PATH}`, configError ?? `Search: ${config.enabled ? config.provider : 'disabled'}`,
-          `Native OpenAI for current model: ${native(ctx.model) ? 'enabled (backend capability not guaranteed)' : `inactive (${inactiveReason(ctx.model)})`}`,
+          `Native search for current model: ${native(ctx.model) ? 'enabled (backend capability not guaranteed)' : `inactive (${inactiveReason(ctx.model)})`}`,
           `Source capture: ${config.providers.openai.captureSources ? 'configured (effective only on native-supported requests; requires pi >=0.99.0)' : 'disabled (opt-in)'}`,
           `Brave credential: ${available(config.providers.brave)}`, `Exa credential: ${available(config.providers.exa)}`,
           `DeepSeek credential: ${deepSeek}`,

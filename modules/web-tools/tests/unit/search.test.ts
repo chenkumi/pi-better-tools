@@ -101,3 +101,36 @@ test('legitimate empty results and bounded response bodies', async () => {
   assert.deepEqual((await search(config(), { query: 'nothing' }, undefined, async () => json({}))).results, []);
   await assert.rejects(search(config(), { query: 'large' }, undefined, async () => new Response('x'.repeat(2 * 1024 * 1024 + 1))), /too large/);
 });
+test('DeepSeek uses its standalone Search API with a pi-managed or configured credential', async () => {
+  const c = config(); c.provider = 'deepseek';
+  const calls: Array<{ url: string; auth: string | null; body: unknown }> = [];
+  const http = async (url: string, init: RequestInit) => {
+    calls.push({ url: String(url), auth: new Headers(init.headers).get('authorization'), body: JSON.parse(String(init.body)) });
+    return json({ results: [
+      { title: '<b>Title</b>', url: 'https://example.com/a#one', summary: 'summary text', date: '2026-10-01', snippet: '<b>snippet</b>' },
+      { title: 'duplicate', url: 'https://example.com/a#two' },
+      { title: 'bad', url: 'javascript:alert(1)' },
+      { title: 'missing url' },
+    ] });
+  };
+  const result = await search(c, { query: 'topic', numResults: 3 }, undefined, http, async provider => provider === 'deepseek' ? 'PI_KEY' : undefined);
+  assert.deepEqual(calls[0], { url: 'https://api.deepseek.com/v1/tools/search', auth: 'Bearer PI_KEY', body: { query: 'topic', count: 3 } });
+  assert.equal(result.provider, 'deepseek');
+  assert.deepEqual(result.results, [{ title: 'Title', url: 'https://example.com/a', snippet: 'snippet', publishedAt: '2026-10-01' }]);
+  assert.match(result.warnings[0]!, /Discarded 2 invalid source entries/);
+  c.providers.deepseek = { apiKey: 'CONFIG_KEY' };
+  await search(c, { query: 'topic' }, undefined, http, async () => 'PI_KEY');
+  assert.equal(calls[1]!.auth, 'Bearer CONFIG_KEY', 'an explicit config credential wins over the pi login');
+  c.providers.deepseek = {};
+  await assert.rejects(search(c, { query: 'topic' }, undefined, http, async () => undefined), /AUTH_REQUIRED: no DeepSeek credential/);
+  await assert.rejects(search(c, { query: 'topic' }, undefined, http), /AUTH_REQUIRED: no DeepSeek credential/);
+  await assert.rejects(search(c, { query: 'topic' }, undefined, async () => json({}), async () => 'PI_KEY'), /missing DeepSeek results/);
+  await assert.rejects(search(c, { query: 'topic' }, undefined, async () => new Response('SECRET', { status: 500 }), async () => 'PI_KEY'),
+    (e: Error) => /UPSTREAM_ERROR: deepseek/.test(e.message) && !e.message.includes('PI_KEY'));
+});
+test('DeepSeek falls back to the summary when the API omits a snippet', async () => {
+  const c = config(); c.provider = 'deepseek';
+  const result = await search(c, { query: 'topic' }, undefined, async () => json({ results: [{ title: 'A', url: 'https://example.com/a', summary: 'summary only' }] }), async () => 'PI_KEY');
+  assert.equal(result.results[0]?.snippet, 'summary only');
+  assert.equal(result.results[0]?.publishedAt, undefined);
+});

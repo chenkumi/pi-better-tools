@@ -4,10 +4,11 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { defaults, parseConfig } from '../../src/config.ts';
 import { registerWebTools } from '../../src/index.ts';
 import { NATIVE_GUIDANCE } from '../../src/native-openai.ts';
+import { GEMINI_GUIDANCE } from '../../src/native-google.ts';
 import { SOURCE_ENTRY_TYPE } from '../../src/native-sources.ts';
 import type { logToolExecutionFailure } from '../../src/debug-log.ts';
 
-function harness(provider: 'openai' | 'brave' | 'exa' = 'openai', enabled = true, capture = false, invalid = false,
+function harness(provider: 'openai' | 'native' | 'brave' | 'exa' | 'deepseek' = 'openai', enabled = true, capture = false, invalid = false,
   writeFailure?: typeof logToolExecutionFailure) {
   const tools: string[] = [], diagnostics: string[] = [];
   const definitions = new Map<string, Record<string, unknown>>();
@@ -70,7 +71,7 @@ test('Codex native search works by default without TUI or headless warnings and 
     assert.deepEqual(event.payload, { tools: [], include: [] });
     assert.deepEqual(h.diagnostics, []);
     await h.commands.get('web-tools')!.handler('status', ctx);
-    assert.match(h.diagnostics.at(-1)!, /Native OpenAI for current model: enabled/);
+    assert.match(h.diagnostics.at(-1)!, /Native search for current model: enabled/);
     assert.doesNotMatch(h.diagnostics.join(''), /experimental|opt-in.*Codex/i);
     for (const other of [harness('openai', false), harness('brave'), harness('exa')]) {
       assert.equal(other.hooks.get('before_provider_request')!(event, ctx), undefined);
@@ -208,6 +209,60 @@ test('shutdown racing the first lazy import cannot initialize or leave a browser
   await h.commands.get('web-tools')!.handler('status', h.context);
   assert.match(h.diagnostics.at(-1)!, /Browser service: not initialized/);
   await assert.rejects(execute('after', { url: 'https://example.com/' }, undefined), /AbortError|CANCELLED|aborted/i);
+});
+
+test('provider native injects Gemini search only for Gemini 3 and newer on the pi google provider', () => {
+  const h = harness('native');
+  assert.deepEqual(h.tools, ['web_fetch'], 'native mode does not register the REST tool');
+  const gemini = { api: 'google-generative-ai', provider: 'google', id: 'gemini-3-pro' };
+  const payload = { model: 'gemini-3-pro', contents: [], config: { tools: [{ functionDeclarations: [{ name: 'web_fetch' }] }] } };
+  const result = h.hooks.get('before_provider_request')!({ payload }, { ...h.context, model: gemini });
+  assert.deepEqual(result.config.tools, [{ functionDeclarations: [{ name: 'web_fetch' }] }, { googleSearch: {} }]);
+  assert.deepEqual(result.config.toolConfig, { includeServerSideToolInvocations: true });
+  assert.deepEqual(payload.config.tools, [{ functionDeclarations: [{ name: 'web_fetch' }] }], 'the original payload is untouched');
+  assert.equal(h.hooks.get('before_agent_start')!({ systemPrompt: 'Original' }, { ...h.context, model: gemini }).systemPrompt, 'Original' + GEMINI_GUIDANCE);
+  const options: { sections: Record<string, string> } = { sections: { another_extension: 'Keep' } };
+  assert.equal(h.hooks.get('before_agent_start')!({ systemPrompt: 'Original', systemPromptOptions: options }, { ...h.context, model: gemini }), undefined);
+  assert.equal(options.sections.pi_web_tools_native_search, GEMINI_GUIDANCE.trim());
+  assert.equal(options.sections.another_extension, 'Keep');
+  const untouched = { payload };
+  for (const model of [{ api: 'google-generative-ai', provider: 'google', id: 'gemini-2.5-pro' },
+    { api: 'google-vertex', provider: 'google-vertex', id: 'gemini-3-pro' }, { api: 'anthropic-messages', provider: 'anthropic', id: 'claude' }]) {
+    assert.equal(h.hooks.get('before_provider_request')!(untouched, { ...h.context, model }), undefined);
+    assert.equal(h.hooks.get('before_agent_start')!({ systemPrompt: 'Original' }, { ...h.context, model }), undefined);
+  }
+  assert.deepEqual(untouched.payload.config.tools, [{ functionDeclarations: [{ name: 'web_fetch' }] }]);
+  assert.equal(harness('openai').hooks.get('before_provider_request')!(untouched, { ...h.context, model: gemini }), undefined, 'provider openai keeps its original scope');
+});
+test('DeepSeek mode registers the REST tool and borrows the pi credential only when config has none', async () => {
+  const h = harness('deepseek');
+  assert.deepEqual(h.tools, ['web_fetch', 'web_search']);
+  const searchTool = h.definitions.get('web_search')!.execute as Function;
+  const original = globalThis.fetch;
+  const authorizations: string[] = [];
+  globalThis.fetch = (async (_url: string, init: RequestInit) => {
+    authorizations.push(new Headers(init.headers).get('authorization') ?? 'none');
+    return new Response(JSON.stringify({ results: [{ title: 'Title', url: 'https://example.com/a', snippet: 'snippet' }] }),
+      { status: 200, headers: { 'content-type': 'application/json' } });
+  }) as typeof fetch;
+  try {
+    const ctx = { ...h.context, cwd: process.cwd(), modelRegistry: { getApiKeyForProvider: async (name: string) => name === 'deepseek' ? 'PI_KEY' : undefined } };
+    const result = await searchTool('deepseek', { query: 'topic' }, undefined, undefined, ctx);
+    assert.deepEqual(authorizations, ['Bearer PI_KEY']);
+    assert.match(result.content[0].text as string, /https:\/\/example\.com\/a/);
+    h.config.providers.deepseek = { apiKey: 'CONFIG_KEY' };
+    await searchTool('deepseek', { query: 'topic' }, undefined, undefined, ctx);
+    assert.deepEqual(authorizations, ['Bearer PI_KEY', 'Bearer CONFIG_KEY']);
+    h.config.providers.deepseek = {};
+    await assert.rejects(searchTool('deepseek', { query: 'topic' }, undefined, undefined, h.context), /AUTH_REQUIRED/);
+  } finally { globalThis.fetch = original; }
+  await h.commands.get('web-tools')!.handler('status', { ...h.context, cwd: process.cwd() });
+  assert.match(h.diagnostics.at(-1)!, /Search: deepseek/);
+  assert.match(h.diagnostics.at(-1)!, /DeepSeek credential: missing/);
+  await h.commands.get('web-tools')!.handler('status', { ...h.context, cwd: process.cwd(),
+    modelRegistry: { getApiKeyForProvider: async () => 'PI_KEY' } });
+  assert.match(h.diagnostics.at(-1)!, /DeepSeek credential: pi-managed \(not validated\)/);
+  assert.ok(!h.diagnostics.join('').includes('PI_KEY'), 'status never prints the credential');
 });
 
 test('web_search description names the configured provider and guidelines require sources and fetch', () => {
