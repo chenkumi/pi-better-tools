@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import {
@@ -38,7 +38,7 @@ Both \`sqlite_query\` and \`sqlite_execute\` accept bindings in exactly one styl
 
 ## Safety
 
-Use \`sqlite_query\` only for statements that return rows; use \`sqlite_execute\` for writes or schema changes. Check \`sqlite_status\` before modifying data and use \`sqlite_list_tables\` or \`sqlite_describe_table\` to inspect an unfamiliar database. Query output is limited to 2,000 lines or 50 KB; use \`LIMIT\` for large results.`;
+Use \`sqlite_query\` only for statements that return rows; use \`sqlite_execute\` for writes or schema changes. Check \`sqlite_status\` before modifying data and use \`sqlite_list_tables\` or \`sqlite_describe_table\` to inspect an unfamiliar database. Query output is limited to 2,000 lines or 50 KB; use \`LIMIT\` for large results. One query reads at most 10,000 rows or about 8 MiB (the result then carries \`truncated: true\`), and BLOB values over 1 KiB are shown as a 1 KiB prefix with their \`byteLength\`. Opening a path that does not exist creates a new empty database; the open result says so. Opening never changes the database's journal mode.`;
 
 // Keep this as an unconstrained JSON value at the tool-schema boundary. Pi providers
 // can otherwise coerce a TypeBox array/object union to an empty collection before
@@ -128,14 +128,35 @@ function json(value: unknown): string {
   }, 2);
 }
 
+const OUTPUT_DIRECTORY = "pi-sqlite-tools";
+/** Saved full outputs are for follow-up reads in the same work session, not long-term storage. */
+export const OUTPUT_RETENTION_MS = 24 * 60 * 60 * 1000;
+const MAX_SWEEP_ENTRIES = 256;
+
+/** Best effort: removes saved outputs older than the retention period; never blocks a result. */
+export async function sweepOldOutputs(directory: string, now = Date.now()): Promise<void> {
+  try {
+    let scanned = 0;
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      if (++scanned > MAX_SWEEP_ENTRIES) break;
+      if (!entry.isFile() || !/^[0-9a-f-]{36}\.json$/.test(entry.name)) continue;
+      const path = join(directory, entry.name);
+      try {
+        if (now - (await stat(path)).mtimeMs > OUTPUT_RETENTION_MS) await rm(path, { force: true });
+      } catch { /* another process may have removed it */ }
+    }
+  } catch { /* housekeeping only */ }
+}
+
 async function formatResult(value: unknown) {
   const output = json(value);
   const truncation = truncateHead(output, { maxBytes: DEFAULT_MAX_BYTES, maxLines: DEFAULT_MAX_LINES });
   if (!truncation.truncated) return { text: output, truncated: false };
 
-  const directory = join(tmpdir(), "pi-sqlite-tools");
+  const directory = join(tmpdir(), OUTPUT_DIRECTORY);
   const outputPath = join(directory, `${randomUUID()}.json`);
   await mkdir(directory, { recursive: true });
+  await sweepOldOutputs(directory);
   await writeFile(outputPath, output, "utf8");
 
   return {
@@ -216,7 +237,7 @@ export default function sqliteExtension(pi: ExtensionAPI) {
     namespace: sqliteNamespace,
     name: "sqlite_query",
     label: "Query SQLite Database",
-    description: "Execute one SQL statement that returns rows, normally SELECT. Pass bindings as either an array for every ? placeholder or an object for every :name/@name/$name placeholder; never mix styles. Results are truncated to 2,000 lines or 50 KB.",
+    description: "Execute one SQL statement that returns rows, normally SELECT. Pass bindings as either an array for every ? placeholder or an object for every :name/@name/$name placeholder; never mix styles. Reads at most 10,000 rows (truncated: true when cut); output is truncated to 2,000 lines or 50 KB.",
     promptSnippet: "Read rows from the active SQLite database",
     promptGuidelines: ["Use sqlite_query only for SQL that returns rows; use sqlite_execute for mutations."],
     parameters: querySchema,

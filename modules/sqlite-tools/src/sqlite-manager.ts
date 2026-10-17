@@ -1,6 +1,38 @@
+import { existsSync } from "node:fs";
 import { DatabaseSync, type StatementSync } from "node:sqlite";
 
 export type SqlParams = readonly unknown[] | Record<string, unknown>;
+
+/** node:sqlite reads synchronously on the Pi thread: bound how much one query may materialize. */
+export const MAX_QUERY_ROWS = 10_000;
+export const MAX_QUERY_BYTES = 8 * 1024 * 1024;
+/** BLOB values longer than this are returned as a prefix plus their length. */
+export const MAX_BLOB_BYTES = 1024;
+
+export interface QueryResult {
+  columns: string[];
+  rows: unknown[][];
+  rowCount: number;
+  /** Present when the result was cut at MAX_QUERY_ROWS or MAX_QUERY_BYTES; more rows exist. */
+  truncated?: true;
+}
+
+function boundedValue(value: unknown): unknown {
+  if (value instanceof Uint8Array && value.length > MAX_BLOB_BYTES) {
+    return { type: "Buffer", byteLength: value.length, data: [...value.subarray(0, MAX_BLOB_BYTES)], truncated: true };
+  }
+  return value;
+}
+
+/** Rough serialized size, matching the JSON rendering of bigint and BLOB values. */
+function valueBytes(value: unknown): number {
+  if (value === null || value === undefined) return 4;
+  if (typeof value === "string") return Buffer.byteLength(value, "utf8") + 2;
+  if (typeof value === "number" || typeof value === "bigint") return String(value).length;
+  if (value instanceof Uint8Array) return value.length * 4 + 32;
+  if (typeof value === "object" && "data" in value && Array.isArray(value.data)) return value.data.length * 4 + 64;
+  return 16;
+}
 
 export interface SqliteStatus {
   isOpen: boolean;
@@ -16,10 +48,16 @@ export class SqliteManager {
   open(filePath: string): { success: boolean; message: string } {
     try {
       this.closeIfOpen();
+      // Keep the file's own journal mode: switching to WAL would persist in the database header.
+      const existed = existsSync(filePath);
       this.database = new DatabaseSync(filePath);
-      this.database.exec("PRAGMA journal_mode = WAL");
       this.currentPath = filePath;
-      return { success: true, message: `Database opened: ${filePath}` };
+      return {
+        success: true,
+        message: existed
+          ? `Database opened: ${filePath}`
+          : `Database created: ${filePath} did not exist, so a new empty database was created. If you meant an existing database, check the path, then sqlite_open it.`,
+      };
     } catch (error) {
       this.database = undefined;
       this.currentPath = undefined;
@@ -59,19 +97,29 @@ export class SqliteManager {
     return { isOpen: true, filePath: this.currentPath ?? null, tables };
   }
 
-  query(sql: string, params?: SqlParams): { columns: string[]; rows: unknown[][]; rowCount: number } {
+  query(sql: string, params?: SqlParams): QueryResult {
     const statement = this.getDatabase().prepare(sql);
     if (!isReader(statement)) {
       throw new Error("sqlite_query accepts only statements that return rows. Use sqlite_execute for writes.");
     }
 
-    const rows = statement.all(...(this.bindArgs(params) as never[])) as Record<string, unknown>[];
-    const columns = rows.length === 0 ? [] : Object.keys(rows[0]);
-    return {
-      columns,
-      rows: rows.map((row) => columns.map((column) => row[column])),
-      rowCount: rows.length,
-    };
+    let columns: string[] = [];
+    const rows: unknown[][] = [];
+    let bytes = 0;
+    let truncated = false;
+    // Stream rows and stop at the bounds; breaking out of the iterator resets the statement.
+    for (const row of statement.iterate(...(this.bindArgs(params) as never[])) as Iterable<Record<string, unknown>>) {
+      if (rows.length === 0) columns = Object.keys(row);
+      const values = columns.map((column) => boundedValue(row[column]));
+      const rowBytes = values.reduce<number>((total, value) => total + valueBytes(value) + 8, 8);
+      if (rows.length >= MAX_QUERY_ROWS || (rows.length > 0 && bytes + rowBytes > MAX_QUERY_BYTES)) {
+        truncated = true;
+        break;
+      }
+      bytes += rowBytes;
+      rows.push(values);
+    }
+    return { columns, rows, rowCount: rows.length, ...(truncated ? { truncated: true as const } : {}) };
   }
 
   execute(sql: string, params?: SqlParams): { changes: number | bigint; lastInsertRowid: number | bigint } {

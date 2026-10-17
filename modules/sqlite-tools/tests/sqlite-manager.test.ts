@@ -3,7 +3,8 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { SqliteManager } from "../src/sqlite-manager.js";
+import { DatabaseSync } from "node:sqlite";
+import { MAX_BLOB_BYTES, MAX_QUERY_BYTES, MAX_QUERY_ROWS, SqliteManager } from "../src/sqlite-manager.js";
 
 test("supports the SQLite tool workflow with positional and named parameters", () => {
   const directory = mkdtempSync(join(tmpdir(), "pi-sqlite-tools-"));
@@ -49,5 +50,55 @@ test("quotes unusual table names safely", () => {
   manager.execute('INSERT INTO "odd""name" (value) VALUES (?)', ["ok"]);
 
   assert.equal(manager.describeTable('odd"name').rowCount, 1);
+  manager.close();
+});
+
+test("keeps the database's journal mode and reports a newly created file", () => {
+  const directory = mkdtempSync(join(tmpdir(), "pi-sqlite-tools-"));
+  const path = join(directory, "existing.db");
+  const seed = new DatabaseSync(path);
+  seed.exec("CREATE TABLE t (x); INSERT INTO t VALUES (1)");
+  seed.close();
+
+  const manager = new SqliteManager();
+  assert.match(manager.open(path).message, /^Database opened:/);
+  manager.query("SELECT * FROM t");
+  manager.close();
+  const reopened = new DatabaseSync(path);
+  assert.equal((reopened.prepare("PRAGMA journal_mode").get() as { journal_mode: string }).journal_mode, "delete");
+  reopened.close();
+
+  const created = manager.open(join(directory, "typo.db"));
+  assert.equal(created.success, true);
+  assert.match(created.message, /did not exist, so a new empty database was created/);
+  manager.close();
+});
+
+test("bounds rows, bytes and BLOB values read by one query", () => {
+  const directory = mkdtempSync(join(tmpdir(), "pi-sqlite-tools-"));
+  const manager = new SqliteManager();
+  manager.open(join(directory, "big.db"));
+  manager.execute("CREATE TABLE n (v INTEGER)");
+  manager.execute(`INSERT INTO n WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < ${MAX_QUERY_ROWS + 5}) SELECT x FROM c`);
+
+  const many = manager.query("SELECT v FROM n ORDER BY v");
+  assert.equal(many.rowCount, MAX_QUERY_ROWS);
+  assert.equal(many.truncated, true);
+  assert.deepEqual(manager.query("SELECT v FROM n WHERE v <= 3 ORDER BY v"), { columns: ["v"], rows: [[1], [2], [3]], rowCount: 3 });
+
+  manager.execute("CREATE TABLE b (data BLOB)");
+  for (let i = 0; i < 12; i++) manager.execute("INSERT INTO b VALUES (zeroblob(1048576))");
+  const blobs = manager.query("SELECT data FROM b");
+  const first = blobs.rows[0]![0] as { byteLength: number; data: number[]; truncated: boolean };
+  assert.equal(first.byteLength, 1048576);
+  assert.equal(first.data.length, MAX_BLOB_BYTES);
+  assert.equal(first.truncated, true);
+  assert.equal(blobs.truncated, undefined);
+
+  manager.execute("CREATE TABLE s (text TEXT)");
+  for (let i = 0; i < 10; i++) manager.execute("INSERT INTO s VALUES (?)", ["x".repeat(MAX_QUERY_BYTES / 4)]);
+  const strings = manager.query("SELECT text FROM s");
+  assert.ok(strings.rowCount < 10 && strings.rowCount > 0);
+  assert.equal(strings.truncated, true);
   manager.close();
 });
