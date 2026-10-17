@@ -68,6 +68,12 @@ export interface CronJob {
 }
 
 /**
+ * Command jobs are identified by the presence of `command`; exactly one of `prompt` / `command` is set.
+ * Mirrors the scheduler's own discrimination so approval and execution can never disagree.
+ */
+export const isCommandJob = (job: CronJob): job is CronJob & { command: string } => job.command !== undefined;
+
+/**
  * Persistent storage for cron jobs
  */
 export interface CronStore {

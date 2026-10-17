@@ -13,6 +13,7 @@ import type { CronStorage } from "../storage.js";
 import type { CronJob } from "../types.js";
 import { commandSpecLines } from "../command.js";
 import { runAddFlow } from "./add-flow.js";
+import { toggleReviewedJob } from "./job-approval.js";
 
 const ADD = "Add job";
 const ADD_COMMAND = "Add shell command job";
@@ -74,16 +75,17 @@ export async function runJobsMenu(
         continue;
       }
       if (enabled && fresh.command !== undefined) {
-        // A command runs unattended: re-confirm the exact spec, then record this process's approval.
+        // A command runs unattended: re-confirm the exact spec before enabling it.
         const confirmed = await ctx.ui.confirm("Confirm enabling scheduled command", [`Enable "${fresh.name}"?`, ...commandSpecLines(ctx.cwd, fresh)].join("\n"));
         if (!confirmed) continue;
-        if (!scheduler.approveCommand(fresh)) {
-          ctx.ui.notify("The working directory is no longer available; the job stays disabled.", "error");
-          continue;
-        }
       }
-      storage.updateJob(fresh.id, { enabled });
-      scheduler.updateJob(fresh.id, { ...fresh, enabled });
+      try {
+        // Toggle through the reviewed-spec guard: a peer that changed the job while this confirmation was
+        // pending wins over the stale review, and command approval is recorded (or rolled back) there.
+        toggleReviewedJob(storage, scheduler, fresh, mySessionId);
+      } catch (error) {
+        ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
+      }
     } else if (action === "Remove") {
       if (await ctx.ui.confirm("Remove", `Remove "${fresh.name}"?`)) {
         storage.removeJob(fresh.id);

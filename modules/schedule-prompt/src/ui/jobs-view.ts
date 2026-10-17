@@ -11,10 +11,21 @@ import { deadlineLabel, validateJobDeadline } from "../deadline.js";
 import type { CronStorage } from "../storage.js";
 import type { CronJob } from "../types.js";
 import { commandLabel } from "../command.js";
+import { commandApprovalText, toggleReviewedJob } from "./job-approval.js";
 
 type ConfirmState =
   | { kind: "remove"; id: string; name: string }
   | { kind: "cleanup"; count: number };
+
+/** Approving a command needs the whole spec on screen: paged, and only after every page was displayed. */
+type ReviewState = {
+  job: CronJob;
+  page: number;
+  pages: number;
+  rendered: { geometry: string; page: number; pages: number } | null;
+};
+
+const DEFAULT_ROWS = 24;
 
 const NAME_W = 18;
 const SCHED_W = 16;
@@ -29,6 +40,7 @@ export class JobsView implements Component {
   private foreign: CronJob[] = [];
   private selectedIndex = 0;
   private confirm: ConfirmState | null = null;
+  private review: ReviewState | null = null;
   private actionError?: string;
 
   constructor(
@@ -40,6 +52,7 @@ export class JobsView implements Component {
     private requestRender: () => void,
     private done: () => void,
     private runAddCommand?: () => Promise<void>,
+    private rows?: () => number,
   ) {
     this.refresh();
   }
@@ -67,11 +80,46 @@ export class JobsView implements Component {
   }
 
   handleInput(data: string): void {
+    if (this.review) {
+      this.handleReviewInput(data);
+      return;
+    }
     if (this.confirm) {
       this.handleConfirmInput(data);
       return;
     }
     this.handleNormalInput(data);
+  }
+
+  /** One page turn per displayed page, so a batched arrow burst cannot skip content nobody saw. */
+  private handleReviewInput(data: string): void {
+    const review = this.review!;
+    if (matchesKey(data, "n") || matchesKey(data, "escape") || matchesKey(data, "q")) {
+      this.review = null;
+      this.requestRender();
+      return;
+    }
+    const displayed = review.rendered !== null;
+    if (matchesKey(data, "right")) {
+      if (displayed && review.page < review.pages) { review.page++; review.rendered = null; this.requestRender(); }
+      return;
+    }
+    if (matchesKey(data, "left")) {
+      if (displayed && review.page > 1) { review.page--; review.rendered = null; this.requestRender(); }
+      return;
+    }
+    if (!matchesKey(data, "y")) return;
+    // Approval needs the last page of the current geometry on screen: an early y reviews nothing.
+    if (!displayed || review.page !== review.pages) return;
+    this.review = null;
+    try {
+      toggleReviewedJob(this.storage, this.scheduler, review.job, this.mySessionId);
+      this.actionError = undefined;
+    } catch (error) {
+      this.actionError = error instanceof Error ? error.message : String(error);
+    }
+    this.refresh();
+    this.requestRender();
   }
 
   private handleConfirmInput(data: string): void {
@@ -141,13 +189,19 @@ export class JobsView implements Component {
         return;
       }
       // The row and details show the exact command and directory; enabling it here is the person's explicit act.
-      if (enabled && fresh.command !== undefined && !this.scheduler.approveCommand(fresh)) {
-        this.actionError = "The working directory is no longer available; the job stays disabled.";
+      // A command needs the whole spec reviewed first; the reviewed snapshot is what the view displayed, so a
+      // peer that changed the job meanwhile wins over the stale review instead of enabling an unseen command.
+      if (enabled && fresh.command !== undefined) {
+        this.review = { job: sel, page: 1, pages: 1, rendered: null };
         this.requestRender();
         return;
       }
-      this.storage.updateJob(sel.id, { enabled });
-      this.scheduler.updateJob(sel.id, { ...fresh, enabled });
+      try {
+        toggleReviewedJob(this.storage, this.scheduler, sel, this.mySessionId);
+        this.actionError = undefined;
+      } catch (error) {
+        this.actionError = error instanceof Error ? error.message : String(error);
+      }
       this.refresh();
       return;
     }
@@ -175,6 +229,7 @@ export class JobsView implements Component {
   }
 
   render(width: number): string[] {
+    if (this.review) return this.renderReview(width);
     const lines: string[] = [];
     const total = this.mine.length + this.foreign.length;
     const rule = this.theme.fg("dim", "─".repeat(Math.max(1, width)));
@@ -246,6 +301,36 @@ export class JobsView implements Component {
     lines.push(rule);
 
     return lines;
+  }
+
+  /** Full spec, wrapped and paged; a geometry change invalidates the pages the person already saw. */
+  private renderReview(width: number): string[] {
+    const review = this.review!;
+    const rows = Math.max(2, this.rows?.() ?? DEFAULT_ROWS), capacity = Math.max(1, rows - 2);
+    const body = this.reviewBody(review.job, width);
+    review.pages = Math.max(1, Math.ceil(body.length / capacity));
+    const geometry = `${width}x${rows}`;
+    if (review.rendered && review.rendered.geometry !== geometry) review.page = 1;
+    if (review.page > review.pages) review.page = review.pages;
+    const start = (review.page - 1) * capacity;
+    const lines = [
+      this.theme.fg("warning", truncateToWidth(` Confirm enabling scheduled command   Page ${review.page}/${review.pages}`, Math.max(1, width))),
+      ...body.slice(start, start + capacity),
+      this.theme.fg("dim", truncateToWidth(" ←/→ review   y approve   n cancel", Math.max(1, width))),
+    ];
+    if (this.actionError) lines.push(this.theme.fg("error", truncateToWidth(this.actionError, Math.max(1, width))));
+    review.rendered = { geometry, page: review.page, pages: review.pages };
+    return lines.slice(0, rows);
+  }
+
+  private reviewBody(job: CronJob, width: number): string[] {
+    const text = [`Enable "${job.name}"?`, ...commandApprovalText(job).split("\n")].join("\n");
+    const limit = Math.max(1, width), out: string[] = [];
+    for (const line of text.split("\n")) {
+      if (!line.length) { out.push(line); continue; }
+      for (let at = 0; at < line.length; at += limit) out.push(line.slice(at, at + limit));
+    }
+    return out;
   }
 
   private formatRow(job: CronJob, index: number, isForeign: boolean): string {

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, open, realpath } from "node:fs/promises";
-import { dirname, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import type { Activity } from "./activity-window.js";
 import { credentialPath, inside, safeRelative } from "./paths.js";
 
@@ -149,6 +149,36 @@ async function readBounded(path: string, root: string, budget: Budget, maxFile: 
   } finally { await handle.close(); }
 }
 
+/** Workspace-relative path of the deepest existing ancestor, with the remaining segments appended so a
+ *  missing or untracked leaf still yields a usable path. */
+async function canonicalRelative(root: string, path: string): Promise<string> {
+  const trailing: string[] = [];
+  let head = resolve(path);
+  for (;;) {
+    let real: string | undefined;
+    try { real = await realpath(head); } catch (error) {
+      const parent = dirname(head);
+      if ((code(error) !== "ENOENT" && code(error) !== "ENOTDIR") || parent === head) return relative(root, resolve(path)).replaceAll("\\", "/");
+      trailing.unshift(basename(head));
+      head = parent;
+      continue;
+    }
+    return relative(root, join(real, ...trailing)).replaceAll("\\", "/");
+  }
+}
+
+/** The caller's own spelling decides whether a candidate is inside the workspace: `realpath(cwd)` may expand
+ *  filesystem aliases (Windows 8.3 short names, junctions, case differences) that the candidate paths still
+ *  carry, and judging by the resolved root alone would report an in-workspace file as an escape. Only when the
+ *  caller's spelling is unsafe is the real location consulted, so a genuinely outside spelling stays skipped
+ *  and a lexical escape still reaches the canonical checks that report outside-workspace. */
+async function candidateRelative(base: string, root: string, path: string): Promise<string> {
+  const lexical = relative(base, path).replaceAll("\\", "/");
+  if (safeRelative(lexical)) return lexical;
+  const canonical = await canonicalRelative(root, path);
+  return safeRelative(canonical) ? canonical : lexical;
+}
+
 export async function scan(cwd: string, candidates: readonly Activity[], options: ScanOptions = {}): Promise<ScanResult> {
   const start = performance.now(), findings: Finding[] = [];
   const content: Budget = { remaining: options.maxTotalBytes ?? 32 * 1024 * 1024, read: 0 };
@@ -157,8 +187,8 @@ export async function scan(cwd: string, candidates: readonly Activity[], options
   try {
     if (!candidates.length) return { findings, bytes: 0, metadataBytes: 0, elapsedMs: performance.now() - start };
     if (candidates.length > 500) throw new Error("candidate-budget");
-    const root = await realpath(cwd);
-    const relativePaths = candidates.map(item => relative(root, item.path).replaceAll("\\", "/"));
+    const base = resolve(cwd), root = await realpath(cwd);
+    const relativePaths = await Promise.all(candidates.map(item => candidateRelative(base, root, item.path)));
     const docs: unknown[] = [];
     for (const name of ["sources", "adaptations", "native-modules"]) {
       const raw = await readBounded(`docs/${name}.json`, root, metadata, options.maxMetadataBytes ?? 8 * 1024 * 1024, options.signal, true);

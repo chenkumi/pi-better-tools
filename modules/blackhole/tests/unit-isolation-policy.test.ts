@@ -10,7 +10,7 @@ describe("isolated unit passive policy", () => {
     expect(mayExerciseNormalDefaults(join(unitTestsDir, "blackhole-command.test.ts"))).toBe(true);
   });
   it("does not allow real host, runtime or worker suites", () => {
-    for (const file of ["runtime.test.ts", "inline-compaction.test.ts", "consolidation.test.ts"]) {
+    for (const file of ["runtime.test.ts", "worker-attempt.test.ts", "consolidation.test.ts"]) {
       expect(mayExerciseNormalDefaults(join(unitTestsDir, file))).toBe(false);
     }
   });
