@@ -2,12 +2,12 @@ import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-a
 import { StringEnum } from '@earendil-works/pi-ai';
 import { Type } from 'typebox';
 import { CONFIG_PATH, defaults, loadConfig, resolveKey, type Credential, type Provider } from './config.ts';
-import { supportsNativeSearch, type ModelIdentity } from './native-openai.ts';
+import type { ModelIdentity } from './native-openai.ts';
 import { NATIVE_GUIDANCE_BY_ADAPTER, NATIVE_GUIDANCES, injectNative, isNativeProvider, nativeInactiveReason, selectNative } from './native.ts';
 import { clip, sanitizeText, toolOutput } from './output.ts';
 import { executeWithDebugLog, logToolExecutionFailure } from './debug-log.ts';
 import { fetchOutputSchema, searchOutputSchema, webToolMetadata } from './tool-schemas.ts';
-import { captureNativeSources, formatSourceRecord, readSourceRecord, SOURCE_ENTRY_TYPE, type NativeSourceRecord, type ParsedProviderEvent } from './native-sources.ts';
+import { captureGroundingSources, captureNativeSources, formatSourceRecord, readSourceRecord, SOURCE_ENTRY_TYPE, type NativeSourceRecord, type ParsedProviderEvent } from './native-sources.ts';
 import { search, type PiCredentialResolver } from './search.ts';
 import type { FetchService } from './fetch/service.ts';
 import { webRenderers } from './renderers.ts';
@@ -163,13 +163,16 @@ export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig
 
   const pending = new Map<string, NativeSourceRecord>();
   const sourceKey = (r: { api: string; provider: string; model: string; responseId: string }) => JSON.stringify([r.api, r.provider, r.model, r.responseId]);
-  if (!configError && config.enabled && isNativeProvider(config.provider) && config.providers.openai.captureSources) {
+  const captureOpenAiSources = !configError && config.enabled && isNativeProvider(config.provider) && config.providers.openai.captureSources;
+  const captureGoogleSources = !configError && config.enabled && config.provider === 'native' && config.providers.google.captureSources;
+  if (captureOpenAiSources || captureGoogleSources) {
     // Local compatibility boundary: 0.85.1 accepts unknown registrations but never emits this newer event.
     const onStream = pi.on as unknown as (name: 'provider_stream_event', fn: (event: ParsedProviderEvent, ctx: ExtensionContext) => void) => void;
-    onStream('provider_stream_event', (event, ctx) => {
-      // Only OpenAI-family events carry hosted-search sources; Gemini grounding is not decoded by pi.
-      if (stopped || !supportsNativeSearch(ctx.model)) return;
-      const sources = captureNativeSources(event);
+    onStream('provider_stream_event', (event, _ctx) => {
+      if (stopped) return;
+      // Each capture function decides its own provider/API/model eligibility from the event identity.
+      const sources = (captureOpenAiSources ? captureNativeSources(event) : undefined) ??
+        (captureGoogleSources ? captureGroundingSources(event) : undefined);
       if (!sources) return;
       if (pending.size >= 4) pending.delete(pending.keys().next().value!);
       pending.set(sourceKey(sources), sources);
@@ -219,11 +222,12 @@ export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig
           : (await piCredential(ctx)('deepseek')) ? 'pi-managed (not validated)' : 'missing';
         message = [`Config: ${CONFIG_PATH}`, configError ?? `Search: ${config.enabled ? config.provider : 'disabled'}`,
           `Native search for current model: ${native(ctx.model) ? 'enabled (backend capability not guaranteed)' : `inactive (${inactiveReason(ctx.model)})`}`,
-          `Source capture: ${config.providers.openai.captureSources ? 'configured (effective only on native-supported requests; requires pi >=0.99.0)' : 'disabled (opt-in)'}`,
+          `Source capture: openai ${config.providers.openai.captureSources ? 'enabled' : 'disabled'}; google ${config.providers.google.captureSources ? 'enabled' : 'disabled'} (opt-in, requires pi >=0.99.0 stream events)`,
+          `Native sources decode: openai ${nativeAdapter(ctx.model) === 'openai' ? 'ready' : 'n/a'}; google ${nativeAdapter(ctx.model) === 'google' ? 'ready' : 'n/a'}`,
           `Brave credential: ${available(config.providers.brave)}`, `Exa credential: ${available(config.providers.exa)}`,
           `DeepSeek credential: ${deepSeek}`,
           `Browser service: ${fetchService ? 'initialized; browser launched on demand' : 'not initialized'}`,
-          'Configuration changes require /reload. OpenAI credentials are managed by pi.',
+          'Configuration changes require /reload. OpenAI and Gemini credentials are managed by pi.',
         ].join('\n');
       }
       notify(ctx, message, 'info');

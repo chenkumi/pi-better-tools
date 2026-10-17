@@ -13,6 +13,7 @@
       "type": "object", "additionalProperties": false,
       "properties": {
         "openai": { "type": "object", "additionalProperties": false, "properties": { "captureSources": { "type": "boolean", "default": false } } },
+        "google": { "type": "object", "additionalProperties": false, "properties": { "captureSources": { "type": "boolean", "default": false } } },
         "brave": { "$ref": "#/$defs/credential" },
         "exa": { "$ref": "#/$defs/credential" },
         "deepseek": { "$ref": "#/$defs/credential" }

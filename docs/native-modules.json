@@ -217,7 +217,8 @@
           "webSetupPreviousSha256": "1ca15bde5997441de31d67a4d0e8722fa76957681ed4b43f9655049e3f354af3",
           "geminiAndDeepSeekSearch20261017PreviousSha256": "db145a45fb8a35535c79b865d1c290c9516350400796e0a8c9130e60544bf989",
           "anthropicNativeSearch20261017PreviousSha256": "b0f376c3ecc76d93b78b5cdfad1c473492238acf63083c8879bdb7a383801fe3",
-          "sha256": "5983a003a4e0b2330dca5b18094d06a483aa63b4778a9e283f3d764f0e0e29d8",
+          "sha256": "25e3a2ceecb9e9b954015b288a5aeaafa527b2b4d4df3e1a070d8172aa508c9e",
+          "geminiGroundingCapture20261017PreviousSha256": "5983a003a4e0b2330dca5b18094d06a483aa63b4778a9e283f3d764f0e0e29d8",
           "reason": "Search providers, fixed/default config path, environment credentials and browser setup. 2026-10-17: documents provider openai versus native (Gemini 3/4 grounding plus Anthropic web_search on the pi providers, no extra credential), the DeepSeek REST provider with a pi-login fallback credential, and that numResults/searchTimeoutMs apply to REST search only."
         },
         {

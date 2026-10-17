@@ -1,5 +1,6 @@
 import { sanitizeText } from './output.ts';
 import { supportsNativeSearch, type ModelIdentity } from './native-openai.ts';
+import { supportsGeminiNativeSearch } from './native-google.ts';
 
 export const SOURCE_ENTRY_TYPE = 'pi-web-tools.native-sources';
 export const MAX_SOURCE_ENTRIES = 50;
@@ -32,14 +33,9 @@ function citation(value: unknown): Citation | undefined {
     ? { startIndex: start as number, endIndex: end as number } : {}) };
 }
 
-/** Only terminal response output is inspected. Never copy raw events or query/auth fields. */
-export function captureNativeSources(event: ParsedProviderEvent): NativeSourceRecord | undefined {
-  if (!supportsNativeSearch(event) || !identifier(event.model, 256) || !record(event.data)) return;
-  if (!['response.completed', 'response.incomplete'].includes(event.data.type as string)) return;
-  const response = event.data.response;
-  if (!record(response) || !identifier(response.id, 256) || !['completed', 'incomplete'].includes(response.status as string) || event.data.type !== `response.${response.status}`) return;
-  const result: NativeSourceRecord = { version: 1, responseId: response.id, provider: event.provider, api: event.api, model: event.model,
-    status: response.status as NativeSourceRecord['status'], sources: [], citations: [], truncated: false };
+/** Bounded, allowlisted record builder shared by the OpenAI and Gemini capture paths. */
+function builder(identity: { api: string; provider: string; model: string; responseId: string }, status: NativeSourceRecord['status']) {
+  const result: NativeSourceRecord = { version: 1, ...identity, status, sources: [], citations: [], truncated: false };
   const seen = new Set<string>();
   const add = (kind: 'sources' | 'citations', value: Source | Citation | undefined) => {
     if (!value) return;
@@ -56,6 +52,17 @@ export function captureNativeSources(event: ParsedProviderEvent): NativeSourceRe
     if (value.length > limit) result.truncated = true;
     return value.slice(0, limit);
   };
+  return { result, add, bounded, done: () => (result.sources.length || result.citations.length ? result : undefined) };
+}
+
+/** Only terminal response output is inspected. Never copy raw events or query/auth fields. */
+export function captureNativeSources(event: ParsedProviderEvent): NativeSourceRecord | undefined {
+  if (!supportsNativeSearch(event) || !identifier(event.model, 256) || !record(event.data)) return;
+  if (!['response.completed', 'response.incomplete'].includes(event.data.type as string)) return;
+  const response = event.data.response;
+  if (!record(response) || !identifier(response.id, 256) || !['completed', 'incomplete'].includes(response.status as string) || event.data.type !== `response.${response.status}`) return;
+  const { add, bounded, done } = builder({ api: event.api, provider: event.provider, model: event.model, responseId: response.id },
+    response.status as NativeSourceRecord['status']);
   for (const item of bounded(response.output)) {
     if (!record(item)) continue;
     if (item.type === 'web_search_call' && record(item.action)) {
@@ -69,7 +76,33 @@ export function captureNativeSources(event: ParsedProviderEvent): NativeSourceRe
       }
     }
   }
-  return result.sources.length || result.citations.length ? result : undefined;
+  return done();
+}
+
+/**
+ * Gemini grounding arrives on provider stream chunks instead of a terminal response object.
+ * Only the grounding chunk list and its support offsets are copied: search queries, prompt text,
+ * search-entry HTML and raw events are never persisted. Grounding chunk URIs are usually
+ * `vertexaisearch.cloud.google.com` redirect URLs, not origin URLs.
+ */
+export function captureGroundingSources(event: ParsedProviderEvent): NativeSourceRecord | undefined {
+  if (!supportsGeminiNativeSearch({ api: event.api, provider: event.provider, id: event.model }) || !record(event.data)) return;
+  const candidate = Array.isArray(event.data.candidates) ? event.data.candidates[0] : undefined;
+  if (!record(candidate) || !record(candidate.groundingMetadata)) return;
+  const grounding = candidate.groundingMetadata;
+  const responseId = event.data.responseId;
+  if (!identifier(responseId, 256)) return;
+  const { add, bounded, done } = builder({ api: event.api, provider: event.provider, model: event.model, responseId }, 'completed');
+  const chunks = bounded(grounding.groundingChunks).map(entry => record(entry) && record(entry.web) ? source({ url: entry.web.uri, title: entry.web.title }) : undefined);
+  for (const s of chunks) add('sources', s);
+  for (const support of bounded(grounding.groundingSupports, 50)) {
+    if (!record(support)) continue;
+    const segment = record(support.segment) ? support.segment : undefined;
+    const referenced = (Array.isArray(support.groundingChunkIndices) ? support.groundingChunkIndices : [])
+      .map(index => Number.isSafeInteger(index) ? chunks[index as number] : undefined).filter((s): s is Source => !!s);
+    for (const s of referenced) add('citations', citation({ ...s, ...(segment ? { startIndex: segment.startIndex, endIndex: segment.endIndex } : {}) }));
+  }
+  return done();
 }
 
 /** Re-validate allowlisted data when reading persisted entries, which can be user-edited. */

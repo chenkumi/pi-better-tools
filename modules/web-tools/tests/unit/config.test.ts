@@ -34,6 +34,10 @@ test('partial fetch override retains defaults and OpenAI keys are rejected', () 
     assert.throws(() => parseConfig({ providers: { openai: { experimentalCodex } } }), /unknown field/);
   }
   assert.equal(parseConfig({ providers: { openai: { captureSources: true } } }).providers.openai.captureSources, true);
+  assert.equal(parseConfig({ providers: { google: { captureSources: true } } }).providers.google.captureSources, true);
+  assert.deepEqual(parseConfig({}).providers.google, { captureSources: false });
+  assert.throws(() => parseConfig({ providers: { google: { captureSources: 'SECRET' } } }), (e: Error) => /providers\.google\.captureSources/.test(e.message) && !e.message.includes('SECRET'));
+  assert.throws(() => parseConfig({ providers: { google: { apiKey: 'SECRET' } } }), /unknown field/);
   assert.throws(() => parseConfig({ providers: { openai: { captureSources: 'SECRET' } } }), (e: Error) => /captureSources/.test(e.message) && !e.message.includes('SECRET'));
   for (const path of ['', 'relative/SECRET.json']) assert.throws(() => loadConfig(path), (e: Error) => /path must be absolute/.test(e.message) && !e.message.includes('SECRET'));
 });

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { captureNativeSources, readSourceRecord, MAX_SOURCE_BYTES, MAX_SOURCE_ENTRIES, type ParsedProviderEvent } from '../../src/native-sources.ts';
+import { captureGroundingSources, captureNativeSources, readSourceRecord, MAX_SOURCE_BYTES, MAX_SOURCE_ENTRIES, type ParsedProviderEvent } from '../../src/native-sources.ts';
 
 export function sourceEvent(id = 'resp_test', sources: unknown[] = [{ url: 'https://source.example/', title: 'Source' }]): ParsedProviderEvent {
   return { provider: 'openai', api: 'openai-responses', model: 'fixture', data: {
@@ -67,4 +67,64 @@ test('nonterminal/failed/malformed responses and mismatched terminal status are 
   assert.equal(readSourceRecord({ version: 999, raw: 'SECRET' }), undefined);
   const result = captureNativeSources(sourceEvent())!;
   assert.equal(readSourceRecord({ ...result, sources: Array(51).fill(result.sources[0]) }), undefined);
+});
+
+const groundingEvent = (overrides: Record<string, unknown> = {}): ParsedProviderEvent => ({ provider: 'google', api: 'google-generative-ai', model: 'gemini-4-argon', data: {
+  candidates: [{ content: { parts: [{ text: 'SECRET_ANSWER' }] }, groundingMetadata: {
+    webSearchQueries: ['SECRET_QUERY'],
+    groundingChunks: [{ web: { uri: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc', title: 'First Source' } },
+      { web: { uri: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc', title: 'Duplicate' } },
+      { web: { uri: 'https://origin.example/page', title: 'Origin' } }, { web: { uri: 'file:///etc/passwd' } }, {}],
+    groundingSupports: [{ segment: { startIndex: 4, endIndex: 17 }, groundingChunkIndices: [2] },
+      { segment: { startIndex: 0, endIndex: 4 }, groundingChunkIndices: [0] }, { groundingChunkIndices: [0, 99] }],
+    searchEntryPoint: { renderedContent: '<style>SECRET_HTML</style>' },
+  } }], responseId: 'resp_grounding', usageMetadata: { promptTokenCount: 12 }, ...overrides } });
+
+test('grounding capture keeps only bounded sources and offset citations, never queries or raw events', () => {
+  const event = groundingEvent();
+  const snapshot = structuredClone(event);
+  const result = captureGroundingSources(event)!;
+  assert.deepEqual(event, snapshot, 'input is not mutated');
+  assert.equal(result.api, 'google-generative-ai');
+  assert.equal(result.provider, 'google');
+  assert.equal(result.model, 'gemini-4-argon');
+  assert.equal(result.responseId, 'resp_grounding');
+  assert.equal(result.status, 'completed');
+  assert.deepEqual(result.sources, [
+    { url: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc', title: 'First Source' },
+    { url: 'https://origin.example/page', title: 'Origin' },
+  ]);
+  assert.deepEqual(result.citations, [
+    { url: 'https://origin.example/page', title: 'Origin', startIndex: 4, endIndex: 17 },
+    { url: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc', title: 'First Source', startIndex: 0, endIndex: 4 },
+    { url: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc', title: 'First Source' },
+  ]);
+  assert.equal(result.truncated, false);
+  assert.ok(!JSON.stringify(result).includes('SECRET'), 'queries, answer text and search-entry HTML are never persisted');
+  assert.deepEqual(readSourceRecord(result), result);
+});
+
+test('grounding capture gates on the exact api, provider and model family, and needs a response id', () => {
+  for (const identity of [
+    { provider: 'proxy', api: 'google-generative-ai', model: 'gemini-4-argon' },
+    { provider: 'google', api: 'openai-responses', model: 'gemini-4-argon' },
+    { provider: 'google-generative-ai', api: 'google-generative-ai', model: 'gemini-4-argon' },
+  ]) assert.equal(captureGroundingSources({ ...groundingEvent(), ...identity }), undefined, JSON.stringify(identity));
+  assert.equal(captureGroundingSources({ ...groundingEvent(), model: 'gemini-2.5-pro' }), undefined, 'Gemini 2.x is not captured');
+  assert.notEqual(captureGroundingSources({ ...groundingEvent(), model: 'gemini-3.8-flash' }), undefined);
+  assert.equal(captureGroundingSources(groundingEvent({ responseId: undefined })), undefined);
+  assert.equal(captureGroundingSources(groundingEvent({ responseId: 'x'.repeat(300) })), undefined);
+  assert.equal(captureGroundingSources({ ...groundingEvent(), data: { candidates: [{ content: { parts: [] } }], responseId: 'resp' } }), undefined);
+  assert.equal(captureGroundingSources({ ...groundingEvent(), data: { candidates: [], responseId: 'resp' } }), undefined);
+  assert.equal(captureGroundingSources({ ...groundingEvent(), data: { candidates: [{ groundingMetadata: { groundingChunks: [{ web: {} }] } }], responseId: 'resp' } }), undefined);
+});
+
+test('grounding capture bounds entry count and byte size, dropping unsafe URLs', () => {
+  const many = Array.from({ length: MAX_SOURCE_ENTRIES + 10 }, (_, index) => ({ web: { uri: `https://source.example/${index}`, title: `Source ${index}` } }));
+  const result = captureGroundingSources(groundingEvent({ candidates: [{ groundingMetadata: { groundingChunks: many } }] }))!;
+  assert.equal(result.sources.length, MAX_SOURCE_ENTRIES);
+  assert.equal(result.truncated, true);
+  assert.ok(Buffer.byteLength(JSON.stringify(result)) <= MAX_SOURCE_BYTES);
+  const wide = groundingEvent({ candidates: [{ groundingMetadata: { groundingChunks: [{ web: { uri: `https://source.example/${'a'.repeat(2100)}` } }] } }] });
+  assert.equal(captureGroundingSources(wide), undefined, 'a URL over the per-source limit is dropped');
 });

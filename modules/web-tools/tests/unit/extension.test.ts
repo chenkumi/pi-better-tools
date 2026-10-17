@@ -10,13 +10,14 @@ import { SOURCE_ENTRY_TYPE } from '../../src/native-sources.ts';
 import type { logToolExecutionFailure } from '../../src/debug-log.ts';
 
 function harness(provider: 'openai' | 'native' | 'brave' | 'exa' | 'deepseek' = 'openai', enabled = true, capture = false, invalid = false,
-  writeFailure?: typeof logToolExecutionFailure) {
+  writeFailure?: typeof logToolExecutionFailure, captureGoogle = false) {
   const tools: string[] = [], diagnostics: string[] = [];
   const definitions = new Map<string, Record<string, unknown>>();
   const hooks = new Map<string, Function>();
   const commands = new Map<string, { handler: Function }>();
   let branch: { type: string; customType?: string; data?: unknown }[] = [];
   const config = defaults(); config.provider = provider; config.enabled = enabled; config.providers.openai.captureSources = capture;
+  config.providers.google.captureSources = captureGoogle;
   config.providers.brave = { apiKey: 'TEST_KEY' }; config.providers.exa = { apiKey: 'TEST_KEY' };
   const pi = {
     getActiveTools() { return tools; }, registerTool(t: { name: string } & Record<string, unknown>) { tools.push(t.name); definitions.set(t.name, t); },
@@ -272,6 +273,29 @@ test('DeepSeek mode registers the REST tool and borrows the pi credential only w
     modelRegistry: { getApiKeyForProvider: async () => 'PI_KEY' } });
   assert.match(h.diagnostics.at(-1)!, /DeepSeek credential: pi-managed \(not validated\)/);
   assert.ok(!h.diagnostics.join('').includes('PI_KEY'), 'status never prints the credential');
+});
+
+test('Gemini grounding capture is opt-in, mode-gated and persisted with matching identity', () => {
+  assert.ok(!harness('native').hooks.has('provider_stream_event'), 'google capture is opt-in');
+  assert.ok(!harness('openai', true, false, false, undefined, true).hooks.has('provider_stream_event'), 'provider openai does not capture grounding');
+  const h = harness('native', true, false, false, undefined, true);
+  const stream = h.hooks.get('provider_stream_event')!;
+  const identity = { api: 'google-generative-ai', provider: 'google', model: 'gemini-4-argon' };
+  h.context.model = { ...h.context.model, ...identity, id: 'gemini-4-argon' };
+  stream({ ...identity, data: { responseId: 'resp_ground', candidates: [{ groundingMetadata: {
+    groundingChunks: [{ web: { uri: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc', title: 'F1' } }],
+    webSearchQueries: ['SECRET_QUERY'] } }] } }, h.context);
+  h.hooks.get('turn_end')!({ message: { role: 'assistant', ...identity, responseId: 'resp_other', stopReason: 'stop' } }, h.context);
+  assert.equal(h.branch().length, 0, 'a mismatched response id is not persisted');
+  // turn_end clears pending, so the matched case needs its own stream event.
+  stream({ ...identity, data: { responseId: 'resp_ground', candidates: [{ groundingMetadata: {
+    groundingChunks: [{ web: { uri: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc', title: 'F1' } }] } }] } }, h.context);
+  h.hooks.get('turn_end')!({ message: { role: 'assistant', ...identity, responseId: 'resp_ground', stopReason: 'stop' } }, h.context);
+  assert.equal(h.branch().length, 1);
+  const record = h.branch()[0]!.data as { sources: { url: string }[]; api: string };
+  assert.deepEqual(record.sources, [{ url: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc', title: 'F1' }]);
+  assert.equal(record.api, 'google-generative-ai');
+  assert.ok(!JSON.stringify(record).includes('SECRET'), 'captured records never include search queries');
 });
 
 test('web_search description names the configured provider and guidelines require sources and fetch', () => {

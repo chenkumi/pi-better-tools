@@ -4,8 +4,8 @@
 
 - `web_fetch`：公開 HTTP(S) 頁面，`format: markdown|text`、`extraction: auto|main|body`、可選 `waitForSelector`。
 - `web_search`：`openai`／`native` 模式為模型自己的原生搜尋（hosted search）注入，不註冊同名 function tool；`brave`／`exa`／`deepseek` 模式才註冊 REST 工具。工具參數不接受 provider 切換。
-- `/web-tools status` 顯示設定路徑／模式／金鑰是否存在／瀏覽器狀態，不顯示金鑰或發網路探測。
-- `/web-tools sources` 顯示目前 branch 最近保存的原生搜尋來源。
+- `/web-tools status` 顯示設定路徑／模式／金鑰是否存在（不顯示金鑰）／兩個 `captureSources` 開關與來源解碼狀態／瀏覽器狀態，不發網路探測。
+- `/web-tools sources` 顯示目前 branch 最近保存的原生搜尋來源（OpenAI 原生搜尋與 Gemini grounding 共用同一種 entry）。
 
 ## Config 與作用範圍
 
@@ -37,7 +37,7 @@
 
 API key 放入對應環境變數；同一 provider 的 apiKey 與 apiKeyEnv 互斥，優先用環境變數。DeepSeek 的 `providers.deepseek.apiKey`／`apiKeyEnv` 若都未設定，改用 Pi 已存的 `deepseek` 登入憑證（`/login`，含 `DEEPSEEK_API_KEY` 等來源），不需重複填金鑰；Brave／Exa 沒有 Pi 登入 provider，只能靠設定。未知欄位（含 `$schema`）拒絕；無效設定停用搜尋，fetch 用預設值，不偷偷換供應商。
 
-其他常用鍵：`numResults` 1–10（預設5，僅 REST 搜尋）、`searchTimeoutMs` 1000–120000（預設60000，僅 REST 搜尋）、`providers.openai.captureSources` 預設 false；`fetch.channel` 為 chromium（預設）或 chrome、`fetch.timeoutMs` 為1000–120000（預設30000）、`fetch.maxConcurrency` 為1–4（預設2）、`fetch.idleTimeoutMs` 為1000–300000（預設60000）。時間皆為整數毫秒；可省略的 `version` 只接受1。
+其他常用鍵：`numResults` 1–10（預設5，僅 REST 搜尋）、`searchTimeoutMs` 1000–120000（預設60000，僅 REST 搜尋）、`providers.openai.captureSources` 預設 false；`providers.google.captureSources` 預設 false（僅 `provider: "native"` 且模型是 Pi `google` 的 Gemini 3／4 時生效；擷取 `groundingChunks` 與 `groundingSupports` offsets，不含 query／答案文字）。`fetch.channel` 為 chromium（預設）或 chrome、`fetch.timeoutMs` 為1000–120000（預設30000）、`fetch.maxConcurrency` 為1–4（預設2）、`fetch.idleTimeoutMs` 為1000–300000（預設60000）。時間皆為整數毫秒；可省略的 `version` 只接受1。
 
 ## 安裝與驗證
 

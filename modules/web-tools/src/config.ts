@@ -10,7 +10,7 @@ export interface Config {
   enabled: boolean;
   numResults: number;
   searchTimeoutMs: number;
-  providers: { openai: { captureSources: boolean }; brave: Credential; exa: Credential; deepseek: Credential };
+  providers: { openai: { captureSources: boolean }; google: { captureSources: boolean }; brave: Credential; exa: Credential; deepseek: Credential };
   fetch: { channel: 'chromium' | 'chrome'; timeoutMs: number; maxConcurrency: number; idleTimeoutMs: number };
 }
 // Explicit override only; changing pi's agentDir must not silently migrate secrets.
@@ -18,7 +18,7 @@ export const CONFIG_PATH = process.env.PI_WEB_TOOLS_CONFIG ?? join(homedir(), '.
 export const defaults = (): Config => ({
   version: 1, provider: 'openai', enabled: true, numResults: 5, searchTimeoutMs: 60000,
   // An empty DeepSeek credential means "use Pi's stored `deepseek` credential"; brave/exa have no Pi login provider.
-  providers: { openai: { captureSources: false }, brave: { apiKeyEnv: 'BRAVE_API_KEY' }, exa: { apiKeyEnv: 'EXA_API_KEY' }, deepseek: {} },
+  providers: { openai: { captureSources: false }, google: { captureSources: false }, brave: { apiKeyEnv: 'BRAVE_API_KEY' }, exa: { apiKeyEnv: 'EXA_API_KEY' }, deepseek: {} },
   fetch: { channel: 'chromium', timeoutMs: 30000, maxConcurrency: 2, idleTimeoutMs: 60000 },
 });
 function invalid(path: string): never { throw new Error(`CONFIG_INVALID: ${path}`); }
@@ -60,12 +60,13 @@ export function parseConfig(value: unknown): Config {
   if (o.searchTimeoutMs !== undefined) c.searchTimeoutMs = integer(o.searchTimeoutMs, 1000, 120000, 'searchTimeoutMs');
   if (o.providers !== undefined) {
     const p = object(o.providers, 'providers');
-    keys(p, ['openai', 'brave', 'exa', 'deepseek'], 'providers');
+    keys(p, ['openai', 'google', 'brave', 'exa', 'deepseek'], 'providers');
     for (const name of ['brave', 'exa', 'deepseek'] as const) if (p[name] !== undefined) c.providers[name] = credential(p[name], `providers.${name}`);
-    if (p.openai !== undefined) {
-      const a = object(p.openai, 'providers.openai');
-      keys(a, ['captureSources'], 'providers.openai');
-      if (a.captureSources !== undefined) c.providers.openai.captureSources = boolean(a.captureSources, 'providers.openai.captureSources');
+    for (const name of ['openai', 'google'] as const) {
+      if (p[name] === undefined) continue;
+      const a = object(p[name], `providers.${name}`);
+      keys(a, ['captureSources'], `providers.${name}`);
+      if (a.captureSources !== undefined) c.providers[name].captureSources = boolean(a.captureSources, `providers.${name}.captureSources`);
     }
   }
   if (o.fetch !== undefined) {
