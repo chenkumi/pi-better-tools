@@ -202,8 +202,9 @@
         {
           "path": "modules/skill-tools/skills/pi-tools-config/references/sqlite-tools.md",
           "standalonePreviousSha256": "788e0aa94cda67ba0f889997824339c3741110acdca37a33691dd710417298fb",
-          "sha256": "72db177da9df00d9d77d6bf796dc460e5f0603e7ddbed80a4e87240ff9e3bdc0",
-          "reason": "SQLite discovery, fixed/manual precedence, cwd resolution and reload behavior."
+          "sha256": "7de52b11b450a8f5ec8d45db535ef4e21455c89f62eb9ae954a897d519e82b7a",
+          "pi130UpgradeReconcile20261017PreviousSha256": "72db177da9df00d9d77d6bf796dc460e5f0603e7ddbed80a4e87240ff9e3bdc0",
+          "reason": "SQLite manual/fixed mount commands, config precedence, connection lifecycle and validation limits; no external links. 2026-10-17 recorded hash reconciled to the committed text from commit f1c9ec2 (the previous record did not match any committed revision of the file)."
         },
         {
           "path": "modules/skill-tools/skills/pi-tools-config/references/subagents.md",
@@ -240,8 +241,9 @@
           "configRoutingPreviousSha256": "e3bc504f3b44e53e72a851ab70fb761e09c4b10fee9e70cbdb002522eb226849",
           "fileAuditPreviousSha256": "ffaec803485b2f74022a29aed6b4c83ec4f693f467c5e441039c22f235ac8551",
           "webSetupPreviousSha256": "7391acb72d943002f73a308e9add2352c8ea2e55c1c486aab63bdd656c55a75f",
-          "sha256": "4b1fc6f455922fe287879895a8ad487e85faf03b77d7090dd6ae934364d41aa8",
-          "reason": "Usage, extension-filter boundary, migration/rollback and validation instructions."
+          "sha256": "0b2a2f64a20fab4ef9879a29d6edba0a71e8f2d268690256f1fe95af0a834d15",
+          "pi130UpgradeReconcile20261017PreviousSha256": "4b1fc6f455922fe287879895a8ad487e85faf03b77d7090dd6ae934364d41aa8",
+          "reason": "Usage, extension-filter boundary, migration/rollback and validation instructions. 2026-10-17 recorded hash reconciled to the committed text from commit a22fe48, which documented the added expert-lens and verify-findings skills."
         },
         {
           "path": "modules/skill-tools/tsconfig.json",

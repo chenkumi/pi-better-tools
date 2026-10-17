@@ -1,5 +1,10 @@
 {
   "schemaVersion": 1,
+  "pi130UpgradeReconcile20261017": {
+    "commit": "f1c9ec2",
+    "scope": "Re-record the three file-tools files that commit f1c9ec2 (pi 1.3.0 upgrade and integrated-tool expansion) changed without re-recording provenance.",
+    "reason": "Local reconciliation only: the recorded hashes were left behind by an earlier committed change. Content reviewed from the f1c9ec2 diff - the write renderCall wrapper with a streaming UTF-8 byte count, the matching regression suite and its documentation. No assertion was weakened and no upstream file was re-imported."
+  },
   "geminiGroundingCapture20261017": {
     "plan": "report/REPORT-20261017T171228362Z.md",
     "scope": "Opt-in Gemini grounding source capture: new providers.google.captureSources, a shared bounded record builder, captureGroundingSources, live-API end-to-end verification, module README, pi-tools-config reference and schema.",
@@ -1957,7 +1962,9 @@
       "streamingCharsAdaptation": "2026-10-16 user-requested renderCall-only receiving/received UTF-16 char counts: write content length below the preserved host preview and highlight cache; edit sums schema-array newText lengths without capture/repetition expansion. No disk progress, argument/schema, model feedback or atomic mutation changes.",
       "streamingBytesPreviousSha256": "b2c4ac60039be6b5d66d01c9bc097b173df7810feaf28b20577ab3b5183f0c93",
       "streamingBytesAdaptation": "2026-10-16 user-requested unit change: write/edit progress uses Buffer.byteLength(text, utf8) and bytes labels instead of UTF-16 lengths/chars. Write uses the same measure as success feedback; edit still counts replacement arguments only. Execution and atomic commit unchanged.",
-      "sha256": "aeba1399690305f406306e464d486955a8f0a21e53e8fdcd0a6dd3c0ad138bfe",
+      "sha256": "bae8a1c70f14d7c4613cb46e97b92e9f1e95775c6a333aa280152403a6bf94ed",
+      "pi130UpgradeReconcile20261017PreviousSha256": "aeba1399690305f406306e464d486955a8f0a21e53e8fdcd0a6dd3c0ad138bfe",
+      "pi130UpgradeReconcile20261017Adaptation": "Commit f1c9ec2: wrap the host write renderCall to show a live receiving/received UTF-8 byte count, add the same count line to the edit call renderer, and consolidate duplicate edit prompt guidelines. Reviewed against the commit diff; no unreviewed behaviour.",
       "tokenTrimPreviousSha256": "957a76195400c4cae2373486833321d17f42eb1730f11ebd51e9594c5e65d59b",
       "reason": "Wire builtin read/write calls and successful read/image presentation; custom error and write-success summaries. Tool schemas/content/details/structuredContent and file execution are unchanged. 2026-10-05 async adaptation: Advisory recovery only for missing managed run partial logs, no target substitution or permission/completion inference. 2026-10-06 local adaptation (file-tools): read/edit/write return slimming (no LINE_PREFIX, single-line metadata, compactPatch, no write details), error recovery points to shell, description/schema/guidelines de-duplicated. Assertions kept or tightened; not a source-identical copy. 2026-10-07 user-requested prompt cleanup: remove the shell-rg search directive without adding FFF-specific instructions; retain read-before-edit and continuation guidelines, update registration assertions and documentation. 2026-10-11 R1: registered edit reuses one bounded compact patch for success feedback.",
       "previousAsyncRecordedSha256": "afbb6aa93ff9cf2f3c759b0cba20df1df7136d6b977bf0f85169036e396448d6"
@@ -2024,7 +2031,9 @@
       "streamingCharsAdaptation": "2026-10-16 document dynamic received-argument counts, UTF-16 units, empty/partial inputs, schema-array edit scope and no disk-commit implication; host write preview preserved.",
       "streamingBytesPreviousSha256": "905300cb5048d1edd24d57637bf641f40dc8671efd6eceb615f64cf64ebf49aa",
       "streamingBytesAdaptation": "2026-10-16 document UTF-8 byte progress replacing character counts, write success-unit consistency and edit replacement-byte rather than final-file-size semantics.",
-      "sha256": "b8451d226b5b4df06c150620a5466a2c721642479eb62b513a2cd6afc29f9e61",
+      "sha256": "7e2edabca518ab599c7218babb50b8b2e39625b6ed9b8f71298c4b19c7bb6901",
+      "pi130UpgradeReconcile20261017PreviousSha256": "b8451d226b5b4df06c150620a5466a2c721642479eb62b513a2cd6afc29f9e61",
+      "pi130UpgradeReconcile20261017Adaptation": "Commit f1c9ec2: document the wrapped write renderer and the receiving/received UTF-8 byte counters, including that the count reflects received arguments rather than disk progress or final file size.",
       "preChangeSha256": "73c29be3446a5d371d2ae07c5f66bd5198a9f343c417f0bd7a060ad23b5d258d",
       "historicalDeltaAudit": "unavailable",
       "localSnapshotReview": "2026-10-03: pre-change local README inspected against schema, mutation queue and settings; pre-change bytes match initial commit f14b837.\n2026-10-08 current local snapshot review: MH1/M10-M11/L5-L9: current short temp names/bounded Windows retries, full-hash plus final stat stale fences, request-local regex reuse, diagnostic payload redaction and settings fallback reviewed; @ convention/diff fail-closed and metadata/TOCTOU limitations retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
@@ -2495,7 +2504,9 @@
       "streamingCharsAdaptation": "2026-10-16 three renderer regressions verified red before implementation and green afterwards: streaming count/component updates, completion label, UTF-16 and edit newText-only semantics, incomplete/empty inputs, host write preview preservation and narrow rendering. Existing result/error assertions retained.",
       "streamingBytesPreviousSha256": "6ad30bda08ba5e11f4ae6438e6de68d2d07ea3f30dbde02f1974dac0459fbeca",
       "streamingBytesAdaptation": "2026-10-16 adapt the three progress regressions to UTF-8 byte counts; ASCII/Chinese/emoji and 2260 UTF-16-unit versus 2266-byte example checked with literal expectations. Verified red before unit change, green in module checks.",
-      "sha256": "e1b5b3906d3a4d4a3fa6acb5ee66c8674abe38841259cba67d81fb5d26deecf7",
+      "sha256": "54d0dca47248d58f095ea0153f94beb02393123e6f3f18a7d0786230d6464a57",
+      "pi130UpgradeReconcile20261017PreviousSha256": "e1b5b3906d3a4d4a3fa6acb5ee66c8674abe38841259cba67d81fb5d26deecf7",
+      "pi130UpgradeReconcile20261017Adaptation": "Commit f1c9ec2: regression tests for the write/edit streaming byte counts (argsComplete switch, UTF-8 byte measurement, edit newText sum). Added coverage only; existing assertions unchanged.",
       "reason": "2026-10-06 local adaptation (file-tools): read/edit/write return slimming (no LINE_PREFIX, single-line metadata, compactPatch, no write details), error recovery points to shell, description/schema/guidelines de-duplicated. Assertions kept or tightened; not a source-identical copy."
     },
     {
@@ -7753,7 +7764,7 @@
         "path": "AGENTS.md",
         "skillToolsPreviousSha256": "04ac845ccbe5b42aa72d381ea59cd5301f34510449ed867b266bd266b13df61f",
         "skillToolsAdaptation": "Align module count, validation selector and dynamic-resource opt-out invariant.",
-        "dependencyUpgradePreviousSha256": "594f81ba397ed314f00ef83d88e02f1b2a34350c0b279d24ef9cba1d94780543", "fileAuditPreviousSha256": "ce546e03b4359e602c4cdea2706786bb6debd9382875ca5e3be3d7015c085398", "sha256": "961cee63ab38d075abb23e27b42d992d9ddf27c1effe2bbb5f2f31996fab5cab",
+        "dependencyUpgradePreviousSha256": "594f81ba397ed314f00ef83d88e02f1b2a34350c0b279d24ef9cba1d94780543", "fileAuditPreviousSha256": "ce546e03b4359e602c4cdea2706786bb6debd9382875ca5e3be3d7015c085398", "webToolsModes20261017Adaptation": "Web row now names the OpenAI/Gemini/Anthropic native modes and the Brave/Exa/DeepSeek REST providers, the DeepSeek pi-login credential read and the verified Anthropic multi-turn finding.", "sha256": "dfdee1eac73019cf0a6013cc391582669aacd9718e546a435910838a80bc8b8a",
         "monitorPreviousSha256": "4f7cb7f8fa477837aeeb2ff3b839b675bfb7d28b3c1ad65296d432546e78dedc",
         "piRuntimePreviousSha256": "05e16dfe5531bc7ff244feb780c5e1571f18718f073a001d73767c48133023e4",
         "previousBlackholeVendoringSha256": "602c9bd571f9ec6dc59371b9eca192203e3e4f09e55b790110ee78b07b9807e7",
