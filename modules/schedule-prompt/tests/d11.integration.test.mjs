@@ -6,12 +6,19 @@
 //   d. the schedule_prompt tool creates a command job only after an explicit UI confirmation (declined: nothing saved).
 import assert from 'node:assert/strict';
 import { mkdir, readFile } from 'node:fs/promises';
-import { realpathSync } from 'node:fs';
+import { realpathSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { job, log, makeSandbox, readStore, scheduleEntry, startPi, textOf, toolCall, toolResults, waitUntil, writeStore } from './_harness.mjs';
 
 const exists = path => readFile(path, 'utf8').then(() => true, () => false);
+/** Windows reports the same directory through its 8.3 short name in this process but through the long name
+ *  from a child shell, so identity decides membership; a zero inode cannot prove anything and never passes. */
+const sameDirectory = (a, b) => {
+  if (a.toLowerCase() === b.toLowerCase()) return true;
+  const x = statSync(a, { bigint: true }), y = statSync(b, { bigint: true });
+  return x.ino !== 0n && x.dev === y.dev && x.ino === y.ino;
+};
 const aliveProcess = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
 /** Scheduler markers as the RPC client saw them (a session file only exists once an assistant turn happened). */
 const markers = pi => pi.events.filter(e => e.type === 'message_end' && e.message?.customType === 'scheduled_prompt').map(e => e.message.details);
@@ -38,7 +45,7 @@ test('D11a: trusted project: a once command job runs in its directory through th
     assert.equal(stored.runCount, 1);
     assert.equal(stored.enabled, false, 'once job is disabled after it ran');
     const reported = (await readFile(join(work, 'marker.txt'), 'utf8')).trim();
-    assert.equal(reported.toLowerCase(), realpathSync(work).toLowerCase(), 'the command must run in the job directory, not the project root');
+    assert.ok(sameDirectory(reported, realpathSync(work)), 'the command must run in the job directory, not the project root');
     log(`markers=${JSON.stringify(seen.map(m => m.mode))}`);
     assert.deepEqual(seen.map(m => m.mode), ['command_start', 'command_done']);
     assert.equal(seen[1].exitCode, 0);
