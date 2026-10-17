@@ -3,9 +3,9 @@
 提供網頁抓取與網路搜尋工具：
 
 - **`web_fetch`**：優先以 Playwright Chromium headless 渲染公開網頁；所選瀏覽器 executable 明確缺少時改用靜態 HTTP，兩者共用正文抽取並輸出清理後的 Markdown 或純文字。
-- **`web_search`**：依 `provider` 設定分三種模式：
-  - `openai`（預設）：只在 OpenAI 請求中注入原生 `web_search`，不註冊同名 function tool，也不處理 OpenAI 密鑰（由 Pi 管理）。
-  - `brave`／`exa`：註冊自訂 `web_search` 工具，回傳來源與供應商 snippets，不呼叫摘要模型。
+- **`web_search`**：依 `provider` 設定分兩種模式：
+  - `openai`（預設）／`native`：注入目前模型自己的原生搜尋（hosted search），不註冊同名 function tool，也不處理供應商密鑰（由 Pi 管理）。`openai` 僅限 OpenAI 家族 API（行為與舊版相同）；`native` 另外支援 Pi `google` provider 的 Gemini 3／4 系列（`googleSearch` grounding），其餘模型維持 inactive 警告。
+  - `brave`／`exa`／`deepseek`：註冊自訂 `web_search` 工具，回傳來源與供應商 snippets，不呼叫摘要模型。
 - **`/web-tools`** 指令：`status`、`sources`。
 
 整合包需要 Node.js `^22.22.2 || ^24.15.0 || >=26.0.0`，依根 manifest 為準。Chromium 不會在安裝套件或載入 extension 時下載；瀏覽器在第一次 `web_fetch` 時才嘗試啟動。發布後使用套件 CLI `pi-better-tools doctor` 唯讀診斷、`pi-better-tools browser install` 僅下載 Chromium、`pi-better-tools browser install-deps` 明確安裝 Linux／WSL2 系統依賴（可能要求 sudo，須使用者同意）。只在 PATH 的 bin 對應此安裝實例時使用短命令；否則複製診斷提供的目前 Node＋`setup/cli.mjs` 絕對路徑命令，不依 cwd，也不以 npx 安裝另一版 Playwright。安裝與執行 Pi 使用同一使用者及 `PLAYWRIGHT_BROWSERS_PATH`。`fetch.channel: "chrome"` 明確選擇本機 Google Chrome（不使用個人 profile）；Chromium 安裝命令不安裝 Chrome 或改設定。
@@ -25,15 +25,17 @@ Repository 的 `npm run browser:install`、`browser:install-deps`、`setup:brows
 | 鍵 | 預設 | 範圍／說明 |
 | --- | --- | --- |
 | `version` | `1` | 僅接受 `1` |
-| `provider` | `"openai"` | `openai`／`brave`／`exa` |
+| `provider` | `"openai"` | `openai`（僅 OpenAI 家族原生搜尋）／`native`（依模型 API 選原生搜尋）／`brave`／`exa`／`deepseek` |
 | `enabled` | `true` | 只控制搜尋；`web_fetch` 不受影響 |
-| `numResults` | `5` | 1–10，僅 REST 搜尋（Brave／Exa） |
+| `numResults` | `5` | 1–10，僅 REST 搜尋（Brave／Exa／DeepSeek） |
 | `searchTimeoutMs` | `60000` | 1000–120000，僅 REST 搜尋 |
 | `providers.openai.captureSources` | `false` | 擷取原生搜尋來源紀錄（需 Pi 提供 `provider_stream_event`） |
 | `providers.brave.apiKeyEnv` | `"BRAVE_API_KEY"` | 存放金鑰的環境變數名稱 |
 | `providers.brave.apiKey` | — | 明文金鑰；與 `apiKeyEnv` 互斥 |
 | `providers.exa.apiKeyEnv` | `"EXA_API_KEY"` | 同上 |
 | `providers.exa.apiKey` | — | 同上 |
+| `providers.deepseek.apiKeyEnv` | — | 同上；未設定 `apiKey`／`apiKeyEnv` 時改用 Pi 的 `deepseek` 登入憑證 |
+| `providers.deepseek.apiKey` | — | 明文金鑰；與 `apiKeyEnv` 互斥；此值優先於 Pi 登入 |
 | `fetch.channel` | `"chromium"` | `chromium`／`chrome` |
 | `fetch.timeoutMs` | `30000` | 1000–120000 |
 | `fetch.maxConcurrency` | `2` | 1–4 |
@@ -62,7 +64,20 @@ Repository 的 `npm run browser:install`、`browser:install-deps`、`setup:brows
 
 `openai-codex` 使用相同的預設 OpenAI 搜尋設定，不需要額外 opt-in；本 extension 不顯示 Codex 實驗性警告。已移除 `providers.openai.experimentalCodex`，舊設定請刪除該欄位後 `/reload`（保留未知欄位拒絕規則）。設定錯誤與不支援模型的診斷仍保留；是否接受請求取決於實際後端及認證。
 
-### Brave／Exa
+### Gemini 原生搜尋（`provider: "native"`）
+
+```json
+{ "provider": "native" }
+```
+
+`native` 保留 `openai` 的全部行為，另外對 **Pi `google` provider 的 `gemini-3`／`gemini-4` 系列**（例如 `gemini-3-pro`、`gemini-4-argon`）注入 Gemini 的伺服器端 Google Search：在 `config.tools` 追加 `{ "googleSearch": {} }`，並設 `config.toolConfig.includeServerSideToolInvocations: true`。兩者都是 Gemini 3 起「內建工具與 function calling 併用」的必要條件。
+
+- 注入的鍵必須是 camelCase：Pi 的 `@google/genai` 只把已知欄位映到 request body，寫成 `google_search` 或頂層 `tools` 會被默默丟掉。
+- Gemini 2.5／2.0 不注入（官方只保證 Gemini 3 以後能與 function declarations 併用），`google-vertex` 也不注入（Vertex 不支援混用，且 SDK 對上述 flag 直接報錯）。兩者都會顯示 inactive 原因。
+- 用法同 OpenAI 原生搜尋：不註冊 `web_search` tool、不碰 Gemini 密鑰。若另一 extension 以 client tool 形式提供 `web_search` function declaration，會中止該請求並報 `TOOL_CONFLICT`，不默默移除對方工具。
+- 來源：Pi 目前不解碼 `groundingMetadata`／`url_citation`，所以模型看不到來源物件；指引文字因此要求把完整 URL 寫進回答。需要可靠來源清單時仍請用 `provider: "native"` 以外的 REST 供應商。
+
+### Brave／Exa／DeepSeek
 
 ```json
 { "provider": "brave", "providers": { "brave": { "apiKeyEnv": "BRAVE_API_KEY" } } }
@@ -72,7 +87,13 @@ Repository 的 `npm run browser:install`、`browser:install-deps`、`setup:brows
 { "provider": "exa", "providers": { "exa": { "apiKeyEnv": "EXA_API_KEY" } } }
 ```
 
-Brave 使用 Web Search endpoint；Exa 使用 Search endpoint（`type: "auto"`、highlights），不啟用生成答案。
+```json
+{ "provider": "deepseek" }
+```
+
+Brave 使用 Web Search endpoint；Exa 使用 Search endpoint（`type: "auto"`、highlights），不啟用生成答案；DeepSeek 使用官方 standalone `POST https://api.deepseek.com/v1/tools/search`（`{ query, count }`、Bearer 認證），結果的 `snippet`／`summary` 對應工具輸出，`date` 對應 `publishedAt`。
+
+DeepSeek 憑證解析順序：設定裡的 `providers.deepseek.apiKey`／`apiKeyEnv`（若明確設定）→ Pi 的 `deepseek` provider 登入憑證（`/login`，含 `DEEPSEEK_API_KEY` 等環境變數來源）→ `AUTH_REQUIRED`。因此已登入 DeepSeek 的人不需在設定裡再放金鑰。計費為官方 standalone API 價（每次成功請求 $0.75/1000）；本模組不顯示或查詢帳單。
 
 ### 診斷 log（選用）
 
@@ -109,7 +130,7 @@ Brave 使用 Web Search endpoint；Exa 使用 Search endpoint（`type: "auto"`�
 - HTTP 錯誤、不支援內容或空內容視為失敗。HTTP 相容路徑要求明確的 `text/html`、`application/xhtml+xml` 或 `text/plain` Content-Type；缺少 header 也拒絕，不做內容 sniffing（比 browser 路徑保守）。Plain text 先 escape 後抽取，BOM／HTTP charset／HTML early meta charset 依序解析；未知 charset 拒絕。反爬與登入頁偵測僅為啟發式。
 - 不處理 PDF、影音或下載；不登入、不繞過 CAPTCHA 或付費牆、不使用個人 cookies。
 
-### `web_search`（僅 `brave`／`exa` 模式註冊）
+### `web_search`（僅 `brave`／`exa`／`deepseek` 模式註冊）
 
 | 參數 | 必填 | 說明 |
 | --- | --- | --- |
@@ -120,11 +141,11 @@ Brave 使用 Web Search endpoint；Exa 使用 Search endpoint（`type: "auto"`�
 { "query": "Playwright Chromium headless documentation", "numResults": 5 }
 ```
 
-回傳每筆結果的 URL、title、供應商 snippet 與可取得的發布日期；全文請用 `web_fetch`。無結果時提示改寫關鍵字。工具 description 於註冊時依設定寫明實際 provider（Brave 或 Exa）；schema 無 `provider` 欄位（由設定決定），舊呼叫帶入的 `provider` 會在 `prepareArguments` 丟棄。模型可見文字不含 Provider 行，snippet 每筆最多 600 字元（`data`／`structuredContent` 保留完整內容與 provider）。`promptGuidelines` 要求回答附來源 URL、以 `web_fetch` 讀最相關 1~3 筆、不僅憑 snippet 下結論，並附 query 語法提示。一次只查一個供應商，不跨供應商 fallback、不自動重試；429 時提示有限格式的 Retry-After；逾時或取消會中止 HTTP 請求。
+回傳每筆結果的 URL、title、供應商 snippet 與可取得的發布日期；全文請用 `web_fetch`。無結果時提示改寫關鍵字。工具 description 於註冊時依設定寫明實際 provider（Brave／Exa／DeepSeek）；schema 無 `provider` 欄位（由設定決定），舊呼叫帶入的 `provider` 會在 `prepareArguments` 丟棄。模型可見文字不含 Provider 行，snippet 每筆最多 600 字元（`data`／`structuredContent` 保留完整內容與 provider）。`promptGuidelines` 要求回答附來源 URL、以 `web_fetch` 讀最相關 1~3 筆、不僅憑 snippet 下結論，並附 query 語法提示。一次只查一個供應商，不跨供應商 fallback、不自動重試；429 時提示有限格式的 Retry-After；逾時或取消會中止 HTTP 請求。
 
 ## 指令
 
-- `/web-tools status`：顯示設定路徑、目前模型的原生搜尋開關與未支援原因、REST 金鑰是否已設定（不顯示金鑰）、來源捕捉設定與 browser 初始化狀態；不發送網路探測。
+- `/web-tools status`：顯示設定路徑、目前模型的原生搜尋開關與未支援原因（含 Gemini 2.x／Vertex／Anthropic 等具體原因）、REST 金鑰是否已設定（含 DeepSeek 是 `pi-managed` 或 `missing`，不顯示金鑰）、來源捕捉設定與 browser 初始化狀態；不發送網路探測。
 - `/web-tools sources`：顯示目前 session branch 最近一筆原生搜尋來源紀錄。
 
 無 UI 模式下輸出至 stderr，不污染 JSON stdout。
@@ -144,7 +165,7 @@ Brave 使用 Web Search endpoint；Exa 使用 Search endpoint（`type: "auto"`�
 ## 安全行為與限制
 
 - 只存取公開 HTTP(S)；預設阻擋私有、loopback、link-local 與 metadata 位址。初始 URL、redirect 與子資源皆檢查；拒絕內嵌帳密的 URL。此限制無法由設定關閉。
-- `web_search` 已無 `provider` 參數；provider 僅由設定決定，舊呼叫帶入的值會被丟棄，不能繞過已設定的單一 provider。設定為 OpenAI 時 REST 搜尋仍回傳 PROVIDER_UNSUPPORTED。
+- `web_search` 已無 `provider` 參數；provider 僅由設定決定，舊呼叫帶入的值會被丟棄，不能繞過已設定的單一 provider。設定為 `openai`／`native` 時 REST 搜尋不註冊，直接呼叫會回傳 PROVIDER_UNSUPPORTED。
 - 主頁面 redirect 以 abort 後重新 goto 處理，redirect 回應上的 Set-Cookie 不會寫入 browser cookie jar（已知限制）；子資源 redirect 同樣由 Node 端手動追蹤。
 - context 關閉設有 5 秒上限，逾時仍會釋放佇列名額，瀏覽器由 idle／shutdown 清理。
 - 為逐跳驗證 redirect，網路請求經 Playwright context request 取回後交給 browser；部分重新導向子資源的相對 URL 語意可能與一般瀏覽不同。

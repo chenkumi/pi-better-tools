@@ -108,8 +108,9 @@
           "configRoutingPreviousSha256": "18f9d800fe809c4fef7e03e6aed12f5da67cd13b0124f7353729f92c2840bbb4",
           "fileAuditPreviousSha256": "d5ba4718b7e89d3f0074a578422c892f2cd808bd2d95f5ac78e05cbb8f9e2b21",
           "webSetupPreviousSha256": "fefe6c47330bca22e71c7c6c3b5f8c1144f41713f640a04a868ed2c85f0e086a",
-          "sha256": "59143e778eb3b8e3b3238e0878f2ad85c01cc9270b9d7528e3479b25fd626eb9",
-          "reason": "Native lazy module-config index with expanded English configuration-intent metadata, explicit routine-use/application-development exclusions and self-contained references."
+          "geminiAndDeepSeekSearch20261017PreviousSha256": "59143e778eb3b8e3b3238e0878f2ad85c01cc9270b9d7528e3479b25fd626eb9",
+          "sha256": "8f08d4c6eea16e11e11b13d865d5f62ad40994529199e5849ea2efc98e545961",
+          "reason": "Native lazy module-config index with expanded English configuration-intent metadata, explicit routine-use/application-development exclusions and self-contained references. 2026-10-17: Web row names the OpenAI/Gemini native modes and the Brave/Exa/DeepSeek REST providers."
         },
         {
           "path": "modules/skill-tools/skills/pi-tools-config/references/blackhole.md",
@@ -213,8 +214,9 @@
           "path": "modules/skill-tools/skills/pi-tools-config/references/web-tools.md",
           "standalonePreviousSha256": "dab2e13376ab9c2fce5b8c022a34f57c23363405cb26609a298d8a751c2651a8",
           "webSetupPreviousSha256": "1ca15bde5997441de31d67a4d0e8722fa76957681ed4b43f9655049e3f354af3",
-          "sha256": "db145a45fb8a35535c79b865d1c290c9516350400796e0a8c9130e60544bf989",
-          "reason": "Search providers, fixed/default config path, environment credentials and browser setup."
+          "geminiAndDeepSeekSearch20261017PreviousSha256": "db145a45fb8a35535c79b865d1c290c9516350400796e0a8c9130e60544bf989",
+          "sha256": "b0f376c3ecc76d93b78b5cdfad1c473492238acf63083c8879bdb7a383801fe3",
+          "reason": "Search providers, fixed/default config path, environment credentials and browser setup. 2026-10-17: documents provider openai versus native (Gemini 3/4 grounding, no extra credential), the DeepSeek REST provider with a pi-login fallback credential, and that numResults/searchTimeoutMs apply to REST search only."
         },
         {
           "path": "modules/skill-tools/tests/pi-tools-config.test.ts",

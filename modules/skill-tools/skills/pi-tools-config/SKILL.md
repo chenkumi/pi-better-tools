@@ -58,7 +58,7 @@ description: >-
 | Shell：Bash／PowerShell、總逾時、自動轉背景 | [shell-tools](references/shell-tools.md) |
 | File：read／edit／write／ls、除錯與 FFF 搜尋模式 | [file-tools](references/file-tools.md) |
 | File Audit：近期檔案窗口／容量、手動增量檢查與停用 | [file-audit](references/file-audit.md) |
-| Web：原生搜尋、Brave／Exa、Chromium 安裝與 HTTP 相容模式 | [web-tools](references/web-tools.md) |
+| Web：原生搜尋（OpenAI／Gemini）、Brave／Exa／DeepSeek、Chromium 安裝與 HTTP 相容模式 | [web-tools](references/web-tools.md) |
 | Note：分類筆記與自動路徑 | [note-tools](references/note-tools.md) |
 | Pi Runtime：錯誤恢復、deferred discovery、共通提示 | [pi-runtime](references/pi-runtime.md) |
 | Skill Tools：技能載入、指令與停用 | [skill-tools](references/skill-tools.md) |

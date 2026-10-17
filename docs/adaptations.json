@@ -1,5 +1,12 @@
 {
   "schemaVersion": 1,
+  "geminiAndDeepSeekSearch20261017": {
+    "plan": "plan/PLAN-20261017T120515308Z.md",
+    "baselineCommit": "9ffc99d4294761a68b72f2b345341d22857cf340",
+    "includedCheckpointCommits": ["94798ad3cac003211df5663b120d2a79430d420a", "41da68588d98224624916e48b34da0bc15e144b1"],
+    "scope": "User-requested hosted-search support research and the chosen options C: provider deepseek REST search and provider native Gemini grounding. Web config/schema, native adapter dispatch, search transport, unit tests, module README, pi-tools-config reference and root AGENTS.md mode description.",
+    "reason": "Brave/Exa/openai behavior, tool names, schemas, storage paths and trust semantics unchanged. DeepSeek borrows pi's stored deepseek credential only when the config sets none, and anthropic-messages stays unsupported because pi drops server tool blocks. Gemini injection is limited to gemini-3/gemini-4 on the pi google provider because only Gemini 3 and newer are documented to combine built-in search with function declarations. Offline verification (typecheck, lint, unit tests) does not certify a live Google or DeepSeek request; the documented provider behavior is unverified against the real APIs."
+  },
   "scanFix20261017": {
     "plan": "plan/SCAN-20261017T050000Z.md",
     "baselineCommit": "4180c9796f5ccdffb821b4891b058b06f6d72596",
@@ -1688,13 +1695,17 @@
     {
       "path": "modules/web-tools/schemas/web_search.schema.json",
       "originalSha256": "395514f1cda8ff10442ed27fdc59e8eae5d7571f51f9543293bb712a34e0e251",
-      "sha256": "402649f6ddc98fdae0ab63f919122c355ff73c0e689c34266b94ac8462b1573c",
+      "geminiAndDeepSeekSearch20261017PreviousSha256": "402649f6ddc98fdae0ab63f919122c355ff73c0e689c34266b94ac8462b1573c",
+      "geminiAndDeepSeekSearch20261017Adaptation": "Add native and deepseek to the provider enum plus the optional providers.deepseek credential; additionalProperties false and strict credential rules retained.",
+      "sha256": "ba42f28be65dec93445b49a35736aab2f108048ebe2d7f25858536cc014bddff",
       "reason": "Remove Codex experimental field; retain strict unknown-field rejection."
     },
     {
       "path": "modules/web-tools/src/config.ts",
       "originalSha256": "b63108ebf0167857921bc043b27b1f32a1af4b8329a4b2a10d5a3e94a9e6a0f4",
-      "sha256": "9286b52bbcd8cef660d5f25123e48dd1feb7ec313e20f8f0b2a9744e24857805",
+      "geminiAndDeepSeekSearch20261017PreviousSha256": "9286b52bbcd8cef660d5f25123e48dd1feb7ec313e20f8f0b2a9744e24857805",
+      "geminiAndDeepSeekSearch20261017Adaptation": "Add native and deepseek provider values and the optional providers.deepseek credential (empty means pi-managed login); defaults and unknown-field rejection for every other key unchanged.",
+      "sha256": "be4810b378926e8db25a70b8f1501bdfb33213fec3ebf205d2ff700373bdbf75",
       "reason": "Remove Codex experimental option from type, defaults and parser; strict unknown-field validation retained."
     },
     {
@@ -1712,7 +1723,9 @@
     {
       "path": "modules/web-tools/tests/unit/config.test.ts",
       "originalSha256": "17902563d83b82f3686cfc00065a34eeef80c9cbbf37cd35081aabd1213c2eab",
-      "sha256": "28e04bd7e00ee6e8c024a479d00aee3f1dc414af7368fef0ae7f560ae8905de8",
+      "geminiAndDeepSeekSearch20261017PreviousSha256": "28e04bd7e00ee6e8c024a479d00aee3f1dc414af7368fef0ae7f560ae8905de8",
+      "geminiAndDeepSeekSearch20261017Adaptation": "Cover the native/deepseek provider values, the empty and explicit DeepSeek credential, mutual exclusion and rejection of an unknown provider value.",
+      "sha256": "b96fc4fc25773ee5ac85b4eec6ee1d84e952da7e427837bc68e68730d31233d8",
       "reason": "Assert absent experimental default and strict rejection of removed true/false field."
     },
     {
@@ -1722,7 +1735,9 @@
       "browserLaunchPreviousSha256": "76ad878d361eb65506270c25ff8d7b4ce3c1d396c89745e500f848cf0b0e1662",
       "browserLaunchAdaptation": "2026-10-16 assert cause-specific browser startup guidelines and reject the former unconditional installation instruction.",
       "webSetupPreviousSha256": "7456b32ccebb6542432d88f0db53b5c9fc79a1d836db7ff4909814a18238392e",
-      "sha256": "0f010028fabc390b96b3a1dd145d5acd7945fc3214b8a49c64dfef0b610f914b",
+      "geminiAndDeepSeekSearch20261017PreviousSha256": "0f010028fabc390b96b3a1dd145d5acd7945fc3214b8a49c64dfef0b610f914b",
+      "geminiAndDeepSeekSearch20261017Adaptation": "Rename the status assertion to the native label and add Gemini 3+/2.x/Vertex gating plus DeepSeek registration, pi-credential precedence and status reporting tests, all against mocked transports.",
+      "sha256": "8ec7be47b66b5501bdc4f0c8dc68befcffc52b3549e8387c036f4f47a4977090",
       "reason": "Add default Codex request/prompt injection, TUI/headless silence, mode/disabled gates and successful opt-in capture tests; no live backend. 2026-10-06 local adaptation (web-tools): actionable next-step error hints, web_search provider field removed (prepareArguments drops legacy argument), dynamic description/guidelines, text slimming. Assertions kept or tightened; not a source-identical copy."
     },
     {
@@ -1936,7 +1951,9 @@
       "browserLaunchPreviousSha256": "3644ef19289553a610afb43449a37848686c8b6d131bfdaeed05d0cce64c4e21",
       "browserLaunchAdaptation": "2026-10-16 web_fetch guidelines follow cause-specific BROWSER_UNAVAILABLE guidance instead of unconditionally recommending browser installation.",
       "webSetupPreviousSha256": "3d500bd0f88ea5de00b6ac21e20406387154759e31dc2828646c39a499532dd1",
-      "sha256": "eb01c9de4b6d3e13c999cf2c8a2abff5297a84f07bd50c147ce756efc5c13696",
+      "geminiAndDeepSeekSearch20261017PreviousSha256": "eb01c9de4b6d3e13c999cf2c8a2abff5297a84f07bd50c147ce756efc5c13696",
+      "geminiAndDeepSeekSearch20261017Adaptation": "Dispatch native injection and per-provider guidance through an adapter table (OpenAI family unchanged; Gemini 3+ only for provider native), register the REST tool for brave/exa/deepseek, resolve the DeepSeek credential from the pi provider login when config sets none and report both in status.",
+      "sha256": "ec9232ae5900d6daacd256ea9223e815825a872153fb8c8e82fe34a00e32d473",
       "reason": "Attach pure Fetch/REST Search renderers. User-requested removal of Codex experimental gate and startup warning; native mode and source capture share exact provider/API eligibility, while enabled/provider gates, unsupported-model diagnostics, conflicts, browser/network behavior and output contracts remain. 2026-10-06 local adaptation (web-tools): actionable next-step error hints, web_search provider field removed (prepareArguments drops legacy argument), dynamic description/guidelines, text slimming. Assertions kept or tightened; not a source-identical copy."
     },
     {
@@ -2007,7 +2024,9 @@
       "browserLaunchPreviousSha256": "55600833c5689587a917a74dac8547d3c885bf2529369fe2f1ae5e38de50f8f2",
       "browserLaunchAdaptation": "2026-10-16 document BROWSER_UNAVAILABLE categories, channel/cache-aware installation, permission/dependency/timeout guidance, no blanket reinstall/new-session requirement and existing overall deadline precedence.",
       "webSetupPreviousSha256": "67be788ffdd8a001ac28c0a3f72df83a3a569535db60d96d39e8beb6d23a12a6",
-      "sha256": "c5c4cbe40f31f5c8d7ff7019bff681436fec9d3f7597b69472488db05dd203c5",
+      "geminiAndDeepSeekSearch20261017PreviousSha256": "c5c4cbe40f31f5c8d7ff7019bff681436fec9d3f7597b69472488db05dd203c5",
+      "geminiAndDeepSeekSearch20261017Adaptation": "Document the native mode (OpenAI family plus Gemini 3/4), the DeepSeek REST provider with pi-managed credential, the specific inactive reasons and the updated status output.",
+      "sha256": "b2063203b01394fc362dc7c074771654ccf476a24405c5fc6812bb2434ecfbb2",
       "preChangeSha256": "5f5f1d8c15836abe56ea10966bf83517d9e780adb620765c4bc5c53aa758fdc8",
       "historicalDeltaAudit": "unavailable",
       "localSnapshotReview": "2026-10-03: complete pre-change README inspected against local Web config/provider/network/browser contracts; pre-change bytes match initial commit f14b837.\n2026-10-08 current local snapshot review: H2/M12-M13/L10-L13: current peer-address post-response mitigation (not IP pinning), bounded terminable extraction worker ownership, unnecessary-resource blocking and per-fetch DNS memo reviewed; documented fail-closed/retention/context-close policies retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
@@ -2327,7 +2346,9 @@
       "path": "modules/web-tools/src/search.ts",
       "originalSha256": "b2cead3c20ae104d60cb2d51c97a3eb5a3f6baea03b405f1e33b0cb5caddbc3a",
       "reportRepairPreviousSha256": "57d332925b47e513e2befb02603a6bf71f5e19ef4c33ca9f02bf6eaa5e6de641",
-      "sha256": "357c498af4c2b6250520d3fd85c0925b0a17bb8fd3120fbb81210a1a24ad1b31",
+      "geminiAndDeepSeekSearch20261017PreviousSha256": "357c498af4c2b6250520d3fd85c0925b0a17bb8fd3120fbb81210a1a24ad1b31",
+      "geminiAndDeepSeekSearch20261017Adaptation": "Add the DeepSeek standalone Search endpoint with Bearer auth, explicit-config-first credential resolution, a pi-login fallback and provider-specific snippet/date mapping; Brave/Exa request shapes, response caps, dedup and error mapping unchanged.",
+      "sha256": "030f048ad840eb995180a72c0a45a4da1989555f72680340dd330402d85c2c37",
       "reason": "2026-10-04 code-review stability fixes: web_search provider that differs from the configured provider fails with PROVIDER_UNSUPPORTED; schema unchanged. 2026-10-06 local adaptation (web-tools): actionable next-step error hints, web_search provider field removed (prepareArguments drops legacy argument), dynamic description/guidelines, text slimming. Assertions kept or tightened; not a source-identical copy."
     },
     {
@@ -2370,7 +2391,9 @@
       "path": "modules/web-tools/tests/unit/search.test.ts",
       "originalSha256": "d3cc6f1ab68e87e848d758a9f014c1e911d63cd3c11f039521cafdc64a1fee51",
       "reportRepairPreviousSha256": "b08a28fc26f1dc43a211591c0afab628a073f6c1a33c308001f652022a48d71e",
-      "sha256": "e83fc52319cfc7e1ff8843d26e48e8734fe6738b01453350c4486b60257dcd0b",
+      "geminiAndDeepSeekSearch20261017PreviousSha256": "e83fc52319cfc7e1ff8843d26e48e8734fe6738b01453350c4486b60257dcd0b",
+      "geminiAndDeepSeekSearch20261017Adaptation": "Cover the DeepSeek endpoint, bearer header, request body, invalid-entry discard, config-over-pi credential precedence, AUTH_REQUIRED and missing-results paths against a mocked transport.",
+      "sha256": "8ff7fd26763599b4686c39d3c388c81a200c601e3fcbcd8eda22458d2ddaa4ce",
       "reason": "2026-10-04 code-review stability fixes: Exa test configures Exa; adds provider-mismatch rejection test."
     },
     {
@@ -4540,6 +4563,9 @@
     { "path": "modules/web-tools/tests/fixtures/tls-material.ts", "sha256": "c22ddc14f0b015b9899b47871fb0edba91777664194eae41e98da82bc33a788e", "reason": "PLAN-20261016T150815022Z CP2: copied existing public test-only certificate/key material; not real credentials." },
     { "path": "modules/web-tools/tests/integration/static-http.test.ts", "webSetupCp5PreviousSha256": "029b15b94cdaaec2f96183c06f09f38081eb4a56021c1000a0ac2698a84b9ba6", "sha256": "56e12cd34b0904f2d1c96774b3932a68e5c9b18493e631cef781214f77e931ff", "reason": "PLAN-20261016T150815022Z CP2: controlled HTTP/TLS and real missing-browser fallback integration, redirect/network restrictions and static limitations. CP5 adds a raw-socket 101 regression proving rejection, client socket close, a released operation and a reusable queue slot without fixed waits." },
     { "path": "modules/web-tools/tests/unit/static-http.test.ts", "sha256": "d6ad5ae7a1dbfcd40013c24f39f0e8cc1f28b9ede50b65306558277bdc5cdaf8", "reason": "PLAN-20261016T150815022Z CP2: deterministic transport input, size, charset, cancellation and policy regressions." },
+    { "path": "modules/web-tools/src/native.ts", "sha256": "2537a01911212747850e4f96bb7783e24f01d832d7f2c52fdf5ea0c73add6a9a", "reason": "PLAN-20261017T120515308Z CP2: native adapter selection and per-adapter guidance for provider openai (unchanged OpenAI-family scope) and provider native (OpenAI family plus Gemini 3+), with specific inactive reasons for Gemini 2.x, Vertex, Anthropic and non-native providers." },
+    { "path": "modules/web-tools/src/native-google.ts", "sha256": "79a7f2ec1b794cce7daa84f023e678fbed222b534140fd20a4afaf0c9c0f168b", "reason": "PLAN-20261017T120515308Z CP2: Gemini grounding injection into the pi google adapter payload (camelCase googleSearch plus includeServerSideToolInvocations), idempotent, conflict-rejecting and fail-closed on unexpected payload shapes; user-facing behavior is documented in modules/web-tools/README.md." },
+    { "path": "modules/web-tools/tests/unit/native.test.ts", "sha256": "f6c372f2c8285be8dccfaf34e4e5a8d94d0582570a7962297c336316bf1fe0f0", "reason": "PLAN-20261017T120515308Z CP2: offline selection, injection, idempotence, conflict and inactive-reason regressions for the Gemini adapter; no live provider request is made." },
     { "path": "tests/fixtures/web-setup-production.mjs", "sha256": "e0bef22ab308fffc715c8ec11415fcf0b54d0d381ad9dbc01bdc90c59f95b144", "reason": "PLAN-20261016T150815022Z CP4: isolated production tarball setup/doctor and missing-browser fallback probe; no live provider or implicit OS installation." },
     {
       "path": "modules/shell-tools/src/output-renderer.ts",
