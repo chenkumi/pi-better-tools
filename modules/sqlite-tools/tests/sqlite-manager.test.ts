@@ -102,3 +102,27 @@ test("bounds rows, bytes and BLOB values read by one query", () => {
   assert.equal(strings.truncated, true);
   manager.close();
 });
+
+test("keeps duplicate column names and reports columns for empty results", () => {
+  const manager = new SqliteManager();
+  manager.open(":memory:");
+  assert.deepEqual(manager.query("SELECT 1 AS id, 2 AS id"), { columns: ["id", "id"], rows: [[1, 2]], rowCount: 1 });
+  assert.deepEqual(manager.query("SELECT 1 AS id, 'a' AS name WHERE 0"), { columns: ["id", "name"], rows: [], rowCount: 0 });
+  manager.close();
+});
+
+test("describeTable marks every composite primary key column", () => {
+  const manager = new SqliteManager();
+  manager.open(":memory:");
+  manager.execute("CREATE TABLE composite (a INTEGER, b INTEGER, c INTEGER, PRIMARY KEY (a, b))");
+  assert.deepEqual(manager.describeTable("composite").columns.map((column) => column.pk), [true, true, false]);
+  manager.close();
+});
+
+test("rejects a first row larger than the byte budget instead of retaining it", () => {
+  const manager = new SqliteManager();
+  manager.open(":memory:");
+  assert.throws(() => manager.query("SELECT ? AS payload", ["x".repeat(MAX_QUERY_BYTES * 2)]), /larger than/);
+  assert.equal(manager.query("SELECT substr(?, 1, 10) AS payload", ["x".repeat(MAX_QUERY_BYTES * 2)]).rowCount, 1);
+  manager.close();
+});

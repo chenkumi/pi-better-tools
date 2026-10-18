@@ -17,9 +17,11 @@
  */
 import type { CorpusObservation, CorpusReflection, ProjectCorpus } from "./corpus.js";
 import {
-  clusterObservations,
-  clusterReflections,
+  clusterObservationsSteps,
+  clusterReflectionsSteps,
   computeSimHash64,
+  drainAsync,
+  drainSync,
   normalizeContent,
   simHashHammingDistance,
   stemToken,
@@ -927,6 +929,13 @@ export function buildExportMarkdown(
   corpus: ProjectCorpus,
   opts?: { now?: number; title?: string },
 ): { markdown: string; stats: ExportStats } {
+  return drainSync(buildExportMarkdownSteps(corpus, opts));
+}
+
+function* buildExportMarkdownSteps(
+  corpus: ProjectCorpus,
+  opts?: { now?: number; title?: string },
+): Generator<void, { markdown: string; stats: ExportStats }> {
   const now = opts?.now ?? Date.now();
   const title =
     opts?.title ?? corpus.projectRoot.split("/").filter(Boolean).pop() ?? corpus.projectRoot;
@@ -940,16 +949,16 @@ export function buildExportMarkdown(
   const branchAndPendingRefl = corpus.reflections.filter((r) => r.source !== "orphan");
   const orphanRefl = corpus.reflections.filter((r) => r.source === "orphan");
 
-  const obsClusters = clusterObservations(branchAndPendingObs, {
+  const obsClusters = yield* clusterObservationsSteps(branchAndPendingObs, {
     fuzzy: true,
     sorensen: true,
     maxVariants: 0,
   });
-  const reflClusters = clusterReflections(branchAndPendingRefl, {
+  const reflClusters = yield* clusterReflectionsSteps(branchAndPendingRefl, {
     fuzzy: true,
     sorensen: true,
   });
-  const orphanObsClusters = clusterObservations(orphanObs, { maxVariants: 0 });
+  const orphanObsClusters = yield* clusterObservationsSteps(orphanObs, { maxVariants: 0 });
 
   const coverageIndex = buildCoverageIndex(branchAndPendingRefl);
 
@@ -1146,14 +1155,10 @@ export async function buildExportMarkdownAsync(
   corpus: ProjectCorpus,
   opts?: { now?: number; title?: string },
 ): Promise<{ markdown: string; stats: ExportStats }> {
-  // Yield between heavy phases so the TUI can paint.
+  // The clustering passes (quadratic in distinct observations) yield to the event loop
+  // every few thousand comparisons, so timers, cancellation and TUI repaints keep running.
   await yieldToEventLoop();
-  // Delegate to the sync implementation but slice yields around the hot sections.
-  // The sync call itself is CPU-heavy; we at least yield before/after.
-  // For finer granularity, the sync function's hot loops (clustering / topic
-  // assignment) would need internal yielding — acceptable to yield at phase
-  // boundaries for now: corpus scanning is the dominant block (35s–2min).
-  const result = buildExportMarkdown(corpus, opts);
+  const result = await drainAsync(buildExportMarkdownSteps(corpus, opts));
   await yieldToEventLoop();
   return result;
 }

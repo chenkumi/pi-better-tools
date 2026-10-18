@@ -639,6 +639,26 @@ function groupByNormalizedContent<T extends ClusterableItem>(items: T[]): Array<
   return [...groups.entries()].map(([key, members]) => ({ key, members }));
 }
 
+/** Inner-loop iterations between cooperative yields; small enough that one slice stays well under a frame. */
+const YIELD_EVERY = 2048;
+
+/** Runs a stepwise computation to completion without yielding to the event loop. */
+export function drainSync<T>(steps: Generator<void, T>): T {
+  for (;;) {
+    const next = steps.next();
+    if (next.done) return next.value;
+  }
+}
+
+/** Runs a stepwise computation, letting the event loop run at every yield point. */
+export async function drainAsync<T>(steps: Generator<void, T>): Promise<T> {
+  for (;;) {
+    const next = steps.next();
+    if (next.done) return next.value;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+}
+
 function collectMergedGroups<T>(
   groups: Array<ClusterGroup<T>>,
   uf: UnionFind,
@@ -660,12 +680,14 @@ function collectMergedGroups<T>(
  * Fuzzy merge pass over exact groups (bigram-Jaccard prefilter →
  * Levenshtein@0.88 with drift guard).
  */
-function fuzzyMergeGroups<T>(groups: Array<ClusterGroup<T>>): Array<ClusterGroup<T>> {
+function* fuzzyMergeGroups<T>(groups: Array<ClusterGroup<T>>): Generator<void, Array<ClusterGroup<T>>> {
   const uf = new UnionFind(groups.length);
   const cache = new Map<string, Set<string>>();
+  let work = 0;
   // Sort so most authoritative group representatives are candidate cluster heads
   for (let i = 0; i < groups.length; i++) {
     for (let j = i + 1; j < groups.length; j++) {
+      if (++work % YIELD_EVERY === 0) yield;
       const rootI = uf.find(i);
       const rootJ = uf.find(j);
       if (rootI === rootJ) continue;
@@ -693,10 +715,11 @@ function fuzzyMergeGroups<T>(groups: Array<ClusterGroup<T>>): Array<ClusterGroup
  * changes). Uses SimHash64 for O(1) candidate pruning and a floor on
  * Levenshtein to prevent pure keyword overlap from merging distinct facts.
  */
-function sorensenMergeGroups<T extends ClusterableItem>(
+function* sorensenMergeGroups<T extends ClusterableItem>(
   groups: Array<ClusterGroup<T>>,
-): Array<ClusterGroup<T>> {
+): Generator<void, Array<ClusterGroup<T>>> {
   const uf = new UnionFind(groups.length);
+  let work = 0;
   // Precompute reps, tokens, sets, and SimHash64 for O(n) precomputation
   const groupReps = groups.map((g) => normalizeContent(pickRep(g.members).content));
   const tokenLists = groupReps.map((s) => tokenizeContent(s));
@@ -704,6 +727,7 @@ function sorensenMergeGroups<T extends ClusterableItem>(
   const repHashes = tokenLists.map((tokens) => computeSimHash64(tokens));
   for (let i = 0; i < groups.length; i++) {
     for (let j = i + 1; j < groups.length; j++) {
+      if (++work % YIELD_EVERY === 0) yield;
       const rootI = uf.find(i);
       const rootJ = uf.find(j);
       if (rootI === rootJ) continue;
@@ -733,7 +757,7 @@ function sorensenMergeGroups<T extends ClusterableItem>(
   return collectMergedGroups(groups, uf);
 }
 
-function finalizeClusters<T extends ClusterableItem>(
+function* finalizeClusters<T extends ClusterableItem>(
   groups: Array<ClusterGroup<T>>,
   opts: {
     maxVariants: number;
@@ -742,8 +766,9 @@ function finalizeClusters<T extends ClusterableItem>(
     idOf: (member: T) => string | null;
     computeConsensus: boolean;
   },
-): Array<MemoryCluster<T>> {
+): Generator<void, Array<MemoryCluster<T>>> {
   const clusters: Array<MemoryCluster<T>> = [];
+  let work = 0;
   for (const group of groups) {
     const { members } = group;
     const bestRelevance = opts.bestRelevanceOf(members);
@@ -773,6 +798,7 @@ function finalizeClusters<T extends ClusterableItem>(
     for (let i = 0; i < clusters.length; i++) {
       let maxSim = 0;
       for (let j = 0; j < clusters.length; j++) {
+        if (++work % YIELD_EVERY === 0) yield;
         if (i === j) continue;
         const sim = sorensenDiceSets(repTokenSets[i], repTokenSets[j]);
         if (sim > maxSim) maxSim = sim;
@@ -795,11 +821,19 @@ export function clusterObservations(
   items: CorpusObservation[],
   opts?: { fuzzy?: boolean; sorensen?: boolean; maxVariants?: number },
 ): Array<MemoryCluster<CorpusObservation>> {
+  return drainSync(clusterObservationsSteps(items, opts));
+}
+
+/** Same result as clusterObservations; yields periodically so a caller can let the event loop run. */
+export function* clusterObservationsSteps(
+  items: CorpusObservation[],
+  opts?: { fuzzy?: boolean; sorensen?: boolean; maxVariants?: number },
+): Generator<void, Array<MemoryCluster<CorpusObservation>>> {
   const maxVariants = opts?.maxVariants ?? 2;
   let allGroups = groupByNormalizedContent(items);
-  if (opts?.fuzzy && allGroups.length > 1) allGroups = fuzzyMergeGroups(allGroups);
-  if (opts?.sorensen && allGroups.length > 1) allGroups = sorensenMergeGroups(allGroups);
-  return finalizeClusters(allGroups, {
+  if (opts?.fuzzy && allGroups.length > 1) allGroups = yield* fuzzyMergeGroups(allGroups);
+  if (opts?.sorensen && allGroups.length > 1) allGroups = yield* sorensenMergeGroups(allGroups);
+  return yield* finalizeClusters(allGroups, {
     maxVariants,
     bestRelevanceOf: (members) =>
       members.reduce<Relevance>(
@@ -825,11 +859,19 @@ export function clusterReflections(
   items: CorpusReflection[],
   opts?: { fuzzy?: boolean; sorensen?: boolean; maxVariants?: number },
 ): Array<MemoryCluster<CorpusReflection>> {
+  return drainSync(clusterReflectionsSteps(items, opts));
+}
+
+/** Same result as clusterReflections; yields periodically so a caller can let the event loop run. */
+export function* clusterReflectionsSteps(
+  items: CorpusReflection[],
+  opts?: { fuzzy?: boolean; sorensen?: boolean; maxVariants?: number },
+): Generator<void, Array<MemoryCluster<CorpusReflection>>> {
   const maxVariants = opts?.maxVariants ?? 0;
   let allGroups = groupByNormalizedContent(items);
-  if (opts?.fuzzy && allGroups.length > 1) allGroups = fuzzyMergeGroups(allGroups);
-  if (opts?.sorensen && allGroups.length > 1) allGroups = sorensenMergeGroups(allGroups);
-  return finalizeClusters(allGroups, {
+  if (opts?.fuzzy && allGroups.length > 1) allGroups = yield* fuzzyMergeGroups(allGroups);
+  if (opts?.sorensen && allGroups.length > 1) allGroups = yield* sorensenMergeGroups(allGroups);
+  return yield* finalizeClusters(allGroups, {
     maxVariants,
     bestRelevanceOf: (): Relevance => "medium",
     repOf: (members) => pickRep(members),

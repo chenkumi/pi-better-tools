@@ -54,7 +54,7 @@ MSSQL Windows Authentication 另需 optional dependency `msnodesqlv8@5.6.0` 的�
 - `*_update` 只接受單一 INSERT／UPDATE／DELETE；UPDATE／DELETE 需要 top-level WHERE，每次寫入都需互動 UI 確認。非互動模式拒絕寫入，取消確認不執行。
 - 保留來源 SQL allowlist、單一 statement、參數 binding、取消與安全化 driver errors。結果最多 200 rows／約 48 KiB，常見敏感欄位名稱遮蔽；不是完整 DLP 或完整 SQL parser。
 - SQL 檢查依各引擎的字串、識別字與註解語法切分：PostgreSQL dollar-quote（`$$…$$`、`$tag$…$tag$`）與巢狀 `/* */`、MSSQL `[...]`（`]]` 跳脫）與巢狀註解、MySQL backtick、`#` 註解及「`--` 後須接空白」規則。MySQL／PostgreSQL 字串字面值內的反斜線一律拒絕（其意義取決於伺服器設定），請改用參數 binding；未結束的字串、識別字或註解拒絕。
-- MSSQL batch 不需分隔符即可接第二個 statement，因此 `mssql_query` 另拒絕可起始非讀取 statement 或轉送 SQL 的關鍵字（例如 `SET`、`DECLARE`、`WAITFOR`、`BACKUP`、`RESTORE`、`KILL`、`SHUTDOWN`、`DBCC`、`USE`、`BEGIN`／`COMMIT`、`OPENQUERY`／`OPENROWSET`）；`mssql_update` 除 UPDATE 本身的 `SET` 外同樣拒絕。與這些字同名的欄位／別名請以 `[name]` 引用。
+- MSSQL batch 不需分隔符即可接第二個 statement，因此 `mssql_query` 另拒絕可起始非讀取 statement 或轉送 SQL 的關鍵字（例如 `SET`、`DECLARE`、`WAITFOR`、`BACKUP`、`RESTORE`、`KILL`、`SHUTDOWN`、`DBCC`、`USE`、`BEGIN`／`COMMIT`、`OPENQUERY`／`OPENROWSET`）；`mssql_update` 除 UPDATE 本身的 `SET` 外同樣拒絕，並拒絕第二個 `INSERT`／`UPDATE`／`DELETE`，以及 `UPDATE`／`DELETE` 內任何 `INTO`（`INSERT` 僅允許一個），避免無分隔符追加第二句 DML 或 `SELECT ... INTO`。與這些字同名的欄位／別名請以 `[name]` 引用。
 - 讀取在資料庫層另有防護：PostgreSQL 一律走 extended protocol（無參數時也不會成為可執行多 statement 的 simple query），並在 `BEGIN READ ONLY` 交易內執行後 rollback；MySQL 以單一 prepared statement 在 `START TRANSACTION READ ONLY` 內執行後 rollback，讀取有 30 秒 client 端逾時。MySQL 寫入不加 client 端逾時：逾時只會斷線，不會停止伺服器上的寫入。失敗或逾時的連線直接丟棄，不放回 pool；MySQL 等待連線的佇列上限 32。
 - 唯讀交易不阻擋所有副作用（例如 PostgreSQL `pg_terminate_backend()`、MSSQL 讀取中的函式／程序行為），MSSQL 也沒有交易層防護；最終界線仍是資料庫帳號權限，讀取請使用唯讀帳號。
 - 資料庫帳號權限仍是最終安全界線，請使用最小權限；工具不是 OS sandbox，也不能以 SQL 檢查代替權限管理。

@@ -178,6 +178,26 @@ test("cancel is a request: unconfirmed close keeps the permit and is reported", 
 	await cancelAll();
 });
 
+test("a close observed after the cleanup deadline releases the permit once", async () => {
+	const a = origin(); const A = fakes(a); fakeChild();
+	let closeNow!: (exitCode: number | null) => void;
+	deps.startChild = (() => {
+		let resolve!: (o: ForkChildOutcome) => void; const done = new Promise<ForkChildOutcome>(r => { resolve = r; });
+		const closed = new Promise<number | null>(r => { closeNow = r; });
+		return { pid: 3, done, closed, async cancel() { resolve({ status: "cancelled", childClosed: false, stderrTail: "" }); } };
+	}) as never;
+	onSessionStart(A.pi, A.ctx);
+	acceptFork(A.pi, A.ctx, { task: "x" }); addResult(a); onTurnEnd(A.ctx, {});
+	const [job] = ownedJobs(A.ctx);
+	await requestCancel(job!); await flush();
+	assert.equal(activeCount(), 1, "permit is held while close is unconfirmed");
+	closeNow(0); await flush();
+	assert.equal(job!.released, true);
+	assert.equal(activeCount(), 0);
+	assert.deepEqual(job!.record.cleanup, { childClosed: true, exitCode: 0 });
+	assert.equal(loadRecords(cwd).find(r => r.jobId === job!.record.jobId)?.cleanup?.childClosed, true);
+});
+
 test("snapshot failures never invent data: unpaired calls, changed branch, aborted origin turn, lost origin", async () => {
 	const a = origin(); const A = fakes(a); const { specs } = fakeChild();
 	onSessionStart(A.pi, A.ctx);

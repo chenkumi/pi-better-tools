@@ -103,16 +103,26 @@ export class SqliteManager {
       throw new Error("sqlite_query accepts only statements that return rows. Use sqlite_execute for writes.");
     }
 
-    let columns: string[] = [];
+    // Column names come from statement metadata, so duplicate names and empty results keep their shape.
+    const columns = statement.columns().map((column) => column.name);
+    statement.setReturnArrays(true);
     const rows: unknown[][] = [];
     let bytes = 0;
     let truncated = false;
     // Stream rows and stop at the bounds; breaking out of the iterator resets the statement.
-    for (const row of statement.iterate(...(this.bindArgs(params) as never[])) as Iterable<Record<string, unknown>>) {
-      if (rows.length === 0) columns = Object.keys(row);
-      const values = columns.map((column) => boundedValue(row[column]));
+    for (const row of statement.iterate(...(this.bindArgs(params) as never[])) as Iterable<unknown[]>) {
+      const values = row.map(boundedValue);
       const rowBytes = values.reduce<number>((total, value) => total + valueBytes(value) + 8, 8);
-      if (rows.length >= MAX_QUERY_ROWS || (rows.length > 0 && bytes + rowBytes > MAX_QUERY_BYTES)) {
+      if (rows.length >= MAX_QUERY_ROWS) {
+        truncated = true;
+        break;
+      }
+      if (bytes + rowBytes > MAX_QUERY_BYTES) {
+        if (rows.length === 0) {
+          throw new Error(
+            `The first row is larger than the ${MAX_QUERY_BYTES}-byte result budget. Select fewer or shorter columns, for example substr(column, 1, N).`,
+          );
+        }
         truncated = true;
         break;
       }
@@ -176,7 +186,7 @@ export class SqliteManager {
         type: column.type,
         notnull: column.notnull === 1,
         defaultValue: column.dflt_value,
-        pk: column.pk === 1,
+        pk: column.pk > 0,
       })),
       rowCount,
     };

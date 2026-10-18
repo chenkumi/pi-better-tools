@@ -140,6 +140,7 @@ function launch(job: Job, sessionPath: string) {
 	catch (error) { finishWithoutChild(job, "failed", "SPAWN_FAILED", String((error as Error)?.message ?? error).slice(0, 300)); return; }
 	job.handle = handle;
 	if (record.cancelRequested) void handle.cancel();
+	void handle.closed?.then(exitCode => lateClose(job, exitCode), () => {});
 	void handle.done.then(outcome => complete(job, outcome), error => complete(job, { status: "failed", errorCode: "RUNNER_FAULT", error: String((error as Error)?.message ?? error).slice(0, 300), childClosed: false, stderrTail: "" }));
 }
 
@@ -153,6 +154,15 @@ function complete(job: Job, outcome: ForkChildOutcome) {
 	removeTemporary(job.forwarded.temporaryFiles);
 	setStatus(job, outcome.status);
 	deliver(job);
+}
+
+/** A real `close` arriving after the cleanup deadline: the only late evidence that frees the permit. Idempotent, and a still-running job is left to complete(). */
+function lateClose(job: Job, exitCode: number | null) {
+	if (job.released || !isTerminal(job.record.status)) return;
+	job.released = true;
+	job.record.cleanup = { childClosed: true, ...(exitCode !== null ? { exitCode } : {}) };
+	persist(job);
+	refreshUi();
 }
 
 function finishWithoutChild(job: Job, status: "failed" | "cancelled", code: string, message: string) {

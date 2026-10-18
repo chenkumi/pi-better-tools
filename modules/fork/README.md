@@ -38,7 +38,7 @@
 - 支援拓樸：Pi 1.1.0 CLI＋單一 active `AgentSessionRuntime`，且**每個 session 都載入本管理入口**。目標 session 若不載入本 extension（例如專案 package 設定將其排除），該 session 的 `/reload`／quit 不會取消 Fork；本模組不以 monkey-patch 補洞，也不暗中載入被排除的 extension。
 - 裸 `AgentSession.dispose()` 不發 `session_shutdown`，不在支援範圍；強制退出（emergency exit／crash）無法經一般 extension cleanup。child 的 RPC stdin EOF 是最低成本 lifeline：父行程真正結束時 child 自行 shutdown，但不保證強制 kill、停滯 JS 或繼承 pipe 的第三方 descendants 已結束。
 - TUI 在回應中或 compaction 時 `/reload` 會被宿主拒絕，不算 reload。
-- 取消流程：`abort` RPC → stdin EOF → 等待 `close`（10 秒）→ `SIGTERM`（5 秒）→ `SIGKILL`；Windows 以 `taskkill /T`。仍沒有 `close` 時 `cleanup.childClosed:false`，permit 保留，**不**宣稱整棵程序樹已停止。
+- 取消流程：`abort` RPC → stdin EOF → 等待 `close`（10 秒）→ `SIGTERM`（5 秒）→ `SIGKILL`；Windows 以 `taskkill /T`。仍沒有 `close` 時 `cleanup.childClosed:false`，permit 保留；之後若觀察到真實 `close`，管理器會冪等地歸還 permit 並更新 `cleanup`（`ForkChildHandle.closed`）。**不**宣稱整棵程序樹已停止。
 - **`blocked` 已知缺口（未修）**：`blocked` 只負責誠實呈現，**不設放棄期限**。若巢狀工作永不結束，Fork 就停在 `blocked` 並持續持有 permit（每個行程最多 4 個未完成 Fork），需由 `fork_cancel` 收尾。這裡刻意不加 inactivity watchdog：`activeJobCounts` 只有計數、沒有工作進展資訊，無法區分「長時間但正常的工作」與「已卡死的工作」，在此前提下任何固定門檻都可能錯殺合法工作。補上期限需先有可信的工作進展證據。同理，`blocked` 是中場狀態回報（不觸發 `triggerTurn`），不會呼叫 parent 模型。
 - Fork 與 parent 共用 workspace：不自動建立 worktree、不合併檔案、不同步 parent 後續訊息；並行寫同一檔案需自行協調。
 - 通知使用 `triggerTurn:true`：parent 前景閒置時完成通知會喚醒 parent 一個回合（與 Subagent 背景完成通知一致）。

@@ -61,6 +61,14 @@ describe("read-only policy follows each engine's lexical rules", () => {
     expect(() => assertUpdateSql("mssql", "UPDATE t SET a = 1 WHERE id = @id SHUTDOWN")).toThrow(/one INSERT/);
     expect(() => assertUpdateSql("mssql", "DELETE FROM t WHERE id = 1 DROP TABLE x")).toThrow(/one INSERT/);
     expect(() => assertUpdateSql("mssql", "UPDATE t SET [a] = 1 WHERE id = @id")).not.toThrow();
+    // A batch needs no separator, so a second DML or SELECT ... INTO must be rejected too.
+    expect(() => assertUpdateSql("mssql", "UPDATE t SET a = 1 WHERE id = @id DELETE FROM t")).toThrow(/one INSERT/);
+    expect(() => assertUpdateSql("mssql", "DELETE FROM t WHERE id = 1 INSERT INTO t (a) VALUES (1)")).toThrow(/one INSERT/);
+    expect(() => assertUpdateSql("mssql", "INSERT INTO t (a) VALUES (1) UPDATE t SET a = 2")).toThrow(/one INSERT/);
+    expect(() => assertUpdateSql("mssql", "UPDATE t SET a = 1 WHERE id = @id SELECT * INTO copy FROM t")).toThrow(/one INSERT/);
+    expect(() => assertUpdateSql("mssql", "INSERT INTO t (a) VALUES (1)")).not.toThrow();
+    expect(() => assertUpdateSql("mssql", "INSERT INTO t (a) SELECT a FROM u")).not.toThrow();
+    expect(() => assertUpdateSql("mssql", "UPDATE t SET [delete] = 1 WHERE id = @id")).not.toThrow();
     expect(() => assertUpdateSql("mysql", "UPDATE t SET a = 1 WHERE id = ?")).not.toThrow();
   });
 

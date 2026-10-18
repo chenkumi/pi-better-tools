@@ -227,6 +227,16 @@ export function assertReadOnlySql(engine: Engine, sql: string): void {
   assertReadLimit(engine, code);
 }
 
+/**
+ * The leading INSERT/UPDATE/DELETE is the only one allowed to appear, and only an INSERT may use INTO;
+ * a second DML word or a `SELECT ... INTO` would be a second statement in the same batch.
+ */
+function hasAppendedMssqlStatement(code: string, kind: string): boolean {
+  const dml = code.match(/\b(insert|update|delete)\b/g)?.length ?? 0;
+  const into = code.match(/\binto\b/g)?.length ?? 0;
+  return dml > 1 || into > (kind === "insert" ? 1 : 0);
+}
+
 export function assertUpdateSql(engine: Engine, sql: string): void {
   const code = validateSingleStatement(sql, engine);
   const kind = /^(insert|update|delete)\b/.exec(code)?.[1];
@@ -236,7 +246,7 @@ export function assertUpdateSql(engine: Engine, sql: string): void {
   if ((kind === "update" || kind === "delete") && !/\bwhere\b/.test(topLevelCode(code))) {
     denied("UPDATE and DELETE statements must include a top-level WHERE clause.");
   }
-  if (engine === "mssql" && MSSQL_UPDATE_FORBIDDEN.test(code)) {
+  if (engine === "mssql" && (MSSQL_UPDATE_FORBIDDEN.test(code) || hasAppendedMssqlStatement(code, kind))) {
     denied("Only one INSERT, UPDATE, or DELETE statement is allowed. Quote identifiers that are SQL keywords as [name].");
   }
 }

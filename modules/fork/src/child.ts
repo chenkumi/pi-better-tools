@@ -49,7 +49,8 @@ export type ForkPhase = "starting" | "running" | "finalizing" | "cancelling";
 /** `blocked` is not a phase: it is the child guard's non-terminal truth report while nested jobs still run. */
 export type ForkProgress = ForkPhase | "blocked";
 export interface ForkBlockedDetail { reason: string; error?: string; pending: { shell: number; subagents: number } }
-export interface ForkChildHandle { readonly pid?: number; cancel(): Promise<void>; readonly done: Promise<ForkChildOutcome> }
+/** `closed` settles only on a real child `close`, even after `done` reported `childClosed: false`. */
+export interface ForkChildHandle { readonly pid?: number; cancel(): Promise<void>; readonly done: Promise<ForkChildOutcome>; readonly closed?: Promise<number | null> }
 
 /** Argument vector for the Fork child. The task travels over RPC stdin, never on the command line. */
 export function buildForkPiArgs(spec: Pick<ForkChildSpec, "sessionPath" | "sessionDir" | "model" | "thinkingLevel" | "tools" | "trusted" | "guardPath" | "forwarded">): string[] {
@@ -197,6 +198,7 @@ export function startForkChild(spec: ForkChildSpec, onProgress: (progress: ForkP
 	return {
 		get pid() { return proc.pid; },
 		done,
+		closed: closedSignal.promise.then(() => exitCode ?? null),
 		async cancel() { if (cancelled) return; cancelled = true; cancelSignal.resolve(); },
 	};
 }
