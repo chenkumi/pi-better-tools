@@ -46,6 +46,9 @@ export interface ForkChildOutcome {
 	stderrTail: string;
 }
 export type ForkPhase = "starting" | "running" | "finalizing" | "cancelling";
+/** `blocked` is not a phase: it is the child guard's non-terminal truth report while nested jobs still run. */
+export type ForkProgress = ForkPhase | "blocked";
+export interface ForkBlockedDetail { reason: string; error?: string; pending: { shell: number; subagents: number } }
 export interface ForkChildHandle { readonly pid?: number; cancel(): Promise<void>; readonly done: Promise<ForkChildOutcome> }
 
 /** Argument vector for the Fork child. The task travels over RPC stdin, never on the command line. */
@@ -66,6 +69,7 @@ const usageOf = (stats: any): ForkUsage | undefined => {
 const delta = (after?: ForkUsage, before?: ForkUsage): ForkUsage | undefined => after && before ? {
 	input: Math.max(0, after.input - before.input), output: Math.max(0, after.output - before.output), cacheRead: Math.max(0, after.cacheRead - before.cacheRead),
 	cacheWrite: Math.max(0, after.cacheWrite - before.cacheWrite), total: Math.max(0, after.total - before.total), cost: Math.max(0, after.cost - before.cost) } : undefined;
+const jobCount = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 
 /** Opt-in diagnostics (PI_FORK_DEBUG=1): phase names only, never task text, output or credentials. */
 const debug = (jobId: string, message: string) => { if (process.env.PI_FORK_DEBUG) { try { process.stderr.write(`[fork ${jobId.slice(-6)}] ${message}
@@ -80,7 +84,7 @@ class Deferred<T> {
 }
 
 /** Starts the independent Pi process. Every wait is tied to cancellation or child close; nothing relies on a fixed sleep. */
-export function startForkChild(spec: ForkChildSpec, onPhase: (phase: ForkPhase) => void = () => {}): ForkChildHandle {
+export function startForkChild(spec: ForkChildSpec, onProgress: (progress: ForkProgress, detail?: ForkBlockedDetail) => void = () => {}): ForkChildHandle {
 	const token = randomBytes(16).toString("hex");
 	const guard: ForkChildGuard = { forkId: spec.jobId, sessionId: spec.sessionId, cwd: spec.cwd, model: spec.model, thinkingLevel: spec.thinkingLevel, childTrusted: spec.trusted, tools: spec.tools, token };
 	const invocation = (spec.invocation ?? getPiInvocation)(buildForkPiArgs(spec));
@@ -105,6 +109,11 @@ export function startForkChild(spec: ForkChildSpec, onPhase: (phase: ForkPhase) 
 		if (!message || typeof message !== "object" || message.channel !== CHANNEL || message.token !== token) return;
 		if (message.type === "verified" && Array.isArray(message.tools)) verified.resolve({ tools: message.tools.map(String), sessionFile: typeof message.sessionFile === "string" ? message.sessionFile : undefined });
 		else if (message.type === "rejected") { rejectedCode = String(message.code ?? "REJECTED").slice(0, 64); verified.reject(new Error(`CHILD_REJECTED: ${rejectedCode}`)); }
+		else if (message.type === "blocked" && verified.settled && promptSent) onProgress("blocked", {
+			reason: String(message.reason ?? "MODEL_ERROR").slice(0, 64),
+			...(typeof message.error === "string" && message.error ? { error: message.error.slice(0, 300) } : {}),
+			pending: { shell: jobCount(message.pending?.shell), subagents: jobCount(message.pending?.subagents) } });
+		else if (message.type === "unblocked" && verified.settled && promptSent) onProgress("running");
 		else if (message.type === "settled" && message.quiet === true && verified.settled && promptSent) quiescent.resolve();
 	});
 	let promptSent = false;
@@ -159,13 +168,13 @@ export function startForkChild(spec: ForkChildSpec, onPhase: (phase: ForkPhase) 
 			if (state?.sessionId !== spec.sessionId || (typeof state?.sessionFile === "string" && !existsSync(state.sessionFile))) throw Object.assign(new Error("native session identity mismatch"), { code: "CONFIG_CHANGED" });
 			const before = usageOf(await raceCancel(pipe.request("get_session_stats")).catch((error: { cancelled?: boolean }) => { if (error?.cancelled) throw error; return undefined; }));
 			debug(spec.jobId, "verified; sending prompt");
-			onPhase("running");
+			onProgress("running");
 			promptSent = true;
 			const accepted = await raceCancel(pipe.request("prompt", { message: spec.prompt }));
 			if (accepted?.disposition !== "started") throw Object.assign(new Error(`prompt disposition ${String(accepted?.disposition)}`), { code: "PROMPT_NOT_STARTED" });
 			await raceCancel(quiescent.promise);
 			debug(spec.jobId, "quiescent; collecting result");
-			onPhase("finalizing");
+			onProgress("finalizing");
 			const text = await pipe.request("get_last_assistant_text").catch(() => undefined);
 			output = typeof text?.text === "string" ? text.text : undefined;
 			usage = delta(usageOf(await pipe.request("get_session_stats").catch(() => undefined)), before);
@@ -175,7 +184,7 @@ export function startForkChild(spec: ForkChildSpec, onPhase: (phase: ForkPhase) 
 			if (e?.cancelled || cancelled) cancelled = true;
 			else failure = { code: rejectedCode ?? e?.code ?? (closed ? "CHILD_EXITED" : "CHILD_FAILED"), message: String(e?.message ?? error).slice(0, 500) };
 		}
-		if (cancelled) { onPhase("cancelling"); await Promise.race([pipe.request("abort").catch(() => undefined), waitClosed(1000)]); }
+		if (cancelled) { onProgress("cancelling"); await Promise.race([pipe.request("abort").catch(() => undefined), waitClosed(1000)]); }
 		debug(spec.jobId, `shutting down (closed=${closed}, cancelled=${cancelled})`);
 		const childClosed = closed ? true : spawnError && proc.pid === undefined ? true : await shutdown();
 		const base = { childClosed, exitCode, stderrTail, ...(usage ? { usage } : { usageUnknown: true }) };

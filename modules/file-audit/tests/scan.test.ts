@@ -66,3 +66,15 @@ test("cancel and a concurrent file change are detected without sleep", async () 
     assert.ok(result.bytes <= 7);
   } finally { await f.cleanup(); }
 });
+test("a workspace reached through an alias still reports its own candidates", async () => {
+  const f = await fixture(), alias = `${f.cwd}-alias`;
+  try {
+    // Reaching the same workspace through a junction previously made every candidate look like an escape,
+    // because realpath(cwd) resolves the alias while the candidate paths still carry it. Node's rm removes
+    // only the link, never the target.
+    await symlink(f.cwd, alias, process.platform === "win32" ? "junction" : "dir");
+    const result = await scan(alias, candidates(alias, ["modules/fixture/a.ts", "modules/native/index.ts", "tests/added.ts", "plan/new.md"]));
+    assert.deepEqual(result.findings.map(x => x.status), ["matched", "matched", "matched", "untracked"]);
+    assert.ok(result.bytes > 0, "an aliased workspace is still content-scanned");
+  } finally { await rm(alias, { recursive: true, force: true }); await f.cleanup(); }
+});

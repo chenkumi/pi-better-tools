@@ -7,7 +7,7 @@ import { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { ForkChildOutcome, ForkChildSpec } from "../src/child.ts";
 import { FORK_MARKER_TYPE } from "../src/identity.ts";
 import { acceptFork, activeCount, cancelAll, deliver, deps, onSessionShutdown, onSessionStart, onTurnEnd, ownedJobs, requestCancel, state } from "../src/manager.ts";
-import { loadRecords, saveRecord } from "../src/store.ts";
+import { loadRecords, pruneRecords, saveRecord } from "../src/store.ts";
 
 let root: string, cwd: string, sessions: string;
 const asm = (s: SessionManager) => s as any;
@@ -228,4 +228,23 @@ test("no secrets or task body in metadata; files are owner-only temp-free", () =
 	assert.equal(existsSync(join(dir, `${record.jobId}.json.${process.pid}.tmp`)), false);
 	writeFileSync(join(dir, "ignored.txt"), "x");
 	assert.equal(loadRecords(cwd).length, 1);
+});
+
+test("records beyond the bounded scan are pruned only when finished and needing no delivery", () => {
+	const record = (jobId: string, status: any, delivery: any) => ({ schemaVersion: 1 as const, jobId, forkSessionId: jobId, title: jobId, taskPreview: "", status, cancelRequested: false,
+		origin: { sessionId: "S", file: "s.jsonl", cwd }, config: { model: "p/m", thinkingLevel: "off", trusted: false, toolsFingerprint: "x", toolCount: 1 },
+		createdAt: new Date().toISOString(), ownerPid: 1, delivery });
+	const id = (n: number) => `01H${String(n).padStart(23, "0")}`;
+	// Oldest four: one prunable, one pending delivery, one unfinished, one unreadable.
+	saveRecord(cwd, record(id(0), "completed", "observed"));
+	saveRecord(cwd, record(id(1), "completed", "pending"));
+	saveRecord(cwd, record(id(2), "running", "pending"));
+	writeFileSync(join(cwd, ".pi", "forks", `${id(3)}.json`), "{broken");
+	for (let n = 10; n < 10 + 64; n++) saveRecord(cwd, record(id(n), "completed", "observed"));
+	assert.equal(pruneRecords(cwd), 1);
+	const names = readdirSync(join(cwd, ".pi", "forks"));
+	assert.equal(names.includes(`${id(0)}.json`), false);
+	for (const kept of [1, 2, 3]) assert.ok(names.includes(`${id(kept)}.json`), `record ${kept} is kept`);
+	assert.equal(loadRecords(cwd).length, 64);
+	assert.equal(pruneRecords(cwd), 0);
 });

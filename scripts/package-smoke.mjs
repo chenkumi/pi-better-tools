@@ -39,6 +39,7 @@ async function record(label, action) {
   }
 }
 const required = [
+  'setup/cli.mjs', 'setup/commands.mjs', 'setup/commands.d.mts', 'setup/core.mjs',
   ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'note-tools', 'gpt-speed', 'json-schema', 'pty-terminal', 'schedule-prompt', 'blackhole', 'pi-runtime', 'monitor', 'skill-tools', 'fork', 'sqlite-tools', 'sql-connector', 'file-audit'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
   ...['activity-window', 'events', 'paths', 'provenance', 'commands', 'presentation'].map(name => `modules/file-audit/src/${name}.ts`),
   'modules/sqlite-tools/src/sqlite-manager.ts',
@@ -59,7 +60,7 @@ const required = [
   'modules/subagents/prompts/implement.md', 'modules/subagents/prompts/implement-and-review.md', 'modules/subagents/prompts/scout-and-plan.md',
   'modules/shell-tools/extensions/timeout-ms.ts', 'modules/file-tools/extensions/file-tools.ts', 'modules/file-tools/src/diff-worker.mjs',
   'modules/web-tools/src/index.ts', 'modules/web-tools/schemas/web_search.schema.json',
-  'modules/web-tools/src/renderers.ts', 'modules/web-tools/src/fetch/extract-core.mjs', 'modules/web-tools/src/fetch/extract-core.d.mts', 'modules/web-tools/src/fetch/extract-worker.mjs',
+  'modules/web-tools/src/renderers.ts', 'modules/web-tools/src/fetch/extract-core.mjs', 'modules/web-tools/src/fetch/extract-core.d.mts', 'modules/web-tools/src/fetch/extract-worker.mjs', 'modules/web-tools/src/fetch/http.ts',
   'modules/pty-terminal/src/matcher.ts', 'modules/pty-terminal/src/match-worker.mjs',
   'modules/json-schema/src/pattern-policy.ts', 'modules/json-schema/src/validation-worker.mjs', 'modules/json-schema/src/validation-pool.ts',
   'modules/subagents/extensions/subagent/prompt-files.ts',
@@ -122,11 +123,37 @@ try {
       await record(`${version}:production-install`, () => runNpm(`production dependency install Pi ${version}`, ['install', '--omit=dev', '--legacy-peer-deps', '--ignore-scripts', '--no-audit', '--no-fund', tarball, ...hostPackages, `typebox@${rootManifest.devDependencies.typebox}`], { cwd: temp, env, timeoutMs: 600000 }));
       const packageRoot = join(temp, 'node_modules/pi-better-tools');
       const host = join(temp, 'node_modules/@earendil-works/pi-coding-agent');
+      await record(`${version}:setup-hoisted-dependencies`, async () => {
+        const output = await runCommand('hoisted setup doctor', process.execPath, [join(packageRoot, 'setup/cli.mjs'), 'doctor', '--json'], { cwd: bootstrapHome, env, timeoutMs: 30000 });
+        const diagnostic = JSON.parse(output);
+        assert.equal(diagnostic.schemaVersion, 1);
+        assert.equal(diagnostic.packageRoot.replace(/[\\/]+$/, ''), packageRoot);
+        assert.ok(diagnostic.browser.root && diagnostic.pty.root, 'both dependencies resolve before source-layout install');
+        assert.equal(diagnostic.pty.owner, temp);
+        assert.equal(diagnostic.pty.approved, true);
+        return output;
+      });
       // The supported workflow mounts a source directory with its own installed node_modules.
       // npm's outer tarball install may hoist dependencies; explicitly prepare the same local-source layout.
       // No development-tree links, bundled host peers or implicit lifecycle scripts are allowed.
       await record(`${version}:local-source-dependencies`, () => runNpm(`local-source runtime dependencies Pi ${version}`, ['install', '--omit=dev', '--legacy-peer-deps', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: packageRoot, env, timeoutMs: 600000 }));
-      await record(`${version}:pty-native-setup`, () => runNpm(`native PTY setup Pi ${version}`, ['rebuild', 'node-pty'], { cwd: packageRoot, env, timeoutMs: 180000 }));
+      await record(`${version}:pty-native-setup`, () => runCommand(`installed CLI native PTY setup Pi ${version}`, process.execPath,
+        [join(packageRoot, 'setup/cli.mjs'), 'pty', 'setup'], { cwd: bootstrapHome, env, timeoutMs: 180000 }));
+      const setupHome = join(temp, 'home-setup'); await mkdir(setupHome);
+      const setupEnv = { ...isolatedEnv(setupHome), PLAYWRIGHT_BROWSERS_PATH: join(setupHome, 'empty-browser-cache') };
+      await record(`${version}:setup-cli-outside-package`, async () => {
+        const cli = join(packageRoot, 'setup/cli.mjs');
+        const help = await runCommand('packaged setup help', process.execPath, [cli, '--help'], { cwd: setupHome, env: setupEnv, timeoutMs: 30000 });
+        assert.match(help, /doctor/); assert.match(help, /browser/); assert.match(help, /pty/);
+        const doctor = await runCommand('packaged setup doctor', process.execPath, [cli, 'doctor'], { cwd: setupHome, env: setupEnv, timeoutMs: 30000 });
+        assert.match(doctor, /chromium/i);
+        await assert.rejects(stat(setupEnv.PLAYWRIGHT_BROWSERS_PATH), { code: 'ENOENT' }, 'doctor must not create/download browser cache');
+        return `${help}\n${doctor}`;
+      });
+      const webSetupFixture = join(temp, 'web-setup-production.mjs');
+      await copyFile(join(root, 'tests/fixtures/web-setup-production.mjs'), webSetupFixture);
+      await record(`${version}:web-no-browser`, () => runCommand('packaged static HTTP fallback', process.execPath, [webSetupFixture, packageRoot],
+        { cwd: setupHome, env: { ...setupEnv, PI_BETTER_TOOLS_HOST: host }, timeoutMs: 120000 }));
       await record(`${version}:production-tree`, async () => {
         assert.equal(await realpath(packageRoot), packageRoot);
         const installed = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));

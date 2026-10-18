@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { setupCommand } from '../../../../setup/commands.mjs';
 import { Socket } from 'node:net';
 import { TLSSocket } from 'node:tls';
 import test from 'node:test';
@@ -31,7 +32,7 @@ test('browser launch failures retain their code with safe, cause-specific guidan
   const cases: Array<{ channel: 'chromium' | 'chrome'; error: unknown; expected: RegExp; install?: boolean }> = [
     { channel: 'chromium', error: new Error("browserType.launch: Executable doesn't exist at C:/SECRET/chrome.exe"), expected: /Playwright Chromium executable was not found/, install: true },
     { channel: 'chrome', error: new Error("browserType.launch: Chromium distribution 'chrome' is not found at C:/SECRET/chrome.exe"), expected: /Google Chrome executable was not found.*Install Google Chrome/, install: true },
-    { channel: 'chromium', error: new Error('browserType.launch: Host system is missing dependencies to run browsers. SECRET'), expected: /system dependencies are missing.*npm run browser:install-deps/ },
+    { channel: 'chromium', error: new Error('browserType.launch: Host system is missing dependencies to run browsers. SECRET'), expected: /system dependencies are missing.*install-deps/ },
     { channel: 'chromium', error: new Error('browserType.launch: Host system is missing dependencies!\nSECRET.dll'), expected: /system dependencies are missing/ },
     { channel: 'chromium', error: new Error('browserType.launch: error while loading shared libraries: SECRET.so'), expected: /system dependencies are missing/ },
     { channel: 'chromium', error: Object.assign(new Error('SECRET'), { code: 'EACCES' }), expected: /permission was denied/ },
@@ -50,7 +51,8 @@ test('browser launch failures retain their code with safe, cause-specific guidan
           assert.match(error.message, /^BROWSER_UNAVAILABLE:/);
           assert.match(error.message, entry.expected);
           assert.doesNotMatch(error.message, /SECRET|start a new session|Do not retry/);
-          assert.equal(error.message.includes('npm run browser:install`'), entry.install === true);
+          assert.equal(error.message.includes(setupCommand(['browser', 'install'])), entry.install === true);
+          assert.equal((error as Error & { reason: string }).reason === 'missing-executable', entry.install === true);
           assert.equal(error.cause, undefined, 'raw Playwright diagnostics must not leak through cause');
           return true;
         });

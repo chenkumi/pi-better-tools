@@ -31,6 +31,10 @@
 
 `bindings` 接受 positional array 或 named object，每個 statement 使用一種風格；`params` 保留相容用途。輸出限制為 2,000 行／50 KB，截斷時回報完整輸出的暫存檔路徑。使用者值透過 bindings 傳遞，不插值進 SQL。
 
+`node:sqlite` 在 Pi 主執行緒同步讀取，因此 `sqlite_query` 逐列讀取，一次最多 10,000 列或約 8 MiB（超過時結果帶 `truncated: true`，請加 `LIMIT`／條件縮小範圍）；超過 1 KiB 的 BLOB 只回前 1 KiB 與 `byteLength`。截斷結果的暫存檔（`<tmp>/pi-sqlite-tools/<uuid>.json`）保留 24 小時，之後在下一次寫入暫存檔時清除。
+
+開啟資料庫不改變其 journal mode（不會把檔案永久轉成 WAL）。開啟不存在的路徑會建立新的空資料庫，結果訊息會明示「Database created」，以免路徑打錯時誤以為開啟了既有資料庫。
+
 此模組可依目前使用者權限讀寫資料庫，不是唯讀工具集或 OS sandbox。啟用整合版前，請手動停用獨立 `pi-sqlite-tools`，避免同名工具重複註冊。
 
 ## 驗證

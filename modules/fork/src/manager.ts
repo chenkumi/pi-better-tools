@@ -8,7 +8,7 @@ import { forwardParentArgs, removeTemporary } from "./args.ts";
 import { startForkChild, type ForkChildHandle, type ForkChildOutcome, type ForkChildSpec } from "./child.ts";
 import { FORK_TOOLS, forkCreationRefusal } from "./identity.ts";
 import { writeForkSession } from "./snapshot.ts";
-import { MAX_RESULT_BYTES, isTerminal, loadRecords, saveRecord, type Delivery, type ForkRecord, type ForkStatus } from "./store.ts";
+import { MAX_RESULT_BYTES, isTerminal, loadRecords, pruneRecords, saveRecord, type Delivery, type ForkRecord, type ForkStatus } from "./store.ts";
 
 export const MAX_ACTIVE_FORKS = 4;
 export const MAX_RETAINED_FORKS = 32;
@@ -91,6 +91,7 @@ export function acceptFork(pi: ExtensionAPI, ctx: ExtensionContext, params: { ta
 		saveRecord(cwd, record); // The workspace store must work before we accept anything.
 		Object.assign(forwarded, forwardParentArgs(deps.argv(), deps.launchCwd(), jobId, cwd));
 	} catch (error) { removeTemporary(forwarded.temporaryFiles); throw new Error(`FORK_STORE_UNAVAILABLE: ${String((error as Error)?.message ?? error).slice(0, 200)}`); }
+	pruneRecords(cwd); // Old finished records beyond the bounded scan would otherwise accumulate in the workspace forever.
 	const prompt = `You are a Fork: an independent continuation of the conversation above, running in your own process with the same tools and permissions. You cannot create further Forks. Complete the following task and finish with a concise final report of the results.\n\nTask:\n${params.task}`;
 	s.jobs.set(jobId, { record, released: false, acceptLeafId: sm.getLeafId(), sessionDir, tools, prompt, forwarded });
 	refreshUi();
@@ -129,7 +130,13 @@ function launch(job: Job, sessionPath: string) {
 	const spec: ForkChildSpec = { jobId: record.jobId, sessionId: record.forkSessionId, sessionPath, sessionDir: job.sessionDir, cwd: record.origin.cwd, model: record.config.model,
 		thinkingLevel: record.config.thinkingLevel, tools: job.tools, trusted: record.config.trusted, guardPath: GUARD_PATH, forwarded: job.forwarded.args, prompt: job.prompt };
 	let handle: ForkChildHandle;
-	try { handle = deps.startChild(spec, phase => { if (!isTerminal(record.status) && record.status !== "cancelling") setStatus(job, phase === "running" ? "running" : phase === "finalizing" ? "finalizing" : record.status); }); }
+	try { handle = deps.startChild(spec, (progress, detail) => {
+		if (isTerminal(record.status) || record.status === "cancelling") return;
+		// A blocked child is still working through its own nested jobs; report the truth instead of looking healthy.
+		if (progress === "blocked") { record.blocked = { reason: detail?.reason ?? "MODEL_ERROR", ...(detail?.error ? { error: detail.error } : {}), pending: detail?.pending ?? { shell: 0, subagents: 0 }, since: new Date().toISOString() }; setStatus(job, "blocked"); return; }
+		if (progress === "running") { if (record.status === "finalizing") return; record.blocked = undefined; }
+		setStatus(job, progress === "running" ? "running" : progress === "finalizing" ? "finalizing" : record.status);
+	}); }
 	catch (error) { finishWithoutChild(job, "failed", "SPAWN_FAILED", String((error as Error)?.message ?? error).slice(0, 300)); return; }
 	job.handle = handle;
 	if (record.cancelRequested) void handle.cancel();
@@ -253,7 +260,7 @@ export function summarize(job: Job, detail = false): Record<string, unknown> {
 	const r = job.record;
 	return { jobId: r.jobId, forkSessionId: r.forkSessionId, title: r.title, status: r.status, cancelRequested: r.cancelRequested, delivery: r.delivery, model: r.config.model, thinkingLevel: r.config.thinkingLevel,
 		createdAt: r.createdAt, ...(r.startedAt ? { startedAt: r.startedAt } : {}), ...(r.endedAt ? { endedAt: r.endedAt } : {}), ...(r.sessionPath ? { sessionPath: r.sessionPath } : {}),
-		...(r.cleanup ? { cleanup: r.cleanup } : {}), ...(job.released ? {} : { holdsPermit: true }), ...(job.persistError ? { persistError: job.persistError } : {}),
+		...(r.cleanup ? { cleanup: r.cleanup } : {}), ...(r.blocked ? { blocked: r.blocked } : {}), ...(job.released ? {} : { holdsPermit: true }), ...(job.persistError ? { persistError: job.persistError } : {}),
 		...(detail && r.result ? { result: r.result } : r.result ? { errorCode: r.result.errorCode, ...(r.result.usage ? { usage: r.result.usage } : {}) } : {}) };
 }
 

@@ -2,9 +2,9 @@ import { chmodSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, wr
 import { join } from "node:path";
 import type { ForkUsage } from "./child.ts";
 
-export type ForkStatus = "awaiting_snapshot" | "starting" | "running" | "finalizing" | "cancelling" | "completed" | "failed" | "cancelled" | "interrupted";
+export type ForkStatus = "awaiting_snapshot" | "starting" | "running" | "blocked" | "finalizing" | "cancelling" | "completed" | "failed" | "cancelled" | "interrupted";
 export type Delivery = "pending" | "submitted" | "observed" | "unknown" | "not_required";
-export const ACTIVE_STATUSES: readonly ForkStatus[] = ["awaiting_snapshot", "starting", "running", "finalizing", "cancelling"];
+export const ACTIVE_STATUSES: readonly ForkStatus[] = ["awaiting_snapshot", "starting", "running", "blocked", "finalizing", "cancelling"];
 export const isTerminal = (status: ForkStatus) => !ACTIVE_STATUSES.includes(status);
 export const MAX_RESULT_BYTES = 32 * 1024;
 export const MAX_STORED = 64;
@@ -27,6 +27,9 @@ export interface ForkRecord {
 	ownerPid: number;
 	result?: { resultId: string; output?: string; outputTruncated?: boolean; errorCode?: string; error?: string; usage?: ForkUsage; usageUnknown?: boolean };
 	cleanup?: { childClosed: boolean; exitCode?: number | null };
+	/** Non-terminal truth: the child's own model call failed while nested jobs are still unfinished, so the
+	 *  Fork cannot make progress on its own. Reported by the child guard, never inferred by the parent. */
+	blocked?: { reason: string; error?: string; pending: { shell: number; subagents: number }; since: string };
 	delivery: Delivery;
 }
 
@@ -54,7 +57,7 @@ export function saveRecord(cwd: string, record: ForkRecord): void {
 }
 
 const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
-const STATUSES = new Set<string>(["awaiting_snapshot", "starting", "running", "finalizing", "cancelling", "completed", "failed", "cancelled", "interrupted"]);
+const STATUSES = new Set<string>(["awaiting_snapshot", "starting", "running", "blocked", "finalizing", "cancelling", "completed", "failed", "cancelled", "interrupted"]);
 const DELIVERIES = new Set<string>(["pending", "submitted", "observed", "unknown", "not_required"]);
 export function parseRecord(text: string): ForkRecord | undefined {
 	try {
@@ -65,13 +68,33 @@ export function parseRecord(text: string): ForkRecord | undefined {
 	} catch { return undefined; }
 }
 
+const recordNames = (cwd: string) => readdirSync(forksDir(cwd)).filter(name => /^[0-9A-HJKMNP-TV-Z]{26}\.json$/.test(name)).sort().reverse();
+
 /** Bounded newest-first scan; unreadable or foreign files are skipped, never repaired or deleted. */
 export function loadRecords(cwd: string, limit = MAX_STORED): ForkRecord[] {
 	let names: string[];
-	try { names = readdirSync(forksDir(cwd)).filter(name => /^[0-9A-HJKMNP-TV-Z]{26}\.json$/.test(name)).sort().reverse().slice(0, limit); } catch { return []; }
+	try { names = recordNames(cwd).slice(0, limit); } catch { return []; }
 	const records: ForkRecord[] = [];
 	for (const name of names) {
 		try { const record = parseRecord(readFileSync(join(forksDir(cwd), name), "utf8")); if (record && `${record.jobId}.json` === name) records.push(record); } catch { /* skip */ }
 	}
 	return records;
+}
+
+/** Best effort: deletes records the bounded scan can no longer see, but only finished ones whose result needs no delivery.
+ *  Unfinished, undelivered, unreadable or foreign files are kept. Returns the number removed. */
+export function pruneRecords(cwd: string, keep = MAX_STORED, maxDeletes = MAX_STORED): number {
+	let removed = 0;
+	let names: string[];
+	try { names = recordNames(cwd).slice(keep); } catch { return 0; }
+	for (const name of names) {
+		if (removed >= maxDeletes) break;
+		try {
+			const path = join(forksDir(cwd), name), record = parseRecord(readFileSync(path, "utf8"));
+			if (!record || `${record.jobId}.json` !== name || !isTerminal(record.status) || record.delivery === "pending") continue;
+			rmSync(path, { force: true });
+			removed++;
+		} catch { /* keep it */ }
+	}
+	return removed;
 }

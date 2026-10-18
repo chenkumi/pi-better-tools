@@ -80,12 +80,27 @@ export class CronStorage {
 
   /** Remove the lock only when it still carries our token (never a peer's takeover). */
   private releaseLock(token: string): void {
+    let owner: string;
     try {
-      const owner = fs.readFileSync(path.join(this.lockPath, "owner"), "utf-8");
-      if (owner !== token) return;
-      fs.rmSync(this.lockPath, { recursive: true, force: true });
+      owner = fs.readFileSync(path.join(this.lockPath, "owner"), "utf-8");
     } catch {
-      // Missing token or no longer ours: never remove another owner's lock.
+      return; // Missing token or no longer ours: never remove another owner's lock.
+    }
+    if (owner !== token) return;
+    // A scanner can briefly hold the just-written owner file; an unreleased lock blocks every later mutation.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        fs.rmSync(this.lockPath, { recursive: true, force: true });
+        return;
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (attempt < RENAME_RETRIES && (code === "EPERM" || code === "EBUSY" || code === "EACCES" || code === "ENOTEMPTY")) {
+          sleepSync(20 * (attempt + 1));
+          continue;
+        }
+        console.error(`Could not release scheduled prompts lock ${this.lockPath}; later changes fail until it is removed:`, error);
+        return;
+      }
     }
   }
 

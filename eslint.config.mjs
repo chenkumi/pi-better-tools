@@ -8,6 +8,7 @@ const files = [
   'modules/*/index.ts',
   'modules/*/vitest.config.ts',
   'scripts/**/*.{ts,js,mjs,cjs}',
+  'setup/**/*.{ts,js,mjs,cjs}',
   'tests/**/*.{ts,js,mjs,cjs}',
   '*.mjs',
 ];

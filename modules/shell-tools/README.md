@@ -72,6 +72,7 @@ Default-shell 卡片改由 self-shell 重建原有 Box，避免外層留白仍�
 
 - 工具呼叫立即回 job receipt（`Command still running after 180s … moved to a background job automatically`），結果改由完成通知／`shell_job_status` 取得；並依下節規則自動啟動 monitor。
 - 交接前的 Esc／回合取消仍照前景行為終止 process；交接後 turn abort 不再停止它，需用 `shell_job_cancel`。與背景 job 語意一致。
+- job 受理時（receipt 回傳前）就把 job 的取消訊號接到已接手的前景 process，不是等到延後一個 event-loop 邊界的 runner 才接：該邊界若因 owner 已被替換而永不執行，被接手的行程不能因此變成無人取消的孤兒。因此 `session_shutdown`／`shell_job_cancel` 對剛受理的 job 也在同一個同步步驟內中止底層 process。
 - 交接前的輸出（前 1 MiB 與最近約 8 KiB）重放進 job log；交接前已送給宿主的輸出不會重複回灌，之後的輸出走 job 的 log／tail／上限規則。兩者之間若超過 1 MiB 會有未保留的間隙，job 標示 `outputTruncated`。
 - 交接後不再更新該前景呼叫的串流顯示；job 名額（active 8／retained 32）不足或 owner 不可用時不交接，維持前景。
 - 不適用：有設 `timeoutMs`（該總時限已是上限）、`background:true`、Subagent 前景 child（無背景能力）。
@@ -112,7 +113,7 @@ Jobs 面板自動掛在輸入欄上方 `aboveEditor`，Shell＋Subagents **合�
 
 `/background-jobs`／`more`／`all` 開有界浮層；`shell`／`subagents` 篩選，`collapse` 明確隱藏常駐面板，more／all 恢復。↑↓ 選取、Enter 詳細、Tab 最近完成／全部、Esc 返回／關閉回 editor，保持輸入草稿；只有主動開啟才取焦點，背景事件不重開浮層。Fullscreen 可左鍵點完整 More 標籤，一般模式保留 terminal mouse。完成逐項移出常駐面板，但 More 可查看目前 retained registry 的完整ID、命令預覽、開始／結束時間、exit、取消要求與既有 log 路徑／輸出 byte 統計；不讀 log／输出、不恢復跨 reload 或已淘汰工作。命令／ID 只做顯示層 ANSI／控制碼／bidi 清理，Unicode 按欄寬截短，不重寫原參數。
 
-共用 key `pi-better-tools-background-jobs`，純 UI helper 透過公開 pi.events rendezvous 協調；不共用 job registry，不替換 footer／Schedule Prompt 或移除其他狀態／widgets，footer 不重複 Jobs 摘要，不啟用未選 tools。僅 TUI+hasUI，RPC／JSON／print 不掛面板；單模組與兩種載入順序均支援。沿用 stdout／stderr、取消／完成事件更新，無 polling／ticker／模型請求，owner／generation／producer lease／disposed pointer／shutdown 防護保留，UI 例外不改執行、通知或結果。只列背景工作，不列前景、其他 owner/runtime 或 OS 行程。等待背景工作結束後 `/reload` 載入。
+共用 key `pi-better-tools-background-jobs`，純 UI helper 透過公開 pi.events rendezvous 協調；不共用 job registry，不替換 footer／Schedule Prompt 或移除其他狀態／widgets，footer 不重複 Jobs 摘要，不啟用未選 tools。僅 TUI+hasUI，RPC／JSON／print 不掛面板；單模組與兩種載入順序均支援。沿用 stdout／stderr、取消／完成事件更新（同一 event-loop 回合內的連續輸出 chunk 合併為一次重繪），無 polling／ticker／模型請求，owner／generation／producer lease／disposed pointer／shutdown 防護保留，UI 例外不改執行、通知或結果。只列背景工作，不列前景、其他 owner/runtime 或 OS 行程。等待背景工作結束後 `/reload` 載入。
 
 ```javascript
 const receipt = await tools.bash({ command: "npm test", background: true });

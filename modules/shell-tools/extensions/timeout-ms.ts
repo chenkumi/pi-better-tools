@@ -250,17 +250,24 @@ function registerTimeoutMsOverride(
         }
         if (signal?.aborted) { unlink(); return await running; }
         let receipt;
+        let unlinkJob: (() => void) | undefined;
         try {
           receipt = jobs!.submit(ctx, name, toolCallId, undefined, async (jobSignal, wrap) => {
-            const onJobAbort = () => foreground.abort(jobSignal.reason);
-            if (jobSignal.aborted) onJobAbort(); else jobSignal.addEventListener("abort", onJobAbort, { once: true });
             try {
               handoff.attach(wrap, ctx.cwd, jobSignal);
               return await running;
-            } finally { jobSignal.removeEventListener("abort", onJobAbort); }
-          }, command);
+            } finally { unlinkJob?.(); unlinkJob = undefined; }
+          }, command, jobSignal => {
+            // Link cancellation at acceptance, not inside the deferred runner: that boundary may never
+            // run (owner replaced first), and the adopted process must not outlive the job that owns it.
+            const onJobAbort = () => foreground.abort(jobSignal.reason);
+            if (jobSignal.aborted) { onJobAbort(); return; }
+            jobSignal.addEventListener("abort", onJobAbort, { once: true });
+            unlinkJob = () => jobSignal.removeEventListener("abort", onJobAbort);
+          });
         } catch {
           // No capacity (or owner unavailable): stay a normal foreground command, still linked to the turn's abort.
+          unlinkJob?.(); unlinkJob = undefined;
           try { return await running; } finally { unlink(); }
         }
         handedOff = true; unlink();

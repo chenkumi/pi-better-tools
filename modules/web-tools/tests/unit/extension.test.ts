@@ -4,17 +4,20 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { defaults, parseConfig } from '../../src/config.ts';
 import { registerWebTools } from '../../src/index.ts';
 import { NATIVE_GUIDANCE } from '../../src/native-openai.ts';
+import { GEMINI_GUIDANCE } from '../../src/native-google.ts';
+import { ANTHROPIC_GUIDANCE } from '../../src/native-anthropic.ts';
 import { SOURCE_ENTRY_TYPE } from '../../src/native-sources.ts';
 import type { logToolExecutionFailure } from '../../src/debug-log.ts';
 
-function harness(provider: 'openai' | 'brave' | 'exa' = 'openai', enabled = true, capture = false, invalid = false,
-  writeFailure?: typeof logToolExecutionFailure) {
+function harness(provider: 'openai' | 'native' | 'brave' | 'exa' | 'deepseek' = 'openai', enabled = true, capture = false, invalid = false,
+  writeFailure?: typeof logToolExecutionFailure, captureGoogle = false) {
   const tools: string[] = [], diagnostics: string[] = [];
   const definitions = new Map<string, Record<string, unknown>>();
   const hooks = new Map<string, Function>();
   const commands = new Map<string, { handler: Function }>();
   let branch: { type: string; customType?: string; data?: unknown }[] = [];
   const config = defaults(); config.provider = provider; config.enabled = enabled; config.providers.openai.captureSources = capture;
+  config.providers.google.captureSources = captureGoogle;
   config.providers.brave = { apiKey: 'TEST_KEY' }; config.providers.exa = { apiKey: 'TEST_KEY' };
   const pi = {
     getActiveTools() { return tools; }, registerTool(t: { name: string } & Record<string, unknown>) { tools.push(t.name); definitions.set(t.name, t); },
@@ -70,7 +73,7 @@ test('Codex native search works by default without TUI or headless warnings and 
     assert.deepEqual(event.payload, { tools: [], include: [] });
     assert.deepEqual(h.diagnostics, []);
     await h.commands.get('web-tools')!.handler('status', ctx);
-    assert.match(h.diagnostics.at(-1)!, /Native OpenAI for current model: enabled/);
+    assert.match(h.diagnostics.at(-1)!, /Native search for current model: enabled/);
     assert.doesNotMatch(h.diagnostics.join(''), /experimental|opt-in.*Codex/i);
     for (const other of [harness('openai', false), harness('brave'), harness('exa')]) {
       assert.equal(other.hooks.get('before_provider_request')!(event, ctx), undefined);
@@ -210,6 +213,91 @@ test('shutdown racing the first lazy import cannot initialize or leave a browser
   await assert.rejects(execute('after', { url: 'https://example.com/' }, undefined), /AbortError|CANCELLED|aborted/i);
 });
 
+test('provider native injects Gemini search only for Gemini 3 and newer on the pi google provider', () => {
+  const h = harness('native');
+  assert.deepEqual(h.tools, ['web_fetch'], 'native mode does not register the REST tool');
+  const gemini = { api: 'google-generative-ai', provider: 'google', id: 'gemini-3-pro' };
+  const payload = { model: 'gemini-3-pro', contents: [], config: { tools: [{ functionDeclarations: [{ name: 'web_fetch' }] }] } };
+  const result = h.hooks.get('before_provider_request')!({ payload }, { ...h.context, model: gemini });
+  assert.deepEqual(result.config.tools, [{ functionDeclarations: [{ name: 'web_fetch' }] }, { googleSearch: {} }]);
+  assert.deepEqual(result.config.toolConfig, { includeServerSideToolInvocations: true });
+  assert.deepEqual(payload.config.tools, [{ functionDeclarations: [{ name: 'web_fetch' }] }], 'the original payload is untouched');
+  assert.equal(h.hooks.get('before_agent_start')!({ systemPrompt: 'Original' }, { ...h.context, model: gemini }).systemPrompt, 'Original' + GEMINI_GUIDANCE);
+  const options: { sections: Record<string, string> } = { sections: { another_extension: 'Keep' } };
+  assert.equal(h.hooks.get('before_agent_start')!({ systemPrompt: 'Original', systemPromptOptions: options }, { ...h.context, model: gemini }), undefined);
+  assert.equal(options.sections.pi_web_tools_native_search, GEMINI_GUIDANCE.trim());
+  assert.equal(options.sections.another_extension, 'Keep');
+  const untouched = { payload };
+  for (const model of [{ api: 'google-generative-ai', provider: 'google', id: 'gemini-2.5-pro' },
+    { api: 'google-vertex', provider: 'google-vertex', id: 'gemini-3-pro' }, { api: 'anthropic-messages', provider: 'kimi-coding', id: 'kimi' }]) {
+    assert.equal(h.hooks.get('before_provider_request')!(untouched, { ...h.context, model }), undefined);
+    assert.equal(h.hooks.get('before_agent_start')!({ systemPrompt: 'Original' }, { ...h.context, model }), undefined);
+  }
+  assert.deepEqual(untouched.payload.config.tools, [{ functionDeclarations: [{ name: 'web_fetch' }] }]);
+  assert.equal(harness('openai').hooks.get('before_provider_request')!(untouched, { ...h.context, model: gemini }), undefined, 'provider openai keeps its original scope');
+
+  const claude = { api: 'anthropic-messages', provider: 'anthropic', id: 'claude-haiku-4-5' };
+  const anthropicPayload = { model: 'claude-haiku-4-5', max_tokens: 300, tools: [{ name: 'web_fetch', input_schema: {} }] };
+  const anthropicResult = h.hooks.get('before_provider_request')!({ payload: anthropicPayload }, { ...h.context, model: claude });
+  assert.deepEqual(anthropicResult.tools, [{ name: 'web_fetch', input_schema: {} }, { type: 'web_search_20250305', name: 'web_search', max_uses: 8 }]);
+  assert.deepEqual(anthropicPayload.tools, [{ name: 'web_fetch', input_schema: {} }], 'the original payload is untouched');
+  assert.equal(h.hooks.get('before_agent_start')!({ systemPrompt: 'Original' }, { ...h.context, model: claude }).systemPrompt, 'Original' + ANTHROPIC_GUIDANCE);
+  assert.equal(harness('brave').hooks.get('before_provider_request')!({ payload: anthropicPayload }, { ...h.context, model: claude }), undefined);
+});
+test('DeepSeek mode registers the REST tool and borrows the pi credential only when config has none', async () => {
+  const h = harness('deepseek');
+  assert.deepEqual(h.tools, ['web_fetch', 'web_search']);
+  const searchTool = h.definitions.get('web_search')!.execute as Function;
+  const original = globalThis.fetch;
+  const authorizations: string[] = [];
+  globalThis.fetch = (async (_url: string, init: RequestInit) => {
+    authorizations.push(new Headers(init.headers).get('authorization') ?? 'none');
+    return new Response(JSON.stringify({ results: [{ title: 'Title', url: 'https://example.com/a', snippet: 'snippet' }] }),
+      { status: 200, headers: { 'content-type': 'application/json' } });
+  }) as typeof fetch;
+  try {
+    const ctx = { ...h.context, cwd: process.cwd(), modelRegistry: { getApiKeyForProvider: async (name: string) => name === 'deepseek' ? 'PI_KEY' : undefined } };
+    const result = await searchTool('deepseek', { query: 'topic' }, undefined, undefined, ctx);
+    assert.deepEqual(authorizations, ['Bearer PI_KEY']);
+    assert.match(result.content[0].text as string, /https:\/\/example\.com\/a/);
+    h.config.providers.deepseek = { apiKey: 'CONFIG_KEY' };
+    await searchTool('deepseek', { query: 'topic' }, undefined, undefined, ctx);
+    assert.deepEqual(authorizations, ['Bearer PI_KEY', 'Bearer CONFIG_KEY']);
+    h.config.providers.deepseek = {};
+    await assert.rejects(searchTool('deepseek', { query: 'topic' }, undefined, undefined, h.context), /AUTH_REQUIRED/);
+  } finally { globalThis.fetch = original; }
+  await h.commands.get('web-tools')!.handler('status', { ...h.context, cwd: process.cwd() });
+  assert.match(h.diagnostics.at(-1)!, /Search: deepseek/);
+  assert.match(h.diagnostics.at(-1)!, /DeepSeek credential: missing/);
+  await h.commands.get('web-tools')!.handler('status', { ...h.context, cwd: process.cwd(),
+    modelRegistry: { getApiKeyForProvider: async () => 'PI_KEY' } });
+  assert.match(h.diagnostics.at(-1)!, /DeepSeek credential: pi-managed \(not validated\)/);
+  assert.ok(!h.diagnostics.join('').includes('PI_KEY'), 'status never prints the credential');
+});
+
+test('Gemini grounding capture is opt-in, mode-gated and persisted with matching identity', () => {
+  assert.ok(!harness('native').hooks.has('provider_stream_event'), 'google capture is opt-in');
+  assert.ok(!harness('openai', true, false, false, undefined, true).hooks.has('provider_stream_event'), 'provider openai does not capture grounding');
+  const h = harness('native', true, false, false, undefined, true);
+  const stream = h.hooks.get('provider_stream_event')!;
+  const identity = { api: 'google-generative-ai', provider: 'google', model: 'gemini-4-argon' };
+  h.context.model = { ...h.context.model, ...identity, id: 'gemini-4-argon' };
+  stream({ ...identity, data: { responseId: 'resp_ground', candidates: [{ groundingMetadata: {
+    groundingChunks: [{ web: { uri: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc', title: 'F1' } }],
+    webSearchQueries: ['SECRET_QUERY'] } }] } }, h.context);
+  h.hooks.get('turn_end')!({ message: { role: 'assistant', ...identity, responseId: 'resp_other', stopReason: 'stop' } }, h.context);
+  assert.equal(h.branch().length, 0, 'a mismatched response id is not persisted');
+  // turn_end clears pending, so the matched case needs its own stream event.
+  stream({ ...identity, data: { responseId: 'resp_ground', candidates: [{ groundingMetadata: {
+    groundingChunks: [{ web: { uri: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc', title: 'F1' } }] } }] } }, h.context);
+  h.hooks.get('turn_end')!({ message: { role: 'assistant', ...identity, responseId: 'resp_ground', stopReason: 'stop' } }, h.context);
+  assert.equal(h.branch().length, 1);
+  const record = h.branch()[0]!.data as { sources: { url: string }[]; api: string };
+  assert.deepEqual(record.sources, [{ url: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc', title: 'F1' }]);
+  assert.equal(record.api, 'google-generative-ai');
+  assert.ok(!JSON.stringify(record).includes('SECRET'), 'captured records never include search queries');
+});
+
 test('web_search description names the configured provider and guidelines require sources and fetch', () => {
   for (const [provider, label] of [['brave', 'Brave'], ['exa', 'Exa']] as const) {
     const search = harness(provider).definitions.get('web_search')!;
@@ -227,9 +315,9 @@ test('web_search description names the configured provider and guidelines requir
   }
   const fetchGuidelines = (harness('brave').definitions.get('web_fetch')!.promptGuidelines as string[]).join('\n');
   assert.match(fetchGuidelines, /BROWSER_UNAVAILABLE/);
-  assert.match(fetchGuidelines, /npm run browser:install/);
+  assert.match(fetchGuidelines, /installation command for this package instance/);
   assert.match(fetchGuidelines, /cause-specific guidance/);
-  assert.match(fetchGuidelines, /Other startup failures do not prove the browser is uninstalled/);
+  assert.match(fetchGuidelines, /other startup failures do not prove the browser is uninstalled/);
   assert.doesNotMatch(fetchGuidelines, /do not retry; tell the user/);
 });
 

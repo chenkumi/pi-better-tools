@@ -30,6 +30,11 @@ function setup(seed: CronJob[] = []) {
     getJob: (id: string) => jobs.get(id), getAllJobs: () => [...jobs.values()],
     addJob: vi.fn((j: CronJob) => jobs.set(j.id, j)),
     updateJob: vi.fn((id: string, partial: Partial<CronJob>) => Object.assign(jobs.get(id)!, partial)),
+    updateJobWith: vi.fn((id: string, compute: (current: CronJob) => Partial<CronJob> | undefined) => {
+      const job = jobs.get(id); if (!job) return false;
+      const partial = compute(job); if (partial === undefined) return false;
+      Object.assign(job, partial); return true;
+    }),
     removeJob: vi.fn(), removeDisabledJobs: vi.fn(() => []),
   } as any;
   const scheduler = { addJob: vi.fn(), updateJob: vi.fn(), removeJob: vi.fn(), getNextRun: () => null, approveCommand: vi.fn().mockReturnValue(true) } as any;
@@ -184,6 +189,11 @@ describe("jobs overlay and widget", () => {
     const { storage, scheduler } = setup([cmdJob()]);
     const view = new JobsView(storage, scheduler, undefined, vi.fn(), theme, () => {}, () => {});
     view.handleInput("t");
+    // The overlay reviews the exact spec first; y only approves once the whole page set was displayed.
+    view.render(100);
+    expect(storage.getJob("cmdjob0001")?.enabled).toBe(false);
+    expect(scheduler.approveCommand).not.toHaveBeenCalled();
+    view.handleInput("y");
     expect(scheduler.approveCommand).toHaveBeenCalledOnce();
     expect(storage.getJob("cmdjob0001")?.enabled).toBe(true);
   });

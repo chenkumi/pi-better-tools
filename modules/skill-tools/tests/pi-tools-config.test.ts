@@ -16,6 +16,8 @@ test('pi-tools-config routes configuration needs by capability and keeps one ref
   assert.match(description, /^[ -~]+$/);
   for (const capability of ['SQLite', 'MySQL', 'PostgreSQL/Postgres', 'SQL Server/MSSQL', 'pty_*', 'web_search', 'subagent', 'schedule_prompt']) assert.ok(description.includes(capability), `missing config capability: ${capability}`);
   assert.ok(description.includes('required connection configuration is missing or unknown.'));
+  for (const capability of ['Chromium installation', 'PTY native', 'setup CLI diagnostics']) assert.ok(description.includes(capability));
+  assert.ok(description.length <= 1024, 'host skill description limit');
   assert.ok(description.includes('Do not use for routine operations with already-configured tools or for implementing these features in application code.'));
   assert.doesNotMatch(description, /pi-better-tools/);
   const modules = readdirSync(new URL('../../', import.meta.url), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
@@ -23,6 +25,23 @@ test('pi-tools-config routes configuration needs by capability and keeps one ref
   assert.deepEqual(references, modules.map(name => `${name}.md`));
   const indexed = [...index.matchAll(/\]\(references\/([^)]+)\)/g)].map(match => match[1]).sort();
   assert.deepEqual(indexed, references, 'every module has exactly one index link');
+});
+
+test('installation references describe installed-instance commands without requiring a checkout', () => {
+  const web = readFileSync(resolve(skillDir, 'references/web-tools.md'), 'utf8');
+  const pty = readFileSync(resolve(skillDir, 'references/pty-terminal.md'), 'utf8');
+  for (const text of [web, pty]) {
+    assert.match(text, /pi-better-tools doctor/);
+    assert.match(text, /setup\/cli\.mjs/);
+    assert.match(text, /PATH/);
+    assert.match(text, /npx/);
+  }
+  assert.match(web, /pi-better-tools browser install-deps/);
+  assert.match(web, /waitForSelector/);
+  assert.match(web, /PLAYWRIGHT_BROWSERS_PATH/);
+  assert.match(web, /靜態 HTTP/);
+  assert.match(pty, /pi-better-tools pty setup/);
+  assert.match(pty, /consumer project/);
 });
 
 test('pi-tools-config remains self-contained when copied without the project', t => {

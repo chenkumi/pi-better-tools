@@ -2,8 +2,11 @@ import type { Config } from './config.ts';
 import { resolveKey } from './config.ts';
 
 export interface SearchResult { title: string; url: string; snippet?: string; publishedAt?: string }
-export interface SearchResponse { provider: 'brave' | 'exa'; query: string; results: SearchResult[]; warnings: string[] }
+export type RestProvider = 'brave' | 'exa' | 'deepseek';
+export interface SearchResponse { provider: RestProvider; query: string; results: SearchResult[]; warnings: string[] }
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
+/** Reads a credential from Pi's stored provider login; only DeepSeek has one of the search providers. */
+export type PiCredentialResolver = (provider: 'deepseek') => Promise<string | undefined>;
 class SearchError extends Error {}
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 /** Linear tag removal, bounded retained output. Unclosed '<' stays literal,
@@ -43,18 +46,29 @@ async function readJson(response: Response): Promise<unknown> {
     catch { throw new SearchError('UPSTREAM_ERROR: invalid search JSON'); }
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
 }
+const SEARCH_ENDPOINTS = { brave: 'https://api.search.brave.com/res/v1/web/search', exa: 'https://api.exa.ai/search', deepseek: 'https://api.deepseek.com/v1/tools/search' } as const;
+/** An explicit config credential wins; DeepSeek otherwise reuses Pi's provider login. */
+async function resolveSearchKey(config: Config, provider: RestProvider, piCredential?: PiCredentialResolver): Promise<string> {
+  const credential = config.providers[provider];
+  if (credential.apiKey || credential.apiKeyEnv) return resolveKey(credential);
+  const fromPi = provider === 'deepseek' ? await piCredential?.('deepseek') : undefined;
+  if (fromPi?.trim()) return fromPi.trim();
+  // Brave/Exa have no Pi login provider, so resolveKey reports their existing AUTH_REQUIRED message.
+  if (provider === 'deepseek') throw new Error('AUTH_REQUIRED: no DeepSeek credential; run /login for DeepSeek or set providers.deepseek.apiKeyEnv');
+  return resolveKey(credential);
+}
 export async function search(
   config: Config, input: { query: string; numResults?: number },
-  signal?: AbortSignal, http: FetchLike = fetch,
+  signal?: AbortSignal, http: FetchLike = fetch, piCredential?: PiCredentialResolver,
 ): Promise<SearchResponse> {
   if (!config.enabled) throw new Error('CONFIG_INVALID: search is disabled');
   // The configured provider is authoritative; the model cannot choose one.
   const provider = config.provider;
-  if (provider !== 'brave' && provider !== 'exa') throw new Error('PROVIDER_UNSUPPORTED: OpenAI uses native search, not this tool');
+  if (provider !== 'brave' && provider !== 'exa' && provider !== 'deepseek') throw new Error('PROVIDER_UNSUPPORTED: native hosted search is selected, not this tool');
   if (typeof input.query !== 'string' || !input.query.trim() || input.query.length > 2000) throw new Error('CONFIG_INVALID: query must contain 1–2000 characters');
   const limit = input.numResults ?? config.numResults;
   if (!Number.isInteger(limit) || limit < 1 || limit > 10) throw new Error('CONFIG_INVALID: numResults must be 1–10');
-  const key = resolveKey(config.providers[provider]);
+  const key = await resolveSearchKey(config, provider, piCredential);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.searchTimeoutMs);
   const combined = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
@@ -63,14 +77,19 @@ export async function search(
     combined.throwIfAborted();
     const query = input.query.trim();
     if (provider === 'brave') {
-      const url = new URL('https://api.search.brave.com/res/v1/web/search');
+      const url = new URL(SEARCH_ENDPOINTS.brave);
       url.search = new URLSearchParams({ q: query, count: String(limit), extra_snippets: 'true' }).toString();
       response = await http(url.href, { headers: { 'X-Subscription-Token': key, Accept: 'application/json' }, signal: combined, redirect: 'error' });
-    } else {
-      response = await http('https://api.exa.ai/search', {
+    } else if (provider === 'exa') {
+      response = await http(SEARCH_ENDPOINTS.exa, {
         method: 'POST', headers: { 'x-api-key': key, 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ query, numResults: limit, type: 'auto', contents: { highlights: { maxCharacters: 1500 } } }),
         signal: combined, redirect: 'error',
+      });
+    } else {
+      response = await http(SEARCH_ENDPOINTS.deepseek, {
+        method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ query, count: limit }), signal: combined, redirect: 'error',
       });
     }
     if (response.status === 401 || response.status === 403) throw new SearchError(`AUTH_REQUIRED: ${provider} rejected the credential or its permissions`);
@@ -88,6 +107,7 @@ export async function search(
     // Brave may omit the web section for a legitimate empty result set.
     if (raw !== undefined && !Array.isArray(raw)) throw new SearchError('UPSTREAM_ERROR: invalid results shape');
     if (provider === 'exa' && !Array.isArray(raw)) throw new SearchError('UPSTREAM_ERROR: missing Exa results');
+    if (provider === 'deepseek' && !Array.isArray(raw)) throw new SearchError('UPSTREAM_ERROR: missing DeepSeek results');
     const results: SearchResult[] = [], seen = new Set<string>();
     let invalid = 0;
     for (const item of (raw ?? []) as unknown[]) {
@@ -98,10 +118,12 @@ export async function search(
       url.hash = '';
       if (seen.has(url.href)) continue;
       seen.add(url.href);
-      const snippet = provider === 'brave' ? clean(item.description, 1500) :
-        clean(Array.isArray(item.highlights) ? item.highlights.filter(v => typeof v === 'string').join('\n') : undefined, 1500);
+      const snippet = provider === 'brave' ? clean(item.description, 1500) : provider === 'exa' ?
+        clean(Array.isArray(item.highlights) ? item.highlights.filter(v => typeof v === 'string').join('\n') : undefined, 1500) :
+        clean(item.snippet, 1500) ?? clean(item.summary, 1500);
+      const published = provider === 'deepseek' ? item.date : item.publishedDate;
       results.push({ title: clean(item.title, 300) || url.hostname, url: url.href, ...(snippet ? { snippet } : {}),
-        ...(typeof item.publishedDate === 'string' ? { publishedAt: clean(item.publishedDate, 100) } : {}) });
+        ...(typeof published === 'string' ? { publishedAt: clean(published, 100) } : {}) });
       if (results.length === limit) break;
     }
     combined.throwIfAborted();

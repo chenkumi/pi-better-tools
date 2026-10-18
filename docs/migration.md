@@ -4,11 +4,17 @@
 
 1. Back up the relevant Pi settings file. Review `pi list` and `pi config` in both personal/project scopes.
 2. Disable the extension resources of the old five standalone packages, pi-pty-terminal, pi-sqlite-tools and pi-sql-connector. Preserve their folders, credentials and persistent state. Different package identities do not deduplicate same-named tools.
-3. In this repository run `npm ci --ignore-scripts`, `npm run pty:install` and `npm run build`; install Chromium explicitly if Fetch is needed.
+3. In this repository run `npm ci --ignore-scripts`, `npm run pty:install` and `npm run build`; install Chromium explicitly if JavaScript-rendered Fetch is needed (static HTTP works when the executable is missing).
 4. Run `pi install D:/projects/pi-better-tools`, or use `-l` for the intended project. Project packages require the existing trust policy; do not enable automatic approve just to avoid errors.
 5. Reload/restart Pi. Check the loaded tools, and `/web-tools status`.
 
 No script here automatically changes user settings/auth, deletes logs, removes old packages or edits data left behind by the removed Scheduler module.
+
+## Published-package setup and HTTP compatibility
+
+Existing settings and tool arguments require no migration. `web_fetch` still prefers the configured Chromium/Chrome; only a confirmed missing executable enables static HTTP with a warning. `waitForSelector` requires a browser and fails explicitly instead of being ignored. Permission/system dependency/timeout/unknown failures retain diagnostics, and website/TLS/network-policy failures are not retried through another backend. No browser download runs at package install or extension load/reload.
+
+Use the installed instance's `pi-better-tools doctor`, `browser install`, `browser install-deps`, or `pty setup`. A package bin is not guaranteed on PATH for Pi-managed/source installs; use the current Node + absolute `setup/cli.mjs` command printed by errors or identify the actual installed package root. No repository checkout/cwd is required; do not run npx to fetch another version. Root npm setup scripts remain developer aliases. Linux OS dependency installation still needs explicit approval; PTY setup respects consumer native-script policy. `/skill:pi-tools-config` contains self-contained installation instructions even when the skill directory is relocated. Settle current jobs before reloading changed extensions.
 
 ## SQL Connector integration
 
@@ -130,7 +136,7 @@ The module is now a project-native rewrite (zod 4 replaces Ajv), not a snapshot 
 
 ## PTY integration
 
-停用獨立 `pi-pty-terminal`，只載入整合入口 `modules/pty-terminal/src/index.ts`。原七個工具保留，spawn target 預設 local；新增 `pi-pty-terminal.targets` named WSL/SSH settings，不自動寫設定或搬移 session。原生 dependency setup 在 ignore-scripts 安裝後需明確 `npm run pty:install`；此步驟只執行 node-pty lifecycle，不啟動遠端連線或下載 Chromium。跨平台不可共用 node_modules。
+停用獨立 `pi-pty-terminal`，只載入整合入口 `modules/pty-terminal/src/index.ts`。原七個工具保留，spawn target 預設 local；新增 `pi-pty-terminal.targets` named WSL/SSH settings，不自動寫設定或搬移 session。原生 dependency setup 在 ignore-scripts 安裝後需明確使用安裝實例的 `pty setup` CLI（repository 別名 `npm run pty:install`）；此步驟只執行 node-pty lifecycle，不啟動遠端連線或下載 Chromium。跨平台不可共用 node_modules。
 
 現有 PTY session 無法跨 extension reload/移轉恢復；先完成工作或明確關閉。Windows kill/shutdown 不傳 POSIX signal；WSL/SSH kill 是 transport 關閉，不保證遠端背景程序停止。完整 target 路徑、env、SSH prerequisites 見 `modules/pty-terminal/README.md`。
 

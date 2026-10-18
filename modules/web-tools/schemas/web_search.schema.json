@@ -5,7 +5,7 @@
   "additionalProperties": false,
   "properties": {
     "version": { "const": 1, "default": 1 },
-    "provider": { "enum": ["openai", "brave", "exa"], "default": "openai" },
+    "provider": { "enum": ["openai", "native", "brave", "exa", "deepseek"], "default": "openai" },
     "enabled": { "type": "boolean", "default": true },
     "numResults": { "type": "integer", "minimum": 1, "maximum": 10, "default": 5 },
     "searchTimeoutMs": { "type": "integer", "minimum": 1000, "maximum": 120000, "default": 60000 },
@@ -13,8 +13,10 @@
       "type": "object", "additionalProperties": false,
       "properties": {
         "openai": { "type": "object", "additionalProperties": false, "properties": { "captureSources": { "type": "boolean", "default": false } } },
+        "google": { "type": "object", "additionalProperties": false, "properties": { "captureSources": { "type": "boolean", "default": false } } },
         "brave": { "$ref": "#/$defs/credential" },
-        "exa": { "$ref": "#/$defs/credential" }
+        "exa": { "$ref": "#/$defs/credential" },
+        "deepseek": { "$ref": "#/$defs/credential" }
       }
     },
     "fetch": {

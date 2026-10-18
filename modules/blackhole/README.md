@@ -2,7 +2,7 @@
 
 ## Pi Better Tools 本地整合
 
-重構清理（2026-10-16）：移除未接入的舊 `om/compaction-trigger.ts`／`om/inline-compaction.ts` 與 0.5.2 專用 migration notice；原生壓縮、失敗歸屬及 pending commit 防護維持。通用 env override 引擎統一由 `pi-base/core/config-env.ts` 提供，專用 env map 與原 export 路徑保留；非搜尋 enum／number 選單共用 `pi-base/settings/list-submenu.ts`。ConfigManager 測試 helper 搬至 `tests/fixtures/`，不隨產品打包。舊設定讀取相容、歷史 CHANGELOG 與原始來源雜湊不改。
+重構清理（2026-10-16）：移除未接入的舊 `om/compaction-trigger.ts`／`om/inline-compaction.ts` 與 0.5.2 專用 migration notice；原生壓縮、失敗歸屬及 pending commit 防護維持。這三個檔案先前只留在樹上、runtime 從未引用（`index.ts` 不安裝 private adapter，migration notice 亦已無 session_start hook），其專屬測試 suite 一并刪除；`docs/sources.json` 不再把它們列為攜帶檔案，只由 `docs/adaptations.json` 的 `removedFiles` 記錄。通用 env override 引擎統一由 `pi-base/core/config-env.ts` 提供，專用 env map 與原 export 路徑保留；非搜尋 enum／number 選單共用 `pi-base/settings/list-submenu.ts`。ConfigManager 測試 helper 搬至 `tests/fixtures/`，不隨產品打包。舊設定讀取相容、歷史 CHANGELOG 與原始來源雜湊不改。
 
 ### 本地現行模式：Pi-only trigger ownership
 

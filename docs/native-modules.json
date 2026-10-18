@@ -1,5 +1,11 @@
 {
   "schemaVersion": 1,
+  "webSetupCompatibility20261016": {
+    "plan": "plan/PLAN-20261016T150815022Z.md",
+    "baselineCommit": "e6c46c422b7d5b3b81e89927031fb1a29c461ea2",
+    "scope": "Only six changed skill-tools files: standalone pi-tools-config setup routing, package-local CLI/doctor instructions, missing-browser static HTTP limitations, explicit browser/dependency installation and consumer-approved PTY setup; corresponding metadata and real-host fixtures. No runtime skills copy, user settings or unrelated SQLite reference refresh.",
+    "historyPolicy": "webSetupPreviousSha256 preserves active fingerprints verified against baseline git bytes. Original migration records, earlier hashes and unavailable historical deltas remain unchanged. This snapshot does not certify full-project verification or model routing accuracy."
+  },
   "refactoringCleanup20261016": {
     "plan": "plan/PLAN-20261016T010604383Z.md",
     "scope": "R3 removes disconnected Runtime debug-log/helper-only tests instead of introducing new recovery I/O. R6 Fork delegates only owner-bound TUI binding to Shell widget-binding.ts; projections, manager, guards, permits, cancellation and origin-only delivery are unchanged. README changes document exact boundaries; historical/native hashes remain preserved.",
@@ -44,7 +50,12 @@
         { "path": "modules/file-audit/src/index.ts", "sha256": "77a75f4bbc7c02dbad04a8c46d596346cbb337e98ac1e942070fa4d50350340f" },
         { "path": "modules/file-audit/src/paths.ts", "sha256": "04650853d6cc5c64d7c78fe4b9f26ae3990f50eebc5f5d8ced93a98ce608a24c" },
         { "path": "modules/file-audit/src/presentation.ts", "sha256": "d2c76f0abd116a9b84672a362acadff64d88389ba227bd43ba5a7f454a8dd2f5" },
-        { "path": "modules/file-audit/src/provenance.ts", "sha256": "deef7bd87af81d9e64672932d41725873cbab832f7a267b588f3ecf1091f7928" },
+        {
+          "path": "modules/file-audit/src/provenance.ts",
+          "checkRepairPreviousSha256": "deef7bd87af81d9e64672932d41725873cbab832f7a267b588f3ecf1091f7928",
+          "sha256": "ee547149fbef4dcbb48c7bbf576a544e2d78e0be58fdb044644774352e83fe3e",
+          "reason": "Native bounded recent read/write/edit/note activity and manual provenance inspection. 2026-10-17 check repair: a candidate keeps the caller's workspace spelling and falls back to its real location only when that spelling is unsafe, so a filesystem alias (Windows 8.3 short name, junction, case) can no longer make an in-workspace file look like an escape and be silently skipped."
+        },
         { "path": "modules/file-audit/tests/activity-window.test.ts", "sha256": "9a27eab25326d3a83c00e77a92a91ee14208ba43ad05c21f6ce40f3a6ae1d4ef" },
         { "path": "modules/file-audit/tests/commands.test.ts", "sha256": "7c98d7ebeb5703bf362fc6fda1d13a1dd74f2fe18c9071f75d10d4044d6133db" },
         { "path": "modules/file-audit/tests/events.test.ts", "sha256": "8d01d4fce75d116600541f5b9e05acd03d41aa31747a0f50a42f8ec7899bab92" },
@@ -59,7 +70,12 @@
         { "path": "modules/file-audit/tests/paths.test.ts", "sha256": "77dfbb14c02c33629192d1716d9910e29c0d64a3838caa696bc4ba83a5694c10" },
         { "path": "modules/file-audit/tests/presentation.test.ts", "sha256": "b68499207886f47bd819afac241917a190664de516e320a52541d40fad14d32f" },
         { "path": "modules/file-audit/tests/provenance.test.ts", "sha256": "ccd8654e5ac50b2a83df974e5b81e5af1d480b0566f8873b0d306813cae1ee6f" },
-        { "path": "modules/file-audit/tests/scan.test.ts", "sha256": "4feaa04d9513545c4f9771ebcbae6f11bd60a2d1feab5538ff2b674493f6ba6b" },
+        {
+          "path": "modules/file-audit/tests/scan.test.ts",
+          "checkRepairPreviousSha256": "4feaa04d9513545c4f9771ebcbae6f11bd60a2d1feab5538ff2b674493f6ba6b",
+          "sha256": "33d5a441df712afaf4cf2b4bfebf11b9c6dc1759356c1567144a7dab1854b0d3",
+          "reason": "Native file-audit scan tests. 2026-10-17 check repair: adds a deterministic junction-alias case (red before the provenance fix) asserting an aliased workspace still reports matched/matched/matched/untracked."
+        },
         { "path": "modules/file-audit/tests/tui-ab.integration.test.mjs", "sha256": "a5a8098ae6fad985b2816703c4a20fe574001fca2f8fa10973caf1319e464b0e" },
         { "path": "modules/file-audit/tests/tui-workflow.integration.test.mjs", "sha256": "2ccb7ec6847cd8bce277779d0254cca397fed5e273e34f837a0da9f393154873" },
         { "path": "modules/file-audit/tsconfig.json", "sha256": "cf84803c4808ab9d2af3834851589ef6a7c78eb252cb83d5e9e5f353af4d3edc" }
@@ -91,8 +107,11 @@
           "standalonePreviousSha256": "bb25dc2414543b6104be0b190688ca72b06d4277feddd73493850027392b8dc0",
           "configRoutingPreviousSha256": "18f9d800fe809c4fef7e03e6aed12f5da67cd13b0124f7353729f92c2840bbb4",
           "fileAuditPreviousSha256": "d5ba4718b7e89d3f0074a578422c892f2cd808bd2d95f5ac78e05cbb8f9e2b21",
-          "sha256": "fefe6c47330bca22e71c7c6c3b5f8c1144f41713f640a04a868ed2c85f0e086a",
-          "reason": "Native lazy module-config index with expanded English configuration-intent metadata, explicit routine-use/application-development exclusions and self-contained references."
+          "webSetupPreviousSha256": "fefe6c47330bca22e71c7c6c3b5f8c1144f41713f640a04a868ed2c85f0e086a",
+          "geminiAndDeepSeekSearch20261017PreviousSha256": "59143e778eb3b8e3b3238e0878f2ad85c01cc9270b9d7528e3479b25fd626eb9",
+          "anthropicNativeSearch20261017PreviousSha256": "8f08d4c6eea16e11e11b13d865d5f62ad40994529199e5849ea2efc98e545961",
+          "sha256": "6b7784ae5ae1fce2a67ed0bbb0554888f931150eac71741c088784dc9d924685",
+          "reason": "Native lazy module-config index with expanded English configuration-intent metadata, explicit routine-use/application-development exclusions and self-contained references. 2026-10-17: Web row names the OpenAI/Gemini native modes and the Brave/Exa/DeepSeek REST providers, then adds the Anthropic native mode."
         },
         {
           "path": "modules/skill-tools/skills/pi-tools-config/references/blackhole.md",
@@ -151,7 +170,8 @@
         {
           "path": "modules/skill-tools/skills/pi-tools-config/references/pty-terminal.md",
           "standalonePreviousSha256": "0c712ad282dfe1778d6013302901db96087ea847a7bfb898680f5d691b762e89",
-          "sha256": "c6fc7746d3fe8719f3e3d50288303b2f509373f4d18c9e746b72d8df7a239dd9",
+          "webSetupPreviousSha256": "c6fc7746d3fe8719f3e3d50288303b2f509373f4d18c9e746b72d8df7a239dd9",
+          "sha256": "dedc292828454982e5902dd8d1cb610c198a54a1419b02fb047f818a42c44873",
           "reason": "Deferred PTY commands, trusted target configuration and supported environment matching."
         },
         {
@@ -182,8 +202,9 @@
         {
           "path": "modules/skill-tools/skills/pi-tools-config/references/sqlite-tools.md",
           "standalonePreviousSha256": "788e0aa94cda67ba0f889997824339c3741110acdca37a33691dd710417298fb",
-          "sha256": "72db177da9df00d9d77d6bf796dc460e5f0603e7ddbed80a4e87240ff9e3bdc0",
-          "reason": "SQLite discovery, fixed/manual precedence, cwd resolution and reload behavior."
+          "sha256": "7de52b11b450a8f5ec8d45db535ef4e21455c89f62eb9ae954a897d519e82b7a",
+          "pi130UpgradeReconcile20261017PreviousSha256": "72db177da9df00d9d77d6bf796dc460e5f0603e7ddbed80a4e87240ff9e3bdc0",
+          "reason": "SQLite manual/fixed mount commands, config precedence, connection lifecycle and validation limits; no external links. 2026-10-17 recorded hash reconciled to the committed text from commit f1c9ec2 (the previous record did not match any committed revision of the file)."
         },
         {
           "path": "modules/skill-tools/skills/pi-tools-config/references/subagents.md",
@@ -194,14 +215,19 @@
         {
           "path": "modules/skill-tools/skills/pi-tools-config/references/web-tools.md",
           "standalonePreviousSha256": "dab2e13376ab9c2fce5b8c022a34f57c23363405cb26609a298d8a751c2651a8",
-          "sha256": "1ca15bde5997441de31d67a4d0e8722fa76957681ed4b43f9655049e3f354af3",
-          "reason": "Search providers, fixed/default config path, environment credentials and browser setup."
+          "webSetupPreviousSha256": "1ca15bde5997441de31d67a4d0e8722fa76957681ed4b43f9655049e3f354af3",
+          "geminiAndDeepSeekSearch20261017PreviousSha256": "db145a45fb8a35535c79b865d1c290c9516350400796e0a8c9130e60544bf989",
+          "anthropicNativeSearch20261017PreviousSha256": "b0f376c3ecc76d93b78b5cdfad1c473492238acf63083c8879bdb7a383801fe3",
+          "sha256": "25e3a2ceecb9e9b954015b288a5aeaafa527b2b4d4df3e1a070d8172aa508c9e",
+          "geminiGroundingCapture20261017PreviousSha256": "5983a003a4e0b2330dca5b18094d06a483aa63b4778a9e283f3d764f0e0e29d8",
+          "reason": "Search providers, fixed/default config path, environment credentials and browser setup. 2026-10-17: documents provider openai versus native (Gemini 3/4 grounding plus Anthropic web_search on the pi providers, no extra credential), the DeepSeek REST provider with a pi-login fallback credential, and that numResults/searchTimeoutMs apply to REST search only."
         },
         {
           "path": "modules/skill-tools/tests/pi-tools-config.test.ts",
           "standalonePreviousSha256": "341433b7829bc8f121ef95f944f2165cdfd7d28880bd0fb968ee329c8a3027e0",
           "configRoutingPreviousSha256": "6be9e7ca2454f9ac48120f99535a960cb755cc02d095229ce5375152d9d543b1",
-          "sha256": "fa8a4d6a73fa0da499f1f53e2f019637becb5aabf4933a21fea9c1eef3440d7f",
+          "webSetupPreviousSha256": "fa8a4d6a73fa0da499f1f53e2f019637becb5aabf4933a21fea9c1eef3440d7f",
+          "sha256": "1e4ac15ad59189105844456418c6c421e5355191c3a680a3a7fcf2b6c8be1ba5",
           "reason": "Configuration-focused folded English metadata/capabilities/exclusions, exact module coverage, standalone-contained links and JSON examples; no obsolete 50-character assertion or simulated semantic classifier."
         },
         {
@@ -214,8 +240,10 @@
           "standalonePreviousSha256": "9dcd9073bbc01099bacb88029c822bb1d1b0a8c732dd0f9e9b5b6db28dfcc9a3",
           "configRoutingPreviousSha256": "e3bc504f3b44e53e72a851ab70fb761e09c4b10fee9e70cbdb002522eb226849",
           "fileAuditPreviousSha256": "ffaec803485b2f74022a29aed6b4c83ec4f693f467c5e441039c22f235ac8551",
-          "sha256": "7391acb72d943002f73a308e9add2352c8ea2e55c1c486aab63bdd656c55a75f",
-          "reason": "Usage, extension-filter boundary, migration/rollback and validation instructions."
+          "webSetupPreviousSha256": "7391acb72d943002f73a308e9add2352c8ea2e55c1c486aab63bdd656c55a75f",
+          "sha256": "0b2a2f64a20fab4ef9879a29d6edba0a71e8f2d268690256f1fe95af0a834d15",
+          "pi130UpgradeReconcile20261017PreviousSha256": "4b1fc6f455922fe287879895a8ad487e85faf03b77d7090dd6ae934364d41aa8",
+          "reason": "Usage, extension-filter boundary, migration/rollback and validation instructions. 2026-10-17 recorded hash reconciled to the committed text from commit a22fe48, which documented the added expert-lens and verify-findings skills."
         },
         {
           "path": "modules/skill-tools/tsconfig.json",
@@ -255,7 +283,7 @@
         {
           "path": "modules/skill-tools/tests/fixtures/skills-host.mjs",
           "configRoutingPreviousSha256": "c41eae49431378366c182a52b32ac4b02a5fe379207954249a027575bffaba62",
-          "dependencyUpgradePreviousSha256": "a7a703ccb6c8a7bbbd37a4deacf0fec0cbfd026fb3eee4d25e41db9c73c53f8a", "sha256": "3c277dfbb33739a22520c0935ae5cce60ad3adfa8b718f07ae394530ee6a44f2",
+          "dependencyUpgradePreviousSha256": "a7a703ccb6c8a7bbbd37a4deacf0fec0cbfd026fb3eee4d25e41db9c73c53f8a", "webSetupPreviousSha256": "3c277dfbb33739a22520c0935ae5cce60ad3adfa8b718f07ae394530ee6a44f2", "sha256": "c4b09042a99b62d7e983c1779730cb23af26e9a02c097756af035e8141f648ad",
           "reason": "Relocated package discovery, startup/reload, lazy catalogue/body, command expansion, package extension filters and no-tools; reused by production tarball smoke."
         }
       ]
@@ -822,6 +850,11 @@
       "origin": "User-authorized project-native Fork (2026-10-13), not an imported snapshot: independent Pi process inheriting the source conversation and capabilities, cross-session hand-over, Pi1.1.0 only. Plan: plan/PLAN-20261013T035455648Z.md.",
       "license": "MIT (root LICENSE and modules/fork/LICENSE)",
       "entry": "modules/fork/src/index.ts",
+      "blockedReport20261016": {
+        "issue": "issue/ISSUE-20261016T155432962Z.md",
+        "fix": "bb711b850e700052a87a9979ae6594edddcf24f6",
+        "scope": "Non-terminal blocked state for a Fork whose own model call failed while nested jobs keep the session from being quiet. The guard reports the truth immediately instead of waiting for quiet; fork_status and the background panel surface it; the remaining no-deadline gap is recorded, not hidden. Reproduction matrix A-D and verification are recorded in the issue note."
+      },
       "files": [
         {
           "path": "modules/fork/LICENSE",
@@ -832,7 +865,11 @@
           "path": "modules/fork/README.md",
           "refactorPreviousSha256": "94793f6c092b96c4802568e035eb137720a0de9d75e86f5f5e6fd301bdf2173a",
           "forkDefaultActivePreviousSha256": "118e86afc81e4a5a26e373476aa4edd9f6ce4c573873b1ae7a7ff288eaffeb50",
-          "sha256": "b2eed57bdb8112af52fc8caa811d121ba94947d7dfd51341ed2bc9da2c960d3a",
+          "blockedReportPreviousSha256": "b2eed57bdb8112af52fc8caa811d121ba94947d7dfd51341ed2bc9da2c960d3a",
+          "blockedReportAdaptation": "2026-10-16: document the non-terminal blocked truth report, its record fields, and the deliberately unclosed no-deadline gap.",
+          "scanFix20261017PreviousSha256": "a2ea28158ccd780da37cda77f00996e780de6ba8778196f24ffbaa06d243e872",
+          "scanFix20261017Adaptation": "2026-10-17 document pruning of finished, delivered records beyond the 64-record scan.",
+          "sha256": "e65e376f62d105ea5bf705a1de7c33f60d8241e38db8e35d3bb1265ccd4baa9b",
           "reason": "Document defaultActive:true without config; preserve host selection, managed-child restrictions, limits and security boundaries."
         },
         {
@@ -847,12 +884,16 @@
         },
         {
           "path": "modules/fork/src/child-guard.ts",
-          "sha256": "41d32860523c159fa9f8b45179f2144ee93694053bf5f14f2f33a8afc3331c16",
+          "blockedReportPreviousSha256": "41d32860523c159fa9f8b45179f2144ee93694053bf5f14f2f33a8afc3331c16",
+          "blockedReportAdaptation": "2026-10-16: report a fatal model error immediately (bounded error text, pending counts, deduplicated) instead of waiting for quiet; only assistant errors after this Fork's origin marker count.",
+          "sha256": "99bdb68602662ed22700d2fc4929dccd07f535a0573b83dd3945ede4a467a7c5",
           "reason": "Native Fork implementation."
         },
         {
           "path": "modules/fork/src/child.ts",
-          "sha256": "4a5ca59485cdc0b80469dfbf994fc02d5ab8dbb58c323b294f66174f7a19398d",
+          "blockedReportPreviousSha256": "4a5ca59485cdc0b80469dfbf994fc02d5ab8dbb58c323b294f66174f7a19398d",
+          "blockedReportAdaptation": "2026-10-16: progress callback widened to carry the blocked report; job counts sanitised to non-negative integers.",
+          "sha256": "7c8b2d7a3b6456270cb5c0f7b3330ca19c6fbe0701383fab818ba5d501b95509",
           "reason": "Native Fork implementation."
         },
         {
@@ -870,12 +911,18 @@
           "path": "modules/fork/src/live-widget.ts",
           "refactorPreviousSha256": "63f51278da48a14897b5342840dbda79f8f3f6b0e56be585315cb5be0fd0d3d6",
           "refactorAdaptation": "2026-10-16 R6: delegate only bind/refresh/clear to shared presentation helper; forkPanelJob and all execution/delivery lifecycle logic unchanged.",
-          "sha256": "76fbd13b1fef62643a35f6ca668140aec8dc03cfc5bfff258ddd7120c7632fa2",
+          "blockedReportPreviousSha256": "76fbd13b1fef62643a35f6ca668140aec8dc03cfc5bfff258ddd7120c7632fa2",
+          "blockedReportAdaptation": "2026-10-16: render a blocked Fork as blocked with its reason and pending job count; never as healthy.",
+          "sha256": "2c230e72fa1167afb5f0dd935d4019b03a117221f75f7773dea652b056982c4c",
           "reason": "Native Fork implementation."
         },
         {
           "path": "modules/fork/src/manager.ts",
-          "sha256": "a846370ac14ca04d32db51cc0e8924ce1c8f5455b300ab9048b66374e25d2170",
+          "blockedReportPreviousSha256": "a846370ac14ca04d32db51cc0e8924ce1c8f5455b300ab9048b66374e25d2170",
+          "blockedReportAdaptation": "2026-10-16: record the blocked truth and status, clear it when progress resumes without regressing finalizing, and expose it through summarize().",
+          "scanFix20261017PreviousSha256": "d474ef3f833999f00cb3424dfcaf44f95ecde888b18198154102928e6a2807f7",
+          "scanFix20261017Adaptation": "2026-10-17 acceptFork prunes old finished records after the store write succeeds.",
+          "sha256": "75ec1fce9d202b2392c4bb99e7121aab794c81578847e0e8e3561936e044bbb5",
           "reason": "Native Fork implementation."
         },
         {
@@ -890,8 +937,22 @@
         },
         {
           "path": "modules/fork/src/store.ts",
-          "sha256": "c8735b97a020be842d2a15877dda6b9e355309ef331861988402a3530ea7bae4",
+          "blockedReportPreviousSha256": "c8735b97a020be842d2a15877dda6b9e355309ef331861988402a3530ea7bae4",
+          "blockedReportAdaptation": "2026-10-16: add the active blocked status and its bounded record field; unknown statuses stay rejected.",
+          "scanFix20261017PreviousSha256": "2a12548d7ca891525a1d597c0ab31ab7570b1c72f2808799104ecd498a8e5b01",
+          "scanFix20261017Adaptation": "2026-10-17 pruneRecords: delete only terminal, non-pending records beyond the newest 64; unreadable/foreign/unfinished kept.",
+          "sha256": "7da71bcdba1c60db31bd3e13ae4dcc29ff54f3db372cc301f1b379719080266d",
           "reason": "Native Fork implementation."
+        },
+        {
+          "path": "modules/fork/tests/blocked-report.integration.test.ts",
+          "sha256": "62a04c895b4a26d500abbda5fea3d70efa608d097cb85084831591061139e512",
+          "reason": "Real-host regression for the blocked report: visible in fork_status while a nested job runs, still ending as CHILD_MODEL_ERROR once it ends."
+        },
+        {
+          "path": "modules/fork/tests/blocked-report.test.ts",
+          "sha256": "b25c582f01bef9ab96efd897c1bdbefb46db6a4a19a9333c44d197d0644bd8e5",
+          "reason": "Unit regression for the blocked report across guard, child, store and manager."
         },
         {
           "path": "modules/fork/tests/child-guard.test.ts",
@@ -910,7 +971,9 @@
         },
         {
           "path": "modules/fork/tests/fixtures/provider.ts",
-          "sha256": "4c32ca9257029fc0c3b1335a0254ef56f531936f7095d293359bc6f37fa58c0c",
+          "blockedReportPreviousSha256": "4c32ca9257029fc0c3b1335a0254ef56f531936f7095d293359bc6f37fa58c0c",
+          "blockedReportAdaptation": "2026-10-16: add the interrupted scenario (long background job, then a mid-stream model error) and the one-shot status prompt used by the blocked-report tests.",
+          "sha256": "f0e4d65237512f9a1a8120854b787fa7b2289f161ef7e64b239cb88c035ec8b0",
           "reason": "Offline deterministic provider fixture (no network, no credentials)."
         },
         {
@@ -920,7 +983,9 @@
         },
         {
           "path": "modules/fork/tests/manager.test.ts",
-          "sha256": "fc98c2536c1619d1ff84346391828d7e925756e02406b7f5ec746075959dbb88",
+          "scanFix20261017PreviousSha256": "fc98c2536c1619d1ff84346391828d7e925756e02406b7f5ec746075959dbb88",
+          "scanFix20261017Adaptation": "2026-10-17 regression for record pruning boundaries.",
+          "sha256": "fba0e6e36519146beab3adfc25d26d18f11ea87afba3b93e88a4efc27334e161",
           "reason": "Native Fork tests (unit and real-host offline integration)."
         },
         {

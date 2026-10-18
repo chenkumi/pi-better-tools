@@ -1,4 +1,6 @@
 import { performance } from 'node:perf_hooks';
+import { setupCommand } from '../../../../setup/commands.mjs';
+import { fetchStatic } from './http.js';
 import { chromium, type Browser, type BrowserContext, type Route } from 'playwright';
 import { extractHtmlIsolated, MAX_HTML_BYTES, prewarmExtractionWorker, shutdownExtractionWorkers, type ContentFormat, type ExtractionMode } from './extract.js';
 import { NetworkPolicy, parseWebUrl, type ValidationCache } from './network.js';
@@ -79,25 +81,36 @@ export class FetchQueue {
   }
 }
 
+export type BrowserLaunchReason = 'missing-executable' | 'system-dependencies' | 'permission' | 'timeout' | 'unknown';
+export class BrowserLaunchError extends Error {
+  constructor(readonly reason: BrowserLaunchReason, guidance: string) { super(`BROWSER_UNAVAILABLE: ${guidance}`); }
+}
+
 /** Classify known Playwright launch diagnostics without exposing paths or call logs. */
 function browserLaunchError(error: unknown, channel: FetchOptions['channel']): Error {
   const message = error instanceof Error ? error.message : '';
   const summary = message.split('\n', 1)[0] ?? '';
   let guidance: string;
+  let reason: BrowserLaunchReason = 'unknown';
+  const install = setupCommand(['browser', 'install']);
   if (/^(?:browserType\.launch: )?(?:Executable doesn't exist at |Chromium distribution '[^']+' is not found)/.test(summary)) {
+    reason = 'missing-executable';
     guidance = channel === 'chrome'
-      ? 'Google Chrome executable was not found. Install Google Chrome, or set fetch.channel to "chromium" and run `npm run browser:install`.'
-      : 'Playwright Chromium executable was not found. Install it with `npm run browser:install` in the package directory using the same user and browser-cache environment as Pi.';
+      ? `Google Chrome executable was not found. Install Google Chrome, or set fetch.channel to "chromium" and run ${install}.`
+      : `Playwright Chromium executable was not found. Install it with ${install} using the same user and browser-cache environment as Pi.`;
   } else if (/Host system is missing dependencies|error while loading shared libraries/.test(message)) {
-    guidance = 'Browser system dependencies are missing. On Linux/WSL, review and run `npm run browser:install-deps` with user approval; on other systems, check the required browser runtime dependencies.';
+    reason = 'system-dependencies';
+    guidance = `Browser system dependencies are missing. On Linux/WSL, review and run ${setupCommand(['browser', 'install-deps'])} with user approval; on other systems, check the required browser runtime dependencies.`;
   } else if ((error instanceof Error && 'code' in error && ['EACCES', 'EPERM'].includes(String(error.code))) || /\b(?:EACCES|EPERM)\b/.test(summary)) {
+    reason = 'permission';
     guidance = 'Browser launch permission was denied. Check executable/cache permissions and OS security policy; reinstalling the browser is not necessarily required.';
   } else if (error instanceof Error && error.name === 'TimeoutError') {
+    reason = 'timeout';
     guidance = 'Browser startup timed out. Check system load and browser startup restrictions; consider increasing fetch.timeoutMs. A missing browser is not confirmed.';
   } else {
     guidance = 'Browser startup failed; a missing browser is not confirmed. Check browser runtime compatibility, OS security policy and available resources before retrying.';
   }
-  return new Error(`BROWSER_UNAVAILABLE: ${guidance}`);
+  return new BrowserLaunchError(reason, guidance);
 }
 
 /** Browser-side network checks are best-effort SSRF defense, not a real sandbox.
@@ -109,6 +122,7 @@ export class FetchService {
   private launching?: Promise<Browser>;
   private idleTimer?: ReturnType<typeof setTimeout>;
   private readonly operations = new Set<AbortController>();
+  private readonly operationCleanup = new Set<Promise<void>>();
   private readonly closingBrowsers = new Set<Promise<void>>();
   private closed = false;
   private closePromise?: Promise<void>;
@@ -178,6 +192,9 @@ export class FetchService {
     const onAbort = () => controller.abort(new Error('CANCELLED: Fetch was cancelled.'));
     signal?.addEventListener('abort', onAbort, { once: true });
     this.operations.add(controller);
+    let finishOperation!: () => void;
+    const cleanup = new Promise<void>(resolve => { finishOperation = resolve; });
+    this.operationCleanup.add(cleanup);
     if (this.idleTimer) clearTimeout(this.idleTimer);
     let context: BrowserContext | undefined;
     let release: (() => void) | undefined;
@@ -208,7 +225,19 @@ export class FetchService {
       await abortable(validate(requestedUrl), localSignal);
       // Loading jsdom in a fresh worker takes seconds; warm one while the browser starts/navigates.
       prewarmExtractionWorker();
-      const browser = await abortable(this.getBrowser(), localSignal);
+      let browser: Browser;
+      try { browser = await abortable(this.getBrowser(), localSignal); }
+      catch (error) {
+        remaining();
+        if (!(error instanceof BrowserLaunchError) || error.reason !== 'missing-executable') throw error;
+        if (input.waitForSelector) throw new BrowserLaunchError('missing-executable', `Static HTTP cannot honor waitForSelector; a browser is required. ${error.message}`);
+        const document = await fetchStatic(requestedUrl, this.policy, localSignal);
+        remaining();
+        const extracted = await extractHtmlIsolated(document.html, document.finalUrl, input.format, input.extraction, localSignal);
+        remaining();
+        return { url: input.url, finalUrl: document.finalUrl, status: document.status, fetchedAt: new Date().toISOString(), ...extracted,
+          warnings: [...extracted.warnings, `Static HTTP mode: JavaScript and subresources were not loaded; content may be incomplete. ${error.message}`] };
+      }
       // A context can finish creating after cancellation. Its creating promise owns
       // late cleanup; the caller still receives cancellation without waiting for it.
       const creating = browser.newContext({ serviceWorkers: 'block', acceptDownloads: false, ignoreHTTPSErrors: false });
@@ -361,6 +390,8 @@ export class FetchService {
         release?.();
       }
       this.operations.delete(controller);
+      this.operationCleanup.delete(cleanup);
+      finishOperation();
       this.scheduleIdle();
     }
   }
@@ -379,6 +410,7 @@ export class FetchService {
       await this.launching?.catch(() => {});
       await Promise.all(this.closingBrowsers);
       await workersClosed;
+      await Promise.all(this.operationCleanup);
     })();
     return this.closePromise;
   }

@@ -13,7 +13,7 @@ process.env.PI_CODING_AGENT_DIR = path.join(root, 'home/.pi/agent');
 delete process.env.PI_SUBAGENTS_GUARD;
 delete process.env.PI_SHELL_TOOLS_CHILD;
 const sdk = await import(pathToFileURL(path.join(hostRoot, 'dist/index.js')).href);
-assert.equal(sdk.VERSION, '1.2.0');
+assert.equal(sdk.VERSION, '1.3.0');
 const tui = await import(pathToFileURL(createRequire(path.join(hostRoot, 'package.json')).resolve('@earendil-works/pi-tui')).href);
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
 const executions = [];

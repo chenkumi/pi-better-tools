@@ -2,12 +2,20 @@ import { realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import type { IPty, spawn } from "node-pty";
+import { setupCommand } from "../../../setup/commands.mjs";
 import { filterEnv, type EnvPolicy } from "./env.ts";
 import { matchPattern, MATCH_BUDGET_MS } from "./matcher.ts";
 import { stripEscapes, truncatePtyOutput, type OutputFormat } from "./output.ts";
 
 /** node-pty is a native addon; load it on first spawn so Pi startup does not pay for it. */
-const lazySpawn: typeof spawn = (...args) => (createRequire(import.meta.url)("node-pty") as typeof import("node-pty")).spawn(...args);
+const lazySpawn: typeof spawn = (...args) => {
+	let native: typeof import("node-pty");
+	try { native = createRequire(import.meta.url)("node-pty") as typeof import("node-pty"); }
+	catch {
+		throw new Error(`PTY native dependency could not load. Diagnose with ${setupCommand(["doctor"])}. After consumer approval, run ${setupCommand(["pty", "setup"])}. No setup was attempted.`);
+	}
+	return native.spawn(...args);
+};
 
 /** Output buffer cap per session (UTF-16 code units, ~2 MiB of ASCII). Oldest output is dropped first. */
 export const MAX_BUFFER_CHARS = 2 * 1024 * 1024;
@@ -66,6 +74,10 @@ export interface ManagerOptions {
 
 /** Minimum pause before re-running waitFor when new output arrived during a failed match. */
 const MATCH_DEBOUNCE_MS = 50;
+/** A failed attempt (ANSI strip on this thread, worker start and copy) is followed by a pause of at least
+ *  this multiple of its own duration, so continuous output over a large buffer cannot keep the CPU busy. */
+const MATCH_COST_FACTOR = 2;
+const MAX_MATCH_DEBOUNCE_MS = 1_000;
 
 export interface DroppedRange { from: number; to: number }
 
@@ -390,6 +402,7 @@ export class PtySessionManager {
 				await this.waitFor(session, Math.min(retryAt - this.now(), Math.max(0, deadline - this.now())), signal, undefined, session.exitWaiters);
 				if (deadline <= this.now()) return false;
 			}
+			const attemptStarted = this.now();
 			const begin = Math.max(from, session.bufStart);
 			// The retained ring already bounds input size; worker capacity/time limits
 			// bound regex cost. Dropping a search-only prefix silently changes matches.
@@ -405,7 +418,8 @@ export class PtySessionManager {
 				throw error;
 			} finally { this.matches.delete(pending); }
 			if (matched) return true;
-			retryAt = this.now() + MATCH_DEBOUNCE_MS;
+			const attemptMs = this.now() - attemptStarted;
+			retryAt = this.now() + Math.min(MAX_MATCH_DEBOUNCE_MS, Math.max(MATCH_DEBOUNCE_MS, MATCH_COST_FACTOR * attemptMs));
 			// Output may arrive while the worker is running; do not miss its notification.
 			if (session.bufStart + session.buffer.length !== generation && deadline > this.now()) continue;
 			const remaining = deadline - this.now();
