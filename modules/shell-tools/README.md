@@ -15,7 +15,7 @@
 - `bash`：使用 Pi 的平台 shell 解析；Windows 需安裝 Git Bash 或設定 `shellPath`。
 - `powershell`：僅支援原生 Windows；其他平台即使有 `pwsh` 也不提供此後端。不套用 Bash 的 `shellCommandPrefix`。
 
-兩者皆以 `defaultActive: false` 註冊：載入本擴充不會啟用未被選取的 shell，是否啟用由 Pi 預設 loadout、`defaultTools`、`--tools`、排除設定或 `setActiveTools()` 決定。
+主代理的 `bash`／`powershell` 與 `shell_job_status`／`shell_job_cancel` 均以 `defaultActive: true` 註冊（使用者要求）：載入本擴充即預設啟用，不需 `defaultTools`。宿主 `--tools` allowlist、`--exclude-tools`、`--no-tools` 與手動停用仍優先；`reload` 會重新註冊並再次啟用。不改 settings、不呼叫 `setActiveTools()`。
 
 ## Managed subagent 前景工具
 
@@ -25,7 +25,7 @@
 
 同 process guard reload 僅對同一已驗證 invocation 的原 startup receipt 做只讀重驗證（配置／trust、bigint 檔案身份／固定預期 size、原始 Buffer bytes 精確 equals、讀前後 descriptor／path metadata），不以容錯 UTF-8 解碼字串比對；新 invocation 仍 exclusive 建立，不覆寫外來／變造 receipt、不重建遺失檔案。這些是離散檢查點的觀測，不是原子快照、永久禁止外部修改或讀取記憶體硬上限。拒絕或 receipt 驗證故障直接終止 child，不假定一般 `session_start` handler throw 可以停止 Pi。完整政策與驗證邊界見 Subagents README。
 
-主代理的 schema、背景 receipt／管理工具、工具選取、trust-aware 設定及取消不變。前景 child 與主代理共用執行核心、停滯計時器、宿主輸出與 process-tree 取消委派，不複製 extension；仍以 `defaultActive:false` 保留 loadout。ready-query 原本的 `--no-tools` 與遞迴 exclusions 亦不變。前景 child 的停滯錯誤提示不建議 `background:true`。這不限制 `!`／`pi.exec()`／自行建立 OS process，也不是 OS sandbox。
+主代理的 schema、背景 receipt／管理工具、工具選取、trust-aware 設定及取消不變。前景 child 與主代理共用執行核心、停滯計時器、宿主輸出與 process-tree 取消委派，不複製 extension；仍以 `defaultActive:false` 保留 loadout（managed child 的 loadout 由 Subagent argument builder 決定，不隨主代理預設啟用）。ready-query 原本的 `--no-tools` 與遞迴 exclusions 亦不變。前景 child 的停滯錯誤提示不建議 `background:true`。這不限制 `!`／`pi.exec()`／自行建立 OS process，也不是 OS sandbox。
 
 ## 命令呼叫 TUI 預覽
 
@@ -77,6 +77,7 @@ Default-shell 卡片改由 self-shell 重建原有 Box，避免外層留白仍�
 - 交接後不再更新該前景呼叫的串流顯示；job 名額（active 8／retained 32）不足或 owner 不可用時不交接，維持前景。
 - 不適用：有設 `timeoutMs`（該總時限已是上限）、`background:true`、Subagent 前景 child（無背景能力）。
 - 門檻可用 `settings.json` 的 `pi-shell-tools.autoBackgroundMs`（正整數毫秒；`0` 停用；其他值回到預設 180000）調整。
+- 手動交接：互動 TUI 中前景指令執行時，狀態列顯示「Ctrl+Y」提示，按下即把目前所有前景 Shell 指令交給背景 job（同一 process、走同一條 handoff 路徑，回傳 receipt 讓主代理繼續）。與計時器不同，手動交接也適用於有 `timeoutMs` 的指令（總時限仍由原 process 的計時器執行）；無 UI（print／RPC）與 managed child 不提供。`Ctrl+Y` 不是 Pi 預設綁定；沒有前景指令時只顯示提示。快速鍵與登記表（`src/manual-detach.ts`，以 `globalThis` 共用）和 Subagents 的前景轉背景共用：先載入的 extension 註冊一次，session shutdown 時釋放，一次按鍵轉換全部前景 Shell 與 Subagent 工作。
 - 測試：`tests/foreground-handoff.test.ts`（輸出記錄／重放）、`tests/auto-background.integration.test.mjs`（真實 extension＋host bash 定義，fake process，事件驅動，不等待真實門檻）。
 
 ### 背景 job 預設 Monitor
@@ -125,7 +126,7 @@ text(receipt);
 - 同步模式（省略／false）維持原有 `output`、`exit_code`、`wall_time_seconds` 等 codemode 格式；`outputSchema` 為原有完成結果與 receipt 的 union。
 - `liveLogPath` 在 receipt 回傳前已建立。執行中可用 `read` 查閱；完成後通知提供相同有效 `logPath`，沒有 rename 競態。檔案沒有新內容不代表工作已完成。
 - **模型可見文字已瘦身**（`structuredContent` 與 `outputSchema` 維持完整、不移除必填欄位）：receipt 只含 jobId、log 路徑與下一步提示；status／cancel／完成通知以 `compactJob` 輸出，省略預設值與重複欄位（`cancelRequested` 僅 true 時出現、log 路徑只在 running 或輸出被截斷時以 `log` 提供、不輸出 `toolCallId`／`startedAt`／`logBytes`／重複的 `logPath`、空 tail）。單一 status 不含 `command`；list 文字僅 jobId／status／command（80 字）／elapsedMs／exitCode／error；cancel 文字不含 output。完成通知為單一 JSON 陣列（含 command、output、error，標記為不可信資料），完整 metadata 留在 message `details`。一般（前景）shell 輸出由宿主產生，未更動。
-- 新增 `shell_job_status({ jobId? })` 與 `shell_job_cancel({ jobId })`。兩者均為 `defaultActive: false`，需要以 `--tools`、`defaultTools` 或 `setActiveTools()` 明確選取；它們不啟用或執行任何未選取的 shell。只有 shell 的 loadout **不能呼叫 status/cancel**。receipt 以 `pi.getActiveTools()` 判斷：未選取時只提示「用 `read` 讀 `liveLogPath` 尾端」，已選取時才提示 `shell_job_status`；不暗中呼叫 `setActiveTools()`。
+- 新增 `shell_job_status({ jobId? })` 與 `shell_job_cancel({ jobId })`。兩者均為 `defaultActive: true`（直接曝光，不是 deferred，不經 `tool_search`）；被 `--tools` allowlist 或 `--exclude-tools` 排除時不可用，只有 shell 的 loadout 此時**不能呼叫 status/cancel**。receipt 以 `pi.getActiveTools()` 判斷：未啟用時只提示「用 `read` 讀 `liveLogPath` 尾端」，已啟用時才提示 `shell_job_status`；不暗中呼叫 `setActiveTools()`。
 - status 省略 `jobId` 時列出此 session 的所有 jobs（running／cancelling 在前，其後依開始時間新到舊），每筆含 `jobId`、`status`、`tool`、`command`、`startedAt`、`elapsedMs`、`logBytes`。指定 `jobId` 時回傳 `jobId`、`status`、`tool`、來源 `toolCallId`、截短至 200 字元的 `command`、`startedAt`（ISO）、`elapsedMs`（完成後凍結）、`logBytes`、`cancelRequested`、log 路徑、`outputTruncated`，完成時另含 `exitCode`、`output`（head）、`error`。輸出被截斷或工作仍在執行時另含 `outputTail`（最後約 8 KiB）；工作執行中時模型可見文字只附最後 2000 字元（避免每次輪詢重複付費，完整 tail 仍在 `structuredContent`，更多內容請讀 `liveLogPath`）。未知 jobId 的錯誤會區分「已被淘汰（evicted）」與「不存在」，並列出 running jobs；active／retention 上限錯誤會列出占用名額的 jobs 並指出可取消或等待。狀態為 `running`／`cancelling`／`completed`／`failed`／`cancelled`／`timed_out`。只有 owner session/runtime 能查詢或取消。
 - cancel 是終止要求：先回 `cancelling`（並設 `cancelRequested: true`），等待宿主 runner 結束後才標示 `cancelled`；若 runner 在取消送達前已產生成功結果，以該結果為準（`completed`，`cancelRequested` 仍為 true）；不宣稱已驗證所有 descendant process 清空。取消、逾時、執行失敗不偽造成功 exit code。
 - 完成先保存結果、關閉 log、記錄 terminal journal，並加入本地待回報集合；以單次 `setImmediate` 合併**當時全部已完成待通知結果**，送出 `shell-job-completed` custom message。主 agent 忙碌也立即提交，不再等待整個 run 的 `agent_settled`；不等其他仍執行中的工作、不輪詢、不固定延遲。不同事件迴圈或已提交後才完成者屬下一批，不回改／回填舊訊息。面板仍只計 running／cancelling，不計待回報結果。

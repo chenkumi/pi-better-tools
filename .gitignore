@@ -24,3 +24,6 @@ modules/**/issues/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Local Pi runtime artifacts (Fork journals etc.)
+.pi/

@@ -23,7 +23,8 @@ export interface BackgroundTask {
 /** Per-task notification scope. `taskId` set: one finished sibling; `unnotified` set: final job summary. */
 export interface NotificationScope { taskId?: string; completed: number; total: number; unnotified?: number; notifiedTaskIds?: string[] }
 /** perTaskNotify (parallel batches): announce each task when it settles, then one job_result. */
-export interface BackgroundSubmitOptions { perTaskNotify?: boolean }
+/** taskIds: identities already issued to running foreground children that this job adopts. */
+export interface BackgroundSubmitOptions { perTaskNotify?: boolean; taskIds?: readonly string[] }
 export interface BackgroundReceipt {
 	jobId: string;
 	status: "queued" | "running" | "completed" | "failed" | "aborted";
@@ -346,6 +347,7 @@ export class BackgroundJobs {
 	}
 	submit(owner: string, cwd: string, epoch: number, agents: string[], run: (signal: AbortSignal, taskIds: string[], live: (index: number, sessionId: string, path: string) => void, finish: (index: number, result: unknown, status: BackgroundTask["status"]) => void, attach: (index: number, handle: RpcInteraction) => void, interaction: (index: number, notice: InteractionNotice) => void, progress: (index: number, data: TaskPresentation) => void) => Promise<void>, widgetTitles: readonly (string | undefined)[] = [], admission?: Promise<void>, readonlyQueryId?: string, options: BackgroundSubmitOptions = {}) {
 		if (this.closed || epoch !== this.generation) throw new Error("BACKGROUND_RUNTIME_CLOSED: owner session changed during preflight");
+		if (options.taskIds && options.taskIds.length !== agents.length) throw new Error("INVALID_DISPATCH: taskIds must match agents");
 		if (!agents.length || agents.length > MAX_SUBMITTED || submittedTasks + agents.length > MAX_SUBMITTED) throw new Error(`BACKGROUND_CAPACITY: Request not accepted: capacity limit reached. at most ${MAX_SUBMITTED} submitted background tasks process-wide (now ${this.load()}; this request adds ${agents.length}). Next: call subagent_status (no jobId lists your jobs) to see what is still running, subagent_cancel jobs you no longer need, or split the work into smaller batches and submit the rest after task_result completion notifications arrive.`);
 		for (const [id, job] of this.jobs) {
 			if (this.jobs.size < MAX_RETAINED_JOBS) break;
@@ -353,7 +355,7 @@ export class BackgroundJobs {
 		}
 		if (this.jobs.size >= MAX_RETAINED_JOBS) throw new Error(`BACKGROUND_CAPACITY: Request not accepted: capacity limit reached. retained job limit (${MAX_RETAINED_JOBS}) reached with unfinished jobs (now ${this.load()}). Next: call subagent_status to list jobs and subagent_cancel ones you no longer need, then retry.`);
 		const job: Job = { jobId: ulid().toUpperCase(), owner, cwd, generation: this.generation, status: "queued", cancelRequested: false,
-			tasks: agents.map(agent => ({ taskId: ulid().toUpperCase(), agent, status: "queued", logPending: true })), controller: new AbortController(), done: Promise.resolve(), interactive: new Map(), readonlyQueryId, widgetTitles: agents.map((_agent, index) => widgetTitles[index]?.slice(0, 256) ?? ""), widgetProgress: [], widgetStartedAt: Date.now(), notifiedTasks: new Set(), perTaskNotify: options.perTaskNotify === true && !readonlyQueryId && agents.length > 1 };
+			tasks: agents.map((agent, index) => ({ taskId: options.taskIds?.[index] ?? ulid().toUpperCase(), agent, status: "queued", logPending: true })), controller: new AbortController(), done: Promise.resolve(), interactive: new Map(), readonlyQueryId, widgetTitles: agents.map((_agent, index) => widgetTitles[index]?.slice(0, 256) ?? ""), widgetProgress: [], widgetStartedAt: Date.now(), notifiedTasks: new Set(), perTaskNotify: options.perTaskNotify === true && !readonlyQueryId && agents.length > 1 };
 		if (!admission) job.recovery = this.persist?.(owner, cwd, this.snapshot(job));
 		if (readonlyQueryId) Object.assign(job.tasks[0], { queries: [{ queryId: readonlyQueryId, status: "accepted" }], readOnlyQuery: true, logPending: false, canMessage: false });
 		this.jobs.set(job.jobId, job);

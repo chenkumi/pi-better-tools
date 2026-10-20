@@ -2,9 +2,27 @@
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { appendFileSync, existsSync, watch } from "node:fs";
+import { join } from "node:path";
 
 const usage = (cost: number) => ({ input: 10, output: 2, cacheRead: 0, cacheWrite: 0, totalTokens: 12,
 	cost: { input: cost, output: 0, cacheRead: 0, cacheWrite: 0, total: cost } });
+
+/**
+ * Child hold gate (event-driven, no sleeps): when `$HOME/hold-enabled` exists the child records `hold-started` and
+ * waits for `$HOME/hold-release`, so a test can act while the child is genuinely mid-run.
+ */
+async function holdGate() {
+	const dir = process.env.HOME;
+	if (!dir || !existsSync(join(dir, "hold-enabled"))) return;
+	appendFileSync(join(dir, "hold-started"), "x");
+	const release = join(dir, "hold-release");
+	await new Promise<void>(resolve => {
+		const check = () => { if (existsSync(release)) { watcher.close(); resolve(); } };
+		const watcher = watch(dir, check);
+		check();
+	});
+}
 
 export default function (pi: ExtensionAPI) {
 	const scenario = process.env.PI_SUBAGENTS_TEST_SCENARIO ?? "normal";
@@ -46,8 +64,9 @@ export default function (pi: ExtensionAPI) {
 			const parent = isParent();
 			const message: any = { role: "assistant", provider: model.provider, api: model.api, model: model.id,
 				content: [], stopReason: "pending", usage: usage(1), timestamp: Date.now() };
-			setImmediate(() => {
+			setImmediate(async () => {
 				try {
+					if (!parent) await holdGate();
 					if (!parent && (scenario === "retry-exhausted" || (scenario === "retry" && nth === 1))) {
 						message.stopReason = "error";
 						message.errorMessage = "529 overloaded: offline transient fixture";

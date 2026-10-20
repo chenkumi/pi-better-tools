@@ -89,6 +89,17 @@ Task 先寫入權限受限的 UTF-8 暫存檔，不放入 command line。同步�
 - 背景與主線共用 workspace，避免同時修改同一檔案；需要時自行使用獨立 worktree，不自動 Git 同步。
 - 同步模式沿用 JSON print；背景模式使用 RPC prompt／steer／get_state／get_entries。RPC 無 session header，改由 startup guard、get_state 的 native path／ID／model／thinking 與 canonical startup entries 驗證；保留 managed lock／wire-native digest／checkpoint，不使用會覆寫信任參數的 RpcClient。`agent_settled` 後停止互動，待已接受 query 的獨立期限結束，再關 stdin orderly shutdown；child 確實退出後才提交。
 
+### 前景轉背景（手動，`Ctrl+Y`）
+
+互動 TUI 中同步（前景）dispatch 執行時，狀態列顯示「Ctrl+Y」提示；按下後該呼叫以 job receipt 提早返回，主代理可繼續對話，**已在執行的 child 不重啟**。快速鍵與 Shell 共用（同一個註冊，一次轉換全部前景 Shell 指令與 Subagent dispatch）。
+
+- 適用 single／parallel／chain。每個 task 的 `taskId` 在前景啟動前就已發出，轉換後沿用同一身分；已產生的 live log（`log_ready`）與已完成 task 結果在接手時重放進 job。parallel 沿用逐 task `task_result` ＋最後 `job_result`；chain 未開始的 step 繼續依序執行，失敗後標示 skipped。
+- 接手由 `BackgroundJobs.submit` 的 `taskIds` 選項完成，不新增第二套 registry：名額（32 submitted／8 active）、`subagent_status`／`subagent_cancel`、journal、shutdown／reload 取消與通知規則都與背景 job 相同。名額不足或 owner 已替換時不轉換，維持前景。
+- 轉換前 Esc／回合取消仍終止前景 child；轉換後回合取消不再停止，需 `subagent_cancel`。取消要求不代表整棵 process tree 已停止。
+- 前景 child 使用 JSON print transport，沒有 RPC 控制通道：轉換後的 task 不能 `subagent_message` control／query（`canMessage:false`）。需要互動的工作請一開始就用 `background:true`。
+- 轉換後 usage 與背景 job 一致，不自動加入 host totals。無 UI（print／RPC）與 managed child 不提供。
+- 測試：`tests/foreground-detach.integration.test.ts`（真實隔離 Pi child ＋ fake provider，以 `hold-enabled`／`hold-release` 事件門讓 child 停在執行中；單一／parallel＋`subagent_cancel`／chain）。
+
 背景互動驗證基準為 Pi 1.1.0（唯一支援版本）。不支援 canonical inMemory entries/leaf replay 的 host 會拒絕 query，不降級使用空白或猜測的 context。
 
 ### Session 載入時核對背景工作
@@ -314,3 +325,7 @@ writer.acquire/       # 短期跨 process acquisition/recovery election fence
 - Bundled agents（scout／worker／planner／reviewer）與 prompts 要求：首行一句結論、長細節寫檔只回傳路徑、全文長度上限（約 400–500 字）；prompts 提醒各 step 為隔離 context，task 須帶具體路徑。
 - `subagent_status` 的 outputSchema 為 `Type.Union([單一 job receipt, jobs 列表])`（anyOf）。已核對 Pi 1.0.0 原始碼：host 只把 `outputSchema` 當 codemode 的型別宣告（`schemaToType` 支援 anyOf），不驗證 structuredContent、也不要求 object 型別，故可註冊。
 - 模型可見文字瘦身：背景 receipt／status／cancel／通知的 `content` 只含下一步所需欄位（taskId、agent、status、subagentSessionId、live／finalLogPath、result 的首行摘要／logPath／canResume／錯誤、usage 的 totalTokens／cost）；操作所需否定資訊 cancelRequested／canMessage／logPending／已知 canResume 的 false 明確輸出；`exitCode: 0`、`stopReason: "stop"`、空 controls／queries、重複的 agent／status／model／完整 usage 仍省略。`subagent_message` 文字與 structuredContent 均包含實際 action、穩定 session ID、適用 invocation／interaction ID 與受理狀態；拒絕時帶診斷及 nextAction。`structuredContent`（只給 codemode）與 `details`（TUI renderer）維持完整 receipt。
+
+## 預設啟用
+
+`subagent`、`subagent_message`、`subagent_status`、`subagent_cancel` 均明確 `defaultActive: true`（原本省略，行為相同）：載入即預設啟用，不需 `defaultTools`；宿主 `--tools` allowlist、`--exclude-tools`、`--no-tools` 與手動停用仍優先。Subagent child 一律 `--exclude-tools subagent`，不受影響。

@@ -18,6 +18,7 @@ import { registerApiInterruptionRenderer } from "../src/api-interruption-rendere
 import { isManagedForegroundChild } from "../src/managed-child.js";
 import { AUTO_MONITOR_INTERVAL_MS, canonicalMonitorCwd, requestAutoMonitor } from "../src/monitor-capability.js";
 import { createForegroundHandoff, resolveAutoBackgroundMs } from "../src/foreground-handoff.js";
+import { ensureDetachShortcut, trackForeground } from "../src/manual-detach.js";
 import { createShellMonitorPublisher } from "../src/monitor-publisher.js";
 import { renderShellCompletion, renderShellJobResult } from "../src/completion-renderer.js";
 import { renderShellOutput } from "../src/output-renderer.js";
@@ -112,12 +113,13 @@ function registerTimeoutMsOverride(
 
   pi.registerTool({
     ...base,
-    // Override the schema, not the user's loadout. Pi activates this tool only
-    // when selected by defaults, --tools, or setActiveTools().
-    defaultActive: false,
+    // User-requested default activation for the main agent; host --tools,
+    // --exclude-tools, --no-tools and manual deactivation still win. Managed
+    // subagent children keep their loadout controlled by the argument builder.
+    defaultActive: !foregroundOnly,
     description: foregroundOnly
       ? `${descriptionWithoutOldTimeout} timeoutMs is a total time limit in ms from launch. Commands run synchronously until completion. ${platformNote}`
-      : `${descriptionWithoutOldTimeout} timeoutMs is a total time limit in ms from launch (foreground and background). A foreground command without timeoutMs still running after 180s is moved to a background job automatically (same process, not restarted) and you get a job receipt; the turn's abort no longer stops it, use shell_job_cancel. background:true returns a jobId/liveLogPath receipt (no exit code) and reports completion automatically; without timeoutMs it also auto-starts a display-only Monitor sampling every 180s; shell_job_status/cancel need explicit selection. ${platformNote}`,
+      : `${descriptionWithoutOldTimeout} timeoutMs is a total time limit in ms from launch (foreground and background). A foreground command without timeoutMs still running after 180s is moved to a background job automatically (same process, not restarted) and you get a job receipt; the turn's abort no longer stops it, use shell_job_cancel. background:true returns a jobId/liveLogPath receipt (no exit code) and reports completion automatically; without timeoutMs it also auto-starts a display-only Monitor sampling every 180s; shell_job_status/cancel are active by default unless the host excludes them. ${platformNote}`,
     parameters: foregroundOnly ? Type.Omit(parameters, ["background"], { additionalProperties: false }) : parameters,
     outputSchema: foregroundOnly ? base.outputSchema! : Type.Union([base.outputSchema!, receiptSchema]),
     promptGuidelines: [...(base.promptGuidelines ?? []), timeoutGuideline],
@@ -228,9 +230,14 @@ function registerTimeoutMsOverride(
           return receiptResult(jobs.submit(ctx, name, toolCallId, signal, run, command), "Background job accepted; its outcome will be reported when it finishes.");
         }
         const autoMs = jobs && input.timeoutMs === undefined ? resolveAutoBackgroundMs(pi.getSettings?.()) : 0;
-        if (autoMs === 0) return await run(signal);
-        // Safety net for a foreground command without timeoutMs (e.g. an endless loop): after autoMs the SAME process
-        // is adopted by a background job, so the turn is released. The process is never restarted.
+        // Without a UI nobody can press the detach shortcut, so only the timer can trigger a handoff.
+        if (!jobs || (autoMs === 0 && !ctx.hasUI)) return await run(signal);
+        // The SAME process is adopted by a background job, so the turn is released. It is never restarted.
+        // Triggers: the user's detach shortcut (any foreground command), or the autoMs safety net for a
+        // command without timeoutMs (e.g. an endless loop). A timeoutMs keeps applying inside the adopted run.
+        let manualDetach!: () => void;
+        const manual = new Promise<"manual">(resolve => { manualDetach = () => resolve("manual"); });
+        const untrack = ctx.hasUI ? trackForeground(ctx.ui, manualDetach) : () => {};
         const handoff = createForegroundHandoff();
         const foreground = new AbortController();
         const forwardAbort = () => foreground.abort(signal?.reason);
@@ -240,10 +247,12 @@ function registerTimeoutMsOverride(
         let timer: ReturnType<typeof setTimeout> | undefined;
         const outcome = await Promise.race([
           running.then(value => ({ value }), error => ({ error })),
-          new Promise<"timer">(resolve => { timer = setTimeout(() => resolve("timer"), autoMs); }),
+          manual,
+          ...(autoMs > 0 ? [new Promise<"timer">(resolve => { timer = setTimeout(() => resolve("timer"), autoMs); })] : []),
         ]);
         if (timer !== undefined) clearTimeout(timer);
-        if (outcome !== "timer") {
+        untrack();
+        if (typeof outcome !== "string") {
           unlink();
           if ("error" in outcome) throw outcome.error;
           return outcome.value;
@@ -271,7 +280,10 @@ function registerTimeoutMsOverride(
           try { return await running; } finally { unlink(); }
         }
         handedOff = true; unlink();
-        return receiptResult(receipt, `Command still running after ${autoMs / 1000}s without timeoutMs; moved to a background job automatically (the same process keeps running; Esc no longer stops it, use shell_job_cancel). Its outcome will be reported when it finishes.`);
+        const why = outcome === "manual"
+          ? "Command moved to a background job at the user's request"
+          : `Command still running after ${autoMs / 1000}s without timeoutMs; moved to a background job automatically`;
+        return receiptResult(receipt, `${why} (the same process keeps running; Esc no longer stops it, use shell_job_cancel). Its outcome will be reported when it finishes.`);
       } catch (error) {
         await logFailure({ kind: "exception", error });
         // Replace the host's bare timeout line with one naming timeoutMs and the way out.
@@ -296,6 +308,7 @@ export default function (pi: ExtensionAPI) {
   registerApiInterruptionRenderer(pi);
   pi.registerMessageRenderer("shell-job-completed", renderShellCompletion);
   const jobs = new ShellJobs(pi);
+  ensureDetachShortcut(pi);
   const monitorPublisher = createShellMonitorPublisher(jobs);
   pi.on("session_start", (_event, ctx) => { monitorPublisher.stop(); jobs.start(ctx); monitorPublisher.start(ctx); });
   pi.on("agent_settled", (_event, ctx) => { jobs.flushPending(ctx); });
@@ -315,7 +328,7 @@ export default function (pi: ExtensionAPI) {
   const listSchema = Type.Object({ jobs: Type.Array(Type.Object(jobFields, { additionalProperties: false })) }, { additionalProperties: false });
   for (const action of ["status", "cancel"] as const) {
     pi.registerTool({
-      name: `shell_job_${action}`, label: `Shell job ${action}`, defaultActive: false,
+      name: `shell_job_${action}`, label: `Shell job ${action}`, defaultActive: true,
       description: action === "status"
         ? "Shell background jobs owned by this session. With jobId: status, exit code, head output (output) and last ~8 KiB (outputTail; only the last 2000 characters while the job is running, read liveLogPath for more). Without jobId: list jobs (running first) with command, start time and elapsed time."
         : "Request cancellation of a shell background job owned by this session. cancelling does not confirm the process tree has exited.",

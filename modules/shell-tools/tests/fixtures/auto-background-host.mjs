@@ -32,8 +32,9 @@ const fakeOps = () => ({
 mock.module('@earendil-works/pi-coding-agent', { exports: { ...sdk, createLocalBashOperations: fakeOps } });
 
 const tools = new Map();
-const pi = { registerTool: t => tools.set(t.name, t), registerMessageRenderer() {}, registerCommand() {}, on() {}, sendMessage() {}, getActiveTools: () => ['bash', 'shell_job_status', 'shell_job_cancel'],
-  getSettings: () => ({ 'pi-shell-tools': { autoBackgroundMs: 20 } }), events: { on() {}, emit() {} } };
+let autoMs = 20, shortcut;
+const pi = { registerTool: t => tools.set(t.name, t), registerShortcut: (key, options) => { shortcut = { key, ...options }; }, registerMessageRenderer() {}, registerCommand() {}, on() {}, sendMessage() {}, getActiveTools: () => ['bash', 'shell_job_status', 'shell_job_cancel'],
+  getSettings: () => ({ 'pi-shell-tools': { autoBackgroundMs: autoMs } }), events: { on() {}, emit() {} } };
 const { default: factory } = await import(new URL('../../extensions/timeout-ms.ts', import.meta.url).href);
 factory(pi);
 const ctx = { cwd, hasUI: false, mode: 'print', model: undefined, ui: {}, sessionManager: { getSessionId: () => 'S1', getSessionFile: () => undefined }, signal: undefined, isIdle: () => true };
@@ -47,8 +48,8 @@ const settle = async jobId => {
   }
   return { status: 'still-running' };
 };
-const call = async (command, signal) => {
-  try { const r = await bash.execute(`call-${control.processes}`, { command }, signal, undefined, ctx); return { threw: false, text: text(r), receipt: r.structuredContent?.jobId ? r.structuredContent : undefined, isError: r.isError === true }; }
+const call = async (command, signal, useCtx = ctx) => {
+  try { const r = await bash.execute(`call-${control.processes}`, { command }, signal, undefined, useCtx); return { threw: false, text: text(r), receipt: r.structuredContent?.jobId ? r.structuredContent : undefined, isError: r.isError === true }; }
   catch (error) { return { threw: true, text: error.message }; }
 };
 
@@ -80,6 +81,21 @@ const pending = call('SLOW', early.signal);
 early.abort();
 const earlyResult = await pending;
 result.abortBeforeHandoff = { threw: earlyResult.threw, text: earlyResult.text, aborted: control.aborted, newJobs: (await status.execute('ls', {}, undefined, undefined, ctx)).structuredContent.jobs.length - baselineJobs };
+
+// Manual detach shortcut: autoBackgroundMs is disabled so only the shortcut can trigger the handoff.
+autoMs = 0;
+const ui = { statuses: [], notices: [], setStatus: (key, value) => ui.statuses.push(value), notify: message => ui.notices.push(message) };
+const uiCtx = { ...ctx, hasUI: true, ui };
+shortcut.handler(uiCtx);
+const idleNotice = ui.notices.pop();
+const manualPending = call('SLOW', undefined, uiCtx);
+while (!ui.statuses.length) await new Promise(resolve => setImmediate(resolve));
+const statusWhileRunning = ui.statuses[0];
+shortcut.handler(uiCtx);
+const manual = await manualPending;
+control.emit(Buffer.from('after\n')); control.finish(0);
+const manualFinal = await settle(manual.receipt.jobId);
+result.manualDetach = { key: shortcut.key, idleNotice, statusWhileRunning, statusAfter: ui.statuses.at(-1), notice: ui.notices.at(-1), text: manual.text, hasReceipt: manual.receipt?.status === 'running', status: manualFinal.status, output: manualFinal.output };
 
 console.log('AUTO_BG_RESULT ' + JSON.stringify(result));
 process.exit(0);

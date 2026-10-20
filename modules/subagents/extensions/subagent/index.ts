@@ -33,11 +33,13 @@ import { type AgentConfig, type AgentScope, discoverAgents } from "./agents.ts";
 import { buildManagedChildEnvironment, buildSubagentPiArgs } from "./child-args.ts";
 import { BackgroundJobs, slimJobList, slimReceipt, type BackgroundReceipt, type NotificationObservation, type TaskPresentation } from "./background.ts";
 import { renderBackgroundMessage, renderBackgroundResult } from "./background-renderer.ts";
+import { createForegroundHandoff } from "./foreground-handoff.ts";
 import { SubagentJobsWidget } from "./live-widget.ts";
 import { publishSubagentMonitor } from "./monitor-capability.ts";
 import { isManagedForegroundChild } from "../../../shell-tools/src/managed-child.js";
 import { BackgroundRecovery } from "../../../shell-tools/src/recovery.js";
 import { registerBackgroundLifecycleGuidance } from "../../../shell-tools/src/background-guidance.js";
+import { ensureDetachShortcut, trackForeground } from "../../../shell-tools/src/manual-detach.js";
 import { panelUsage, safeJobText } from "../../../shell-tools/src/job-view.js";
 import { Semaphore, killProcessTree } from "./concurrency.ts";
 import { selectDispatchDefaults } from "./model-selection.ts";
@@ -1236,6 +1238,7 @@ function backgroundResult(result: SingleResult) {
 
 export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 	registerBackgroundLifecycleGuidance(pi);
+	if (!isManagedForegroundChild()) ensureDetachShortcut(pi);
 	pi.registerMessageRenderer("subagent_background", renderBackgroundMessage);
 	const widget = new SubagentJobsWidget(pi);
 	const recovery = new BackgroundRecovery(pi, "subagent");
@@ -1287,7 +1290,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 	const ReceiptSchema = Type.Object({ jobId: Type.String(), status: StringEnum(["queued", "running", "completed", "failed", "aborted"] as const), cancelRequested: Type.Boolean(), tasks: Type.Array(Type.Object({ taskId: Type.String(), agent: Type.String(), status: Type.String(), logPending: Type.Boolean(), subagentSessionId: Type.Optional(Type.String()), liveLogPath: Type.Optional(Type.String()), finalLogPath: Type.Optional(Type.String()), result: Type.Optional(TaskResultSchema), canMessage: Type.Optional(Type.Boolean()), controls: Type.Optional(Type.Array(ControlSchema)), queries: Type.Optional(Type.Array(QuerySchema)), readOnlyQuery: Type.Optional(Type.Boolean()) })) });
 	const JobListSchema = Type.Object({ jobs: Type.Array(Type.Object({ jobId: Type.String(), status: Type.String(), cancelRequested: Type.Boolean(), tasks: Type.Array(Type.Object({ taskId: Type.String(), agent: Type.String(), status: Type.String(), canMessage: Type.Optional(Type.Boolean()), summary: Type.Optional(Type.String()) })) })) });
 	for (const name of ["subagent_status", "subagent_cancel"] as const) pi.registerTool({
-		name, label: name === "subagent_status" ? "Subagent Status" : "Cancel Subagent",
+		name, label: name === "subagent_status" ? "Subagent Status" : "Cancel Subagent", defaultActive: true,
 		description: name === "subagent_status" ? "Read a retained background job owned by this session/cwd (jobId), or omit jobId to list your jobs read-only with status and a one-line summary. Status includes bounded result summaries and verified log paths. Does not account usage again." : "Request cancellation of a background job owned by this session/cwd. Cancellation does not guarantee the whole process tree stopped; use status to check settlement.",
 		renderCall(args, theme) {
 			return new Text(theme.fg("toolTitle", `${name} ${displayTitle(args?.jobId) || (name === "subagent_status" ? "(list)" : "…")}${name === "subagent_cancel" ? " · termination not confirmed" : ""}`), 0, 0);
@@ -1403,7 +1406,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 		}
 	};
 	pi.registerTool({
-		name: "subagent_message", label: "Message Subagent",
+		name: "subagent_message", label: "Message Subagent", defaultActive: true,
 		renderCall(args, theme) {
 			return new Text(theme.fg("toolTitle", `Message Subagent ${displayTitle(args?.mode) || "control"} ${displayTitle(args?.subagentSessionId ?? (args as any)?.taskId) || "…"}${displayTitle(args?.title) ? ` · ${displayTitle(args.title)}` : ""}`), 0, 0);
 		},
@@ -1446,6 +1449,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 	pi.registerTool({
 		name: "subagent",
 		label: "Subagent",
+		defaultActive: true,
 		description: [
 			"Delegate tasks to specialized agents with isolated context. Create only: provide exactly one mode: single (agent + task), parallel (tasks array; workers must not write the same files), or chain (steps run in order, each complete assistant-text output is passed as {previous}, stops at the first failed step). Continue existing conversations with subagent_message({subagentSessionId, message}); do not pass resume to subagent.",
 			`Dispatch limits: parallel mode accepts at most ${MAX_PARALLEL_TASKS} tasks and chain mode at most ${MAX_CHAIN_STEPS} steps; at most ${MAX_CONCURRENCY} children run at once across all subagent calls in this process.`,
@@ -1597,6 +1601,14 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 				} catch (error) { return { content: [{ type: "text", text: errorToString(error) }], details: { ...makeDetails("single")([]), errorCode: error instanceof SessionError ? error.code : "BACKGROUND_REJECTED" }, isError: true }; }
 			}
 
+			// Foreground dispatch can be adopted by a background job (user shortcut) without restarting any child:
+			// task identities are issued up front and live-log/settlement events are recorded until adoption.
+			const foregroundAgents = hasChain ? params.chain!.map(step => step.agent) : hasTasks ? params.tasks!.map(task => task.agent) : params.agent ? [params.agent] : [];
+			const handoff = ctx.hasUI && foregroundAgents.length > 0 ? createForegroundHandoff(foregroundAgents.length) : undefined;
+			const taskRuntimeAt = (index: number): RunnerRuntime => handoff ? { ...taskRuntime, taskId: handoff.taskIds[index], onLiveLog: (id, path) => handoff.onLive(index, id, path) } : taskRuntime;
+			const settle = (index: number, result: SingleResult) => handoff?.onSettled(index, backgroundResult(result), getResultStatus(result));
+			const outerUpdate = onUpdate;
+			const runForeground = async (signal: AbortSignal | undefined, onUpdate: typeof outerUpdate): Promise<AgentToolResult<SubagentDetails> & Record<string, unknown>> => {
 			if (params.chain && params.chain.length > 0) {
 				const results: SingleResult[] = [];
 				let previousOutput = "";
@@ -1610,8 +1622,9 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 								try { onUpdate({ content: partial.content, details: makeDetails("chain")([...results, current], partial.details?.progress) }); } catch { /* progress delivery is contained */ }
 							}
 						: undefined;
-					const result = await runSingleAgent(ctx.cwd, dispatchDefaultsFor(step.agent), agents, step.agent, taskWithContext, step.cwd, index + 1, signal, chainUpdate, makeDetails("chain"), parentSessionId, toolCallId, taskRuntime, step.title ?? params.title);
+					const result = await runSingleAgent(ctx.cwd, dispatchDefaultsFor(step.agent), agents, step.agent, taskWithContext, step.cwd, index + 1, signal, chainUpdate, makeDetails("chain"), parentSessionId, toolCallId, taskRuntimeAt(index), step.title ?? params.title);
 					results.push(result);
+					settle(index, result);
 					if (isFailedResult(result)) {
 						return { content: [{ type: "text", text: formatParentResults("chain", results) }], details: makeDetails("chain")(results), structuredContent: foregroundStructured("chain", results), usage: asToolUsage(results), isError: true };
 					}
@@ -1643,12 +1656,13 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 							if (partial.details?.results[0]) allResults[index] = partial.details.results[0];
 							liveProgress[index] = partial.details?.progress?.[0];
 							emitParallelUpdate();
-						}, makeDetails("parallel"), parentSessionId, toolCallId, taskRuntime, task.title ?? params.title);
+						}, makeDetails("parallel"), parentSessionId, toolCallId, taskRuntimeAt(index), task.title ?? params.title);
 					} catch (error) {
 						siblings.abort();
 						result = compactResult({ ...allResults[index], status: "failed", exitCode: 1, stopReason: "error", errorMessage: `Subagent dispatch failed unexpectedly: ${errorToString(error)}` });
 					}
 					allResults[index] = result;
+					settle(index, result);
 					liveProgress[index] = undefined;
 					emitParallelUpdate();
 					return result;
@@ -1658,10 +1672,47 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 			}
 
 			if (params.agent && params.task) {
-				const result = await runSingleAgent(ctx.cwd, dispatchDefaultsFor(params.agent), agents, params.agent, params.task, params.cwd, undefined, signal, onUpdate, makeDetails("single"), parentSessionId, toolCallId, taskRuntime, params.title);
+				const result = await runSingleAgent(ctx.cwd, dispatchDefaultsFor(params.agent), agents, params.agent, params.task, params.cwd, undefined, signal, onUpdate, makeDetails("single"), parentSessionId, toolCallId, taskRuntimeAt(0), params.title);
+				settle(0, result);
 				return { content: [{ type: "text", text: formatParentResults("single", [result]) }], details: makeDetails("single")([result]), structuredContent: foregroundStructured("single", [result]), usage: asToolUsage([result]), ...(isFailedResult(result) ? { isError: true } : {}) };
 			}
 			return { content: [{ type: "text", text: "Invalid parameters." }], details: makeDetails("single")([]) };
+			};
+			if (!handoff) return await runForeground(signal, onUpdate);
+
+			const ownerCwd = await canonicalCwd(dispatchCwd);
+			const foreground = new AbortController();
+			const forwardAbort = () => foreground.abort(signal?.reason);
+			if (signal?.aborted) forwardAbort(); else signal?.addEventListener("abort", forwardAbort, { once: true });
+			const unlink = () => signal?.removeEventListener("abort", forwardAbort);
+			let detached = false, finished = false;
+			let detachNow!: () => void;
+			const manual = new Promise<"manual">(resolve => { detachNow = () => resolve("manual"); });
+			const untrack = trackForeground(ctx.ui, detachNow);
+			const running = runForeground(foreground.signal, onUpdate && (update => { if (!detached) onUpdate(update); }));
+			const outcome = await Promise.race([running.then(value => ({ value }), error => ({ error })).finally(() => { finished = true; }), manual]);
+			untrack();
+			if (typeof outcome !== "string") { unlink(); if ("error" in outcome) throw outcome.error; return outcome.value; }
+			if (finished || signal?.aborted) { unlink(); return await running; }
+			const detachMode: SubagentDetails["mode"] = hasChain ? "chain" : hasTasks ? "parallel" : "single";
+			let receipt: BackgroundReceipt;
+			try {
+				receipt = jobs.submit(parentSessionId, ownerCwd, epoch, foregroundAgents, async (jobSignal, _ids, live, finish) => {
+					// Job cancellation, shutdown or reload now owns the running children; the turn's abort no longer does.
+					const onJobAbort = () => foreground.abort(jobSignal.reason);
+					if (jobSignal.aborted) onJobAbort(); else jobSignal.addEventListener("abort", onJobAbort, { once: true });
+					try {
+						handoff.adopt(live, finish);
+						await running;
+					} finally { jobSignal.removeEventListener("abort", onJobAbort); }
+				}, (hasChain ? params.chain! : hasTasks ? params.tasks! : [params]).map(item => item.title ?? params.title), undefined, undefined, { perTaskNotify: hasTasks, taskIds: handoff.taskIds });
+			} catch {
+				// No capacity (or owner replaced): stay a normal foreground dispatch, still linked to the turn's abort.
+				try { return await running; } finally { unlink(); }
+			}
+			detached = true; unlink();
+			return { content: [{ type: "text", text: `Moved to a background job at the user's request. The same children keep running (not restarted; Esc no longer stops them, use subagent_cancel). Do not poll; results arrive as task_result notifications.
+${JSON.stringify(slimReceipt(receipt))}` }], details: { ...makeDetails(detachMode)([]), background: receipt }, structuredContent: jsonReceipt(receipt) };
 		},
 
 		renderCall(args, theme, _context) {
