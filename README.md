@@ -254,7 +254,7 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 { "type": "report", "content": "# Report\n\nVerification results…\n" }
 ```
 
-`type` 限定 `plan | design | issue | research | report | task`，寫入呼叫時工作目錄下的 `./<type>/<TYPE>-<UTC timestamp>.md`，採緊湊 UTC 格式 `YYYYMMDDTHHmmssSSSZ`，例如 `./report/REPORT-20261001T043000123Z.md`；保留毫秒與時間排序，既有筆記不更名。目錄不存在會自動建立；內容以 UTF-8 原樣保存，同名檔案會換名、不覆寫。文字結果、details 與 structuredContent 均只回報相對路徑（`relativePath`），不暴露絕對路徑；後續直接使用 `read`／`edit`／`write` 操作。
+`type` 限定 `plan | design | issue | research | report | task`，寫入呼叫時工作目錄下的 `./<複數資料夾>/<TYPE>-<UTC timestamp>.md`（`plans`／`designs`／`issues`／`research`／`reports`／`tasks`），採緊湊 UTC 格式 `YYYYMMDDTHHmmssSSSZ`，例如 `./reports/REPORT-20261001T043000123Z.md`；保留毫秒與時間排序，既有筆記不更名。目錄不存在會自動建立；內容以 UTF-8 原樣保存，同名檔案會換名、不覆寫。文字結果、details 與 structuredContent 均只回報相對路徑（`relativePath`），不暴露絕對路徑；後續直接使用 `read`／`edit`／`write` 操作。
 
 獨立入口：`modules/note-tools/src/index.ts`。若使用 `--tools` 明確 allowlist，請加入 `note` 才能啟用；exclusions／no-tools 仍優先。`defaultTools` 不是 extension tools 的全域 allowlist。完整契約見 [Note Tools README](modules/note-tools/README.md)。
 
@@ -375,6 +375,8 @@ npm run lint             # ESLint：JS／TS 語法與 correctness baseline，不
 npm test
 npm run test:integration
 npm run test:browser      # 真實 Chromium；Linux 首次可用 setup:browser 安裝瀏覽器與系統依賴
+npm run test:heavy:blackhole  # Blackhole 重型測試獨立一組（2 個整合檔 + 上游 Vitest 整合套件，約 10 分鐘以上）；同樣需使用者指定才執行
+npm run test:heavy        # 重型／高延遲測試（單檔 ≥30 秒，共 12 檔）；需使用者指定或全量驗證才執行，可加模組名縮小，如 -- fork
 npm run test:package      # 真實 tarball + 乾淨 production install；需要 npm registry
 npm run sources:verify    # 匯入來源／本地適配雜湊
 npm pack                 # prepack 會執行 build（目前為 no-op）

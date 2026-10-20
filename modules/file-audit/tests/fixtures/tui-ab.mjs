@@ -132,10 +132,10 @@ export async function runComparison(mode, order, evidenceDir, tokenizer) {
           status = await arm.command('status', /Candidates: 3/);
           assert.match(status.message, /modified: seed\.txt/);
           assert.match(status.message, /read: control\.txt/);
-          assert.match(status.message, /created: task[\\/]TASK-/);
+          assert.match(status.message, /created: tasks[\\/]TASK-/);
           assert.doesNotMatch(status.message, /missing\.txt/);
           scan = await arm.command('check', /Selected: 3; checked: 2/);
-          for (const pattern of [/mismatch=1/, /matched=1/, /untracked=1/, /mismatch: seed\.txt/, /untracked: task[\\/]TASK-/]) assert.match(scan.message, pattern);
+          for (const pattern of [/mismatch=1/, /matched=1/, /untracked=1/, /mismatch: seed\.txt/, /untracked: tasks[\\/]TASK-/]) assert.match(scan.message, pattern);
           const rendered = await arm.snapshot('audit-report');
           // Fullscreen render() is the editor layout; getScreenLines() is the
           // actual complete frame (including its separately managed message pane).
@@ -152,7 +152,7 @@ export async function runComparison(mode, order, evidenceDir, tokenizer) {
           capacity = await arm.command('status', /Candidates: 2/);
           assert.match(capacity.message, /capacity=[1-9]\d*/);
           assert.match(capacity.message, /beta\.txt/); assert.match(capacity.message, /gamma\.txt/);
-          assert.doesNotMatch(capacity.message, /(?:seed|control|alpha)\.txt|created: task[\\/]/);
+          assert.doesNotMatch(capacity.message, /(?:seed|control|alpha)\.txt|created: tasks[\\/]/);
           await arm.command('limits --window 1', /window: 1/);
         }
         await arm.prompt('AB_NOOP');
@@ -162,8 +162,8 @@ export async function runComparison(mode, order, evidenceDir, tokenizer) {
         }
         await arm.snapshot('final');
         assert.equal(await readFile(join(arm.cwd, 'seed.txt'), 'utf8'), 'after');
-        const notes = await readdir(join(arm.cwd, 'task')); assert.equal(notes.length, 1);
-        assert.equal(await readFile(join(arm.cwd, 'task', notes[0]), 'utf8'), '# A/B note\n\nDeterministic fixture body.');
+        const notes = await readdir(join(arm.cwd, 'tasks')); assert.equal(notes.length, 1);
+        assert.equal(await readFile(join(arm.cwd, 'tasks', notes[0]), 'utf8'), '# A/B note\n\nDeterministic fixture body.');
         for (const name of ['alpha', 'beta', 'gamma']) assert.equal(await readFile(join(arm.cwd, `${name}.txt`), 'utf8'), name);
         const final = await arm.close();
         const saved = await arm.save();

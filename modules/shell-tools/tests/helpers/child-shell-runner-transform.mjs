@@ -1,7 +1,7 @@
 export const RUNNER_REWRITE_TARGETS = Object.freeze([
   { key: 'process-import', text: "from '../modules/file-tools/scripts/test-process.mjs'", count: 1 },
   { key: 'root', text: "const root = fileURLToPath(new URL('../', import.meta.url));", count: 1 },
-  { key: 'tsx-resolution', text: "import.meta.resolve('tsx')", count: 4 },
+  { key: 'tsx-resolution', text: "import.meta.resolve('tsx')", count: 3 },
   { key: 'pi-resolution', text: "import.meta.resolve('@earendil-works/pi-coding-agent')", count: 1 },
   { key: 'evidence', text: "const evidence = join(root, 'plan/evidence');", count: 1 },
 ]);

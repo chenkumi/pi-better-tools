@@ -120,13 +120,13 @@ try {
   assert.ok(subagent.promptGuidelines.some(line => line.includes('automatically persisted')));
   const shell = definitions.find(d => d.name === 'bash');
   assert.ok(shell.parameters.properties.timeoutMs); assert.equal(shell.parameters.properties.timeout, undefined);
-  assert.equal(shell.defaultActive, false);
+  assert.equal(shell.defaultActive, true);
   assert.ok(definitions.find(d => d.name === 'read').outputSchema);
   assert.ok(names.includes('ls')); assert.equal(definitions.find(d => d.name === 'ls').defaultActive, false);
   const fileExtension = loaded.extensions.find(e => resolve(e.path) === resolve(packageRoot, './modules/file-tools/src/index.ts'));
   assert.deepEqual([...fileExtension.tools.keys()], ['read', 'write', 'edit', 'ls']);
   assert.equal(shell.parameters.properties.background.type, 'boolean');
-  for (const name of ['shell_job_status', 'shell_job_cancel']) assert.equal(definitions.find(d => d.name === name).defaultActive, false);
+  for (const name of ['shell_job_status', 'shell_job_cancel']) assert.equal(definitions.find(d => d.name === name).defaultActive, true);
   const modelRuntime = await sdk.ModelRuntime.create({ authPath: join(agentDir, 'auth.json'), modelsPath: null, allowModelNetwork: false, refreshOnCreate: false });
   const model = { ...modelRuntime.getModels()[0], id: 'offline-fixture', provider: 'offline-fixture', api: 'openai-responses' };
   ({ session } = await sdk.createAgentSession({ cwd, agentDir, settingsManager: settings, resourceLoader: loader, modelRuntime, model,
@@ -219,13 +219,14 @@ try {
   }
   if (active.includes('note')) {
     await assert.rejects(execute('note', { type: 'task', content: '  ' }), /NOTE_EMPTY/);
+    const noteDirs = { plan: 'plans', design: 'designs', issue: 'issues', research: 'research', report: 'reports', task: 'tasks' };
     const contents = ['# Plan\nalpha\n', '# Design\nstructure', '# Issue\nUTF-8: 中文 😀', '\n# Research\nleading blank line', '# Report\r\nexact', '# Task'];
     for (const [i, type] of ['plan', 'design', 'issue', 'research', 'report', 'task'].entries()) {
       const created = await execute('note', { type, content: contents[i] });
       assert.deepEqual(Object.keys(created.details), ['relativePath'], 'note result exposes only the single relative path');
       const file = join(cwd, created.details.relativePath);
       assert.equal(created.details.path, undefined, 'note result carries no absolute path');
-      assert.match(created.details.relativePath, new RegExp(`^${type}/${type.toUpperCase()}-\\d{8}T\\d{9}Z(-[^/]+)?\\.md$`));
+      assert.match(created.details.relativePath, new RegExp(`^${noteDirs[type]}/${type.toUpperCase()}-\\d{8}T\\d{9}Z(-[^/]+)?\\.md$`));
       assert.equal(await readFile(file, 'utf8'), contents[i]);
       assert.deepEqual(created.structuredContent, created.details);
       assert.ok(text(created).includes(created.details.relativePath)); assert.ok(!text(created).includes(cwd));
@@ -239,7 +240,7 @@ try {
       }
     }
   } else {
-    for (const type of ['plan', 'design', 'issue', 'research', 'report', 'task']) await assert.rejects(stat(join(cwd, type)), { code: 'ENOENT' });
+    for (const type of ['plan', 'design', 'issue', 'research', 'report', 'task']) await assert.rejects(stat(join(cwd, { plan: 'plans', design: 'designs', issue: 'issues', research: 'research', report: 'reports', task: 'tasks' }[type])), { code: 'ENOENT' });
   }
   if (active.includes('schedule_prompt')) {
     // session_start created storage under the isolated workspace; a one-hour once-job never fires during the probe and shutdown stops its timer.

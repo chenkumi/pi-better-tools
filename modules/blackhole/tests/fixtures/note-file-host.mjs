@@ -74,7 +74,7 @@ try {
   assert.doesNotMatch(outstanding, /\[edit\]/);
   const file = sm.getSessionFile(); session.dispose(); session = undefined; const resumed = sdk.SessionManager.open(file); session = await create(resumed);
   const recall = async params => (await defs.get('recall').execute('recall', params, undefined, undefined, { cwd, sessionManager: resumed })).content[0].text;
-  assert.match(await recall({ query: 'B1_NOTE_MARKER', mode: 'file' }), /report\//);
+  assert.match(await recall({ query: 'B1_NOTE_MARKER', mode: 'file' }), /reports\//);
   const touched = await recall({ mode: 'touched' });
   assert.match(touched, new RegExp(note.details.relativePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.doesNotMatch(touched, /review-bad/);

@@ -18,7 +18,7 @@ import { makeSandbox, startHost } from '../../../tests/helpers/regression/host-r
 const sandbox = await makeSandbox('r05-note');
 after(() => sandbox.cleanup());
 const outside = join(sandbox.home, 'outside');
-const target = resolve(sandbox.cwd, 'report');
+const target = resolve(sandbox.cwd, 'reports');
 const model = { id: 'offline', name: 'Offline', reasoning: false, input: ['text'], contextWindow: 128000, maxTokens: 2048, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } };
 
 // note.ts re-verifies realpath(<created file>) right after the exclusive create and removes the empty file if it escaped the

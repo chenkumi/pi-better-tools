@@ -1,4 +1,4 @@
-// Regression D18 (real host): <cwd>/plan -> junction to <cwd>/..archive (inside the workspace) must be accepted; a junction outside must stay refused.
+// Regression D18 (real host): <cwd>/plans -> junction to <cwd>/..archive (inside the workspace) must be accepted; a junction outside must stay refused.
 // Level: real Pi 1.1.0 CLI (print mode, offline scripted provider) + real note extension entry + real filesystem junction/symlink.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -15,12 +15,12 @@ const noteScript = [
 const toolResult = requests => requests.at(-1).messages.find(m => m.role === 'toolResult' && m.toolName === 'note');
 const text = r => r.content.map(b => b.text ?? '').join('');
 
-test('D18 internal ..archive junction behind <cwd>/plan is accepted by note', { timeout: 120000 }, async () => {
+test('D18 internal ..archive junction behind <cwd>/plans is accepted by note', { timeout: 120000 }, async () => {
   const sb = await makeSandbox('d18-in');
   try {
     const archive = join(sb.cwd, '..archive');
     await mkdir(archive);
-    await symlink(archive, join(sb.cwd, 'plan'), linkType);
+    await symlink(archive, join(sb.cwd, 'plans'), linkType);
     const run = await runCli(sb, { script: noteScript, extensions: [noteEntry], args: ['--tools', 'note'], label: 'D18-internal' });
     assert.equal(run.requests.length, 2, `expected tool call + final answer; stderr=${run.stderr}`);
     const result = toolResult(run.requests);
@@ -37,7 +37,7 @@ test('D18 control: junction pointing outside cwd is still refused', { timeout: 1
   const outside = join(sb.home, 'outside-dir');
   try {
     await mkdir(outside);
-    await symlink(outside, join(sb.cwd, 'plan'), linkType);
+    await symlink(outside, join(sb.cwd, 'plans'), linkType);
     const run = await runCli(sb, { script: noteScript, extensions: [noteEntry], args: ['--tools', 'note'], label: 'D18-external' });
     const result = toolResult(run.requests);
     assert.equal(result?.isError, true, 'external junction must be refused');

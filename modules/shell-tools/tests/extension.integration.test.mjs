@@ -156,39 +156,41 @@ test("shell output rails keep the omission hint below output and above timing ac
   }
 });
 
-test("[BUG-001] overrides preserve read-only defaultTools instead of activating shells", { timeout }, async () => {
+test("shell overrides and job tools activate by default for defaultTools loadouts", { timeout }, async () => {
   const baseline = await fixture.createSession({ loadOverride: false, defaultTools: ["read"] });
   const overridden = await fixture.createSession({ defaultTools: ["read"] });
   assert.deepEqual(baseline.session.getActiveToolNames(), ["read"]);
-  assert.deepEqual(overridden.session.getActiveToolNames(), ["read"]);
+  const active = overridden.session.getActiveToolNames();
+  for (const name of ["read", ...shellNames, "shell_job_status", "shell_job_cancel"]) assert.ok(active.includes(name), name);
 });
 
-test("empty/default loadouts, allowlists, and exclusions retain the user's tool selection", { timeout }, async () => {
+test("allowlists, exclusions and no-tools still retain the user's tool selection", { timeout }, async () => {
   for (const options of [
-    {}, { defaultTools: [] }, { tools: [] }, { tools: ["read"] },
+    { tools: [] }, { tools: ["read"] },
     { excludeTools: shellNames }, { noTools: "all" },
-    ...(windows ? [
-      { defaultTools: ["powershell"] }, { tools: ["powershell"] },
-      { defaultTools: ["-bash", "+powershell"] },
-    ] : []),
+    ...(windows ? [{ tools: ["powershell"] }] : []),
   ]) {
     const baseline = await fixture.createSession({ ...options, loadOverride: false });
     const overridden = await fixture.createSession(options);
-    assert.deepEqual(overridden.session.getActiveToolNames(), baseline.session.getActiveToolNames(), JSON.stringify(options));
+    const active = overridden.session.getActiveToolNames();
+    for (const name of active) assert.ok(baseline.session.getActiveToolNames().includes(name) || name.startsWith("shell_job_"), `${name} ${JSON.stringify(options)}`);
+    if (options.tools || options.noTools) assert.ok(!active.some(name => name.startsWith("shell_job_")), JSON.stringify(options));
   }
 });
 
-test("explicit shell activation works and reload does not reactivate disabled overrides", { timeout }, async () => {
+test("explicit shell activation works and reload reload re-registers them as active", { timeout }, async () => {
   const { session } = await fixture.createSession({ defaultTools: ["read"] });
   for (const name of shellNames) {
-    const selected = await fixture.createSession({ defaultTools: ["read", name] });
+    const selected = await fixture.createSession({ tools: ["read", name] });
     assert.deepEqual(selected.session.getActiveToolNames(), ["read", name]);
   }
   session.setActiveToolsByName(["read", ...shellNames]);
   assert.deepEqual(session.getActiveToolNames(), ["read", ...shellNames]);
   session.setActiveToolsByName(["read"]);
-  await session.reload();
   assert.deepEqual(session.getActiveToolNames(), ["read"]);
+  // defaultActive:true re-activates on re-registration; the host allowlist is the opt-out.
+  await session.reload();
+  for (const name of shellNames) assert.ok(session.getActiveToolNames().includes(name), name);
   assert.ok(session.getToolDefinition("bash").parameters.properties.timeoutMs);
 });
 
@@ -495,8 +497,8 @@ test("codemode nonzero exits resolve structured data rather than hiding the exit
   assert.match(text(result), /exitCode.*7/);
 });
 
-test("codemode cannot implicitly activate an unselected direct shell override", { timeout }, async () => {
-  const { session, cwd } = await fixture.createSession({ defaultTools: ["read", "codemode"], codemode: true });
+test("codemode cannot implicitly activate a shell override excluded by the --tools allowlist", { timeout }, async () => {
+  const { session, cwd } = await fixture.createSession({ tools: ["read", "codemode"], codemode: true });
   assert.deepEqual(session.getActiveToolNames(), ["read", "codemode"]);
   const marker = path.join(cwd, "codemode-disabled-bash");
   const result = await fixture.execute(session, "codemode", {

@@ -39,7 +39,9 @@ const declaration = name => ({ name, description: 'Offline restored declaration.
 const baseNames = ['read', 'write', 'edit', 'bash', 'powershell', 'grep', 'find', 'ls'];
 const selectedBase = session => session.getActiveToolNames().filter(name => baseNames.includes(name)).sort();
 // File overrides are extension tools activated on registration; defaultTools is not a read-only allowlist.
-const defaultFiles = ['edit', 'find', 'grep', 'read', 'write'];
+const filesOnly = ['edit', 'find', 'grep', 'read', 'write'];
+// Main-agent Shell tools are defaultActive:true (user-requested); powershell registers on Windows only.
+const defaultFiles = [...filesOnly, 'bash', ...(process.platform === 'win32' ? ['powershell'] : [])].sort();
 
 async function fixture(options = {}) {
   await writeSettings(options.defaults ?? ['read']);
@@ -174,21 +176,21 @@ try {
     assert.ok(!f.session.getActiveToolNames().includes('monitor_status'), 'manual deactivation applies to the current loadout');
     await writeSettings(['read', 'bash', 'monitor_status']); await f.session.reload();
     assert.ok(f.session.getActiveToolNames().includes('monitor_status'));
-    assert.deepEqual(selectedBase(f.session), contracts.reloadDefaults ? ['bash', ...defaultFiles] : defaultFiles);
+    assert.deepEqual(selectedBase(f.session), defaultFiles);
     assert.deepEqual(f.lifecycle, ['start:startup', 'shutdown:reload', 'start:reload']);
     assert.equal(f.calls(), 0);
   });
-  await check('unchanged disabled defaults stay disabled and removal is not revocation', { defaults: ['read', 'bash'] }, async f => {
+  await check('manually disabled default shells re-activate on reload and removal is not revocation', { defaults: ['read', 'bash'] }, async f => {
     f.session.setActiveToolsByName(f.session.getActiveToolNames().filter(name => name !== 'bash'));
     await f.session.reload(); assert.deepEqual(selectedBase(f.session), defaultFiles);
     f.session.setActiveToolsByName([...f.session.getActiveToolNames(), 'bash']);
     await writeSettings(['read']); await f.session.reload();
-    assert.deepEqual(selectedBase(f.session), ['bash', ...defaultFiles]);
+    assert.deepEqual(selectedBase(f.session), defaultFiles);
   });
   for (const [name, options, expected] of [
     ['explicit read-only selection survives defaultTools reload', { tools: ['read'] }, ['read']],
     ['noTools all survives defaultTools reload', { noTools: 'all' }, []],
-    ['excluded shells and note stay excluded after defaultTools reload', { exclude: ['bash', 'powershell', 'note', 'monitor_start', 'monitor_status', 'monitor_stop'] }, defaultFiles],
+    ['excluded shells and note stay excluded after defaultTools reload', { exclude: ['bash', 'powershell', 'note', 'monitor_start', 'monitor_status', 'monitor_stop'] }, filesOnly],
   ]) await check(name, options, async f => {
     await writeSettings(['read', 'bash', 'powershell', 'note', 'monitor_start', 'monitor_status', 'monitor_stop']); await f.session.reload();
     assert.deepEqual(selectedBase(f.session), expected);

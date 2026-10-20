@@ -13,13 +13,14 @@ const displayText = (value: unknown, max = 2000) => typeof value === "string"
 export const MAX_NOTE_BYTES = 8 * 1024 * 1024;
 
 const noteTypes = ["plan", "design", "issue", "research", "report", "task"] as const;
+const noteDirectories = { plan: "plans", design: "designs", issue: "issues", research: "research", report: "reports", task: "tasks" } as const satisfies Record<(typeof noteTypes)[number], string>;
 
 export const noteTool = defineTool({
   name: "note",
   label: "Note",
   description:
     "Save a NEW Markdown document as plan, design, issue, research, report or task. Required for such documents: do NOT use write and do NOT choose a file name or folder. " +
-    "The tool picks <cwd>/<type>/TYPE-YYYYMMDDTHHmmssSSSZ.md (UTC; no title suffix), never overwrites, and returns the path; send the complete document in one call. " +
+    "The tool picks <cwd>/<folder>/TYPE-YYYYMMDDTHHmmssSSSZ.md (UTC; no title suffix), never overwrites, and returns the path; send the complete document in one call. " +
     "Use it when asked to write down, record, save or log such a document, or when finished work deserves a record. Not for source code or existing files: to change a note afterwards use read/edit on the returned path.",
   promptSnippet: "Save a new plan/design/issue/research/report/task Markdown document; file name is auto-generated and the saved path is returned.",
   promptGuidelines: [
@@ -27,7 +28,7 @@ export const noteTool = defineTool({
   ],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   parameters: Type.Object({
-    type: StringEnum(noteTypes, { description: "Category and folder: plan = approach/steps/roadmap; design = design document (architecture, interfaces, decisions); issue = bug/problem/risk; research = findings; report = results/summary/review; task = to-do." }),
+    type: StringEnum(noteTypes, { description: "Category (saved under its plural folder: plans/designs/issues/research/reports/tasks): plan = approach/steps/roadmap; design = design document (architecture, interfaces, decisions); issue = bug/problem/risk; research = findings; report = results/summary/review; task = to-do." }),
     content: Type.String({ description: "The full Markdown document, including a title heading, written verbatim. Do not include a file name." }),
   }, { additionalProperties: false }),
   outputSchema: Type.Object({
@@ -61,14 +62,15 @@ export const noteTool = defineTool({
       throw new Error("NOTE_EMPTY: content is empty or whitespace only. Write the complete Markdown document (with a title heading) into content and call note again.");
     }
     signal?.throwIfAborted();
-    const directory = resolve(ctx.cwd, params.type);
+    const folder = noteDirectories[params.type];
+    const directory = resolve(ctx.cwd, folder);
     await mkdir(directory, { recursive: true });
-    // <cwd>/<type> may be a pre-existing symlink/junction; refuse to write outside the workspace.
+    // <cwd>/<folder> may be a pre-existing symlink/junction; refuse to write outside the workspace.
     const [realCwd, realDirectory] = await Promise.all([realpath(ctx.cwd), realpath(directory)]);
     const inside = relative(realCwd, realDirectory);
     // Compare whole path segments: a directory literally named "..archive" is inside the workspace, "../x" is not.
     if (inside === "" || inside === ".." || inside.startsWith(".." + sep) || isAbsolute(inside)) {
-      throw new Error(`NOTE_DIRECTORY_ESCAPE: ${params.type}/ resolves outside the workspace; refusing to write.`);
+      throw new Error(`NOTE_DIRECTORY_ESCAPE: ${folder}/ resolves outside the workspace; refusing to write.`);
     }
     const timestamp = Date.now();
     for (let attempt = 0; attempt < 1000; attempt++) {
@@ -82,7 +84,7 @@ export const noteTool = defineTool({
           // mid-write: once started, finish writing and report the resulting path.
           const handle = await open(path, "wx", 0o644);
           try {
-            // Post-create re-verification: if <cwd>/<type> was swapped for a junction/symlink after the check above,
+            // Post-create re-verification: if <cwd>/<folder> was swapped for a junction/symlink after the check above,
             // the empty file we just created landed outside the workspace. Remove it (it is ours, created with wx)
             // before any content is written. Narrows the window; it is not an atomic guarantee against a persistent attacker.
             const [cwdNow, createdNow] = await Promise.all([realpath(ctx.cwd), realpath(path)]);
@@ -90,7 +92,7 @@ export const noteTool = defineTool({
             if (where === "" || where === ".." || where.startsWith(".." + sep) || isAbsolute(where)) {
               await handle.close().catch(() => {});
               await rm(createdNow, { force: true }).catch(() => {});
-              throw new Error(`NOTE_DIRECTORY_ESCAPE: ${params.type}/ resolved outside the workspace during creation; the file was removed.`);
+              throw new Error(`NOTE_DIRECTORY_ESCAPE: ${folder}/ resolved outside the workspace during creation; the file was removed.`);
             }
             await handle.writeFile(params.content, "utf8");
           }
@@ -107,7 +109,7 @@ export const noteTool = defineTool({
         if (error && typeof error === "object" && "code" in error && error.code === "EEXIST") continue;
         throw error;
       }
-      const saved = { relativePath: `${params.type}/${filename}` };
+      const saved = { relativePath: `${folder}/${filename}` };
       return {
         content: [{ type: "text", text: `Saved note: ${saved.relativePath} (relative to cwd; use read/edit on this path to change it)` }],
         details: saved,

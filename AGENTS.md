@@ -20,7 +20,7 @@
 
 ## 行為與安全不變量
 
-- 保留現有工具名稱、schema、設定鍵、儲存目錄與授權／trust 語意。不能以整合為由啟用未選的 tools。
+- 保留現有工具名稱、schema、設定鍵、儲存目錄與授權／trust 語意。不能以整合為由啟用未選的 tools；使用者明確要求的 `defaultActive:true`（Monitor、Fork、主代理 Shell／Shell job、Subagent）為已記錄例外，仍受宿主 allowlist／exclusions 控制。
 - Skill Tools 透過 `resources_discover` 提供 `modules/skill-tools/skills/`，不在 runtime 複製至 home；停用必須排除 extension（`skills: []`／`--no-skills` 不抑制動態資源）。修改前讀 `modules/skill-tools/README.md`。`pi-tools-config` 及其 references 必須可整個目錄獨立搬移，只連結技能目錄內資源，不依賴 repository／模組 README 或 home 副本。
 - 修改 File Audit 前讀 `modules/file-audit/README.md`：成功 read/write/edit/note 共用 run 窗口與記錄容量，note 路徑取成功結構化結果；手動增量檢查不取代全量 `sources:verify`，不自動刷新 provenance、不以缺紀錄／超限當通過，不讀完整歷史或注入模型 context。
 - 修改 Fork 前讀 `modules/fork/README.md`：Fork 是獨立 Pi 行程（非 sandbox）；`fork`／`fork_status`／`fork_cancel` 預設啟用，仍遵守宿主 allowlist／exclusions／no-tools 與手動停用，managed child 不註冊；Fork 可用 `subagent` 但任何 Subagent 與 Fork 自身都不可建立 Fork（Subagent argument builder 排除、啟動握手、起源標記三層）；快照只在 turn_end 的 canonical 邊界取得、不捏造 tool result；結果只回報原 session、不在背景啟動 parent 模型；quit／reload 扇出取消全部、close 未確認不得宣稱已清理；不跨重啟重跑。管理 extension 必須每個 session 都載入，不以 monkey-patch 補洞。
@@ -47,9 +47,11 @@
 - 驗證命令與分組以根 `package.json`、`scripts/run-checks.mjs` 為準；純文件修改核對事實、命令及引用路徑，不必執行程式測試。`npm run build` 目前為 no-op，不代表型別或 runtime 驗證。
 - 測試依變更範圍分組，不要每次都跑全部：
   - `npm test`（單元）：每次修改程式碼後的基本檢查；`npm run typecheck`：修改 TS 型別、介面或 schema 時。JS／TS 修改另執行 `npm run lint`（correctness baseline，不自動 `--fix`，不等於安全審查）。
-  - `npm run test:module -- <module>`（該模組的 build／typecheck／單元／整合／真實 host 測試；module 為 blackhole、file-audit、file-tools、fork、gpt-speed、json-schema、monitor、note-tools、pi-runtime、pty-terminal、schedule-prompt、shell-tools、skill-tools、sql-connector、sqlite-tools、subagents、web-tools；blackhole、schedule-prompt 與 sql-connector 保留 Vitest runner）：只修改該模組時執行，不跑其他模組的整合測試。Web 真實瀏覽器測試包含在 `test:module -- web-tools`，需先 `npm run browser:install`。
-  - `npm run test:cross`（所有 manifest extensions 載入、SDK hooks、provenance）：修改根 `package.json`／manifest、`scripts/`、`tests/`、共用 helper、`docs/*.json` provenance、Pi 版本，或同時變更多個模組時。
-  - `npm run test:integration`（全部整合）、`npm run test:package`、`npm run check`：只在發布前、升級 Pi／依賴、變更 package `files`／入口／tarball 內容，或使用者明確要求完整驗證時執行。
+  - `npm run test:module -- <module>`（該模組的 build／typecheck／單元／整合／真實 host 測試；module 為 blackhole、file-audit、file-tools、fork、gpt-speed、json-schema、monitor、note-tools、pi-runtime、pty-terminal、schedule-prompt、shell-tools、skill-tools、sql-connector、sqlite-tools、subagents、web-tools；blackhole、schedule-prompt 與 sql-connector 保留 Vitest runner）：只修改該模組時執行，不跑其他模組的整合測試。Web 真實瀏覽器 `fetch` 測試屬重型組（`test:heavy -- web-tools`），`test:module -- web-tools` 只含 `web-read` 等非重型項；皆需先 `npm run browser:install`。
+  - `npm run test:cross`（所有 manifest extensions 載入、provenance；SDK hooks 已移至重型組）：修改根 `package.json`／manifest、`scripts/`、`tests/`、共用 helper、`docs/*.json` provenance、Pi 版本，或同時變更多個模組時。
+  - `npm run test:heavy [-- <module>]`（重型／高延遲組）：真實 Pi host／CLI／瀏覽器、多行程 recovery 或長 timeout、單檔實測 ≥30 秒的測試，清單為 `scripts/run-checks.mjs` 的 `heavyFiles`（目前 12 檔：json-schema `runtime`、`tests/integration/sdk-hooks`、subagents `child-shell-guard-reload`、shell-tools `recovery`／`extension`／`notification-batching`、web-tools 真實瀏覽器 `fetch`、fork `real-host`／`blocked-report`、file-audit `tui-workflow`、sql-connector `sdk`、monitor `host`）。這些檔案已從 `test`、`test:integration`、`test:browser`、`test:module`、`test:cross` 排除，**只有使用者明確指定，或要求全量／發布前完整驗證時才執行**；agent 不得自行判斷納入常態驗證。修改該檔案所屬行為且使用者未要求時，交付說明須明講未執行重型組（不算通過）。新增或改慢測試時，單檔實測 ≥30 秒就加入 `heavyFiles`，並同步本條與 README；不得為了降低耗時而弱化斷言。
+  - `npm run test:heavy:blackhole`（Blackhole 重型組，**獨立於 `test:heavy`，不得混跑**）：`d03-branch-epoch`、`d20-settings-non-tui` 兩個整合檔，加上上游 Vitest 整合套件 `scripts/blackhole-tests.mjs --suite=integration`（實測約 600 秒，逾時上限放寬為 1200 秒）。與其他重型組相同：已從所有預設組排除，只有使用者明確指定或要求全量／發布前完整驗證時才執行；改動 Blackhole 且未執行時須明講。新增 Blackhole 重型測試時加入 `heavyFiles`（`blackhole` 前綴的檔案自動歸入此組）。
+  - `npm run test:integration`（全部整合，不含重型組）、`npm run test:package`、`npm run check`（不含重型組，完整驗證須另跑 `test:heavy`）：只在發布前、升級 Pi／依賴、變更 package `files`／入口／tarball 內容，或使用者明確要求完整驗證時執行。
   - 交付說明須列出實際執行的分組與理由；未執行的分組要明講為未執行，不算通過。
 - 變更匯入來源／本地適配／原生模組 provenance 時執行 `npm run sources:verify`；當前雜湊完整性通過不等於歷史差異等價，保留既有 historical delta unavailable 記錄。
 - Cross／production smoke 需要可執行的 ripgrep：由 PATH 提供 `rg` 或設定測試專用 `PI_BETTER_TOOLS_TEST_RG`，不下載 binary 或修改個人設定；缺少時明確失敗，不 skip 斷言。`test:package` 需要 npm registry。Web 真實瀏覽器測試需先 `npm run browser:install`；Linux 系統依賴見根 README，執行會修改系統套件的 `setup:browser`／`browser:install-deps` 前須取得同意。

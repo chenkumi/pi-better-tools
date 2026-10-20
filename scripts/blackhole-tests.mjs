@@ -23,7 +23,7 @@ try {
   // Keep the source runner and aliases; permit file filters for repair evidence.
   const output = await runCommand('blackhole upstream Vitest', process.execPath,
     ['node_modules/vitest/vitest.mjs', 'run', '--root', 'modules/blackhole', ...args],
-    { cwd: root, env, timeoutMs: 600000 });
+    { cwd: root, env, timeoutMs: suite === 'unit' ? 600000 : 1200000 });
   process.stdout.write(output);
 } finally {
   console.log('[blackhole] Cleaning isolated test home...');

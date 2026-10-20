@@ -34,6 +34,14 @@ describe("B1: result-authoritative Note and File tools", () => {
     expect(list).not.toMatch(/WRONG|BODY_FAKE/); expect(s.briefTranscript).toContain("NOTE_EMPTY");
     expect(collectFilesTouched(messages, "/repo")).toHaveLength(2);
   });
+  it("accepts the plural note folders Note now returns and rejects a folder that does not belong to the note type", () => {
+    const messages = [call(["p", "note", { type: "plan", content: "# Plan" }], ["r", "note", noteArgs], ["x", "note", noteArgs]),
+      result("p", "note", { relativePath: "plans/PLAN-20261020T110000001Z.md" }), result("r", "note", { relativePath: "reports/REPORT-20261020T110000000Z.md" }),
+      result("x", "note", { relativePath: "plans/REPORT-20261020T110000002Z.md" })];
+    const list = sections(messages).filesAndChanges.join("\n");
+    expect(list).toContain("Created (2)"); expect(list).toContain("plans/PLAN-20261020T110000001Z.md"); expect(list).toContain("reports/REPORT-20261020T110000000Z.md");
+    expect(list).not.toContain("plans/REPORT-20261020T110000002Z.md");
+  });
   it("does not resurrect error/cancelled/unexecuted or result-missing file attempts via args or native seeds", () => {
     const messages = [call(["wf", "write", { path: "failed.ts", content: "x" }], ["wm", "write", { path: "missing.ts", content: "x" }], ["ec", "edit", { path: "cancel.ts", edits: [{ oldText: "x", newText: "y" }] }], ["ru", "read", { path: "unexecuted.ts" }]),
       result("wf", "write", {}, true, "[FILE_TOOL_ERROR] STALE_FILE"), result("ec", "edit", {}, true, "[FILE_TOOL_ERROR] OPERATION_ABORTED"), result("ru", "read", undefined, true, "Provider request failed; previous tool call was not executed")];

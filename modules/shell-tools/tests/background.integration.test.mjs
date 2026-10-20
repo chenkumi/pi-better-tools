@@ -72,10 +72,10 @@ test('real local shells return readable receipts, allow foreground work, detach 
     const { script, ready, gate } = gateScript(cwd);
     const turn = new AbortController();
     try {
-      assert.ok([...host.tools.values()].every(tool => tool.defaultActive === false));
+      assert.ok([...host.tools.values()].every(tool => tool.defaultActive === true));
       const completion = host.completion();
       const readyEvent = waitForFile(ready);
-      assert.match(host.tools.get(name).description, /need explicit selection/);
+      assert.match(host.tools.get(name).description, /active by default unless the host excludes them/);
       assert.ok(!host.tools.get(name).description.includes('2147483647'));
       assert.ok(!host.tools.get(name).parameters.properties.timeoutMs.description.includes('2147483647'));
       assert.match(host.tools.get(name).parameters.properties.timeoutMs.description, /Total timeout in ms/);

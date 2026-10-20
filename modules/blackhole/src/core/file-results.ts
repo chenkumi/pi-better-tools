@@ -45,6 +45,7 @@ export function pairFileMessages(messages: Message[]): Map<string, ToolPair> {
 export const succeeded = (p: ToolPair): boolean => p.result?.isError === false;
 const object = (v: unknown): Record<string, unknown> => v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {};
 
+const NOTE_DIRECTORIES: Record<string, string> = { plan: "plans", design: "designs", issue: "issues", research: "research", report: "reports", task: "tasks" };
 export function noteResultPath(p: ToolPair): string | undefined {
   if (p.call.name !== "note" || !succeeded(p)) return;
   const { type, content } = p.call.args;
@@ -53,7 +54,8 @@ export function noteResultPath(p: ToolPair): string | undefined {
   // Validate a workspace-relative returned path, not a guessed filename/date.
   if (typeof path !== "string" || path.length > 1024 || /[\\:\u0000-\u001f\u007f]/.test(path)) return;
   const parts = path.split("/");
-  if (parts.length !== 2 || parts[0] !== type || !parts[1] || parts[1] === "." || parts[1] === "..") return;
+  // Notes are saved under the plural folder; the singular type folder is kept for sessions recorded before the rename.
+  if (parts.length !== 2 || (parts[0] !== NOTE_DIRECTORIES[type] && parts[0] !== type) || !parts[1] || parts[1] === "." || parts[1] === "..") return;
   return path;
 }
 export function successfulNotePaths(messages: Message[]): Map<string, string> {

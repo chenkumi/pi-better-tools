@@ -11,6 +11,7 @@ import noteExtension, { MAX_NOTE_BYTES, noteTool } from "../extensions/note.ts";
 const timestamp = Date.UTC(2026, 0, 2, 3, 4, 5, 6);
 const firstName = "PLAN-20260102T030405006Z.md";
 const types = ["plan", "design", "issue", "research", "report", "task"] as const;
+const dirOf = { plan: "plans", design: "designs", issue: "issues", research: "research", report: "reports", task: "tasks" } as const;
 const execute = (cwd: string, args: Static<typeof noteTool.parameters>, signal?: AbortSignal) =>
   noteTool.execute("test-note", args, signal, undefined, { cwd } as ExtensionToolContext);
 async function workspace(t: TestContext) {
@@ -70,9 +71,9 @@ for (const type of types) {
     const result = await execute(cwd, { type, content });
     const saved = result.details;
     const file = join(cwd, saved.relativePath);
-    assert.equal(file, resolve(cwd, type, `${type.toUpperCase()}-20260102T030405006Z.md`));
-    assert.equal(saved.relativePath, `${type}/${type.toUpperCase()}-20260102T030405006Z.md`);
-    assert.deepEqual(saved, { relativePath: `${type}/${type.toUpperCase()}-20260102T030405006Z.md` }, "details expose only the relative path");
+    assert.equal(file, resolve(cwd, dirOf[type], `${type.toUpperCase()}-20260102T030405006Z.md`));
+    assert.equal(saved.relativePath, `${dirOf[type]}/${type.toUpperCase()}-20260102T030405006Z.md`);
+    assert.deepEqual(saved, { relativePath: `${dirOf[type]}/${type.toUpperCase()}-20260102T030405006Z.md` }, "details expose only the relative path");
     assert.deepEqual(Object.keys((noteTool.outputSchema as unknown as { properties: object }).properties), ["relativePath"]);
     assert.equal(Check(noteTool.outputSchema!, { ...saved, type }), false, "output rejects extra metadata");
     assert.equal(Object.hasOwn((noteTool.outputSchema as unknown as { properties: object }).properties, "path"), false);
@@ -85,8 +86,8 @@ for (const type of types) {
     assert.match(text.text, /Saved note:/);
     assert.ok(text.text.includes(saved.relativePath));
     assert.equal(await readFile(file, "utf8"), content);
-    assert.deepEqual(await readdir(cwd), [type]);
-    assert.deepEqual(await readdir(join(cwd, type)), [basename(file)]);
+    assert.deepEqual(await readdir(cwd), [dirOf[type]]);
+    assert.deepEqual(await readdir(join(cwd, dirOf[type])), [basename(file)]);
     assert.doesNotMatch(basename(file), /[:<>"/\\|?*]/);
   });
 }
@@ -110,15 +111,15 @@ test("result text tells the model the path is relative to cwd and to use read/ed
 test("collision never overwrites an existing file or touches PLAN.md", async t => {
   const cwd = await workspace(t);
   t.mock.method(Date, "now", () => timestamp);
-  await mkdir(join(cwd, "plan"));
-  await writeFile(join(cwd, "plan", firstName), "KEEP");
-  await writeFile(join(cwd, "plan", "PLAN-20260102T030405006Z-new.md"), "KEEP SLUG");
-  await writeFile(join(cwd, "plan", "PLAN.md"), "KEEP BASELINE");
+  await mkdir(join(cwd, "plans"));
+  await writeFile(join(cwd, "plans", firstName), "KEEP");
+  await writeFile(join(cwd, "plans", "PLAN-20260102T030405006Z-new.md"), "KEEP SLUG");
+  await writeFile(join(cwd, "plans", "PLAN.md"), "KEEP BASELINE");
   const result = await execute(cwd, { type: "plan", content: "NEW" });
   assert.equal(basename(join(cwd, result.details.relativePath)), "PLAN-20260102T030405007Z.md");
-  assert.equal(await readFile(join(cwd, "plan", firstName), "utf8"), "KEEP");
-  assert.equal(await readFile(join(cwd, "plan", "PLAN-20260102T030405006Z-new.md"), "utf8"), "KEEP SLUG");
-  assert.equal(await readFile(join(cwd, "plan", "PLAN.md"), "utf8"), "KEEP BASELINE");
+  assert.equal(await readFile(join(cwd, "plans", firstName), "utf8"), "KEEP");
+  assert.equal(await readFile(join(cwd, "plans", "PLAN-20260102T030405006Z-new.md"), "utf8"), "KEEP SLUG");
+  assert.equal(await readFile(join(cwd, "plans", "PLAN.md"), "utf8"), "KEEP BASELINE");
   assert.equal(await readFile(join(cwd, result.details.relativePath), "utf8"), "NEW");
 });
 
@@ -126,16 +127,16 @@ test("compact timestamps keep UTC milliseconds, lexical ordering and rollover co
   const cwd = await workspace(t);
   const rollover = Date.UTC(2026, 11, 31, 23, 59, 59, 999);
   t.mock.method(Date, "now", () => rollover);
-  await mkdir(join(cwd, "report"));
+  await mkdir(join(cwd, "reports"));
   const oldName = "REPORT-2026-12-31T23-59-59-999Z.md";
-  await writeFile(join(cwd, "report", oldName), "OLD FORMAT KEEP");
+  await writeFile(join(cwd, "reports", oldName), "OLD FORMAT KEEP");
   const a = await execute(cwd, { type: "report", content: "first" });
   const b = await execute(cwd, { type: "report", content: "first" });
   assert.equal(basename(join(cwd, a.details.relativePath)), "REPORT-20261231T235959999Z.md");
   assert.equal(basename(join(cwd, b.details.relativePath)), "REPORT-20270101T000000000Z.md");
   assert.ok(basename(join(cwd, a.details.relativePath)) < basename(join(cwd, b.details.relativePath)));
   assert.match(basename(join(cwd, a.details.relativePath)), /^REPORT-\d{8}T\d{9}Z\.md$/);
-  assert.equal(await readFile(join(cwd, "report", oldName), "utf8"), "OLD FORMAT KEEP");
+  assert.equal(await readFile(join(cwd, "reports", oldName), "utf8"), "OLD FORMAT KEEP");
 });
 
 test("parallel calls with identical timestamp each create a unique complete file", async t => {
@@ -144,14 +145,14 @@ test("parallel calls with identical timestamp each create a unique complete file
   const contents = Array.from({ length: 32 }, (_, i) => `note ${i}\n${"文".repeat(100)}`);
   const results = await Promise.all(contents.map(content => execute(cwd, { type: "plan", content })));
   assert.equal(new Set(results.map(r => r.details.relativePath)).size, contents.length);
-  assert.equal((await readdir(join(cwd, "plan"))).length, contents.length);
+  assert.equal((await readdir(join(cwd, "plans"))).length, contents.length);
   for (const [i, result] of results.entries()) assert.equal(await readFile(join(cwd, result.details.relativePath), "utf8"), contents[i]);
 });
 
 test("1000 compact timestamp collisions fail without overwriting or creating a 1001st file", async t => {
   const cwd = await workspace(t);
   t.mock.method(Date, "now", () => timestamp);
-  const dir = join(cwd, "plan");
+  const dir = join(cwd, "plans");
   await mkdir(dir);
   for (let i = 0; i < 1000; i++) {
     const name = `PLAN-${new Date(timestamp + i).toISOString().replace(/[-:.]/g, "")}.md`;
@@ -180,8 +181,8 @@ test("uses invocation cwd, not process cwd or extension installation directory",
   t.mock.method(Date, "now", () => timestamp);
   const first = await execute(a, { type: "plan", content: "A" });
   const second = await execute(b, { type: "plan", content: "B" });
-  assert.equal(join(a, first.details.relativePath), join(a, "plan", "PLAN-20260102T030405006Z.md"));
-  assert.equal(join(b, second.details.relativePath), join(b, "plan", "PLAN-20260102T030405006Z.md"));
+  assert.equal(join(a, first.details.relativePath), join(a, "plans", "PLAN-20260102T030405006Z.md"));
+  assert.equal(join(b, second.details.relativePath), join(b, "plans", "PLAN-20260102T030405006Z.md"));
   assert.equal(await readFile(join(a, first.details.relativePath), "utf8"), "A");
   assert.equal(await readFile(join(b, second.details.relativePath), "utf8"), "B");
 });
@@ -211,16 +212,16 @@ test("pre-aborted calls do not create a directory or file", async t => {
 
 test("filesystem failure is reported, not a success path", async t => {
   const cwd = await workspace(t);
-  await writeFile(join(cwd, "plan"), "existing regular file");
+  await writeFile(join(cwd, "plans"), "existing regular file");
   await assert.rejects(execute(cwd, { type: "plan", content: "x" }));
-  assert.equal(await readFile(join(cwd, "plan"), "utf8"), "existing regular file");
-  assert.deepEqual(await readdir(cwd), ["plan"]);
+  assert.equal(await readFile(join(cwd, "plans"), "utf8"), "existing regular file");
+  assert.deepEqual(await readdir(cwd), ["plans"]);
 });
 
 test("directory symlink/junction escaping the workspace is refused", async t => {
   const cwd = await workspace(t), outside = await workspace(t);
   const { symlink } = await import("node:fs/promises");
-  try { await symlink(outside, join(cwd, "plan"), "junction"); } catch { t.skip("cannot create symlink/junction here"); return; }
+  try { await symlink(outside, join(cwd, "plans"), "junction"); } catch { t.skip("cannot create symlink/junction here"); return; }
   await assert.rejects(execute(cwd, { type: "plan", content: "x" }), /NOTE_DIRECTORY_ESCAPE/);
   assert.deepEqual(await readdir(outside), []);
 });
@@ -230,9 +231,9 @@ test("D18: a junction to an in-workspace directory whose name starts with '..' i
   const { symlink } = await import("node:fs/promises");
   const archive = join(cwd, "..archive");
   await mkdir(archive);
-  try { await symlink(archive, join(cwd, "plan"), process.platform === "win32" ? "junction" : "dir"); } catch { t.skip("cannot create symlink/junction here"); return; }
+  try { await symlink(archive, join(cwd, "plans"), process.platform === "win32" ? "junction" : "dir"); } catch { t.skip("cannot create symlink/junction here"); return; }
   const result = await execute(cwd, { type: "plan", content: "# Plan\n" });
-  assert.match(result.details.relativePath, /^plan\/PLAN-/);
+  assert.match(result.details.relativePath, /^plans\/PLAN-/);
   const files = await readdir(archive);
   assert.equal(files.length, 1);
   assert.equal(await readFile(join(archive, files[0]), "utf8"), "# Plan\n");

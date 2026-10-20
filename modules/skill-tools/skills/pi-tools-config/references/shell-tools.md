@@ -5,7 +5,7 @@
 - `bash`／`powershell`：`{ command, timeoutMs?, background? }`；PowerShell 後端僅原生 Windows。
 - `shell_job_status { jobId? }`、`shell_job_cancel { jobId }` 需另行選取，只有 shell 的 loadout 不代表管理工具可用。
 - 共用 `/background-jobs shell`、`more`／`all`、`collapse` 顯示或收合 TUI 工作面板。
-- 無獨立的 `/shell-tools` 設定命令。Shell 與管理工具均 `defaultActive: false`，仍可由 Pi 的預設 loadout／明確選取啟用。
+- 無獨立的 `/shell-tools` 設定命令。主代理的 `bash`／`powershell` 與 `shell_job_status`／`shell_job_cancel` 均 `defaultActive: true`，載入即預設啟用；仍受 Pi `--tools` allowlist／`--exclude-tools`／`--no-tools` 控制。Managed child 的前景 Shell 仍 `defaultActive: false`。
 
 ## Config 與作用範圍
 

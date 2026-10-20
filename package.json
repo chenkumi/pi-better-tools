@@ -104,6 +104,8 @@
         "test:module": "node scripts/run-checks.mjs module",
         "test:cross": "node scripts/run-checks.mjs cross",
         "test:browser": "node scripts/run-checks.mjs browser",
+        "test:heavy": "node scripts/run-checks.mjs heavy",
+        "test:heavy:blackhole": "node scripts/run-checks.mjs heavy-blackhole",
         "test:package": "node scripts/package-smoke.mjs",
         "check": "npm run build && npm run typecheck && npm run lint && npm test && npm run test:integration && npm run test:package",
         "pty:install": "node setup/cli.mjs pty setup",
