@@ -1,12 +1,98 @@
 import { Buffer } from "node:buffer";
+import { performance } from "node:perf_hooks";
 import { parentPort, workerData } from "node:worker_threads";
-import { FILE_HEADERS_ONLY, formatPatch, structuredPatch } from "diff";
+
+// Load the diff module dynamically so the parent can tell when startup (module loading) has
+// finished: its compute budget starts at the "ready" message, not at worker construction.
+const { FILE_HEADERS_ONLY, formatPatch, structuredPatch } = await import("diff");
 
 // Pure computation only: this worker never opens or writes the edited file.
 const MAX_OUTPUT_BYTES = 50 * 1024 * 1024;
 const NO_NEWLINE_MARKER = "\\ No newline at end of file";
 
 class OutputLimitError extends Error {}
+
+// Segmented diff: jsdiff costs O(lines x changes) when changes are spread over a large window.
+// Cut the window at runs of at least MIN_RUN identical lines (> 2 * context, so whole-file jsdiff
+// would also have started a new hunk there) and diff each changed region with its own context.
+// Any such cut yields a valid line diff: the skipped runs are identical on both sides.
+const SEGMENT_MIN_LINES = 1000;
+const MIN_RUN = 10;
+const RESYNC_WINDOW = 64;
+
+function splitLines(text) {
+  const lines = [];
+  let start = 0;
+  for (let index = text.indexOf("\n"); index !== -1; index = text.indexOf("\n", start)) {
+    lines.push(text.slice(start, index + 1));
+    start = index + 1;
+  }
+  if (start < text.length) lines.push(text.slice(start));
+  return lines;
+}
+
+function blockEqual(a, i, b, j) {
+  if (i + MIN_RUN > a.length || j + MIN_RUN > b.length) return false;
+  for (let k = 0; k < MIN_RUN; k++) if (a[i + k] !== b[j + k]) return false;
+  return true;
+}
+
+function resync(a, b, i, j) {
+  for (let total = 1; total <= 2 * RESYNC_WINDOW; total++) {
+    for (let p = Math.max(0, total - RESYNC_WINDOW); p <= Math.min(total, RESYNC_WINDOW); p++) {
+      if (blockEqual(a, i + p, b, j + total - p)) return { p, q: total - p };
+    }
+  }
+  return undefined;
+}
+
+// Line ranges [{ oldStart, oldEnd, newStart, newEnd }] to diff independently, each with up to
+// `context` identical lines on both sides. The last range runs to the end when no resync is found.
+function segmentRanges(a, b, context) {
+  const ranges = [];
+  let i = 0;
+  let j = 0;
+  for (;;) {
+    while (i < a.length && j < b.length && a[i] === b[j]) { i++; j++; }
+    if (i === a.length && j === b.length) return ranges;
+    const lead = Math.min(context, i, j);
+    const oldStart = i - lead;
+    const newStart = j - lead;
+    const found = resync(a, b, i, j);
+    if (!found) {
+      ranges.push({ oldStart, oldEnd: a.length, newStart, newEnd: b.length });
+      return ranges;
+    }
+    i += found.p;
+    j += found.q;
+    ranges.push({ oldStart, oldEnd: Math.min(a.length, i + context), newStart, newEnd: Math.min(b.length, j + context) });
+  }
+}
+
+// One calculation per region; returns undefined on cooperative timeout.
+function diffHunks(displayPath, oldContent, newContent, context, timeoutMs) {
+  const started = performance.now();
+  const remaining = () => Math.max(1, timeoutMs - (performance.now() - started));
+  const options = () => ({ context, timeout: remaining() });
+  const oldLines = splitLines(oldContent);
+  const newLines = splitLines(newContent);
+  if (oldLines.length + newLines.length < SEGMENT_MIN_LINES) {
+    return structuredPatch(displayPath, displayPath, oldContent, newContent, undefined, undefined, options())?.hunks;
+  }
+  const hunks = [];
+  for (const range of segmentRanges(oldLines, newLines, context)) {
+    const piece = structuredPatch(displayPath, displayPath,
+      oldLines.slice(range.oldStart, range.oldEnd).join(""), newLines.slice(range.newStart, range.newEnd).join(""),
+      undefined, undefined, options());
+    if (!piece) return undefined;
+    for (const hunk of piece.hunks) {
+      hunk.oldStart += range.oldStart;
+      hunk.newStart += range.newStart;
+      hunks.push(hunk);
+    }
+  }
+  return hunks;
+}
 
 const isCount = (value) => Number.isSafeInteger(value) && value >= 0;
 
@@ -24,16 +110,14 @@ function makeFeedback({
   }
 
   // Exactly one diff calculation; the parent watchdog remains the authoritative limit.
-  const structured = structuredPatch(displayPath, displayPath, oldContent, newContent, undefined, undefined, {
-    context,
-    timeout: timeoutMs,
-  });
-  if (!structured) return { type: "error", code: "OPERATION_TIMEOUT" };
+  const hunks = diffHunks(displayPath, oldContent, newContent, context, timeoutMs);
+  if (!hunks) return { type: "error", code: "OPERATION_TIMEOUT" };
   // Restore whole-file coordinates for the trimmed unchanged head.
-  for (const hunk of structured.hunks) {
+  for (const hunk of hunks) {
     hunk.oldStart += lineOffset;
     hunk.newStart += lineOffset;
   }
+  const structured = { oldFileName: displayPath, newFileName: displayPath, hunks };
 
   let outputBytes = 0;
   const reserve = (bytes) => {
@@ -102,6 +186,7 @@ function makeFeedback({
 }
 
 try {
+  parentPort.postMessage({ type: "ready" });
   parentPort.postMessage(makeFeedback(workerData));
 } catch (error) {
   const resourceFailure = error instanceof OutputLimitError || error?.code === "ERR_STRING_TOO_LONG" || error?.code === "ERR_WORKER_OUT_OF_MEMORY";

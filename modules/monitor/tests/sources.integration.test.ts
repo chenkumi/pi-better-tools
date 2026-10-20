@@ -2,6 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { WebSocketServer } from 'ws';
+import { mkdtempSync, existsSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { commandLaunch, websocketLaunch, jobLaunch } from '../src/sources.ts';
 import { prepareEndpoint, pinnedOptions } from '../src/network.ts';
 import { publishCapability, acquireCapability } from '../../shell-tools/src/monitor-capability.ts';
@@ -70,4 +74,30 @@ test('job adapter owns only timer, readonly lease generation and snapshot (never
     assert.equal(reads, 1); assert.equal(f.r.status(receipt.monitorId).state, 'completed'); assert.equal(canceled, false); assert.equal(queried, false);
     revoke(); assert.throws(() => lease.snapshot('job-A')); assert.throws(() => acquireCapability('shell_job', { ...owner, cwd: '/foreign' }));
   } finally { revoke(); await f.r.shutdown(); }
+});
+test('MON-01: shell exits while a silent descendant holds the pipes; stop still leaves stopping with bounded cleanup state', async () => {
+  const fwd = (p: string) => p.replaceAll(String.fromCharCode(92), '/');
+  const dir = mkdtempSync(join(tmpdir(), 'mon01-')), pidFile = fwd(join(dir, 'holder.pid'));
+  const holder = fwd(fileURLToPath(new URL('./fixtures/descendant-holder.cjs', import.meta.url)));
+  const node = fwd(process.execPath);
+  const f = fixture(); let holderPid = 0;
+  const until = async (predicate: () => boolean, ms: number) => { const end = Date.now() + ms; while (!predicate() && Date.now() < end) await new Promise(r => setTimeout(r, 25)); return predicate(); };
+  try {
+    const input = validateStart({ source: { kind: 'command', tool: 'bash', command: `"${node}" "${holder}" "${pidFile}" & echo done` }, durationMs: 60000, wakeAgent: false });
+    const receipt = f.r.start(input, commandLaunch(fakePi as any, fakeCtx as any, input.source as any));
+    assert.ok(await until(() => existsSync(pidFile) && readFileSync(pidFile, 'utf8').length > 0, 15000), 'descendant started');
+    holderPid = Number(readFileSync(pidFile, 'utf8'));
+    f.r.stop(receipt.monitorId);
+    const left = await until(() => { const s = f.r.status(receipt.monitorId); return s.state !== 'stopping' && s.state !== 'running' && s.state !== 'starting'; }, 8000);
+    const status = f.r.status(receipt.monitorId);
+    assert.ok(left, `monitor must leave stopping, got ${status.state}`);
+    assert.equal(status.cleanupPending, false);
+    assert.equal(status.cleanupEvidence.processTreeState, 'unknown');
+    // The freed active slot must let four new monitors bind.
+    for (let i = 0; i < 4; i++) f.r.start(validateStart({ source: { kind: 'command', tool: 'bash', command: 'exit 0' }, wakeAgent: false }), commandLaunch(fakePi as any, fakeCtx as any, { tool: 'bash', command: 'exit 0' }));
+  } finally {
+    await f.r.shutdown();
+    if (holderPid) try { process.kill(holderPid); } catch {}
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -5,8 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { applyPatch, parsePatch } from "diff";
-import { createDiffFeedback, DIFF_TIMEOUT_MS, DIFF_WORKER_OLD_GENERATION_MB, MAX_DIFF_OUTPUT_BYTES } from "../src/diff-runner.js";
+import { applyPatch, parsePatch, structuredPatch } from "diff";
+import { Worker } from "node:worker_threads";
+import { computeDiffTimeoutMs, createDiffFeedback, DIFF_MAX_TIMEOUT_MS, DIFF_TIMEOUT_MS, DIFF_WORKER_OLD_GENERATION_MB, MAX_DIFF_OUTPUT_BYTES } from "../src/diff-runner.js";
 import { FileToolError } from "../src/errors.js";
 
 const childScript = fileURLToPath(new URL("./fixtures/diff-watchdog-child.ts", import.meta.url));
@@ -78,6 +79,73 @@ describe("createDiffFeedback real worker", () => {
     assert.equal(DIFF_TIMEOUT_MS, 2_000);
     assert.equal(DIFF_WORKER_OLD_GENERATION_MB, 256);
     assert.equal(MAX_DIFF_OUTPUT_BYTES, 50 * 1024 * 1024);
+  });
+
+  it("scales the compute budget with the changed window, bounded by a hard cap", () => {
+    assert.equal(DIFF_MAX_TIMEOUT_MS, 15_000);
+    assert.equal(computeDiffTimeoutMs(0), DIFF_TIMEOUT_MS);
+    assert.equal(computeDiffTimeoutMs(1024), DIFF_TIMEOUT_MS);
+    const mid = computeDiffTimeoutMs(8 * 1024 * 1024);
+    const large = computeDiffTimeoutMs(16 * 1024 * 1024);
+    assert.ok(mid > DIFF_TIMEOUT_MS, "an 8 MiB window must get more than the base budget");
+    assert.ok(large > mid, "budget grows with window size");
+    assert.equal(computeDiffTimeoutMs(Number.MAX_SAFE_INTEGER), DIFF_MAX_TIMEOUT_MS);
+  });
+
+  it("does not charge worker construction/startup time against the compute budget", async () => {
+    // Construction stalls longer than the 300 ms compute budget; only the separate startup deadline applies.
+    const result = await createDiffFeedback("old\n", "new\n", "fixture.txt", undefined, {
+      timeoutMs: 300,
+      workerFactory(url, options) {
+        const worker = new Worker(url, options);
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 450);
+        return worker;
+      },
+    });
+    assert.equal(result.firstChangedLine, 1);
+  });
+
+  it("segments scattered edits in a large window and still equals the whole-file jsdiff", async () => {
+    // Mix of in-place, line-adding, line-removing and EOF-without-newline edits, > 1000 lines.
+    const before: string[] = [];
+    const after: string[] = [];
+    for (let i = 0; i < 3000; i++) {
+      const line = `line ${i} lorem ipsum`;
+      before.push(line);
+      if (i % 97 === 0) after.push(`${line} CHANGED`);
+      else if (i % 211 === 0) { after.push(line); after.push(`inserted after ${i}`); }
+      else if (i % 313 === 0) continue;
+      else after.push(line);
+    }
+    for (const eofNewline of [true, false]) {
+      const oldText = before.join("\n") + (eofNewline ? "\n" : "");
+      const newText = after.join("\n") + (eofNewline ? "\n" : "") + (eofNewline ? "" : "!");
+      const result = await createDiffFeedback(oldText, newText, "big.txt");
+      assert.equal(applyPatch(oldText, result.patch), newText);
+      const reference = structuredPatch("big.txt", "big.txt", oldText, newText, undefined, undefined, { context: 4 });
+      const expected = parsePatch(result.patch)[0].hunks.map((hunk) => [hunk.oldStart, hunk.oldLines, hunk.newStart, hunk.newLines]);
+      assert.deepEqual(expected, reference.hunks.map((hunk) => [hunk.oldStart, hunk.oldLines, hunk.newStart, hunk.newLines]));
+      assert.equal(result.firstChangedLine, 1);
+    }
+  });
+
+  it("diffs a 200000-line file with 5000 scattered replacements within the budget", { timeout: 60_000 }, async () => {
+    // Whole-file jsdiff needs ~40 s here; segmentation makes it linear. The 60 s test timeout only
+    // guards a hang; correctness is asserted through patch application.
+    const lines = 200_000;
+    const step = 40;
+    const before: string[] = [];
+    const after: string[] = [];
+    for (let i = 0; i < lines; i++) {
+      const base = `line ${String(i).padStart(7, "0")} lorem ipsum dolor sit amet`;
+      before.push(base);
+      after.push(i % step === 0 ? `${base} NEEDLE` : base);
+    }
+    const oldText = before.join("\n") + "\n";
+    const newText = after.join("\n") + "\n";
+    const result = await createDiffFeedback(oldText, newText, "big.txt");
+    assert.equal(applyPatch(oldText, result.patch), newText);
+    assert.equal(result.firstChangedLine, 1);
   });
 
   const cases = [

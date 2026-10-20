@@ -35,6 +35,10 @@
 
 開啟資料庫不改變其 journal mode（不會把檔案永久轉成 WAL）。開啟不存在的路徑會建立新的空資料庫，結果訊息會明示「Database created」，以免路徑打錯時誤以為開啟了既有資料庫。
 
+**交易與鎖：** 每次工具呼叫是獨立的一句 SQL。`sqlite_execute` 拒絕交易控制語句（`BEGIN`／`COMMIT`／`END`／`ROLLBACK`／`SAVEPOINT`／`RELEASE`，不分大小寫，可有前置空白與註解），以免連線停在未提交交易並持有寫鎖；此外每次 query／execute 結束後若連線仍在交易中，會自動 `ROLLBACK` 並回報錯誤。連線以 `timeout: 2000`（`BUSY_TIMEOUT_MS`，Node 22.16 起支援）開啟：另一連線持鎖時最多等待 2 秒再報 `database is locked`。取捨：`node:sqlite` 為同步呼叫，鎖爭用時等待期間會阻塞 Pi 事件迴圈最多 2 秒，故刻意採保守值。
+
+**已知限制（未修）：** 查詢仍在 Pi 主執行緒同步執行，`node:sqlite` 沒有 interrupt／progress handler，因此無終止條件的查詢（例如無 `WHERE` 上限的 recursive CTE）無法逾時或取消，會凍結 Pi。列數／位元組上限只約束已回傳的資料列，不約束運算時間。請自行在 SQL 中加 `LIMIT`／終止條件。
+
 此模組可依目前使用者權限讀寫資料庫，不是唯讀工具集或 OS sandbox。啟用整合版前，請手動停用獨立 `pi-sqlite-tools`，避免同名工具重複註冊。
 
 ## 驗證

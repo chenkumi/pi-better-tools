@@ -28,8 +28,9 @@ export function classifyError(message: Pick<ErrorInput, 'stopReason' | 'errorMes
 }
 export function safeText(text: string, limit = 2048): string {
   // Mask complete quoted values before Bearer/sk substitutions: otherwise an
-  // escaped quote can be exposed by the earlier replacement and leak its suffix.
-  return text.replace(/(["']?(?:api[_ -]?key|access[_ -]?token|authorization)["']?\s*[=:]\s*)(?:"(?:\\[\s\S]|[^"\\\r\n])*(?:"|$)|'(?:\\[\s\S]|[^'\\\r\n])*(?:'|$)|[^\s"',;}]+)/gi, '$1"[REDACTED]"')
+  // escaped quote can be exposed by the earlier replacement and leak its suffix. An unquoted value may be
+  // `<scheme> <credential>`; consuming only the scheme would leave the credential behind.
+  return text.replace(/(["']?(?:api[_ -]?key|access[_ -]?token|authorization)["']?\s*[=:]\s*)(?:"(?:\\[\s\S]|[^"\\\r\n])*(?:"|$)|'(?:\\[\s\S]|[^'\\\r\n])*(?:'|$)|(?:(?:bearer|basic|digest|negotiate|ntlm|token)[ \t]+)?[^\s"',;}]+)/gi, '$1"[REDACTED]"')
     .replace(/Bearer\s+[^\s"',;]+/gi, 'Bearer [REDACTED]')
     .replace(/\bsk-[A-Za-z0-9_-]+/g, '[REDACTED]')
     .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '').slice(0, limit);

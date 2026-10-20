@@ -78,3 +78,27 @@ describe("read-only policy follows each engine's lexical rules", () => {
     denied("pgsql", "SELECT 1\0 LIMIT 1");
   });
 });
+
+describe("MSSQL TOP must bound every returned row", () => {
+  it("keeps the baseline behavior", () => {
+    denied("mssql", "select * from t");
+    allowed("mssql", "select top 100 a from t");
+    denied("mssql", "select top 201 a from t");
+  });
+
+  it("rejects TOP ... PERCENT and WITH TIES, which do not cap the row count", () => {
+    denied("mssql", "select top 100 percent * from huge");
+    denied("mssql", "select top 1 percent a from huge");
+    denied("mssql", "select top 10 with ties a from t order by a");
+  });
+
+  it("requires a compliant TOP in every set-operation branch", () => {
+    denied("mssql", "select top 1 a from t union all select b from huge");
+    denied("mssql", "select a from huge union all select top 1 b from t");
+    denied("mssql", "select top 1 a from t intersect select b from huge");
+    denied("mssql", "select top 1 a from t except select b from huge");
+    denied("mssql", "select top 200 a from t union all select top 200 b from u");
+    allowed("mssql", "select top 100 a from t union all select top 100 b from u");
+    allowed("mssql", "select top 50 a from t union select top 50 b from u order by 1");
+  });
+});

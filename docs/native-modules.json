@@ -312,11 +312,13 @@
         },
         {
           "path": "modules/monitor/README.md",
+          "reliabilityFix20261020PreviousSha256": "05fbebb447ec1a2b8a9d14f6cad3cddbbe0a7ed250ca68feb527ce0d0b707ca6",
+          "reliabilityFix20261020Adaptation": "Documented the command-source settle rule and that descendants may keep running (process tree state unknown).",
           "monitorReviewPreviousSha256": "0d1ad637ef6e2612eb34bc658593078de5f80f340f384a3ac906cfe9cc55755e",
           "monitorReentryPreviousSha256": "7886027c4a677adbaa3580d8058cd1e125ad01ece6b36ba99dc5ff9fb70f600b",
           "defectRepairPreviousSha256": "250bf1a4cae8343bc09761f6925f045a14f861235f969c4f318548cc12a73a7a",
           "monitorDefaultActivePreviousSha256": "f39d35ebb769bd6490b5d0fc42a6e7047d73f70560206c087c9a6e53a90825d6",
-          "dependencyUpgradePreviousSha256": "6afb9a9768dca7f4bd0af0cb63b258595b8dc6f41fc8c81a1521004442968549", "sha256": "05fbebb447ec1a2b8a9d14f6cad3cddbbe0a7ed250ca68feb527ce0d0b707ca6",
+          "dependencyUpgradePreviousSha256": "6afb9a9768dca7f4bd0af0cb63b258595b8dc6f41fc8c81a1521004442968549", "sha256": "d8fe937079cf1c0862d93994b77e0607f68d76893c52901fda51f154f4e91be5",
           "reason": "Contract, limits, security and producer schema/handoff."
         },
         {
@@ -355,7 +357,9 @@
         },
         {
           "path": "modules/monitor/src/sources.ts",
-          "sha256": "f1fcef4e422c60641eaf0db41e7ec42e8de7e695addf2ac953eff47f5f9961da",
+          "reliabilityFix20261020PreviousSha256": "f1fcef4e422c60641eaf0db41e7ec42e8de7e695addf2ac953eff47f5f9961da",
+          "reliabilityFix20261020Adaptation": "MON-01: commandLaunch passes exitIdleMs 250 and abortGraceMs 500 so a shell that exits while a silent descendant holds the pipes settles with cleanup unconfirmed instead of staying in stopping.",
+          "sha256": "f53bb45878fda901cc9b682ba7104e5743edbd0fc52e72d6c649fefdf1670763",
           "reason": "Four source adapters, actual close and readonly job timer ownership."
         },
         {
@@ -412,8 +416,10 @@
         },
         {
           "path": "modules/monitor/tests/sources.integration.test.ts",
+          "reliabilityFix20261020PreviousSha256": "f6b8c10d2e2dd5e7e1dd1ab51c1c7720d2c4e796a6eaf92e76a39bbe2acb139c",
+          "reliabilityFix20261020Adaptation": "MON-01 regression with a real shell and a silent descendant holding the pipes.",
           "monitorReviewPreviousSha256": "06f4f981d3b5fa82ba02e0968f2da90c3c5db886c1ab80a9c92eb0c040a42401",
-          "sha256": "f6b8c10d2e2dd5e7e1dd1ab51c1c7720d2c4e796a6eaf92e76a39bbe2acb139c",
+          "sha256": "d544c7c71a6a2e02aa1be4ca5635c0c706c046797ad09595561a5e733308167d",
           "reason": "Actual stdout/stderr/WS fragments/binary/payload/job lease transports."
         },
         {
@@ -432,6 +438,11 @@
           "path": "modules/monitor/tsconfig.json",
           "sha256": "cf84803c4808ab9d2af3834851589ef6a7c78eb252cb83d5e9e5f353af4d3edc",
           "reason": "Root strict typecheck target."
+        },
+        {
+          "path": "modules/monitor/tests/fixtures/descendant-holder.cjs",
+          "sha256": "dee060e148c8101b00f908df973ab52a88302f0f2e797a97b483327ba8b68d43",
+          "reason": "2026-10-20 MON-01 test fixture: writes a pid file, silently holds the pipes and exits by itself after 20 seconds."
         }
       ]
     },
@@ -785,7 +796,8 @@
         {
           "path": "modules/pi-runtime/src/policy.ts",
           "runtimeSafetyPreviousSha256": "f44b0ee025de2b5a5185375d4e7816d957e96be8f5068f76580b532707706c61",
-          "sha256": "c810db29e75f7558b21179830f31cde91d986f7abce06901ed24c6c4e045838e"
+          "safeTextPreviousSha256": "c810db29e75f7558b21179830f31cde91d986f7abce06901ed24c6c4e045838e",
+          "sha256": "fea93e6802b6659e65d4b8772d47baac71c93e9cc63c7db8223d64511dc3001b"
         },
         {
           "path": "modules/pi-runtime/tsconfig.json",
@@ -806,6 +818,10 @@
           "runtimeSafetyPreviousSha256": "57ef6f715be1170bfa4d8aea2bce96ee5de6a9fbf3ad82fd0512fb69af361423",
           "promptSectionsPreviousSha256": "db64f30aad500dc4667e19e87ab34209186476315bee8b934f19658debe0dadb",
           "sha256": "4198cd83983e27a6e5da36619deec73d67f115370e3525f6b7551d790ffb2b95"
+        },
+        {
+          "path": "modules/pi-runtime/tests/safe-text.test.ts",
+          "sha256": "b25a31291577f10ef8202c0c4bcd7fd8870e37f6dcc9d4ae9623ca93eaa5419f"
         },
         {
           "path": "modules/pi-runtime/tests/runtime.integration.test.mjs",

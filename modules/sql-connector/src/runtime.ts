@@ -175,6 +175,8 @@ class MssqlAdapter implements Adapter {
       },
     };
     this.pool = new driver.ConnectionPool(poolConfig as never);
+    // An unhandled 'error' event would crash the host process; request failures are still reported by each call.
+    this.pool.on("error", () => {});
   }
 
   private async connectedPool(signal?: AbortSignal): Promise<mssql.ConnectionPool> {
@@ -270,6 +272,9 @@ class PgsqlAdapter implements Adapter {
       statement_timeout: QUERY_TIMEOUT_MS,
       query_timeout: QUERY_TIMEOUT_MS,
     });
+    // pg-pool emits 'error' when an idle client is terminated; without a listener it would crash the host process.
+    // The failed client is already removed from the pool, so the next request simply opens a new connection.
+    this.pool.on("error", () => {});
   }
 
   private async withClient<T>(signal: AbortSignal | undefined, operation: (client: PoolClient) => Promise<T>): Promise<T> {

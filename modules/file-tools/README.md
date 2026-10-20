@@ -110,7 +110,7 @@
 ## 限制
 
 - 輸入與結果檔案：50 MiB；edit 驗證預算 10 秒；regex 單次 1 秒；regex 比對上限 10,000、edit 比對上限 20,000。
-- diff 在可終止的 worker 中計算：逾時 2 秒、old-generation heap 256 MiB、顯示加 patch 輸出上限 50 MiB。無法產生 diff 時於提交前失敗，不會提交後才回報成功。成功 formatter 逐行計數、僅保留最多 40 行短 preview，不對完整 hunk 使用 variadic spread；同一 registered edit 重用一次格式化結果。`tests/review-r1.integration.test.mjs` 保留實際原子 edit 插入 200000 短行後的 disk／hash／成功 feedback 契約。
+- diff 在可終止的 worker 中計算：worker 啟動／載入 diff 模組另有 2 秒啟動期限（worker 回報 ready 前），之後的計算期限隨變更視窗（首尾相同部分已裁除後的 old+new 字元數）放寬：基本 2 秒，每超過 1 Mi 字元加 0.7 秒，上限 15 秒（`computeDiffTimeoutMs`）；大視窗內散佈的變更會在連續 ≥10 行相同處切段，各段獨立計算 diff（複雜度近乎線性，20 萬行／5000 處替換約 0.6 秒；段間 hunk 與整檔 jsdiff 相同，不保證在平手時逐字相同的最小 diff）。超出期限仍於提交前失敗（`OPERATION_TIMEOUT`，不降級、不提交，因為顯示給使用者與模型的 diff／patch 必須對應實際提交內容）。old-generation heap 256 MiB、顯示加 patch 輸出上限 50 MiB。無法產生 diff 時於提交前失敗，不會提交後才回報成功。成功 formatter 逐行計數、僅保留最多 40 行短 preview，不對完整 hunk 使用 variadic spread；同一 registered edit 重用一次格式化結果。`tests/review-r1.integration.test.mjs` 保留實際原子 edit 插入 200000 短行後的 disk／hash／成功 feedback 契約。
 - 並行保證僅涵蓋參與 Pi file mutation queue 的工具；提交前重新驗證可縮小但無法消除與任意外部寫入者的競爭。完整內容雜湊檢查不會以 stat 取代；每次 rename 重試亦重新讀取、比對完整雜湊，再做最後 stat 檢查。
 - 既有檔以 rename 取代會改變 inode／硬連結關係；僅盡力保留 mode，不保證保留 Windows ACL／其他檔案 metadata。這是原子取代的限制，不會改成非原子原地寫入。
 

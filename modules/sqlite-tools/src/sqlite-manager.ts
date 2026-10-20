@@ -8,6 +8,38 @@ export const MAX_QUERY_ROWS = 10_000;
 export const MAX_QUERY_BYTES = 8 * 1024 * 1024;
 /** BLOB values longer than this are returned as a prefix plus their length. */
 export const MAX_BLOB_BYTES = 1024;
+/**
+ * Bounded wait for another connection's lock. node:sqlite blocks the Pi thread while waiting, so keep it short.
+ * The `timeout` option exists since Node 22.16, below the engines floor.
+ */
+export const BUSY_TIMEOUT_MS = 2000;
+
+const TRANSACTION_CONTROL = /^(?:begin|commit|end|rollback|savepoint|release)(?![A-Za-z0-9_])/i;
+
+/** Strip leading whitespace, semicolons and SQL comments so the first keyword can be inspected. */
+function leadingKeywordText(sql: string): string {
+  let rest = sql;
+  for (;;) {
+    const trimmed = rest.replace(/^[\s;]+/, "");
+    if (trimmed.startsWith("--")) {
+      const newline = trimmed.indexOf("\n");
+      rest = newline < 0 ? "" : trimmed.slice(newline + 1);
+    } else if (trimmed.startsWith("/*")) {
+      const end = trimmed.indexOf("*/", 2);
+      rest = end < 0 ? "" : trimmed.slice(end + 2);
+    } else {
+      return trimmed;
+    }
+  }
+}
+
+function assertNotTransactionControl(sql: string): void {
+  if (TRANSACTION_CONTROL.test(leadingKeywordText(sql))) {
+    throw new Error(
+      "Transaction-control statements (BEGIN, COMMIT, END, ROLLBACK, SAVEPOINT, RELEASE) are not supported: each statement runs on its own and a left-open transaction would hold the database write lock.",
+    );
+  }
+}
 
 export interface QueryResult {
   columns: string[];
@@ -50,7 +82,7 @@ export class SqliteManager {
       this.closeIfOpen();
       // Keep the file's own journal mode: switching to WAL would persist in the database header.
       const existed = existsSync(filePath);
-      this.database = new DatabaseSync(filePath);
+      this.database = new DatabaseSync(filePath, { timeout: BUSY_TIMEOUT_MS });
       this.currentPath = filePath;
       return {
         success: true,
@@ -98,6 +130,11 @@ export class SqliteManager {
   }
 
   query(sql: string, params?: SqlParams): QueryResult {
+    assertNotTransactionControl(sql);
+    return this.guardTransaction(() => this.runQuery(sql, params));
+  }
+
+  private runQuery(sql: string, params?: SqlParams): QueryResult {
     const statement = this.getDatabase().prepare(sql);
     if (!isReader(statement)) {
       throw new Error("sqlite_query accepts only statements that return rows. Use sqlite_execute for writes.");
@@ -133,6 +170,23 @@ export class SqliteManager {
   }
 
   execute(sql: string, params?: SqlParams): { changes: number | bigint; lastInsertRowid: number | bigint } {
+    assertNotTransactionControl(sql);
+    return this.guardTransaction(() => this.runExecute(sql, params));
+  }
+
+  /** Defense in depth: no tool call may leave the connection inside a transaction (and holding a lock). */
+  private guardTransaction<T>(run: () => T): T {
+    const db = this.getDatabase();
+    const result = run();
+    if (db.isTransaction) {
+      let detail = "";
+      try { db.exec("ROLLBACK"); } catch (error) { detail = ` ROLLBACK failed: ${errorMessage(error)}`; }
+      throw new Error(`The statement left a transaction open; it was rolled back so the database lock is released.${detail}`);
+    }
+    return result;
+  }
+
+  private runExecute(sql: string, params?: SqlParams): { changes: number | bigint; lastInsertRowid: number | bigint } {
     const statement = this.getDatabase().prepare(sql);
     if (isReader(statement)) {
       throw new Error("sqlite_execute does not accept statements that return rows. Use sqlite_query instead.");

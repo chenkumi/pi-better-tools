@@ -5,6 +5,10 @@ import type { ReadonlyJobLease } from '../../shell-tools/src/monitor-capability.
 import { LineParser, preview } from './lines.js';
 import { prepareEndpoint, pinnedOptions, type Endpoint, type NetworkSource } from './network.js';
 import { realClock, type Clock, type Launch } from './core.js';
+/** Bounded settle for commands whose shell exits while a descendant keeps the pipes open (same values as Schedule Prompt).
+ * exitIdleMs: shell exited and stdout/stderr stayed silent this long => report source closed (descendants may still run).
+ * abortGraceMs: an abort before any output waits at most this long before the host kills the tree. */
+const COMMAND_ABORT_GRACE_MS = 500, COMMAND_EXIT_IDLE_MS = 250;
 export function commandLaunch(pi: ExtensionAPI, ctx: ExtensionContext, source: { tool: 'bash' | 'powershell'; command: string }): Launch {
   return async (sink, signal) => {
     const parser = new LineParser((text, partial) => sink.data(text, partial), reason => sink.fault(reason));
@@ -12,7 +16,7 @@ export function commandLaunch(pi: ExtensionAPI, ctx: ExtensionContext, source: {
       await execMonitorCommand(pi, ctx, source.tool, source.command, signal, {
         stdout: chunk => parser.push(chunk), stderr: chunk => sink.stderr(chunk), started: () => sink.started(),
         closed: (code, closeSignal, spawnError) => { parser.end(); sink.closed({ sourceClosed: true, ...(code !== null ? { exitCode: code } : {}), ...(closeSignal ? { signal: closeSignal } : {}), spawnError, processTreeState: 'unknown' }, spawnError || code !== 0); },
-      });
+      }, undefined, { abortGraceMs: COMMAND_ABORT_GRACE_MS, exitIdleMs: COMMAND_EXIT_IDLE_MS });
     } catch { sink.fault('source_error'); sink.closed({ sourceClosed: true, startupFailed: true, processTreeState: 'unknown' }, true); }
   };
 }

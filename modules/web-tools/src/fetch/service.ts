@@ -1,5 +1,6 @@
 import { performance } from 'node:perf_hooks';
 import { setupCommand } from '../../../../setup/commands.mjs';
+import { parseSetCookie, requestBounded, ResponseBudget, type BoundedResponse } from './bounded.js';
 import { fetchStatic } from './http.js';
 import { chromium, type Browser, type BrowserContext, type Route } from 'playwright';
 import { extractHtmlIsolated, MAX_HTML_BYTES, prewarmExtractionWorker, shutdownExtractionWorkers, type ContentFormat, type ExtractionMode } from './extract.js';
@@ -18,10 +19,13 @@ export type FetchResult = {
   content: string; extraction: string; warnings: string[];
 };
 
-/** Cap for every proxied response (document or subresource). Playwright buffers the whole body in
- * Node before exposing it, so this bounds what is handed to the browser, not peak transfer memory. */
+/** Cap for every proxied response (document or subresource), enforced while reading: wire bytes and
+ * decoded bytes are limited separately in a streaming pipeline (see bounded.ts). */
 export const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 const CLOSE_CONTEXT_TIMEOUT_MS = 5000;
+/** Per-fetch subresource allowance; in-flight bytes count too, so peak buffering is bounded by it. */
+export const MAX_SUBRESOURCE_REQUESTS = 200;
+export const MAX_SUBRESOURCE_BYTES = 32 * 1024 * 1024;
 export function exceedsResponseLimit(headers: Record<string, string>, bodyBytes?: number, limit = MAX_RESPONSE_BYTES): boolean {
   const declared = Number(headers['content-length']);
   return (Number.isFinite(declared) && declared > limit) || (bodyBytes !== undefined && bodyBytes > limit);
@@ -251,11 +255,14 @@ export class FetchService {
       const warnings = new Set<string>();
       let navigationError: Error | undefined;
       let navigationRedirect: string | undefined;
+      // Subresource allowance for this fetch (request count and cumulative decoded bytes).
+      const budget = new ResponseBudget(MAX_SUBRESOURCE_REQUESTS, MAX_SUBRESOURCE_BYTES);
+      const activeContext = context;
       await context.route('**/*', async (route: Route) => {
         const request = route.request();
         let mainNavigation = false;
         try { mainNavigation = request.isNavigationRequest() && request.frame() === page.mainFrame(); } catch { /* worker request */ }
-        let response: Awaited<ReturnType<Route['fetch']>> | undefined;
+        let response: BoundedResponse | undefined;
         try {
           checkAbort(localSignal);
           // Media, fonts, images and stylesheets are never needed for text extraction (it never
@@ -265,6 +272,7 @@ export class FetchService {
             return;
           }
           await abortable(validate(request.url()), localSignal);
+          if (!mainNavigation) budget.admit();
           // Chromium/Playwright skips user routes on redirect hops, even after
           // fulfill(). Never give the browser a redirect response. Main redirects
           // become a fresh goto below; subresources are followed manually.
@@ -273,17 +281,24 @@ export class FetchService {
           let postData = request.postDataBuffer() ?? undefined;
           const requestHeaders = { ...request.headers() };
           for (let hop = 0; ; hop++) {
-            // Playwright buffers before exposing the response: these limits bound
-            // accepted HTML, not peak browser/network memory consumption.
-            response = await route.fetch({ url: target, method, postData, headers: requestHeaders, maxRedirects: 0, timeout: remaining() });
+            // Bounded transport: wire and decoded bytes are limited while reading, so Playwright
+            // never buffers or decompresses an unbounded body in the host process.
+            const cookies = await abortable(activeContext.cookies(target), localSignal).catch(() => []);
+            const headers = { ...requestHeaders };
+            delete headers.cookie;
+            if (cookies.length) headers.cookie = cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join('; ');
+            response = await requestBounded({ url: target, method, body: postData, headers, signal: localSignal });
             // DNS-rebinding mitigation: the pre-flight lookup and this connection resolve separately,
             // so verify the address actually connected to before anything is handed to the browser.
-            this.policy.assertConnectedAddress((await response.serverAddr())?.ipAddress);
-            const location = response.headers().location;
-            if (!(response.status() >= 300 && response.status() < 400 && location)) break;
+            this.policy.assertConnectedAddress(response.remoteAddress);
+            const location = response.headers.location;
+            if (!(response.status >= 300 && response.status < 400 && location)) break;
             if (hop >= 19) throw new Error('NETWORK_ERROR: Too many redirects.');
             const destination = new URL(location, target).href;
             await abortable(validate(destination), localSignal);
+            // Best effort: keep cookies set on redirect hops, as the context jar did before.
+            const redirectCookies = response.setCookies.map((value) => parseSetCookie(value, target)).filter((cookie) => cookie !== undefined);
+            if (redirectCookies.length) await activeContext.addCookies(redirectCookies).catch(() => {});
             if (mainNavigation) {
               if (method !== 'GET' && method !== 'HEAD') throw new Error('UNSUPPORTED_CONTENT: Redirected form navigation is not supported.');
               navigationRedirect = destination;
@@ -294,10 +309,9 @@ export class FetchService {
               delete requestHeaders.authorization;
               delete requestHeaders['proxy-authorization'];
             }
-            // Let the context's isolated cookie jar compute cookies for each hop.
             delete requestHeaders.cookie;
             delete requestHeaders.host;
-            if ((response.status() === 303 && method !== 'HEAD') || ([301, 302].includes(response.status()) && method === 'POST')) {
+            if ((response.status === 303 && method !== 'HEAD') || ([301, 302].includes(response.status) && method === 'POST')) {
               method = 'GET'; postData = Buffer.alloc(0);
               delete requestHeaders['content-type']; delete requestHeaders['content-length'];
             }
@@ -305,26 +319,33 @@ export class FetchService {
             await response.dispose();
             response = undefined;
           }
-          const headers = response.headers();
+          const headers = response.headers;
           if (/\battachment\b/i.test(headers['content-disposition'] ?? '')) {
             throw new Error('UNSUPPORTED_CONTENT: Downloads are not supported. Look for an HTML page that describes the file instead.');
           }
           if (exceedsResponseLimit(headers)) throw new Error('TOO_LARGE: Response exceeds the 10 MiB limit.');
-          if (mainNavigation && response.status() >= 400) throw new Error(`HTTP_ERROR: Server returned HTTP ${response.status()}.`);
-          if (mainNavigation && !(response.status() >= 300 && response.status() < 400)) {
+          if (mainNavigation && response.status >= 400) throw new Error(`HTTP_ERROR: Server returned HTTP ${response.status}.`);
+          let body: Buffer;
+          if (mainNavigation) {
             const type = (headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase();
             if (type && !['text/html', 'application/xhtml+xml', 'text/plain'].includes(type)) {
               throw new Error('UNSUPPORTED_CONTENT: Only HTML and plain text pages are supported (PDF, images and binary files are not). Look for an HTML version or abstract page, or search for a text mirror.');
             }
             if (Number(headers['content-length']) > MAX_HTML_BYTES) throw new Error('TOO_LARGE: HTML response exceeds the 5 MiB limit.');
-            const body = await response.body();
-            if (body.byteLength > MAX_HTML_BYTES) throw new Error('TOO_LARGE: HTML response exceeds the 5 MiB limit.');
-          } else if (!mainNavigation) {
-            const body = await response.body();
-            if (exceedsResponseLimit(headers, body.byteLength)) throw new Error('TOO_LARGE: Response exceeds the 10 MiB limit.');
+            try { body = await response.readBody(MAX_HTML_BYTES); }
+            catch (error) { throw error instanceof Error && error.message.startsWith('TOO_LARGE:') ? new Error('TOO_LARGE: HTML response exceeds the 5 MiB limit.') : error; }
+          } else {
+            try { body = await response.readBody(MAX_RESPONSE_BYTES, budget); }
+            catch (error) {
+              if (error instanceof Error && error.message.startsWith('TOO_LARGE:')) warnings.add('Some subresources exceeded the size limits and were blocked; rendered content may be incomplete.');
+              throw error;
+            }
           }
           checkAbort(localSignal);
-          await route.fulfill({ response });
+          // The body is already decoded: drop encoding/length headers so the browser does not decode twice.
+          const fulfillHeaders = { ...headers };
+          for (const name of ['content-encoding', 'content-length', 'transfer-encoding', 'connection', 'keep-alive']) delete fulfillHeaders[name];
+          await route.fulfill({ status: response.status, headers: fulfillHeaders, body });
         } catch (error) {
           const safe = error instanceof Error && /^(NETWORK_BLOCKED|NETWORK_ERROR|INVALID_URL|UNSUPPORTED_CONTENT|TOO_LARGE|HTTP_ERROR):/.test(error.message)
             ? error : new Error('NETWORK_ERROR: A page request failed.');

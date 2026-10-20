@@ -116,6 +116,8 @@ async function lifecycle() {
     let completed = false;
     const expectation = expectError(() => createDiffFeedback("old", "new", "fixture.txt", controller.signal, {
       ...delayed,
+      // Fixture workers never send "ready", so the startup deadline is what bounds them here.
+      startupTimeoutMs: 1_000,
       timeoutMs: 1_000,
       workerFactory(url, options) {
         const worker = delayed.workerFactory!(url, options);
@@ -167,10 +169,10 @@ async function lifecycle() {
   }), "OPERATION_ABORTED");
   assertClean(constructionAbort.signal);
 
-  // Deadline starts before synchronous construction, not when 'online' arrives.
+  // The startup deadline starts before synchronous construction, not when 'online' arrives.
   const startupOptions = optionsFor("busy");
   await runError({
-    timeoutMs: 30,
+    startupTimeoutMs: 30,
     workerFactory(url, options) {
       const worker = startupOptions.workerFactory!(url, options);
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 60);

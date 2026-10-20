@@ -232,3 +232,46 @@ describe("runWorkerAttempt", () => {
     expect(getDiscardedCount(caught)).toBeUndefined();
   });
 });
+
+describe("runWorkerAttempt without a deadline", () => {
+  it("rejects with the parent reason when an abort-ignoring worker is cancelled", async () => {
+    const parent = new AbortController();
+    const reason = new Error("session changed");
+    const pending = runWorkerAttempt("observer", undefined, parent.signal, async () => await new Promise<string>(() => {}));
+    let rejection: unknown;
+    pending.catch((error) => {
+      rejection = error;
+    });
+
+    parent.abort(reason);
+    await Promise.resolve();
+
+    expect(rejection).toBe(reason);
+    expect(getEventListeners(parent.signal, "abort")).toHaveLength(0);
+  });
+
+  it("rejects immediately when the parent is already aborted and timeout is 0", async () => {
+    const parent = new AbortController();
+    parent.abort(new Error("already"));
+    await expect(runWorkerAttempt("dropper", 0, parent.signal, async () => await new Promise<string>(() => {}))).rejects.toThrow("already");
+  });
+
+  it("observes a late rejection of the abandoned worker", async () => {
+    const parent = new AbortController();
+    const unhandled: unknown[] = [];
+    const onUnhandled = (error: unknown) => unhandled.push(error);
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      let rejectWorker: (error: Error) => void = () => {};
+      const pending = runWorkerAttempt("observer", undefined, parent.signal, () => new Promise<string>((_, reject) => { rejectWorker = reject; }));
+      pending.catch(() => undefined);
+      parent.abort(new Error("session changed"));
+      await Promise.resolve();
+      rejectWorker(new Error("late failure"));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+  });
+});

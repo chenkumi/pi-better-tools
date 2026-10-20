@@ -200,11 +200,21 @@ function assertReadLimit(engine: Engine, code: string): void {
   const topLevel = topLevelCode(code);
 
   if (engine === "mssql") {
-    const top = /\bselect\s+(?:distinct\s+)?top\s+(\d+)\b/.exec(topLevel);
-    const amount = Number(top?.[1]);
-    if (!top || !Number.isInteger(amount) || amount < 1 || amount > 200) {
-      denied("MSSQL reads must use TOP n with n from 1 to 200.");
+    // PERCENT and WITH TIES do not cap the row count; the driver would buffer the whole recordset first.
+    if (/\btop\s*\(?\s*\d+(?:\.\d+)?\s*\)?\s*percent\b/.test(code) || /\bwith\s+ties\b/.test(code)) {
+      denied("MSSQL reads must use TOP n with n from 1 to 200 (TOP PERCENT and WITH TIES are not allowed).");
     }
+    // A set operation returns rows from every branch, so each branch needs its own TOP and the total stays within 200.
+    let total = 0;
+    for (const branch of topLevel.split(/\b(?:union|intersect|except)\b/)) {
+      const top = /\bselect\s+(?:distinct\s+)?top\s+(\d+)\b/.exec(branch);
+      const amount = Number(top?.[1]);
+      if (!top || !Number.isInteger(amount) || amount < 1 || amount > 200) {
+        denied("MSSQL reads must use TOP n with n from 1 to 200 in every SELECT of a UNION/INTERSECT/EXCEPT.");
+      }
+      total += amount;
+    }
+    if (total > 200) denied("MSSQL reads must return at most 200 rows; the TOP values of a set operation add up.");
     return;
   }
 

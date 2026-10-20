@@ -7,6 +7,7 @@ const mysql = vi.hoisted(() => ({ calls: [] as unknown[], fail: false, destroyed
 vi.mock("pg", async (importOriginal) => {
   const actual = await importOriginal<typeof import("pg")>();
   class Pool {
+    on() { return this; }
     async connect() {
       return {
         query: async (config: unknown) => {

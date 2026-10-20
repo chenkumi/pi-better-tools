@@ -3,7 +3,12 @@ import { performance } from "node:perf_hooks";
 import { Worker, type WorkerOptions } from "node:worker_threads";
 import { FileToolError, type FileToolErrorCode } from "./errors.js";
 
+/** Base compute budget and the separate worker startup/module-load deadline. */
 export const DIFF_TIMEOUT_MS = 2_000;
+/** Hard upper bound of the compute budget, however large the changed window is. */
+export const DIFF_MAX_TIMEOUT_MS = 15_000;
+/** Extra compute budget per Mi code units of old+new changed window beyond the first. */
+export const DIFF_TIMEOUT_PER_MIB_MS = 700;
 export const DIFF_WORKER_OLD_GENERATION_MB = 256;
 export const MAX_DIFF_OUTPUT_BYTES = 50 * 1024 * 1024;
 export const DIFF_CONTEXT_LINES = 4;
@@ -17,7 +22,10 @@ export interface DiffFeedback {
 
 /** Internal fault-injection seam only; never expose these through a tool schema. */
 export interface DiffRunnerTestOptions {
+  /** Overrides the compute budget (measured from worker readiness). */
   timeoutMs?: number;
+  /** Overrides the startup deadline (measured from construction until the worker reports ready). */
+  startupTimeoutMs?: number;
   maxOutputBytes?: number;
   workerFactory?: (url: URL, options: WorkerOptions) => Worker;
 }
@@ -115,6 +123,17 @@ export function computeDiffWindow(oldContent: string, newContent: string, contex
   };
 }
 
+/**
+ * Compute budget for a diff whose old+new changed windows total `windowChars` UTF-16 code units.
+ * Diff cost grows with window size times change count, so scattered edits in a big file need more
+ * than a fixed 2 s; the budget stays bounded and never covers worker startup.
+ */
+export function computeDiffTimeoutMs(windowChars: number): number {
+  if (!Number.isFinite(windowChars) || windowChars <= 0) return DIFF_TIMEOUT_MS;
+  const mib = windowChars / (1024 * 1024);
+  return Math.min(DIFF_MAX_TIMEOUT_MS, Math.ceil(DIFF_TIMEOUT_MS + Math.max(0, mib - 1) * DIFF_TIMEOUT_PER_MIB_MS));
+}
+
 /** Pure feedback calculation. The caller must await this BEFORE committing any file. */
 export async function createDiffFeedback(
   oldContent: string,
@@ -123,9 +142,13 @@ export async function createDiffFeedback(
   signal?: AbortSignal,
   options: DiffRunnerTestOptions = {},
 ): Promise<DiffFeedback> {
-  // Start before worker construction: serialization and worker/module startup count too.
+  // Start before worker construction. Until the worker reports ready (diff module loaded) only the
+  // startup deadline applies; the compute budget then runs from readiness. Both are hard-bounded.
   const started = performance.now();
-  const timeoutMs = options.timeoutMs ?? DIFF_TIMEOUT_MS;
+  let diffWindow: DiffWindow | undefined;
+  const windowOf = (): DiffWindow => (diffWindow ??= computeDiffWindow(oldContent, newContent));
+  let timeoutMs = options.timeoutMs ?? DIFF_TIMEOUT_MS;
+  const startupTimeoutMs = options.startupTimeoutMs ?? DIFF_TIMEOUT_MS;
   const maxOutputBytes = options.maxOutputBytes ?? MAX_DIFF_OUTPUT_BYTES;
   const failure = (code: FileToolErrorCode, message: string, causeCode?: string) => new FileToolError(code, message, {
     path: displayPath,
@@ -144,16 +167,26 @@ export async function createDiffFeedback(
   };
 
   if (signal?.aborted) throw aborted();
-  if (!Number.isFinite(timeoutMs) || timeoutMs < 0 || timeoutMs > DIFF_TIMEOUT_MS ||
+  if (!Number.isFinite(timeoutMs) || timeoutMs < 0 || timeoutMs > DIFF_MAX_TIMEOUT_MS ||
+      !Number.isFinite(startupTimeoutMs) || startupTimeoutMs < 0 || startupTimeoutMs > DIFF_TIMEOUT_MS ||
       !Number.isSafeInteger(maxOutputBytes) || maxOutputBytes < 0 || maxOutputBytes > MAX_DIFF_OUTPUT_BYTES) {
     throw failure("IO_ERROR", "Invalid internal diff worker limits.");
   }
-  if (timeoutMs === 0) throw timedOut();
+  if (timeoutMs === 0 || startupTimeoutMs === 0) throw timedOut();
+  if (options.timeoutMs === undefined) {
+    try {
+      const size = windowOf();
+      timeoutMs = computeDiffTimeoutMs(size.oldWindow.length + size.newWindow.length);
+    } catch (error) {
+      throw classifyWorkerError(error);
+    }
+  }
 
   return new Promise<DiffFeedback>((resolve, reject) => {
     let worker: Worker | undefined;
     let settled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let deadline = started + startupTimeoutMs;
 
     const finish = (error?: FileToolError, result?: DiffFeedback): void => {
       if (settled) return;
@@ -174,7 +207,7 @@ export async function createDiffFeedback(
           worker?.off("exit", onExit);
         }
         // Abort/deadline may also cross while waiting for successful worker teardown.
-        error ??= signal?.aborted ? aborted() : performance.now() - started >= timeoutMs ? timedOut() : undefined;
+        error ??= signal?.aborted ? aborted() : performance.now() >= deadline ? timedOut() : undefined;
         if (error) reject(error);
         else if (result) resolve(result);
         else reject(ioError());
@@ -186,7 +219,7 @@ export async function createDiffFeedback(
         finish(aborted());
         return true;
       }
-      if (performance.now() - started >= timeoutMs) {
+      if (performance.now() >= deadline) {
         finish(timedOut());
         return true;
       }
@@ -206,6 +239,13 @@ export async function createDiffFeedback(
     const onMessage = (message: unknown) => {
       if (expiredOrAborted()) return;
       if (!isRecord(message)) return finish(ioError());
+      if (message.type === "ready") {
+        // Module loading is done: the compute budget starts now, replacing the startup deadline.
+        deadline = performance.now() + timeoutMs;
+        clearTimeout(timer);
+        timer = setTimeout(() => finish(signal?.aborted ? aborted() : timedOut()), timeoutMs);
+        return;
+      }
       if (message.type === "error") {
         if (message.code === "RESULT_TOO_LARGE") return finish(tooLarge());
         if (message.code === "OPERATION_TIMEOUT") return finish(timedOut());
@@ -232,10 +272,10 @@ export async function createDiffFeedback(
     };
 
     // A parent timer, rather than jsdiff's cooperative timeout, can interrupt busy JS.
-    timer = setTimeout(() => finish(signal?.aborted ? aborted() : timedOut()), timeoutMs);
+    timer = setTimeout(() => finish(signal?.aborted ? aborted() : timedOut()), startupTimeoutMs);
     try {
       const factory = options.workerFactory ?? ((url: URL, workerOptions: WorkerOptions) => new Worker(url, workerOptions));
-      const window = computeDiffWindow(oldContent, newContent);
+      const window = windowOf();
       worker = factory(new URL("./diff-worker.mjs", import.meta.url), {
         workerData: {
           oldContent: window.oldWindow,
@@ -261,7 +301,7 @@ export async function createDiffFeedback(
       // Covers cancellation or a deadline crossed during synchronous construction.
       expiredOrAborted();
     } catch (error) {
-      finish(signal?.aborted ? aborted() : performance.now() - started >= timeoutMs ? timedOut() : classifyWorkerError(error));
+      finish(signal?.aborted ? aborted() : performance.now() >= deadline ? timedOut() : classifyWorkerError(error));
     }
   });
 }

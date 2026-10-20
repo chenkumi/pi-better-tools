@@ -2,7 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { Cron } from "croner";
 import { deadlineState, normalizeEndAt } from "./deadline.js";
 import { intervalError, MAX_TIMER_MS, parseInterval } from "./interval.js";
-import type { CronStorage } from "./storage.js";
+import { LockUnavailableError, type CronStorage } from "./storage.js";
 import { isProjectTrusted } from "./trust.js";
 import { runSubagentOnce, type SubagentResult } from "./subagent.js";
 import type { CronChangeEvent, CronJob, CronJobType } from "./types.js";
@@ -22,6 +22,12 @@ const SUBAGENT_OUTPUT_SNIPPET_LENGTH = 500;
 
 /** Node clamps timer delays above 2^31-1 ms (~24.8 days) to 1 ms, which turns a long interval into a flood. */
 export { MAX_TIMER_MS } from "./interval.js";
+
+/** fire() result when the schedule lock could not be acquired before anything was delivered. */
+const LOCK_UNAVAILABLE = Symbol("lock-unavailable");
+/** A one-shot whose fire lost the lock is re-armed this many times, ~1-2 s apart (jittered). */
+const ONCE_LOCK_RETRIES = 5;
+const ONCE_LOCK_RETRY_MS = 1000;
 /** In-process subagent runs allowed at once; extra ticks are skipped rather than queued. */
 export const MAX_CONCURRENT_SUBAGENTS = 4;
 /** Re-evaluate wall-clock deadlines even after a clock adjustment. */
@@ -288,19 +294,29 @@ export class CronScheduler {
   }
 
   /** Arm a one-shot timer, re-arming in <=MAX_TIMER_MS hops so far-future jobs do not fire early. */
-  private armOnce(job: CronJob, targetMs: number, generation: symbol): void {
+  private armOnce(job: CronJob, targetMs: number, generation: symbol, lockRetries = 0): void {
     this.onceTargets.set(job.id, targetMs);
     const remaining = targetMs - Date.now();
     const timeout = setTimeout(
       () => {
         if (this.generations.get(job.id) !== generation) return;
         if (targetMs - Date.now() > 1000) {
-          this.armOnce(job, targetMs, generation);
+          this.armOnce(job, targetMs, generation, lockRetries);
           return;
         }
         this.intervals.delete(job.id);
         void this.fire(job).then((fired) => {
           if (this.generations.get(job.id) !== generation) return;
+          if (fired === LOCK_UNAVAILABLE) {
+            // Nothing was delivered or written: this is not a skipped fire, so never take the permanent-disable path.
+            if (lockRetries < ONCE_LOCK_RETRIES) {
+              this.armOnce(job, Date.now() + ONCE_LOCK_RETRY_MS + Math.random() * ONCE_LOCK_RETRY_MS, generation, lockRetries + 1);
+              return;
+            }
+            console.error(`One-shot job ${job.id} could not acquire the schedule lock after ${ONCE_LOCK_RETRIES} retries; it stays enabled in storage and is not run in this session`);
+            this.unscheduleJob(job.id);
+            return;
+          }
           if (!fired) {
             this.handleSkippedOnce(job, generation);
             return;
@@ -369,7 +385,7 @@ export class CronScheduler {
    * Timer entry point. Timers have no caller to catch a rejection, and an escaped
    * error here (e.g. a storage write failure) would take the host process down.
    */
-  private async fire(job: CronJob): Promise<boolean> {
+  private async fire(job: CronJob): Promise<boolean | typeof LOCK_UNAVAILABLE> {
     try {
       return await this.executeJob(job);
     } catch (error) {
@@ -383,7 +399,7 @@ export class CronScheduler {
       } catch {
         // event listeners must not re-escape
       }
-      return false;
+      return error instanceof LockUnavailableError ? LOCK_UNAVAILABLE : false;
     }
   }
 
@@ -494,6 +510,7 @@ export class CronScheduler {
     }
 
     const previousStatus = job.lastStatus;
+    let delivered = false;
     try {
       // Update status to running
       this.storage.updateJob(job.id, {
@@ -521,6 +538,7 @@ export class CronScheduler {
       // Then send the actual prompt to the agent — this is the single LLM-visible delivery.
       if (!this.readyAfterPreparation(job, previousStatus)) return false;
       this.pi.sendUserMessage(job.prompt!, { deliverAs: "followUp" });
+      delivered = true;
 
       // Increment the freshly read counter within the same locked mutation,
       // so another session's completed run cannot be overwritten.
@@ -535,6 +553,12 @@ export class CronScheduler {
       this.emitChange({ type: "fire", job });
       return true;
     } catch (error) {
+      if (error instanceof LockUnavailableError) {
+        if (!delivered) throw error; // nothing sent yet: fire() reports a retryable lock failure, not a failed run
+        // Already delivered: a retry would duplicate the prompt, and the lock is unavailable for a status write.
+        console.error(`Job ${job.id} was delivered but its status could not be recorded:`, error);
+        return true;
+      }
       console.error(`Failed to execute job ${job.id}:`, error);
       this.storage.updateJob(job.id, {
         lastRun: new Date().toISOString(),

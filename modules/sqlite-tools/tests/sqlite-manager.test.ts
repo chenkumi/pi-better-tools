@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { MAX_BLOB_BYTES, MAX_QUERY_BYTES, MAX_QUERY_ROWS, SqliteManager } from "../src/sqlite-manager.js";
+import { BUSY_TIMEOUT_MS, MAX_BLOB_BYTES, MAX_QUERY_BYTES, MAX_QUERY_ROWS, SqliteManager } from "../src/sqlite-manager.js";
 
 test("supports the SQLite tool workflow with positional and named parameters", () => {
   const directory = mkdtempSync(join(tmpdir(), "pi-sqlite-tools-"));
@@ -124,5 +124,55 @@ test("rejects a first row larger than the byte budget instead of retaining it", 
   manager.open(":memory:");
   assert.throws(() => manager.query("SELECT ? AS payload", ["x".repeat(MAX_QUERY_BYTES * 2)]), /larger than/);
   assert.equal(manager.query("SELECT substr(?, 1, 10) AS payload", ["x".repeat(MAX_QUERY_BYTES * 2)]).rowCount, 1);
+  manager.close();
+});
+
+test("sqlite_execute rejects transaction-control statements in any case, spacing or comment form", () => {
+  const directory = mkdtempSync(join(tmpdir(), "pi-sqlite-tools-"));
+  const path = join(directory, "tx.db");
+  const manager = new SqliteManager();
+  manager.open(path);
+  manager.execute("CREATE TABLE t (x)");
+  for (const sql of ["BEGIN", "begin immediate", "  \n\tBeGiN TRANSACTION", "/* c */ BEGIN", "-- c\nBEGIN", "COMMIT", "END", "ROLLBACK", "SAVEPOINT a", "RELEASE a"]) {
+    assert.throws(() => manager.execute(sql), /transaction/i, sql);
+  }
+  // The connection must not be left holding a write lock.
+  manager.execute("INSERT INTO t VALUES (1)");
+  const other = new DatabaseSync(path, { timeout: 0 });
+  other.exec("INSERT INTO t VALUES (2)");
+  other.close();
+  manager.close();
+});
+
+test("rolls back and reports a transaction left open by a statement", () => {
+  const directory = mkdtempSync(join(tmpdir(), "pi-sqlite-tools-"));
+  const path = join(directory, "tx2.db");
+  const manager = new SqliteManager();
+  manager.open(path);
+  manager.execute("CREATE TABLE t (x)");
+  // Simulate any path that leaves a transaction open behind the statement filter.
+  (manager as unknown as { database: DatabaseSync }).database.exec("BEGIN");
+  assert.throws(() => manager.execute("INSERT INTO t VALUES (1)"), /rolled back/i);
+  assert.deepEqual(manager.query("SELECT count(*) AS c FROM t").rows, [[0]]);
+  (manager as unknown as { database: DatabaseSync }).database.exec("BEGIN");
+  assert.throws(() => manager.query("SELECT 1"), /rolled back/i);
+  manager.close();
+});
+
+test("a locked database fails only after the bounded busy timeout, not immediately", () => {
+  const directory = mkdtempSync(join(tmpdir(), "pi-sqlite-tools-"));
+  const path = join(directory, "busy.db");
+  const holder = new DatabaseSync(path);
+  holder.exec("CREATE TABLE t (x)");
+  holder.exec("BEGIN IMMEDIATE");
+  const manager = new SqliteManager();
+  manager.open(path);
+  const started = performance.now();
+  assert.throws(() => manager.execute("INSERT INTO t VALUES (1)"), /locked/i);
+  const elapsed = performance.now() - started;
+  assert.ok(elapsed >= BUSY_TIMEOUT_MS * 0.8, `waited only ${elapsed}ms`);
+  assert.ok(elapsed < BUSY_TIMEOUT_MS * 5, `waited ${elapsed}ms`);
+  holder.exec("ROLLBACK");
+  holder.close();
   manager.close();
 });

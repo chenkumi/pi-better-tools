@@ -16,7 +16,8 @@ export class WorkerAttemptTimeoutError extends Error {
 }
 
 /**
- * Run one worker/model attempt with an optional hard elapsed deadline.
+ * Run one worker/model attempt with an optional hard elapsed deadline. Parent
+ * cancellation always rejects immediately, with or without a deadline.
  *
  * Unlike the provider body-idle timeout, this bounds the whole agent loop:
  * response headers, streamed heartbeats, tool turns, and final confirmation.
@@ -30,8 +31,11 @@ export function runWorkerAttempt<T>(
   parentSignal: AbortSignal,
   run: (signal: AbortSignal) => Promise<T>,
 ): Promise<T> {
-  if (timeoutMs === undefined || timeoutMs <= 0) return run(parentSignal);
-
+  // No deadline: the worker keeps the parent signal itself, but parent abort
+  // still races the attempt so a provider that ignores cancellation cannot
+  // hold the caller (and its in-flight flag) forever.
+  const deadlineMs = timeoutMs !== undefined && timeoutMs > 0 ? timeoutMs : undefined;
+  const hasDeadline = deadlineMs !== undefined;
   const controller = new AbortController();
 
   return new Promise<T>((resolve, reject) => {
@@ -50,7 +54,7 @@ export function runWorkerAttempt<T>(
     const forwardParentAbort = () => {
       const reason = parentSignal.reason ?? new Error("Worker attempt aborted by parent signal");
       settle(() => {
-        controller.abort(reason);
+        if (hasDeadline) controller.abort(reason);
         reject(reason);
       });
     };
@@ -61,25 +65,27 @@ export function runWorkerAttempt<T>(
       return;
     }
 
-    timer = setTimeout(() => {
-      const error = new WorkerAttemptTimeoutError(stage, timeoutMs);
-      // Mark settled before abort dispatches synchronous listeners. A worker
-      // resolving from its abort handler must not beat the hard deadline.
-      // By design the deadline does not carry the worker's discarded count:
-      // the agent attaches it to its own (inner) rejection via
-      // `withDiscardedCount`, which this outer promise never exposes — waiting
-      // to learn what the worker had recorded would defeat the deadline. Stage
-      // error logs therefore read `discardedCount: undefined` for this path.
-      settle(() => {
-        controller.abort(error);
-        reject(error);
-      });
-    }, timeoutMs);
-    timer.unref?.();
+    if (deadlineMs !== undefined) {
+      timer = setTimeout(() => {
+        const error = new WorkerAttemptTimeoutError(stage, deadlineMs);
+        // Mark settled before abort dispatches synchronous listeners. A worker
+        // resolving from its abort handler must not beat the hard deadline.
+        // By design the deadline does not carry the worker's discarded count:
+        // the agent attaches it to its own (inner) rejection via
+        // `withDiscardedCount`, which this outer promise never exposes — waiting
+        // to learn what the worker had recorded would defeat the deadline. Stage
+        // error logs therefore read `discardedCount: undefined` for this path.
+        settle(() => {
+          controller.abort(error);
+          reject(error);
+        });
+      }, deadlineMs);
+      timer.unref?.();
+    }
 
     let attempt: Promise<T>;
     try {
-      attempt = run(controller.signal);
+      attempt = Promise.resolve(run(hasDeadline ? controller.signal : parentSignal));
     } catch (error) {
       settle(() => reject(error));
       return;
