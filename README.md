@@ -364,7 +364,7 @@ Filters 以整合包 root 為基準；與 tool allowlist 不同，它們控制 e
 - 安裝路徑改變可能使舊 managed Subagent sessions 無法續接；不自動改寫 fingerprint／來源路徑。
 - `pi -e` 的 parent 臨時 extensions 不自動傳給 child；需要 child 可探索到的全域或受信任專案設定。
 - 取消是要求，不保證所有任意 descendants 或既有副作用消失。
-- 其他宿主（例如 Pi-Bolt）的實測差異與未驗證項目見 [docs/compatibility.md](docs/compatibility.md)；目前已知 Pi-Bolt 上 Worker 的 `resourceLimits` 記憶體上限不生效。
+- 其他宿主（例如 Pi-Bolt）的實測差異與未驗證項目見 [docs/compatibility.md](docs/compatibility.md)；目前已知 Pi-Bolt 上 Worker 的 `resourceLimits` 記憶體上限不生效，FFF 走 `fff-node` 後端（JIT 版才是 `fff-bun`），且不要與 `opensec-pi-fff` 並存。
 - 不會自動清除舊 logs、已移除 Scheduler 模組遺留的資料（`<agentDir>/pi-scheduler/`、`~/.pi/logs/pi-scheduler/`）、修改 auth 或移除舊 OS tasks。
 
 ## 開發與驗證

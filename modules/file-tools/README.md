@@ -139,3 +139,5 @@ File Tools 在 manifest 中先於 pi-fff 載入，但不再佔用 `grep`／`find
 `tests/fff-override-conflict.integration.test.mjs` 已從 TODO 升為正式回歸：真實 Pi／manifest順序／原生 FFF，確認 startup 及 reload 的 provider、active/callable、別名停用與實際搜尋結果，無 fake finder。
 
 pi-fff 0.11.0 上游缺陷以 `known-upstream` `todo` 測試保留（`tests/fff-aux-capacity.integration.test.mjs`：aux finder 並發超過 MAX_AUX；`tests/fff-shutdown-fence.integration.test.mjs`：shutdown 後才 resolve 的 finder 仍被發布且未 destroy）。這些測試使用 SDK 邊界的 fake finder，不載入原生 DLL。FFF 測試因 file-tools 模組 `test:integration` 為固定清單而不會被自動探索，需直接以 `node --import tsx --test modules/file-tools/tests/fff-*.integration.test.mjs` 執行。
+
+在 Pi-Bolt（預設 JIT 關閉）上，`@ff-labs/fff-bun` 被宿主的 `JIT_ONLY_PACKAGES` 擋板擋下，後端退回 `@ff-labs/fff-node`；Pi-Bolt 的 FFF 偵測只看載入路徑，辨識不到本薄包裝，仍會把自己的 `grep`／`find` 留在預設工具清單（override 模式由同名 extension tool 覆蓋）。不要與 `opensec-pi-fff` 並存（同一組 flag／command／`@`-mention provider 與 native 資料庫），要改用它需先過濾掉本入口。細節與未驗證項目見 `docs/compatibility.md`。
