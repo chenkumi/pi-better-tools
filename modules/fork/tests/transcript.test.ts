@@ -35,7 +35,7 @@ test("live .partial during the run, atomic rename to transcript.jsonl on finaliz
 		transcript.start();
 		transcript.appendMessage({ role: "user", content: "the task" }); // queued while the file is still opening
 		transcript.appendMessage({ role: "assistant", content: [{ type: "text", text: "working" }] });
-		await new Promise(resolve => setTimeout(resolve, 50));
+		await transcript.whenStarted();
 		assert.equal(transcript.state, "live");
 		assert.ok(existsSync(transcript.livePath)); assert.ok(!existsSync(transcript.path));
 		transcript.appendMessage({ role: "toolResult", toolCallId: "c1", content: "ok" });

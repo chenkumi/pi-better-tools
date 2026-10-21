@@ -50,7 +50,7 @@ function fakeChild() {
 	}) as never;
 	return { specs, handles };
 }
-const flush = async () => { await new Promise(resolve => setImmediate(resolve)); await Promise.all([...state().jobs.values()].map(job => job.transcriptDone)); await new Promise(resolve => setImmediate(resolve)); };
+const flush = async () => { await new Promise(resolve => setImmediate(resolve)); await Promise.all([...state().jobs.values()].flatMap(job => [job.transcript?.whenStarted() ?? Promise.resolve(), job.transcriptDone ?? Promise.resolve()])); await new Promise(resolve => setImmediate(resolve)); };
 
 test("accept refuses Fork/Subagent identities, capacity, shutdown, inline tools and unpersisted sessions", () => {
 	const sm = origin(); const { ctx, pi } = fakes(sm);

@@ -85,6 +85,9 @@ export class ForkTranscript {
 		}, error => { this.fail(error); });
 	}
 
+	/** Resolves once the live file is open or the transcript has failed (never rejects); tests wait on this instead of ticks. */
+	whenStarted(): Promise<void> { return this.ready; }
+
 	appendMessage(message: unknown): void {
 		let records: ReadableRecord[];
 		try { records = readableFromMessage(message); } catch (error) { this.fail(error); return; }

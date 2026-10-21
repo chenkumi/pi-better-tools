@@ -1119,7 +1119,9 @@
         },
         {
           "path": "modules/fork/src/transcript.ts",
-          "sha256": "883951ebdf08e14b096c51a1a3088df983c4315090c093b8766fd997409b2b66",
+          "sha256": "e88432e3e8a4488ddbf8def9ee5d1e594f5b49ea181c526239a561de1dffe2e8",
+          "testRaceFix20261021PreviousSha256": "883951ebdf08e14b096c51a1a3088df983c4315090c093b8766fd997409b2b66",
+          "testRaceFix20261021Adaptation": "2026-10-21 expose whenStarted() (the existing writer-ready promise) so tests wait for the real open event instead of fixed ticks; transcript behaviour, finalize bounds and failure isolation unchanged. Found by three real fork-tool rounds plus the module suite: manager.test.ts asserted state 'live' after two setImmediate ticks while transcriptDone only exists at terminal state.",
           "reason": "Native Fork implementation: query-only transcript of the Fork's own post-start messages."
         },
         {
@@ -1174,7 +1176,9 @@
           "historicalDeltaAudit": "unavailable",
           "localSnapshotReview": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
           "previousRecordedSha256": "fba0e6e36519146beab3adfc25d26d18f11ea87afba3b93e88a4efc27334e161",
-          "sha256": "442e90ba42cfc72e2c82d94b2421921c78c16ad4278d28792ad86748fbb09977",
+          "sha256": "de0f518e3e5662d750b60b0c2dfbae600a7b4fbe8133e71e1963e96561145149",
+          "testRaceFix20261021PreviousSha256": "442e90ba42cfc72e2c82d94b2421921c78c16ad4278d28792ad86748fbb09977",
+          "testRaceFix20261021Adaptation": "2026-10-21 flush() now awaits each job's transcript whenStarted() in addition to the terminal transcriptDone promise; the 'live' assertion no longer depends on how fast the writer opens. No assertion relaxed or removed.",
           "reason": "Native Fork tests (unit and real-host offline integration).",
           "transcriptPreviousSha256": "d2d2825c53063e7d4bb5657169192ea55d448c3bec494c5c441feab07d01305c",
           "transcriptAdaptation": "2026-10-21: Fork query transcript (post-start messages only, reuses the Subagent readable-log writer; auxiliary, failures only mark it unavailable).",
@@ -1185,7 +1189,9 @@
           "path": "modules/fork/tests/real-host.integration.test.ts",
           "dependencyUpgradePreviousSha256": "008cf33f06f6fea04d7a6a1ece075326ffdf1defc28dd6befdbfc1b019f2c7e0",
           "forkDefaultActivePreviousSha256": "b4f0a7497264475f06663b830e26d0f820927ea86d6d6f63c57fcbc4d516dc0d",
-          "sha256": "7a8330c0f30d35f136058707a8dd4ac885dd19c76d2433eabff97f96d4f5cd19",
+          "sha256": "f27397ded4e2fe4ace56d6ca8daab6bc6e26be7915671be86b24de3b824a7a65",
+          "testRaceFix20261021PreviousSha256": "7a8330c0f30d35f136058707a8dd4ac885dd19c76d2433eabff97f96d4f5cd19",
+          "testRaceFix20261021Adaptation": "2026-10-21 the 'no leftover temp files' assertion allowed no non-json entry beside the metadata, which the documented transcript directory (<cwd>/.pi/forks/<jobId>/transcript.jsonl) now always leaves; it now requires exactly that job's directory containing only the finalized transcript and no .partial. Deterministic failure in all three pre-fix heavy rounds.",
           "forkDefaultActiveAdaptation": "Existing real-host happy path now omits --tools and defaultTools, asserts all three Fork tools are active and the child inherits exactly the parent selection minus Fork tools. Original snapshot, delivery, close and cold-resume assertions retained.",
           "reason": "2026-10-16 dependency-upgrade verification exposed a Windows test-environment omission: nested Shell exited127 node not found. Preserve ProgramFiles/ProgramFiles(x86) like the root isolation helper so Git Bash is discoverable; original nested-marker/completion/capability assertions and all product code unchanged. Scoped diagnostic replay reproduced the exact missing marker and failed job, not premature Fork completion. Final module outcome recorded in the plan."
         },
@@ -1196,7 +1202,9 @@
         },
         {
           "path": "modules/fork/tests/transcript.test.ts",
-          "sha256": "3b26e2107251e746f20b7dcd1984c1213887d5b16124d7b06fd4c4a93832df96",
+          "sha256": "3c9bc1df599325c40905db7345b9cc89d831ba5ce64b09f7f21f5fd5f5cfb161",
+          "testRaceFix20261021PreviousSha256": "3b26e2107251e746f20b7dcd1984c1213887d5b16124d7b06fd4c4a93832df96",
+          "testRaceFix20261021Adaptation": "2026-10-21 replace the fixed setTimeout(50) before the 'live' assertion with whenStarted(); same assertion, no tick-based waiting.",
           "reason": "Native Fork transcript unit tests."
         },
         {

@@ -121,7 +121,9 @@ test("real Pi: fork snapshot, independent child, report back, cold /resume stays
 		assert.equal(meta.delivery, "observed");
 		assert.equal(meta.cleanup.childClosed, true);
 		assert.ok(!JSON.stringify(meta).includes("offline-dummy"));
-		assert.equal(readdirSync(metaDir).filter(n => !n.endsWith(".json")).length, 0, "no leftover temp files");
+		// The query transcript lives in its own directory next to the metadata; only finalized files may remain.
+		assert.deepEqual(readdirSync(metaDir).filter(n => !n.endsWith(".json")), [meta.jobId], "no leftover temp files beside the Fork's transcript directory");
+		assert.deepEqual(readdirSync(join(metaDir, meta.jobId)), ["transcript.jsonl"], "finalized transcript only, no .partial");
 
 		// Cold /resume of the Fork conversation in a root Pi that has the Fork tool selected: creation stays refused.
 		console.log("[progress] Cold-resuming the fork conversation");
