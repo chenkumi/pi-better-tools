@@ -27,6 +27,8 @@ export interface ForkChildSpec {
 	/** Parent resource/prompt flags forwarded verbatim (already absolute); never contains task text. */
 	forwarded: string[];
 	prompt: string;
+	/** Receives every finished message (user/assistant/toolResult) the child emits after the task was sent; never inherited history. Must not throw into the stream. */
+	onMessage?: (message: unknown) => void;
 	invocation?: typeof getPiInvocation;
 	spawnImpl?: typeof spawn;
 	/** Test seams for the termination ladder; production uses the constants above. */
@@ -122,11 +124,15 @@ export function startForkChild(spec: ForkChildSpec, onProgress: (progress: ForkP
 	const handleLine = (line: string) => {
 		if (line.length > MAX_LINE_BYTES || line.charCodeAt(0) !== 123) return;
 		const response = line.includes('"type":"response"');
-		const assistantEnd = line.includes('"type":"message_end"') && line.includes('"role":"assistant"');
-		if (!response && !assistantEnd) return;
+		// Non-assistant messages only matter to the auxiliary transcript, so skip their parse unless it is listening.
+		const messageEnd = line.includes('"type":"message_end"') && (line.includes('"role":"assistant"') || (promptSent && !!spec.onMessage));
+		if (!response && !messageEnd) return;
 		let event: any; try { event = JSON.parse(line); } catch { return; }
 		if (event.type === "response") { try { pipe.accept(event); } catch { /* uncorrelated response is ignored */ } }
-		else if (event.type === "message_end" && event.message?.role === "assistant") lastAssistant = { stopReason: event.message.stopReason, errorMessage: typeof event.message.errorMessage === "string" ? event.message.errorMessage.slice(0, 500) : undefined };
+		else if (event.type === "message_end") {
+			if (event.message?.role === "assistant") lastAssistant = { stopReason: event.message.stopReason, errorMessage: typeof event.message.errorMessage === "string" ? event.message.errorMessage.slice(0, 500) : undefined };
+			if (promptSent && spec.onMessage) { try { spec.onMessage(event.message); } catch { /* auxiliary transcript never controls the Fork */ } }
+		}
 	};
 	let buffer = "", discarding = false;
 	proc.stdout?.setEncoding("utf8");

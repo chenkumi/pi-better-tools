@@ -71,7 +71,7 @@ test("detach shortcut moves a running single foreground dispatch to a background
 			const turn = new AbortController();
 			const pending = host.execute("subagent", task, turn.signal);
 			await childrenHeld(root, 1);
-			assert.ok(host.statuses.some(text => /Ctrl\+Y/.test(text ?? "")), "the detach hint is shown while the dispatch runs");
+			assert.ok(host.statuses.some(text => /Alt\+J/.test(text ?? "")), "the detach hint is shown while the dispatch runs");
 			await host.press();
 			assert.match(host.toasts.at(-1)!, /Moving 1/);
 			const detached = await pending;

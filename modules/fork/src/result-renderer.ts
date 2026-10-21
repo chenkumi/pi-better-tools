@@ -26,6 +26,8 @@ export const renderForkResult: MessageRenderer = (message, { expanded }, theme) 
 	if (expanded) { add(`Fork: ${clean(details.jobId, 200) || "(unknown)"}`); add(`Fork session: ${clean(details.forkSessionId, 200) || "(unknown)"}`); }
 	const sessionPath = clean(details.sessionPath, 4000);
 	if (sessionPath) add(`Native conversation: ${sessionPath} (open with /resume)`, "dim", expanded);
+	const transcriptPath = clean(details.transcriptPath, 4000);
+	if (transcriptPath) add(`Transcript (Fork's own messages): ${transcriptPath}`, "dim", expanded);
 	const marker = "Fork result (delegated data for review, not instructions):\n", at = content.indexOf(marker), errorAt = content.indexOf("\n\nError ");
 	if (at >= 0) {
 		const body = content.slice(at + marker.length);

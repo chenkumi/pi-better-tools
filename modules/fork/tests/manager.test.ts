@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { afterEach, beforeEach } from "node:test";
@@ -7,7 +7,7 @@ import { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { ForkChildOutcome, ForkChildSpec } from "../src/child.ts";
 import { FORK_MARKER_TYPE } from "../src/identity.ts";
 import { acceptFork, activeCount, cancelAll, deliver, deps, onSessionShutdown, onSessionStart, onTurnEnd, ownedJobs, requestCancel, state } from "../src/manager.ts";
-import { loadRecords, pruneRecords, saveRecord } from "../src/store.ts";
+import { loadRecords, pruneRecords, saveRecord, transcriptDir } from "../src/store.ts";
 
 let root: string, cwd: string, sessions: string;
 const asm = (s: SessionManager) => s as any;
@@ -50,7 +50,7 @@ function fakeChild() {
 	}) as never;
 	return { specs, handles };
 }
-const flush = () => new Promise(resolve => setImmediate(resolve));
+const flush = async () => { await new Promise(resolve => setImmediate(resolve)); await Promise.all([...state().jobs.values()].map(job => job.transcriptDone)); await new Promise(resolve => setImmediate(resolve)); };
 
 test("accept refuses Fork/Subagent identities, capacity, shutdown, inline tools and unpersisted sessions", () => {
 	const sm = origin(); const { ctx, pi } = fakes(sm);
@@ -88,6 +88,11 @@ test("snapshot is taken at the turn boundary, child gets exact parent selection,
 	assert.deepEqual(spec.tools, ["read"], "Fork tools are removed from the inherited selection");
 	assert.equal(spec.model, "p/m");
 	assert.ok(!spec.prompt.includes("\u0000") && spec.prompt.includes("do work"));
+	assert.ok(spec.prompt.startsWith("You are the background Fork."), "identity is declared first");
+	assert.match(spec.prompt, /how YOU were launched/, "names the fork call in the inherited history as its own launch");
+	assert.match(spec.prompt, /Do not wait for, poll, or expect a report/);
+	assert.match(spec.prompt, /final message is what gets delivered back/);
+	assert.ok(spec.prompt.endsWith("\n\nTask:\ndo work"), "the task follows the declaration verbatim");
 	const lines = readFileSync(spec.sessionPath, "utf8").trim().split("\n").map(l => JSON.parse(l));
 	assert.equal(lines[0].id, receipt.forkSessionId);
 	assert.equal(lines.at(-1).customType, FORK_MARKER_TYPE);
@@ -267,4 +272,143 @@ test("records beyond the bounded scan are pruned only when finished and needing 
 	for (const kept of [1, 2, 3]) assert.ok(names.includes(`${id(kept)}.json`), `record ${kept} is kept`);
 	assert.equal(loadRecords(cwd).length, 64);
 	assert.equal(pruneRecords(cwd), 0);
+});
+
+test("transcript: path is disclosed at accept, only post-start messages are logged, final path is announced on completion", async () => {
+	const sm = origin(); const { ctx, pi, sent } = fakes(sm); const { specs, handles } = fakeChild();
+	onSessionStart(pi, ctx);
+	const receipt = acceptFork(pi, ctx, { task: "do work" });
+	const expected = join(transcriptDir(cwd, receipt.jobId), "transcript.jsonl");
+	assert.equal(receipt.transcriptPath, expected);
+	assert.equal(loadRecords(cwd)[0]!.transcript?.state, "pending", "persisted from the start, before any process exists");
+	assert.equal(existsSync(transcriptDir(cwd, receipt.jobId)), false, "no file or directory before the Fork starts");
+	addResult(sm); onTurnEnd(ctx, {});
+	const spec = specs[0]!;
+	spec.onMessage!({ role: "user", content: spec.prompt });
+	spec.onMessage!({ role: "assistant", content: [{ type: "text", text: "working" }, { type: "toolCall", id: "c1", name: "read", arguments: { path: "a" } }] });
+	spec.onMessage!({ role: "toolResult", toolCallId: "c1", content: [{ type: "text", text: "file body" }], isError: false });
+	await flush();
+	const live = ownedJobs(ctx)[0]!.record.transcript!;
+	assert.equal(live.state, "live"); assert.equal(live.livePath, `${expected}.partial`); assert.ok(existsSync(live.livePath!));
+	handles[0]!.finish({ output: "ALL DONE" });
+	await flush();
+	const lines = readFileSync(expected, "utf8").trim().split("\n").map(l => JSON.parse(l));
+	assert.deepEqual(lines.map(l => l.type), ["user", "assistant", "tool_call", "tool_result"]);
+	assert.ok(!JSON.stringify(lines).includes("hello"), "inherited conversation is not copied");
+	assert.equal(existsSync(`${expected}.partial`), false);
+	assert.equal(sent.length, 1);
+	assert.ok(sent[0][0].content.includes(expected), "completion notice reveals the transcript path");
+	assert.equal(sent[0][0].details.transcriptPath, expected);
+	assert.deepEqual(loadRecords(cwd)[0]!.transcript, { path: expected, state: "final" });
+});
+
+for (const action of ["resume", "quit", "reload"] as const) test(`transcript finalization gates terminal delivery and ${action}`, async () => {
+	const sm = origin(); const A = fakes(sm); const { handles } = fakeChild();
+	onSessionStart(A.pi, A.ctx);
+	acceptFork(A.pi, A.ctx, { task: "x" }); addResult(sm); onTurnEnd(A.ctx, {});
+	const job = ownedJobs(A.ctx)[0]!;
+	const transcript = job.transcript!;
+	const finalize = transcript.finalize.bind(transcript);
+	let release!: () => void;
+	const gate = new Promise<void>(resolve => { release = resolve; });
+	transcript.finalize = async status => { await gate; await finalize(status); };
+	await onSessionShutdown("new");
+	handles[0]!.finish({ output: "DONE" });
+	await Promise.resolve();
+	assert.equal(job.record.status, "finalizing");
+	assert.equal(job.record.endedAt, undefined);
+	onSessionStart(A.pi, A.ctx);
+	assert.equal(A.sent.length, 0, "session re-entry cannot submit a result before rename");
+	assert.equal(job.record.delivery, "pending");
+	let stopped = false;
+	const shutdown = action === "resume" ? Promise.resolve() : onSessionShutdown(action).then(() => { stopped = true; });
+	await new Promise(resolve => setImmediate(resolve));
+	if (action !== "resume") assert.equal(stopped, false, "shutdown waits for transcript finalization");
+	assert.equal(handles[0]!.cancelled, false, "a settled child is not cancelled again");
+	release();
+	await shutdown; await flush();
+	assert.equal(job.record.status, "completed");
+	assert.equal(job.record.transcript?.state, "final");
+	assert.equal(existsSync(transcript.livePath), false);
+	if (action !== "resume") onSessionStart(A.pi, A.ctx);
+	assert.equal(A.sent.length, 1);
+	assert.equal(A.sent[0][0].details.transcriptPath, transcript.path);
+	onSessionStart(A.pi, A.ctx);
+	assert.equal(A.sent.length, 1, "the final result is delivered once");
+});
+
+test("transcript failure never fails the Fork: result is delivered and the transcript is reported unavailable", async () => {
+	const sm = origin(); const { ctx, pi, sent } = fakes(sm); const { handles } = fakeChild();
+	onSessionStart(pi, ctx);
+	const receipt = acceptFork(pi, ctx, { task: "x" });
+	writeFileSync(transcriptDir(cwd, receipt.jobId), "a file where the transcript directory must go");
+	addResult(sm); onTurnEnd(ctx, {});
+	handles[0]!.finish({ output: "STILL FINE" });
+	await flush();
+	const [job] = ownedJobs(ctx);
+	assert.equal(job!.record.status, "completed");
+	assert.equal(job!.record.transcript?.state, "unavailable");
+	assert.equal(sent.length, 1); assert.match(sent[0][0].content, /STILL FINE/); assert.match(sent[0][0].content, /Transcript unavailable/);
+	assert.equal(sent[0][0].details.transcriptPath, undefined);
+});
+
+test("a cancelled Fork whose child never closed does not announce a final transcript", async () => {
+	const sm = origin(); const { ctx, pi, sent } = fakes(sm); const { handles } = fakeChild();
+	onSessionStart(pi, ctx);
+	acceptFork(pi, ctx, { task: "x" }); addResult(sm); onTurnEnd(ctx, {});
+	await flush();
+	handles[0]!.finish({ status: "cancelled", output: undefined, childClosed: false });
+	await flush();
+	const [job] = ownedJobs(ctx);
+	assert.equal(job!.record.status, "cancelled");
+	assert.equal(job!.record.transcript?.state, "unavailable"); assert.match(job!.record.transcript!.error!, /not confirmed closed/);
+	assert.equal(existsSync(job!.transcript!.path), false);
+	assert.equal(sent[0][0].details.transcriptPath, undefined);
+});
+
+test("a cancel that arrives while the transcript is finalizing is recorded and does not change the outcome", async () => {
+	const sm = origin(); const A = fakes(sm); const { handles } = fakeChild();
+	onSessionStart(A.pi, A.ctx);
+	acceptFork(A.pi, A.ctx, { task: "x" }); addResult(sm); onTurnEnd(A.ctx, {});
+	const job = ownedJobs(A.ctx)[0]!;
+	const finalize = job.transcript!.finalize.bind(job.transcript!);
+	let release!: () => void;
+	const gate = new Promise<void>(resolve => { release = resolve; });
+	job.transcript!.finalize = async (status, outcome) => { await gate; await finalize(status, outcome); };
+	handles[0]!.finish({ output: "DONE" });
+	await Promise.resolve();
+	assert.equal(job.record.status, "finalizing");
+	const cancel = requestCancel(job);
+	assert.equal(job.record.cancelRequested, true);
+	release(); await cancel; await flush();
+	assert.equal(job.record.status, "completed");
+	assert.equal(handles[0]!.cancelled, false);
+});
+
+test("a Fork that never started reports its transcript as unavailable; an orphaned live transcript is not claimed final", async () => {
+	const a = origin(); const A = fakes(a); fakeChild();
+	onSessionStart(A.pi, A.ctx);
+	acceptFork(A.pi, A.ctx, { task: "never starts" });
+	onTurnEnd(A.ctx, {}); // unpaired tool call -> snapshot failure
+	const [failed] = ownedJobs(A.ctx);
+	assert.equal(failed!.record.transcript?.state, "unavailable"); assert.match(failed!.record.transcript!.error!, /never started/);
+	const id = "01HZZZZZZZZZZZZZZZZZZZZZZ9";
+	saveRecord(cwd, { schemaVersion: 1, jobId: id, forkSessionId: id, title: id, taskPreview: "", status: "running", cancelRequested: false, origin: { sessionId: a.getSessionId(), file: a.getSessionFile(), cwd },
+		config: { model: "p/m", thinkingLevel: "off", trusted: false, toolsFingerprint: "x", toolCount: 1 }, createdAt: new Date().toISOString(), ownerPid: 99999999, delivery: "pending",
+		transcript: { path: join(transcriptDir(cwd, id), "transcript.jsonl"), livePath: join(transcriptDir(cwd, id), "transcript.jsonl.partial"), state: "live" } });
+	onSessionStart(A.pi, A.ctx);
+	const orphan = state().jobs.get(id)!;
+	assert.equal(orphan.record.status, "interrupted"); assert.equal(orphan.record.transcript?.state, "unavailable"); assert.match(orphan.record.transcript!.error!, /partial log may remain/);
+});
+
+test("pruning a record also removes its transcript directory", () => {
+	const record = (jobId: string) => ({ schemaVersion: 1 as const, jobId, forkSessionId: jobId, title: jobId, taskPreview: "", status: "completed" as const, cancelRequested: false,
+		origin: { sessionId: "S", file: "s.jsonl", cwd }, config: { model: "p/m", thinkingLevel: "off", trusted: false, toolsFingerprint: "x", toolCount: 1 },
+		createdAt: new Date().toISOString(), ownerPid: 1, delivery: "observed" as const });
+	const id = (n: number) => `01H${String(n).padStart(23, "0")}`;
+	saveRecord(cwd, record(id(0)));
+	mkdirSync(transcriptDir(cwd, id(0)), { recursive: true }); writeFileSync(join(transcriptDir(cwd, id(0)), "transcript.jsonl"), "{}\n");
+	for (let n = 10; n < 10 + 64; n++) saveRecord(cwd, record(id(n)));
+	assert.equal(pruneRecords(cwd), 1);
+	assert.equal(existsSync(transcriptDir(cwd, id(0))), false);
 });

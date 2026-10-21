@@ -86,12 +86,13 @@ Task 先寫入權限受限的 UTF-8 暫存檔，不放入 command line。同步�
 - 背景 usage 在 status/通知呈現，**不自動加入 host totals**。Job registry 僅存在目前 runtime，最多保留 64 jobs，超量時移除最舊的已結束 job；managed native/log/run metadata 仍在磁碟，不自動刪除。退出後不能用 jobId 恢復工作，不保證通知 exactly-once 或送達確認。內部 payload-free 觀測最多保留 128 筆／省略數，區分 canonical applied、callback attempted／returned／threw 及 owner/generation suppressed；可注入 observer 的例外不影響 lifecycle，不記 prompt／output／interaction payload，不新增工具、設定或 durable queue。callback returned 不是 host queued／persisted ack，API 無 ack 時仍為 unknown；隔離 Pi 1.1.0 SDK 測試另觀察實際 streaming steer queue／idle persistence／host async error，不自動重送或更改 steer／triggerTurn。
 - 接受前尊重 tool signal；managed prepare 同時尊重 job-owned 取消／shutdown，取消可停止等待卡住的配置／allocation，但不宣稱 OS I/O 已中斷。實際 prepare 的 promise、job.done 與 submitted 名額保留至晚到 I/O settlement；不開始下一個 allocation 或 child，已完成的未受理 session 保持 new。永久卡住的 OS I/O 仍會占用名額，不能因 rejection／shutdown registry 清除就宣稱 cleanup 完成。接受後移除 tool-signal binding，改由 job-owned signal 控制，因此原 turn 結束不會偷偷取消工作。退出、reload、session replacement 會抑制舊 generation 通知、取消 jobs，最多等待 15 秒 cleanup；既有 child kill escalation 與 bounded I/O 保留。未及清理或強制退出仍可能留下 process tree／blocked writer。
 - Process-wide 背景 submitted task 總量上限 32（包含 running/queued，取消直到清理完成才釋放容量），仍共用既有 8 active-child permits。Chain 每個 step 在受理前都有實際 managed session；未開始 step 誠實保持 new／logPending，失敗後標示 skipped，不建立假 log 或宣稱 ready。配置失败／受理前取消會釋放 admission，已配置但未執行的 session 保持 new（無 checkpoint，不能續接）。
+- child 非零退出後讀取 `startup.json` 的存在檢查走獨立 `IoGate`：受主 signal 取消與 `ioTimeoutMs` 期限限制，逾時或取消視為失敗（不猜測檔案不存在）；唯讀探測的晚到結果無害，不釋放或修改任何 writer ownership。
 - 背景與主線共用 workspace，避免同時修改同一檔案；需要時自行使用獨立 worktree，不自動 Git 同步。
 - 同步模式沿用 JSON print；背景模式使用 RPC prompt／steer／get_state／get_entries。RPC 無 session header，改由 startup guard、get_state 的 native path／ID／model／thinking 與 canonical startup entries 驗證；保留 managed lock／wire-native digest／checkpoint，不使用會覆寫信任參數的 RpcClient。`agent_settled` 後停止互動，待已接受 query 的獨立期限結束，再關 stdin orderly shutdown；child 確實退出後才提交。
 
-### 前景轉背景（手動，`Ctrl+Y`）
+### 前景轉背景（手動，`Alt+J`）
 
-互動 TUI 中同步（前景）dispatch 執行時，狀態列顯示「Ctrl+Y」提示；按下後該呼叫以 job receipt 提早返回，主代理可繼續對話，**已在執行的 child 不重啟**。快速鍵與 Shell 共用（同一個註冊，一次轉換全部前景 Shell 指令與 Subagent dispatch）。
+互動 TUI 中同步（前景）dispatch 執行時，狀態列顯示「Alt+J」提示；按下後該呼叫以 job receipt 提早返回，主代理可繼續對話，**已在執行的 child 不重啟**。快速鍵與 Shell 共用（同一個註冊，一次轉換全部前景 Shell 指令與 Subagent dispatch）。
 
 - 適用 single／parallel／chain。每個 task 的 `taskId` 在前景啟動前就已發出，轉換後沿用同一身分；已產生的 live log（`log_ready`）與已完成 task 結果在接手時重放進 job。parallel 沿用逐 task `task_result` ＋最後 `job_result`；chain 未開始的 step 繼續依序執行，失敗後標示 skipped。
 - 接手由 `BackgroundJobs.submit` 的 `taskIds` 選項完成，不新增第二套 registry：名額（32 submitted／8 active）、`subagent_status`／`subagent_cancel`、journal、shutdown／reload 取消與通知規則都與背景 job 相同。名額不足或 owner 已替換時不轉換，維持前景。
@@ -100,7 +101,7 @@ Task 先寫入權限受限的 UTF-8 暫存檔，不放入 command line。同步�
 - 轉換後 usage 與背景 job 一致，不自動加入 host totals。無 UI（print／RPC）與 managed child 不提供。
 - 測試：`tests/foreground-detach.integration.test.ts`（真實隔離 Pi child ＋ fake provider，以 `hold-enabled`／`hold-release` 事件門讓 child 停在執行中；單一／parallel＋`subagent_cancel`／chain）。
 
-背景互動驗證基準為 Pi 1.1.0（唯一支援版本）。不支援 canonical inMemory entries/leaf replay 的 host 會拒絕 query，不降級使用空白或猜測的 context。
+背景互動的 RPC／entries 行為最初以 Pi 1.1.0 驗證；專案目前支援基準為 Pi 1.3.0（見根 AGENTS.md）。不支援 canonical inMemory entries/leaf replay 的 host 會拒絕 query，不降級使用空白或猜測的 context。
 
 ### Session 載入時核對背景工作
 
@@ -187,7 +188,7 @@ RPC 啟動錯誤保留原始錯誤碼／訊息，另附英文 `Startup observati
 - 取消或 timeout 在 POSIX 對 child 自有 process group 送 SIGTERM，五秒後仍未結束則 SIGKILL（group signal 失敗時回退 direct child）；Windows 以 best-effort `taskkill /T /F /PID` 加 direct child signal 嘗試終止子行程樹。以上皆不保證清除完整 process tree（終止要求不等於 process tree 已停止），不自動重試。若 SIGKILL 後 child 仍未結束，結果會誠實標註它可能仍在執行，停止讀取管道，但保留 active-child permit 與 writer lock 至實際 close；若另有 pending native/transcript I/O，lock 也須等所有實際 I/O、spool iterator return 與 writer close 完成才釋放。晚到收尾只發布 blocked，不把失敗 receipt 改為 ready；永久卡住或收尾失敗仍保留鎖與診斷。`Ctrl+C` 會中止 child。
 - Child 非零結束且未產生 startup handshake 時，錯誤訊息附上 stderr 尾端，不再只顯示 ENOENT。
 - Child 以 `PI_SUBAGENTS_GUARD` 接收啟動 handshake，guard 讀取後即從環境刪除，孫行程不會繼承。
-- Pi CLI 解析順序：環境變數 `PI_SUBAGENTS_PI_CLI`（指向 `cli.js` 或可執行檔）、宿主提供的 `@earendil-works/pi-coding-agent` bin、`process.argv[1]`、PATH 上的 `pi`。以 SDK 內嵌時不會再重跑宿主應用程式。
+- Pi CLI 解析順序：環境變數 `PI_SUBAGENTS_PI_CLI`（指向 `cli.js` 或可執行檔）、編譯版 Bun 宿主（Pi-Bolt；`process.argv[1]` 為 `/$bunfs/root/…` 或 `X:/~BUN/root/…`）直接以 `process.execPath` 執行自身、宿主提供的 `@earendil-works/pi-coding-agent` bin、`process.argv[1]`、PATH 上的 `pi`。編譯版宿主不是腳本執行器，不會收到套件的 `cli.js` 路徑。以 SDK 內嵌時不會再重跑宿主應用程式。
 - stdout 單筆 JSON record 上限 8 MiB；stderr diagnostics 上限 512 KiB；retained assistant 輸出預算 2 MiB；tool alias／key 帳目另限 8 MiB，不挪用輸出預算。累積 assistant 輸出超過預算時截斷並附註，不會讓成功的 run 失敗。
 - Mandatory readable log 的**單筆序列化 JSONL（含 escaping、metadata 與結尾換行）上限 1 MiB**；這與 8 MiB wire record／2 MiB retained assistant 輸出預算是不同層的防護。超過單筆 cap 會使 log／run failed，不能由較大的 wire cap 推論可接受，也不自動截短 assistant part 或 tool record。長內容請寫檔並回傳路徑；此既有拒絕政策未移除。
 - Log 寫入 I/O 另有 300 秒停滯期限。

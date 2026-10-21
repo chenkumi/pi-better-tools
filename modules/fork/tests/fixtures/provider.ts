@@ -25,7 +25,7 @@ export default function (pi: ExtensionAPI) {
 				usage: { input: 10, output: 2, cacheRead: 0, cacheWrite: 0, totalTokens: 12, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } };
 			const users = context.messages.filter((m: any) => m.role === "user");
 			const lastUser = users.length ? text(users.at(-1)) : "";
-			const isChild = users.some((m: any) => text(m).startsWith("You are a Fork:"));
+			const isChild = users.some((m: any) => text(m).startsWith("You are the background Fork."));
 			const last = context.messages.at(-1) as any;
 			const wantsFork = last?.role === "user" && lastUser.includes("DO_FORK");
 			const everything = JSON.stringify(context.messages);

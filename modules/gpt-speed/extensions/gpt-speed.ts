@@ -5,25 +5,47 @@ import lockfile from "proper-lockfile";
 import { getAgentDir, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 export type SpeedMode = "normal" | "fast" | "ultrafast";
+/**
+ * Prompt-cache lifetime for GPT-5.6+ on the OpenAI Responses API. The API accepts only `prompt_cache_options.ttl` of "30m"
+ * (its default, `short`) or "12h" (`long`); any other value returns 400, so no free-form durations are offered.
+ */
+export type CacheLifetime = "short" | "long";
+const CACHE_LIFETIMES: readonly CacheLifetime[] = ["short", "long"];
+const LONG_CACHE_TTL = "12h";
 type SpeedModel = Pick<NonNullable<ExtensionContext["model"]>, "provider" | "id"> & { api?: string };
 /** Documented `api` of virtual catalog entries (docs/virtual-models.md); the physical route is not exposed to extensions. */
 const VIRTUAL_MODEL_API = "pi-virtual";
 const SETTINGS_KEY = "pi-gpt-speed";
 const STATUS_KEY = "gpt-speed";
+const CACHE_STATUS_KEY = "gpt-cache";
+/** The documented `prompt_cache_options` lives on the Responses API; other routes (including the Codex backend) are not guessed. */
+const CACHE_TTL_API = "openai-responses";
 const MODEL_PATTERN = /^gpt-(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?-(luna|terra|sol|astra)$/;
 const LABELS = { normal: "Normal", fast: "Fast", ultrafast: "Ultrafast" } as const;
 
-/** Versions are major/minor components, not decimals: 5.10 >= 5.6; 6 means 6.0. */
+/** Versions are major/minor components, not decimals: 5.10 >= 5.6; 6 means 6.0. Returns the model family name, or undefined. */
+function speedModelFamily(model: SpeedModel): string | undefined {
+	const match = MODEL_PATTERN.exec(model.id);
+	// JS $ also matches before a trailing newline; require an exact full ID.
+	if (!match || match[0] !== model.id) return undefined;
+	const major = BigInt(match[1]), minor = BigInt(match[2] ?? "0");
+	if (major < 5n || (major === 5n && minor < 6n)) return undefined;
+	return match[3];
+}
+
 export function effectiveSpeedMode(mode: SpeedMode, model: SpeedModel | undefined): SpeedMode {
 	// A virtual model's name says nothing about the physical model that receives the request; never inject for it.
 	if (mode === "normal" || !model || model.api === VIRTUAL_MODEL_API || !["openai", "openai-codex"].includes(model.provider)) return "normal";
-	const match = MODEL_PATTERN.exec(model.id);
-	// JS $ also matches before a trailing newline; require an exact full ID.
-	if (!match || match[0] !== model.id) return "normal";
-	const major = BigInt(match[1]), minor = BigInt(match[2] ?? "0");
-	if (major < 5n || (major === 5n && minor < 6n)) return "normal";
-	if (mode === "ultrafast" && (match[3] === "luna" || match[3] === "terra")) return "fast";
+	const family = speedModelFamily(model);
+	if (!family) return "normal";
+	if (mode === "ultrafast" && (family === "luna" || family === "terra")) return "fast";
 	return mode;
+}
+
+/** The `ttl` sent for `model`: only `long` changes the request (short is the API default); undefined leaves it to Pi/OpenAI. */
+export function effectiveCacheTtl(cache: CacheLifetime | undefined, model: SpeedModel | undefined): typeof LONG_CACHE_TTL | undefined {
+	if (cache !== "long" || !model || model.provider !== "openai" || model.api !== CACHE_TTL_API) return undefined;
+	return speedModelFamily(model) ? LONG_CACHE_TTL : undefined;
 }
 
 function asObject(value: unknown): Record<string, unknown> | undefined {
@@ -47,6 +69,14 @@ function storedMode(settings: Record<string, unknown>): SpeedMode | undefined {
 	const mode = asObject(settings[SETTINGS_KEY])?.mode;
 	return mode === "normal" || mode === "fast" || mode === "ultrafast" ? mode : undefined;
 }
+
+function storedCache(settings: Record<string, unknown>): CacheLifetime | undefined {
+	const cache = asObject(settings[SETTINGS_KEY])?.cache;
+	return CACHE_LIFETIMES.find(allowed => allowed === cache);
+}
+
+/** What the speed commands and `/cache-ttl-short`/`/cache-ttl-long` write; omitted fields are left as they are. */
+interface SettingsPatch { mode?: SpeedMode; cache?: CacheLifetime }
 
 const LOCK_ATTEMPTS = 10;
 const LOCK_RETRY_MS = 20;
@@ -76,17 +106,17 @@ function renameWithRetry(from: string, to: string): void {
 }
 
 /** Share Pi's settings lock; read/merge/write synchronously so no same-process await holds it. */
-function persistMode(path: string, mode: SpeedMode): void {
+function persistSettings(path: string, patch: SettingsPatch): void {
 	mkdirSync(dirname(path), { recursive: true });
 	// Pi's FileSettingsStorage locks the lexical settings path with realpath=false. Use the same lock identity
 	// (resolved before any symlink target) so a symlinked settings.json cannot split the two writers' locks.
 	const release = lockWithRetry(resolve(path));
 	try {
-		persistLocked(path, mode);
+		persistLocked(path, patch);
 	} finally { release(); }
 }
 
-function persistLocked(path: string, mode: SpeedMode): void {
+function persistLocked(path: string, patch: SettingsPatch): void {
 	// Follow a symlinked settings.json so the rename replaces its target, not the link itself.
 	let target: string;
 	try { target = realpathSync(path); }
@@ -107,7 +137,10 @@ function persistLocked(path: string, mode: SpeedMode): void {
 		try { fileMode = statSync(target).mode & 0o777; }
 		catch (error) { if (asObject(error)?.code !== "ENOENT") throw error; }
 		const settings = readSettings(target);
-		settings[SETTINGS_KEY] = { ...asObject(settings[SETTINGS_KEY]), mode };
+		const section = { ...asObject(settings[SETTINGS_KEY]) };
+		if (patch.mode !== undefined) section.mode = patch.mode;
+		if (patch.cache !== undefined) section.cache = patch.cache;
+		settings[SETTINGS_KEY] = section;
 		writeFileSync(temp, `${JSON.stringify(settings, null, 2)}\n`, { encoding: "utf8", flag: "wx", mode: fileMode });
 		// Creation mode is filtered by umask; explicitly restore an existing file's permissions.
 		chmodSync(temp, fileMode);
@@ -119,14 +152,17 @@ function persistLocked(path: string, mode: SpeedMode): void {
 
 export default function gptSpeedExtension(pi: ExtensionAPI): void {
 	let mode: SpeedMode = "normal";
-	let projectOverrideNoticed = false;
+	let cache: CacheLifetime = "short";
+	const projectOverrideNoticed = new Set<"mode" | "cache">();
 	const globalPath = () => join(getAgentDir(), "settings.json");
 
-	/** Trusted project-level mode, if any; unreadable settings count as absent here (session_start already warns). */
-	function projectMode(ctx: ExtensionContext): SpeedMode | undefined {
-		if (!ctx.isProjectTrusted()) return undefined;
-		try { return storedMode(readSettings(join(ctx.cwd, ".pi", "settings.json"))); }
-		catch { return undefined; }
+	/** Trusted project-level values, if any; unreadable settings count as absent here (session_start already warns). */
+	function projectSettings(ctx: ExtensionContext): { mode?: SpeedMode; cache?: CacheLifetime } {
+		if (!ctx.isProjectTrusted()) return {};
+		try {
+			const settings = readSettings(join(ctx.cwd, ".pi", "settings.json"));
+			return { mode: storedMode(settings), cache: storedCache(settings) };
+		} catch { return {}; }
 	}
 
 	function statusLabel(model: SpeedModel | undefined): string {
@@ -137,16 +173,32 @@ export default function gptSpeedExtension(pi: ExtensionAPI): void {
 			: "Speed: Fast (Ultrafast → Fast)";
 	}
 
+	function cacheLabel(model: SpeedModel | undefined): string {
+		if (cache === "short") return "Cache: Short (30m)";
+		return effectiveCacheTtl(cache, model) ? "Cache: Long (12h)" : "Cache: Long (12h, inactive)";
+	}
+
 	function updateStatus(ctx: ExtensionContext, model = ctx.model): void {
 		if (ctx.mode !== "tui") return;
 		const effective = effectiveSpeedMode(mode, model);
 		ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg(effective === "normal" ? "muted" : "accent", statusLabel(model)));
+		ctx.ui.setStatus(CACHE_STATUS_KEY, ctx.ui.theme.fg(effectiveCacheTtl(cache, model) ? "accent" : "muted", cacheLabel(model)));
 	}
 
 	function warn(ctx: ExtensionContext, action: string, error: unknown): void {
-		const message = `pi-gpt-speed: failed to ${action}: ${error instanceof Error ? error.message : String(error)}`;
-		if (ctx.hasUI) ctx.ui.notify(message, "warning");
-		else console.error(message);
+		report(ctx, `pi-gpt-speed: failed to ${action}: ${error instanceof Error ? error.message : String(error)}`);
+	}
+
+	function report(ctx: ExtensionContext, message: string, type: "info" | "warning" = "warning"): void {
+		if (ctx.hasUI) ctx.ui.notify(message, type);
+		else if (type === "warning") console.error(message);
+	}
+
+	/** A trusted project value wins at the next session start, so say once per key that the saved global value is shadowed. */
+	function noticeProjectOverride(ctx: ExtensionContext, key: "mode" | "cache", command: string): void {
+		if (projectOverrideNoticed.has(key) || projectSettings(ctx)[key] === undefined) return;
+		projectOverrideNoticed.add(key);
+		report(ctx, `pi-gpt-speed: this project's .pi/settings.json sets ${SETTINGS_KEY}.${key}, which overrides the global setting saved by /${command} the next time a session starts.`);
 	}
 
 	for (const selected of ["fast", "ultrafast", "normal"] as const) {
@@ -156,39 +208,64 @@ export default function gptSpeedExtension(pi: ExtensionAPI): void {
 				mode = selected;
 				updateStatus(ctx);
 				if (ctx.hasUI) ctx.ui.notify(statusLabel(ctx.model), "info");
-				try { persistMode(globalPath(), selected); }
+				try { persistSettings(globalPath(), { mode: selected }); }
 				catch (error) { warn(ctx, "save speed settings (current mode remains active)", error); }
-				if (!projectOverrideNoticed && projectMode(ctx) !== undefined) {
-					projectOverrideNoticed = true;
-					const message = `pi-gpt-speed: this project's .pi/settings.json sets ${SETTINGS_KEY}.mode, which overrides the global setting saved by /${selected} the next time a session starts.`;
-					if (ctx.hasUI) ctx.ui.notify(message, "warning");
-					else console.error(message);
-				}
+				noticeProjectOverride(ctx, "mode", selected);
+			},
+		});
+	}
+
+	for (const selected of CACHE_LIFETIMES) {
+		pi.registerCommand(`cache-ttl-${selected}`, {
+			description: selected === "long"
+				? "Set the OpenAI prompt cache lifetime to long (12h, GPT-5.6+ Responses API)"
+				: "Set the OpenAI prompt cache lifetime to short (30m, the API default)",
+			handler: async (_args, ctx) => {
+				cache = selected;
+				updateStatus(ctx);
+				report(ctx, cacheLabel(ctx.model), "info");
+				try { persistSettings(globalPath(), { cache: selected }); }
+				catch (error) { warn(ctx, "save cache setting (current value remains active)", error); }
+				noticeProjectOverride(ctx, "cache", `cache-ttl-${selected}`);
 			},
 		});
 	}
 
 	pi.on("session_start", (_event, ctx) => {
 		mode = "normal";
-		projectOverrideNoticed = false;
-		try { mode = storedMode(readSettings(globalPath())) ?? "normal"; }
-		catch (error) { warn(ctx, "load global speed settings", error); }
+		cache = "short";
+		projectOverrideNoticed.clear();
+		try {
+			const settings = readSettings(globalPath());
+			mode = storedMode(settings) ?? "normal";
+			cache = storedCache(settings) ?? "short";
+		} catch (error) { warn(ctx, "load global speed settings", error); }
 		if (ctx.isProjectTrusted()) {
-			try { mode = storedMode(readSettings(join(ctx.cwd, ".pi", "settings.json"))) ?? mode; }
-			catch (error) { warn(ctx, "load project speed settings", error); }
+			try {
+				const settings = readSettings(join(ctx.cwd, ".pi", "settings.json"));
+				mode = storedMode(settings) ?? mode;
+				cache = storedCache(settings) ?? cache;
+			} catch (error) { warn(ctx, "load project speed settings", error); }
 		}
 		updateStatus(ctx);
 	});
 
 	pi.on("model_select", (event, ctx) => updateStatus(ctx, event.model));
 	pi.on("session_shutdown", (_event, ctx) => {
-		if (ctx.mode === "tui") ctx.ui.setStatus(STATUS_KEY, undefined);
+		if (ctx.mode !== "tui") return;
+		ctx.ui.setStatus(STATUS_KEY, undefined);
+		ctx.ui.setStatus(CACHE_STATUS_KEY, undefined);
 	});
 	pi.on("before_provider_request", (event, ctx) => {
 		const effective = effectiveSpeedMode(mode, ctx.model);
-		if (effective === "normal") return;
+		const ttl = effectiveCacheTtl(cache, ctx.model);
+		if (effective === "normal" && !ttl) return;
 		const payload = asObject(event.payload);
 		if (!payload) return;
-		return { ...payload, service_tier: effective === "fast" ? "priority" : "ultrafast" };
+		const next: Record<string, unknown> = { ...payload };
+		if (effective !== "normal") next.service_tier = effective === "fast" ? "priority" : "ultrafast";
+		// Keep Pi's own fields (e.g. `mode`); only the lifetime is ours.
+		if (ttl) next.prompt_cache_options = { ...asObject(payload.prompt_cache_options), ttl };
+		return next;
 	});
 }

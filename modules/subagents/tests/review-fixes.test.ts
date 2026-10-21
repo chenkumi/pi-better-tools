@@ -105,6 +105,23 @@ test("getPiInvocation honours the explicit PI_SUBAGENTS_PI_CLI override", () => 
 	assert.equal(resolved.args.at(-1), "-x");
 });
 
+test("getPiInvocation runs a compiled Bun host (Pi-Bolt) itself, never with a package cli.js", () => {
+	// Shapes measured inside Pi-Bolt 0.9.6: execPath is the Pi executable, argv[1] is its embedded entry, and
+	// import.meta.resolve still finds the cli.js of the pi-coding-agent package installed beside the extensions.
+	const packagedCli = "D:\\proj\\node_modules\\@earendil-works\\pi-coding-agent\\dist\\bundle\\cli.js";
+	const hosts = [
+		{ execPath: "C:\\Users\\u\\.pi-bolt\\pi-bolt-win32-x64\\pi-bolt.exe", argv1: "B:/~BUN/root/pi.exe" },
+		{ execPath: "/home/u/.pi-bolt/pi-bolt-linux-x64/pi", argv1: "/$bunfs/root/pi" },
+	];
+	for (const host of hosts) {
+		assert.deepEqual(getPiInvocation(["--mode", "rpc"], {}, { ...host, packagedCli: () => packagedCli }), { command: host.execPath, args: ["--mode", "rpc"] });
+		// An explicit override still wins over the host rule.
+		assert.deepEqual(getPiInvocation(["-x"], { PI_SUBAGENTS_PI_CLI: "/opt/pi/cli.js" }, { ...host, packagedCli: () => packagedCli }), { command: host.execPath, args: ["/opt/pi/cli.js", "-x"] });
+	}
+	// A Node host keeps using the package cli.js.
+	assert.deepEqual(getPiInvocation(["-x"], {}, { execPath: "/usr/bin/node", argv1: "/usr/lib/pi/cli.js", packagedCli: () => packagedCli }), { command: "/usr/bin/node", args: [packagedCli, "-x"] });
+});
+
 test("child guard consumes PI_SUBAGENTS_GUARD so grandchildren cannot inherit it", () => {
 	const previous = process.env.PI_SUBAGENTS_GUARD;
 	const slot = globalThis as { __piSubagentsGuardExpected?: unknown };

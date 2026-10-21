@@ -144,3 +144,22 @@ test("oversized or garbage stdout lines are discarded without breaking the strea
 	ipc(proc, { type: "settled", quiet: true }); setImmediate(() => proc.exit(0));
 	assert.equal((await handle.done).status, "completed");
 });
+
+test("onMessage receives user/assistant/toolResult messages only after the task was sent (never earlier history)", async () => {
+	const seen: any[] = [];
+	const state = { n: 0 };
+	const script = happyScript(state);
+	const { proc } = fakeProc({ onRequest(cmd, reply) {
+		script.onRequest(cmd, reply);
+		if (cmd.type === "prompt") for (const message of [{ role: "user", content: "PROMPT" }, { role: "assistant", content: [{ type: "text", text: "hi" }] }, { role: "toolResult", toolCallId: "c", content: "r" }])
+			proc.stdout.write(JSON.stringify({ type: "message_end", message }) + "\n");
+	} });
+	const handle = startForkChild(spec(proc, { onMessage: message => { seen.push(message); throw new Error("a throwing sink must not break the stream"); } }));
+	proc.stdout.write(JSON.stringify({ type: "message_end", message: { role: "user", content: "inherited history" } }) + "\n");
+	ipc(proc, { type: "verified", tools: ["read"] });
+	await new Promise(r => setImmediate(r)); await new Promise(r => setImmediate(r));
+	ipc(proc, { type: "settled", quiet: true }); setImmediate(() => proc.exit(0));
+	assert.equal((await handle.done).status, "completed");
+	assert.deepEqual(seen.map(m => m.role), ["user", "assistant", "toolResult"]);
+	assert.equal(seen[0].content, "PROMPT");
+});

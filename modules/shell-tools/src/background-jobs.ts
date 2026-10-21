@@ -28,6 +28,8 @@ const isTimeout = (message: string) => {
   return text.endsWith(TIMEOUT_MARKER) || text.endsWith(TIMEOUT_MARKER + "." + TIMEOUT_HINT);
 };
 
+/** Upper bound for each shutdown phase: runner settlement, then log directory removal. */
+const SHUTDOWN_WAIT_MS = 2000;
 const JOB_DIR_PREFIX = "pi-shell-job-";
 const OWNER_MARKER = "owner.pid";
 /** Job directories without an owner marker are only swept after this long without any modification. */
@@ -497,7 +499,8 @@ export class ShellJobs {
     return this.snapshot(job);
   }
 
-  async shutdown(reason = "owner_unavailable") {
+  /** `removalMs` bounds the whole log-directory removal phase; a late removal is left to finish on its own. */
+  async shutdown(reason = "owner_unavailable", removalMs = SHUTDOWN_WAIT_MS) {
     this.recovery.shutdown(reason);
     this.stopped = true;
     this.generation++;
@@ -514,13 +517,19 @@ export class ShellJobs {
     }
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      await Promise.race([Promise.allSettled(jobs.map(job => job.done)), new Promise<void>(resolve => { timer = setTimeout(resolve, 2000); })]);
+      await Promise.race([Promise.allSettled(jobs.map(job => job.done)), new Promise<void>(resolve => { timer = setTimeout(resolve, SHUTDOWN_WAIT_MS); })]);
     } finally {
       if (timer) clearTimeout(timer);
-      for (const job of jobs) {
+      // A stalled filesystem must not hold reload/dispose (or the shutdown handlers after this one) forever. The
+      // removals run concurrently under one budget; a late one keeps its own promise and the owner marker lets a
+      // later start sweep any orphan, so a timeout is never reported as a completed cleanup.
+      const removals = jobs.map(job => {
         this.closeLog(job);
-        try { await removeJobDirectory(job.directory); } catch { /* best effort; the owner marker lets a later start sweep it */ }
-      }
+        return removeJobDirectory(job.directory).catch(() => undefined);
+      });
+      let removalTimer: ReturnType<typeof setTimeout> | undefined;
+      try { await Promise.race([Promise.all(removals), new Promise<void>(resolve => { removalTimer = setTimeout(resolve, removalMs); })]); }
+      finally { if (removalTimer) clearTimeout(removalTimer); }
       this.jobs.clear();
       this.evicted.clear();
       this.owner = undefined;

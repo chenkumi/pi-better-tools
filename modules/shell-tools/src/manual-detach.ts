@@ -1,7 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 /** Interactive shortcut that moves running foreground commands/subagents to background jobs (unbound in Pi's default keymap). */
-export const DETACH_SHORTCUT = "ctrl+y";
+export const DETACH_SHORTCUT = "alt+j";
 const STATUS_KEY = "foreground-detach";
 
 type Ui = ExtensionContext["ui"];
@@ -22,7 +22,7 @@ const safe = (fn: () => void) => { try { fn(); } catch { /* UI hints are best ef
 export function trackForeground(ui: Ui, detach: () => void): () => void {
   const id = Symbol("foreground");
   active.set(id, { detach, ui });
-  safe(() => ui.setStatus(STATUS_KEY, "Ctrl+Y: move running command/subagent to background"));
+  safe(() => ui.setStatus(STATUS_KEY, "Alt+J: move running command/subagent to background"));
   return () => {
     if (!active.delete(id)) return;
     if (active.size === 0) safe(() => ui.setStatus(STATUS_KEY, undefined));

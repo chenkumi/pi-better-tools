@@ -44,7 +44,7 @@ function fakeChild() {
 	}) as never;
 	return handles;
 }
-const flush = () => new Promise(resolve => setImmediate(resolve));
+const flush = async () => { await new Promise(resolve => setImmediate(resolve)); await Promise.all([...state().jobs.values()].map(job => job.transcriptDone)); await new Promise(resolve => setImmediate(resolve)); };
 
 test("lifecycle shows title and real states, never the task/result body, and no footer summary", async () => {
 	const sm = origin(), A = fakes(sm), handles = fakeChild();

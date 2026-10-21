@@ -29,7 +29,7 @@ export default function (pi: ExtensionAPI) {
 		label: "Fork",
 		description: "Start an independent Pi process that continues THIS conversation (full history, same model, thinking level, tools and permissions) on a task, in the background. " +
 			"The Fork keeps working even if you switch to another conversation, then reports back to this conversation. It can use subagent but cannot create another Fork. " +
-			"It shares this workspace (no worktree, no merge) and its conversation is a native session you can open with /resume after it finishes. Quit or /reload cancels unfinished Forks.",
+			"It shares this workspace (no worktree, no merge) and its conversation is a native session you can open with /resume after it finishes. A query-only transcript of what the Fork does after starting (no inherited context) is also written; its path is returned when the Fork is accepted and in the completion notice. Quit or /reload cancels unfinished Forks.",
 		promptSnippet: "Hand a task to an independent background Pi that inherits this conversation; the result is reported back here.",
 		promptGuidelines: ["Use fork for long, self-contained work that benefits from this conversation's full context; use subagent for fresh-context workers."],
 		annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
@@ -46,7 +46,7 @@ export default function (pi: ExtensionAPI) {
 		async execute(_id, params, _signal, _onUpdate, ctx) {
 			// Admission is re-checked here: a direct call or forged arguments cannot lift a Subagent/Fork identity.
 			const receipt = acceptFork(pi, ctx, params);
-			return textResult(`Fork accepted: ${receipt.jobId} (${receipt.title}). It starts at the end of this turn as an independent Pi process (session ${receipt.forkSessionId}); the result will be reported to this conversation. Use fork_status ${receipt.jobId} to check, fork_cancel to request cancellation.`, { ...receipt });
+			return textResult(`Fork accepted: ${receipt.jobId} (${receipt.title}). It starts at the end of this turn as an independent Pi process (session ${receipt.forkSessionId}); the result will be reported to this conversation. Its own messages after it starts (no inherited context) are logged for querying at ${receipt.transcriptPath} (".partial" suffix while running; final path is announced on completion). Use fork_status ${receipt.jobId} to check, fork_cancel to request cancellation.`, { ...receipt });
 		},
 	}));
 

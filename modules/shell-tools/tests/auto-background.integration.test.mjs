@@ -61,9 +61,9 @@ test('turn abort before the threshold still kills the foreground command and cre
 
 test('the detach shortcut moves a running foreground command to a background job without restarting it', { timeout: 120000 }, async () => {
   const { manualDetach } = await childResult();
-  assert.equal(manualDetach.key, 'ctrl+y');
+  assert.equal(manualDetach.key, 'alt+j');
   assert.match(manualDetach.idleNotice, /No running foreground/);
-  assert.match(manualDetach.statusWhileRunning, /Ctrl\+Y/);
+  assert.match(manualDetach.statusWhileRunning, /Alt\+J/);
   assert.equal(manualDetach.statusAfter, undefined, 'the hint is cleared once the command is detached');
   assert.match(manualDetach.notice, /Moving 1 running foreground/);
   assert.equal(manualDetach.hasReceipt, true);

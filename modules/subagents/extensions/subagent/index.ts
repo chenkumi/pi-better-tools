@@ -303,22 +303,40 @@ function resolvePiCliFromPackage(): string | undefined {
 	return undefined;
 }
 
-/** Order: PI_SUBAGENTS_PI_CLI override, the host-provided pi-coding-agent bin, process.argv[1], then `pi` on PATH. */
-export function getPiInvocation(args: string[], env: NodeJS.ProcessEnv = process.env): { command: string; args: string[] } {
+interface PiInvocationHost {
+	execPath: string;
+	argv1: string | undefined;
+	packagedCli: () => string | undefined;
+}
+
+/** Bun's embedded entry: `/$bunfs/root/...` on POSIX, `B:/~BUN/root/...` on Windows. */
+function isBunVirtualScript(script: string | undefined): boolean {
+	return !!script && (script.startsWith("/$bunfs/root/") || /^[A-Za-z]:[\\/]~BUN[\\/]/.test(script));
+}
+
+/**
+ * Order: PI_SUBAGENTS_PI_CLI override, a compiled Bun host (Pi-Bolt) running itself, the host-provided pi-coding-agent bin,
+ * process.argv[1], then `pi` on PATH. A compiled host is not a script runner, so a package cli.js must not be passed to it.
+ */
+export function getPiInvocation(
+	args: string[],
+	env: NodeJS.ProcessEnv = process.env,
+	host: PiInvocationHost = { execPath: process.execPath, argv1: process.argv[1], packagedCli: resolvePiCliFromPackage },
+): { command: string; args: string[] } {
 	const override = env.PI_SUBAGENTS_PI_CLI?.trim();
 	if (override) {
-		if (/\.(?:[cm]?js|ts)$/i.test(override)) return { command: process.execPath, args: [override, ...args] };
+		if (/\.(?:[cm]?js|ts)$/i.test(override)) return { command: host.execPath, args: [override, ...args] };
 		return { command: override, args };
 	}
-	const packaged = resolvePiCliFromPackage();
-	if (packaged) return { command: process.execPath, args: [packaged, ...args] };
-	const currentScript = process.argv[1];
-	const isBunVirtualScript = currentScript?.startsWith("/$bunfs/root/");
-	if (currentScript && !isBunVirtualScript && fs.existsSync(currentScript)) {
-		return { command: process.execPath, args: [currentScript, ...args] };
+	if (isBunVirtualScript(host.argv1)) return { command: host.execPath, args };
+	const packaged = host.packagedCli();
+	if (packaged) return { command: host.execPath, args: [packaged, ...args] };
+	const currentScript = host.argv1;
+	if (currentScript && fs.existsSync(currentScript)) {
+		return { command: host.execPath, args: [currentScript, ...args] };
 	}
-	const execName = path.basename(process.execPath).toLowerCase();
-	if (!/^(node|bun)(\.exe)?$/.test(execName)) return { command: process.execPath, args };
+	const execName = path.basename(host.execPath).toLowerCase();
+	if (!/^(node|bun)(\.exe)?$/.test(execName)) return { command: host.execPath, args };
 	return { command: "pi", args };
 }
 
@@ -970,7 +988,21 @@ async function runSingleAgentUnlimited(
 			// RPC may close before get_state when the guard rejects. Read the authoritative
 			// startup file after actual child close, even if the transport gate stopped;
 			// otherwise a trust/model refusal would be mistaken for a rollback-eligible crash.
-			const startupWritten = currentResult.exitCode === 0 || await fs.promises.access(managed.startupPath).then(() => true, () => false);
+			let startupWritten = currentResult.exitCode === 0;
+			if (!startupWritten) {
+				// The probe is read-only, so a late result is harmless; the wait itself must stay cancelable and bounded.
+				// A timeout or abort throws into the failure path below instead of guessing the file is absent.
+				const probeIo = new IoGate(runtime.ioTimeoutMs);
+				const probeAbort = () => {
+					// An earlier cause (for example a timeout that already aborted the child) keeps its classification.
+					if (!cause) { cause = "abort"; wasAborted = true; }
+					probeIo.stop(new Error("Subagent was aborted while checking child startup"));
+				};
+				// An already-aborted signal was handled by the timeout/abort path; the deadline alone bounds this probe.
+				if (!signal?.aborted) signal?.addEventListener("abort", probeAbort, { once: true });
+				try { startupWritten = await probeIo.run(() => fs.promises.access(managed!.startupPath).then(() => true, () => false), "check child startup file"); }
+				finally { signal?.removeEventListener("abort", probeAbort); }
+			}
 			if (startupWritten) {
 				const startupIo = cause ? new IoGate(runtime.ioTimeoutMs) : io;
 				try { await startupIo.run(() => managed!.acceptStartup(), "verify child startup handshake"); }

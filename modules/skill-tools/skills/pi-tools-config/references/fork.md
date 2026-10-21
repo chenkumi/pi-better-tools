@@ -13,7 +13,7 @@
 
 Fork 繼承 parent 有效 cwd、model／thinking、工具與資源，工具參數不提供這些 override。它與 Subagent 的乾淨 context 不同，不會建立 git worktree、同步 parent 後續訊息或合併檔案。
 
-Metadata／有界結果在 `<cwd>/.pi/forks/<jobId>.json`，原生對話在來源 sessionDir；這些是執行紀錄，不是可用來修改能力／恢復工作的設定檔。不要手改指紋或刪除仍有 writer 的對話。
+Metadata／有界結果在 `<cwd>/.pi/forks/<jobId>.json`，原生對話在來源 sessionDir，另有只含 Fork 開始後訊息的查詢 transcript `<cwd>/.pi/forks/<jobId>/transcript.jsonl`（路徑於 `fork` 回傳時揭露，輔助檔，失敗不影響 Fork）；這些是執行紀錄，不是可用來修改能力／恢復工作的設定檔。不要手改指紋或刪除仍有 writer 的對話。
 
 ## 啟用條件與限制
 

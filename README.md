@@ -132,7 +132,7 @@ Shell 與 Subagents 會在 `startup`／`resume`／`reload` 載入 session 時，
 | Skill Tools | `/skill:create-plan`、`/skill:pi-tools-config` 等隨包技能 | 原生 resource discovery、按需讀取；pi-tools-config 以 SKILL.md 索引 17 份逐模組指令／config references，不修改使用者 home |
 | File Audit | `/file-audit [status\|check\|clear\|limits]` | 成功 read/write/edit/note 的近期活動；預設 4 runs／50 個不同檔案，只在手動 check 才做有 byte 上限的 provenance 檢查；不掃完整歷史、不自動刷新 hash。詳見 [File Audit](modules/file-audit/README.md) |
 | Note Tools | `note` | `{ type, content }`；自動分類、產生純時間戳檔名（`TYPE-<UTC 時間戳>.md`，不附加標題），只新增 Markdown 檔案並回報單一相對路徑，不覆寫 |
-| GPT Speed | `/fast`、`/ultrafast`、`/normal` | GPT >= 5.6 的 luna／terra／sol／astra pattern；Ultrafast 在 luna／terra 降為 Fast；TUI 顯示實際速度 |
+| GPT Speed | `/fast`、`/ultrafast`、`/normal`、`/cache-ttl-short`、`/cache-ttl-long` | GPT >= 5.6 的 luna／terra／sol／astra pattern；Ultrafast 在 luna／terra 降為 Fast；`/cache-ttl-short`／`/cache-ttl-long` 設定 OpenAI prompt cache 30 分鐘／12 小時（僅 Responses API）；TUI 顯示實際速度與 cache 設定 |
 | Pi Runtime | `/runtime-recovery status`、`on`、`off`、`/runtime-recover <澄清>` | 每個可識別使用者任務最多 2 次診斷恢復；明確輸入錯誤可自動續行，cyber／policy／未知錯誤須人工 review 與 UI 確認；不啟用工具或更換模型 |
 | JSON Schema | 條件式 `json_output`；`--json-schema`、`--json-output` | CLI schema + zod 4 驗證；有 `--json-output` 寫檔、否則單一 JSON stdout；未給 `--json-schema` 時 inactive |
 
@@ -293,7 +293,7 @@ Cyber／policy 及未知錯誤保留待 review 診斷，使用 `/runtime-recover
 
 `/fast` 設定 Fast（`service_tier: "priority"`），`/ultrafast` 設定 Ultrafast（`service_tier: "ultrafast"`），`/normal` 關閉本 extension 的 tier 注入。指令不是 toggle。只對 `openai`／`openai-codex` provider 且完整 ID 符合 `gpt-<major>[.<minor>]-<luna|terra|sol|astra>`、版本 >= 5.6 的模型生效；`5.10` 與 `6` 皆符合。Ultrafast 遇到 luna／terra 的實際速度降為 Fast，換回 sol／astra 恢復 Ultrafast；其他模型請求保持原樣。
 
-TUI footer 顯示 Normal／Fast／Ultrafast，並標註降級或 inactive。預設 Normal；命令保存全域 `pi-gpt-speed.mode`，受信任專案設定可在下次載入時覆蓋。入口與完整契約見 [GPT Speed README](modules/gpt-speed/README.md)。若已裝 pi-codex-fast 或其他速度 extension，請先停用以避免衝突。模型 pattern 是本地政策，不保證後端權限或支援。
+TUI footer 顯示 Normal／Fast／Ultrafast，並標註降級或 inactive。預設 Normal；命令保存全域 `pi-gpt-speed.mode`，受信任專案設定可在下次載入時覆蓋。入口與完整契約見 [GPT Speed README](modules/gpt-speed/README.md)。若已裝 pi-codex-fast 或其他速度 extension，請先停用以避免衝突。`/cache-ttl-short`／`/cache-ttl-long` 設定 `pi-gpt-speed.cache`（short = 30m 預設且不改請求；long = 12h，送 `prompt_cache_options.ttl: "12h"`），只對 `openai` provider 的 `openai-responses` API 與上述模型生效，`openai-codex` 不送；OpenAI 文件只接受 30m／12h 兩個值，所以不提供自訂時間。模型 pattern 是本地政策，不保證後端權限或支援。
 
 ### Structured JSON 交付
 
@@ -364,6 +364,7 @@ Filters 以整合包 root 為基準；與 tool allowlist 不同，它們控制 e
 - 安裝路徑改變可能使舊 managed Subagent sessions 無法續接；不自動改寫 fingerprint／來源路徑。
 - `pi -e` 的 parent 臨時 extensions 不自動傳給 child；需要 child 可探索到的全域或受信任專案設定。
 - 取消是要求，不保證所有任意 descendants 或既有副作用消失。
+- 其他宿主（例如 Pi-Bolt）的實測差異與未驗證項目見 [docs/compatibility.md](docs/compatibility.md)；目前已知 Pi-Bolt 上 Worker 的 `resourceLimits` 記憶體上限不生效。
 - 不會自動清除舊 logs、已移除 Scheduler 模組遺留的資料（`<agentDir>/pi-scheduler/`、`~/.pi/logs/pi-scheduler/`）、修改 auth 或移除舊 OS tasks。
 
 ## 開發與驗證

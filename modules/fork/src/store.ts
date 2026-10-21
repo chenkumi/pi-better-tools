@@ -1,6 +1,7 @@
 import { chmodSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ForkUsage } from "./child.ts";
+import type { TranscriptInfo } from "./transcript.ts";
 
 export type ForkStatus = "awaiting_snapshot" | "starting" | "running" | "blocked" | "finalizing" | "cancelling" | "completed" | "failed" | "cancelled" | "interrupted";
 export type Delivery = "pending" | "submitted" | "observed" | "unknown" | "not_required";
@@ -27,6 +28,8 @@ export interface ForkRecord {
 	ownerPid: number;
 	result?: { resultId: string; output?: string; outputTruncated?: boolean; errorCode?: string; error?: string; usage?: ForkUsage; usageUnknown?: boolean };
 	cleanup?: { childClosed: boolean; exitCode?: number | null };
+	/** Query-only log of this Fork's own conversation (post-start messages only). Auxiliary: `unavailable` never fails the Fork. */
+	transcript?: TranscriptInfo;
 	/** Non-terminal truth: the child's own model call failed while nested jobs are still unfinished, so the
 	 *  Fork cannot make progress on its own. Reported by the child guard, never inferred by the parent. */
 	blocked?: { reason: string; error?: string; pending: { shell: number; subagents: number }; since: string };
@@ -35,6 +38,8 @@ export interface ForkRecord {
 
 export const forksDir = (cwd: string) => join(cwd, ".pi", "forks");
 export const recordPath = (cwd: string, jobId: string) => join(forksDir(cwd), `${jobId}.json`);
+/** Per-Fork directory holding `transcript.jsonl`; removed together with the record when it is pruned. */
+export const transcriptDir = (cwd: string, jobId: string) => join(forksDir(cwd), jobId);
 
 /** Atomic replace (temp + rename), owner-only. Throws on failure so callers can mark persistence trouble. */
 export function saveRecord(cwd: string, record: ForkRecord): void {
@@ -93,6 +98,7 @@ export function pruneRecords(cwd: string, keep = MAX_STORED, maxDeletes = MAX_ST
 			const path = join(forksDir(cwd), name), record = parseRecord(readFileSync(path, "utf8"));
 			if (!record || `${record.jobId}.json` !== name || !isTerminal(record.status) || record.delivery === "pending") continue;
 			rmSync(path, { force: true });
+			try { rmSync(transcriptDir(cwd, record.jobId), { recursive: true, force: true }); } catch { /* the record is already gone; a leftover transcript is harmless */ }
 			removed++;
 		} catch { /* keep it */ }
 	}
