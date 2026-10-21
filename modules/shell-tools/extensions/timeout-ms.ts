@@ -18,7 +18,8 @@ import { registerApiInterruptionRenderer } from "../src/api-interruption-rendere
 import { isManagedForegroundChild } from "../src/managed-child.js";
 import { AUTO_MONITOR_INTERVAL_MS, canonicalMonitorCwd, requestAutoMonitor } from "../src/monitor-capability.js";
 import { createForegroundHandoff, resolveAutoBackgroundMs } from "../src/foreground-handoff.js";
-import { ensureDetachShortcut, trackForeground } from "../src/manual-detach.js";
+import { DETACH_HINT, ensureDetachShortcut, forgetToolRow, isForegroundDetachable, rememberToolRow, trackForeground } from "../src/manual-detach.js";
+import { addDetachHint } from "../src/detach-hint.js";
 import { createShellMonitorPublisher } from "../src/monitor-publisher.js";
 import { renderShellCompletion, renderShellJobResult } from "../src/completion-renderer.js";
 import { renderShellOutput } from "../src/output-renderer.js";
@@ -40,13 +41,15 @@ const COMMAND_PREVIEW_ROWS = 5;
 /** A Text subclass preserves the host's setText/reuse contract and timing state. */
 class ShellCommandPreview extends Text {
   omission = "...";
+  /** Last line while this call can still be moved to a background job with the detach shortcut. */
+  hint?: string;
 
   override render(width: number): string[] {
     if (width <= 0) return [];
     const rows = super.render(width);
-    if (rows.length <= COMMAND_PREVIEW_ROWS) return rows;
     // Count actual wrapped terminal rows; the omission row is inside the budget.
-    return [...rows.slice(0, COMMAND_PREVIEW_ROWS - 1), truncateToWidth(this.omission, width)];
+    const lines = rows.length <= COMMAND_PREVIEW_ROWS ? rows : [...rows.slice(0, COMMAND_PREVIEW_ROWS - 1), truncateToWidth(this.omission, width)];
+    return this.hint ? [...lines, "", truncateToWidth(this.hint, width, "…")] : lines;
   }
 }
 
@@ -138,9 +141,15 @@ function registerTimeoutMsOverride(
         ? ` (timeout ${timeout}s)` : "";
       const omission = `...${timeoutSuffix}`;
       preview.omission = theme?.fg("muted", omission) ?? omission;
+      // The detach hint belongs to the call itself: its own last line, never the status bar. Once output streams, the result
+      // region below carries it instead, and a finished call keeps the host layout unchanged.
+      if (context.durationMs !== undefined) forgetToolRow(context.toolCallId);
+      else rememberToolRow(context.toolCallId, context.invalidate);
+      preview.hint = theme && isForegroundDetachable(context.toolCallId) && !context.isPartial ? theme.fg("muted", DETACH_HINT) : undefined;
       return base.renderCall!(renderArgs, theme, { ...context, lastComponent: preview });
     }),
     renderResult: base.renderResult && ((result, options, theme, context) => {
+      const hint = { toolCallId: context.toolCallId, theme, invalidate: context.invalidate, finished: context.durationMs !== undefined };
       const receipt = result.structuredContent as { jobId?: unknown; status?: unknown; liveLogPath?: unknown } | undefined;
       if (!options.isPartial && !result.isError && !context.isError && receipt?.status === "running" && typeof receipt.jobId === "string" && typeof receipt.liveLogPath === "string") {
         // Receipt latency is not background job duration. Do not change the host's synchronous renderer.
@@ -150,7 +159,7 @@ function registerTimeoutMsOverride(
         const timing = typeof context.state.startedAt === "number" ? `\nAccepted in ${((context.state.endedAt - context.state.startedAt) / 1000).toFixed(1)}s` : "";
         return new Text(theme.fg("muted", display(text, 8192) + timing), 0, 0);
       }
-      return renderShellOutput(base.renderResult!, result as Parameters<NonNullable<typeof base.renderResult>>[0], options, theme, context);
+      return addDetachHint(renderShellOutput(base.renderResult!, result as Parameters<NonNullable<typeof base.renderResult>>[0], options, theme, context), hint);
     }),
     async execute(toolCallId, input, signal, onUpdate, ctx) {
       const startedAt = performance.now();
@@ -237,7 +246,7 @@ function registerTimeoutMsOverride(
         // command without timeoutMs (e.g. an endless loop). A timeoutMs keeps applying inside the adopted run.
         let manualDetach!: () => void;
         const manual = new Promise<"manual">(resolve => { manualDetach = () => resolve("manual"); });
-        const untrack = ctx.hasUI ? trackForeground(ctx.ui, manualDetach) : () => {};
+        const untrack = ctx.hasUI ? trackForeground(toolCallId, manualDetach) : () => {};
         const handoff = createForegroundHandoff();
         const foreground = new AbortController();
         const forwardAbort = () => foreground.abort(signal?.reason);

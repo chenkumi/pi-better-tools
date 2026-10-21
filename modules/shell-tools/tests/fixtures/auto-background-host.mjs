@@ -88,14 +88,27 @@ const ui = { statuses: [], notices: [], setStatus: (key, value) => ui.statuses.p
 const uiCtx = { ...ctx, hasUI: true, ui };
 shortcut.handler(uiCtx);
 const idleNotice = ui.notices.pop();
+const processesBeforeSlow = control.processes;
+const slowCallId = `call-${processesBeforeSlow}`;
 const manualPending = call('SLOW', undefined, uiCtx);
-while (!ui.statuses.length) await new Promise(resolve => setImmediate(resolve));
+while (control.processes <= processesBeforeSlow) await new Promise(resolve => setImmediate(resolve));
+// The fake process is the event that the run started; nothing waits on a timer or on a status write.
+const stubTheme = { fg: (_color, text) => text, bg: (_color, text) => text, bold: text => text };
+// The host's own bash renderer reads Pi's global theme; the fixture renders it headlessly, so initialise it first.
+sdk.initTheme();
+const renderContext = toolCallId => ({ args: { command: 'SLOW' }, toolCallId, invalidate() {}, lastComponent: undefined, state: {}, cwd, executionStarted: true, argsComplete: true, isPartial: false, expanded: false, showImages: false, isError: false, durationMs: undefined, outputPad: 0 });
+const renderCall = () => bash.renderCall({ command: 'SLOW' }, stubTheme, renderContext(slowCallId)).render(80).join('\n');
+const renderPartialResult = () => bash.renderResult({ content: [{ type: 'text', text: 'early\n' }], details: undefined }, { expanded: false, isPartial: true }, stubTheme, renderContext(slowCallId)).render(80).join('\n');
 const statusWhileRunning = ui.statuses[0];
+const runningCallText = renderCall();
+const runningResultText = renderPartialResult();
 shortcut.handler(uiCtx);
 const manual = await manualPending;
+const hintAfterDetach = renderCall();
+const resultHintAfterDetach = renderPartialResult();
 control.emit(Buffer.from('after\n')); control.finish(0);
 const manualFinal = await settle(manual.receipt.jobId);
-result.manualDetach = { key: shortcut.key, idleNotice, statusWhileRunning, statusAfter: ui.statuses.at(-1), notice: ui.notices.at(-1), text: manual.text, hasReceipt: manual.receipt?.status === 'running', status: manualFinal.status, output: manualFinal.output };
+result.manualDetach = { key: shortcut.key, idleNotice, statusWhileRunning, statusAfter: ui.statuses.at(-1), runningCallText, runningResultText, hintAfterDetach, resultHintAfterDetach, notice: ui.notices.at(-1), text: manual.text, hasReceipt: manual.receipt?.status === 'running', status: manualFinal.status, output: manualFinal.output };
 
 console.log('AUTO_BG_RESULT ' + JSON.stringify(result));
 process.exit(0);

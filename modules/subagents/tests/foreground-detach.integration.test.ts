@@ -34,6 +34,11 @@ async function rig(root: string) {
 		ctx, notices, statuses, toasts,
 		execute: (name: string, args: any, signal?: AbortSignal) => tools.get(name)!.execute(`${name}-${++call}`, args, signal, undefined, ctx),
 		press: () => shortcut!(ctx),
+		renderCall: (toolCallId: string, args: any) => {
+			const theme = { fg: (_color: string, text: string) => text, bg: (_color: string, text: string) => text, bold: (text: string) => text } as any;
+			const context = { args, toolCallId, invalidate() {}, lastComponent: undefined, state: {}, cwd: root, executionStarted: true, argsComplete: true, isPartial: false, expanded: false, showImages: false, isError: false, durationMs: undefined, outputPad: 0 } as any;
+			return tools.get("subagent")!.renderCall!(args, theme, context).render(100).join("\n");
+		},
 		async notice(predicate: (notice: any) => boolean) {
 			for (;;) { const found = notices.find(predicate); if (found) return found; await new Promise<void>(wake => waiters.push(wake)); }
 		},
@@ -71,7 +76,8 @@ test("detach shortcut moves a running single foreground dispatch to a background
 			const turn = new AbortController();
 			const pending = host.execute("subagent", task, turn.signal);
 			await childrenHeld(root, 1);
-			assert.ok(host.statuses.some(text => /Alt\+J/.test(text ?? "")), "the detach hint is shown while the dispatch runs");
+			assert.match(host.renderCall("subagent-1", task), /Alt\+J: move running command\/subagent to background/, "the detach hint is the running call render's last line");
+			assert.equal(host.statuses.length, 0, "the hint is not written to the status bar");
 			await host.press();
 			assert.match(host.toasts.at(-1)!, /Moving 1/);
 			const detached = await pending;
@@ -79,7 +85,7 @@ test("detach shortcut moves a running single foreground dispatch to a background
 			assert.match((detached.content[0] as any).text, /Moved to a background job at the user's request/);
 			const receipt = (detached.details as any).background;
 			assert.equal(receipt.tasks.length, 1);
-			assert.equal(host.statuses.at(-1), undefined, "the hint is cleared after the handoff");
+			assert.doesNotMatch(host.renderCall("subagent-1", task), /Alt\+J/, "the hint disappears after the handoff");
 			turn.abort(); // the finished tool turn must not stop the adopted child
 			await writeFile(join(root, "hold-release"), "");
 			const done = await host.notice(notice => notice.jobId === receipt.jobId && notice.kind === "task_result");

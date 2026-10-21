@@ -77,7 +77,7 @@ Default-shell 卡片改由 self-shell 重建原有 Box，避免外層留白仍�
 - 交接後不再更新該前景呼叫的串流顯示；job 名額（active 8／retained 32）不足或 owner 不可用時不交接，維持前景。
 - 不適用：有設 `timeoutMs`（該總時限已是上限）、`background:true`、Subagent 前景 child（無背景能力）。
 - 門檻可用 `settings.json` 的 `pi-shell-tools.autoBackgroundMs`（正整數毫秒；`0` 停用；其他值回到預設 180000）調整。
-- 手動交接：互動 TUI 中前景指令執行時，狀態列顯示「Alt+J」提示，按下即把目前所有前景 Shell 指令交給背景 job（同一 process、走同一條 handoff 路徑，回傳 receipt 讓主代理繼續）。與計時器不同，手動交接也適用於有 `timeoutMs` 的指令（總時限仍由原 process 的計時器執行）；無 UI（print／RPC）與 managed child 不提供。`Alt+J` 不是 Pi 1.3.0 預設綁定；沒有前景指令時只顯示提示。快速鍵與登記表（`src/manual-detach.ts`，以 `globalThis` 共用）和 Subagents 的前景轉背景共用：先載入的 extension 註冊一次，session shutdown 時釋放，一次按鍵轉換全部前景 Shell 與 Subagent 工作。
+- 手動交接：互動 TUI 中前景指令執行時，該 tool call 的 message render **最後一行**顯示 `Alt+J: move running command/subagent to background`（muted，與 Pi 的 `N earlier lines, … to expand` 同型；尚未有串流輸出時掛在 call render，有 partial result 後改掛在 result render 底部，**不寫狀態列**）。按下即把目前所有前景 Shell 指令交給背景 job（同一 process、走同一條 handoff 路徑，回傳 receipt 讓主代理繼續）。提示只在該 call 真正被追蹤時出現，交接或結束後立即消失；每次 render 會記住該列的 `invalidate`，追蹤開始／結束時主動重繪，不依賴輪詢或固定 tick。與計時器不同，手動交接也適用於有 `timeoutMs` 的指令（總時限仍由原 process 的計時器執行）；無 UI（print／RPC）與 managed child 不提供。`Alt+J` 不是 Pi 1.3.0 預設綁定。快速鍵與登記表（`src/manual-detach.ts`，以 `globalThis` 共用；提示文字與列重繪輔助見 `src/detach-hint.ts`）和 Subagents 的前景轉背景共用：先載入的 extension 註冊一次，session shutdown 時釋放，一次按鍵轉換全部前景 Shell 與 Subagent 工作。
 - 測試：`tests/foreground-handoff.test.ts`（輸出記錄／重放）、`tests/auto-background.integration.test.mjs`（真實 extension＋host bash 定義，fake process，事件驅動，不等待真實門檻）。
 
 ### 背景 job 預設 Monitor

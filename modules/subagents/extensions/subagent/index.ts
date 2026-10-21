@@ -40,6 +40,7 @@ import { isManagedForegroundChild } from "../../../shell-tools/src/managed-child
 import { BackgroundRecovery } from "../../../shell-tools/src/recovery.js";
 import { registerBackgroundLifecycleGuidance } from "../../../shell-tools/src/background-guidance.js";
 import { ensureDetachShortcut, trackForeground } from "../../../shell-tools/src/manual-detach.js";
+import { addDetachHint } from "../../../shell-tools/src/detach-hint.js";
 import { panelUsage, safeJobText } from "../../../shell-tools/src/job-view.js";
 import { Semaphore, killProcessTree } from "./concurrency.ts";
 import { selectDispatchDefaults } from "./model-selection.ts";
@@ -1720,7 +1721,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 			let detached = false, finished = false;
 			let detachNow!: () => void;
 			const manual = new Promise<"manual">(resolve => { detachNow = () => resolve("manual"); });
-			const untrack = trackForeground(ctx.ui, detachNow);
+			const untrack = trackForeground(toolCallId, detachNow);
 			const running = runForeground(foreground.signal, onUpdate && (update => { if (!detached) onUpdate(update); }));
 			const outcome = await Promise.race([running.then(value => ({ value }), error => ({ error })).finally(() => { finished = true; }), manual]);
 			untrack();
@@ -1747,7 +1748,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 ${JSON.stringify(slimReceipt(receipt))}` }], details: { ...makeDetails(detachMode)([]), background: receipt }, structuredContent: jsonReceipt(receipt) };
 		},
 
-		renderCall(args, theme, _context) {
+		renderCall(args, theme, context) {
 			args = args ?? {};
 			const scope: AgentScope = args.agentScope ?? "user";
 			const title = displayTitle(args.title);
@@ -1761,15 +1762,16 @@ ${JSON.stringify(slimReceipt(receipt))}` }], details: { ...makeDetails(detachMod
 				const itemTitle = displayTitle(item?.title);
 				if (itemTitle) container.addChild(new Text(`${theme.fg("muted", displayTitle(item?.agent) || "...")} · ${theme.fg("accent", itemTitle)}`, 0, 0));
 			}
-			return container;
+			return addDetachHint(container, { toolCallId: context.toolCallId, theme, invalidate: context.invalidate, skip: context.isPartial, finished: context.durationMs !== undefined });
 		},
 
-		renderResult(result, { expanded, isPartial }, theme, _context) {
+		renderResult(result, { expanded, isPartial }, theme, context) {
+			const hint = (component: Component) => addDetachHint(component, { toolCallId: context.toolCallId, theme, invalidate: context.invalidate, finished: context.durationMs !== undefined });
 			const details = result.details as SubagentDetails | undefined;
-			if (details?.background) return renderBackgroundResult(result, { expanded, isPartial }, theme, _context);
+			if (details?.background) return hint(renderBackgroundResult(result, { expanded, isPartial }, theme, context));
 			if (!details?.results.length) {
 				const content = result.content[0];
-				return new Text(content?.type === "text" ? content.text : "No assistant text was returned.", 0, 0);
+				return hint(new Text(content?.type === "text" ? content.text : "No assistant text was returned.", 0, 0));
 			}
 			const completed = details.results.filter((entry) => entry.status !== "running").length;
 			const label = displayTitle(details.mode === "single" ? details.results[0].title : details.title);
@@ -1787,7 +1789,7 @@ ${JSON.stringify(slimReceipt(receipt))}` }], details: { ...makeDetails(detachMod
 					if (entry.status !== "running") container.addChild(new Text(theme.fg("toolOutput", hasResultSummary(entry) ? resultSummary(entry, 512) : getResultOutput(entry)), 0, 0));
 					addSessionMetadata(container, entry, theme);
 				}
-				return container;
+				return hint(container);
 			}
 			const container = new Container();
 			container.addChild(new Text(theme.fg("toolTitle", theme.bold(title)), 0, 0));
@@ -1808,7 +1810,7 @@ ${JSON.stringify(slimReceipt(receipt))}` }], details: { ...makeDetails(detachMod
 				const usage = formatUsageStats(entry.usage, entry.model);
 				if (usage) container.addChild(new Text(theme.fg("dim", usage), 0, 0));
 			}
-			return container;
+			return hint(container);
 		},
 	});
 

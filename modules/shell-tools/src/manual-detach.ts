@@ -1,38 +1,65 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 /** Interactive shortcut that moves running foreground commands/subagents to background jobs (unbound in Pi's default keymap). */
 export const DETACH_SHORTCUT = "alt+j";
-const STATUS_KEY = "foreground-detach";
+/** Last line of a running tool call the shortcut would move; the key is unbound by default, so the call itself says how. */
+export const DETACH_HINT = "Alt+J: move running command/subagent to background";
 
-type Ui = ExtensionContext["ui"];
-type Entry = { detach: () => void; ui: Ui };
+type Entry = { detach: () => void };
 
 // Shell and Subagents are separate extensions in one process: they share one registry and one shortcut registration.
 const activeKey = Symbol.for("pi-better-tools.foreground-detach.active.v1");
 const ownerKey = Symbol.for("pi-better-tools.foreground-detach.shortcut-owner.v1");
-const root = globalThis as typeof globalThis & { [activeKey]?: Map<symbol, Entry>; [ownerKey]?: object };
-const active = (root[activeKey] ??= new Map<symbol, Entry>());
+const rowsKey = Symbol.for("pi-better-tools.foreground-detach.rows.v1");
+const root = globalThis as unknown as {
+  [activeKey]?: Map<string, Entry>;
+  [ownerKey]?: object;
+  [rowsKey]?: Map<string, () => void>;
+};
+/** Tracked runs by the tool call that runs them; the id is what a rendered call can look itself up by. */
+const active = (root[activeKey] ??= new Map<string, Entry>());
+/** Last `invalidate` seen per rendered tool call, so starting or ending a run redraws its hint immediately. */
+const rows = (root[rowsKey] ??= new Map<string, () => void>());
+/** Rows are remembered per call for redraws only; bound it so long sessions cannot grow the map. */
+const MAX_ROWS = 64;
 
 const safe = (fn: () => void) => { try { fn(); } catch { /* UI hints are best effort */ } };
 
 /**
- * Registers a running foreground command/dispatch so the shortcut can detach it, and shows a status hint while any
- * is running. Returns the unregister function; call it once the work is settled or handed off.
+ * Registers a running foreground command/dispatch under its tool call, so the shortcut can detach it and the call's own
+ * render can show the hint. Returns the unregister function; call it once the work is settled or handed off.
  */
-export function trackForeground(ui: Ui, detach: () => void): () => void {
-  const id = Symbol("foreground");
-  active.set(id, { detach, ui });
-  safe(() => ui.setStatus(STATUS_KEY, "Alt+J: move running command/subagent to background"));
+export function trackForeground(toolCallId: string, detach: () => void): () => void {
+  active.set(toolCallId, { detach });
+  safe(() => rows.get(toolCallId)?.());
   return () => {
-    if (!active.delete(id)) return;
-    if (active.size === 0) safe(() => ui.setStatus(STATUS_KEY, undefined));
+    if (!active.delete(toolCallId)) return;
+    safe(() => rows.get(toolCallId)?.());
   };
+}
+
+/** Whether this tool call currently runs foreground work that the shortcut would move. */
+export const isForegroundDetachable = (toolCallId: string): boolean => active.has(toolCallId);
+
+/** Remembers how to redraw a tool row; called by the row's own render on every pass. */
+export function rememberToolRow(toolCallId: string, invalidate: () => void): void {
+  rows.delete(toolCallId);
+  rows.set(toolCallId, invalidate);
+  if (rows.size > MAX_ROWS) {
+    const oldest = rows.keys().next().value;
+    if (oldest !== undefined) rows.delete(oldest);
+  }
+}
+
+/** Drops the redraw handle once the call is finished; the hint is never shown again for it. */
+export function forgetToolRow(toolCallId: string): void {
+  rows.delete(toolCallId);
 }
 
 /** Detaches every running foreground command/dispatch; returns how many were asked to move. */
 export function detachAllForeground(): number {
   const entries = [...active.values()];
-  for (const entry of entries) entry.detach();
+  for (const entry of entries) safe(entry.detach);
   return entries.length;
 }
 

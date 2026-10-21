@@ -63,8 +63,12 @@ test('the detach shortcut moves a running foreground command to a background job
   const { manualDetach } = await childResult();
   assert.equal(manualDetach.key, 'alt+j');
   assert.match(manualDetach.idleNotice, /No running foreground/);
-  assert.match(manualDetach.statusWhileRunning, /Alt\+J/);
-  assert.equal(manualDetach.statusAfter, undefined, 'the hint is cleared once the command is detached');
+  assert.match(manualDetach.runningCallText, /Alt\+J: move running command\/subagent to background/, "the shortcut hint is the call render's last line");
+  assert.match(manualDetach.runningResultText, /Alt\+J: move running command\/subagent to background/, 'the result region carries the hint once output streams');
+  assert.equal(manualDetach.statusWhileRunning, undefined, 'the hint is no longer written to the status bar');
+  assert.equal(manualDetach.statusAfter, undefined);
+  assert.doesNotMatch(manualDetach.hintAfterDetach, /Alt\+J/, 'the hint disappears once the command is detached');
+  assert.doesNotMatch(manualDetach.resultHintAfterDetach, /Alt\+J/, 'the result region drops the hint after the handoff');
   assert.match(manualDetach.notice, /Moving 1 running foreground/);
   assert.equal(manualDetach.hasReceipt, true);
   assert.match(manualDetach.text, /at the user's request/);
