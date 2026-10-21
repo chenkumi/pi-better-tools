@@ -75,7 +75,8 @@ export function jobLaunch(lease: ReadonlyJobLease, jobId: string, intervalMs: nu
         try {
           const snapshot = lease.snapshot(jobId); sink.data(undefined, false, snapshot);
           if (signal.aborted) { close(); return; }
-          if (!['queued', 'running', 'cancelling', 'starting', 'finalizing'].includes(snapshot.status as string)) { close(); return; }
+          // Stop only at a known terminal status; a new non-terminal status keeps sampling until the Monitor's own deadline.
+          if (['completed', 'failed', 'aborted', 'cancelled', 'timed_out', 'interrupted'].includes(snapshot.status as string)) { close(); return; }
           timer = clock.set(sample, intervalMs);
         } catch { sink.fault('source_error'); close(); }
       };

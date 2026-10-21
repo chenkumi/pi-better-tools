@@ -7,6 +7,7 @@ import { consumeManagedChildGuard } from "../../shell-tools/src/managed-child.ts
 import { consumeForkChildGuard } from "./identity.ts";
 import { renderForkResult } from "./result-renderer.ts";
 import { RESULT_TYPE, acceptFork, onSessionShutdown, onSessionStart, onTurnEnd, ownedJobs, requestCancel, summarize } from "./manager.ts";
+import { publishForkMonitor } from "./monitor-capability.ts";
 
 const display = (value: unknown, max = 300) => typeof value === "string" ? stripVTControlCharacters(value.slice(0, max * 4)).replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f‪-‮⁦-⁩]/g, "").slice(0, max) : "";
 const renderers = (name: string) => ({
@@ -87,7 +88,9 @@ export default function (pi: ExtensionAPI) {
 		},
 	}));
 
-	pi.on("session_start", (_event, ctx) => { onSessionStart(pi, ctx); });
-	pi.on("session_shutdown", async event => { await onSessionShutdown(event.reason); });
+	// Readonly Monitor capability: optional, never gates Fork acceptance or delivery.
+	let revokeMonitor: (() => void) | undefined;
+	pi.on("session_start", (_event, ctx) => { onSessionStart(pi, ctx); revokeMonitor?.(); revokeMonitor = undefined; try { revokeMonitor = publishForkMonitor(ctx); } catch (error) { if (ctx.hasUI) ctx.ui.notify(`Fork monitor capability unavailable (fork_job Monitor disabled for this session): ${display(String(error), 200)}`, "warning"); } });
+	pi.on("session_shutdown", async event => { revokeMonitor?.(); revokeMonitor = undefined; await onSessionShutdown(event.reason); });
 	pi.on("turn_end", (event, ctx) => { onTurnEnd(ctx, event as never); });
 }

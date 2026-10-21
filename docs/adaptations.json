@@ -332,8 +332,8 @@
       },
       {
         "path": "modules/shell-tools/src/monitor-capability.ts",
-        "previousSha256": "50f0bab3b6f6b3db74106a61d5c23d9241ae0d2e910d2abc9b37896179f4c283",
-        "sha256": "5a0065daae4c3cdfd7a1eaea7ba1cb820dcc439bdc66203fcec7508ab19a04d3",
+        "previousSha256": "5a0065daae4c3cdfd7a1eaea7ba1cb820dcc439bdc66203fcec7508ab19a04d3",
+        "sha256": "7eacb40de5bf51a388711d3eee2e09c07065a5547102e659da2c926dd9e23cce",
         "array": "added"
       },
       {
@@ -4919,8 +4919,8 @@
     },
     {
       "path": "modules/shell-tools/src/monitor-capability.ts",
-      "sha256": "5a0065daae4c3cdfd7a1eaea7ba1cb820dcc439bdc66203fcec7508ab19a04d3",
-      "reason": "Monitor readonly generation capability and revoke."
+      "sha256": "7eacb40de5bf51a388711d3eee2e09c07065a5547102e659da2c926dd9e23cce",
+      "reason": "Monitor readonly generation capability and revoke; JobKind now also admits the Fork module's fork_job provider."
     },
     {
       "path": "modules/shell-tools/src/monitor-exec.ts",
@@ -7813,7 +7813,7 @@
         "fileAuditPreviousSha256": "0e12f4f3f69d00f98c8835461374e1446c73a6ff1acbe0a874723b86418cb8ae", "webSetupPreviousSha256": "028348ff73f954eac5193a98877ef9d1e11092066d8d098697570c5be31fa664", "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
         "fileAuditPreviousSha256": "0e12f4f3f69d00f98c8835461374e1446c73a6ff1acbe0a874723b86418cb8ae", "webSetupPreviousSha256": "028348ff73f954eac5193a98877ef9d1e11092066d8d098697570c5be31fa664", "gptSpeedCachePreviousSha256": "a253b6f6a0adffbd31e1f0b33c2178d12054d3e2464d2c829ecc731792d0f9a5",
         "fileAuditPreviousSha256": "0e12f4f3f69d00f98c8835461374e1446c73a6ff1acbe0a874723b86418cb8ae", "webSetupPreviousSha256": "028348ff73f954eac5193a98877ef9d1e11092066d8d098697570c5be31fa664", "gptSpeedCacheAdaptation": "2026-10-21 GPT Speed prompt cache lifetime: new /cache-ttl-short and /cache-ttl-long commands (no arguments) and pi-gpt-speed.cache setting (short = 30m API default, request untouched; long = prompt_cache_options.ttl 12h for provider openai on the openai-responses API only, merged into existing prompt_cache_options), independent global/trusted-project precedence, extra TUI status entry gpt-cache; speed/service_tier behavior unchanged. Unit tests (55) and the real-host probe were run; OpenAI acceptance of the field was not verified against the real service.",
-        "fileAuditPreviousSha256": "0e12f4f3f69d00f98c8835461374e1446c73a6ff1acbe0a874723b86418cb8ae", "webSetupPreviousSha256": "028348ff73f954eac5193a98877ef9d1e11092066d8d098697570c5be31fa664", "sha256": "31badd72d5ee3f3356f46055d54efa047027237cb793f6fedc7232fcc12ded6f",
+        "fileAuditPreviousSha256": "0e12f4f3f69d00f98c8835461374e1446c73a6ff1acbe0a874723b86418cb8ae", "webSetupPreviousSha256": "028348ff73f954eac5193a98877ef9d1e11092066d8d098697570c5be31fa664", "forkMonitorSource20261021PreviousSha256": "31badd72d5ee3f3356f46055d54efa047027237cb793f6fedc7232fcc12ded6f", "forkMonitorSource20261021Adaptation": "2026-10-21 Monitor row now lists five sources including the readonly fork_job.", "sha256": "5bb04c61da2a13aaf3a163c5c9c6e5e526335ee4318f9bb6aa7f4d33a4028d54",
         "piBoltFffCompat20261021PreviousSha256": "c8b06a087ec965b4557dc7b52ce2011a2fdcde45f699029dca43d87a30190f4e",
         "piBoltFffCompat20261021Adaptation": "2026-10-21 README limitation line extended with the measured Pi-Bolt facts: FFF uses the fff-node backend there (fff-bun only on the JIT build) and must not coexist with opensec-pi-fff; details in docs/compatibility.md.",
         "validationRepairAdaptation": "2026-10-10 test grouping, rg prerequisite/env and safe dependency rebuild docs.",
@@ -7918,7 +7918,7 @@
         "skillToolsAdaptation": "Align module count, validation selector and dynamic-resource opt-out invariant.",
         "dependencyUpgradePreviousSha256": "594f81ba397ed314f00ef83d88e02f1b2a34350c0b279d24ef9cba1d94780543", "fileAuditPreviousSha256": "ce546e03b4359e602c4cdea2706786bb6debd9382875ca5e3be3d7015c085398", "webToolsModes20261017Adaptation": "Web row now names the OpenAI/Gemini/Anthropic native modes and the Brave/Exa/DeepSeek REST providers, the DeepSeek pi-login credential read and the verified Anthropic multi-turn finding.", "driftReconcile20261021PreviousSha256": "dfdee1eac73019cf0a6013cc391582669aacd9718e546a435910838a80bc8b8a",
         "dependencyUpgradePreviousSha256": "594f81ba397ed314f00ef83d88e02f1b2a34350c0b279d24ef9cba1d94780543", "fileAuditPreviousSha256": "ce546e03b4359e602c4cdea2706786bb6debd9382875ca5e3be3d7015c085398", "webToolsModes20261017Adaptation": "Web row now names the OpenAI/Gemini/Anthropic native modes and the Brave/Exa/DeepSeek REST providers, the DeepSeek pi-login credential read and the verified Anthropic multi-turn finding.", "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
-        "dependencyUpgradePreviousSha256": "594f81ba397ed314f00ef83d88e02f1b2a34350c0b279d24ef9cba1d94780543", "fileAuditPreviousSha256": "ce546e03b4359e602c4cdea2706786bb6debd9382875ca5e3be3d7015c085398", "webToolsModes20261017Adaptation": "Web row now names the OpenAI/Gemini/Anthropic native modes and the Brave/Exa/DeepSeek REST providers, the DeepSeek pi-login credential read and the verified Anthropic multi-turn finding.", "forkTranscript20261021PreviousSha256": "a01d21152e3509ba07324301f6dd3340f91032a8308a8fc1474ed14a02543f43", "forkTranscript20261021Adaptation": "2026-10-21: Fork row documents the auxiliary query transcript (post-start messages only).", "sha256": "ef09d3cb13fa29ffa1109ebd65149ae3ddadf7bcad932b6ab7ecc3ca985c01b8",
+        "dependencyUpgradePreviousSha256": "594f81ba397ed314f00ef83d88e02f1b2a34350c0b279d24ef9cba1d94780543", "fileAuditPreviousSha256": "ce546e03b4359e602c4cdea2706786bb6debd9382875ca5e3be3d7015c085398", "webToolsModes20261017Adaptation": "Web row now names the OpenAI/Gemini/Anthropic native modes and the Brave/Exa/DeepSeek REST providers, the DeepSeek pi-login credential read and the verified Anthropic multi-turn finding.", "forkTranscript20261021PreviousSha256": "a01d21152e3509ba07324301f6dd3340f91032a8308a8fc1474ed14a02543f43", "forkTranscript20261021Adaptation": "2026-10-21: Fork row documents the auxiliary query transcript (post-start messages only).", "forkMonitorSource20261021PreviousSha256": "ef09d3cb13fa29ffa1109ebd65149ae3ddadf7bcad932b6ab7ecc3ca985c01b8", "forkMonitorSource20261021Adaptation": "2026-10-21 Monitor contributor rule now names the five sources and the fork_job projection limits (no task text, result output, usage or native session path; results still delivered only by fork-result).", "sha256": "ab256412e0e1c05aeb44abdcac9d4481bccf3c6940bff5ce113da955f6367a59",
         "monitorPreviousSha256": "4f7cb7f8fa477837aeeb2ff3b839b675bfb7d28b3c1ad65296d432546e78dedc",
         "piRuntimePreviousSha256": "05e16dfe5531bc7ff244feb780c5e1571f18718f073a001d73767c48133023e4",
         "previousBlackholeVendoringSha256": "602c9bd571f9ec6dc59371b9eca192203e3e4f09e55b790110ee78b07b9807e7",

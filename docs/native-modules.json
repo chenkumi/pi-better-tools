@@ -248,7 +248,9 @@
         {
           "path": "modules/skill-tools/skills/pi-tools-config/references/monitor.md",
           "standalonePreviousSha256": "033d19e473519ae47957aec146af43976f8fd4c1000201c705aa36e19a8a3327",
-          "sha256": "0c2d97047b718f8dea7592280c031cf0ea79a2a60374a199c94f7ec4b1d31a6d",
+          "forkMonitorSource20261021PreviousSha256": "0c2d97047b718f8dea7592280c031cf0ea79a2a60374a199c94f7ec4b1d31a6d",
+          "forkMonitorSource20261021Adaptation": "2026-10-21: document the readonly fork_job source next to shell_job/subagent_job.",
+          "sha256": "421d816adee6ca27ac420ae2ce0e5dfe46a732f0eea190de728aec0b2a908db7",
           "reason": "Per-invocation sources, security opt-ins, quotas and readonly job monitoring."
         },
         {
@@ -423,7 +425,9 @@
           "defectRepairPreviousSha256": "250bf1a4cae8343bc09761f6925f045a14f861235f969c4f318548cc12a73a7a",
           "monitorDefaultActivePreviousSha256": "f39d35ebb769bd6490b5d0fc42a6e7047d73f70560206c087c9a6e53a90825d6",
           "dependencyUpgradePreviousSha256": "6afb9a9768dca7f4bd0af0cb63b258595b8dc6f41fc8c81a1521004442968549",
-          "sha256": "d8fe937079cf1c0862d93994b77e0607f68d76893c52901fda51f154f4e91be5",
+          "forkMonitorSource20261021PreviousSha256": "d8fe937079cf1c0862d93994b77e0607f68d76893c52901fda51f154f4e91be5",
+          "forkMonitorSource20261021Adaptation": "2026-10-21: document the fifth source fork_job (publish/revoke on session_start/session_shutdown, bounded snapshot, live-status sampling; wakeAgent:false is the recommended pairing because fork-result already requests a parent turn).",
+          "sha256": "d6360d0cc63faaf561399895703eadad4ec4c2aa9d1fa43378b7c3c53fb1c02a",
           "reason": "Contract, limits, security and producer schema/handoff."
         },
         {
@@ -439,7 +443,9 @@
           "monitorReviewPreviousSha256": "7387daf19ec49737352811e445e9bb0e8d2bf163e02d8e81ad1a8dc462df7123",
           "monitorDefaultActivePreviousSha256": "32126a70a9e35cc081d4eb650ffeaa86eb8b7b65f0a29921212fc642aabddd19",
           "dependencyUpgradePreviousSha256": "9ff20052fcd3211b465511d8e5417677d0fed5599161fbb62f58f16f6869b728",
-          "sha256": "5805133dca77e4ea5bc6981ae5ac237943ce4ba3e218db2059733da48f448c8d",
+          "forkMonitorSource20261021PreviousSha256": "5805133dca77e4ea5bc6981ae5ac237943ce4ba3e218db2059733da48f448c8d",
+          "forkMonitorSource20261021Adaptation": "2026-10-21: monitor_start description names Shell/Subagent/Fork jobs; acquisition, pre-check and managed-child refusal unchanged.",
+          "sha256": "e30a063a36ca369bb8a53067363df142c6d8934c99674eda0d22268077515ebb",
           "reason": "2026-10-10 user-requested defaultActive:true; unchanged managed-child, selection and owner guards."
         },
         {
@@ -460,14 +466,18 @@
         },
         {
           "path": "modules/monitor/src/schema.ts",
-          "sha256": "1c3986112c27ade8c53d6aece3f8694ba2241e265bd1ee4634fc3d1a3537e86c",
+          "forkMonitorSource20261021PreviousSha256": "1c3986112c27ade8c53d6aece3f8694ba2241e265bd1ee4634fc3d1a3537e86c",
+          "forkMonitorSource20261021Adaptation": "2026-10-21: add the fork_job source literal and reuse the bounded jobId/intervalMs validation.",
+          "sha256": "55318d6985cebe1d802c2279c951e1cc0aa7d0762fe42a03372f1ba8edb549b4",
           "reason": "Strict discriminated inputs, limits/defaults."
         },
         {
           "path": "modules/monitor/src/sources.ts",
           "reliabilityFix20261020PreviousSha256": "f1fcef4e422c60641eaf0db41e7ec42e8de7e695addf2ac953eff47f5f9961da",
           "reliabilityFix20261020Adaptation": "MON-01: commandLaunch passes exitIdleMs 250 and abortGraceMs 500 so a shell that exits while a silent descendant holds the pipes settles with cleanup unconfirmed instead of staying in stopping.",
-          "sha256": "f53bb45878fda901cc9b682ba7104e5743edbd0fc52e72d6c649fefdf1670763",
+          "forkMonitorSource20261021PreviousSha256": "f53bb45878fda901cc9b682ba7104e5743edbd0fc52e72d6c649fefdf1670763",
+          "forkMonitorSource20261021Adaptation": "2026-10-21: job sampling treats the Fork-only awaiting_snapshot/blocked statuses as live, so only a terminal Fork ends the source.",
+          "sha256": "dec0374458eba78951f5306349e901b74dec88adaf456838b1efeda9cf51e0c4",
           "reason": "Four source adapters, actual close and readonly job timer ownership."
         },
         {
@@ -479,6 +489,11 @@
           "path": "modules/monitor/tests/core.test.ts",
           "sha256": "0268c391e634440693fcb5820afab313631865bb88158ce25e3a7a9d2bc1ea75",
           "reason": "Deterministic-clock limits/lifecycle/delivery/parser regressions."
+        },
+        {
+          "path": "modules/monitor/tests/fork-source.test.ts",
+          "sha256": "d0e47c45e4fa0c0109b2331574adac8c38479aaa4783bc6f0243eb51a04ee378",
+          "reason": "fork_job schema bound, live-status sampling through blocked/awaiting_snapshot, abort and missing-capability fault."
         },
         {
           "path": "modules/monitor/tests/fixtures/host.ts",
@@ -934,8 +949,9 @@
           "sqliteIntegrationPreviousSha256": "b7e8e1bf1211e64b7a670718482342594be68a29a42cfec23a4a3de51650c876",
           "sqlConnectorPreviousSha256": "14ff096a082c9739c2b7397b1befee97229c7aeec6ddeff7af099a36ac507cb5",
           "refactorPreviousSha256": "4d4712998d32838268d05b3ab922ad4755d30eeae694094eb8743e19d3bfbd2d",
-          "sha256": "83b1732b33d000f54789d2edab08d6424523ad70c9f395936b8212e8a0c037dd",
-          "deferredSharedPreviousSha256": "ad117a0d5dc3bd01c0d47a1614e35d57fcd87b4c2ac44f0ab8ed4e1900be3591"
+          "sha256": "240d12f1ba1df26c7eb1cf179978c95d55a92b3d1397662e11643d36db3f7848",
+          "deferredSharedPreviousSha256": "ad117a0d5dc3bd01c0d47a1614e35d57fcd87b4c2ac44f0ab8ed4e1900be3591",
+          "shellEditViolation20261021": "2026-10-21: cross-tool rules section documents one-off scripts and the rule-violation wording; measured size is now about 320 tokens."
         },
         {
           "path": "modules/pi-runtime/tests/recovery.test.ts",
@@ -977,12 +993,16 @@
         },
         {
           "path": "modules/pi-runtime/src/cross-tool-guidance.ts",
-          "sha256": "dba4ccab24a0dc5fd0a57200a33ed5511a57fa931119bf75c35833630afdff22",
+          "shellEditViolation20261021PreviousSha256": "dba4ccab24a0dc5fd0a57200a33ed5511a57fa931119bf75c35833630afdff22",
+          "shellEditViolation20261021Adaptation": "2026-10-21 user request: the Files and shell rule now also names one-off scripts (node -e, perl -i) and states that editing a file from the shell bypasses the edit/write version-token guard and is a rule violation.",
+          "sha256": "a2ea78ac76f7cd789ca8aa3d2bdbe71eeabcffe60aabe4dc829591fa28dd7d87",
           "reason": "2026-10-15 user-authorized: cross-module tool rules section injected by Pi Runtime (cross-tool-guidance.ts)."
         },
         {
           "path": "modules/pi-runtime/tests/cross-tool-guidance.test.ts",
-          "sha256": "e907764035a0d69bbd337b3ea3745df098e5d831101ce6bb3fd9785981a4a5f5",
+          "shellEditViolation20261021PreviousSha256": "e907764035a0d69bbd337b3ea3745df098e5d831101ce6bb3fd9785981a4a5f5",
+          "shellEditViolation20261021Adaptation": "2026-10-21: new assertion locks the shell-edit violation wording for both shell tools; other structural assertions unchanged.",
+          "sha256": "c788e03b2e1f8121c3fb821085174f3732a0f99dffa6fc92f65ad441cb72baca",
           "reason": "2026-10-15 user-authorized: cross-module tool rules section injected by Pi Runtime (cross-tool-guidance.ts)."
         }
       ]
@@ -1021,12 +1041,13 @@
           "historicalDeltaAudit": "unavailable",
           "localSnapshotReview": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
           "previousRecordedSha256": "e65e376f62d105ea5bf705a1de7c33f60d8241e38db8e35d3bb1265ccd4baa9b",
-          "sha256": "5f07219266407a82db131c633e47dfd222b829cec842908faacb35453a46a5fb",
+          "sha256": "cb6f24ee7bf49eb3cfd1a1c6630108c8ccf6921b3d654516d5df2f2eb171b37d",
           "reason": "Document defaultActive:true without config; preserve host selection, managed-child restrictions, limits and security boundaries.",
           "transcriptPreviousSha256": "ad71f5ae342cccfed01306573ef1420186022dc53ae9471c34cf1b77c7483e52",
           "transcriptAdaptation": "2026-10-21: Fork query transcript (post-start messages only, reuses the Subagent readable-log writer; auxiliary, failures only mark it unavailable).",
           "identityPromptPreviousSha256": "e73379e3812a516e1c529b6dbe6c98be63e5eef0b16aecebee3be2f080ef3c19",
-          "identityPromptAdaptation": "2026-10-21: Fork task prompt opens with an explicit background-agent identity declaration so the child does not wait for a report."
+          "identityPromptAdaptation": "2026-10-21: Fork task prompt opens with an explicit background-agent identity declaration so the child does not wait for a report.",
+          "forkMonitorSource20261021": "2026-10-21: document the readonly fork_job capability Monitor can sample (bounded status view; the result still travels only through fork-result)."
         },
         {
           "path": "modules/fork/src/args.ts",
@@ -1062,7 +1083,9 @@
         {
           "path": "modules/fork/src/index.ts",
           "forkDefaultActivePreviousSha256": "41268ad8a5d98f43f2ec57805e4f9f0d891e0f38fbd9135103da5a5eb56e80d4",
-          "sha256": "366d3386597479fb2e00258d835df14827b4acb792e168ae4992157bcbc48e8d",
+          "forkMonitorSource20261021PreviousSha256": "366d3386597479fb2e00258d835df14827b4acb792e168ae4992157bcbc48e8d",
+          "forkMonitorSource20261021Adaptation": "2026-10-21: session_start publishes the readonly fork_job capability after onSessionStart and session_shutdown revokes it before cancelling; admission, args, guards and delivery unchanged.",
+          "sha256": "0c157d0e9217ac9a8042bfa56b43efcca114d4e59cc27f449ef701cdddfdf3fc",
           "reason": "User-requested defaultActive:true for all three Fork tools; no forced activation, config changes or guard/lifecycle changes.",
           "transcriptPreviousSha256": "d53d534b9db8e33740838d498b53de3eb5093aedabc93e7fa5292576f921cf89",
           "transcriptAdaptation": "2026-10-21: Fork query transcript (post-start messages only, reuses the Subagent readable-log writer; auxiliary, failures only mark it unavailable)."
@@ -1208,6 +1231,16 @@
           "reason": "Native Fork transcript unit tests."
         },
         {
+          "path": "modules/fork/src/monitor-capability.ts",
+          "sha256": "c3e9de347800c5534a2098961dc23ba4560e610941791cc4b7125225b8ce1eb0",
+          "reason": "Bounded readonly fork_job projection (status/delivery/elapsed/cleanup/transcript/blocked only) and its session-scoped publish; no task text, result output, usage or native session path."
+        },
+        {
+          "path": "modules/fork/tests/monitor-capability.test.ts",
+          "sha256": "c1441ea53bd781db83092cc52650f1bf0cb1615dc687c876b149e228caaf6166",
+          "reason": "Projection bounds, blocked text cap, store round-trip, scope/revoke/epoch invalidation, publish-on-session_start wiring and observation-only lease."
+        },
+        {
           "path": "modules/fork/tsconfig.json",
           "sha256": "cf84803c4808ab9d2af3834851589ef6a7c78eb252cb83d5e9e5f353af4d3edc",
           "reason": "Strict typecheck configuration."
@@ -1215,6 +1248,9 @@
       ],
       "transcript20261021": {
         "scope": "Query-only Fork transcript at <cwd>/.pi/forks/<jobId>/transcript.jsonl: only messages after the task was sent, path disclosed at accept and announced in the completion notice after atomic rename; auxiliary, never affects Fork results. Verified with test:module -- fork; heavy real-host tests not run."
+      },
+      "forkMonitorSource20261021": {
+        "scope": "Monitor's fifth source kind fork_job: the Fork module publishes a readonly capability on session_start (revoked on session_shutdown), Monitor samples it, and the snapshot carries only jobId/status/cancelRequested/delivery/createdAt/startedAt/endedAt/elapsedMs plus optional cleanup, transcript{state,path} and blocked{reason<=200 chars,pending,since}. It never cancels, resumes or queries a Fork, and the Fork result still travels only through its own fork-result notice. Verified with test:module -- monitor (3/3 stages) and test:module -- fork (2/2 stages, 70 unit tests); heavy groups not run."
       }
     }
   ]

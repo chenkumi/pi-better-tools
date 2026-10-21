@@ -23,7 +23,7 @@
 
 - command：`{ kind: "command", tool: "bash"|"powershell", command }`，沿用有效 Shell 設定；PowerShell 僅原生 Windows，不是 PTY。此路徑的授權 hook 應檢查 monitor_start，不假定只封鎖 bash 就能封鎖它。
 - websocket：`{ kind: "websocket", url, allowPrivateNetwork?, allowInsecure? }`。預設公開 wss；私網與不加密 ws 分別須本次明確 opt-in，不自動降低 TLS 驗證。不要放入帳密或敏感 query。
-- shell_job／subagent_job：owned jobId 與 intervalMs（30000–300000，預設60000）；唯讀，不 query 模型、不讀 log、不取消 job。
+- shell_job／subagent_job／fork_job：owned jobId 與 intervalMs（30000–300000，預設60000）；唯讀，不 query 模型、不讀 log、不取消 job。fork_job 由 Fork 模組在 session_start publish／session_shutdown revoke，只回有界狀態（status／delivery／elapsedMs／cleanup／transcript state／blocked），不含任務全文或結果；Fork 結果仍只經 fork-result 通知。
 
 共通 durationMs 預設300000，範圍1000–1800000，包含啟動；wakeAgent 預設true，false 只顯示資料而不要求模型回合。每 owner 最多4 active。Shell 的無期限背景 job 可能自動占一個名額。
 

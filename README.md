@@ -128,7 +128,7 @@ Shell 與 Subagents 會在 `startup`／`resume`／`reload` 載入 session 時，
 | File Tools | 覆寫 `read`、`write`、`edit`、`ls` | 絕對行號、32 字元 hash、精準 literal／regex、原子寫入、diff worker；`grep/find` 不再由本模組註冊，可由 FFF override 提供 |
 | Web Tools | `web_fetch`；條件式 REST `web_search`；`/web-tools status`、`/web-tools sources` | OpenAI／Codex 原生搜尋預設啟用、無實驗開關或警告，不註冊同名 function tool；Brave／Exa 要明確設定；無登入／CAPTCHA bypass／PDF |
 | Fork | `fork`／`fork_status`／`fork_cancel`（皆預設啟用，仍受宿主工具限制） | 以獨立 Pi 行程繼承來源對話與能力接手任務，跨 session 切換仍續行，完成後只回報原 session；Fork 可用 `subagent`、不可再 Fork，所有 Subagent 不可 Fork；quit／`/reload` 取消全部；完成後以原生 `/resume` 繼續。詳見 `modules/fork/README.md`；不是 OS sandbox |
-| Monitor | `monitor_start/status/stop` | 四來源：command stdout、WS text、readonly shell_job/subagent_job；三工具預設啟用（仍受宿主工具限制），總期限預設5分鐘；不是daemon／PTY／sandbox |
+| Monitor | `monitor_start/status/stop` | 五來源：command stdout、WS text、readonly shell_job／subagent_job／fork_job；三工具預設啟用（仍受宿主工具限制），總期限預設5分鐘；不是daemon／PTY／sandbox |
 | Skill Tools | `/skill:create-plan`、`/skill:pi-tools-config` 等隨包技能 | 原生 resource discovery、按需讀取；pi-tools-config 以 SKILL.md 索引 17 份逐模組指令／config references，不修改使用者 home |
 | File Audit | `/file-audit [status\|check\|clear\|limits]` | 成功 read/write/edit/note 的近期活動；預設 4 runs／50 個不同檔案，只在手動 check 才做有 byte 上限的 provenance 檢查；不掃完整歷史、不自動刷新 hash。詳見 [File Audit](modules/file-audit/README.md) |
 | Note Tools | `note` | `{ type, content }`；自動分類、產生純時間戳檔名（`TYPE-<UTC 時間戳>.md`，不附加標題），只新增 Markdown 檔案並回報單一相對路徑，不覆寫 |

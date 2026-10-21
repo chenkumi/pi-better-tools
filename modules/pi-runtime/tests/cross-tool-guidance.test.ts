@@ -13,6 +13,14 @@ test('the general rules always appear; blocks follow the active tools', () => {
   assert.doesNotMatch(rules('bash'), /Files and shell/, 'needs edit or write');
 });
 
+test('editing a file from the shell is stated as a rule violation, not just discouraged', () => {
+  for (const shell of [rules('bash', 'write'), rules('powershell', 'edit', 'subagent', 'fork')]) {
+    assert.match(shell, /never through shell redirection, `sed`, or one-off scripts \(`node -e`, `perl -i`\)/);
+    assert.match(shell, /is a rule violation/);
+    assert.match(shell, /Use the shell for builds, tests, git and pipelines/);
+  }
+});
+
 test('delegation text names only the active delegation tools', () => {
   const both = rules('subagent', 'fork'); assert.match(both, /`subagent` for self-contained/); assert.match(both, /`fork` for long work/);
   const sub = rules('subagent'); assert.doesNotMatch(sub, /fork/);

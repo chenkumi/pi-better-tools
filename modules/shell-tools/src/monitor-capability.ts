@@ -1,7 +1,7 @@
 import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 export interface MonitorScope { sessionId: string; cwd: string }
-export type JobKind = 'shell_job' | 'subagent_job';
+export type JobKind = 'shell_job' | 'subagent_job' | 'fork_job';
 export interface ReadonlyJobLease { readonly generation: number; snapshot(jobId: string): Record<string, unknown> }
 interface Provider { kind: JobKind; scope: MonitorScope; generation: number; read: (id: string) => Record<string, unknown>; valid: () => boolean; revoked: boolean; active?: () => number }
 // Narrow capability rendezvous, not an extension factory/plugin manager. Never store executable job handles.

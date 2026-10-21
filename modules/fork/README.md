@@ -35,6 +35,10 @@
 - Metadata／結果：`<cwd>/.pi/forks/<jobId>.json`（owner-only、原子替換）：role／origin／設定指紋（工具名單雜湊，非內容）／狀態／有界結果／用量／cleanup 證據／delivery 狀態／`transcript`（路徑與狀態）／`blocked` 真相（`reason`、有界錯誤文字、`pending` 計數、`since`）。任務文字只保存 500 字預覽；不保存 credentials。載入只掃描最新 64 筆；受理新 Fork 時，最多刪除 64 筆比這更舊、已終態且不需送達（delivery 非 `pending`）的紀錄，未完成、未送達、無法解析或不屬於本模組格式的檔案一律保留。`blocked.error` 與完成後的 `result.error` 同源、同邊界、同權限，不引入新的敏感資料類別。
 - 不寫入使用者全域 settings／auth／排程資料。
 
+## Monitor 觀察（`fork_job`，唯讀）
+
+`session_start` 時在 `modules/monitor` 的 readonly capability rendezvous 上 publish 一個 `fork_job` provider（`src/monitor-capability.ts`，scope = 本 session id + canonical cwd + `state().epoch`），`session_shutdown` 先 revoke 再處理取消。`monitor_start` 傳 `{kind:"fork_job", jobId}` 即可取樣；snapshot 僅有 `jobId`、`status`、`cancelRequested`、`delivery`、`createdAt`（有值才附 `startedAt`／`endedAt`）、`elapsedMs`、可選 `cleanup`／`transcript{state,path≤400字}`／`blocked{reason≤200字,pending,since}`——**不含任務全文、result output、usage 或 native session path**，Fork 結果仍只經 `fork-result` 通知投遞。它不取消、不 resume、不查模型；`awaiting_snapshot`／`blocked` 等非終結狀態會持續取樣，terminal snapshot 送達後才結束。provider 發布失敗（例如 cwd 無法正規化、provider 容量已滿）時，互動 UI 會以警告通知，`fork_job` Monitor 該 session 停用但不影響 Fork 本身。沒有 capability（例如 Monitor 未被選取、managed child、scope 不符）時 `monitor_start` 直接拒絕，`fork_status` 仍是完整細節的來源。
+
 ## 部署與限制（CP1 實測）
 
 - 支援拓樸：Pi 1.1.0 CLI＋單一 active `AgentSessionRuntime`，且**每個 session 都載入本管理入口**。目標 session 若不載入本 extension（例如專案 package 設定將其排除），該 session 的 `/reload`／quit 不會取消 Fork；本模組不以 monkey-patch 補洞，也不暗中載入被排除的 extension。
