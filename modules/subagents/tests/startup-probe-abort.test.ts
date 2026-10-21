@@ -25,11 +25,14 @@ for (const mode of ['abort', 'deadline'] as const) test(`stalled post-close star
       if (String(args[0]).endsWith('startup.json')) { enter(); await blocked; }
       return access(...args);
     });
-    t.mock.method(childProcess, 'spawn', (_command: string, args: string[]) => {
+    t.mock.method(childProcess, 'spawn', (_command: string, args: string[], options: { env: NodeJS.ProcessEnv }) => {
       const stdout = new PassThrough(), stderr = new PassThrough();
       const proc = Object.assign(new EventEmitter(), { stdout, stderr, exitCode: null as number | null, signalCode: null, kill() { throw new Error('No live child should be killed'); } });
+      // A real child reports the cwd it was launched with, which is the guard's canonical cwd. Recomputing it here with
+      // realpathSync would disagree with the runner's fs.promises.realpath on Windows short (8.3) temp paths.
+      const childCwd = JSON.parse(String(options.env.PI_SUBAGENTS_GUARD)).cwd as string;
       setImmediate(() => {
-        stdout.write(JSON.stringify({ type: 'session', version: 3, id: args[args.indexOf('--session-id') + 1], cwd: fs.realpathSync(root) }) + '\n');
+        stdout.write(JSON.stringify({ type: 'session', version: 3, id: args[args.indexOf('--session-id') + 1], cwd: childCwd }) + '\n');
         stdout.end(); stderr.end(); proc.exitCode = 1; proc.emit('close', 1, null);
       });
       return proc;
