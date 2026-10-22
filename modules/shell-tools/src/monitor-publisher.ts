@@ -10,10 +10,12 @@ export function createShellMonitorPublisher(jobs: ShellJobs) {
     start(ctx: ExtensionContext) {
       stop();
       try {
+        const active = () => jobs.list(ctx).filter(job => job.status === 'running' || job.status === 'cancelling');
         const scope = { sessionId: ctx.sessionManager.getSessionId(), cwd: canonicalMonitorCwd(ctx.cwd) }, epoch = jobs.monitorEpoch;
         revoke = publishCapability('shell_job', scope, epoch, id => jobs.monitorSnapshot(ctx, id, scope.cwd, epoch), () => {
           try { return jobs.monitorEpoch === epoch && ctx.sessionManager.getSessionId() === scope.sessionId && canonicalMonitorCwd(ctx.cwd) === scope.cwd; } catch { return false; }
-        }, () => jobs.list(ctx).filter(job => job.status === 'running' || job.status === 'cancelling').length);
+        }, () => active().length,
+          () => active().map(job => ({ kind: 'shell_job' as const, jobId: String(job.jobId), status: String(job.status) })));
       } catch { /* Missing canonical scope makes only the optional readonly capability unavailable. */ }
     },
   };

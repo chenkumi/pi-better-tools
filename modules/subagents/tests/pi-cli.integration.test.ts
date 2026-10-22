@@ -97,7 +97,7 @@ for (const [scenario, mode, debugLog = true] of cases) {
 				else if (scenario !== "exclusion" && !isFailure) assert.equal(result.output, "done");
 				if (scenario === "exclusion") {
 					const probe = JSON.parse(result.output);
-					for (const key of ["active", "registered", "callable"]) for (const name of ["subagent", "subagent_status", "subagent_cancel", "subagent_message", "fork", "fork_status", "fork_cancel"]) assert.equal(probe[key].includes(name), false, `${key} must exclude ${name}`);
+					for (const key of ["active", "registered", "callable"]) for (const name of ["subagent", "subagent_status", "subagent_cancel", "subagent_message", "fork", "fork_status", "fork_cancel", "fork_message"]) assert.equal(probe[key].includes(name), false, `${key} must exclude ${name}`);
 				}
 				const directory = join(root, "config", "subagent-sessions", result.subagentSessionId);
 				// Failed runs retain their per-run evidence without publishing a ready transcript.

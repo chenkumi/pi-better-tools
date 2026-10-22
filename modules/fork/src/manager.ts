@@ -5,8 +5,9 @@ import { ulid } from "ulid";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { ForkJobsWidget } from "./live-widget.ts";
 import { forwardParentArgs, removeTemporary } from "./args.ts";
-import { startForkChild, type ForkChildHandle, type ForkChildOutcome, type ForkChildSpec } from "./child.ts";
+import { startForkChild, type ForkChildHandle, type ForkChildOutcome, type ForkChildSpec, type ForkMessageMode } from "./child.ts";
 import { FORK_TOOLS, forkCreationRefusal } from "./identity.ts";
+import { controlId, controlText, messageText, validateInteraction } from "../../subagents/extensions/subagent/query-snapshot.ts";
 import { writeForkSession } from "./snapshot.ts";
 import { MAX_RESULT_BYTES, isTerminal, loadRecords, pruneRecords, saveRecord, transcriptDir, type Delivery, type ForkRecord, type ForkStatus } from "./store.ts";
 import { ForkTranscript, transcriptPaths, type FinalizeOutcome } from "./transcript.ts";
@@ -14,6 +15,9 @@ import { ForkTranscript, transcriptPaths, type FinalizeOutcome } from "./transcr
 export const MAX_ACTIVE_FORKS = 4;
 export const MAX_RETAINED_FORKS = 32;
 export const MAX_TASK_BYTES = 100 * 1024;
+/** Messages a parent may send to one live Fork; receipts are memory-only and shown newest 3 by fork_status. */
+export const MAX_MESSAGES = 32;
+export const MESSAGES_SHOWN = 3;
 export const RESULT_TYPE = "fork-result";
 /** Opening words of the Fork task prompt; the identity declaration that stops the child from waiting for a report. */
 export const FORK_PROMPT_PREFIX = "You are the background Fork.";
@@ -35,7 +39,12 @@ export interface Job {
 	transcript?: ForkTranscript;
 	/** Settles once the transcript file is finalized (never rejects). Delivery and quit/reload wait for it. */
 	transcriptDone?: Promise<void>;
+	/** Memory-only receipts for fork_message; never persisted, never replayed after reload. */
+	interactions?: ForkInteraction[];
 }
+/** `applied` is confirmed only by the child's own user message arriving; acceptance is not application. */
+export interface ForkInteraction { messageId: string; mode: ForkMessageMode; status: "accepted" | "queued" | "not_applied" | "delivery_unknown" | "applied"; sentAt: string; appliedAt?: unknown; error?: string; text: string }
+export interface ForkMessageReceipt { jobId: string; forkSessionId: string; mode: ForkMessageMode; messageId: string; status: ForkInteraction["status"]; error?: string }
 type ChildHandle = ForkChildHandle;
 export interface ForkState { epoch: number; admission: boolean; jobs: Map<string, Job>; binding?: Binding; gen: number }
 
@@ -61,7 +70,11 @@ function persist(job: Job) {
 	catch (error) { job.persistError = String((error as Error)?.message ?? error).slice(0, 200); if (process.env.PI_FORK_DEBUG) process.stderr.write(`[fork ${job.record.jobId.slice(-6)}] persist failed: ${job.persistError}
 `); }
 }
-function setStatus(job: Job, status: ForkStatus) { job.record.status = status; if (isTerminal(status)) job.record.endedAt ??= new Date().toISOString(); persist(job); refreshUi(); }
+function setStatus(job: Job, status: ForkStatus) {
+	job.record.status = status;
+	if (isTerminal(status)) { job.record.endedAt ??= new Date().toISOString(); for (const interaction of job.interactions ?? []) interaction.text = ""; } // nothing can confirm a message after the end
+	persist(job); refreshUi();
+}
 
 export interface ForkReceipt { jobId: string; forkSessionId: string; status: ForkStatus; title: string; resumeHint: string; transcriptPath: string }
 
@@ -142,7 +155,7 @@ function launch(job: Job, sessionPath: string) {
 	// Auxiliary query log of the Fork’s own messages; a failure here only marks it unavailable.
 	const transcript = new ForkTranscript(transcriptDir(record.origin.cwd, record.jobId), record.jobId, record.origin.cwd, () => syncTranscript(job));
 	job.transcript = transcript;
-	spec.onMessage = message => transcript.appendMessage(message);
+	spec.onMessage = message => { markApplied(job, message); transcript.appendMessage(message); };
 	transcript.start();
 	let handle: ForkChildHandle;
 	try { handle = deps.startChild(spec, (progress, detail) => {
@@ -301,11 +314,71 @@ export function ownedJobs(ctx: ExtensionContext): Job[] {
 	return [...state().jobs.values()].filter(job => ownedBy(job.record, sessionId, cwd)).sort((a, b) => b.record.createdAt.localeCompare(a.record.createdAt));
 }
 
+/** The child's own user message is the only evidence that a message was applied to its conversation. */
+function markApplied(job: Job, message: unknown): void {
+	const value = message as Record<string, any> | null;
+	if (!value || value.role !== "user") return;
+	const id = controlId(messageText(value.content));
+	if (!id) return;
+	for (const interaction of job.interactions ?? []) {
+		// not_applied / delivery_unknown are weaker than the child's own message, so it may still upgrade them.
+		// Matched by the unique control id, not by text, so a child that trims or re-wraps the message still confirms it.
+		if (interaction.status === "applied" || interaction.messageId !== id) continue;
+		interaction.status = "applied";
+		delete interaction.error;
+		interaction.appliedAt = typeof value.timestamp === "number" ? value.timestamp : Date.now();
+		interaction.text = "";
+		return;
+	}
+}
+
+const refusal = (code: string, message: string) => Object.assign(new Error(`${code}: ${message}`), { code });
+
+/** Sends one message to a live Fork. Accepted is not applied: only the child's own user message is.
+ *  No queue, retry or replay, and never a cancellation; a non-live Fork is refused instead of buffered. */
+export async function messageFork(ctx: ExtensionContext, jobId: unknown, message: unknown, mode: unknown = "follow_up"): Promise<ForkMessageReceipt> {
+	if (typeof jobId !== "string" || !jobId) throw refusal("FORK_INVALID_ARGUMENTS", "jobId must be a complete Fork job ID");
+	if (mode !== "follow_up" && mode !== "steer") throw refusal("FORK_INVALID_ARGUMENTS", "mode must be follow_up or steer");
+	try { validateInteraction(message); } catch (error) { throw refusal("FORK_INVALID_ARGUMENTS", String((error as Error)?.message ?? error).slice(0, 200)); }
+	const job = ownedJobs(ctx).find(candidate => candidate.record.jobId === jobId);
+	if (!job) throw refusal("FORK_NOT_FOUND", "no such Fork in this conversation");
+	const status = job.record.status;
+	if (status !== "running" && status !== "blocked") throw refusal(isTerminal(status) ? "FORK_NOT_RUNNING" : "FORK_BUSY", `Fork is ${status}; a message is only accepted while it is running or blocked`);
+	const handle = job.handle;
+	if (!handle) throw refusal("FORK_NOT_RUNNING", "the Fork has no live child handle");
+	const interactions = job.interactions ??= [];
+	if (interactions.length >= MAX_MESSAGES) throw refusal("FORK_MESSAGE_CAPACITY", `at most ${MAX_MESSAGES} messages per Fork`);
+	const messageId = ulid().toUpperCase(), text = controlText(messageId, message as string);
+	const interaction: ForkInteraction = { messageId, mode, status: "accepted", sentAt: new Date().toISOString(), text };
+	interactions.push(interaction);
+	// The child's own user message can arrive before the steer response; applied evidence is never downgraded.
+	const settle = (status: ForkInteraction["status"], error?: string) => {
+		if (interaction.status !== "accepted") return;
+		interaction.status = status;
+		if (error) interaction.error = error;
+	};
+	try {
+		const disposition = await handle.steer(text, mode as ForkMessageMode);
+		if (disposition === "queued") settle("queued");
+		else if (disposition === "handled") settle("not_applied", "Child input handler consumed the message; no canonical application confirmed");
+		else settle("delivery_unknown", "Unrecognized child disposition; canonical delivery is unknown");
+	} catch (error) {
+		// Refused before anything was sent: no receipt is kept and no capacity is consumed.
+		if ((error as { code?: string })?.code === "CHILD_NOT_READY") {
+			interactions.splice(interactions.indexOf(interaction), 1);
+			throw refusal("CHILD_NOT_READY", "the Fork child has not started its task yet; nothing was sent");
+		}
+		settle("delivery_unknown", String((error as Error)?.message ?? error).slice(0, 200));
+	}
+	return { jobId: job.record.jobId, forkSessionId: job.record.forkSessionId, mode: interaction.mode, messageId, status: interaction.status, ...(interaction.error ? { error: interaction.error } : {}) };
+}
+
 export function summarize(job: Job, detail = false): Record<string, unknown> {
 	const r = job.record;
 	return { jobId: r.jobId, forkSessionId: r.forkSessionId, title: r.title, status: r.status, cancelRequested: r.cancelRequested, delivery: r.delivery, model: r.config.model, thinkingLevel: r.config.thinkingLevel,
 		createdAt: r.createdAt, ...(r.startedAt ? { startedAt: r.startedAt } : {}), ...(r.endedAt ? { endedAt: r.endedAt } : {}), ...(r.sessionPath ? { sessionPath: r.sessionPath } : {}), ...(r.transcript ? { transcript: r.transcript } : {}),
 		...(r.cleanup ? { cleanup: r.cleanup } : {}), ...(r.blocked ? { blocked: r.blocked } : {}), ...(job.released ? {} : { holdsPermit: true }), ...(job.persistError ? { persistError: job.persistError } : {}),
+		...(job.interactions?.length ? { interactions: job.interactions.slice(-MESSAGES_SHOWN).map(({ messageId, mode, status, sentAt, appliedAt, error }) => ({ messageId, mode, status, sentAt, ...(appliedAt !== undefined ? { appliedAt } : {}), ...(error ? { error } : {}) })) } : {}),
 		...(detail && r.result ? { result: r.result } : r.result ? { errorCode: r.result.errorCode, ...(r.result.usage ? { usage: r.result.usage } : {}) } : {}) };
 }
 

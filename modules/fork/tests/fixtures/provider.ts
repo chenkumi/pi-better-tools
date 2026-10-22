@@ -43,6 +43,19 @@ export default function (pi: ExtensionAPI) {
 					stream.push({ type: "toolcall_start", contentIndex: 0, partial: message });
 					stream.push({ type: "toolcall_end", contentIndex: 0, toolCall: message.content[0], partial: message });
 					message.stopReason = "toolUse";
+				} else if (!isChild && last?.role === "user" && lastUser.includes("MESSAGE_FORK")) {
+					// Lets a test inject one message into the live Fork it just created.
+					const jobId = lastUser.match(/[0-9A-HJKMNP-TV-Z]{26}/)?.[0] ?? "";
+					message.content = [{ type: "toolCall", id: "message-call-1", name: "fork_message", arguments: { jobId, message: "FOLLOWUP please finish the extra item" } }];
+					stream.push({ type: "toolcall_start", contentIndex: 0, partial: message });
+					stream.push({ type: "toolcall_end", contentIndex: 0, toolCall: message.content[0], partial: message });
+					message.stopReason = "toolUse";
+				} else if (isChild && lastUser.includes("FOLLOWUP please")) {
+					// The injected message arrived as the child's own user message: answer it, then settle.
+					message.content = [{ type: "text", text: "FORK_CHILD_FOLLOWUP" }];
+					stream.push({ type: "text_start", contentIndex: 0, partial: message });
+					stream.push({ type: "text_delta", contentIndex: 0, delta: "FORK_CHILD_FOLLOWUP", partial: message });
+					stream.push({ type: "text_end", contentIndex: 0, content: "FORK_CHILD_FOLLOWUP", partial: message });
 				} else if (scenario === "interrupted" && isChild) {
 					if (!everything.includes(INTERRUPTED_MARKER)) {
 						message.content = [{ type: "toolCall", id: "interrupted-job-1", name: "bash", arguments: { command: `node blocked-job.mjs # ${INTERRUPTED_MARKER}`, background: true } }];

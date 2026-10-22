@@ -32,6 +32,7 @@ import { buildGlobalIndexById, loadGlobalIndexById } from "../core/global-indice
 import { loadGitFileTags } from "../extract/git-status.js";
 import { collectFilesTouched } from "../extract/file-touch.js";
 import { notificationEvidenceSummary, notificationEvidenceMetadata, EVIDENCE_METADATA_KEY } from "../core/notification-evidence.js";
+import { backgroundJobsSection } from "../core/background-jobs-section.js";
 import { SUMMARY_FORMAT_KEY, summaryFormatProof, type SummaryFormatProof } from "../core/summary-format.js";
 
 export const PI_VCC_COMPACT_INSTRUCTION = "__pi_vcc__";
@@ -678,7 +679,11 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI, omRuntime: Runtime) 
     // (renderSummary([], []) always emits the OM recall footer, so the check
     // must not key off footer-inclusive omContent.)
     const evidenceSummary = notificationEvidenceSummary(nativeEvidenceEntries(branchEntries), firstKeptEntryId, preparation.previousSummary);
-    const composed = composeGeneratedParts([{ text: summary, proof: summaryProof }, { text: evidenceSummary, kind: "evidence" }, { text: omContent, kind: "om" }]);
+    // Live reminder only: never counted as content for the native-fallback check below, never carried forward.
+    let jobsSessionId: string | undefined;
+    try { jobsSessionId = ctx.sessionManager?.getSessionId?.(); } catch { jobsSessionId = undefined; }
+    const jobsSection = backgroundJobsSection(jobsSessionId, ctx.cwd ?? process.cwd());
+    const composed = composeGeneratedParts([{ text: summary, proof: summaryProof }, { text: evidenceSummary, kind: "evidence" }, { text: jobsSection, kind: "jobs" }, { text: omContent, kind: "om" }]);
     const fallbackSummary = composed.text;
     if (summary.trim().length === 0 && !omHasContent) {
       // Returning undefined delegates to Pi's native summarizer:
@@ -717,7 +722,7 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI, omRuntime: Runtime) 
         aggregateSummary.length > 0 &&
         hasCompletePreviousSummary
       ) {
-        const trailing = composeGeneratedParts([{ text: extractRecallNote(summary, summaryProof).trim(), kind: "recall" }, { text: evidenceSummary.trim(), kind: "evidence" }, { text: omContent.trim(), kind: "om" }]);
+        const trailing = composeGeneratedParts([{ text: extractRecallNote(summary, summaryProof).trim(), kind: "recall" }, { text: evidenceSummary.trim(), kind: "evidence" }, { text: jobsSection, kind: "jobs" }, { text: omContent.trim(), kind: "om" }]);
         const trailingSummary = trailing.text;
         trailingProof = trailing.proof;
         try {

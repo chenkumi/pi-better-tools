@@ -163,3 +163,30 @@ test("onMessage receives user/assistant/toolResult messages only after the task 
 	assert.deepEqual(seen.map(m => m.role), ["user", "assistant", "toolResult"]);
 	assert.equal(seen[0].content, "PROMPT");
 });
+
+test("fork_message: follow_up and steer reuse the existing RPC pipe and return the child disposition", async () => {
+	const seen: Array<[string, string]> = [], state = { n: 0 }, script = happyScript(state);
+	const { proc } = fakeProc({ onRequest(cmd, reply) {
+		if (cmd.type === "follow_up" || cmd.type === "steer") { seen.push([cmd.type, cmd.message]); reply({ disposition: cmd.type === "follow_up" ? "queued" : "handled" }); return; }
+		script.onRequest(cmd, reply);
+	} });
+	const handle = startForkChild(spec(proc));
+	ipc(proc, { type: "verified", tools: ["read"] });
+	await new Promise(r => setImmediate(r));
+	assert.equal(await handle.steer("CONTROL-A", "follow_up"), "queued");
+	assert.equal(await handle.steer("CONTROL-B", "steer"), "handled");
+	assert.deepEqual(seen, [["follow_up", "CONTROL-A"], ["steer", "CONTROL-B"]]);
+	ipc(proc, { type: "settled", quiet: true }); setImmediate(() => proc.exit(0));
+	assert.equal((await handle.done).status, "completed");
+});
+
+test("fork_message before the child started, or after its transport closed, is a coded refusal", async () => {
+	const { proc } = fakeProc(happyScript({ n: 0 }));
+	const handle = startForkChild(spec(proc));
+	await assert.rejects(() => handle.steer("EARLY", "follow_up"), /CHILD_NOT_READY/);
+	ipc(proc, { type: "verified", tools: ["read"] });
+	await new Promise(r => setImmediate(r));
+	ipc(proc, { type: "settled", quiet: true }); setImmediate(() => proc.exit(0));
+	await handle.done;
+	await assert.rejects(() => handle.steer("LATE", "follow_up"), /RPC_CLOSED/);
+});

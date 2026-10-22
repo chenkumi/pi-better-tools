@@ -43,6 +43,12 @@ test("Subagent argument builder excludes the Fork tools for new, resume and read
 	}
 });
 
+test("fork_message ships with the other Fork tools and is excluded from every child", () => {
+	assert.deepEqual([...FORK_TOOLS], ["fork", "fork_status", "fork_cancel", "fork_message"], "the tool inventory is the exclusion inventory");
+	const args = buildForkPiArgs({ sessionPath: "/s/f.jsonl", sessionDir: "/s", model: "p/m", thinkingLevel: "high", tools: ["read"], trusted: true, guardPath: "/g.ts", forwarded: [] });
+	assert.equal(args[args.indexOf("--exclude-tools") + 1], "fork,fork_status,fork_cancel,fork_message");
+});
+
 test("Fork child arguments: exact parent selection, only Fork tools excluded, subagent NOT excluded, no task text", () => {
 	const args = buildForkPiArgs({ sessionPath: "/s/f.jsonl", sessionDir: "/s", model: "p/m", thinkingLevel: "high", tools: ["read", "subagent"], trusted: true, guardPath: "/g.ts", forwarded: ["-e", "/ext.ts"] });
 	assert.equal(args[args.indexOf("--exclude-tools") + 1], FORK_TOOLS.join(","));

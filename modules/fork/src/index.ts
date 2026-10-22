@@ -6,7 +6,7 @@ import { stripVTControlCharacters } from "node:util";
 import { consumeManagedChildGuard } from "../../shell-tools/src/managed-child.ts";
 import { consumeForkChildGuard } from "./identity.ts";
 import { renderForkResult } from "./result-renderer.ts";
-import { RESULT_TYPE, acceptFork, onSessionShutdown, onSessionStart, onTurnEnd, ownedJobs, requestCancel, summarize } from "./manager.ts";
+import { RESULT_TYPE, acceptFork, messageFork, onSessionShutdown, onSessionStart, onTurnEnd, ownedJobs, requestCancel, summarize } from "./manager.ts";
 import { publishForkMonitor } from "./monitor-capability.ts";
 
 const display = (value: unknown, max = 300) => typeof value === "string" ? stripVTControlCharacters(value.slice(0, max * 4)).replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f‪-‮⁦-⁩]/g, "").slice(0, max) : "";
@@ -85,6 +85,20 @@ export default function (pi: ExtensionAPI) {
 			await requestCancel(job);
 			const summary = summarize(job);
 			return textResult(`Cancel requested for ${job.record.jobId}; status ${job.record.status}. Requested is not the same as exited.`, summary);
+		},
+	}));
+
+	pi.registerTool(defineTool({
+		name: "fork_message",
+		...renderers("fork_message"),
+		label: "Message Fork",
+		description: "Send one instruction to a Fork created from THIS conversation while it is running (or blocked). mode defaults to follow_up, which waits for the current turn; steer interrupts it and can abandon work in progress. Accepted is not applied: the receipt reports queued, not_applied or delivery_unknown, and fork_status shows applied only once the child's own conversation contains the message. A non-live Fork is refused, never queued, retried or replayed; this is not cancellation and it does not wake the parent.",
+		annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+		defaultActive: true,
+		parameters: Type.Object({ jobId: Type.String({ minLength: 1 }), message: Type.String({ minLength: 1, maxLength: 65536 }), mode: Type.Optional(Type.Union([Type.Literal("follow_up"), Type.Literal("steer")])) }, { additionalProperties: false }),
+		async execute(_id, params, _signal, _onUpdate, ctx) {
+			const receipt = await messageFork(ctx, params.jobId, params.message, params.mode ?? "follow_up");
+			return textResult(JSON.stringify(receipt), { ...receipt });
 		},
 	}));
 

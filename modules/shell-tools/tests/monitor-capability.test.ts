@@ -62,3 +62,31 @@ test('auto monitor request is scoped, replaceable, revocable and never throws', 
   revoke(); assert.equal(requestAutoMonitor(scope, 'job-4'), undefined, 'revoking the replaced starter keeps the newer one');
   revokeNew(); assert.deepEqual(seen, ['job-1']);
 });
+test('activeJobBriefs lists only owner-matching, valid providers as bounded id/status rows', async () => {
+  const { activeJobBriefs } = await import('../src/monitor-capability.js');
+  const scope = { sessionId: 'brief-owner', cwd: canonicalMonitorCwd(process.cwd()) };
+  assert.deepEqual(activeJobBriefs(scope), { briefs: [], partial: false });
+  let valid = true;
+  const revoke = publishCapability('fork_job', scope, 1, () => ({}), () => valid, undefined, () => [{ kind: 'fork_job', jobId: 'F1', status: 'blocked' }]);
+  const revokeShell = publishCapability('shell_job', scope, 1, () => ({}), () => true, undefined, () => { throw new Error('boom'); });
+  assert.deepEqual(activeJobBriefs(scope), { briefs: [{ kind: 'fork_job', jobId: 'F1', status: 'blocked' }], partial: true });
+  assert.deepEqual(activeJobBriefs({ ...scope, sessionId: 'other' }), { briefs: [], partial: false });
+  valid = false;
+  assert.deepEqual(activeJobBriefs(scope).briefs, []);
+  revoke(); revokeShell();
+});
+test('active Shell briefs carry only the job id and status, never the command', async () => {
+  const { activeJobBriefs } = await import('../src/monitor-capability.js');
+  const root = mkdtempSync(join(tmpdir(), 'monitor-shell-brief-'));
+  const jobs = new ShellJobs({ sendMessage() {} } as any), publisher = createShellMonitorPublisher(jobs);
+  const ctx: any = { cwd: root, sessionManager: { getSessionId: () => 'brief-shell-owner' } };
+  let release!: () => void, entered!: () => void; const running = new Promise<void>(r => { entered = r; });
+  jobs.start(ctx);
+  try {
+    const receipt = jobs.submit(ctx, 'bash', 'brief-call', undefined, async () => { entered(); await new Promise<void>(r => { release = r; }); return { content: [], details: undefined, structuredContent: { output: 'x', exit_code: 0 } }; }, 'echo SECRET_COMMAND_TEXT');
+    await running; publisher.start(ctx);
+    const result = activeJobBriefs({ sessionId: 'brief-shell-owner', cwd: canonicalMonitorCwd(root) });
+    assert.deepEqual(result, { briefs: [{ kind: 'shell_job', jobId: receipt.jobId, status: 'running' }], partial: false });
+    assert.equal(JSON.stringify(result).includes('SECRET_COMMAND_TEXT'), false);
+  } finally { publisher.stop(); release?.(); await jobs.shutdown(); rmSync(root, { recursive: true, force: true }); }
+});

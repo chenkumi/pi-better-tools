@@ -2128,7 +2128,9 @@
       "originalSha256": "fe2053d8a831f3fe1ac017d7f1c10f76453c558289641a0f12b2e62ce5ecd38d",
       "childShellPreviousSha256": "3a5c6fd4bce2191f6c6284df9e0bbe58fde1369e1f0650d06ea8abb35cfe0bc8",
       "childShellAdaptation": "2026-10-09 buildManagedChildEnvironment explicitly adds foreground-v1 to existing guard handshake; parent environment/argument exclusions unchanged.",
-      "sha256": "d232e311ba584c8457d3d695bcc23ec6688bdc090ae22fdfa16117d73fef3827",
+      "sha256": "d4d983b0fd9a8eddb4db9c4a7edc06d0ec7eda3cb0cb8463cefd17673ebd56a0",
+      "forkMessage20261021PreviousSha256": "d232e311ba584c8457d3d695bcc23ec6688bdc090ae22fdfa16117d73fef3827",
+      "forkMessage20261021Adaptation": "2026-10-22: child --exclude-tools also excludes fork_message so no child can message a Fork; every other flag, ordering and guard is unchanged.",
       "reason": "User-authorized resumable-only change: require managed new/resume persistence and remove --no-session fallback; retain recursion exclusion and argument precedence. 2026-10-05 async adaptation: Background RPC arguments through existing builder; synchronous JSON print unchanged; exclude all four subagent tools.",
       "previousAsyncRecordedSha256": "64d4beb867b803da3eed5c2ddd0c921e7fc25420db6c1d0c74c170b3b0c9ab14"
     },
@@ -2164,7 +2166,9 @@
     {
       "path": "modules/subagents/tests/child-args.test.ts",
       "originalSha256": "d8acdc2ffeef714abb91e37b0f7eeb73ab7cb32bcde8af4f641015efa73cd4aa",
-      "sha256": "ebd16735e385d2b5a783dcf8e74be68a2bbc7377c68b24bdc4d563c66c2fcc3b",
+      "sha256": "0b7153604a14af3ba1694203230b02e7a8abc1041df6cd8bcc7827fcf117b82d",
+      "forkMessage20261021PreviousSha256": "ebd16735e385d2b5a783dcf8e74be68a2bbc7377c68b24bdc4d563c66c2fcc3b",
+      "forkMessage20261021Adaptation": "2026-10-22: the pinned exclusion list now ends with fork_message.",
       "reason": "Require managed creation and retain recursion, model/thinking, tools and @file contract assertions. UUID→ULID preserved. User-requested duplicate removal: pseudo-mode loop only changes task filenames, not dispatch modes; exclusion/@file retained in session-store ARG-01, real dispatch-mode assertions retained in always-managed. 2026-10-05 async adaptation: User-authorized session-owned background/control/query implementation or offline regression contract adaptation; synchronous defaults and existing safety assertions retained.",
       "previousAsyncRecordedSha256": "a83d368708a12c6d840fb884e688254031dbd4972fce263eac15e88d2cf41dee"
     },
@@ -2177,7 +2181,9 @@
     {
       "path": "modules/subagents/tests/pi-cli.integration.test.ts",
       "originalSha256": "b6b7e255d9c180293d0f0db4486a6f11025d4fa920cc9f43ca32ecbf28e4bea0",
-      "sha256": "32e3b4222c0b07967f55e8ef149b5dc2fed814ad2d8b014f0df599bdeb027662",
+      "sha256": "8407b7f3dcb0b466d4360ba131c535359229071ae62a2954e9693888a3690b56",
+      "forkMessage20261021PreviousSha256": "32e3b4222c0b07967f55e8ef149b5dc2fed814ad2d8b014f0df599bdeb027662",
+      "forkMessage20261021Adaptation": "2026-10-22: the probe now also asserts the child cannot see fork_message.",
       "reason": "Merge upstream large-shell stress-case removal while retaining canonical root/transcript realpath, ready/native/lock/cleanup, retry/usage/exclusion and ULID assertions. Preserve local real-CLI model-first fallback across single/parallel/chain and unknown/unsupported/valid thinking scenarios. Removed stress coverage is not claimed as verified. 2026-10-05 async adaptation: User-authorized session-owned background/control/query implementation or offline regression contract adaptation; synchronous defaults and existing safety assertions retained.",
       "previousAsyncRecordedSha256": "f5ec8c85d1286a513b3b6054a9e0a7e3b541473dc282db68ff05960282337c4b"
     },
@@ -2201,7 +2207,9 @@
     {
       "path": "modules/subagents/tests/runner.test.ts",
       "originalSha256": "de6458f70321b5ab76c2f042a4d7b91bed32b38c75a9506a9b4a0553679af74b",
-      "sha256": "43aa5c6cc434568ed8e25368d6f477c8548b7b643be9ff70621578e46843c77b",
+      "sha256": "534d0e17ab62e350045913fba2a3d84851ce441ce38434f0a29bbaec4bb04c3d",
+      "forkMessage20261021PreviousSha256": "43aa5c6cc434568ed8e25368d6f477c8548b7b643be9ff70621578e46843c77b",
+      "forkMessage20261021Adaptation": "2026-10-22: the expected excluded-tool string now includes fork_message.",
       "reason": "Run existing protocol/timing/cancellation/progress cases through managed allocation with explicit storage substitutes; metadata now resides in managed run.json. Stalled debugLog write test: ioTimeoutMs 50→1000 so the shared managed-I/O timeout cannot fire on real disk begin-run before the injected stalled debug writer; assertions unchanged. 2026-10-05 async adaptation: User-authorized session-owned background/control/query implementation or offline regression contract adaptation; synchronous defaults and existing safety assertions retained. 2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: H1/M1-M4/L1-L4: current project-agent admission, held child permits/writer locks, process-group cancellation, rename retry, late I/O ownership and protocol accounting reviewed; intentional bounded spool/backpressure/checkpoint integrity retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: H1/M1-M4/L1-L4 preserved; additional M4 fix keeps actual FileHandle.close rejection as an ownership barrier, preserves primary/close diagnostics and structured finalize errors, observes abandon rejection immediately, and requires writerCloseConfirmed before normal release/rollback. Normal/late/late-create red-green regressions reviewed. User-authorized TUI/model notice wording now describes delegated data as not instructions and not an error label; queued/accepted presentation is neutral, statuses/schema/trust/followUp unchanged. Authorized English comparison-table messages now clarify control/query completion scope, snapshots/late usage, capacity refusal, agent search scope and per-tool progress; foreground resume/log/aborted labels and truncation hints reflect available data without changing ownership or runner outcomes. Offline resume-provider and cross renderer fixtures follow the new English checkpoint/control labels. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-15 test title says legacy confirmProjectAgents; behavior asserted unchanged.",
       "previousAsyncRecordedSha256": "63f2c4477d33f1969da5b3eaa92a20378a34f10a2f704fa7c0c8697887883a81",
       "checklistReviewPreviousSha256": "1a5ef911d71d2424dee9ac4e96f65d0b62355cd59d65db90cbe3b8a0e9b256b0",
@@ -2218,7 +2226,9 @@
       "reviewFollowupAdaptation": "2026-10-11 retained C2 actual-owned open manifest-handle fault and W1 primary/cleanup/foreign-owner red3-green3 regressions; successful-init failed-fence case is supplemental green-only.",
       "lintCleanupPreviousSha256": "386a54c09fae6c4c0f1fdafbc036db722d5aeff42c1f44a6c6fee781d1a5a051",
       "lintCleanupAdaptation": "2026-10-12 actual write/sync plus close fault matrix asserts no publish and retained ownership; fence successful undefined/reference and falsy primary/cleanup regression. Existing safety assertions unchanged.",
-      "sha256": "11a154998165145ff56d26a0224fbd1a95774b9d9270b70f5aa7320066ec3fca",
+      "sha256": "89e262dcc2e67a6165c140c72c45cdde7796dbd8ff594278de3f0c7d759f5eea",
+      "forkMessage20261021PreviousSha256": "11a154998165145ff56d26a0224fbd1a95774b9d9270b70f5aa7320066ec3fca",
+      "forkMessage20261021Adaptation": "2026-10-22: the expected excluded-tool string now includes fork_message.",
       "reason": "Replace opt-in/ephemeral argument expectations with mandatory managed new/resume; retain real checkpoint, identity, trust, lock and commit fault tests. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted. 2026-10-05 async adaptation: User-authorized session-owned background/control/query implementation or offline regression contract adaptation; synchronous defaults and existing safety assertions retained. 2026-10-08 current local snapshot review: H1/M1-M4/L1-L4: current project-agent admission, held child permits/writer locks, process-group cancellation, rename retry, late I/O ownership and protocol accounting reviewed; intentional bounded spool/backpressure/checkpoint integrity retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.\n2026-10-08 user-approved session-addressed messaging: create-only subagent, actual managed IDs at acceptance (OQ1=A), stable-session message routing to live control or guarded asynchronous continuation, explicit busy/blocked/refusal guidance, live-only query, admission and writer ownership safeguards, migrated contracts and regression fixtures. No credential/settings/history rewrite, deadline changes, unknown-delivery retry or source refresh. This records current local bytes, not unavailable historical equivalence. 2026-10-11 R6/R7: real-filesystem event/fault regressions for stale nonce replacement, owner publish and close/cleanup/foreign-owner protection.",
       "previousAsyncRecordedSha256": "92cbaa17c7cfd2a138811700d6a9c7f0bab40e04fc7cd9627384a0ca3e8511b8",
       "checklistReviewPreviousSha256": "2ed88863de09be3d4e2da092d2c04af8b2180e2e13c2ef126452183755a4ff04",
@@ -2733,7 +2743,7 @@
       "remainingTestsRepair": "Document reviewed current status-bar acceptance with missing historical contents and Low coverage limits.",
       "refactorPreviousSha256": "ef162c9619539575c44d265a5f1ec55cf9936838abc5e23abc80827c9fa863cd",
       "checkRepairPreviousSha256": "c70e7fe0417f44e2b3eb7ece57bc93813806f38562c3cdf73cc0335ed89b41f6",
-      "sha256": "ba2c60f5a6e79cebd2212526cae9782fc7811c658897152eee751c1939ad6930",
+      "sha256": "cd78350c0ec96a1a54cbb24ab9d823af8852d87489662162dc9c443d6307c5e9",
       "validationRepairAdaptation": "2026-10-10 unit/native grouping and process budgets documentation only.",
       "previousTestHarnessRepairSha256": "91ae8a69279d7ac7c8c8bcc5326b159fee8687881cf3a839e6eeeaaf30887f0c",
       "previousNotificationEvidenceReason": "Add local installation, behavior, regression and verification boundary above unchanged upstream documentation. Normalize source CRLF working-tree bytes to repository-required LF; semantic content unchanged by this normalization. Subsequent 2026-10-09 semantic adaptation: document isolated unit passive allowlist, relative-only import alias, portable fixtures, EROFS injection and worker invocation barriers.",
@@ -3165,13 +3175,13 @@
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
-      "path": "modules/blackhole/src/hooks/before-compact.ts",
+      "path": "modules/blackhole/src/hooks/before-compact.ts", "backgroundJobsPreviousSha256": "c94f3ed202d3a6b131e6e30acfc92fea986c84ec42376223feaecb336260b1ab", "backgroundJobsAdaptation": "2026-10-22 Background Jobs reminder: live id/status list from the Monitor capability rendezvous (activeJobBriefs), no commands/task text/output; generated \"jobs\" span stripped on later compactions, never carried forward.",
       "originalSha256": "ae812589f93e1c5d45c0dc5f5d6ad4c035e5a3d0ab7be951e4cd08ca19bae738",
       "notificationEvidencePreviousSha256": "910e44fc74934293e0317eb914ac4ea94976e820043ff4dae0bde915ca5337ab",
       "notificationEvidenceAdaptation": "2026-10-09 structural evidence summary and optional actual insertion span/digest/refs provenance for fallback/append trailing; verified-only carry/strip isolates heuristics. No timing/tail change or legacy compaction backfill.",
       "piOwnedSummaryMigrationPreviousSha256": "f3c4165cc250e224c14035ab73badb9d85087c906b338dc6e2de0cc446762742",
       "piOwnedSummaryMigrationAdaptation": "Public summary-only hook preserves native preparation cut/tokens and eligible edits; composition/proof, pending admission-versus-persist receipt and native fallback invalidation integration. Limited cumulative reviews, not transactional erasure.",
-      "sha256": "c94f3ed202d3a6b131e6e30acfc92fea986c84ec42376223feaecb336260b1ab",
+      "sha256": "f37281ba75e0619eabdb8fc139d95e41e3dabeda0e46868e49f0ec86ce9a11f1",
       "previousNotificationEvidenceReason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change.",
       "reason": "2026-10-09 authorized local notification-evidence consumer adaptation, beyond earlier LF import normalization; exact behavior documented in notificationEvidenceAdaptation and blackholeNotificationEvidence. Immutable original/history preserved, not an upstream-identical copy."
     },
@@ -4685,6 +4695,8 @@
     }
   ],
   "addedFiles": [
+    { "path": "modules/blackhole/src/core/background-jobs-section.ts", "sha256": "9c0db65dc6dc54201f2c58d45135971c1ed2f8c023ec882b1b66a9697264e8fb", "reason": "2026-10-22 Local addition: renders the live [Background Jobs] reminder (id/status only, 16 rows) from activeJobBriefs; failure yields no section." },
+    { "path": "modules/blackhole/tests/background-jobs-section.test.ts", "sha256": "0c2a61174ed089eecdd054dba72cdcfea0860387678df13d5c918e9308b40770", "reason": "2026-10-22 Renderer, jobs-span compose/strip/no-carry-forward, hook and append-mode regressions for the Background Jobs section." },
     { "path": "modules/pty-terminal/tests/setup-diagnostic.test.ts", "sha256": "eab570ada0e6e5c8ba90e808da7a85ece50f9629a1a503f8b8b6342f2becb903", "reason": "PLAN-20261016T150815022Z CP1: package-instance native setup diagnostic regression; no real installation." },
     { "path": "modules/pty-terminal/tests/setup.integration.test.mjs", "webSetupCp5PreviousSha256": "41f279ffd99063ae47afdaada7dab7464f758dd23f96b74e59a4617959a4b7ae", "sha256": "551e46715591c2e8859ba6bd668cc1da74703beae1188d6dee47322da22d0d03", "reason": "PLAN-20261016T150815022Z CP1: isolated setup CLI subprocess contract from arbitrary cwd. CP5 adds a read-only probe comparing the doctor executable directory with the real Playwright CLI dry-run location for a relative browser cache from a foreign cwd; no download or cache write." },
     { "path": "tests/unit/setup.test.mjs", "webSetupCp5PreviousSha256": "dc167d3fbecafbff002ca31b539640b5962e62ea654b7f22b277b33584dddea0", "sha256": "65e4a205355636bfc7de277ac1505ad7503abb1558a27774b1b2a0e0da6ee4b8", "reason": "PLAN-20261016T150815022Z CP1: parsing, dependency resolution, quoting, readonly doctor and explicit consumer approval tests. CP5 adds the caller-cwd and unmodified relative-cache contract for the installer child." },
@@ -4918,8 +4930,8 @@
       "reason": "Exact reviewed B1 wrapper fingerprint, original assertions retained; Windows8.3 alias remains blocked."
     },
     {
-      "path": "modules/shell-tools/src/monitor-capability.ts",
-      "sha256": "7eacb40de5bf51a388711d3eee2e09c07065a5547102e659da2c926dd9e23cce",
+      "path": "modules/shell-tools/src/monitor-capability.ts", "backgroundJobsPreviousSha256": "7eacb40de5bf51a388711d3eee2e09c07065a5547102e659da2c926dd9e23cce", "backgroundJobsAdaptation": "2026-10-22 Background Jobs reminder: live id/status list from the Monitor capability rendezvous (activeJobBriefs), no commands/task text/output; generated \"jobs\" span stripped on later compactions, never carried forward.",
+      "sha256": "17795530a1c7f8057ee57e8db06ce8736776f92f2787ed1efd232f54520c4550",
       "reason": "Monitor readonly generation capability and revoke; JobKind now also admits the Fork module's fork_job provider."
     },
     {
@@ -4929,21 +4941,21 @@
       "reason": "Pi1.1.0 Monitor channel/close seam reuses effective Shell resolver/environment/cancellation; ignored stdin, no legacy transport fallback."
     },
     {
-      "path": "modules/shell-tools/src/monitor-publisher.ts",
-      "sha256": "d5c7cf6c0c777b0ac9f6ee0486f179871ec49a805e79f74a8e89a60fd9af90ea",
+      "path": "modules/shell-tools/src/monitor-publisher.ts", "backgroundJobsPreviousSha256": "d5c7cf6c0c777b0ac9f6ee0486f179871ec49a805e79f74a8e89a60fd9af90ea", "backgroundJobsAdaptation": "2026-10-22 Background Jobs reminder: live id/status list from the Monitor capability rendezvous (activeJobBriefs), no commands/task text/output; generated \"jobs\" span stripped on later compactions, never carried forward.",
+      "sha256": "ca88ab1da3963b5a3e69a2c3d638887d8123f5238f2143aefbd7b7ad48c797a0",
       "monitorV1InitialSha256": "78745d7f59f904092a30c8a60a0e23c501206b5a228e4d905e23c456087d8f85",
       "monitorLifecycleCorrection": "Compose publish/revoke into existing handlers instead of overwriting existing single-handler fixture; revoke precedes shutdown await. Existing cancellation/temp-file regressions red then green, no fixture/assertion edits.",
       "reason": "Readonly Monitor capability lifecycle."
     },
     {
-      "path": "modules/subagents/extensions/subagent/monitor-capability.ts",
-      "sha256": "d04a164b4176749a4588782b5b55a38b0ae519eafd7a5aecb4ba67b8c27d9fb8",
+      "path": "modules/subagents/extensions/subagent/monitor-capability.ts", "backgroundJobsPreviousSha256": "d04a164b4176749a4588782b5b55a38b0ae519eafd7a5aecb4ba67b8c27d9fb8", "backgroundJobsAdaptation": "2026-10-22 Background Jobs reminder: live id/status list from the Monitor capability rendezvous (activeJobBriefs), no commands/task text/output; generated \"jobs\" span stripped on later compactions, never carried forward.",
+      "sha256": "9a02e5b53a8b1e59ed42921a454498640331981e3ac342d0a8adea989dbb2fb0",
       "reason": "Monitor verified provisional-safe readonly job projection, no private query answers."
     },
     {
-      "path": "modules/shell-tools/tests/monitor-capability.test.ts",
+      "path": "modules/shell-tools/tests/monitor-capability.test.ts", "backgroundJobsPreviousSha256": "d156f30e5bfed340df036cce5677d5ff46e5c1298d9312abc56aaf5b3a3a3329", "backgroundJobsAdaptation": "2026-10-22 Background Jobs reminder: live id/status list from the Monitor capability rendezvous (activeJobBriefs), no commands/task text/output; generated \"jobs\" span stripped on later compactions, never carried forward.",
       "monitorReviewPreviousSha256": "bc687fd8bad5fcd0801ebab2d778977b0a0fcaeb4e441f7779e43045d31826ea",
-      "sha256": "d156f30e5bfed340df036cce5677d5ff46e5c1298d9312abc56aaf5b3a3a3329",
+      "sha256": "319edcd02f582c9ed14b1b5d2a016aa7fc4112bf6d9f5f4d35674a5346ebdf12",
       "reason": "Monitor generation/revoke/foreign-cwd regressions."
     },
     {
@@ -4953,9 +4965,9 @@
       "reason": "Monitor stdin-transport red-green refusal regression."
     },
     {
-      "path": "modules/subagents/tests/monitor-capability.test.ts",
+      "path": "modules/subagents/tests/monitor-capability.test.ts", "backgroundJobsPreviousSha256": "ffafa1e4db6d7e383b3673b499352499039473cb98b8344096c2accd6d6639cc", "backgroundJobsAdaptation": "2026-10-22 Background Jobs reminder: live id/status list from the Monitor capability rendezvous (activeJobBriefs), no commands/task text/output; generated \"jobs\" span stripped on later compactions, never carried forward.",
       "monitorReviewPreviousSha256": "16552855bc87100f337ae8d505530246982d46353c9c57c213053e1404cf7ff7",
-      "sha256": "ffafa1e4db6d7e383b3673b499352499039473cb98b8344096c2accd6d6639cc",
+      "sha256": "c23d607142b5373f8160abca34bbd63d480b9ded902821108f05f6d1fd041104",
       "reason": "Monitor provisional cleanup/query/owner tests, existing guard fixtures unchanged."
     },
     {
@@ -5010,7 +5022,9 @@
     },
     {
       "path": "modules/subagents/tests/managed-child-shell.test.ts",
-      "sha256": "5974d2a7ac3350254a68272331c69b3e2398093752fcc2788688990818d22dc6",
+      "sha256": "bfd4d1e44f695a7722bcebfeff189bde512077ff77996a387973ccd7523406b9",
+      "forkMessage20261021PreviousSha256": "5974d2a7ac3350254a68272331c69b3e2398093752fcc2788688990818d22dc6",
+      "forkMessage20261021Adaptation": "2026-10-22: the expected excluded-tool string now includes fork_message.",
       "reason": "2026-10-09 explicit environment marker and parent environment/recursion exclusion units."
     },
     {
@@ -5523,7 +5537,9 @@
     },
     {
       "path": "modules/subagents/tests/always-managed.test.ts",
-      "sha256": "11516a8154dff5dcb5d640ad50bf52367995792522f14bb33dca52c0693386be",
+      "sha256": "017d02a30eb4423f7d66203c8a53824ff7a7a4c9a14a10ff65853056c06d47a5",
+      "forkMessage20261021PreviousSha256": "11516a8154dff5dcb5d640ad50bf52367995792522f14bb33dca52c0693386be",
+      "forkMessage20261021Adaptation": "2026-10-22: the expected excluded-tool string now includes fork_message.",
       "reason": "Track the pre-existing integration-native mandatory-managed regression suite, absent from the immutable source import list. Compare returned transcript path to the expected file realpath while retaining all identity/checkpoint/guard/lock/failure assertions. Add model/thinking fallback and schema-description regressions across dispatch modes; confirm missing saved resume model still fails without spawning. 2026-10-05 async adaptation: User-authorized session-owned background/control/query implementation or offline regression contract adaptation; synchronous defaults and existing safety assertions retained. 2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy.\n2026-10-08 user-approved session-addressed messaging: create-only subagent, actual managed IDs at acceptance (OQ1=A), stable-session message routing to live control or guarded asynchronous continuation, explicit busy/blocked/refusal guidance, live-only query, admission and writer ownership safeguards, migrated contracts and regression fixtures. No credential/settings/history rewrite, deadline changes, unknown-delivery retry or source refresh. This records current local bytes, not unavailable historical equivalence.",
       "previousAsyncRecordedSha256": "02c562c9ba2588c7193aa5c296d15674b64df62e0761c28d0329a1eb98a0edd3"
     },
@@ -6056,8 +6072,8 @@
       "reason": "Authorized test-only public session_before_compact readonly observer: clone actual authoritative preparation/branch IDs for exact assertions; no result/cancel/override/cut/settings mutation. Not a user extension, package manifest resource or personal-config dependency; copied beside temporary production probe only."
     },
     {
-      "path": "modules/blackhole/src/core/generated-summary-spans.ts",
-      "sha256": "7985ce3820e3ed2b6f7d8a1d6462e0815a023ccf6aeadb0ab6cd5a305e058095",
+      "path": "modules/blackhole/src/core/generated-summary-spans.ts", "backgroundJobsPreviousSha256": "7985ce3820e3ed2b6f7d8a1d6462e0815a023ccf6aeadb0ab6cd5a305e058095", "backgroundJobsAdaptation": "2026-10-22 Background Jobs reminder: live id/status list from the Monitor capability rendezvous (activeJobBriefs), no commands/task text/output; generated \"jobs\" span stripped on later compactions, never carried forward.",
+      "sha256": "7cc8b096bf82754158b915c043585b7619e893ff7983421286f16ac6b20c1a0d",
       "reason": "Pi-owned generated-summary identity/spans proof and mismatch bounds; only trusted generated spans carry/strip, not markdown/literal authority. Exact fixed Review4 snapshot; inherited limited core scope in blackholePiOwnedSummaryMigrationReview."
     },
     {
@@ -7813,7 +7829,7 @@
         "fileAuditPreviousSha256": "0e12f4f3f69d00f98c8835461374e1446c73a6ff1acbe0a874723b86418cb8ae", "webSetupPreviousSha256": "028348ff73f954eac5193a98877ef9d1e11092066d8d098697570c5be31fa664", "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
         "fileAuditPreviousSha256": "0e12f4f3f69d00f98c8835461374e1446c73a6ff1acbe0a874723b86418cb8ae", "webSetupPreviousSha256": "028348ff73f954eac5193a98877ef9d1e11092066d8d098697570c5be31fa664", "gptSpeedCachePreviousSha256": "a253b6f6a0adffbd31e1f0b33c2178d12054d3e2464d2c829ecc731792d0f9a5",
         "fileAuditPreviousSha256": "0e12f4f3f69d00f98c8835461374e1446c73a6ff1acbe0a874723b86418cb8ae", "webSetupPreviousSha256": "028348ff73f954eac5193a98877ef9d1e11092066d8d098697570c5be31fa664", "gptSpeedCacheAdaptation": "2026-10-21 GPT Speed prompt cache lifetime: new /cache-ttl-short and /cache-ttl-long commands (no arguments) and pi-gpt-speed.cache setting (short = 30m API default, request untouched; long = prompt_cache_options.ttl 12h for provider openai on the openai-responses API only, merged into existing prompt_cache_options), independent global/trusted-project precedence, extra TUI status entry gpt-cache; speed/service_tier behavior unchanged. Unit tests (55) and the real-host probe were run; OpenAI acceptance of the field was not verified against the real service.",
-        "fileAuditPreviousSha256": "0e12f4f3f69d00f98c8835461374e1446c73a6ff1acbe0a874723b86418cb8ae", "webSetupPreviousSha256": "028348ff73f954eac5193a98877ef9d1e11092066d8d098697570c5be31fa664", "forkMonitorSource20261021PreviousSha256": "31badd72d5ee3f3356f46055d54efa047027237cb793f6fedc7232fcc12ded6f", "forkMonitorSource20261021Adaptation": "2026-10-21 Monitor row now lists five sources including the readonly fork_job.", "sha256": "5bb04c61da2a13aaf3a163c5c9c6e5e526335ee4318f9bb6aa7f4d33a4028d54",
+        "fileAuditPreviousSha256": "0e12f4f3f69d00f98c8835461374e1446c73a6ff1acbe0a874723b86418cb8ae", "webSetupPreviousSha256": "028348ff73f954eac5193a98877ef9d1e11092066d8d098697570c5be31fa664", "forkMonitorSource20261021PreviousSha256": "31badd72d5ee3f3356f46055d54efa047027237cb793f6fedc7232fcc12ded6f", "forkMonitorSource20261021Adaptation": "2026-10-21 Monitor row now lists five sources including the readonly fork_job.", "forkMessage20261021PreviousSha256": "5bb04c61da2a13aaf3a163c5c9c6e5e526335ee4318f9bb6aa7f4d33a4028d54", "forkMessage20261021Adaptation": "2026-10-22: the Fork row also names fork_message (acceptance is not application).", "sha256": "ecaf9dcf9c751d997abe4517ed0212ba496db383eedf7b817640e8a132b35636",
         "piBoltFffCompat20261021PreviousSha256": "c8b06a087ec965b4557dc7b52ce2011a2fdcde45f699029dca43d87a30190f4e",
         "piBoltFffCompat20261021Adaptation": "2026-10-21 README limitation line extended with the measured Pi-Bolt facts: FFF uses the fff-node backend there (fff-bun only on the JIT build) and must not coexist with opensec-pi-fff; details in docs/compatibility.md.",
         "validationRepairAdaptation": "2026-10-10 test grouping, rg prerequisite/env and safe dependency rebuild docs.",
@@ -7918,7 +7934,7 @@
         "skillToolsAdaptation": "Align module count, validation selector and dynamic-resource opt-out invariant.",
         "dependencyUpgradePreviousSha256": "594f81ba397ed314f00ef83d88e02f1b2a34350c0b279d24ef9cba1d94780543", "fileAuditPreviousSha256": "ce546e03b4359e602c4cdea2706786bb6debd9382875ca5e3be3d7015c085398", "webToolsModes20261017Adaptation": "Web row now names the OpenAI/Gemini/Anthropic native modes and the Brave/Exa/DeepSeek REST providers, the DeepSeek pi-login credential read and the verified Anthropic multi-turn finding.", "driftReconcile20261021PreviousSha256": "dfdee1eac73019cf0a6013cc391582669aacd9718e546a435910838a80bc8b8a",
         "dependencyUpgradePreviousSha256": "594f81ba397ed314f00ef83d88e02f1b2a34350c0b279d24ef9cba1d94780543", "fileAuditPreviousSha256": "ce546e03b4359e602c4cdea2706786bb6debd9382875ca5e3be3d7015c085398", "webToolsModes20261017Adaptation": "Web row now names the OpenAI/Gemini/Anthropic native modes and the Brave/Exa/DeepSeek REST providers, the DeepSeek pi-login credential read and the verified Anthropic multi-turn finding.", "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
-        "dependencyUpgradePreviousSha256": "594f81ba397ed314f00ef83d88e02f1b2a34350c0b279d24ef9cba1d94780543", "fileAuditPreviousSha256": "ce546e03b4359e602c4cdea2706786bb6debd9382875ca5e3be3d7015c085398", "webToolsModes20261017Adaptation": "Web row now names the OpenAI/Gemini/Anthropic native modes and the Brave/Exa/DeepSeek REST providers, the DeepSeek pi-login credential read and the verified Anthropic multi-turn finding.", "forkTranscript20261021PreviousSha256": "a01d21152e3509ba07324301f6dd3340f91032a8308a8fc1474ed14a02543f43", "forkTranscript20261021Adaptation": "2026-10-21: Fork row documents the auxiliary query transcript (post-start messages only).", "forkMonitorSource20261021PreviousSha256": "ef09d3cb13fa29ffa1109ebd65149ae3ddadf7bcad932b6ab7ecc3ca985c01b8", "forkMonitorSource20261021Adaptation": "2026-10-21 Monitor contributor rule now names the five sources and the fork_job projection limits (no task text, result output, usage or native session path; results still delivered only by fork-result).", "sha256": "ab256412e0e1c05aeb44abdcac9d4481bccf3c6940bff5ce113da955f6367a59",
+        "dependencyUpgradePreviousSha256": "594f81ba397ed314f00ef83d88e02f1b2a34350c0b279d24ef9cba1d94780543", "fileAuditPreviousSha256": "ce546e03b4359e602c4cdea2706786bb6debd9382875ca5e3be3d7015c085398", "webToolsModes20261017Adaptation": "Web row now names the OpenAI/Gemini/Anthropic native modes and the Brave/Exa/DeepSeek REST providers, the DeepSeek pi-login credential read and the verified Anthropic multi-turn finding.", "forkTranscript20261021PreviousSha256": "a01d21152e3509ba07324301f6dd3340f91032a8308a8fc1474ed14a02543f43", "forkTranscript20261021Adaptation": "2026-10-21: Fork row documents the auxiliary query transcript (post-start messages only).", "forkMonitorSource20261021PreviousSha256": "ef09d3cb13fa29ffa1109ebd65149ae3ddadf7bcad932b6ab7ecc3ca985c01b8", "forkMonitorSource20261021Adaptation": "2026-10-21 Monitor contributor rule now names the five sources and the fork_job projection limits (no task text, result output, usage or native session path; results still delivered only by fork-result).", "forkMessage20261021PreviousSha256": "ab256412e0e1c05aeb44abdcac9d4481bccf3c6940bff5ce113da955f6367a59", "forkMessage20261021Adaptation": "2026-10-22: the Fork contributor rule now includes fork_message (running/blocked only, no queue or replay, 32 per Fork, acceptance never reported as application, receipts memory-only).", "sha256": "d0c9c1729ef0af387191b8121ebe3eba3d5c7cfe43baf4d0e82d1c33cd31aecb",
         "monitorPreviousSha256": "4f7cb7f8fa477837aeeb2ff3b839b675bfb7d28b3c1ad65296d432546e78dedc",
         "piRuntimePreviousSha256": "05e16dfe5531bc7ff244feb780c5e1571f18718f073a001d73767c48133023e4",
         "previousBlackholeVendoringSha256": "602c9bd571f9ec6dc59371b9eca192203e3e4f09e55b790110ee78b07b9807e7",

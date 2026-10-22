@@ -226,7 +226,9 @@
           "path": "modules/skill-tools/skills/pi-tools-config/references/fork.md",
           "standalonePreviousSha256": "678a2117bd9a5b789a53bae91949d033327912b67147b6d32babbacf50785ddf",
           "forkDefaultActivePreviousSha256": "44a6aa95840b3aaa282e1b4537feedc7586b128d375862a437daf64a05a19c17",
-          "sha256": "adde68378ea4bfb1020d29c8009ef7db2d18c86856da687cf7a04f62e7656210",
+          "sha256": "7b908a38f351ac69e6aebf771ebecc73552ec66d2562d75fb027024ae1912028",
+          "forkMessage20261021PreviousSha256": "adde68378ea4bfb1020d29c8009ef7db2d18c86856da687cf7a04f62e7656210",
+          "forkMessage20261021Adaptation": "2026-10-22: the Fork configuration reference also documents fork_message.",
           "reason": "User-requested default-active Fork tools without config; host selection and managed-child restrictions retained. Inherited capabilities, artifacts and lifecycle limits unchanged.",
           "transcriptPreviousSha256": "84abcb385351ba4d8f49c7843150c1c918f9babb4f44203242a778ca7d3f6d92",
           "transcriptAdaptation": "2026-10-21: Fork query transcript (post-start messages only, reuses the Subagent readable-log writer; auxiliary, failures only mark it unavailable)."
@@ -427,7 +429,9 @@
           "dependencyUpgradePreviousSha256": "6afb9a9768dca7f4bd0af0cb63b258595b8dc6f41fc8c81a1521004442968549",
           "forkMonitorSource20261021PreviousSha256": "d8fe937079cf1c0862d93994b77e0607f68d76893c52901fda51f154f4e91be5",
           "forkMonitorSource20261021Adaptation": "2026-10-21: document the fifth source fork_job (publish/revoke on session_start/session_shutdown, bounded snapshot, live-status sampling; wakeAgent:false is the recommended pairing because fork-result already requests a parent turn).",
-          "sha256": "d6360d0cc63faaf561399895703eadad4ec4c2aa9d1fa43378b7c3c53fb1c02a",
+          "sha256": "0ba3fb09f04292b3d46cf3eaa3694ebd0af5d969279d4c30786b32432b2cd20f",
+          "staleProvenanceRepair20261022PreviousSha256": "d6360d0cc63faaf561399895703eadad4ec4c2aa9d1fa43378b7c3c53fb1c02a",
+          "staleProvenanceRepair20261022": "2026-10-22: the recorded hash lagged the committed content (the last edit to this file landed after the provenance refresh in 055cca3). The bytes are the reviewed fork_job documentation; only the recorded hash is corrected here, no content change.",
           "reason": "Contract, limits, security and producer schema/handoff."
         },
         {
@@ -477,7 +481,9 @@
           "reliabilityFix20261020Adaptation": "MON-01: commandLaunch passes exitIdleMs 250 and abortGraceMs 500 so a shell that exits while a silent descendant holds the pipes settles with cleanup unconfirmed instead of staying in stopping.",
           "forkMonitorSource20261021PreviousSha256": "f53bb45878fda901cc9b682ba7104e5743edbd0fc52e72d6c649fefdf1670763",
           "forkMonitorSource20261021Adaptation": "2026-10-21: job sampling treats the Fork-only awaiting_snapshot/blocked statuses as live, so only a terminal Fork ends the source.",
-          "sha256": "dec0374458eba78951f5306349e901b74dec88adaf456838b1efeda9cf51e0c4",
+          "sha256": "cde4ebfccc7ecae9dc176b3375479daddab78842f34fa6b1163ba894023d0cc1",
+          "staleProvenanceRepair20261022PreviousSha256": "dec0374458eba78951f5306349e901b74dec88adaf456838b1efeda9cf51e0c4",
+          "staleProvenanceRepair20261022": "2026-10-22: the recorded hash lagged the committed content (a post-verification edit landed in 055cca3). The bytes are the reviewed fork_job sampling change; only the recorded hash is corrected here, no content change.",
           "reason": "Four source adapters, actual close and readonly job timer ownership."
         },
         {
@@ -492,7 +498,9 @@
         },
         {
           "path": "modules/monitor/tests/fork-source.test.ts",
-          "sha256": "d0e47c45e4fa0c0109b2331574adac8c38479aaa4783bc6f0243eb51a04ee378",
+          "sha256": "ea5b208cc1b6ac28b63fe7f11696c403db956c1a5980fab2d646be62422ea7d9",
+          "staleProvenanceRepair20261022PreviousSha256": "d0e47c45e4fa0c0109b2331574adac8c38479aaa4783bc6f0243eb51a04ee378",
+          "staleProvenanceRepair20261022": "2026-10-22: the recorded hash lagged the committed content (a post-verification edit landed in 055cca3). The bytes are the reviewed fork_job source test; only the recorded hash is corrected here, no content change.",
           "reason": "fork_job schema bound, live-status sampling through blocked/awaiting_snapshot, abort and missing-capability fault."
         },
         {
@@ -1041,7 +1049,9 @@
           "historicalDeltaAudit": "unavailable",
           "localSnapshotReview": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
           "previousRecordedSha256": "e65e376f62d105ea5bf705a1de7c33f60d8241e38db8e35d3bb1265ccd4baa9b",
-          "sha256": "cb6f24ee7bf49eb3cfd1a1c6630108c8ccf6921b3d654516d5df2f2eb171b37d",
+          "sha256": "db71d5e2018c0190338c677dd90597f856fb49e1a601bf32abc6ae963666b21b",
+          "forkMessage20261021PreviousSha256": "cb6f24ee7bf49eb3cfd1a1c6630108c8ccf6921b3d654516d5df2f2eb171b37d",
+          "forkMessage20261021Adaptation": "2026-10-22: documents fork_message (running/blocked only, follow_up default and steer opt-in, receipts and the applied upgrade, 32 per Fork, no queue/replay, acceptance never shown as progress).",
           "reason": "Document defaultActive:true without config; preserve host selection, managed-child restrictions, limits and security boundaries.",
           "transcriptPreviousSha256": "ad71f5ae342cccfed01306573ef1420186022dc53ae9471c34cf1b77c7483e52",
           "transcriptAdaptation": "2026-10-21: Fork query transcript (post-start messages only, reuses the Subagent readable-log writer; auxiliary, failures only mark it unavailable).",
@@ -1070,14 +1080,18 @@
           "historicalDeltaAudit": "unavailable",
           "localSnapshotReview": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
           "previousRecordedSha256": "7c8b2d7a3b6456270cb5c0f7b3330ca19c6fbe0701383fab818ba5d501b95509",
-          "sha256": "5dc2ebdc69944c0fa5011cd80ee3ed96932ff2742b8aae54c0780448b4df2ebb",
+          "sha256": "be8bf3cd1d6eb7417a0929d6b1024a423c4f0c82b0b212100609c4db444a3e91",
+          "forkMessage20261021PreviousSha256": "5dc2ebdc69944c0fa5011cd80ee3ed96932ff2742b8aae54c0780448b4df2ebb",
+          "forkMessage20261021Adaptation": "2026-10-22: ForkChildHandle gains steer(message, mode) over the existing RpcPipe (follow_up|steer) returning the child disposition, refusing before the task prompt (CHILD_NOT_READY) and letting RPC_CLOSED/RPC_DEADLINE propagate.",
           "reason": "Native Fork implementation.",
           "transcriptPreviousSha256": "dfdb319115c86c250a76eded59b71989e9e9339e170a3bfb0ed463227e180fa1",
           "transcriptAdaptation": "2026-10-21: Fork query transcript (post-start messages only, reuses the Subagent readable-log writer; auxiliary, failures only mark it unavailable)."
         },
         {
           "path": "modules/fork/src/identity.ts",
-          "sha256": "84dd63570a283c28bfe18cb63e1c883a43d9415fd79471a30bda60dc703e79a4",
+          "sha256": "a4335e6f1a2fa0105dbb8f699699635c7d1aaf32a574e0d693a40731eee6c426",
+          "forkMessage20261021PreviousSha256": "84dd63570a283c28bfe18cb63e1c883a43d9415fd79471a30bda60dc703e79a4",
+          "forkMessage20261021Adaptation": "2026-10-22: FORK_TOOLS now includes fork_message, so the Fork child exclusion and the tool inventory stay one list.",
           "reason": "Native Fork implementation."
         },
         {
@@ -1085,7 +1099,9 @@
           "forkDefaultActivePreviousSha256": "41268ad8a5d98f43f2ec57805e4f9f0d891e0f38fbd9135103da5a5eb56e80d4",
           "forkMonitorSource20261021PreviousSha256": "366d3386597479fb2e00258d835df14827b4acb792e168ae4992157bcbc48e8d",
           "forkMonitorSource20261021Adaptation": "2026-10-21: session_start publishes the readonly fork_job capability after onSessionStart and session_shutdown revokes it before cancelling; admission, args, guards and delivery unchanged.",
-          "sha256": "0c157d0e9217ac9a8042bfa56b43efcca114d4e59cc27f449ef701cdddfdf3fc",
+          "sha256": "074daa44c8b8e724da4880f11159cf84b2c8a62d914231e8fce9268dd1e62954",
+          "forkMessage20261021PreviousSha256": "0c157d0e9217ac9a8042bfa56b43efcca114d4e59cc27f449ef701cdddfdf3fc",
+          "forkMessage20261021Adaptation": "2026-10-22: registers fork_message beside the other Fork tools with the same definition factory; Monitor capability wiring, delivery and guards unchanged.",
           "reason": "User-requested defaultActive:true for all three Fork tools; no forced activation, config changes or guard/lifecycle changes.",
           "transcriptPreviousSha256": "d53d534b9db8e33740838d498b53de3eb5093aedabc93e7fa5292576f921cf89",
           "transcriptAdaptation": "2026-10-21: Fork query transcript (post-start messages only, reuses the Subagent readable-log writer; auxiliary, failures only mark it unavailable)."
@@ -1110,7 +1126,10 @@
           "historicalDeltaAudit": "unavailable",
           "localSnapshotReview": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
           "previousRecordedSha256": "75ec1fce9d202b2392c4bb99e7121aab794c81578847e0e8e3561936e044bbb5",
-          "sha256": "af22a81f5d663abaa1c590b031c3251728b28daeffcc9a949916f423b41d791b",
+          "sha256": "6e311c6a6b5012705ea0410982e2b5be3b2fde0fbf132a26016529e1ccf2c9e6",
+          "forkReview20261022Adaptation": "2026-10-22 review fixes: applied is matched by the control message id (not exact text) and unconfirmed control text is released when the Fork is terminal.",
+          "forkMessage20261021PreviousSha256": "af22a81f5d663abaa1c590b031c3251728b28daeffcc9a949916f423b41d791b",
+          "forkMessage20261021Adaptation": "2026-10-22: messageFork (running|blocked only, 32 per Fork, receipts in memory, no status/blocked change on acceptance), applied upgrade from the child's own matching user message, and fork_status projects the newest three receipts.",
           "reason": "Native Fork implementation.",
           "transcriptPreviousSha256": "2c840778c46605ff4c951f9f07da089649623dfb465a050b81991cb9f3355349",
           "transcriptAdaptation": "2026-10-21: Fork query transcript (post-start messages only, reuses the Subagent readable-log writer; auxiliary, failures only mark it unavailable).",
@@ -1164,21 +1183,27 @@
         },
         {
           "path": "modules/fork/tests/child.test.ts",
-          "sha256": "7da146d4ece8d52649feeab4d5d162e377ee2f6baf91f3a168aefed398be94c8",
+          "sha256": "d3e1b570a85322e6276c0faa1dd00a98dc3223768470fed490d017743b8c8e5c",
+          "forkMessage20261021PreviousSha256": "7da146d4ece8d52649feeab4d5d162e377ee2f6baf91f3a168aefed398be94c8",
+          "forkMessage20261021Adaptation": "2026-10-22: red-first tests for the steer/follow_up RPC round trip and the CHILD_NOT_READY / RPC_CLOSED refusals.",
           "reason": "Native Fork tests (unit and real-host offline integration).",
           "transcriptPreviousSha256": "4c1db9a171f3641bd62bc88e6765b89c70e738133d9f3fab7372be142c504692",
           "transcriptAdaptation": "2026-10-21: Fork query transcript (post-start messages only, reuses the Subagent readable-log writer; auxiliary, failures only mark it unavailable)."
         },
         {
           "path": "modules/fork/tests/contracts.test.ts",
-          "sha256": "5ff308b23c45345a77a8fd27887ce90478fa00fd06ef80de11e8481fa638c93e",
+          "sha256": "ff915d2bd1f772067cb9da1a20d3b15356277b18ecc855ec3cc1db52fb534bf5",
+          "forkMessage20261021PreviousSha256": "5ff308b23c45345a77a8fd27887ce90478fa00fd06ef80de11e8481fa638c93e",
+          "forkMessage20261021Adaptation": "2026-10-22: asserts the four-tool inventory and that it is exactly the list every child excludes.",
           "reason": "Native Fork tests (unit and real-host offline integration)."
         },
         {
           "path": "modules/fork/tests/fixtures/provider.ts",
           "blockedReportPreviousSha256": "4c32ca9257029fc0c3b1335a0254ef56f531936f7095d293359bc6f37fa58c0c",
           "blockedReportAdaptation": "2026-10-16: add the interrupted scenario (long background job, then a mid-stream model error) and the one-shot status prompt used by the blocked-report tests.",
-          "sha256": "ed042a07652617aca7d498584881193581774f24348887dfa991290caa04c219",
+          "sha256": "87f586ce32a302befdecea50427daf6c26c638eae3d28f3c8c33c1e748a3a1ef",
+          "forkMessage20261021PreviousSha256": "ed042a07652617aca7d498584881193581774f24348887dfa991290caa04c219",
+          "forkMessage20261021Adaptation": "2026-10-22: adds the MESSAGE_FORK parent scenario (issues fork_message) and the child branch that answers the injected FOLLOWUP, still offline and deterministic.",
           "reason": "Offline deterministic provider fixture (no network, no credentials).",
           "identityPromptPreviousSha256": "f0e4d65237512f9a1a8120854b787fa7b2289f161ef7e64b239cb88c035ec8b0",
           "identityPromptAdaptation": "2026-10-21: Fork task prompt opens with an explicit background-agent identity declaration so the child does not wait for a report."
@@ -1199,7 +1224,10 @@
           "historicalDeltaAudit": "unavailable",
           "localSnapshotReview": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
           "previousRecordedSha256": "fba0e6e36519146beab3adfc25d26d18f11ea87afba3b93e88a4efc27334e161",
-          "sha256": "de0f518e3e5662d750b60b0c2dfbae600a7b4fbe8133e71e1963e96561145149",
+          "sha256": "a0a84f3b68742d833c9199ec26b885acfbe5bfecd159e6b3142e6b3902f9695a",
+          "forkReview20261022Adaptation": "2026-10-22 review fixes: applied is matched by the control message id (not exact text) and unconfirmed control text is released when the Fork is terminal.",
+          "forkMessage20261021PreviousSha256": "de0f518e3e5662d750b60b0c2dfbae600a7b4fbe8133e71e1963e96561145149",
+          "forkMessage20261021Adaptation": "2026-10-22: fakeChild carries steered/steer; tests cover acceptance without progress, the state matrix, applied only from the child's own user message with the last three shown, and delivery_unknown on transport failure.",
           "testRaceFix20261021PreviousSha256": "442e90ba42cfc72e2c82d94b2421921c78c16ad4278d28792ad86748fbb09977",
           "testRaceFix20261021Adaptation": "2026-10-21 flush() now awaits each job's transcript whenStarted() in addition to the terminal transcriptDone promise; the 'live' assertion no longer depends on how fast the writer opens. No assertion relaxed or removed.",
           "reason": "Native Fork tests (unit and real-host offline integration).",
@@ -1212,7 +1240,9 @@
           "path": "modules/fork/tests/real-host.integration.test.ts",
           "dependencyUpgradePreviousSha256": "008cf33f06f6fea04d7a6a1ece075326ffdf1defc28dd6befdbfc1b019f2c7e0",
           "forkDefaultActivePreviousSha256": "b4f0a7497264475f06663b830e26d0f820927ea86d6d6f63c57fcbc4d516dc0d",
-          "sha256": "f27397ded4e2fe4ace56d6ca8daab6bc6e26be7915671be86b24de3b824a7a65",
+          "sha256": "4800d4e455dd02ea0c047e803ca499f07bfd17a3a10ed3b670ffadded613e5ed",
+          "forkMessage20261021PreviousSha256": "f27397ded4e2fe4ace56d6ca8daab6bc6e26be7915671be86b24de3b824a7a65",
+          "forkMessage20261021Adaptation": "2026-10-22: real fork_message round trip (queued receipt, no premature settle, result is the answer to the injected message, transcript keeps the user message) and the Fork tool inventory is read from FORK_TOOLS.",
           "testRaceFix20261021PreviousSha256": "7a8330c0f30d35f136058707a8dd4ac885dd19c76d2433eabff97f96d4f5cd19",
           "testRaceFix20261021Adaptation": "2026-10-21 the 'no leftover temp files' assertion allowed no non-json entry beside the metadata, which the documented transcript directory (<cwd>/.pi/forks/<jobId>/transcript.jsonl) now always leaves; it now requires exactly that job's directory containing only the finalized transcript and no .partial. Deterministic failure in all three pre-fix heavy rounds.",
           "forkDefaultActiveAdaptation": "Existing real-host happy path now omits --tools and defaultTools, asserts all three Fork tools are active and the child inherits exactly the parent selection minus Fork tools. Original snapshot, delivery, close and cold-resume assertions retained.",
@@ -1232,12 +1262,16 @@
         },
         {
           "path": "modules/fork/src/monitor-capability.ts",
-          "sha256": "c3e9de347800c5534a2098961dc23ba4560e610941791cc4b7125225b8ce1eb0",
+          "sha256": "6045909d3dfd997c3adf49d0554f8dace7897843cb5a15f0ddd9f3a7f91284ea",
+          "staleProvenanceRepair20261022PreviousSha256": "c3e9de347800c5534a2098961dc23ba4560e610941791cc4b7125225b8ce1eb0",
+          "staleProvenanceRepair20261022": "2026-10-22: the recorded hash lagged the committed content (a post-verification edit landed in 055cca3). The bytes are the reviewed fork_job readonly capability; only the recorded hash is corrected here, no content change.",
           "reason": "Bounded readonly fork_job projection (status/delivery/elapsed/cleanup/transcript/blocked only) and its session-scoped publish; no task text, result output, usage or native session path."
         },
         {
           "path": "modules/fork/tests/monitor-capability.test.ts",
-          "sha256": "c1441ea53bd781db83092cc52650f1bf0cb1615dc687c876b149e228caaf6166",
+          "sha256": "f3d35bd19cf2248769a70ae27e14bb32c68553c72bbed24cbdeb352a6953e92c",
+          "forkMessage20261021PreviousSha256": "c1441ea53bd781db83092cc52650f1bf0cb1615dc687c876b149e228caaf6166",
+          "forkMessage20261021Adaptation": "2026-10-22: the wiring test's registered tool list now includes fork_message.",
           "reason": "Projection bounds, blocked text cap, store round-trip, scope/revoke/epoch invalidation, publish-on-session_start wiring and observation-only lease."
         },
         {
@@ -1251,6 +1285,9 @@
       },
       "forkMonitorSource20261021": {
         "scope": "Monitor's fifth source kind fork_job: the Fork module publishes a readonly capability on session_start (revoked on session_shutdown), Monitor samples it, and the snapshot carries only jobId/status/cancelRequested/delivery/createdAt/startedAt/endedAt/elapsedMs plus optional cleanup, transcript{state,path} and blocked{reason<=200 chars,pending,since}. It never cancels, resumes or queries a Fork, and the Fork result still travels only through its own fork-result notice. Verified with test:module -- monitor (3/3 stages) and test:module -- fork (2/2 stages, 70 unit tests); heavy groups not run."
+      },
+      "forkMessage20261021": {
+        "scope": "fork_message: the parent session may append one message to a still-running Fork (running/blocked only; awaiting_snapshot, starting, finalizing, cancelling and terminal states are refused, never queued, retried or replayed; at most 32 messages per Fork). Delivery reuses the existing --mode rpc RpcPipe (follow_up waits for the turn, steer interrupts it) with the Subagent control prefix and a 64 KiB validateInteraction bound, and refuses before the task prompt (CHILD_NOT_READY). Acceptance is not application: the receipt reports the child's disposition (queued/not_applied/delivery_unknown) and only a byte-identical user message in the child's own conversation upgrades a receipt to applied, so status, cancelRequested and blocked are never changed by acceptance. Receipts stay in memory (never in metadata, never across reload); fork_status projects the newest three. It is not cancellation, does not wake the parent, and the Fork result still arrives only through fork-result. fork_message joined FORK_TOOLS and the Subagents child --exclude-tools list. Verified with test:module -- fork (2/2 stages, 77 unit tests), test:module -- subagents (3/3 stages, 438 unit + 84 integration), and the real-host fork_message integration (no premature settle, result is the answer to the injected message) which is part of the fork heavy group; the heavy groups overall were not run as a suite."
       }
     }
   ]

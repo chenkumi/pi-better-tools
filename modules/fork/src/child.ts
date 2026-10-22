@@ -52,7 +52,10 @@ export type ForkPhase = "starting" | "running" | "finalizing" | "cancelling";
 export type ForkProgress = ForkPhase | "blocked";
 export interface ForkBlockedDetail { reason: string; error?: string; pending: { shell: number; subagents: number } }
 /** `closed` settles only on a real child `close`, even after `done` reported `childClosed: false`. */
-export interface ForkChildHandle { readonly pid?: number; cancel(): Promise<void>; readonly done: Promise<ForkChildOutcome>; readonly closed?: Promise<number | null> }
+/** `steer` appends a user message to the live child's own conversation over the same RPC pipe as the task.
+ *  `follow_up` waits for the current turn, `steer` interrupts it. Accepted means the child answered the request. */
+export interface ForkChildHandle { readonly pid?: number; cancel(): Promise<void>; readonly done: Promise<ForkChildOutcome>; readonly closed?: Promise<number | null>; steer(message: string, mode: ForkMessageMode): Promise<string> }
+export type ForkMessageMode = "follow_up" | "steer";
 
 /** Argument vector for the Fork child. The task travels over RPC stdin, never on the command line. */
 export function buildForkPiArgs(spec: Pick<ForkChildSpec, "sessionPath" | "sessionDir" | "model" | "thinkingLevel" | "tools" | "trusted" | "guardPath" | "forwarded">): string[] {
@@ -205,6 +208,12 @@ export function startForkChild(spec: ForkChildSpec, onProgress: (progress: ForkP
 		get pid() { return proc.pid; },
 		done,
 		closed: closedSignal.promise.then(() => exitCode ?? null),
+		// Only after the task was sent: queuing a message before the first prompt would reorder the Fork's own task.
+		async steer(message: string, mode: ForkMessageMode) {
+			if (!promptSent) throw Object.assign(new Error("CHILD_NOT_READY: the Fork child has not started its task yet"), { code: "CHILD_NOT_READY" });
+			const response = await pipe.request(mode === "steer" ? "steer" : "follow_up", { message });
+			return typeof response?.disposition === "string" ? response.disposition : "unknown";
+		},
 		async cancel() { if (cancelled) return; cancelled = true; cancelSignal.resolve(); },
 	};
 }

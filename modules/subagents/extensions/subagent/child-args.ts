@@ -33,7 +33,7 @@ export interface SubagentPiArgsOptions {
  */
 export function buildSubagentPiArgs(options: SubagentPiArgsOptions): string[] {
 	const rpc = options.transport === "rpc";
-	const args = ["--mode", rpc ? "rpc" : "json", ...(!rpc ? ["-p"] : []), "--exclude-tools", "subagent,subagent_status,subagent_cancel,subagent_message,fork,fork_status,fork_cancel"];
+	const args = ["--mode", rpc ? "rpc" : "json", ...(!rpc ? ["-p"] : []), "--exclude-tools", "subagent,subagent_status,subagent_cancel,subagent_message,fork,fork_status,fork_cancel,fork_message"];
 	const persistence = options.persistence;
 	if (!persistence || !["new", "resume"].includes(persistence.kind)) throw new Error("Managed session persistence is required for every subagent child.");
 	args.push("--session-dir", persistence.sessionDir);

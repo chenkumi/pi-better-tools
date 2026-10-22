@@ -125,7 +125,7 @@ test("the extension publishes the Fork capability on session_start and revokes i
 	const registered: string[] = [];
 	const pi: any = { registerMessageRenderer() {}, registerTool: (tool: any) => registered.push(tool.name), on: (event: string, fn: any) => { (handlers[event] ??= []).push(fn); } };
 	forkExtension(pi);
-	assert.deepEqual(registered, ["fork", "fork_status", "fork_cancel"]);
+	assert.deepEqual(registered, ["fork", "fork_status", "fork_cancel", "fork_message"]);
 	const sm = origin(); const { ctx } = fakes(sm);
 	const scope = { sessionId: sm.getSessionId(), cwd };
 	assert.throws(() => acquireCapability("fork_job", scope), /unavailable or owner\/cwd\/generation mismatch/);
@@ -146,5 +146,18 @@ test("observing a Fork cannot cancel, resume or query it", () => {
 		assert.equal(job.record.cancelRequested, false);
 		assert.equal(job.record.status, "awaiting_snapshot");
 		assert.equal(text(forkMonitorSnapshot(ctx, jobId)).includes("cancel"), true, "the snapshot only carries the cancelRequested flag, never a cancel verb");
+	} finally { revoke(); }
+});
+
+test("active Fork briefs carry only the job id and status, and drop finished Forks", async () => {
+	const { activeJobBriefs } = await import("../../shell-tools/src/monitor-capability.ts");
+	const { sm, ctx, jobId, job } = liveFork();
+	const revoke = publishForkMonitor(ctx);
+	try {
+		const scope = { sessionId: sm.getSessionId(), cwd };
+		assert.deepEqual(activeJobBriefs(scope), { briefs: [{ kind: "fork_job", jobId, status: "awaiting_snapshot" }], partial: false });
+		assert.equal(text(activeJobBriefs(scope)).includes("SECRET_TASK_TEXT"), false);
+		job.record.status = "completed";
+		assert.deepEqual(activeJobBriefs(scope).briefs, []);
 	} finally { revoke(); }
 });

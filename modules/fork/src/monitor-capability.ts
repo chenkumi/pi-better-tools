@@ -3,6 +3,7 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { canonicalMonitorCwd, publishCapability } from "../../shell-tools/src/monitor-capability.ts";
 import { ownedJobs, state } from "./manager.ts";
+import { isTerminal } from "./store.ts";
 
 const MAX_REASON = 200;
 const bounded = (value: string, max = MAX_REASON) => value.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, "").slice(0, max);
@@ -31,5 +32,5 @@ export function publishForkMonitor(ctx: ExtensionContext): () => void {
 		try {
 			return state().epoch === epoch && ctx.sessionManager.getSessionId() === scope.sessionId && canonicalMonitorCwd(ctx.cwd) === scope.cwd;
 		} catch { return false; }
-	});
+	}, undefined, () => ownedJobs(ctx).filter(job => !isTerminal(job.record.status)).map(job => ({ kind: "fork_job" as const, jobId: job.record.jobId, status: job.record.status })));
 }

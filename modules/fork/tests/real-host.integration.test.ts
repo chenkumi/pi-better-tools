@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { watch } from "node:fs";
+import { FORK_TOOLS } from "../src/identity.ts";
 
 // Real Pi 1.1.0 CLI processes, offline deterministic provider, isolated HOME/agentDir/workspace. No real credentials.
 const here = dirname(fileURLToPath(import.meta.url));
@@ -109,8 +110,8 @@ test("real Pi: fork snapshot, independent child, report back, cold /resume stays
 		assert.ok(child.length >= 1 && root.length >= 2);
 		assert.ok(!child.some(r => r.pid === root[0].pid), "child is a separate process");
 		assert.ok(root[0].tools.includes("fork") && root[0].tools.includes("read"));
-		for (const name of ["fork", "fork_status", "fork_cancel"]) assert.ok(root[0].tools.includes(name), `${name} is active without --tools or defaultTools`);
-		assert.deepEqual([...child[0].tools].sort(), root[0].tools.filter((name: string) => !["fork", "fork_status", "fork_cancel"].includes(name)).sort(), "child inherits the exact parent selection minus Fork tools");
+		for (const name of FORK_TOOLS) assert.ok(root[0].tools.includes(name), `${name} is active without --tools or defaultTools`);
+		assert.deepEqual([...child[0].tools].sort(), root[0].tools.filter((name: string) => !(FORK_TOOLS as readonly string[]).includes(name)).sort(), "child inherits the exact parent selection minus Fork tools");
 		assert.ok(JSON.stringify(child[0].messages).includes("DO_FORK please"), "child sees the inherited conversation");
 		assert.equal(child[0].roles.at(-1), "user");
 
@@ -217,6 +218,46 @@ last events=${parent.events.slice(-12).map(e => e.type + (e.message?.customType 
 		const withNotice = files.filter(f => jsonl(f).some(e => e.type === "custom_message" && e.customType === "fork-result"));
 		assert.deepEqual(withNotice, [originFile], "only the origin journal has the notice");
 		assert.equal(metaRecords(iso.ws)[0].delivery, "observed");
+	} finally { try { parent.proc.kill("SIGKILL"); } catch { /* gone */ } await parent.exit.catch(() => undefined); rmSync(iso.root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }); }
+});
+
+test("real Pi: fork_message reaches a live Fork, which answers the injected message before reporting", { timeout: DEADLINE_MS * 2 }, async () => {
+	const iso = isolated();
+	const parent = startPi({ ...iso.env, FORK_SCENARIO: "gated" }, iso.ws, iso.sessions, [], "read,fork,fork_status,fork_message");
+	try {
+		parent.send({ id: "p1", type: "prompt", message: "DO_FORK gated" });
+		await waitForDir(iso.capture, () => capturedRequests(iso.capture).some(r => r.isChild), "gated child request");
+		await waitForDir(join(iso.ws, ".pi", "forks"), () => metaRecords(iso.ws)[0]?.status === "running", "Fork running");
+		const jobId = metaRecords(iso.ws)[0].jobId as string;
+		assert.equal(customResults(parent.events).length, 0, "a live Fork reports nothing yet");
+		parent.send({ id: "m1", type: "prompt", message: `MESSAGE_FORK ${jobId}` });
+		await parent.waitFor("fork_message receipt", events => events.some(e => e.type === "message_end" && e.message?.role === "toolResult" && e.message.toolName === "fork_message"));
+		const receipt = parent.events.find(e => e.type === "message_end" && e.message?.role === "toolResult" && e.message.toolName === "fork_message").message;
+		const receiptBody = JSON.parse(receipt.content.map((part: any) => part.text ?? "").join(""));
+		assert.equal(receiptBody.status, "queued", "the child accepted the follow-up while it was running");
+		assert.equal(receiptBody.mode, "follow_up", "the default is an orderly follow-up, not an interruption");
+		assert.equal(customResults(parent.events).length, 0, "accepting a message is not a completion");
+		assert.equal(metaRecords(iso.ws)[0].status, "running", "a message never fakes progress");
+
+		writeFileSync(join(iso.capture, "release"), "go");
+		await parent.waitFor("fork result notice", events => customResults(events).length > 0);
+		await parent.waitFor("settle after notice", events => {
+			const at = events.findIndex(e => e.type === "message_end" && e.message?.customType === "fork-result");
+			return at >= 0 && events.slice(at).some(e => e.type === "agent_settled");
+		});
+		const run = await parent.close();
+		assert.equal(run.code, 0, run.stderr);
+		const result = customResults(run.events).at(-1)!;
+		assert.equal(result.message.details.status, "completed");
+		assert.match(result.message.content, /FORK_CHILD_FOLLOWUP/, "the result is the answer to the injected message, not the earlier turn");
+		assert.equal(metaRecords(iso.ws)[0].cleanup.childClosed, true);
+
+		const childRequests = capturedRequests(iso.capture).filter(r => r.isChild);
+		const injected = childRequests.filter(r => JSON.stringify(r.messages).includes("[Delegated user control "));
+		assert.equal(injected.length, 1, "the message landed in the child's own conversation exactly once");
+		assert.ok(JSON.stringify(injected[0].messages).includes("FOLLOWUP please finish the extra item"));
+		const forkEntries = jsonl(sessionFiles(iso.sessions).find(file => file.includes(result.message.details.forkSessionId))!);
+		assert.ok(forkEntries.some(entry => entry.type === "message" && entry.message.role === "user" && JSON.stringify(entry.message.content).includes("FOLLOWUP please finish the extra item")), "the Fork conversation keeps the injected user message");
 	} finally { try { parent.proc.kill("SIGKILL"); } catch { /* gone */ } await parent.exit.catch(() => undefined); rmSync(iso.root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }); }
 });
 

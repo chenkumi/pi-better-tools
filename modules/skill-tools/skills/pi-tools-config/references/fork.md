@@ -5,11 +5,12 @@
 - `fork { task, title? }` 非同步受理，稍後於 canonical turn_end 取得對話快照。
 - `fork_status { jobId? }` 查同 owner session 工作。
 - `fork_cancel { jobId }` 要求取消，不代表實際 child close。
+- `fork_message { jobId, message, mode? }` 對 `running`／`blocked` 的 Fork 追加指示：`mode` 預設 `follow_up`（等目前回合），`steer` 打斷目前回合；其他狀態直接拒絕，不排隊不重播，每 Fork 上限 32。回傳 receipt：`queued`／`not_applied`／`delivery_unknown` 都**不代表已套用**，只有 child 自己收到該文字才算 `applied`。
 - 共用 `/background-jobs fork` 看 TUI 清單；完成的原生對話可用 Pi `/resume` 載入，執行中不要當 live attach 使用。
 
 ## Config 與作用範圍
 
-**沒有專屬 JSON config 鍵。** 三工具均 `defaultActive: true`，載入 extension 後預設啟用，不需新增 config。宿主的 `--tools` allowlist、`--exclude-tools`、`--no-tools` 與手動停用仍優先；Subagent／Fork child 仍不註冊這三個工具。
+**沒有專屬 JSON config 鍵。** 四個工具均 `defaultActive: true`，載入 extension 後預設啟用，不需新增 config。宿主的 `--tools` allowlist、`--exclude-tools`、`--no-tools` 與手動停用仍優先；Subagent／Fork child 仍不註冊這四個工具。
 
 Fork 繼承 parent 有效 cwd、model／thinking、工具與資源，工具參數不提供這些 override。它與 Subagent 的乾淨 context 不同，不會建立 git worktree、同步 parent 後續訊息或合併檔案。
 

@@ -29,7 +29,9 @@ export function subagentMonitorSnapshot(jobs: BackgroundJobs, id: string, owner:
 }
 export function publishSubagentMonitor(jobs: BackgroundJobs, ctx: ExtensionContext): () => void {
   const scope = { sessionId: ctx.sessionManager.getSessionId(), cwd: canonicalMonitorCwd(ctx.cwd) }, epoch = jobs.epoch;
+  const active = () => jobs.list(scope.sessionId, scope.cwd).filter(job => job.status === 'queued' || job.status === 'running');
   return publishCapability('subagent_job', scope, epoch, id => subagentMonitorSnapshot(jobs, id, scope.sessionId, scope.cwd), () => {
     try { return jobs.epoch === epoch && ctx.sessionManager.getSessionId() === scope.sessionId && canonicalMonitorCwd(ctx.cwd) === scope.cwd; } catch { return false; }
-  }, () => jobs.list(scope.sessionId, scope.cwd).filter(job => job.status === 'queued' || job.status === 'running').length);
+  }, () => active().length,
+  () => active().map(job => ({ kind: 'subagent_job' as const, jobId: job.jobId, status: job.status })));
 }

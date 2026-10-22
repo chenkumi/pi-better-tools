@@ -10,6 +10,6 @@ test("every managed launch environment explicitly binds foreground Shell to its 
   assert.deepEqual(JSON.parse(env.PI_SUBAGENTS_GUARD), { ...expected, shellMode: "foreground-v1" });
   assert.equal(process.env.PI_SUBAGENTS_GUARD, undefined, "parent environment is not mutated");
   const rpc = childArgs.buildSubagentPiArgs({ persistence: { kind: "resume", sessionDir: "/managed", sessionFile: "/managed/native" }, transport: "rpc", guardPath: "/guard", taskPath: "" });
-  assert.equal(rpc[rpc.indexOf("--exclude-tools") + 1], "subagent,subagent_status,subagent_cancel,subagent_message,fork,fork_status,fork_cancel");
+  assert.equal(rpc[rpc.indexOf("--exclude-tools") + 1], "subagent,subagent_status,subagent_cancel,subagent_message,fork,fork_status,fork_cancel,fork_message");
   assert.ok(rpc.includes("/guard"));
 });

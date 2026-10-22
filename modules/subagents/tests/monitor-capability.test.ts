@@ -42,3 +42,16 @@ test('review adapter W1: positive Subagent job snapshot fences cwd/owner/epoch a
     release(); await cleanup; jobs.start(); assert.throws(() => subagentMonitorSnapshot(jobs, receipt.jobId, scope.sessionId, cwd), /NOT_FOUND/);
   } finally { revoke?.(); release?.(); await jobs.shutdown(); rmSync(root, { recursive: true, force: true }); rmSync(foreign, { recursive: true, force: true }); }
 });
+test('active Subagent briefs carry only the job id and status while the job is unfinished', async () => {
+  const { activeJobBriefs } = await import('../../shell-tools/src/monitor-capability.ts');
+  const root = mkdtempSync(join(tmpdir(), 'monitor-subagent-brief-')), cwd = canonicalMonitorCwd(root), jobs = new BackgroundJobs(() => {});
+  let release!: () => void, entered!: () => void; const running = new Promise<void>(r => { entered = r; });
+  const ctx: any = { cwd: root, sessionManager: { getSessionId: () => 'brief-owner' } }; let revoke: (() => void) | undefined;
+  try {
+    const receipt = jobs.submit('brief-owner', cwd, jobs.epoch, ['worker'], async () => { entered(); await new Promise<void>(r => { release = r; }); });
+    await running; revoke = publishSubagentMonitor(jobs, ctx);
+    assert.deepEqual(activeJobBriefs({ sessionId: 'brief-owner', cwd }), { briefs: [{ kind: 'subagent_job', jobId: receipt.jobId, status: 'running' }], partial: false });
+    release(); await new Promise(r => setTimeout(r, 20));
+    assert.deepEqual(activeJobBriefs({ sessionId: 'brief-owner', cwd }).briefs, []);
+  } finally { revoke?.(); release?.(); await jobs.shutdown(); rmSync(root, { recursive: true, force: true }); }
+});

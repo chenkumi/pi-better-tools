@@ -6,7 +6,7 @@ import test, { afterEach, beforeEach } from "node:test";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { ForkChildOutcome, ForkChildSpec } from "../src/child.ts";
 import { FORK_MARKER_TYPE } from "../src/identity.ts";
-import { acceptFork, activeCount, cancelAll, deliver, deps, onSessionShutdown, onSessionStart, onTurnEnd, ownedJobs, requestCancel, state } from "../src/manager.ts";
+import { acceptFork, activeCount, cancelAll, deliver, deps, onSessionShutdown, onSessionStart, onTurnEnd, ownedJobs, requestCancel, state, summarize } from "../src/manager.ts";
 import { loadRecords, pruneRecords, saveRecord, transcriptDir } from "../src/store.ts";
 
 let root: string, cwd: string, sessions: string;
@@ -40,17 +40,26 @@ function fakes(sm: SessionManager, extra: { tools?: string[]; inline?: string[] 
 }
 /** Fake child: completes only when the test calls finish(). */
 function fakeChild() {
-	const specs: ForkChildSpec[] = []; const handles: Array<{ finish(o: Partial<ForkChildOutcome>): void; cancelled: boolean }> = [];
-	deps.startChild = ((spec: ForkChildSpec) => {
+	const specs: ForkChildSpec[] = []; const handles: Array<{ finish(o: Partial<ForkChildOutcome>): void; cancelled: boolean; steered: Array<[string, string]>; steerMode: "queued" | "handled" | "throw" | "notReady"; onSteer?: (text: string) => void; steer(text: string, mode: string): Promise<string> }> = [];
+	const phases: Array<(progress: string) => void> = [];
+	deps.startChild = ((spec: ForkChildSpec, onPhase: (progress: string) => void) => {
 		specs.push(spec);
 		let resolve!: (o: ForkChildOutcome) => void; const done = new Promise<ForkChildOutcome>(r => { resolve = r; });
-		const handle = { cancelled: false, finish: (o: Partial<ForkChildOutcome>) => resolve({ status: "completed", output: "RESULT_TEXT", childClosed: true, stderrTail: "", ...o }) };
+		const handle = { cancelled: false, steered: [] as Array<[string, string]>, steerMode: "queued" as "queued" | "handled" | "throw" | "notReady", onSteer: undefined as ((text: string) => void) | undefined, finish: (o: Partial<ForkChildOutcome>) => resolve({ status: "completed", output: "RESULT_TEXT", childClosed: true, stderrTail: "", ...o }),
+			async steer(text: string, mode: string) {
+				if (handle.steerMode === "notReady") throw Object.assign(new Error("CHILD_NOT_READY: the Fork child has not started its task yet"), { code: "CHILD_NOT_READY" });
+				if (handle.steerMode === "throw") throw new Error("RPC_DEADLINE: steer response not received");
+				handle.steered.push([mode, text]); handle.onSteer?.(text); return handle.steerMode;
+			} };
 		handles.push(handle);
-		return { pid: 1, done, async cancel() { handle.cancelled = true; handle.finish({ status: "cancelled", output: undefined }); } };
+		phases.push(onPhase);
+		return { pid: 1, done, async steer(text: string, mode: string) { return handle.steer(text, mode); }, async cancel() { handle.cancelled = true; handle.finish({ status: "cancelled", output: undefined }); } };
 	}) as never;
-	return { specs, handles };
+	return { specs, handles, phases };
 }
 const flush = async () => { await new Promise(resolve => setImmediate(resolve)); await Promise.all([...state().jobs.values()].flatMap(job => [job.transcript?.whenStarted() ?? Promise.resolve(), job.transcriptDone ?? Promise.resolve()])); await new Promise(resolve => setImmediate(resolve)); };
+/** Receipts of the messages sent to one Fork, as fork_status would show them (newest last). */
+const interactions = (job: unknown): any[] => (((summarize(job as never) as any).interactions ?? []) as any[]);
 
 test("accept refuses Fork/Subagent identities, capacity, shutdown, inline tools and unpersisted sessions", () => {
 	const sm = origin(); const { ctx, pi } = fakes(sm);
@@ -399,6 +408,154 @@ test("a Fork that never started reports its transcript as unavailable; an orphan
 	onSessionStart(A.pi, A.ctx);
 	const orphan = state().jobs.get(id)!;
 	assert.equal(orphan.record.status, "interrupted"); assert.equal(orphan.record.transcript?.state, "unavailable"); assert.match(orphan.record.transcript!.error!, /partial log may remain/);
+});
+
+test("fork_message accepts only a live Fork, prefixes the control and never changes the status", async () => {
+	const { messageFork } = await import("../src/manager.ts") as any;
+	const sm = origin(); const { ctx, pi } = fakes(sm); const { handles, phases } = fakeChild();
+	onSessionStart(pi, ctx);
+	const receipt = acceptFork(pi, ctx, { task: "do work", title: "M" }); addResult(sm); onTurnEnd(ctx, {});
+	phases[0]!("running");
+	const sent = await messageFork(ctx, receipt.jobId, "also check X", "follow_up");
+	assert.equal(sent.jobId, receipt.jobId);
+	assert.match(sent.messageId, /^[0-9A-HJKMNP-TV-Z]{26}$/);
+	assert.equal(sent.status, "queued"); assert.equal(sent.mode, "follow_up");
+	assert.deepEqual(handles[0]!.steered, [["follow_up", `[Delegated user control ${sent.messageId}]\nalso check X`]]);
+	const job = state().jobs.get(receipt.jobId)!;
+	assert.equal(job.record.status, "running", "acceptance is not progress");
+	assert.equal(job.record.cancelRequested, false, "a message is not a cancellation");
+	assert.equal(interactions(job).at(-1).status, "queued");
+	await flush();
+});
+
+test("fork_message refuses every non-live state, foreign owners, invalid text and its own capacity", async () => {
+	const { messageFork } = await import("../src/manager.ts") as any;
+	const sm = origin(); const { ctx, pi } = fakes(sm); const { handles, phases } = fakeChild();
+	onSessionStart(pi, ctx);
+	const receipt = acceptFork(pi, ctx, { task: "do work" }); addResult(sm); onTurnEnd(ctx, {});
+	const job = state().jobs.get(receipt.jobId)!;
+	for (const status of ["starting", "awaiting_snapshot", "finalizing", "cancelling", "cancelled", "completed", "failed", "interrupted"] as const) {
+		job.record.status = status;
+		await assert.rejects(() => messageFork(ctx, receipt.jobId, "x"), /FORK_(BUSY|NOT_RUNNING)/, status);
+	}
+	job.record.status = "running";
+	await assert.rejects(() => messageFork({ cwd: ctx.cwd, sessionManager: { getSessionId: () => "other-session" } }, receipt.jobId, "x"), /FORK_NOT_FOUND/);
+	await assert.rejects(() => messageFork({ ...ctx, cwd: join(cwd, "elsewhere") }, receipt.jobId, "x"), /FORK_NOT_FOUND/);
+	await assert.rejects(() => messageFork(ctx, "01M5F9ZE13PVTBF3N91GXAJDMG", "x"), /FORK_NOT_FOUND/);
+	await assert.rejects(() => messageFork(ctx, receipt.jobId, "   "), /FORK_INVALID_ARGUMENTS/);
+	await assert.rejects(() => messageFork(ctx, receipt.jobId, "x".repeat(70 * 1024)), /FORK_INVALID_ARGUMENTS/);
+	assert.equal(handles[0]!.steered.length, 0, "no rejected message reaches the child");
+	for (let i = 0; i < 32; i++) await messageFork(ctx, receipt.jobId, `m${i}`);
+	await assert.rejects(() => messageFork(ctx, receipt.jobId, "overflow"), /FORK_MESSAGE_CAPACITY/);
+	assert.equal(handles[0]!.steered.length, 32);
+	await flush();
+});
+
+test("a message becomes applied only when the child's own user message arrives, and fork_status shows the last 3", async () => {
+	const { messageFork } = await import("../src/manager.ts") as any;
+	const sm = origin(); const { ctx, pi } = fakes(sm); const { specs, phases } = fakeChild();
+	onSessionStart(pi, ctx);
+	const receipt = acceptFork(pi, ctx, { task: "do work" }); addResult(sm); onTurnEnd(ctx, {}); phases[0]!("running");
+	const job = state().jobs.get(receipt.jobId)!;
+	const sent = await messageFork(ctx, receipt.jobId, "check X");
+	const control = `[Delegated user control ${sent.messageId}]\ncheck X`;
+	specs[0]!.onMessage!({ role: "assistant", content: [{ type: "text", text: "working" }] });
+	assert.equal(interactions(job).at(-1).status, "queued", "an assistant message is not the control");
+	specs[0]!.onMessage!({ role: "user", content: [{ type: "text", text: control }], timestamp: 1234567890 });
+	const applied = interactions(job).at(-1);
+	assert.equal(applied.status, "applied"); assert.equal(applied.appliedAt, 1234567890);
+	for (const text of ["a", "b", "c", "d"]) await messageFork(ctx, receipt.jobId, text);
+	const shown = interactions(job);
+	assert.equal(shown.length, 3, "fork_status shows only the last 3");
+	assert.deepEqual(shown.map(item => item.status), ["queued", "queued", "queued"]);
+	await flush();
+});
+
+test("a message whose transport failed is delivery_unknown, never applied or queued", async () => {
+	const { messageFork } = await import("../src/manager.ts") as any;
+	const sm = origin(); const { ctx, pi } = fakes(sm); const { handles, phases } = fakeChild();
+	onSessionStart(pi, ctx);
+	const receipt = acceptFork(pi, ctx, { task: "do work" }); addResult(sm); onTurnEnd(ctx, {}); phases[0]!("running");
+	const job = state().jobs.get(receipt.jobId)!;
+	handles[0]!.steerMode = "throw";
+	const sent = await messageFork(ctx, receipt.jobId, "lost");
+	assert.equal(sent.status, "delivery_unknown");
+	assert.match(sent.error, /RPC_DEADLINE/);
+	assert.equal(interactions(job).at(-1).status, "delivery_unknown");
+	handles[0]!.steerMode = "handled";
+	assert.equal((await messageFork(ctx, receipt.jobId, "consumed")).status, "not_applied");
+	await flush();
+});
+
+test("the child's user message arriving before the steer response is not overwritten by the disposition", async () => {
+	const { messageFork } = await import("../src/manager.ts") as any;
+	const sm = origin(); const { ctx, pi } = fakes(sm); const { specs, handles, phases } = fakeChild();
+	onSessionStart(pi, ctx);
+	const receipt = acceptFork(pi, ctx, { task: "do work" }); addResult(sm); onTurnEnd(ctx, {}); phases[0]!("running");
+	const job = state().jobs.get(receipt.jobId)!;
+	handles[0]!.onSteer = text => specs[0]!.onMessage!({ role: "user", content: text, timestamp: 42 });
+	const sent = await messageFork(ctx, receipt.jobId, "early");
+	assert.equal(interactions(job).at(-1).status, "applied", "applied evidence is never downgraded");
+	assert.equal(sent.status, "applied");
+	await flush();
+});
+
+test("a later user message upgrades not_applied and delivery_unknown receipts", async () => {
+	const { messageFork } = await import("../src/manager.ts") as any;
+	const sm = origin(); const { ctx, pi } = fakes(sm); const { specs, handles, phases } = fakeChild();
+	onSessionStart(pi, ctx);
+	const receipt = acceptFork(pi, ctx, { task: "do work" }); addResult(sm); onTurnEnd(ctx, {}); phases[0]!("running");
+	const job = state().jobs.get(receipt.jobId)!;
+	handles[0]!.steerMode = "handled";
+	const handled = await messageFork(ctx, receipt.jobId, "consumed");
+	handles[0]!.steerMode = "throw";
+	const lost = await messageFork(ctx, receipt.jobId, "lost");
+	assert.deepEqual([handled.status, lost.status], ["not_applied", "delivery_unknown"]);
+	for (const [id, text] of [[handled.messageId, "consumed"], [lost.messageId, "lost"]]) specs[0]!.onMessage!({ role: "user", content: `[Delegated user control ${id}]\n${text}` });
+	assert.deepEqual(job.interactions!.map(item => item.status), ["applied", "applied"]);
+	await flush();
+});
+
+test("applied matches the control message id even when the child's text differs in whitespace", async () => {
+	const { messageFork } = await import("../src/manager.ts") as any;
+	const sm = origin(); const { ctx, pi } = fakes(sm); const { specs, phases } = fakeChild();
+	onSessionStart(pi, ctx);
+	const receipt = acceptFork(pi, ctx, { task: "do work" }); addResult(sm); onTurnEnd(ctx, {}); phases[0]!("running");
+	const job = state().jobs.get(receipt.jobId)!;
+	const sent = await messageFork(ctx, receipt.jobId, "check X\n\nplease");
+	specs[0]!.onMessage!({ role: "user", content: [{ type: "text", text: `[Delegated user control ${sent.messageId}]\ncheck X\n\nplease\n` }] });
+	assert.equal(interactions(job).at(-1).status, "applied");
+	const other = await messageFork(ctx, receipt.jobId, "second");
+	specs[0]!.onMessage!({ role: "user", content: `[Delegated user control ${sent.messageId}]\nsecond` });
+	assert.equal(job.interactions!.find(item => item.messageId === other.messageId)!.status, "queued", "another message's id must not apply it");
+	await flush();
+});
+
+test("unconfirmed control text is released once the Fork is terminal", async () => {
+	const { messageFork } = await import("../src/manager.ts") as any;
+	const sm = origin(); const { ctx, pi } = fakes(sm); const { handles, phases } = fakeChild();
+	onSessionStart(pi, ctx);
+	const receipt = acceptFork(pi, ctx, { task: "do work" }); addResult(sm); onTurnEnd(ctx, {}); phases[0]!("running");
+	const job = state().jobs.get(receipt.jobId)!;
+	handles[0]!.steerMode = "handled";
+	await messageFork(ctx, receipt.jobId, "x".repeat(1000));
+	assert.ok(job.interactions![0]!.text.length > 1000);
+	handles[0]!.finish({});
+	await flush();
+	assert.equal(job.record.status, "completed");
+	assert.deepEqual(job.interactions!.map(item => item.text), [""]);
+});
+
+test("a definite CHILD_NOT_READY refusal is thrown and consumes no message slot", async () => {
+	const { messageFork } = await import("../src/manager.ts") as any;
+	const sm = origin(); const { ctx, pi } = fakes(sm); const { handles, phases } = fakeChild();
+	onSessionStart(pi, ctx);
+	const receipt = acceptFork(pi, ctx, { task: "do work" }); addResult(sm); onTurnEnd(ctx, {}); phases[0]!("running");
+	const job = state().jobs.get(receipt.jobId)!;
+	handles[0]!.steerMode = "notReady";
+	for (let i = 0; i < 40; i++) await assert.rejects(() => messageFork(ctx, receipt.jobId, `n${i}`), /CHILD_NOT_READY/);
+	assert.equal(job.interactions?.length ?? 0, 0);
+	await flush();
 });
 
 test("pruning a record also removes its transcript directory", () => {
