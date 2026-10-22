@@ -11,6 +11,10 @@ const TOOL = "json_output";
 const PREFIX = "pi-json-schema:";
 const FALLBACK_TIMEOUT_MS = 60_000;
 
+/** The text blocks of an assistant message, joined by newlines. */
+const textOf = (content: Array<{ type: string; text?: string }>) =>
+  content.filter((block) => block.type === "text").map((block) => block.text ?? "").join("\n");
+
 /**
  * Structured output for non-interactive runs.
  *   --json-schema <json>   schema (root must be an object); activates the feature
@@ -136,7 +140,7 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
       return;
     }
     if (message.content.some((block) => block.type === "toolCall")) return;
-    lastText = message.content.filter((block) => block.type === "text").map((block) => block.text ?? "").join("\n");
+    lastText = textOf(message.content);
     suppressedContent.push(clone(message.content) as unknown[]);
     // The host prints the final assistant text to stdout; a structured-output run keeps that stream free of prose
     // (it carries only the JSON result in stdout mode).
@@ -201,10 +205,8 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
         return undefined;
       }
     }
-    const text = (reply.content as Array<{ type: string; text?: string }>).filter((block) => block.type === "text").map((block) => block.text ?? "").join("\n");
-    const candidates = extractJsonCandidates(text);
     let reason: string | undefined = "no JSON found in the extraction response";
-    for (const candidate of candidates) {
+    for (const candidate of extractJsonCandidates(textOf(reply.content as Array<{ type: string; text?: string }>))) {
       reason = await schema!.validate(candidate.value);
       if (reason === undefined) return candidate.value;
     }

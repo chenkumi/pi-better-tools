@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { validationPool } from "./validation-pool.ts";
 export { VALIDATION_BUDGET_MS } from "./validation-pool.ts";
 import { assertSafeSchemaPattern } from "./pattern-policy.ts";
-import { toZodSchema } from "./validation-schema.mjs";
+import { childSchemas, formatIssues, SUBSCHEMA_LIST, toZodSchema } from "./validation-schema.mjs";
 
 import type { ZodType } from "zod";
 
@@ -38,11 +38,6 @@ const TYPE_SPECIFIC_KEYWORDS = new Set([
   "items", "prefixItems", "minItems", "maxItems", "uniqueItems", "contains", "minContains", "maxContains",
   "properties", "required", "additionalProperties", "patternProperties", "propertyNames", "minProperties", "maxProperties",
 ]);
-
-/** Keywords whose values are a single subschema, a subschema list, or a name -> subschema map. */
-const SUBSCHEMA = new Set(["items", "additionalItems", "additionalProperties", "contains", "propertyNames"]);
-const SUBSCHEMA_LIST = new Set(["allOf", "anyOf", "oneOf", "prefixItems"]);
-const SUBSCHEMA_MAP = new Set(["properties", "patternProperties", "$defs", "definitions"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -91,28 +86,19 @@ function audit(node: unknown, path: string): void {
   const anchored = "type" in node || "$ref" in node || "enum" in node || "const" in node;
   if (constrains && !anchored) throw new Error(`"${constrains}" at ${path} needs an explicit "type" (it would be ignored otherwise)`);
 
-  for (const [keyword, value] of Object.entries(node)) {
-    // draft-07 tuple form: `items` may be an array of subschemas.
-    if (SUBSCHEMA.has(keyword)) {
-      if (Array.isArray(value)) value.forEach((child, index) => audit(child, `${path}/${keyword}/${index}`));
-      else audit(value, `${path}/${keyword}`);
-    }
-    else if (SUBSCHEMA_LIST.has(keyword) && Array.isArray(value)) value.forEach((child, index) => audit(child, `${path}/${keyword}/${index}`));
-    else if (SUBSCHEMA_MAP.has(keyword) && isRecord(value)) for (const [name, child] of Object.entries(value)) audit(child, `${path}/${keyword}/${name}`);
-  }
+  for (const [child, suffix] of childSchemas(node)) audit(child, `${path}/${suffix}`);
 }
 
 /** Detect patterns only in schema positions (not annotation/default/enum data). */
 function usesPattern(node: unknown): boolean {
   if (!isRecord(node)) return false;
   if ("pattern" in node || "patternProperties" in node) return true;
-  for (const [key, value] of Object.entries(node)) {
-    if (SUBSCHEMA.has(key) && (Array.isArray(value) ? value.some(usesPattern) : usesPattern(value))) return true;
-    if (SUBSCHEMA_LIST.has(key) && Array.isArray(value) && value.some(usesPattern)) return true;
-    if (SUBSCHEMA_MAP.has(key) && isRecord(value) && Object.values(value).some(usesPattern)) return true;
-  }
+  for (const [child] of childSchemas(node)) if (usesPattern(child)) return true;
   return false;
 }
+
+/** The expansion budget reaches `$defs`/`definitions` only through `$ref`, as Zod's converter does. */
+const EXPANDED_MAPS: ReadonlySet<string> = new Set(["properties", "patternProperties"]);
 
 /** Bound acyclic reference/branch expansion before Zod compilation AND host tool registration.
  * Cyclic edges are counted once per active path: this is a schema structural budget,
@@ -135,13 +121,7 @@ function admitExpandedSchema(root: Record<string, unknown>): void {
       const target = parts.length === 0 ? root : isRecord(definitions) && Object.hasOwn(definitions, parts[1]) ? definitions[parts[1]] : undefined;
       visit(target, depth + 1);
     }
-    for (const [key, value] of Object.entries(node)) {
-      if (SUBSCHEMA.has(key)) {
-        if (Array.isArray(value)) value.forEach(child => visit(child, depth + 1));
-        else visit(value, depth + 1);
-      } else if (SUBSCHEMA_LIST.has(key) && Array.isArray(value)) value.forEach(child => visit(child, depth + 1));
-      else if ((key === "properties" || key === "patternProperties") && isRecord(value)) Object.values(value).forEach(child => visit(child, depth + 1));
-    }
+    for (const [child] of childSchemas(node, EXPANDED_MAPS)) visit(child, depth + 1);
     active.delete(node);
   };
   visit(root, 0);
@@ -182,7 +162,7 @@ export function compileSchema(text: string): CompiledSchema {
       if (signal?.aborted) return "Validation cancelled";
       const result = validator.safeParse(data);
       if (result.success) return undefined;
-      return result.error.issues.slice(0, 5).map((issue) => `${issue.path.length ? issue.path.join(".") : "(root)"}: ${issue.message}`).join("; ");
+      return formatIssues(result.error.issues);
     },
   };
 }

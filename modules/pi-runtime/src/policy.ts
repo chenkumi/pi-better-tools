@@ -2,7 +2,10 @@ import { createHash } from 'node:crypto';
 import { isContextOverflow, isRetryableAssistantError } from '@earendil-works/pi-ai/compat';
 import type { AssistantMessage } from '@earendil-works/pi-ai/compat';
 
-export type ErrorKind = 'ignore' | 'host' | 'terminal' | 'repairable' | 'policy' | 'review';
+export const ERROR_KINDS = ['ignore', 'host', 'terminal', 'repairable', 'policy', 'review'] as const;
+export type ErrorKind = (typeof ERROR_KINDS)[number];
+/** Kinds that pause for `/runtime-recover` instead of being left to the host or ignored. */
+export const MANUAL_RECOVERY_KINDS: readonly ErrorKind[] = ['policy', 'review', 'repairable'];
 export type ErrorInput = Pick<AssistantMessage, 'stopReason' | 'errorMessage' | 'provider' | 'model' | 'timestamp'>;
 export interface Diagnostic {
   entryId: string;

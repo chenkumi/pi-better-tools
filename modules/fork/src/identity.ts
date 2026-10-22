@@ -3,6 +3,7 @@ import { consumeManagedChildGuard } from "../../shell-tools/src/managed-child.ts
 /** Persisted in every Fork conversation so a cold /resume still knows its origin. Not an OS boundary. */
 export const FORK_MARKER_TYPE = "pi-better-tools.fork-origin";
 export const FORK_TOOLS = ["fork", "fork_status", "fork_cancel", "fork_message"] as const;
+export const isForkTool = (name: string) => (FORK_TOOLS as readonly string[]).includes(name);
 export const FORK_GUARD_ENV = "PI_FORK_GUARD";
 const SLOT = Symbol.for("pi-better-tools.fork.child-guard.v1");
 

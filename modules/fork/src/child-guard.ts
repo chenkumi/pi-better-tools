@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { activeJobCounts, canonicalMonitorCwd } from "../../shell-tools/src/monitor-capability.ts";
-import { FORK_MARKER_TYPE, FORK_TOOLS, consumeForkChildGuard, hasForkMarker } from "./identity.ts";
+import { FORK_MARKER_TYPE, consumeForkChildGuard, hasForkMarker, isForkTool } from "./identity.ts";
 
 export const CHANNEL = "pi-fork";
 export const POLL_MS = 1000;
@@ -29,12 +29,17 @@ export default function (pi: ExtensionAPI) {
 	let timer: ReturnType<typeof setInterval> | undefined;
 	let current: ExtensionContext | undefined;
 	const stopPolling = () => { if (timer) clearInterval(timer); timer = undefined; };
+	/** This child session's own unfinished Shell/Subagent jobs. Throws when the session cannot be read. */
+	const pendingJobs = (ctx: ExtensionContext): { shell: number; subagents: number } => {
+		const counts = activeJobCounts({ sessionId: ctx.sessionManager.getSessionId(), cwd: canonicalMonitorCwd(ctx.cwd) });
+		return { shell: counts.shell, subagents: counts.subagents };
+	};
 	/** True when the process is idle with nothing queued and no unfinished Shell/Subagent jobs of its own. */
 	const quiet = (): boolean => {
 		const ctx = current; if (!ctx) return false;
 		try {
-			const counts = activeJobCounts({ sessionId: ctx.sessionManager.getSessionId(), cwd: canonicalMonitorCwd(ctx.cwd) });
-			return ctx.isIdle() && !ctx.hasPendingMessages() && counts.shell + counts.subagents === 0;
+			const pending = pendingJobs(ctx);
+			return ctx.isIdle() && !ctx.hasPendingMessages() && pending.shell + pending.subagents === 0;
 		} catch { return false; }
 	};
 	const settle = () => send({ type: "settled", quiet: true });
@@ -61,7 +66,7 @@ export default function (pi: ExtensionAPI) {
 	let blockedSignature: string | undefined;
 	const reportBlocked = (ctx: ExtensionContext): void => {
 		let pending: { shell: number; subagents: number };
-		try { const c = activeJobCounts({ sessionId: ctx.sessionManager.getSessionId(), cwd: canonicalMonitorCwd(ctx.cwd) }); pending = { shell: c.shell, subagents: c.subagents }; } catch { return; }
+		try { pending = pendingJobs(ctx); } catch { return; }
 		const failure = modelError(ctx);
 		if (!failure || pending.shell + pending.subagents === 0) {
 			// Progress is possible again, or the ordinary quiet path already covers termination.
@@ -83,13 +88,13 @@ export default function (pi: ExtensionAPI) {
 			else if (fs.realpathSync(ctx.cwd) !== expected.cwd || ctx.sessionManager.getSessionId() !== expected.sessionId || pi.getThinkingLevel() !== expected.thinkingLevel) code = "CONFIG_CHANGED";
 			else if (ctx.isProjectTrusted() !== expected.childTrusted) code = "TRUST_REQUIRED";
 			else if (!hasForkMarker(ctx.sessionManager.getEntries())) code = "FORK_ORIGIN_MISSING";
-			else if (active.some(name => !(FORK_TOOLS as readonly string[]).includes(name) && !expected.tools.includes(name)) || expected.tools.some(name => !active.includes(name))) code = "CAPABILITY_MISMATCH";
-			else if (active.some(name => (FORK_TOOLS as readonly string[]).includes(name))) code = "FORK_TOOL_ACTIVE";
+			else if (active.some(name => !isForkTool(name) && !expected.tools.includes(name)) || expected.tools.some(name => !active.includes(name))) code = "CAPABILITY_MISMATCH";
+			else if (active.some(isForkTool)) code = "FORK_TOOL_ACTIVE";
 			if (!code) send({ type: "verified", tools: [...active].sort(), sessionFile: ctx.sessionManager.getSessionFile() });
 		} catch { code = "CONFIG_CHANGED"; }
 		if (code) reject(code);
 	});
-	pi.on("tool_call", event => (FORK_TOOLS as readonly string[]).includes(event.toolName) ? { block: true, reason: "FORK_FORBIDDEN: A Fork process cannot create another Fork." } : undefined);
+	pi.on("tool_call", event => isForkTool(event.toolName) ?{ block: true, reason: "FORK_FORBIDDEN: A Fork process cannot create another Fork." } : undefined);
 	let stable = 0;
 	pi.on("agent_settled", (_event, ctx) => {
 		current = ctx; stable = 0;

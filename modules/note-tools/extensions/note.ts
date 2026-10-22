@@ -15,6 +15,12 @@ export const MAX_NOTE_BYTES = 8 * 1024 * 1024;
 const noteTypes = ["plan", "design", "issue", "research", "report", "task"] as const;
 const noteDirectories = { plan: "plans", design: "designs", issue: "issues", research: "research", report: "reports", task: "tasks" } as const satisfies Record<(typeof noteTypes)[number], string>;
 
+/** Compare whole path segments: a directory literally named "..archive" is inside the workspace, "../x" is not. */
+function isOutsideWorkspace(cwd: string, directory: string): boolean {
+  const inside = relative(cwd, directory);
+  return inside === "" || inside === ".." || inside.startsWith(".." + sep) || isAbsolute(inside);
+}
+
 export const noteTool = defineTool({
   name: "note",
   label: "Note",
@@ -67,9 +73,7 @@ export const noteTool = defineTool({
     await mkdir(directory, { recursive: true });
     // <cwd>/<folder> may be a pre-existing symlink/junction; refuse to write outside the workspace.
     const [realCwd, realDirectory] = await Promise.all([realpath(ctx.cwd), realpath(directory)]);
-    const inside = relative(realCwd, realDirectory);
-    // Compare whole path segments: a directory literally named "..archive" is inside the workspace, "../x" is not.
-    if (inside === "" || inside === ".." || inside.startsWith(".." + sep) || isAbsolute(inside)) {
+    if (isOutsideWorkspace(realCwd, realDirectory)) {
       throw new Error(`NOTE_DIRECTORY_ESCAPE: ${folder}/ resolves outside the workspace; refusing to write.`);
     }
     const timestamp = Date.now();
@@ -88,8 +92,7 @@ export const noteTool = defineTool({
             // the empty file we just created landed outside the workspace. Remove it (it is ours, created with wx)
             // before any content is written. Narrows the window; it is not an atomic guarantee against a persistent attacker.
             const [cwdNow, createdNow] = await Promise.all([realpath(ctx.cwd), realpath(path)]);
-            const where = relative(cwdNow, dirname(createdNow));
-            if (where === "" || where === ".." || where.startsWith(".." + sep) || isAbsolute(where)) {
+            if (isOutsideWorkspace(cwdNow, dirname(createdNow))) {
               await handle.close().catch(() => {});
               await rm(createdNow, { force: true }).catch(() => {});
               throw new Error(`NOTE_DIRECTORY_ESCAPE: ${folder}/ resolved outside the workspace during creation; the file was removed.`);

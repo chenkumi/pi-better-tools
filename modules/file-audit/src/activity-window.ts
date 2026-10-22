@@ -22,6 +22,8 @@ export function validateLimits(limits: Limits): void {
     throw new Error("Limits require window 1–30 and max-files 1–500 (integers).");
   }
 }
+/** Counters saturate instead of losing integer precision in a very long session. */
+const increment = (value: number) => Math.min(Number.MAX_SAFE_INTEGER, value + 1);
 export class ActivityWindow {
   private readonly files = new Map<string, Activity>();
   private settings: Limits;
@@ -30,7 +32,7 @@ export class ActivityWindow {
   readonly stats = { capacityEvictions: 0, expired: 0, skipped: 0 };
   constructor(limits: Limits = DEFAULT_LIMITS) { validateLimits(limits); this.settings = { ...limits }; }
   get limits(): Limits { return { ...this.settings }; }
-  skip(): void { this.stats.skipped = Math.min(Number.MAX_SAFE_INTEGER, this.stats.skipped + 1); }
+  skip(): void { this.stats.skipped = increment(this.stats.skipped); }
   advance(): void { this.run++; this.prune(); }
   configure(limits: Limits): void { validateLimits(limits); this.settings = { ...limits }; this.prune(); }
   record(path: string, action: FileAction): void {
@@ -55,7 +57,7 @@ export class ActivityWindow {
     const cutoff = this.run - this.settings.windowRuns;
     for (const [path, item] of this.files) {
       if (item.run <= cutoff) {
-        this.files.delete(path); this.stats.expired = Math.min(Number.MAX_SAFE_INTEGER, this.stats.expired + 1);
+        this.files.delete(path); this.stats.expired = increment(this.stats.expired);
       } else {
         if (item.readRun !== undefined && item.readRun <= cutoff) delete item.readRun;
         if (item.writeRun !== undefined && item.writeRun <= cutoff) delete item.writeRun;
@@ -64,7 +66,7 @@ export class ActivityWindow {
     }
     while (this.files.size > this.settings.maxFiles) {
       this.files.delete(this.files.keys().next().value!);
-      this.stats.capacityEvictions = Math.min(Number.MAX_SAFE_INTEGER, this.stats.capacityEvictions + 1);
+      this.stats.capacityEvictions = increment(this.stats.capacityEvictions);
     }
   }
 }

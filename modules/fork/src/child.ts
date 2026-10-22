@@ -5,7 +5,7 @@ import { killProcessTree } from "../../subagents/extensions/subagent/concurrency
 import { getPiInvocation } from "../../subagents/extensions/subagent/index.ts";
 import { RpcPipe } from "../../subagents/extensions/subagent/rpc.ts";
 import { CHANNEL } from "./child-guard.ts";
-import { FORK_GUARD_ENV, FORK_TOOLS, type ForkChildGuard } from "./identity.ts";
+import { FORK_GUARD_ENV, FORK_TOOLS, isForkTool, type ForkChildGuard } from "./identity.ts";
 
 export const MAX_LINE_BYTES = 4 * 1024 * 1024;
 export const STDERR_TAIL_BYTES = 8 * 1024;
@@ -72,9 +72,9 @@ const usageOf = (stats: any): ForkUsage | undefined => {
 	const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : 0);
 	return { input: n(t.input), output: n(t.output), cacheRead: n(t.cacheRead), cacheWrite: n(t.cacheWrite), total: n(t.total), cost: n(stats.cost) };
 };
-const delta = (after?: ForkUsage, before?: ForkUsage): ForkUsage | undefined => after && before ? {
-	input: Math.max(0, after.input - before.input), output: Math.max(0, after.output - before.output), cacheRead: Math.max(0, after.cacheRead - before.cacheRead),
-	cacheWrite: Math.max(0, after.cacheWrite - before.cacheWrite), total: Math.max(0, after.total - before.total), cost: Math.max(0, after.cost - before.cost) } : undefined;
+const USAGE_FIELDS = ["input", "output", "cacheRead", "cacheWrite", "total", "cost"] as const satisfies readonly (keyof ForkUsage)[];
+const delta = (after?: ForkUsage, before?: ForkUsage): ForkUsage | undefined => after && before
+	? Object.fromEntries(USAGE_FIELDS.map(field => [field, Math.max(0, after[field] - before[field])])) as unknown as ForkUsage : undefined;
 const jobCount = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 
 /** Opt-in diagnostics (PI_FORK_DEBUG=1): phase names only, never task text, output or credentials. */
@@ -172,7 +172,7 @@ export function startForkChild(spec: ForkChildSpec, onProgress: (progress: ForkP
 			const startup = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(Object.assign(new Error("startup deadline"), { code: "STARTUP_DEADLINE" })), STARTUP_MS); });
 			let ready: { tools: string[]; sessionFile?: string };
 			try { ready = await raceCancel(Promise.race([verified.promise, startup])); } finally { if (timer) clearTimeout(timer); }
-			const want = new Set(spec.tools), got = new Set(ready.tools.filter(name => !(FORK_TOOLS as readonly string[]).includes(name)));
+			const want = new Set(spec.tools), got = new Set(ready.tools.filter(name => !isForkTool(name)));
 			if (want.size !== got.size || [...want].some(name => !got.has(name))) throw Object.assign(new Error("tool set differs from the parent selection"), { code: "CAPABILITY_MISMATCH" });
 			const state = await raceCancel(pipe.request("get_state"));
 			if (state?.sessionId !== spec.sessionId || (typeof state?.sessionFile === "string" && !existsSync(state.sessionFile))) throw Object.assign(new Error("native session identity mismatch"), { code: "CONFIG_CHANGED" });

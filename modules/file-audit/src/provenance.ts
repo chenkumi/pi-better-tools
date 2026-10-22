@@ -14,6 +14,9 @@ export interface ScanOptions {
 }
 interface Budget { remaining: number; read: number }
 const HASH = /^[a-f0-9]{64}$/;
+const DEFAULT_MAX_FILE_BYTES = 8 * 1024 * 1024;
+const DEFAULT_MAX_TOTAL_BYTES = 32 * 1024 * 1024;
+const DEFAULT_MAX_METADATA_BYTES = 8 * 1024 * 1024;
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("invalid-metadata-object");
   return value as Record<string, unknown>;
@@ -181,8 +184,9 @@ async function candidateRelative(base: string, root: string, path: string): Prom
 
 export async function scan(cwd: string, candidates: readonly Activity[], options: ScanOptions = {}): Promise<ScanResult> {
   const start = performance.now(), findings: Finding[] = [];
-  const content: Budget = { remaining: options.maxTotalBytes ?? 32 * 1024 * 1024, read: 0 };
-  const metadata: Budget = { remaining: options.maxMetadataBytes ?? 8 * 1024 * 1024, read: 0 };
+  const maxMetadataBytes = options.maxMetadataBytes ?? DEFAULT_MAX_METADATA_BYTES;
+  const content: Budget = { remaining: options.maxTotalBytes ?? DEFAULT_MAX_TOTAL_BYTES, read: 0 };
+  const metadata: Budget = { remaining: maxMetadataBytes, read: 0 };
   let error: string | undefined;
   try {
     if (!candidates.length) return { findings, bytes: 0, metadataBytes: 0, elapsedMs: performance.now() - start };
@@ -191,7 +195,7 @@ export async function scan(cwd: string, candidates: readonly Activity[], options
     const relativePaths = await Promise.all(candidates.map(item => candidateRelative(base, root, item.path)));
     const docs: unknown[] = [];
     for (const name of ["sources", "adaptations", "native-modules"]) {
-      const raw = await readBounded(`docs/${name}.json`, root, metadata, options.maxMetadataBytes ?? 8 * 1024 * 1024, options.signal, true);
+      const raw = await readBounded(`docs/${name}.json`, root, metadata, maxMetadataBytes, options.signal, true);
       try { docs.push(JSON.parse(raw.replace(/^\uFEFF/, ""))); } catch { throw new Error("invalid-metadata-json"); }
     }
     const expected = expectedRecords(docs[0], docs[1], docs[2], new Set(relativePaths), options.maxRecords);
@@ -212,7 +216,7 @@ export async function scan(cwd: string, candidates: readonly Activity[], options
           try { await lstat(resolve(root, rel)); findings.push({ path, status: "mismatch", reason: "expected-absent" }); }
           catch (err) { if (code(err) !== "ENOENT") throw err; findings.push({ path, status: "expected-absent" }); }
         } else {
-          const actual = await readBounded(rel, root, content, options.maxFileBytes ?? 8 * 1024 * 1024, options.signal, false);
+          const actual = await readBounded(rel, root, content, options.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES, options.signal, false);
           findings.push({ path, status: actual === record.hash ? "matched" : "mismatch", historical: record.historical });
         }
       } catch (err) {

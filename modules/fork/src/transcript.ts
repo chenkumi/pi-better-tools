@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import type { ForkUsage } from "./child.ts";
+import { errorText, utf8Prefix } from "./text.ts";
 import { SubsessionWriter, readableText, serializeAssistantContent, serializeToolResultContent, type ReadableRecord, type SubsessionStatus } from "../../subagents/extensions/subagent/subsession-log.ts";
 
 /**
@@ -21,11 +22,9 @@ export interface FinalizeOutcome { exitCode?: number | null; usage?: ForkUsage; 
 export const transcriptPaths = (dir: string) => ({ path: join(dir, "transcript.jsonl"), livePath: join(dir, "transcript.jsonl.partial") });
 
 function clip(text: string): string {
-	const raw = Buffer.from(text, "utf8");
-	if (raw.length <= MAX_CONTENT_BYTES) return text;
-	let end = MAX_CONTENT_BYTES;
-	while (end > 0 && (raw[end]! & 0xc0) === 0x80) end--;
-	return `${raw.subarray(0, end).toString("utf8")}\n[truncated ${raw.length - end} bytes]`;
+	const head = utf8Prefix(text, MAX_CONTENT_BYTES);
+	if (head === text) return text;
+	return `${head}\n[truncated ${Buffer.byteLength(text, "utf8") - Buffer.byteLength(head, "utf8")} bytes]`;
 }
 const isRecord = (value: unknown): value is Record<string, any> => !!value && typeof value === "object" && !Array.isArray(value);
 
@@ -113,7 +112,7 @@ export class ForkTranscript {
 
 	private fail(error: unknown): void {
 		if (this.state === "unavailable") return;
-		const reason = String((error as Error)?.message ?? error).slice(0, 200);
+		const reason = errorText(error, 200);
 		this.state = "unavailable";
 		this.error = this.writer ? `${reason} (a partial log may remain at ${this.livePath})` : reason;
 		this.queue = [];

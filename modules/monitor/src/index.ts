@@ -2,14 +2,22 @@ import { Type } from 'typebox';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { isManagedForegroundChild } from '../../shell-tools/src/managed-child.js';
 import { AUTO_MONITOR_INTERVAL_MS, acquireCapability, canonicalMonitorCwd, publishAutoMonitor } from '../../shell-tools/src/monitor-capability.js';
-import { MonitorRuntime, realClock, type Clock, type Owner } from './core.js';
+import { MonitorRuntime, realClock, sameOwner, type Clock, type Owner } from './core.js';
 import { monitorRenderers, renderMonitorEvent } from './renderers.js';
-import { startSchema, validateStart } from './schema.js';
+import { FILE_INTERVAL, JOB_INTERVAL, startSchema, validateStart } from './schema.js';
 import { commandLaunch, fileLaunch, jobLaunch, resolveFilePath, websocketLaunch } from './sources.js';
 import { parseEndpoint } from './network.js';
 const strict = { additionalProperties: false };
 function scope(ctx: ExtensionContext): Owner { return { sessionId: ctx.sessionManager.getSessionId(), cwd: canonicalMonitorCwd(ctx.cwd) }; }
 function output(value: unknown, isError = false) { const data = JSON.parse(JSON.stringify(value)); return { content: [{ type: 'text' as const, text: JSON.stringify(data) }], details: data, structuredContent: data, ...(isError ? { isError: true } : {}) }; }
+/** Direct execution must not depend on host argument validation being present. */
+function validateMonitorId(value: unknown, required: boolean): { monitorId?: string } {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid Monitor ID parameters');
+  const { monitorId, ...rest } = value as { monitorId?: unknown };
+  const valid = Object.keys(rest).length === 0 && (monitorId === undefined ? !required : typeof monitorId === 'string' && monitorId.length > 0 && monitorId.length <= 128);
+  if (!valid) throw new Error('Invalid Monitor ID parameters');
+  return { monitorId: monitorId as string | undefined };
+}
 /** Native Monitor v1; registration is not activation and no factory-time resources start. */
 export default function monitorExtension(pi: ExtensionAPI, seam: { clock?: Clock; onRuntime?: (runtime: MonitorRuntime) => void } = {}) {
   if (isManagedForegroundChild()) return;
@@ -18,12 +26,17 @@ export default function monitorExtension(pi: ExtensionAPI, seam: { clock?: Clock
   const runtime = new MonitorRuntime((message, options) => pi.sendMessage(message, options), clock);
   seam.onRuntime?.(runtime); // Internal offline test seam; no tool/configuration surface.
   let bound: Owner | undefined, revokeAuto: (() => void) | undefined;
+  /** Every Monitor tool re-checks these at execution: a managed child never runs Monitor, and registration is not selection. */
+  const assertExecutable = (tool: string) => {
+    if (isManagedForegroundChild()) throw new Error('Managed child cannot execute Monitor');
+    if (!pi.getActiveTools().includes(tool)) throw new Error(`${tool} is not selected`);
+  };
   /** Shell asks for a display-only sampler on background jobs that have no timeoutMs; honours monitor_start selection and capacity. */
   const autoMonitor = (ctx: ExtensionContext) => (jobId: string) => {
     try {
       if (!pi.getActiveTools().includes('monitor_start')) return undefined;
       const owner = scope(ctx);
-      if (bound?.sessionId !== owner.sessionId || bound.cwd !== owner.cwd) return undefined;
+      if (!sameOwner(bound, owner)) return undefined;
       const lease = acquireCapability('shell_job', owner);
       lease.snapshot(jobId);
       const input = validateStart({ source: { kind: 'shell_job', jobId, intervalMs: AUTO_MONITOR_INTERVAL_MS }, durationMs: 1800000, wakeAgent: false, label: 'auto: shell job without timeoutMs' });
@@ -32,7 +45,7 @@ export default function monitorExtension(pi: ExtensionAPI, seam: { clock?: Clock
   };
   pi.on('session_start', async (_event, ctx) => { revokeAuto?.(); await runtime.shutdown(); bound = scope(ctx); runtime.bind(bound, () => scope(ctx)); revokeAuto = publishAutoMonitor(bound, autoMonitor(ctx)); });
   pi.on('session_shutdown', async () => { revokeAuto?.(); revokeAuto = undefined; bound = undefined; await runtime.shutdown(); });
-  const eventOwner = (ctx: ExtensionContext) => { try { const o = scope(ctx); return bound?.sessionId === o.sessionId && bound.cwd === o.cwd; } catch { return false; } };
+  const eventOwner = (ctx: ExtensionContext) => { try { return sameOwner(bound, scope(ctx)); } catch { return false; } };
   pi.on('agent_start', (_event, ctx) => { if (eventOwner(ctx)) runtime.setBusy(true); });
   pi.on('agent_settled', (_event, ctx) => { if (eventOwner(ctx)) runtime.setBusy(false); });
   pi.on('session_compact', (_event, ctx) => { if (eventOwner(ctx)) runtime.opportunity(); });
@@ -45,20 +58,19 @@ export default function monitorExtension(pi: ExtensionAPI, seam: { clock?: Clock
     parameters: startSchema, outputSchema: Type.Unknown(), ...monitorRenderers('start'),
     async execute(_id, value, signal, _onUpdate, ctx) {
       try {
-        if (isManagedForegroundChild()) throw new Error('Managed child cannot execute Monitor');
-        if (!pi.getActiveTools().includes('monitor_start')) throw new Error('monitor_start is not selected');
+        assertExecutable('monitor_start');
         const input = validateStart(value), owner = scope(ctx);
-        if (bound?.sessionId !== owner.sessionId || bound.cwd !== owner.cwd) throw new Error('Monitor owner/cwd mismatch');
+        if (!sameOwner(bound, owner)) throw new Error('Monitor owner/cwd mismatch');
         if (signal?.aborted) throw new Error('Monitor aborted before acceptance');
         let launch;
         const source = input.source;
         if (source.kind === 'command') launch = commandLaunch(pi, ctx, source);
         else if (source.kind === 'websocket') { parseEndpoint(source); launch = websocketLaunch(source, clock); }
-        else if (source.kind === 'file') launch = fileLaunch(owner.cwd, resolveFilePath(owner.cwd, source.path), source.intervalMs ?? 2000, clock); // Rejects paths outside the canonical workspace before acceptance.
+        else if (source.kind === 'file') launch = fileLaunch(owner.cwd, resolveFilePath(owner.cwd, source.path), source.intervalMs ?? FILE_INTERVAL.default, clock); // Rejects paths outside the canonical workspace before acceptance.
         else {
           const lease = acquireCapability(source.kind, owner);
           lease.snapshot(source.jobId); // Reject missing/foreign jobs before acceptance; never query a model.
-          launch = jobLaunch(lease, source.jobId, source.intervalMs ?? 60000, clock);
+          launch = jobLaunch(lease, source.jobId, source.intervalMs ?? JOB_INTERVAL.default, clock);
         }
         return output(runtime.start(input, launch, signal));
       } catch (error) { return output({ error: error instanceof Error ? error.message : 'Monitor startup rejected' }, true); }
@@ -70,11 +82,10 @@ export default function monitorExtension(pi: ExtensionAPI, seam: { clock?: Clock
     parameters: action === 'status' ? statusSchema : stopSchema, outputSchema: Type.Unknown(), ...monitorRenderers(action),
     async execute(_id, value, _signal, _onUpdate, ctx) {
       try {
-        if (isManagedForegroundChild()) throw new Error('Managed child cannot execute Monitor');
-        if (!pi.getActiveTools().includes(`monitor_${action}`)) throw new Error(`monitor_${action} is not selected`);
-        if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(k => k !== 'monitorId') || (value.monitorId !== undefined && (typeof value.monitorId !== 'string' || !value.monitorId || value.monitorId.length > 128)) || (action === 'stop' && !value.monitorId)) throw new Error('Invalid Monitor ID parameters');
-        const owner = scope(ctx);
-        return output(value.monitorId ? action === 'stop' ? runtime.stop(value.monitorId, owner) : runtime.status(value.monitorId, owner) : { monitors: runtime.list(owner) });
+        assertExecutable(`monitor_${action}`);
+        const { monitorId } = validateMonitorId(value, action === 'stop'), owner = scope(ctx);
+        if (!monitorId) return output({ monitors: runtime.list(owner) });
+        return output(action === 'stop' ? runtime.stop(monitorId, owner) : runtime.status(monitorId, owner));
       } catch (error) { return output({ error: error instanceof Error ? error.message : 'Monitor request rejected' }, true); }
     },
   });

@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
+import { createForcedPromptAppender } from './forced-prompt.js';
 
 /**
  * Shared handling for this package's deferred tools. A module only declares `exposure: "deferred"` and a `namespace`
@@ -19,7 +20,7 @@ const norm = (path: string) => path.split('\\').join('/').toLowerCase();
 const OWN = norm(fileURLToPath(new URL('../../', import.meta.url)));
 
 export function registerDeferredTools(pi: ExtensionAPI): void {
-  let last: string | undefined;
+  const appendToForcedPrompt = createForcedPromptAppender();
   const managed = () => pi.getAllTools().filter(tool => tool.exposure === 'deferred' && tool.namespace && norm(tool.sourceInfo?.path ?? '').startsWith(OWN));
   const render = (active: Set<string>): string | undefined => {
     const groups = new Map<string, string>();
@@ -39,16 +40,12 @@ export function registerDeferredTools(pi: ExtensionAPI): void {
   });
 
   pi.on('before_agent_start', event => {
-    const options = event.systemPromptOptions;
+    const { sections } = event.systemPromptOptions;
     const active = new Set(pi.getActiveTools());
     const section = active.has(TOOL_SEARCH) ? render(active) : undefined;
-    if (section) options.sections[DEFERRED_SECTION] = section;
-    else delete options.sections[DEFERRED_SECTION];
+    if (section) sections[DEFERRED_SECTION] = section;
+    else delete sections[DEFERRED_SECTION];
     // Preserve forced/custom prompts from other extensions.
-    if (options.forceSystemPrompt === undefined) return;
-    const base = last ? options.forceSystemPrompt.replace(`\n\n${last}`, '') : options.forceSystemPrompt;
-    const prompt = base + (section ? `\n\n${section}` : '');
-    last = section;
-    if (prompt !== event.systemPrompt) return { systemPrompt: prompt };
+    return appendToForcedPrompt(event, section);
   });
 }

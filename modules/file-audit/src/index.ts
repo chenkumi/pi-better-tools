@@ -1,8 +1,8 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { AuditTracker } from "./events.js";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { AuditTracker, ownerOf } from "./events.js";
 import { AuditCommands } from "./commands.js";
 
-export const ownerOf = (ctx: ExtensionContext): string => `${ctx.sessionManager.getSessionId()}\0${ctx.cwd}`;
+export { ownerOf };
 export default function fileAudit(pi: ExtensionAPI): void {
   const tracker = new AuditTracker();
   const commands = new AuditCommands(tracker);

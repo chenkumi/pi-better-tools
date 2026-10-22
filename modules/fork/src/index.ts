@@ -6,17 +6,23 @@ import { stripVTControlCharacters } from "node:util";
 import { consumeManagedChildGuard } from "../../shell-tools/src/managed-child.ts";
 import { consumeForkChildGuard } from "./identity.ts";
 import { renderForkResult } from "./result-renderer.ts";
-import { RESULT_TYPE, acceptFork, messageFork, onSessionShutdown, onSessionStart, onTurnEnd, ownedJobs, requestCancel, summarize } from "./manager.ts";
+import { RESULT_TYPE, acceptFork, findOwnedJob, messageFork, onSessionShutdown, onSessionStart, onTurnEnd, ownedJobs, requestCancel, summarize } from "./manager.ts";
 import { publishForkMonitor } from "./monitor-capability.ts";
 
 const display = (value: unknown, max = 300) => typeof value === "string" ? stripVTControlCharacters(value.slice(0, max * 4)).replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f‪-‮⁦-⁩]/g, "").slice(0, max) : "";
+function renderTextResult(result: any, _options: unknown, theme: any, context: any) {
+	const text = result.content.filter((block: any) => block.type === "text").map((block: any) => block.text).join("\n");
+	return new Text(theme.fg(context.isError ? "error" : "success", display(text, 600)), 0, 0);
+}
 const renderers = (name: string) => ({
 	renderCall(args: any, theme: any) { return new Text(`${theme.fg("toolTitle", theme.bold(name))} ${theme.fg("muted", display(args?.jobId, 40))}`, 0, 0); },
-	renderResult(result: any, _options: unknown, theme: any, context: any) {
-		const text = result.content.filter((block: any) => block.type === "text").map((block: any) => block.text).join("\n");
-		return new Text(theme.fg(context.isError ? "error" : "success", display(text, 600)), 0, 0);
-	},
+	renderResult: renderTextResult,
 });
+const ownedJobOrThrow = (ctx: Parameters<typeof findOwnedJob>[0], jobId: unknown) => {
+	const job = findOwnedJob(ctx, jobId);
+	if (!job) throw new Error("FORK_NOT_FOUND: no such Fork in this conversation.");
+	return job;
+};
 const textResult = (text: string, details: Record<string, unknown>) => ({ content: [{ type: "text" as const, text }], details });
 
 export default function (pi: ExtensionAPI) {
@@ -40,10 +46,7 @@ export default function (pi: ExtensionAPI) {
 			title: Type.Optional(Type.String({ description: "Short label (<=120 chars) shown in status and the result notice." })),
 		}, { additionalProperties: false }),
 		renderCall(args, theme) { return new Text(`${theme.fg("toolTitle", theme.bold("fork"))} ${theme.fg("muted", display(args?.title || args?.task, 100))}`, 0, 0); },
-		renderResult(result, _options, theme, context) {
-			const text = result.content.filter(block => block.type === "text").map(block => block.text).join("\n");
-			return new Text(theme.fg(context.isError ? "error" : "success", display(text, 600)), 0, 0);
-		},
+		renderResult: renderTextResult,
 		async execute(_id, params, _signal, _onUpdate, ctx) {
 			// Admission is re-checked here: a direct call or forged arguments cannot lift a Subagent/Fork identity.
 			const receipt = acceptFork(pi, ctx, params);
@@ -60,12 +63,11 @@ export default function (pi: ExtensionAPI) {
 		defaultActive: true,
 		parameters: Type.Object({ jobId: Type.Optional(Type.String()) }, { additionalProperties: false }),
 		async execute(_id, params, _signal, _onUpdate, ctx) {
-			const jobs = ownedJobs(ctx);
 			if (params.jobId) {
-				const job = jobs.find(candidate => candidate.record.jobId === params.jobId);
-				if (!job) throw new Error("FORK_NOT_FOUND: no such Fork in this conversation.");
-				return textResult(JSON.stringify(summarize(job, true)), summarize(job, true));
+				const summary = summarize(ownedJobOrThrow(ctx, params.jobId), true);
+				return textResult(JSON.stringify(summary), summary);
 			}
+			const jobs = ownedJobs(ctx);
 			const list = jobs.slice(0, 32).map(job => summarize(job));
 			return textResult(JSON.stringify({ forks: list, partial: jobs.length > 32 }), { forks: list });
 		},
@@ -80,8 +82,7 @@ export default function (pi: ExtensionAPI) {
 		defaultActive: true,
 		parameters: Type.Object({ jobId: Type.String() }, { additionalProperties: false }),
 		async execute(_id, params, _signal, _onUpdate, ctx) {
-			const job = ownedJobs(ctx).find(candidate => candidate.record.jobId === params.jobId);
-			if (!job) throw new Error("FORK_NOT_FOUND: no such Fork in this conversation.");
+			const job = ownedJobOrThrow(ctx, params.jobId);
 			await requestCancel(job);
 			const summary = summarize(job);
 			return textResult(`Cancel requested for ${job.record.jobId}; status ${job.record.status}. Requested is not the same as exited.`, summary);
