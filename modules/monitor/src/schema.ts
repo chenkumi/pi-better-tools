@@ -7,6 +7,7 @@ export const startSchema = Type.Object({
     Type.Object({ kind: Type.Literal('shell_job'), jobId: Type.String({ minLength: 1, maxLength: 128 }), intervalMs: Type.Optional(Type.Integer({ minimum: 30000, maximum: 300000 })) }, object),
     Type.Object({ kind: Type.Literal('subagent_job'), jobId: Type.String({ minLength: 1, maxLength: 128 }), intervalMs: Type.Optional(Type.Integer({ minimum: 30000, maximum: 300000 })) }, object),
     Type.Object({ kind: Type.Literal('fork_job'), jobId: Type.String({ minLength: 1, maxLength: 128 }), intervalMs: Type.Optional(Type.Integer({ minimum: 30000, maximum: 300000 })) }, object),
+    Type.Object({ kind: Type.Literal('file'), path: Type.String({ minLength: 1, maxLength: 1024 }), intervalMs: Type.Optional(Type.Integer({ minimum: 1000, maximum: 60000 })) }, object),
   ]),
   durationMs: Type.Optional(Type.Integer({ minimum: 1000, maximum: 1800000 })),
   wakeAgent: Type.Optional(Type.Boolean()), stopAfterEvents: Type.Optional(Type.Integer({ minimum: 1, maximum: 600 })),
@@ -26,6 +27,7 @@ export function validateStart(value: unknown): Start {
     case 'command': keys(s, ['kind', 'tool', 'command']); if (s.tool !== 'bash' && s.tool !== 'powershell') throw new Error('Unsupported shell backend'); text(s.command, 65536); if (Buffer.byteLength(s.command as string) > 65536) throw new Error('Command exceeds 64 KiB'); break;
     case 'websocket': keys(s, ['kind', 'url', 'allowPrivateNetwork', 'allowInsecure']); text(s.url, 8192); for (const k of ['allowPrivateNetwork', 'allowInsecure']) if (s[k] !== undefined && typeof s[k] !== 'boolean') throw new Error('Network opt-ins must be explicit booleans'); break;
     case 'shell_job': case 'subagent_job': case 'fork_job': keys(s, ['kind', 'jobId', 'intervalMs']); text(s.jobId, 128); if (s.intervalMs !== undefined) integer(s.intervalMs, 30000, 300000); break;
+    case 'file': keys(s, ['kind', 'path', 'intervalMs']); text(s.path, 1024); if (plainText(s.path as string) !== s.path) throw new Error('File path must not contain control characters'); if (s.intervalMs !== undefined) integer(s.intervalMs, 1000, 60000); break;
     default: throw new Error('Unsupported Monitor source');
   }
   if (value.durationMs !== undefined) integer(value.durationMs, 1000, 1800000);

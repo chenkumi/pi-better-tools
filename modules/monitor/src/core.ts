@@ -1,6 +1,7 @@
 import { ulid } from 'ulid';
 import type { Start } from './schema.js';
 import { preview } from './lines.js';
+import { plainText } from './schema.js';
 export const LIMITS = Object.freeze({ active: 4, retained: 32, rollingEvents: 60, rollingMs: 60000, totalEvents: 600, eventBytes: 16384, pendingEvents: 128, pendingBytes: 262144, ownerPendingBytes: 524288, stderrBytes: 8192, previewBytes: 2048, batchEvents: 32, batchBytes: 32768, progressMs: 30000 });
 /** `now` is wall-clock (display/records, may step); optional `mono` is monotonic (throttle/elapsed), falling back to `now`. */
 export interface Clock { now(): number; mono?(): number; set(fn: () => void, ms: number): unknown; clear(handle: unknown): void }
@@ -195,7 +196,7 @@ export class MonitorRuntime {
   list(owner?: Owner) { this.owned(owner); return [...this.monitors.values()].slice(0, 32).map(m => this.receipt(m)); }
   stop(id: string, owner?: Owner) { const m = this.find(id, owner); this.requestStop(m, 'stop_requested', 'stopped'); return this.receipt(m); }
   private receipt(m: Monitor) {
-    return { monitorId: m.id, owner: { sessionId: this.owner?.sessionId, generation: m.generation, cwdScope: 'canonical current workspace' }, source: m.input.source.kind, wakeAgent: m.input.wakeAgent, label: m.input.label, sourcePreview: m.input.source.kind === 'websocket' ? safeUrl(m.input.source.url) : m.input.source.kind === 'command' ? '[command withheld; may contain credentials]' : m.input.source.jobId,
+    return { monitorId: m.id, owner: { sessionId: this.owner?.sessionId, generation: m.generation, cwdScope: 'canonical current workspace' }, source: m.input.source.kind, wakeAgent: m.input.wakeAgent, label: m.input.label, sourcePreview: m.input.source.kind === 'websocket' ? safeUrl(m.input.source.url) : m.input.source.kind === 'command' ? '[command withheld; may contain credentials]' : m.input.source.kind === 'file' ? plainText(m.input.source.path) : m.input.source.jobId,
       state: m.state, stopReason: m.stopReason, createdAt: m.createdAt, startedAt: m.startedAt, deadline: m.deadline, elapsedMs: (m.endedMono ?? this.mono()) - m.createdMono, counts: { ...m.counts }, buffered: m.events.filter(e => e.category === 'data').length, bufferedBytes: m.bytes, lastEventAt: m.lastEventAt, lastSystemEvent: m.lastSystemEvent ? { ...m.lastSystemEvent } : undefined, cleanupPending: m.cleanupPending, cleanupEvidence: { ...m.cleanupEvidence }, notification: { ...m.notification }, limits: LIMITS,
       diagnostics: { stderrInputBytes: m.stderrInputBytes, stderrTail: preview(m.stderr.toString('utf8'), LIMITS.stderrBytes), stderrTruncated: m.stderrInputBytes > LIMITS.stderrBytes } };
   }

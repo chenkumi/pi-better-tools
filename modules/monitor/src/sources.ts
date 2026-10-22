@@ -1,3 +1,5 @@
+import { realpathSync, statSync } from 'node:fs';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import WebSocket from 'ws';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { execMonitorCommand } from '../../shell-tools/src/monitor-exec.js';
@@ -81,6 +83,68 @@ export function jobLaunch(lease: ReadonlyJobLease, jobId: string, intervalMs: nu
         } catch { sink.fault('source_error'); close(); }
       };
       signal.addEventListener('abort', close, { once: true }); if (signal.aborted) { close(); return; } sink.started(); sample();
+    });
+  };
+}
+/** Metadata-only file source. Targets stay inside the canonical workspace root: a lexical check at acceptance, and a realpath check
+ * on every sample, so a later symlink swap faults instead of leaking a path or stat from outside. Polling only (no fs.watch):
+ * at most one event per tick keeps the 60 events/minute cap unreachable at the 1 s minimum interval. Content is never read. */
+export interface FileTarget { absolute: string; relative: string }
+type FileSignature = { exists: false } | { exists: true; sizeBytes: number; mtimeMs: number; ino: number };
+const inside = (root: string, path: string) => { const rel = relative(root, path); return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel)); };
+/** Nearest existing ancestor must stay inside root even when the file itself does not exist yet (create detection). */
+function locate(root: string, absolute: string): FileSignature {
+  let real: string;
+  try { real = realpathSync(absolute); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && (error as NodeJS.ErrnoException).code !== 'ENOTDIR') throw error;
+    let parent = dirname(absolute), tail = relative(parent, absolute);
+    for (;;) {
+      try { if (!inside(root, join(realpathSync(parent), tail))) throw new Error('path_outside_workspace'); return { exists: false }; }
+      catch (inner) { if ((inner as Error).message === 'path_outside_workspace') throw inner; const next = dirname(parent); if (next === parent) return { exists: false }; tail = relative(next, join(parent, tail)); parent = next; }
+    }
+  }
+  if (!inside(root, real)) throw new Error('path_outside_workspace');
+  const stat = statSync(real);
+  if (!stat.isFile()) throw new Error('not_a_file');
+  return { exists: true, sizeBytes: stat.size, mtimeMs: Math.floor(stat.mtimeMs), ino: stat.ino };
+}
+export function resolveFilePath(root: string, input: string): FileTarget {
+  const absolute = resolve(root, input), rel = relative(root, absolute);
+  if (rel === '') throw new Error('Path must name a file inside the workspace');
+  if (!inside(root, absolute)) throw new Error('Path is outside the workspace');
+  try { locate(root, absolute); }
+  catch (error) {
+    const reason = (error as Error).message;
+    throw new Error(reason === 'path_outside_workspace' ? 'Path is outside the workspace' : reason === 'not_a_file' ? 'Path is not a regular file' : 'File path cannot be inspected');
+  }
+  return { absolute, relative: rel };
+}
+export function fileLaunch(root: string, target: FileTarget, intervalMs: number, clock: Clock = realClock): Launch {
+  return async (sink, signal) => {
+    let timer: unknown, previous: FileSignature;
+    await new Promise<void>(resolveDone => {
+      let stopped = false;
+      const close = () => { if (stopped) return; stopped = true; if (timer !== undefined) clock.clear(timer); signal.removeEventListener('abort', close); sink.closed({ sourceClosed: true, timerCleared: true }); resolveDone(); };
+      const sign = (): FileSignature | undefined => {
+        try { return locate(root, target.absolute); }
+        catch (error) { sink.fault((error as Error).message === 'path_outside_workspace' ? 'path_outside_workspace' : 'source_error'); close(); return undefined; }
+      };
+      const sample = () => {
+        if (stopped || signal.aborted) { close(); return; }
+        const next = sign(); if (!next) return;
+        const change = !previous.exists && next.exists ? 'created' : previous.exists && !next.exists ? 'deleted'
+          : previous.exists && next.exists && (previous.sizeBytes !== next.sizeBytes || previous.mtimeMs !== next.mtimeMs || previous.ino !== next.ino) ? 'modified' : undefined;
+        previous = next;
+        if (change) {
+          sink.data(undefined, false, { path: target.relative, change, exists: next.exists, ...(next.exists ? { sizeBytes: next.sizeBytes, mtimeMs: next.mtimeMs } : {}) });
+          if (signal.aborted) { close(); return; }
+        }
+        timer = clock.set(sample, intervalMs);
+      };
+      signal.addEventListener('abort', close, { once: true }); if (signal.aborted) { close(); return; }
+      const baseline = sign(); if (!baseline) return;
+      previous = baseline; sink.started(); timer = clock.set(sample, intervalMs);
     });
   };
 }
