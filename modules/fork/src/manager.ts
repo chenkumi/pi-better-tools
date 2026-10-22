@@ -79,14 +79,15 @@ function setStatus(job: Job, status: ForkStatus) {
 
 export interface ForkReceipt { jobId: string; forkSessionId: string; status: ForkStatus; title: string; resumeHint: string; transcriptPath: string }
 
-/** Synchronous admission. Nothing is spawned here: the child needs a canonical, tool-paired snapshot, taken at the turn boundary. */
-export function acceptFork(pi: ExtensionAPI, ctx: ExtensionContext, params: { task: unknown; title?: unknown }): ForkReceipt {
-	const s = state();
-	const refusal = forkCreationRefusal(ctx.sessionManager.getEntries() as never);
-	if (refusal) throw new Error(refusal);
+/** Also protects direct calls that bypass host schema validation. */
+function validateForkParams(params: { task: unknown; title?: unknown }): asserts params is { task: string; title?: string } {
 	if (typeof params?.task !== "string" || !params.task.trim() || /[\uD800-\uDFFF]/u.test(params.task)) throw new Error("FORK_INVALID_ARGUMENTS: task must be a non-empty, well-formed string.");
 	if (Buffer.byteLength(params.task, "utf8") > MAX_TASK_BYTES) throw new Error(`FORK_TASK_TOO_LARGE: task exceeds ${MAX_TASK_BYTES} bytes.`);
 	if (params.title !== undefined && (typeof params.title !== "string" || params.title.length > 120)) throw new Error("FORK_INVALID_ARGUMENTS: title must be a string of at most 120 characters.");
+}
+
+/** Process-wide admission: shutdown/reload, active permits, and the bounded record window. */
+function assertCapacity(s: ForkState): void {
 	if (!s.admission) throw new Error("FORK_NOT_ACCEPTING: this Pi process is shutting down or reloading.");
 	if (activeCount(s) >= MAX_ACTIVE_FORKS) throw new Error(`FORK_CAPACITY: Request not accepted: capacity limit reached. At most ${MAX_ACTIVE_FORKS} unfinished Forks per Pi process.`);
 	if (s.jobs.size >= MAX_RETAINED_FORKS * 2) {
@@ -94,13 +95,33 @@ export function acceptFork(pi: ExtensionAPI, ctx: ExtensionContext, params: { ta
 		// Undelivered (pending) results are never evicted, so the window must refuse instead of growing without bound.
 		if (s.jobs.size >= MAX_RETAINED_FORKS * 2) throw new Error(`FORK_CAPACITY: Request not accepted: ${MAX_RETAINED_FORKS * 2} Fork records are retained with undelivered results.`);
 	}
-	const sm = ctx.sessionManager, file = sm.getSessionFile(), sessionDir = sm.getSessionDir();
-	if (!file || !sessionDir) throw new Error("FORK_REQUIRES_PERSISTED_SESSION: the current conversation has no native session file (--no-session or in-memory).");
-	if (!ctx.model) throw new Error("FORK_CAPABILITY_UNAVAILABLE: no model is selected; a Fork must inherit the parent's model.");
+}
+
+/** The parent's active tools minus Fork's own; tools from inline SDK factories cannot be rebuilt in another process. */
+function inheritedTools(pi: ExtensionAPI): string[] {
 	const tools = pi.getActiveTools().filter(name => !isForkTool(name));
 	const info = new Map(pi.getAllTools().map(tool => [tool.name, tool] as const));
 	const inline = tools.filter(name => String((info.get(name) as { sourceInfo?: { path?: string } } | undefined)?.sourceInfo?.path ?? "").startsWith("<"));
 	if (inline.length) throw new Error(`FORK_CAPABILITY_UNAVAILABLE: tools provided by inline SDK factories cannot be rebuilt in a separate process: ${inline.slice(0, 8).join(", ")}.`);
+	return tools;
+}
+
+const forkPrompt = (task: string) => `${FORK_PROMPT_PREFIX} The \`fork\` tool call and its result earlier in this conversation are how YOU were launched; from here on you are the background agent that the parent is waiting on. Do not wait for, poll, or expect a report from any background agent, and do not call fork (it is unavailable to you). Do the task below now with your tools, then end with a concise final report: your final message is what gets delivered back to the parent conversation.
+
+Task:
+${task}`;
+
+/** Synchronous admission. Nothing is spawned here: the child needs a canonical, tool-paired snapshot, taken at the turn boundary. */
+export function acceptFork(pi: ExtensionAPI, ctx: ExtensionContext, params: { task: unknown; title?: unknown }): ForkReceipt {
+	const s = state();
+	const refusal = forkCreationRefusal(ctx.sessionManager.getEntries() as never);
+	if (refusal) throw new Error(refusal);
+	validateForkParams(params);
+	assertCapacity(s);
+	const sm = ctx.sessionManager, file = sm.getSessionFile(), sessionDir = sm.getSessionDir();
+	if (!file || !sessionDir) throw new Error("FORK_REQUIRES_PERSISTED_SESSION: the current conversation has no native session file (--no-session or in-memory).");
+	if (!ctx.model) throw new Error("FORK_CAPABILITY_UNAVAILABLE: no model is selected; a Fork must inherit the parent's model.");
+	const tools = inheritedTools(pi);
 	const cwd = canonical(ctx.cwd), jobId = ulid().toUpperCase(), forkSessionId = ulid().toUpperCase();
 	const title = (typeof params.title === "string" && params.title.trim() ? params.title.trim() : params.task.trim().split(/\r?\n/)[0]!).slice(0, 80);
 	const model = `${ctx.model.provider}/${ctx.model.id}`, thinkingLevel = pi.getThinkingLevel();
@@ -113,11 +134,7 @@ export function acceptFork(pi: ExtensionAPI, ctx: ExtensionContext, params: { ta
 		Object.assign(forwarded, forwardParentArgs(deps.argv(), deps.launchCwd(), jobId, cwd));
 	} catch (error) { removeTemporary(forwarded.temporaryFiles); throw new Error(`FORK_STORE_UNAVAILABLE: ${errorText(error, 200)}`); }
 	pruneRecords(cwd); // Old finished records beyond the bounded scan would otherwise accumulate in the workspace forever.
-	const prompt = `${FORK_PROMPT_PREFIX} The \`fork\` tool call and its result earlier in this conversation are how YOU were launched; from here on you are the background agent that the parent is waiting on. Do not wait for, poll, or expect a report from any background agent, and do not call fork (it is unavailable to you). Do the task below now with your tools, then end with a concise final report: your final message is what gets delivered back to the parent conversation.
-
-Task:
-${params.task}`;
-	s.jobs.set(jobId, { record, released: false, acceptLeafId: sm.getLeafId(), sessionDir, tools, prompt, forwarded });
+	s.jobs.set(jobId, { record, released: false, acceptLeafId: sm.getLeafId(), sessionDir, tools, prompt: forkPrompt(params.task), forwarded });
 	refreshUi();
 	return { jobId, forkSessionId, status: "awaiting_snapshot", title, transcriptPath: record.transcript!.path, resumeHint: "The native conversation file is created at the next turn boundary; use fork_status for its path." };
 }

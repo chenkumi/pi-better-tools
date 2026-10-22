@@ -6,7 +6,7 @@ import { execMonitorCommand } from '../../shell-tools/src/monitor-exec.js';
 import type { ReadonlyJobLease } from '../../shell-tools/src/monitor-capability.js';
 import { LineParser, preview } from './lines.js';
 import { prepareEndpoint, pinnedOptions, type Endpoint, type NetworkSource } from './network.js';
-import { realClock, type Clock, type Launch } from './core.js';
+import { realClock, type Clock, type Launch, type SourceSink } from './core.js';
 /** Bounded settle for commands whose shell exits while a descendant keeps the pipes open (same values as Schedule Prompt).
  * exitIdleMs: shell exited and stdout/stderr stayed silent this long => report source closed (descendants may still run).
  * abortGraceMs: an abort before any output waits at most this long before the host kills the tree. */
@@ -66,25 +66,34 @@ export function websocketLaunch(source: Endpoint | NetworkSource, clock: Clock =
     });
   };
 }
-export function jobLaunch(lease: ReadonlyJobLease, jobId: string, intervalMs: number, clock: Clock = realClock): Launch {
+/** `run` samples now and `later` after the interval; both skip (and close) once the source is closed or aborted, and
+ * scheduling after close is a no-op. Abort closes synchronously, so a sample that triggers a stop never reschedules. */
+interface Poll { close(): void; run(sample: () => void): void; later(sample: () => void): void }
+/** Timer-polled source lifecycle: at most one pending timer, abort closes exactly once, and close always reports `evidence`.
+ * `begin` runs only if the signal is not already aborted. A synchronous throw from `begin` or a sample faults and closes. */
+function pollingLaunch(intervalMs: number, clock: Clock, evidence: Record<string, unknown>, begin: (sink: SourceSink, poll: Poll) => void): Launch {
   return async (sink, signal) => {
-    let timer: unknown;
     await new Promise<void>(resolve => {
-      let stopped = false;
-      const close = () => { if (stopped) return; stopped = true; if (timer !== undefined) clock.clear(timer); signal.removeEventListener('abort', close); sink.closed({ sourceClosed: true, timerCleared: true, observedJobCanceled: false }); resolve(); };
-      const sample = () => {
-        if (stopped || signal.aborted) { close(); return; }
-        try {
-          const snapshot = lease.snapshot(jobId); sink.data(undefined, false, snapshot);
-          if (signal.aborted) { close(); return; }
-          // Stop only at a known terminal status; a new non-terminal status keeps sampling until the Monitor's own deadline.
-          if (['completed', 'failed', 'aborted', 'cancelled', 'timed_out', 'interrupted'].includes(snapshot.status as string)) { close(); return; }
-          timer = clock.set(sample, intervalMs);
-        } catch { sink.fault('source_error'); close(); }
-      };
-      signal.addEventListener('abort', close, { once: true }); if (signal.aborted) { close(); return; } sink.started(); sample();
+      let stopped = false, timer: unknown;
+      const close = () => { if (stopped) return; stopped = true; if (timer !== undefined) clock.clear(timer); signal.removeEventListener('abort', close); sink.closed({ sourceClosed: true, timerCleared: true, ...evidence }); resolve(); };
+      const guarded = (step: () => void) => { try { step(); } catch { sink.fault('source_error'); close(); } };
+      const run = (sample: () => void) => { if (stopped || signal.aborted) close(); else guarded(sample); };
+      const later = (sample: () => void) => { if (!stopped) timer = clock.set(() => run(sample), intervalMs); };
+      signal.addEventListener('abort', close, { once: true }); if (signal.aborted) { close(); return; }
+      guarded(() => begin(sink, { close, run, later }));
     });
   };
+}
+export function jobLaunch(lease: ReadonlyJobLease, jobId: string, intervalMs: number, clock: Clock = realClock): Launch {
+  return pollingLaunch(intervalMs, clock, { observedJobCanceled: false }, (sink, poll) => {
+    const sample = () => {
+      const snapshot = lease.snapshot(jobId); sink.data(undefined, false, snapshot);
+      // Stop only at a known terminal status; a new non-terminal status keeps sampling until the Monitor's own deadline.
+      if (['completed', 'failed', 'aborted', 'cancelled', 'timed_out', 'interrupted'].includes(snapshot.status as string)) poll.close();
+      else poll.later(sample);
+    };
+    sink.started(); poll.run(sample);
+  });
 }
 /** Metadata-only file source. Targets stay inside the canonical workspace root: a lexical check at acceptance, and a realpath check
  * on every sample, so a later symlink swap faults instead of leaking a path or stat from outside. Polling only (no fs.watch):
@@ -120,31 +129,26 @@ export function resolveFilePath(root: string, input: string): FileTarget {
   }
   return { absolute, relative: rel };
 }
+function fileChange(previous: FileSignature, next: FileSignature): 'created' | 'deleted' | 'modified' | undefined {
+  if (!previous.exists) return next.exists ? 'created' : undefined;
+  if (!next.exists) return 'deleted';
+  return previous.sizeBytes !== next.sizeBytes || previous.mtimeMs !== next.mtimeMs || previous.ino !== next.ino ? 'modified' : undefined;
+}
 export function fileLaunch(root: string, target: FileTarget, intervalMs: number, clock: Clock = realClock): Launch {
-  return async (sink, signal) => {
-    let timer: unknown, previous: FileSignature;
-    await new Promise<void>(resolveDone => {
-      let stopped = false;
-      const close = () => { if (stopped) return; stopped = true; if (timer !== undefined) clock.clear(timer); signal.removeEventListener('abort', close); sink.closed({ sourceClosed: true, timerCleared: true }); resolveDone(); };
-      const sign = (): FileSignature | undefined => {
-        try { return locate(root, target.absolute); }
-        catch (error) { sink.fault((error as Error).message === 'path_outside_workspace' ? 'path_outside_workspace' : 'source_error'); close(); return undefined; }
-      };
-      const sample = () => {
-        if (stopped || signal.aborted) { close(); return; }
-        const next = sign(); if (!next) return;
-        const change = !previous.exists && next.exists ? 'created' : previous.exists && !next.exists ? 'deleted'
-          : previous.exists && next.exists && (previous.sizeBytes !== next.sizeBytes || previous.mtimeMs !== next.mtimeMs || previous.ino !== next.ino) ? 'modified' : undefined;
-        previous = next;
-        if (change) {
-          sink.data(undefined, false, { path: target.relative, change, exists: next.exists, ...(next.exists ? { sizeBytes: next.sizeBytes, mtimeMs: next.mtimeMs } : {}) });
-          if (signal.aborted) { close(); return; }
-        }
-        timer = clock.set(sample, intervalMs);
-      };
-      signal.addEventListener('abort', close, { once: true }); if (signal.aborted) { close(); return; }
-      const baseline = sign(); if (!baseline) return;
-      previous = baseline; sink.started(); timer = clock.set(sample, intervalMs);
-    });
-  };
+  return pollingLaunch(intervalMs, clock, {}, (sink, poll) => {
+    const sign = (): FileSignature | undefined => {
+      try { return locate(root, target.absolute); }
+      catch (error) { sink.fault((error as Error).message === 'path_outside_workspace' ? 'path_outside_workspace' : 'source_error'); poll.close(); return undefined; }
+    };
+    const baseline = sign(); if (!baseline) return;
+    let previous: FileSignature = baseline;
+    const sample = () => {
+      const next = sign(); if (!next) return;
+      const change = fileChange(previous, next);
+      previous = next;
+      if (change) sink.data(undefined, false, { path: target.relative, change, exists: next.exists, ...(next.exists ? { sizeBytes: next.sizeBytes, mtimeMs: next.mtimeMs } : {}) });
+      poll.later(sample);
+    };
+    sink.started(); poll.later(sample);
+  });
 }

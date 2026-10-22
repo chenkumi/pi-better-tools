@@ -1,5 +1,10 @@
 {
   "schemaVersion": 1,
+  "cleanCodeRound2_20261023": {
+    "plan": "plan/PLAN-20261022T162645853Z.md",
+    "scope": "Second behavior-preserving clean-code pass over native modules: long functions split into named single-purpose steps (note execute, fork acceptFork/stdout reader, monitor polling lifecycle, json-schema audit, pi-runtime task-spend reconciliation). No tool, schema, settings, storage, message or trust change; validation/error order preserved.",
+    "historyPolicy": "cleanCodeRound2_20261023PreviousSha256 preserves the prior active fingerprint; earlier records are unchanged and not re-certified."
+  },
   "cleanCodeRefactor20261023": {
     "plan": "plan/PLAN-20261022T162645853Z.md",
     "scope": "Behavior-preserving clean-code refactor of native modules only (note-tools, gpt-speed, pi-runtime, json-schema, monitor, file-audit, fork; skill-tools unchanged). Removes duplicated logic and magic values; no tool names, schemas, settings keys, storage paths, messages or trust/authorization semantics change. Imported snapshots are untouched.",
@@ -519,8 +524,10 @@
           "staleProvenanceRepair20261022": "2026-10-22: the recorded hash lagged the committed content (a post-verification edit landed in 055cca3). The bytes are the reviewed fork_job sampling change; only the recorded hash is corrected here, no content change.",
           "fileMonitorSource20261022PreviousSha256": "dec0374458eba78951f5306349e901b74dec88adaf456838b1efeda9cf51e0c4",
           "fileMonitorSource20261022Adaptation": "2026-10-22: add resolveFilePath/fileLaunch (realpath containment on every sample, metadata-only polling).",
-          "sha256": "9d1ef6ffca6b91ace1786752fd1adeb2b257e7de28cf95df5eac48d258c24831",
-          "reason": "Four source adapters, actual close and readonly job timer ownership."
+          "sha256": "16a80e4fdbe1f9c3fe88cf5ad95cfff28e4f99c84aa3ac4e74c9f79bd3815c55",
+          "reason": "Four source adapters, actual close and readonly job timer ownership.",
+          "cleanCodeRound2_20261023PreviousSha256": "9d1ef6ffca6b91ace1786752fd1adeb2b257e7de28cf95df5eac48d258c24831",
+          "cleanCodeRound2_20261023Adaptation": "2026-10-23 behavior-preserving clean-code round 2 (single-responsibility splits): pollingLaunch() owns the shared timer/abort/close lifecycle of jobLaunch and fileLaunch; fileChange() names the change classification. Review fix: later() is a no-op after close, run()/later() own the stop/abort guard, and a synchronous throw from begin or a sample faults and closes (removes the abort listener, reports closed)."
         },
         {
           "path": "modules/monitor/tests/command.integration.test.ts",
@@ -619,6 +626,11 @@
           "path": "modules/monitor/tests/fixtures/descendant-holder.cjs",
           "sha256": "dee060e148c8101b00f908df973ab52a88302f0f2e797a97b483327ba8b68d43",
           "reason": "2026-10-20 MON-01 test fixture: writes a pid file, silently holds the pipes and exits by itself after 20 seconds."
+        },
+        {
+          "path": "modules/monitor/tests/polling-lifecycle.test.ts",
+          "sha256": "d7ef75d20c22bf409a697e4ba2330b6f894f5ecfeac75eb8120ac69f98778dc9",
+          "reason": "Native Monitor regression tests added 2026-10-23: polling sources leave no timer after close, and a synchronous start/sample failure faults, closes and removes the abort listener."
         }
       ]
     },
@@ -640,7 +652,7 @@
           "streamingByteCountPreviousSha256": "8a2dd29f149f3b4a728dd8630a9ea1a4143292ac63ae53e2c4cabec0c6e98b69",
           "driftReconcile20261021PreviousSha256": "0553a85f0196dfe0bb36fd8cabc736cecc5bb6613e2bf9392e76878f1247ce89",
           "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
-          "sha256": "470cb07388e460c26d5a342abcbb3db4c0ead5dfc0c62b8ed5c75a82e465f11f",
+          "sha256": "8ee100c002a909e52d4a682ff510d8bbb460cee1283f64c54f261c5929821b96",
           "preChangeSha256": "b224c95b00c707d879e886507aa21d9be8258a6a4693b2523e12d7708175f2a4",
           "previousRecordedSha256": "b753ab14a2ffe217509ed09555fb73553f8da694f70acf928785e57492562ea3",
           "historicalDeltaAudit": "unavailable",
@@ -649,7 +661,9 @@
           "checklistReviewPreviousSha256": "9527af63c3f5227c5a18698c6ff6076d09cc3ffd2a668221f07b967cc2b8f721",
           "checklistReviewBaselineSha256": "5ab49a831d289907a2ff6b6c5cfe18f159d556f2c0e658039041684000adaa5c",
           "cleanCode20261023PreviousSha256": "a7b3bb928ff7f90832547272ec444e2a7d818385554bf05c83104914647c1487",
-          "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: Extract isOutsideWorkspace() for the two identical workspace-containment checks."
+          "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: Extract isOutsideWorkspace() for the two identical workspace-containment checks.",
+          "cleanCodeRound2_20261023PreviousSha256": "470cb07388e460c26d5a342abcbb3db4c0ead5dfc0c62b8ed5c75a82e465f11f",
+          "cleanCodeRound2_20261023Adaptation": "2026-10-23 behavior-preserving clean-code round 2 (single-responsibility splits): execute() reads as a flow over validateNote(), prepareNoteDirectory(), noteFilename() and createNoteFile()."
         },
         {
           "path": "modules/note-tools/tests/note.test.ts",
@@ -840,7 +854,7 @@
           "reviewReproductionPreviousSha256": "3fa4cc833cbb46361e9bdcd15fb5f2735c86d0f4432ce3b6063682408a848db5",
           "reviewFollowupPreviousSha256": "3672fa49f8965db1dfeff28a982702be7b7ac4cf1ef8843b956ebdb7304e75a9",
           "reportRepairPreviousSha256": "85f26826471a5ad4f573606c391de829207b2271b7dec935892e8e3e91a90ea6",
-          "sha256": "192b9544eaa95c91441fe3058cc491348aa7903ddc14610e4d3b1d01b133b687",
+          "sha256": "c43beb2885c35da8a44e40ab2cb5b98ef15435140f526dc2823955b913edfaac",
           "reason": "2026-10-06 lazy zod loading retained. 2026-10-07 user-authorized BUG001/002 repairs: fail startup on enum/const ignored siblings or type conflicts; conservative linear patterns protect host synchronous pre-execute validation (including draft-07 additionalItems tuple tails in audit/pattern detection); accepted pattern schemas validate in terminable cancellable workers (2s, max4, held-until-exit permits), and extension delivery paths await results. 2026-10-08 current local snapshot review: M8-M9/L32-L33: retained original assistant text, schema-valid candidate selection, bounded reusable validation pool and Windows delivery rename retry reviewed; conservative pattern policy and cancellation/termination capacity retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-11 R2/R3/R10: shared schema-position default pruning without raw-data mutation, ref-sibling audit and precompile expanded-work budget. C1 follow-up: resolve the same definition map as the installed converter to close dual-map admission bypass.",
           "checklistReviewPreviousSha256": "15756df6f84a6a3495fb621788a97b54a41327d3f08a50e9b064335c2c2e9c6a",
           "checklistReviewBaselineSha256": "c422f5855e644613696f8cd78ce9f90dcaf1030993ea113a11deb2880c925aef",
@@ -848,7 +862,9 @@
           "historicalDeltaAudit": "unavailable",
           "previousRecordedSha256": "15756df6f84a6a3495fb621788a97b54a41327d3f08a50e9b064335c2c2e9c6a",
           "cleanCode20261023PreviousSha256": "86de0d18393d17b3bfcae4beb89f405b644281709e4ddf78f2187544e93cacd8",
-          "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: audit/usesPattern/admitExpandedSchema iterate childSchemas(); expansion keeps walking only properties/patternProperties maps."
+          "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: audit/usesPattern/admitExpandedSchema iterate childSchemas(); expansion keeps walking only properties/patternProperties maps.",
+          "cleanCodeRound2_20261023PreviousSha256": "192b9544eaa95c91441fe3058cc491348aa7903ddc14610e4d3b1d01b133b687",
+          "cleanCodeRound2_20261023Adaptation": "2026-10-23 behavior-preserving clean-code round 2 (single-responsibility splits): audit() runs named checks (keywords, reference, shapes, enum/const, ignored constraints) in the original order."
         },
         {
           "path": "modules/json-schema/src/pattern-policy.ts",
@@ -992,10 +1008,12 @@
           "path": "modules/pi-runtime/src/index.ts",
           "runtimeSafetyPreviousSha256": "2668bcdb0b7a9a7a88ec4b3f3290d6fbb44817f5d6c60a7be9538894ac301f48",
           "promptSectionsPreviousSha256": "b156df9b4109929587b49931b8a37897b28a20ef565a7666b56d32e8a4414205",
-          "sha256": "f7654dc491bb74425ca08a496748809200fcad17d431416757259839b162e1e3",
+          "sha256": "09cbcfab510321121565f3d23965750a11f22e216bd767977fad9544dbb849ba",
           "deferredSharedPreviousSha256": "517e8e20f389d6362ec1587b1d90addd14f6376d319793de699e88247302376c",
           "cleanCode20261023PreviousSha256": "8849f5e4c2c423b9abc488cbe337191ee5a7985e2855d3517a55f06e288371b3",
-          "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: disable() for the four fail-closed restore paths; ERROR_KINDS/MANUAL_RECOVERY_KINDS/isFingerprint replace repeated literals."
+          "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: disable() for the four fail-closed restore paths; ERROR_KINDS/MANUAL_RECOVERY_KINDS/isFingerprint replace repeated literals.",
+          "cleanCodeRound2_20261023PreviousSha256": "f7654dc491bb74425ca08a496748809200fcad17d431416757259839b162e1e3",
+          "cleanCodeRound2_20261023Adaptation": "2026-10-23 behavior-preserving clean-code round 2 (single-responsibility splits): taskSpend() is a pure session-wide reservation reconciliation; restore() only applies or disables."
         },
         {
           "path": "modules/pi-runtime/src/policy.ts",
@@ -1117,7 +1135,7 @@
           "historicalDeltaAudit": "unavailable",
           "localSnapshotReview": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
           "previousRecordedSha256": "e65e376f62d105ea5bf705a1de7c33f60d8241e38db8e35d3bb1265ccd4baa9b",
-          "sha256": "db71d5e2018c0190338c677dd90597f856fb49e1a601bf32abc6ae963666b21b",
+          "sha256": "3293f5cc22de5b8d0491278559e89d536360170911685bb4498ca91490b096a7",
           "forkMessage20261021PreviousSha256": "cb6f24ee7bf49eb3cfd1a1c6630108c8ccf6921b3d654516d5df2f2eb171b37d",
           "forkMessage20261021Adaptation": "2026-10-22: documents fork_message (running/blocked only, follow_up default and steer opt-in, receipts and the applied upgrade, 32 per Fork, no queue/replay, acceptance never shown as progress).",
           "reason": "Document defaultActive:true without config; preserve host selection, managed-child restrictions, limits and security boundaries.",
@@ -1125,7 +1143,9 @@
           "transcriptAdaptation": "2026-10-21: Fork query transcript (post-start messages only, reuses the Subagent readable-log writer; auxiliary, failures only mark it unavailable).",
           "identityPromptPreviousSha256": "e73379e3812a516e1c529b6dbe6c98be63e5eef0b16aecebee3be2f080ef3c19",
           "identityPromptAdaptation": "2026-10-21: Fork task prompt opens with an explicit background-agent identity declaration so the child does not wait for a report.",
-          "forkMonitorSource20261021": "2026-10-21: document the readonly fork_job capability Monitor can sample (bounded status view; the result still travels only through fork-result)."
+          "forkMonitorSource20261021": "2026-10-21: document the readonly fork_job capability Monitor can sample (bounded status view; the result still travels only through fork-result).",
+          "cleanCodeRound2_20261023PreviousSha256": "db71d5e2018c0190338c677dd90597f856fb49e1a601bf32abc6ae963666b21b",
+          "cleanCodeRound2_20261023Adaptation": "2026-10-23 documentation correction: the stdout line limit is 4Mi UTF-16 code units of decoded text, not 4 MiB of bytes."
         },
         {
           "path": "modules/fork/src/args.ts",
@@ -1150,14 +1170,16 @@
           "historicalDeltaAudit": "unavailable",
           "localSnapshotReview": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
           "previousRecordedSha256": "7c8b2d7a3b6456270cb5c0f7b3330ca19c6fbe0701383fab818ba5d501b95509",
-          "sha256": "7c17191e73b15d798dfb5eac4c6295c99d8aa429aa2a5b63e20cbad98dda7fa1",
+          "sha256": "9afbae14fe2e5847a5b8a9410bdd727cbbccacf9357a3cbbc34f88ef662f55ff",
           "forkMessage20261021PreviousSha256": "5dc2ebdc69944c0fa5011cd80ee3ed96932ff2742b8aae54c0780448b4df2ebb",
           "forkMessage20261021Adaptation": "2026-10-22: ForkChildHandle gains steer(message, mode) over the existing RpcPipe (follow_up|steer) returning the child disposition, refusing before the task prompt (CHILD_NOT_READY) and letting RPC_CLOSED/RPC_DEADLINE propagate.",
           "reason": "Native Fork implementation.",
           "transcriptPreviousSha256": "dfdb319115c86c250a76eded59b71989e9e9339e170a3bfb0ed463227e180fa1",
           "transcriptAdaptation": "2026-10-21: Fork query transcript (post-start messages only, reuses the Subagent readable-log writer; auxiliary, failures only mark it unavailable).",
           "cleanCode20261023PreviousSha256": "be8bf3cd1d6eb7417a0929d6b1024a423c4f0c82b0b212100609c4db444a3e91",
-          "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: isForkTool(); usage delta computed over one field list."
+          "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: isForkTool(); usage delta computed over one field list.",
+          "cleanCodeRound2_20261023PreviousSha256": "7c17191e73b15d798dfb5eac4c6295c99d8aa429aa2a5b63e20cbad98dda7fa1",
+          "cleanCodeRound2_20261023Adaptation": "2026-10-23 behavior-preserving clean-code round 2 (single-responsibility splits): boundedLineReader() extracted from the inline stdout reader. Review fix: the stdout line bound is named for what it measures (MAX_LINE_CODE_UNITS, maxCodeUnits: UTF-16 code units, not UTF-8 bytes); behavior unchanged."
         },
         {
           "path": "modules/fork/src/identity.ts",
@@ -1202,7 +1224,7 @@
           "historicalDeltaAudit": "unavailable",
           "localSnapshotReview": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
           "previousRecordedSha256": "75ec1fce9d202b2392c4bb99e7121aab794c81578847e0e8e3561936e044bbb5",
-          "sha256": "bc6d21aa7ad97f55b1f7498c821b9729e4677222efde47ef5b431798427507ff",
+          "sha256": "509f8afad5ed90c0fb066c0b3cc214b348247752bc13bb9f9720d4714c7a274d",
           "forkReview20261022Adaptation": "2026-10-22 review fixes: applied is matched by the control message id (not exact text) and unconfirmed control text is released when the Fork is terminal.",
           "forkMessage20261021PreviousSha256": "af22a81f5d663abaa1c590b031c3251728b28daeffcc9a949916f423b41d791b",
           "forkMessage20261021Adaptation": "2026-10-22: messageFork (running|blocked only, 32 per Fork, receipts in memory, no status/blocked change on acceptance), applied upgrade from the child's own matching user message, and fork_status projects the newest three receipts.",
@@ -1212,7 +1234,9 @@
           "identityPromptPreviousSha256": "d6ecb6b21cca9a64d94767f5a1f8fd69e1179a670a6beaee0ae8e2e0abb724f0",
           "identityPromptAdaptation": "2026-10-21: Fork task prompt opens with an explicit background-agent identity declaration so the child does not wait for a report.",
           "cleanCode20261023PreviousSha256": "6e311c6a6b5012705ea0410982e2b5be3b2fde0fbf132a26016529e1ccf2c9e6",
-          "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: errorText()/utf8Prefix() from text.ts, isForkTool(), resultObserved() for the duplicated delivery check, findOwnedJob()."
+          "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: errorText()/utf8Prefix() from text.ts, isForkTool(), resultObserved() for the duplicated delivery check, findOwnedJob().",
+          "cleanCodeRound2_20261023PreviousSha256": "bc6d21aa7ad97f55b1f7498c821b9729e4677222efde47ef5b431798427507ff",
+          "cleanCodeRound2_20261023Adaptation": "2026-10-23 behavior-preserving clean-code round 2 (single-responsibility splits): acceptFork() delegates to validateForkParams(), assertCapacity(), inheritedTools() and forkPrompt(); check order unchanged."
         },
         {
           "path": "modules/fork/src/result-renderer.ts",

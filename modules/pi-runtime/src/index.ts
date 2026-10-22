@@ -30,6 +30,27 @@ function validState(value: unknown): value is State {
     (s.pending === null || validDiagnostic(s.pending));
 }
 
+type SessionEntries = ReturnType<ExtensionContext['sessionManager']['getEntries']>;
+/** A task's spend is session-wide, not rolled back with the visible branch: every reservation of `taskId` in the whole
+ * session, keyed by handled entry ID with its fingerprint. Any invalid, conflicting or over-budget history is an error. */
+function taskSpend(entries: SessionEntries, taskId: string): { handled: Map<string, string> } | { error: string } {
+  if (entries.length > 100000) return { error: 'Recovery history exceeds the inspection bound; recovery disabled.' };
+  const handled = new Map<string, string>();
+  for (const entry of entries) {
+    if (entry.type !== 'custom' || entry.customType !== STATE_TYPE) continue;
+    const data = entry.data as Partial<State> | null;
+    if (data?.taskId !== taskId) continue;
+    if (!validState(data)) return { error: 'Invalid task reservation history; recovery disabled.' };
+    for (let i = 0; i < data.handled.length; i++) {
+      const id = data.handled[i], fingerprint = data.fingerprints[i];
+      if (handled.has(id) && handled.get(id) !== fingerprint) return { error: 'Invalid conflicting task reservation; recovery disabled.' };
+      handled.set(id, fingerprint);
+    }
+  }
+  if (handled.size > LIMIT) return { error: 'Invalid task reservation count; recovery disabled.' };
+  return { handled };
+}
+
 /** Native, bounded diagnostic recovery. Never replaces the host's provider/retry machinery. */
 export default function runtime(pi: ExtensionAPI) {
   registerDeferredTools(pi);
@@ -79,23 +100,9 @@ export default function runtime(pi: ExtensionAPI) {
       break;
     }
     if (!state || !healthy) return;
-    // A task's spend is session-wide, not rolled back with the visible branch.
-    const entries = ctx.sessionManager.getEntries();
-    if (entries.length > 100000) return disable(ctx, 'Recovery history exceeds the inspection bound; recovery disabled.');
-    const handled = new Map<string, string>();
-    for (const entry of entries) {
-      if (entry.type !== 'custom' || entry.customType !== STATE_TYPE) continue;
-      const data = entry.data as Partial<State> | null;
-      if (data?.taskId !== state.taskId) continue;
-      if (!validState(data)) return disable(ctx, 'Invalid task reservation history; recovery disabled.');
-      for (let i = 0; i < data.handled.length; i++) {
-        const id = data.handled[i], fingerprint = data.fingerprints[i];
-        if (handled.has(id) && handled.get(id) !== fingerprint) return disable(ctx, 'Invalid conflicting task reservation; recovery disabled.');
-        handled.set(id, fingerprint);
-      }
-    }
-    if (handled.size > LIMIT) return disable(ctx, 'Invalid task reservation count; recovery disabled.');
-    state = { ...state, used: handled.size, handled: [...handled.keys()], fingerprints: [...handled.values()] };
+    const spend = taskSpend(ctx.sessionManager.getEntries(), state.taskId);
+    if ('error' in spend) return disable(ctx, spend.error);
+    state = { ...state, used: spend.handled.size, handled: [...spend.handled.keys()], fingerprints: [...spend.handled.values()] };
   }
   pi.on('session_start', (_event, ctx) => {
     invalidate(); owner = ctx.sessionManager.getSessionId(); stopped = false; confirming = false; clearInput(); restore(ctx);

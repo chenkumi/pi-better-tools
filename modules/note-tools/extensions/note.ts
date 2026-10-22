@@ -21,6 +21,66 @@ function isOutsideWorkspace(cwd: string, directory: string): boolean {
   return inside === "" || inside === ".." || inside.startsWith(".." + sep) || isAbsolute(inside);
 }
 
+type NoteType = (typeof noteTypes)[number];
+const MAX_FILENAME_ATTEMPTS = 1000;
+
+/** Also protects direct/programmatic callers that bypass the host's schema validation. */
+function validateNote(params: { type: NoteType; content: string }): void {
+  if (!noteTypes.includes(params.type) || typeof params.content !== "string" || /[\uD800-\uDFFF]/u.test(params.content)) {
+    throw new Error("NOTE_INVALID_ARGUMENTS: Expected a supported type and well-formed Unicode string content.");
+  }
+  if (Buffer.byteLength(params.content, "utf8") > MAX_NOTE_BYTES) {
+    throw new Error(`NOTE_TOO_LARGE: Content exceeds ${MAX_NOTE_BYTES} bytes; split it into several notes.`);
+  }
+  if (params.content.trim() === "") {
+    throw new Error("NOTE_EMPTY: content is empty or whitespace only. Write the complete Markdown document (with a title heading) into content and call note again.");
+  }
+}
+
+/** <cwd>/<folder>, created if needed. It may be a pre-existing symlink/junction; refuse one that leads outside the workspace. */
+async function prepareNoteDirectory(cwd: string, folder: string): Promise<string> {
+  const directory = resolve(cwd, folder);
+  await mkdir(directory, { recursive: true });
+  const [realCwd, realDirectory] = await Promise.all([realpath(cwd), realpath(directory)]);
+  if (isOutsideWorkspace(realCwd, realDirectory)) {
+    throw new Error(`NOTE_DIRECTORY_ESCAPE: ${folder}/ resolves outside the workspace; refusing to write.`);
+  }
+  return directory;
+}
+
+/** TYPE-YYYYMMDDTHHmmssSSSZ.md (UTC). */
+const noteFilename = (type: NoteType, time: number) => `${type.toUpperCase()}-${new Date(time).toISOString().replace(/[-:.]/g, "")}.md`;
+
+/** Creates `path` exclusively and writes `content`; throws EEXIST when the name is taken. */
+async function createNoteFile(path: string, content: string, cwd: string, folder: string, signal: AbortSignal | undefined): Promise<void> {
+  await withFileMutationQueue(path, async () => {
+    signal?.throwIfAborted();
+    // Exclusive creation is the cross-process no-overwrite guard. Do not cancel
+    // mid-write: once started, finish writing and report the resulting path.
+    const handle = await open(path, "wx", 0o644);
+    try {
+      // Post-create re-verification: if <cwd>/<folder> was swapped for a junction/symlink after the check above,
+      // the empty file we just created landed outside the workspace. Remove it (it is ours, created with wx)
+      // before any content is written. Narrows the window; it is not an atomic guarantee against a persistent attacker.
+      const [cwdNow, createdNow] = await Promise.all([realpath(cwd), realpath(path)]);
+      if (isOutsideWorkspace(cwdNow, dirname(createdNow))) {
+        await handle.close().catch(() => {});
+        await rm(createdNow, { force: true }).catch(() => {});
+        throw new Error(`NOTE_DIRECTORY_ESCAPE: ${folder}/ resolved outside the workspace during creation; the file was removed.`);
+      }
+      await handle.writeFile(content, "utf8");
+    }
+    catch (error) {
+      if (error instanceof Error && error.message.startsWith("NOTE_DIRECTORY_ESCAPE")) throw error;
+      // We created this file (wx), so a partial result from e.g. ENOSPC is ours to remove.
+      await handle.close().catch(() => {});
+      await rm(path, { force: true }).catch(() => {});
+      throw error;
+    }
+    await handle.close();
+  });
+}
+
 export const noteTool = defineTool({
   name: "note",
   label: "Note",
@@ -57,57 +117,15 @@ export const noteTool = defineTool({
     return new Text(theme.fg("success", path ? `Saved note: ${path}` : displayText(text) || "Note result unavailable"), 0, 0);
   },
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-    // Also protect direct/programmatic callers that bypass the host's schema validation.
-    if (!noteTypes.includes(params.type) || typeof params.content !== "string" || /[\uD800-\uDFFF]/u.test(params.content)) {
-      throw new Error("NOTE_INVALID_ARGUMENTS: Expected a supported type and well-formed Unicode string content.");
-    }
-    if (Buffer.byteLength(params.content, "utf8") > MAX_NOTE_BYTES) {
-      throw new Error(`NOTE_TOO_LARGE: Content exceeds ${MAX_NOTE_BYTES} bytes; split it into several notes.`);
-    }
-    if (params.content.trim() === "") {
-      throw new Error("NOTE_EMPTY: content is empty or whitespace only. Write the complete Markdown document (with a title heading) into content and call note again.");
-    }
+    validateNote(params);
     signal?.throwIfAborted();
     const folder = noteDirectories[params.type];
-    const directory = resolve(ctx.cwd, folder);
-    await mkdir(directory, { recursive: true });
-    // <cwd>/<folder> may be a pre-existing symlink/junction; refuse to write outside the workspace.
-    const [realCwd, realDirectory] = await Promise.all([realpath(ctx.cwd), realpath(directory)]);
-    if (isOutsideWorkspace(realCwd, realDirectory)) {
-      throw new Error(`NOTE_DIRECTORY_ESCAPE: ${folder}/ resolves outside the workspace; refusing to write.`);
-    }
+    const directory = await prepareNoteDirectory(ctx.cwd, folder);
     const timestamp = Date.now();
-    for (let attempt = 0; attempt < 1000; attempt++) {
-      const stamp = new Date(timestamp + attempt).toISOString().replace(/[-:.]/g, "");
-      const filename = `${params.type.toUpperCase()}-${stamp}.md`;
-      const path = join(directory, filename);
+    for (let attempt = 0; attempt < MAX_FILENAME_ATTEMPTS; attempt++) {
+      const filename = noteFilename(params.type, timestamp + attempt);
       try {
-        await withFileMutationQueue(path, async () => {
-          signal?.throwIfAborted();
-          // Exclusive creation is the cross-process no-overwrite guard. Do not cancel
-          // mid-write: once started, finish writing and report the resulting path.
-          const handle = await open(path, "wx", 0o644);
-          try {
-            // Post-create re-verification: if <cwd>/<folder> was swapped for a junction/symlink after the check above,
-            // the empty file we just created landed outside the workspace. Remove it (it is ours, created with wx)
-            // before any content is written. Narrows the window; it is not an atomic guarantee against a persistent attacker.
-            const [cwdNow, createdNow] = await Promise.all([realpath(ctx.cwd), realpath(path)]);
-            if (isOutsideWorkspace(cwdNow, dirname(createdNow))) {
-              await handle.close().catch(() => {});
-              await rm(createdNow, { force: true }).catch(() => {});
-              throw new Error(`NOTE_DIRECTORY_ESCAPE: ${folder}/ resolved outside the workspace during creation; the file was removed.`);
-            }
-            await handle.writeFile(params.content, "utf8");
-          }
-          catch (error) {
-            if (error instanceof Error && error.message.startsWith("NOTE_DIRECTORY_ESCAPE")) throw error;
-            // We created this file (wx), so a partial result from e.g. ENOSPC is ours to remove.
-            await handle.close().catch(() => {});
-            await rm(path, { force: true }).catch(() => {});
-            throw error;
-          }
-          await handle.close();
-        });
+        await createNoteFile(join(directory, filename), params.content, ctx.cwd, folder, signal);
       } catch (error) {
         if (error && typeof error === "object" && "code" in error && error.code === "EEXIST") continue;
         throw error;
@@ -119,7 +137,7 @@ export const noteTool = defineTool({
         structuredContent: saved,
       };
     }
-    throw new Error("NOTE_FILENAME_COLLISION: Could not allocate a new filename after 1000 attempts. Retry the call.");
+    throw new Error(`NOTE_FILENAME_COLLISION: Could not allocate a new filename after ${MAX_FILENAME_ATTEMPTS} attempts. Retry the call.`);
   },
 });
 

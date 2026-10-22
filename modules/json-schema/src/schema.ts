@@ -43,40 +43,50 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function audit(node: unknown, path: string): void {
-  if (!isRecord(node)) return;
+type SchemaNode = Record<string, unknown>;
+const JSON_TYPES = ["object", "array", "string", "number", "integer", "boolean", "null"];
+const declaredTypes = (node: SchemaNode): unknown[] => Array.isArray(node.type) ? node.type : [node.type];
+const matchesType = (value: unknown, type: unknown) => type === "null" ? value === null : type === "array" ? Array.isArray(value) : type === "object" ? isRecord(value) : type === "integer" ? typeof value === "number" && Number.isInteger(value) : typeof value === type;
+
+function auditKeywords(node: SchemaNode, path: string): void {
   for (const keyword of Object.keys(node)) {
     if (UNSUPPORTED_KEYWORDS.has(keyword)) throw new Error(`unsupported JSON Schema keyword "${keyword}" at ${path}`);
   }
   if ("pattern" in node) assertSafeSchemaPattern(node.pattern, `${path}/pattern`);
   if (isRecord(node.patternProperties)) for (const name of Object.keys(node.patternProperties)) assertSafeSchemaPattern(name, `${path}/patternProperties`);
+}
+
+function auditReference(node: SchemaNode, path: string): void {
   const reference = node.$ref;
-  if (reference !== undefined) {
-    if (typeof reference !== "string" || !reference.startsWith("#")) throw new Error(`only local $ref values ("#...") are supported at ${path}`);
-    if (reference !== "#" && !/^#\/(?:\$defs|definitions)\/[^/]+$/.test(reference)) {
-      throw new Error(`unsupported $ref pointer at ${path}; use "#" or a direct "$defs"/"definitions" reference (inline descendant schemas)`);
-    }
-    const sibling = Object.keys(node).find(key => TYPE_SPECIFIC_KEYWORDS.has(key) || SUBSCHEMA_LIST.has(key) || ["type", "enum", "const"].includes(key));
-    if (sibling) throw new Error(`$ref at ${path} has unsupported sibling "${sibling}"; use explicit-type allOf instead (draft semantics are not rewritten)`);
+  if (reference === undefined) return;
+  if (typeof reference !== "string" || !reference.startsWith("#")) throw new Error(`only local $ref values ("#...") are supported at ${path}`);
+  if (reference !== "#" && !/^#\/(?:\$defs|definitions)\/[^/]+$/.test(reference)) {
+    throw new Error(`unsupported $ref pointer at ${path}; use "#" or a direct "$defs"/"definitions" reference (inline descendant schemas)`);
   }
+  const sibling = Object.keys(node).find(key => TYPE_SPECIFIC_KEYWORDS.has(key) || SUBSCHEMA_LIST.has(key) || ["type", "enum", "const"].includes(key));
+  if (sibling) throw new Error(`$ref at ${path} has unsupported sibling "${sibling}"; use explicit-type allOf instead (draft semantics are not rewritten)`);
+}
+
+/** Keyword values must have the JSON shape the converter expects. */
+function auditShapes(node: SchemaNode, path: string): void {
   if ("required" in node && !(Array.isArray(node.required) && node.required.every((name) => typeof name === "string"))) throw new Error(`"required" at ${path} must be an array of strings`);
   if ("properties" in node && !isRecord(node.properties)) throw new Error(`"properties" at ${path} must be an object`);
   if ("enum" in node && !Array.isArray(node.enum)) throw new Error(`"enum" at ${path} must be an array`);
-  if ("type" in node) {
-    const types = Array.isArray(node.type) ? node.type : [node.type];
-    if (!types.every((name) => typeof name === "string" && ["object", "array", "string", "number", "integer", "boolean", "null"].includes(name))) throw new Error(`"type" at ${path} must be a JSON Schema type name or an array of them`);
-  }
-  if ("enum" in node || "const" in node) {
-    // Zod's enum/const branch returns early: sibling validation is not intersected.
-    const sibling = Object.keys(node).find(key => TYPE_SPECIFIC_KEYWORDS.has(key) || SUBSCHEMA_LIST.has(key) || key === "$ref" || (key === "const" && "enum" in node));
-    if (sibling) throw new Error(`"${sibling}" at ${path} cannot be combined with enum/const (sibling constraints would be ignored)`);
-    if ("type" in node) {
-      const types = Array.isArray(node.type) ? node.type : [node.type];
-      const values = "enum" in node ? node.enum as unknown[] : [node.const];
-      const matches = (value: unknown, type: unknown) => type === "null" ? value === null : type === "array" ? Array.isArray(value) : type === "object" ? isRecord(value) : type === "integer" ? typeof value === "number" && Number.isInteger(value) : typeof value === type;
-      if (!values.every(value => types.some(type => matches(value, type)))) throw new Error(`"type" at ${path} cannot conflict with enum/const values`);
-    }
-  }
+  if ("type" in node && !declaredTypes(node).every((name) => typeof name === "string" && JSON_TYPES.includes(name))) throw new Error(`"type" at ${path} must be a JSON Schema type name or an array of them`);
+}
+
+/** Zod's enum/const branch returns early: sibling validation is not intersected. */
+function auditEnumConst(node: SchemaNode, path: string): void {
+  if (!("enum" in node || "const" in node)) return;
+  const sibling = Object.keys(node).find(key => TYPE_SPECIFIC_KEYWORDS.has(key) || SUBSCHEMA_LIST.has(key) || key === "$ref" || (key === "const" && "enum" in node));
+  if (sibling) throw new Error(`"${sibling}" at ${path} cannot be combined with enum/const (sibling constraints would be ignored)`);
+  if (!("type" in node)) return;
+  const types = declaredTypes(node), values = "enum" in node ? node.enum as unknown[] : [node.const];
+  if (!values.every(value => types.some(type => matchesType(value, type)))) throw new Error(`"type" at ${path} cannot conflict with enum/const values`);
+}
+
+/** Constraints zod would silently drop: undeclared required names under additionalProperties:false, and type-specific keywords without a type. */
+function auditIgnoredConstraints(node: SchemaNode, path: string): void {
   if (Array.isArray(node.required) && node.additionalProperties === false) {
     const declared = isRecord(node.properties) ? node.properties : {};
     const missing = node.required.find(name => !Object.hasOwn(declared, name));
@@ -85,7 +95,16 @@ function audit(node: unknown, path: string): void {
   const constrains = Object.keys(node).find((keyword) => TYPE_SPECIFIC_KEYWORDS.has(keyword));
   const anchored = "type" in node || "$ref" in node || "enum" in node || "const" in node;
   if (constrains && !anchored) throw new Error(`"${constrains}" at ${path} needs an explicit "type" (it would be ignored otherwise)`);
+}
 
+/** Checks run in a fixed order, so the first reported problem for a node is stable. */
+function audit(node: unknown, path: string): void {
+  if (!isRecord(node)) return;
+  auditKeywords(node, path);
+  auditReference(node, path);
+  auditShapes(node, path);
+  auditEnumConst(node, path);
+  auditIgnoredConstraints(node, path);
   for (const [child, suffix] of childSchemas(node)) audit(child, `${path}/${suffix}`);
 }
 

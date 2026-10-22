@@ -7,7 +7,8 @@ import { RpcPipe } from "../../subagents/extensions/subagent/rpc.ts";
 import { CHANNEL } from "./child-guard.ts";
 import { FORK_GUARD_ENV, FORK_TOOLS, isForkTool, type ForkChildGuard } from "./identity.ts";
 
-export const MAX_LINE_BYTES = 4 * 1024 * 1024;
+/** Longest accepted stdout line, in UTF-16 code units of the decoded text (not UTF-8 bytes). */
+export const MAX_LINE_CODE_UNITS = 4 * 1024 * 1024;
 export const STDERR_TAIL_BYTES = 8 * 1024;
 export const STARTUP_MS = 90_000;
 export const CLOSE_GRACE_MS = 10_000;
@@ -81,6 +82,21 @@ const jobCount = (value: unknown) => typeof value === "number" && Number.isFinit
 const debug = (jobId: string, message: string) => { if (process.env.PI_FORK_DEBUG) { try { process.stderr.write(`[fork ${jobId.slice(-6)}] ${message}
 `); } catch { /* diagnostics only */ } } };
 
+/** Bounded LF-delimited reader: one oversized line is discarded, the stream keeps draining.
+ *  The bound is in UTF-16 code units of the decoded string, not UTF-8 bytes (a CJK/emoji line may be up to ~3x larger in bytes). */
+function boundedLineReader(maxCodeUnits: number, onLine: (line: string) => void): (chunk: string) => void {
+	let buffer = "", discarding = false;
+	return chunk => {
+		buffer += chunk;
+		for (let at = buffer.indexOf("\n"); at >= 0; at = buffer.indexOf("\n")) {
+			const line = buffer.slice(0, at); buffer = buffer.slice(at + 1);
+			if (discarding) { discarding = false; continue; }
+			onLine(line);
+		}
+		if (buffer.length > maxCodeUnits) { buffer = ""; discarding = true; }
+	};
+}
+
 class Deferred<T> {
 	promise: Promise<T>; resolve!: (value: T) => void; reject!: (error: Error) => void; settled = false;
 	constructor() {
@@ -123,9 +139,8 @@ export function startForkChild(spec: ForkChildSpec, onProgress: (progress: ForkP
 		else if (message.type === "settled" && message.quiet === true && verified.settled && promptSent) quiescent.resolve();
 	});
 	let promptSent = false;
-	// Bounded LF-delimited reader: one oversized line is discarded, the stream keeps draining.
 	const handleLine = (line: string) => {
-		if (line.length > MAX_LINE_BYTES || line.charCodeAt(0) !== 123) return;
+		if (line.length > MAX_LINE_CODE_UNITS || line.charCodeAt(0) !== 123) return;
 		const response = line.includes('"type":"response"');
 		// Non-assistant messages only matter to the auxiliary transcript, so skip their parse unless it is listening.
 		const messageEnd = line.includes('"type":"message_end"') && (line.includes('"role":"assistant"') || (promptSent && !!spec.onMessage));
@@ -137,17 +152,8 @@ export function startForkChild(spec: ForkChildSpec, onProgress: (progress: ForkP
 			if (promptSent && spec.onMessage) { try { spec.onMessage(event.message); } catch { /* auxiliary transcript never controls the Fork */ } }
 		}
 	};
-	let buffer = "", discarding = false;
 	proc.stdout?.setEncoding("utf8");
-	proc.stdout?.on("data", (chunk: string) => {
-		buffer += chunk;
-		for (let at = buffer.indexOf("\n"); at >= 0; at = buffer.indexOf("\n")) {
-			const line = buffer.slice(0, at); buffer = buffer.slice(at + 1);
-			if (discarding) { discarding = false; continue; }
-			handleLine(line);
-		}
-		if (buffer.length > MAX_LINE_BYTES) { buffer = ""; discarding = true; }
-	});
+	proc.stdout?.on("data", boundedLineReader(MAX_LINE_CODE_UNITS, handleLine));
 
 	const closeGrace = spec.closeGraceMs ?? CLOSE_GRACE_MS, killGrace = spec.killGraceMs ?? KILL_GRACE_MS;
 	const waitClosed = async (ms: number) => {
