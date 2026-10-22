@@ -252,7 +252,9 @@
           "standalonePreviousSha256": "033d19e473519ae47957aec146af43976f8fd4c1000201c705aa36e19a8a3327",
           "forkMonitorSource20261021PreviousSha256": "0c2d97047b718f8dea7592280c031cf0ea79a2a60374a199c94f7ec4b1d31a6d",
           "forkMonitorSource20261021Adaptation": "2026-10-21: document the readonly fork_job source next to shell_job/subagent_job.",
-          "sha256": "421d816adee6ca27ac420ae2ce0e5dfe46a732f0eea190de728aec0b2a908db7",
+          "fileMonitorSource20261022PreviousSha256": "421d816adee6ca27ac420ae2ce0e5dfe46a732f0eea190de728aec0b2a908db7",
+          "fileMonitorSource20261022Adaptation": "2026-10-22: document the file source (cwd-contained, metadata-only, polling).",
+          "sha256": "6d95b89ae98c3173b39a9ffe70b1a21765abdbd21bb57d76b6e0b7f630c344ae",
           "reason": "Per-invocation sources, security opt-ins, quotas and readonly job monitoring."
         },
         {
@@ -429,9 +431,13 @@
           "dependencyUpgradePreviousSha256": "6afb9a9768dca7f4bd0af0cb63b258595b8dc6f41fc8c81a1521004442968549",
           "forkMonitorSource20261021PreviousSha256": "d8fe937079cf1c0862d93994b77e0607f68d76893c52901fda51f154f4e91be5",
           "forkMonitorSource20261021Adaptation": "2026-10-21: document the fifth source fork_job (publish/revoke on session_start/session_shutdown, bounded snapshot, live-status sampling; wakeAgent:false is the recommended pairing because fork-result already requests a parent turn).",
-          "sha256": "0ba3fb09f04292b3d46cf3eaa3694ebd0af5d969279d4c30786b32432b2cd20f",
           "staleProvenanceRepair20261022PreviousSha256": "d6360d0cc63faaf561399895703eadad4ec4c2aa9d1fa43378b7c3c53fb1c02a",
           "staleProvenanceRepair20261022": "2026-10-22: the recorded hash lagged the committed content (the last edit to this file landed after the provenance refresh in 055cca3). The bytes are the reviewed fork_job documentation; only the recorded hash is corrected here, no content change.",
+          "fileMonitorSource20261022PreviousSha256": "d6360d0cc63faaf561399895703eadad4ec4c2aa9d1fa43378b7c3c53fb1c02a",
+          "fileMonitorSource20261022Adaptation": "2026-10-22: document the sixth source, file (canonical-cwd containment, metadata-only events, polling, limits).",
+          "fileMonitorSourceMerge20261022PreviousSha256": "dab0ff5ff08c7cbd2ee93b8cab29b78810dc4b9e34fddd2d03403221d1ac75a4",
+          "fileMonitorSourceMerge20261022Adaptation": "2026-10-22: merge worktree-monitor-file-source into main. The merged bytes carry both rounds (fork_job documentation plus the sixth source), so the hash is recomputed over the combined file; no content beyond those two rounds.",
+          "sha256": "ca5b5e3c614ffad6d210a76e59212989d7bf7835be10ea126d1c24efc80ea8f0",
           "reason": "Contract, limits, security and producer schema/handoff."
         },
         {
@@ -439,7 +445,9 @@
           "monitorReviewPreviousSha256": "93596276c588b022c6d7ef4a7f9a3129b698d2996103f4b52ef36c6a845372b1",
           "monitorReentryPreviousSha256": "b820336ee6d66e146d23354ad23fd9dddd9bd1d399999fe05439c4adf1f7b07f",
           "dependencyUpgradePreviousSha256": "f78cc5e574fa7061ef8fefc62d382380765e62de6dc3fa71d3a9f3436c330963",
-          "sha256": "85d17a8c5f09e0d39f221a93c927eabc37cbeb548b6720ea0c21b3eb3f92f97f",
+          "fileMonitorSource20261022PreviousSha256": "85d17a8c5f09e0d39f221a93c927eabc37cbeb548b6720ea0c21b3eb3f92f97f",
+          "fileMonitorSource20261022Adaptation": "2026-10-22: receipt sourcePreview shows the sanitized relative path for the file source.",
+          "sha256": "d4529a8d905da2f00898bc3673e1e3449b1e89dc8232966811dfb2016fb89c61",
           "reason": "Owner-generation bounded lifecycle/events/submission/cleanup evidence."
         },
         {
@@ -449,7 +457,9 @@
           "dependencyUpgradePreviousSha256": "9ff20052fcd3211b465511d8e5417677d0fed5599161fbb62f58f16f6869b728",
           "forkMonitorSource20261021PreviousSha256": "5805133dca77e4ea5bc6981ae5ac237943ce4ba3e218db2059733da48f448c8d",
           "forkMonitorSource20261021Adaptation": "2026-10-21: monitor_start description names Shell/Subagent/Fork jobs; acquisition, pre-check and managed-child refusal unchanged.",
-          "sha256": "e30a063a36ca369bb8a53067363df142c6d8934c99674eda0d22268077515ebb",
+          "fileMonitorSource20261022PreviousSha256": "e30a063a36ca369bb8a53067363df142c6d8934c99674eda0d22268077515ebb",
+          "fileMonitorSource20261022Adaptation": "2026-10-22: dispatch the file source after resolving the path against the owner canonical cwd.",
+          "sha256": "acc8a16abe02f8f97a361810f86491e7f26a8466676a7e284f5e7b8ada78f15b",
           "reason": "2026-10-10 user-requested defaultActive:true; unchanged managed-child, selection and owner guards."
         },
         {
@@ -472,7 +482,9 @@
           "path": "modules/monitor/src/schema.ts",
           "forkMonitorSource20261021PreviousSha256": "1c3986112c27ade8c53d6aece3f8694ba2241e265bd1ee4634fc3d1a3537e86c",
           "forkMonitorSource20261021Adaptation": "2026-10-21: add the fork_job source literal and reuse the bounded jobId/intervalMs validation.",
-          "sha256": "55318d6985cebe1d802c2279c951e1cc0aa7d0762fe42a03372f1ba8edb549b4",
+          "fileMonitorSource20261022PreviousSha256": "55318d6985cebe1d802c2279c951e1cc0aa7d0762fe42a03372f1ba8edb549b4",
+          "fileMonitorSource20261022Adaptation": "2026-10-22: add the file source literal and bounded path/intervalMs validation.",
+          "sha256": "9cb635872897bd86435fc38fd4cd4a3f0a798c5071a24d548975682ab10f1826",
           "reason": "Strict discriminated inputs, limits/defaults."
         },
         {
@@ -481,9 +493,11 @@
           "reliabilityFix20261020Adaptation": "MON-01: commandLaunch passes exitIdleMs 250 and abortGraceMs 500 so a shell that exits while a silent descendant holds the pipes settles with cleanup unconfirmed instead of staying in stopping.",
           "forkMonitorSource20261021PreviousSha256": "f53bb45878fda901cc9b682ba7104e5743edbd0fc52e72d6c649fefdf1670763",
           "forkMonitorSource20261021Adaptation": "2026-10-21: job sampling treats the Fork-only awaiting_snapshot/blocked statuses as live, so only a terminal Fork ends the source.",
-          "sha256": "cde4ebfccc7ecae9dc176b3375479daddab78842f34fa6b1163ba894023d0cc1",
           "staleProvenanceRepair20261022PreviousSha256": "dec0374458eba78951f5306349e901b74dec88adaf456838b1efeda9cf51e0c4",
           "staleProvenanceRepair20261022": "2026-10-22: the recorded hash lagged the committed content (a post-verification edit landed in 055cca3). The bytes are the reviewed fork_job sampling change; only the recorded hash is corrected here, no content change.",
+          "fileMonitorSource20261022PreviousSha256": "dec0374458eba78951f5306349e901b74dec88adaf456838b1efeda9cf51e0c4",
+          "fileMonitorSource20261022Adaptation": "2026-10-22: add resolveFilePath/fileLaunch (realpath containment on every sample, metadata-only polling).",
+          "sha256": "9d1ef6ffca6b91ace1786752fd1adeb2b257e7de28cf95df5eac48d258c24831",
           "reason": "Four source adapters, actual close and readonly job timer ownership."
         },
         {
@@ -502,6 +516,11 @@
           "staleProvenanceRepair20261022PreviousSha256": "d0e47c45e4fa0c0109b2331574adac8c38479aaa4783bc6f0243eb51a04ee378",
           "staleProvenanceRepair20261022": "2026-10-22: the recorded hash lagged the committed content (a post-verification edit landed in 055cca3). The bytes are the reviewed fork_job source test; only the recorded hash is corrected here, no content change.",
           "reason": "fork_job schema bound, live-status sampling through blocked/awaiting_snapshot, abort and missing-capability fault."
+        },
+        {
+          "path": "modules/monitor/tests/file-source.test.ts",
+          "sha256": "5e3f400262438c45ab42aa7966505f84dafa11c7282902c71e8bec8974e4660e",
+          "reason": "file source schema bound, workspace containment (lexical, realpath, link swap), metadata-only created/modified/deleted events, abort and extension acceptance/rejection."
         },
         {
           "path": "modules/monitor/tests/fixtures/host.ts",
