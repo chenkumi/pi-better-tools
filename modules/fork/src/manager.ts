@@ -6,11 +6,12 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { ForkJobsWidget } from "./live-widget.ts";
 import { forwardParentArgs, removeTemporary } from "./args.ts";
 import { startForkChild, type ForkChildHandle, type ForkChildOutcome, type ForkChildSpec, type ForkMessageMode } from "./child.ts";
-import { FORK_TOOLS, forkCreationRefusal } from "./identity.ts";
+import { forkCreationRefusal, isForkTool } from "./identity.ts";
 import { controlId, controlText, messageText, validateInteraction } from "../../subagents/extensions/subagent/query-snapshot.ts";
 import { writeForkSession } from "./snapshot.ts";
 import { MAX_RESULT_BYTES, isTerminal, loadRecords, pruneRecords, saveRecord, transcriptDir, type Delivery, type ForkRecord, type ForkStatus } from "./store.ts";
 import { ForkTranscript, transcriptPaths, type FinalizeOutcome } from "./transcript.ts";
+import { errorText, utf8Prefix } from "./text.ts";
 
 export const MAX_ACTIVE_FORKS = 4;
 export const MAX_RETAINED_FORKS = 32;
@@ -60,14 +61,14 @@ export function state(): ForkState {
 
 const canonical = (path: string) => { try { return realpathSync(path); } catch { return path; } };
 const fingerprint = (tools: readonly string[]) => createHash("sha256").update([...tools].sort().join("\n")).digest("hex").slice(0, 16);
-const bounded = (text: string, bytes = MAX_RESULT_BYTES) => { const raw = Buffer.from(text, "utf8"); if (raw.length <= bytes) return { text, truncated: false }; let end = bytes; while (end > 0 && (raw[end]! & 0xc0) === 0x80) end--; return { text: raw.subarray(0, end).toString("utf8"), truncated: true }; };
+const bounded = (text: string, bytes = MAX_RESULT_BYTES) => { const head = utf8Prefix(text, bytes); return { text: head, truncated: head !== text }; };
 const holdsPermit = (job: Job) => !job.released;
 export const activeCount = (s = state()) => [...s.jobs.values()].filter(holdsPermit).length;
 const ownedBy = (record: ForkRecord, sessionId: string, cwd: string) => record.origin.sessionId === sessionId && record.origin.cwd === cwd;
 
 function persist(job: Job) {
 	try { saveRecord(job.record.origin.cwd, job.record); job.persistError = undefined; }
-	catch (error) { job.persistError = String((error as Error)?.message ?? error).slice(0, 200); if (process.env.PI_FORK_DEBUG) process.stderr.write(`[fork ${job.record.jobId.slice(-6)}] persist failed: ${job.persistError}
+	catch (error) { job.persistError = errorText(error, 200); if (process.env.PI_FORK_DEBUG) process.stderr.write(`[fork ${job.record.jobId.slice(-6)}] persist failed: ${job.persistError}
 `); }
 }
 function setStatus(job: Job, status: ForkStatus) {
@@ -96,7 +97,7 @@ export function acceptFork(pi: ExtensionAPI, ctx: ExtensionContext, params: { ta
 	const sm = ctx.sessionManager, file = sm.getSessionFile(), sessionDir = sm.getSessionDir();
 	if (!file || !sessionDir) throw new Error("FORK_REQUIRES_PERSISTED_SESSION: the current conversation has no native session file (--no-session or in-memory).");
 	if (!ctx.model) throw new Error("FORK_CAPABILITY_UNAVAILABLE: no model is selected; a Fork must inherit the parent's model.");
-	const tools = pi.getActiveTools().filter(name => !(FORK_TOOLS as readonly string[]).includes(name));
+	const tools = pi.getActiveTools().filter(name => !isForkTool(name));
 	const info = new Map(pi.getAllTools().map(tool => [tool.name, tool] as const));
 	const inline = tools.filter(name => String((info.get(name) as { sourceInfo?: { path?: string } } | undefined)?.sourceInfo?.path ?? "").startsWith("<"));
 	if (inline.length) throw new Error(`FORK_CAPABILITY_UNAVAILABLE: tools provided by inline SDK factories cannot be rebuilt in a separate process: ${inline.slice(0, 8).join(", ")}.`);
@@ -110,7 +111,7 @@ export function acceptFork(pi: ExtensionAPI, ctx: ExtensionContext, params: { ta
 	try {
 		saveRecord(cwd, record); // The workspace store must work before we accept anything.
 		Object.assign(forwarded, forwardParentArgs(deps.argv(), deps.launchCwd(), jobId, cwd));
-	} catch (error) { removeTemporary(forwarded.temporaryFiles); throw new Error(`FORK_STORE_UNAVAILABLE: ${String((error as Error)?.message ?? error).slice(0, 200)}`); }
+	} catch (error) { removeTemporary(forwarded.temporaryFiles); throw new Error(`FORK_STORE_UNAVAILABLE: ${errorText(error, 200)}`); }
 	pruneRecords(cwd); // Old finished records beyond the bounded scan would otherwise accumulate in the workspace forever.
 	const prompt = `${FORK_PROMPT_PREFIX} The \`fork\` tool call and its result earlier in this conversation are how YOU were launched; from here on you are the background agent that the parent is waiting on. Do not wait for, poll, or expect a report from any background agent, and do not call fork (it is unavailable to you). Do the task below now with your tools, then end with a concise final report: your final message is what gets delivered back to the parent conversation.
 
@@ -140,7 +141,7 @@ export function onTurnEnd(ctx: ExtensionContext, event: { message?: { stopReason
 			job.record.sessionPath = written.sessionPath;
 			launch(job, written.sessionPath);
 		} catch (error) {
-			const message = String((error as Error)?.message ?? error);
+			const message = errorText(error);
 			finishWithoutChild(job, "failed", message.split(":")[0]!.slice(0, 64) || "SNAPSHOT_FAILED", message.slice(0, 300));
 		}
 	}
@@ -165,11 +166,11 @@ function launch(job: Job, sessionPath: string) {
 		if (progress === "running") { if (record.status === "finalizing") return; record.blocked = undefined; }
 		setStatus(job, progress === "running" ? "running" : progress === "finalizing" ? "finalizing" : record.status);
 	}); }
-	catch (error) { finishWithoutChild(job, "failed", "SPAWN_FAILED", String((error as Error)?.message ?? error).slice(0, 300)); return; }
+	catch (error) { finishWithoutChild(job, "failed", "SPAWN_FAILED", errorText(error, 300)); return; }
 	job.handle = handle;
 	if (record.cancelRequested) void handle.cancel();
 	void handle.closed?.then(exitCode => lateClose(job, exitCode), () => {});
-	void handle.done.then(outcome => complete(job, outcome), error => complete(job, { status: "failed", errorCode: "RUNNER_FAULT", error: String((error as Error)?.message ?? error).slice(0, 300), childClosed: false, stderrTail: "" }));
+	void handle.done.then(outcome => complete(job, outcome), error => complete(job, { status: "failed", errorCode: "RUNNER_FAULT", error: errorText(error, 300), childClosed: false, stderrTail: "" }));
 }
 
 function complete(job: Job, outcome: ForkChildOutcome) {
@@ -226,22 +227,26 @@ export function resultText(record: ForkRecord): string {
 	return head + where + body;
 }
 
+/** Whether the origin session already holds this result's message. */
+function resultObserved(binding: Binding, resultId: string): boolean {
+	const entries = binding.ctx.sessionManager.getEntries() as unknown as Array<Record<string, any>>;
+	return entries.some(entry => entry.type === "custom_message" && entry.customType === RESULT_TYPE && entry.details?.resultId === resultId);
+}
+
 /** Delivers only into the exact origin session. A different or missing binding keeps the result pending in the inbox. */
 export function deliver(job: Job, binding = state().binding): void {
 	const record = job.record;
 	if (!isTerminal(record.status) || record.delivery !== "pending" || !record.result || !binding) return;
 	if (binding.sessionId !== record.origin.sessionId || binding.cwd !== record.origin.cwd || binding.file !== record.origin.file) return;
 	try {
-		const entries = binding.ctx.sessionManager.getEntries() as unknown as Array<Record<string, any>>;
-		if (entries.some(entry => entry.type === "custom_message" && entry.customType === RESULT_TYPE && entry.details?.resultId === record.result!.resultId)) { record.delivery = "observed"; persist(job); return; }
+		if (resultObserved(binding, record.result.resultId)) { record.delivery = "observed"; persist(job); return; }
 		record.delivery = "submitted"; persist(job); // Submission is not a host acknowledgement; unknown is never blindly replayed.
 		binding.pi.sendMessage({ customType: RESULT_TYPE, content: resultText(record), display: true,
 			details: { schemaVersion: 1, resultId: record.result.resultId, jobId: record.jobId, forkSessionId: record.forkSessionId, status: record.status, sessionPath: record.sessionPath, transcriptPath: record.transcript?.state === "final" ? record.transcript.path : undefined, usage: record.result.usage, usageUnknown: record.result.usageUnknown } },
 			{ triggerTurn: true, deliverAs: "followUp" });
 		setImmediate(() => {
 			try {
-				const seen = (binding.ctx.sessionManager.getEntries() as unknown as Array<Record<string, any>>).some(entry => entry.type === "custom_message" && entry.customType === RESULT_TYPE && entry.details?.resultId === record.result!.resultId);
-				if (seen && record.delivery === "submitted") { record.delivery = "observed"; persist(job); }
+				if (resultObserved(binding, record.result!.resultId) && record.delivery === "submitted") { record.delivery = "observed"; persist(job); }
 			} catch { /* stale binding: stays submitted/unknown */ }
 		});
 	} catch { record.delivery = "unknown"; persist(job); }
@@ -314,6 +319,10 @@ export function ownedJobs(ctx: ExtensionContext): Job[] {
 	return [...state().jobs.values()].filter(job => ownedBy(job.record, sessionId, cwd)).sort((a, b) => b.record.createdAt.localeCompare(a.record.createdAt));
 }
 
+export function findOwnedJob(ctx: ExtensionContext, jobId: unknown): Job | undefined {
+	return ownedJobs(ctx).find(job => job.record.jobId === jobId);
+}
+
 /** The child's own user message is the only evidence that a message was applied to its conversation. */
 function markApplied(job: Job, message: unknown): void {
 	const value = message as Record<string, any> | null;
@@ -339,8 +348,8 @@ const refusal = (code: string, message: string) => Object.assign(new Error(`${co
 export async function messageFork(ctx: ExtensionContext, jobId: unknown, message: unknown, mode: unknown = "follow_up"): Promise<ForkMessageReceipt> {
 	if (typeof jobId !== "string" || !jobId) throw refusal("FORK_INVALID_ARGUMENTS", "jobId must be a complete Fork job ID");
 	if (mode !== "follow_up" && mode !== "steer") throw refusal("FORK_INVALID_ARGUMENTS", "mode must be follow_up or steer");
-	try { validateInteraction(message); } catch (error) { throw refusal("FORK_INVALID_ARGUMENTS", String((error as Error)?.message ?? error).slice(0, 200)); }
-	const job = ownedJobs(ctx).find(candidate => candidate.record.jobId === jobId);
+	try { validateInteraction(message); } catch (error) { throw refusal("FORK_INVALID_ARGUMENTS", errorText(error, 200)); }
+	const job = findOwnedJob(ctx, jobId);
 	if (!job) throw refusal("FORK_NOT_FOUND", "no such Fork in this conversation");
 	const status = job.record.status;
 	if (status !== "running" && status !== "blocked") throw refusal(isTerminal(status) ? "FORK_NOT_RUNNING" : "FORK_BUSY", `Fork is ${status}; a message is only accepted while it is running or blocked`);
@@ -368,7 +377,7 @@ export async function messageFork(ctx: ExtensionContext, jobId: unknown, message
 			interactions.splice(interactions.indexOf(interaction), 1);
 			throw refusal("CHILD_NOT_READY", "the Fork child has not started its task yet; nothing was sent");
 		}
-		settle("delivery_unknown", String((error as Error)?.message ?? error).slice(0, 200));
+		settle("delivery_unknown", errorText(error, 200));
 	}
 	return { jobId: job.record.jobId, forkSessionId: job.record.forkSessionId, mode: interaction.mode, messageId, status: interaction.status, ...(interaction.error ? { error: interaction.error } : {}) };
 }

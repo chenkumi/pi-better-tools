@@ -2,7 +2,7 @@
 // its own fork-result delivery path, and nothing here can cancel, resume or query a Fork's model.
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { canonicalMonitorCwd, publishCapability } from "../../shell-tools/src/monitor-capability.ts";
-import { ownedJobs, state } from "./manager.ts";
+import { findOwnedJob, ownedJobs, state } from "./manager.ts";
 import { isTerminal } from "./store.ts";
 
 const MAX_REASON = 200;
@@ -10,7 +10,7 @@ const bounded = (value: string, max = MAX_REASON) => value.replace(/[\u0000-\u00
 
 /** Bounded status view of one owned Fork: no task text, no result output, no usage, no native session path. */
 export function forkMonitorSnapshot(ctx: ExtensionContext, jobId: string): Record<string, unknown> {
-	const job = ownedJobs(ctx).find(candidate => candidate.record.jobId === jobId);
+	const job = findOwnedJob(ctx, jobId);
 	if (!job) throw new Error("Monitor Fork snapshot unavailable: the Fork is not retained by this session/cwd");
 	const record = job.record;
 	const from = Date.parse(record.startedAt ?? record.createdAt), to = Date.parse(record.endedAt ?? "");

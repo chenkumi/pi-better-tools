@@ -4,7 +4,8 @@ import { dirname, join, resolve } from "node:path";
 import lockfile from "proper-lockfile";
 import { getAgentDir, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-export type SpeedMode = "normal" | "fast" | "ultrafast";
+const SPEED_MODES = ["normal", "fast", "ultrafast"] as const;
+export type SpeedMode = (typeof SPEED_MODES)[number];
 /**
  * Prompt-cache lifetime for GPT-5.6+ on the OpenAI Responses API. The API accepts only `prompt_cache_options.ttl` of "30m"
  * (its default, `short`) or "12h" (`long`); any other value returns 400, so no free-form durations are offered.
@@ -65,45 +66,39 @@ function readSettings(path: string): Record<string, unknown> {
 	return settings;
 }
 
-function storedMode(settings: Record<string, unknown>): SpeedMode | undefined {
-	const mode = asObject(settings[SETTINGS_KEY])?.mode;
-	return mode === "normal" || mode === "fast" || mode === "ultrafast" ? mode : undefined;
-}
-
-function storedCache(settings: Record<string, unknown>): CacheLifetime | undefined {
-	const cache = asObject(settings[SETTINGS_KEY])?.cache;
-	return CACHE_LIFETIMES.find(allowed => allowed === cache);
-}
-
 /** What the speed commands and `/cache-ttl-short`/`/cache-ttl-long` write; omitted fields are left as they are. */
 interface SettingsPatch { mode?: SpeedMode; cache?: CacheLifetime }
 
-const LOCK_ATTEMPTS = 10;
-const LOCK_RETRY_MS = 20;
+/** The valid `pi-gpt-speed` values in one settings file; invalid or missing values are undefined. */
+function storedValues(settings: Record<string, unknown>): SettingsPatch {
+	const section = asObject(settings[SETTINGS_KEY]);
+	return {
+		mode: SPEED_MODES.find(allowed => allowed === section?.mode),
+		cache: CACHE_LIFETIMES.find(allowed => allowed === section?.cache),
+	};
+}
+
+const RETRY_ATTEMPTS = 10;
+const RETRY_DELAY_MS = 20;
 const sleepSync = (ms: number) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
-/** Like the host settings manager: a few short retries while another process holds the lock. */
-function lockWithRetry(path: string): () => void {
+/** Run `operation`, retrying briefly while it fails with one of `retryableCodes`. */
+function withSyncRetry<T>(retryableCodes: readonly string[], operation: () => T): T {
 	for (let attempt = 1; ; attempt++) {
-		try { return lockfile.lockSync(path, { realpath: false }); }
+		try { return operation(); }
 		catch (error) {
-			if (asObject(error)?.code !== "ELOCKED" || attempt >= LOCK_ATTEMPTS) throw error;
-			sleepSync(LOCK_RETRY_MS);
+			const code = asObject(error)?.code;
+			if (typeof code !== "string" || !retryableCodes.includes(code) || attempt >= RETRY_ATTEMPTS) throw error;
+			sleepSync(RETRY_DELAY_MS);
 		}
 	}
 }
 
+/** Like the host settings manager: a few short retries while another process holds the lock. */
+const lockWithRetry = (path: string) => withSyncRetry(["ELOCKED"], () => lockfile.lockSync(path, { realpath: false }));
+
 /** Windows may transiently lock the target; retry the rename briefly. */
-function renameWithRetry(from: string, to: string): void {
-	for (let attempt = 1; ; attempt++) {
-		try { return renameSync(from, to); }
-		catch (error) {
-			const code = asObject(error)?.code;
-			if ((code !== "EPERM" && code !== "EBUSY" && code !== "EACCES") || attempt >= LOCK_ATTEMPTS) throw error;
-			sleepSync(LOCK_RETRY_MS);
-		}
-	}
-}
+const renameWithRetry = (from: string, to: string) => withSyncRetry(["EPERM", "EBUSY", "EACCES"], () => renameSync(from, to));
 
 /** Share Pi's settings lock; read/merge/write synchronously so no same-process await holds it. */
 function persistSettings(path: string, patch: SettingsPatch): void {
@@ -156,13 +151,13 @@ export default function gptSpeedExtension(pi: ExtensionAPI): void {
 	const projectOverrideNoticed = new Set<"mode" | "cache">();
 	const globalPath = () => join(getAgentDir(), "settings.json");
 
+	const projectPath = (ctx: ExtensionContext) => join(ctx.cwd, ".pi", "settings.json");
+
 	/** Trusted project-level values, if any; unreadable settings count as absent here (session_start already warns). */
-	function projectSettings(ctx: ExtensionContext): { mode?: SpeedMode; cache?: CacheLifetime } {
+	function projectSettings(ctx: ExtensionContext): SettingsPatch {
 		if (!ctx.isProjectTrusted()) return {};
-		try {
-			const settings = readSettings(join(ctx.cwd, ".pi", "settings.json"));
-			return { mode: storedMode(settings), cache: storedCache(settings) };
-		} catch { return {}; }
+		try { return storedValues(readSettings(projectPath(ctx))); }
+		catch { return {}; }
 	}
 
 	function statusLabel(model: SpeedModel | undefined): string {
@@ -236,15 +231,15 @@ export default function gptSpeedExtension(pi: ExtensionAPI): void {
 		cache = "short";
 		projectOverrideNoticed.clear();
 		try {
-			const settings = readSettings(globalPath());
-			mode = storedMode(settings) ?? "normal";
-			cache = storedCache(settings) ?? "short";
+			const stored = storedValues(readSettings(globalPath()));
+			mode = stored.mode ?? mode;
+			cache = stored.cache ?? cache;
 		} catch (error) { warn(ctx, "load global speed settings", error); }
 		if (ctx.isProjectTrusted()) {
 			try {
-				const settings = readSettings(join(ctx.cwd, ".pi", "settings.json"));
-				mode = storedMode(settings) ?? mode;
-				cache = storedCache(settings) ?? cache;
+				const stored = storedValues(readSettings(projectPath(ctx)));
+				mode = stored.mode ?? mode;
+				cache = stored.cache ?? cache;
 			} catch (error) { warn(ctx, "load project speed settings", error); }
 		}
 		updateStatus(ctx);

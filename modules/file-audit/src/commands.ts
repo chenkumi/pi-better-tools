@@ -1,5 +1,5 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { AuditTracker } from "./events.js";
+import { AuditTracker, ownerOf } from "./events.js";
 import { validateLimits, type Limits } from "./activity-window.js";
 import { resultText, safeText, statusText } from "./presentation.js";
 import { scan } from "./provenance.js";
@@ -33,15 +33,15 @@ export class AuditCommands {
     try { command = parseCommand(args, this.tracker.window.limits); }
     catch (error) { ctx.ui.notify(safeText(error instanceof Error ? error.message : USAGE, 500), "warning"); return; }
     if (command.action === "clear") {
-      this.cancel(); this.tracker.reset(`${ctx.sessionManager.getSessionId()}\0${ctx.cwd}`, false);
+      this.cancel(); this.tracker.reset(ownerOf(ctx), false);
     } else if (command.action === "limits") {
       this.tracker.window.configure(command.limits!);
     } else if (command.action === "check") {
       if (this.active) { ctx.ui.notify("File Audit: inspection busy; no second scan queued.", "warning"); return; }
       const generation = this.tracker.generation;
       const controller = new AbortController(); this.active = controller;
-      const cwd = ctx.cwd, owner = `${ctx.sessionManager.getSessionId()}\0${cwd}`;
-      const current = () => generation === this.tracker.generation && owner === `${ctx.sessionManager.getSessionId()}\0${ctx.cwd}`;
+      const cwd = ctx.cwd, owner = ownerOf(ctx);
+      const current = () => generation === this.tracker.generation && owner === ownerOf(ctx);
       try {
         const result = await this.inspect(cwd, this.tracker.window.snapshot(), { signal: controller.signal });
         if (current() && !controller.signal.aborted) ctx.ui.notify(resultText(result, cwd), result.error ? "warning" : "info");

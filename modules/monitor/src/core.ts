@@ -24,7 +24,7 @@ interface Monitor {
   lastSystemEvent?: MonitorEvent; cleanupPending: boolean; cleanupEvidence: Record<string, unknown>; sourceClosed: boolean;
   stderr: Buffer; stderrInputBytes: number; attempts: number; notification: { state: string; hostAcknowledgment: 'unknown'; attempts: number; lastSubmittedAt?: number };
 }
-function same(a: Owner | undefined, b: Owner | undefined) { return !!a && !!b && a.sessionId === b.sessionId && a.cwd === b.cwd; }
+export function sameOwner(a: Owner | undefined, b: Owner | undefined) { return !!a && !!b && a.sessionId === b.sessionId && a.cwd === b.cwd; }
 function terminal(state: State) { return !['starting', 'running', 'stopping'].includes(state); }
 /** Owner-local bounded state; submitted batches are never replayed and no delivery ack is invented. */
 export class MonitorRuntime {
@@ -36,8 +36,8 @@ export class MonitorRuntime {
     if (!this.disposed || [...this.monitors.values()].some(m => m.cleanupPending)) throw new Error('Monitor previous generation cleanup is not settled');
     this.generation++; this.owner = { ...owner }; this.current = current; this.disposed = false; this.busy = false; this.monitors.clear(); this.lastSubmit = -Infinity; this.resumeAfterId = undefined;
   }
-  private valid() { try { return !this.disposed && same(this.owner, this.current?.()); } catch { return false; } }
-  private owned(owner?: Owner) { if (!this.valid()) { this.ownerLost(); throw new Error('Monitor owner is disposed/replaced'); } if (owner && !same(owner, this.owner)) throw new Error('Monitor belongs to a different owner/cwd'); }
+  private valid() { try { return !this.disposed && sameOwner(this.owner, this.current?.()); } catch { return false; } }
+  private owned(owner?: Owner) { if (!this.valid()) { this.ownerLost(); throw new Error('Monitor owner is disposed/replaced'); } if (owner && !sameOwner(owner, this.owner)) throw new Error('Monitor belongs to a different owner/cwd'); }
   private check(m: Monitor) { if (m.generation !== this.generation || this.disposed) return false; if (!this.valid()) { this.ownerLost(); return false; } return true; }
   private ownerLost() {
     if (this.disposed) return;

@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
+import { createForcedPromptAppender } from './forced-prompt.js';
 
 /**
  * Rules that span several modules (file tools and shell, subagent and fork). A rule that concerns a single module's tools
@@ -14,13 +15,15 @@ export function renderCrossToolRules(active: Set<string>): string {
   if (shell && any(active, ['edit', 'write'])) {
     blocks.push('**Files and shell**\n- Change files with `edit`/`write`, never through shell redirection, `sed`, or one-off scripts (`node -e`, `perl -i`): editing a file from the shell bypasses the edit/write version-token guard and is a rule violation. Use the shell for builds, tests, git and pipelines.');
   }
-  const delegates = ['subagent', 'fork'].filter(name => active.has(name));
-  if (delegates.length) {
-    const lines = [];
-    if (active.has('subagent')) lines.push('- `subagent` for self-contained or parallel work in a fresh context: state the goal, scope, constraints and the result format you need.' + (active.has('fork') ? ' `fork` for long work that needs this whole conversation\'s context.' : '') + ' Do quick or tightly coupled work yourself.');
-    else lines.push('- `fork` for long work that needs this whole conversation\'s context. Do quick or tightly coupled work yourself.');
-    lines.push('- Delegated output is a claim, not proof: check the key facts before relying on it. Do not delegate work you have not scoped, and do not start overlapping workers on the same files.');
-    blocks.push(`**Delegate deliberately**\n${lines.join('\n')}`);
+  const subagent = active.has('subagent'), fork = active.has('fork');
+  if (subagent || fork) {
+    const uses = [
+      ...(subagent ? ['`subagent` for self-contained or parallel work in a fresh context: state the goal, scope, constraints and the result format you need.'] : []),
+      ...(fork ? ['`fork` for long work that needs this whole conversation\'s context.'] : []),
+    ];
+    blocks.push('**Delegate deliberately**\n' +
+      `- ${uses.join(' ')} Do quick or tightly coupled work yourself.\n` +
+      '- Delegated output is a claim, not proof: check the key facts before relying on it. Do not delegate work you have not scoped, and do not start overlapping workers on the same files.');
   }
   if (shell) blocks.push('**Verify before claiming**\n- Run the project\'s real checks and read their output before saying something works. Report what was verified and what was not.');
   blocks.push('**When something fails**\n- Read the error, change the approach, and never repeat an identical failing call. After two different failures, stop and report what you tried.\n- Ask before destructive, irreversible or outward-facing actions.');
@@ -28,16 +31,11 @@ export function renderCrossToolRules(active: Set<string>): string {
 }
 
 export function registerCrossToolGuidance(pi: ExtensionAPI): void {
-  let last: string | undefined;
+  const appendToForcedPrompt = createForcedPromptAppender();
   pi.on('before_agent_start', event => {
-    const options = event.systemPromptOptions;
     const section = renderCrossToolRules(new Set(pi.getActiveTools()));
-    options.sections[CROSS_TOOL_SECTION] = section;
+    event.systemPromptOptions.sections[CROSS_TOOL_SECTION] = section;
     // Preserve forced/custom prompts from other extensions.
-    if (options.forceSystemPrompt === undefined) return;
-    const base = last ? options.forceSystemPrompt.replace(`\n\n${last}`, '') : options.forceSystemPrompt;
-    const prompt = `${base}\n\n${section}`;
-    last = section;
-    if (prompt !== event.systemPrompt) return { systemPrompt: prompt };
+    return appendToForcedPrompt(event, section);
   });
 }

@@ -1,16 +1,39 @@
-// JSON Schema default is an annotation, not permission to accept missing required data.
-// Walk schema positions only: enum/const/default/unknown annotations contain instance data.
-const single = new Set(['items', 'additionalItems', 'additionalProperties', 'contains', 'propertyNames']);
-const list = new Set(['allOf', 'anyOf', 'oneOf', 'prefixItems']);
-const map = new Set(['properties', 'patternProperties', '$defs', 'definitions']);
-export function withoutSchemaDefaults(node) {
-  if (!node || typeof node !== 'object' || Array.isArray(node)) return node;
-  return Object.fromEntries(Object.entries(node).filter(([key]) => key !== 'default').map(([key, value]) => {
-    if (single.has(key)) return [key, Array.isArray(value) ? value.map(withoutSchemaDefaults) : withoutSchemaDefaults(value)];
-    if (list.has(key) && Array.isArray(value)) return [key, value.map(withoutSchemaDefaults)];
-    if (map.has(key) && value && typeof value === 'object' && !Array.isArray(value)) return [key, Object.fromEntries(Object.entries(value).map(([name, child]) => [name, withoutSchemaDefaults(child)]))];
+// Schema positions: keywords whose values are a single subschema, a subschema list, or a name -> subschema map.
+// enum/const/default/unknown annotations contain instance data and are never walked.
+export const SUBSCHEMA = new Set(['items', 'additionalItems', 'additionalProperties', 'contains', 'propertyNames']);
+export const SUBSCHEMA_LIST = new Set(['allOf', 'anyOf', 'oneOf', 'prefixItems']);
+export const SUBSCHEMA_MAP = new Set(['properties', 'patternProperties', '$defs', 'definitions']);
+
+const isRecord = value => typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** Each direct child subschema with its path suffix, in key order. `maps` narrows which name -> subschema maps count. */
+export function* childSchemas(node, maps = SUBSCHEMA_MAP) {
+  for (const [key, value] of Object.entries(node)) {
+    // draft-07 tuple form: `items` may be an array of subschemas.
+    if (SUBSCHEMA.has(key)) {
+      if (Array.isArray(value)) yield* value.map((child, index) => [child, `${key}/${index}`]);
+      else yield [value, key];
+    }
+    else if (SUBSCHEMA_LIST.has(key) && Array.isArray(value)) yield* value.map((child, index) => [child, `${key}/${index}`]);
+    else if (maps.has(key) && isRecord(value)) yield* Object.entries(value).map(([name, child]) => [child, `${key}/${name}`]);
+  }
+}
+
+/** A copy of `node` with every direct child subschema replaced by `transform(child)`. */
+function mapSubschemas(node, transform) {
+  return Object.fromEntries(Object.entries(node).map(([key, value]) => {
+    if (SUBSCHEMA.has(key)) return [key, Array.isArray(value) ? value.map(transform) : transform(value)];
+    if (SUBSCHEMA_LIST.has(key) && Array.isArray(value)) return [key, value.map(transform)];
+    if (SUBSCHEMA_MAP.has(key) && isRecord(value)) return [key, Object.fromEntries(Object.entries(value).map(([name, child]) => [name, transform(child)]))];
     return [key, value];
   }));
+}
+
+// JSON Schema default is an annotation, not permission to accept missing required data.
+export function withoutSchemaDefaults(node) {
+  if (!isRecord(node)) return node;
+  const { default: _default, ...rest } = node;
+  return mapSubschemas(rest, withoutSchemaDefaults);
 }
 
 const declaresType = (node, name) => Array.isArray(node.type) ? node.type.includes(name) : node.type === name;
@@ -38,7 +61,7 @@ function withZodGaps(node) {
   if (declaresType(result, 'array') && result.items === undefined && result.prefixItems === undefined
     && (result.minItems !== undefined || result.maxItems !== undefined)) result = { ...result, items: {} };
   if (Array.isArray(result.required) && result.additionalProperties !== false) {
-    const declared = result.properties && typeof result.properties === 'object' && !Array.isArray(result.properties) ? result.properties : {};
+    const declared = isRecord(result.properties) ? result.properties : {};
     const missing = result.required.filter(name => typeof name === 'string' && !Object.hasOwn(declared, name));
     if (missing.length) result = { ...result, properties: { ...declared, ...Object.fromEntries(missing.map(name => [name, {}])) } };
   }
@@ -46,15 +69,11 @@ function withZodGaps(node) {
 }
 /** Validator-only copy: defaults stripped (annotations), then zod gaps closed. Walks schema positions only. */
 export function toZodSchema(root) {
-  const walk = rawNode => {
-    if (!rawNode || typeof rawNode !== 'object' || Array.isArray(rawNode)) return rawNode;
-    const node = withZodGaps(rawNode);
-    return Object.fromEntries(Object.entries(node).map(([key, value]) => {
-      if (single.has(key)) return [key, Array.isArray(value) ? value.map(walk) : walk(value)];
-      if (list.has(key) && Array.isArray(value)) return [key, value.map(walk)];
-      if (map.has(key) && value && typeof value === 'object' && !Array.isArray(value)) return [key, Object.fromEntries(Object.entries(value).map(([name, child]) => [name, walk(child)]))];
-      return [key, value];
-    }));
-  };
+  const walk = node => isRecord(node) ? mapSubschemas(withZodGaps(node), walk) : node;
   return walk(withoutSchemaDefaults(root));
+}
+
+/** The first five zod issues as one short human-readable reason. */
+export function formatIssues(issues) {
+  return issues.slice(0, 5).map(issue => `${issue.path.length ? issue.path.join('.') : '(root)'}: ${issue.message}`).join('; ');
 }

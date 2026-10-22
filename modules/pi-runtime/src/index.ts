@@ -2,7 +2,7 @@ import type { ExtensionAPI, ExtensionContext, SessionBoundaryDraft } from '@eare
 import { ulid } from 'ulid';
 import { registerCrossToolGuidance } from './cross-tool-guidance.js';
 import { registerDeferredTools } from './deferred-tools.js';
-import { diagnostic, feedback, LIMIT, MESSAGE_TYPE, STATE_TYPE, type Diagnostic } from './policy.js';
+import { diagnostic, ERROR_KINDS, feedback, LIMIT, MANUAL_RECOVERY_KINDS, MESSAGE_TYPE, STATE_TYPE, type Diagnostic } from './policy.js';
 
 interface State {
   version: 1;
@@ -14,18 +14,19 @@ interface State {
   pending: Diagnostic | null;
 }
 const bounded = (value: unknown, max: number): value is string => typeof value === 'string' && value.length > 0 && value.length <= max;
+const isFingerprint = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 function validDiagnostic(value: unknown): value is Diagnostic {
   if (!value || typeof value !== 'object') return false;
   const d = value as Diagnostic;
-  return bounded(d.entryId, 128) && ['ignore', 'host', 'terminal', 'repairable', 'policy', 'review'].includes(d.kind) &&
-    bounded(d.message, 2048) && bounded(d.provider, 256) && bounded(d.model, 256) && /^[a-f0-9]{64}$/.test(d.fingerprint);
+  return bounded(d.entryId, 128) && ERROR_KINDS.includes(d.kind) &&
+    bounded(d.message, 2048) && bounded(d.provider, 256) && bounded(d.model, 256) && isFingerprint(d.fingerprint);
 }
 function validState(value: unknown): value is State {
   if (!value || typeof value !== 'object') return false;
   const s = value as State;
   return s.version === 1 && bounded(s.taskId, 128) && Number.isInteger(s.used) && s.used >= 0 && s.used <= LIMIT &&
     typeof s.enabled === 'boolean' && Array.isArray(s.handled) && s.handled.length === s.used && new Set(s.handled).size === s.used && s.handled.every(x => bounded(x, 128)) &&
-    Array.isArray(s.fingerprints) && s.fingerprints.length === s.used && s.fingerprints.every(x => typeof x === 'string' && /^[a-f0-9]{64}$/.test(x)) &&
+    Array.isArray(s.fingerprints) && s.fingerprints.length === s.used && s.fingerprints.every(isFingerprint) &&
     (s.pending === null || validDiagnostic(s.pending));
 }
 
@@ -65,6 +66,8 @@ export default function runtime(pi: ExtensionAPI) {
     // Reserve durably before submission; do not refill after uncertain delivery/commit failure.
     if (persist(ctx, next)) return next.used;
   }
+  /** Fail closed: never replenish a budget from state that cannot be trusted. */
+  function disable(ctx: ExtensionContext, reason: string) { healthy = false; notify(ctx, reason); }
   function restore(ctx: ExtensionContext) {
     state = undefined; enabled = true; healthy = true;
     const branch = ctx.sessionManager.getBranch();
@@ -72,28 +75,26 @@ export default function runtime(pi: ExtensionAPI) {
       const e = branch[i];
       if (e.type !== 'custom' || e.customType !== STATE_TYPE) continue;
       if (validState(e.data)) { state = structuredClone(e.data); enabled = state.enabled; }
-      else { healthy = false; notify(ctx, 'Invalid saved recovery state; recovery is disabled rather than replenishing its budget.'); }
+      else disable(ctx, 'Invalid saved recovery state; recovery is disabled rather than replenishing its budget.');
       break;
     }
     if (!state || !healthy) return;
     // A task's spend is session-wide, not rolled back with the visible branch.
     const entries = ctx.sessionManager.getEntries();
-    if (entries.length > 100000) { healthy = false; notify(ctx, 'Recovery history exceeds the inspection bound; recovery disabled.'); return; }
+    if (entries.length > 100000) return disable(ctx, 'Recovery history exceeds the inspection bound; recovery disabled.');
     const handled = new Map<string, string>();
     for (const entry of entries) {
       if (entry.type !== 'custom' || entry.customType !== STATE_TYPE) continue;
       const data = entry.data as Partial<State> | null;
       if (data?.taskId !== state.taskId) continue;
-      if (!validState(data)) { healthy = false; notify(ctx, 'Invalid task reservation history; recovery disabled.'); return; }
+      if (!validState(data)) return disable(ctx, 'Invalid task reservation history; recovery disabled.');
       for (let i = 0; i < data.handled.length; i++) {
         const id = data.handled[i], fingerprint = data.fingerprints[i];
-        if (handled.has(id) && handled.get(id) !== fingerprint) {
-          healthy = false; notify(ctx, 'Invalid conflicting task reservation; recovery disabled.'); return;
-        }
+        if (handled.has(id) && handled.get(id) !== fingerprint) return disable(ctx, 'Invalid conflicting task reservation; recovery disabled.');
         handled.set(id, fingerprint);
       }
     }
-    if (handled.size > LIMIT) { healthy = false; notify(ctx, 'Invalid task reservation count; recovery disabled.'); return; }
+    if (handled.size > LIMIT) return disable(ctx, 'Invalid task reservation count; recovery disabled.');
     state = { ...state, used: handled.size, handled: [...handled.keys()], fingerprints: [...handled.values()] };
   }
   pi.on('session_start', (_event, ctx) => {
@@ -144,7 +145,7 @@ export default function runtime(pi: ExtensionAPI) {
     const d = state?.pending;
     if (!d || !owned(ctx) || event.outcome === 'aborted' || ctx.signal?.aborted) return;
     if (d.kind !== 'repairable' || !eligible(ctx, d) || state?.fingerprints.includes(d.fingerprint)) {
-      if (d.kind === 'policy' || d.kind === 'review' || d.kind === 'repairable')
+      if (MANUAL_RECOVERY_KINDS.includes(d.kind))
         notify(ctx, `Automatic recovery paused (${d.kind}); use /runtime-recover with a legitimate-purpose/scope clarification after review, or start a new task. Budget ${state?.used ?? 0}/${LIMIT}.`);
       return;
     }
@@ -172,7 +173,7 @@ export default function runtime(pi: ExtensionAPI) {
     description: 'Review a paused API error with a scope clarification and explicit human confirmation; spends the same bounded task budget.',
     handler: async (args, ctx) => {
       const d = state?.pending, clarification = args.trim();
-      if (!d || !['policy', 'review', 'repairable'].includes(d.kind) || !eligible(ctx, d) || !ctx.isIdle() || ctx.mode !== 'tui' || !ctx.hasUI || confirming) {
+      if (!d || !MANUAL_RECOVERY_KINDS.includes(d.kind) ||!eligible(ctx, d) || !ctx.isIdle() || ctx.mode !== 'tui' || !ctx.hasUI || confirming) {
         notify(ctx, 'No eligible paused error, or recovery is disabled/busy/exhausted. Manual recovery requires idle TUI confirmation; RPC/JSON/print are unsupported because idle host abort cannot revoke their pending approval.'); return;
       }
       if (clarification.length < 8 || clarification.length > 4096 || /^(?:retry|重試|再試|\s|[.!！。])+$/i.test(clarification)) {
