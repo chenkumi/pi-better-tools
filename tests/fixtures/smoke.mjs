@@ -269,8 +269,16 @@ try {
       const result = await execute(name, { command: process.platform === 'win32' ? "Write-Output 'SHELL_OK'" : "printf 'SHELL_OK'", timeoutMs: 20000 });
       assert.match(text(result), /SHELL_OK/); assert.ok(result.structuredContent);
     }
-    assert.match(text(await execute('find', { pattern: 'test.txt' })), /test\.txt/, 'FFF native finder works in the isolated workspace');
-    assert.match(text(await execute('grep', { pattern: 'alpha' })), /test\.txt/, 'FFF native grep works in the isolated workspace');
+    // FFF indexes through a file watcher, so a just-written file can be invisible for a moment (macOS FSEvents batches ~50 ms). Retry, bounded.
+    const indexed = async (tool, params) => {
+      for (const deadline = Date.now() + 5000; ;) {
+        const output = text(await execute(tool, params));
+        if (/test\.txt/.test(output) || Date.now() >= deadline) return output;
+        await new Promise(done => setTimeout(done, 50));
+      }
+    };
+    assert.match(await indexed('find', { pattern: 'test.txt' }), /test\.txt/, 'FFF native finder works in the isolated workspace');
+    assert.match(await indexed('grep', { pattern: 'alpha' }), /test\.txt/, 'FFF native grep works in the isolated workspace');
     await assert.rejects(execute('web_fetch', { url: 'http://127.0.0.1/' }), /NETWORK_BLOCKED/);
     // Real before_agent_start composition, without making a provider request.
     const options = { cwd, tools: definitions, skills: [], contextFiles: [], sections: { fixture: 'KEEP_FIXTURE' } };
