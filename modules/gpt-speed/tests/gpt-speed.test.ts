@@ -70,13 +70,13 @@ async function harness(t: TestContext, hasUI = true) {
 	return { root, ctx, commands, hooks, statuses, notices, emit, command, globalPath, projectPath, save };
 }
 
-test("registers exactly five commands, default Normal and no factory filesystem writes", async t => {
+test("registers exactly three commands, default Normal, no cache status and no factory filesystem writes", async t => {
 	const h = await harness(t);
-	assert.deepEqual([...h.commands.keys()], ["fast", "ultrafast", "normal", "cache-ttl-short", "cache-ttl-long"]);
+	assert.deepEqual([...h.commands.keys()], ["fast", "ultrafast", "normal"]);
 	assert.deepEqual(await readdir(h.root), ["workspace"]);
 	await h.emit("session_start");
 	assert.equal(h.statuses.get("gpt-speed"), "Speed: Normal");
-	assert.equal(h.statuses.get("gpt-cache"), "Cache: Short (30m)");
+	assert.equal(h.statuses.has("gpt-cache"), false, "the disabled cache feature shows no footer item");
 	assert.deepEqual(await readdir(h.root), ["workspace"]);
 });
 
@@ -309,10 +309,10 @@ test("permission restoration is not filtered by the process umask", async t => {
 	} finally { process.umask(previous); }
 });
 
-// --- Prompt cache lifetime: short = 30m (API default, request untouched), long = 12h (`prompt_cache_options.ttl`) ---
+// --- Prompt cache lifetime: DISABLED (`CACHE_TTL_ENABLED = false`). The documented policy stays as a retained helper unit test. ---
 const responses = (id: string, provider = "openai", api = "openai-responses") => ({ id, provider, api }) as Model;
 
-test("long cache sends ttl 12h only for openai Responses-API GPT >= 5.6 models; short, default and other routes never inject", () => {
+test("retained effectiveCacheTtl policy: long maps to 12h only for openai Responses-API GPT >= 5.6; short and other routes never map", () => {
 	for (const version of ["5.6", "5.10", "6", "6.1"]) for (const name of names) {
 		assert.equal(effectiveCacheTtl("long", responses(`gpt-${version}-${name}`)), "12h");
 		assert.equal(effectiveCacheTtl("short", responses(`gpt-${version}-${name}`)), undefined, "short is the API default: nothing to send");
@@ -328,107 +328,20 @@ test("long cache sends ttl 12h only for openai Responses-API GPT >= 5.6 models; 
 	assert.equal(effectiveCacheTtl(undefined, responses("gpt-6-sol")), undefined);
 });
 
-test("long cache is merged into prompt_cache_options without dropping existing fields or mutating the payload", async t => {
-	const h = await harness(t); await h.emit("session_start");
-	h.ctx.model = responses("gpt-6-sol");
-	const payload = Object.freeze({ model: "gpt-6-sol", prompt_cache_key: "k", prompt_cache_options: Object.freeze({ mode: "explicit", ttl: "30m" }), stream: true });
-	assert.equal(h.emit("before_provider_request", { payload }), undefined, "default leaves the request alone");
-	await h.command("cache-ttl-long");
-	assert.deepEqual(h.emit("before_provider_request", { payload }), { ...payload, prompt_cache_options: { mode: "explicit", ttl: "12h" } });
-	assert.deepEqual(h.emit("before_provider_request", { payload: { model: "gpt-6-sol" } }), { model: "gpt-6-sol", prompt_cache_options: { ttl: "12h" } });
-	assert.deepEqual(h.emit("before_provider_request", { payload: { prompt_cache_options: "bogus" } }), { prompt_cache_options: { ttl: "12h" } });
-	assert.deepEqual(payload.prompt_cache_options, { mode: "explicit", ttl: "30m" });
-	for (const bad of [null, [], "request", 1]) assert.equal(h.emit("before_provider_request", { payload: bad }), undefined);
-	await h.command("cache-ttl-short");
-	assert.equal(h.emit("before_provider_request", { payload }), undefined, "short stops injecting");
-	await h.command("cache-ttl-long");
-	h.ctx.model = responses("gpt-5.5-sol");
-	assert.equal(h.emit("before_provider_request", { payload: { x: 1 } }), undefined);
-});
-
-test("speed tier and long cache combine in one payload and stay independent", async t => {
-	const h = await harness(t); await h.emit("session_start");
-	h.ctx.model = responses("gpt-6-sol");
-	await h.command("fast"); await h.command("cache-ttl-long");
-	assert.deepEqual(h.emit("before_provider_request", { payload: { stream: true } }), { stream: true, service_tier: "priority", prompt_cache_options: { ttl: "12h" } });
-	await h.command("normal");
-	assert.deepEqual(h.emit("before_provider_request", { payload: { stream: true } }), { stream: true, prompt_cache_options: { ttl: "12h" } });
-	await h.command("cache-ttl-short");
-	assert.equal(h.emit("before_provider_request", { payload: { stream: true } }), undefined);
-});
-
-test("/cache-ttl-short and /cache-ttl-long set rather than toggle, ignore arguments, and persist only short or long", async t => {
-	const h = await harness(t); await h.emit("session_start");
-	assert.equal(h.statuses.get("gpt-cache"), "Cache: Short (30m)");
-	await assert.rejects(readFile(h.globalPath, "utf8"), { code: "ENOENT" });
-	await h.save(h.globalPath, { theme: "dark", "pi-gpt-speed": { mode: "fast", keep: true } });
-	await h.command("cache-ttl-long");
-	assert.equal(h.notices.at(-1)!.text, "Cache: Long (12h, inactive)", "the default test model is not a Responses-API model");
-	assert.equal(h.statuses.get("gpt-cache"), "Cache: Long (12h, inactive)");
-	assert.deepEqual(JSON.parse(await readFile(h.globalPath, "utf8")), { theme: "dark", "pi-gpt-speed": { mode: "fast", keep: true, cache: "long" } });
-	await h.command("cache-ttl-long", "ignored extra text");
-	assert.deepEqual(JSON.parse(await readFile(h.globalPath, "utf8"))["pi-gpt-speed"], { mode: "fast", keep: true, cache: "long" }, "repeating a command is idempotent");
-	await h.command("cache-ttl-short");
-	assert.equal(h.notices.at(-1)!.text, "Cache: Short (30m)");
-	assert.deepEqual(JSON.parse(await readFile(h.globalPath, "utf8")), { theme: "dark", "pi-gpt-speed": { mode: "fast", keep: true, cache: "short" } });
-	await h.command("cache-ttl-long");
-	await h.command("normal");
-	assert.deepEqual(JSON.parse(await readFile(h.globalPath, "utf8"))["pi-gpt-speed"], { mode: "normal", keep: true, cache: "long" }, "setting the speed keeps the cache setting");
-	assert.ok(!h.commands.has("cache-ttl"), "the argument-taking command is gone");
-});
-
-test("TUI status shows the configured cache lifetime and whether long is active for the selected model", async t => {
-	const h = await harness(t); await h.emit("session_start");
-	h.ctx.model = responses("gpt-6-sol");
-	assert.equal(h.statuses.get("gpt-cache"), "Cache: Short (30m)");
-	await h.command("cache-ttl-long");
-	assert.equal(h.statuses.get("gpt-cache"), "Cache: Long (12h)");
-	await h.emit("model_select", { model: responses("gpt-5.5-sol") });
-	assert.equal(h.statuses.get("gpt-cache"), "Cache: Long (12h, inactive)");
-	await h.emit("model_select", { model: responses("gpt-6-sol", "openai-codex", "openai-codex-responses") });
-	assert.equal(h.statuses.get("gpt-cache"), "Cache: Long (12h, inactive)");
-	await h.emit("model_select", { model: responses("gpt-6-luna") });
-	assert.equal(h.statuses.get("gpt-cache"), "Cache: Long (12h)");
-	await h.command("cache-ttl-short");
-	assert.equal(h.statuses.get("gpt-cache"), "Cache: Short (30m)");
-	await h.emit("session_shutdown");
-	assert.equal(h.statuses.get("gpt-cache"), undefined);
-});
-
-test("cache setting follows the same global/project precedence, trust gate and invalid-value handling as the speed mode", async t => {
+// The feature is off: no command, no footer item and no request field, even when a settings file still carries
+// `pi-gpt-speed.cache`. Speed injection keeps working inside the same payload.
+test("disabled cache lifetime registers no command, shows no footer item and never touches the payload", async t => {
 	const h = await harness(t);
 	h.ctx.model = responses("gpt-6-sol");
-	await h.save(h.globalPath, { "pi-gpt-speed": { cache: "short" } });
-	await h.save(h.projectPath, { "pi-gpt-speed": { cache: "long" } });
-	await h.emit("session_start"); assert.equal(h.statuses.get("gpt-cache"), "Cache: Long (12h)", "trusted project overrides global");
-	h.ctx.isProjectTrusted = () => false;
-	await h.emit("session_start"); assert.equal(h.statuses.get("gpt-cache"), "Cache: Short (30m)", "untrusted project is ignored");
-	h.ctx.isProjectTrusted = () => true;
-	await h.save(h.globalPath, { "pi-gpt-speed": { cache: "long" } });
-	await h.save(h.projectPath, { "pi-gpt-speed": { cache: "12h" } });
-	await h.emit("session_start"); assert.equal(h.statuses.get("gpt-cache"), "Cache: Long (12h)", "an unsupported project value falls back to the global one");
-	await h.save(h.globalPath, { "pi-gpt-speed": { cache: "bogus" } });
-	await h.emit("session_start"); assert.equal(h.statuses.get("gpt-cache"), "Cache: Short (30m)");
-});
-
-test("/cache-ttl-long warns once when a trusted project setting will override the saved global value", async t => {
-	const h = await harness(t); await h.emit("session_start");
-	await h.save(h.projectPath, { "pi-gpt-speed": { cache: "short" } });
-	await h.command("cache-ttl-long");
-	assert.equal(JSON.parse(await readFile(h.globalPath, "utf8"))["pi-gpt-speed"].cache, "long");
-	const warnings = () => h.notices.filter(n => n.type === "warning" && /overrides/.test(n.text));
-	assert.equal(warnings().length, 1); assert.match(warnings()[0].text, /pi-gpt-speed\.cache/);
-	await h.command("cache-ttl-short");
-	assert.equal(warnings().length, 1);
-});
-
-test("a corrupt global settings file is warned about and not overwritten when setting the cache lifetime", async t => {
-	const h = await harness(t);
-	await mkdir(join(h.globalPath, ".."), { recursive: true }); await writeFile(h.globalPath, "{ not json");
-	await h.emit("session_start");
-	h.ctx.model = responses("gpt-6-sol");
-	await h.command("cache-ttl-long");
-	assert.equal(await readFile(h.globalPath, "utf8"), "{ not json");
-	assert.ok(h.notices.some(n => n.type === "warning" && /save/.test(n.text)));
-	assert.deepEqual(h.emit("before_provider_request", { payload: {} }), { prompt_cache_options: { ttl: "12h" } }, "the in-memory value stays active");
+	for (const stored of ["short", "long", "bogus"]) {
+		await h.save(h.globalPath, { theme: "dark", "pi-gpt-speed": { mode: "fast", cache: stored } });
+		await h.save(h.projectPath, { "pi-gpt-speed": { cache: "long" } });
+		await h.emit("session_start");
+		assert.deepEqual([...h.commands.keys()], ["fast", "ultrafast", "normal"]);
+		assert.equal(h.statuses.has("gpt-cache"), false, `no footer item for a stored ${stored} value`);
+		assert.deepEqual(h.emit("before_provider_request", { payload: { stream: true } }), { stream: true, service_tier: "priority" }, "only the speed tier is injected");
+	}
+	assert.deepEqual(JSON.parse(await readFile(h.globalPath, "utf8")), { theme: "dark", "pi-gpt-speed": { mode: "fast", cache: "bogus" } }, "no command rewrites the stored cache value");
+	await h.command("normal");
+	assert.equal(h.emit("before_provider_request", { payload: { stream: true } }), undefined, "Normal leaves the request alone");
 });

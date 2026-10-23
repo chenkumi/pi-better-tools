@@ -63,14 +63,9 @@ test('R05 virtual model that LOOKS like openai/gpt-5.7-astra but routes to a non
   assert.equal(call.payloadAfterHooks?.service_tier, undefined, 'a non-GPT physical route must not receive a GPT service_tier');
 });
 
-test('cache long: a direct openai Responses GPT-5.6 model gets prompt_cache_options.ttl=12h on the real host; short and openai-codex do not', { timeout: 90000 }, async () => {
+test('cache lifetime is disabled: a stored long value sends no prompt_cache_options on the real host', { timeout: 90000 }, async () => {
   const responses = [{ name: 'openai', api: 'openai-responses', models: [mk('gpt-5.6-sol')] }];
-  const long = await run('cache-long', { providers: responses, select: { physical: ['openai', 'gpt-5.6-sol'] }, mode: 'normal', cache: 'long' });
-  assert.equal(long.call.payloadAfterHooks?.prompt_cache_options?.ttl, '12h');
+  const long = await run('cache-disabled-long', { providers: responses, select: { physical: ['openai', 'gpt-5.6-sol'] }, mode: 'normal', cache: 'long' });
+  assert.equal(long.call.payloadAfterHooks?.prompt_cache_options, undefined, 'the disabled feature must not send a ttl');
   assert.equal(long.call.payloadAfterHooks?.service_tier, undefined, 'normal speed does not touch service_tier');
-  const short = await run('cache-short', { providers: responses, select: { physical: ['openai', 'gpt-5.6-sol'] }, mode: 'normal', cache: 'short' });
-  assert.equal(short.call.payloadAfterHooks?.prompt_cache_options?.ttl, undefined);
-  const codex = [{ name: 'openai-codex', api: 'openai-codex-responses', models: [mk('gpt-5.6-sol')] }];
-  const viaCodex = await run('cache-codex', { providers: codex, select: { physical: ['openai-codex', 'gpt-5.6-sol'] }, mode: 'normal', cache: 'long' });
-  assert.equal(viaCodex.call.payloadAfterHooks?.prompt_cache_options, undefined, 'the Codex backend is not documented to accept it');
 });

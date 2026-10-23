@@ -21,6 +21,12 @@ const STATUS_KEY = "gpt-speed";
 const CACHE_STATUS_KEY = "gpt-cache";
 /** The documented `prompt_cache_options` lives on the Responses API; other routes (including the Codex backend) are not guessed. */
 const CACHE_TTL_API = "openai-responses";
+/**
+ * `/cache-ttl-short` and `/cache-ttl-long` are disabled: testing showed the Responses `prompt_cache_options.ttl` request is not
+ * usable yet. While false nothing is registered or written, the footer shows no `Cache:` item and no `ttl` is sent; the helpers
+ * and the settings key stay so the feature can be re-enabled by flipping this. An explicit `boolean` keeps the gated code reachable.
+ */
+const CACHE_TTL_ENABLED: boolean = false;
 const MODEL_PATTERN = /^gpt-(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?-(luna|terra|sol|astra)$/;
 const LABELS = { normal: "Normal", fast: "Fast", ultrafast: "Ultrafast" } as const;
 
@@ -66,7 +72,7 @@ function readSettings(path: string): Record<string, unknown> {
 	return settings;
 }
 
-/** What the speed commands and `/cache-ttl-short`/`/cache-ttl-long` write; omitted fields are left as they are. */
+/** What the speed commands write (and `/cache-ttl-*` would write once enabled); omitted fields are left as they are. */
 interface SettingsPatch { mode?: SpeedMode; cache?: CacheLifetime }
 
 /** The valid `pi-gpt-speed` values in one settings file; invalid or missing values are undefined. */
@@ -177,7 +183,7 @@ export default function gptSpeedExtension(pi: ExtensionAPI): void {
 		if (ctx.mode !== "tui") return;
 		const effective = effectiveSpeedMode(mode, model);
 		ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg(effective === "normal" ? "muted" : "accent", statusLabel(model)));
-		ctx.ui.setStatus(CACHE_STATUS_KEY, ctx.ui.theme.fg(effectiveCacheTtl(cache, model) ? "accent" : "muted", cacheLabel(model)));
+		if (CACHE_TTL_ENABLED) ctx.ui.setStatus(CACHE_STATUS_KEY, ctx.ui.theme.fg(effectiveCacheTtl(cache, model) ? "accent" : "muted", cacheLabel(model)));
 	}
 
 	function warn(ctx: ExtensionContext, action: string, error: unknown): void {
@@ -210,20 +216,22 @@ export default function gptSpeedExtension(pi: ExtensionAPI): void {
 		});
 	}
 
-	for (const selected of CACHE_LIFETIMES) {
-		pi.registerCommand(`cache-ttl-${selected}`, {
-			description: selected === "long"
-				? "Set the OpenAI prompt cache lifetime to long (12h, GPT-5.6+ Responses API)"
-				: "Set the OpenAI prompt cache lifetime to short (30m, the API default)",
-			handler: async (_args, ctx) => {
-				cache = selected;
-				updateStatus(ctx);
-				report(ctx, cacheLabel(ctx.model), "info");
-				try { persistSettings(globalPath(), { cache: selected }); }
-				catch (error) { warn(ctx, "save cache setting (current value remains active)", error); }
-				noticeProjectOverride(ctx, "cache", `cache-ttl-${selected}`);
-			},
-		});
+	if (CACHE_TTL_ENABLED) {
+		for (const selected of CACHE_LIFETIMES) {
+			pi.registerCommand(`cache-ttl-${selected}`, {
+				description: selected === "long"
+					? "Set the OpenAI prompt cache lifetime to long (12h, GPT-5.6+ Responses API)"
+					: "Set the OpenAI prompt cache lifetime to short (30m, the API default)",
+				handler: async (_args, ctx) => {
+					cache = selected;
+					updateStatus(ctx);
+					report(ctx, cacheLabel(ctx.model), "info");
+					try { persistSettings(globalPath(), { cache: selected }); }
+					catch (error) { warn(ctx, "save cache setting (current value remains active)", error); }
+					noticeProjectOverride(ctx, "cache", `cache-ttl-${selected}`);
+				},
+			});
+		}
 	}
 
 	pi.on("session_start", (_event, ctx) => {
@@ -253,7 +261,7 @@ export default function gptSpeedExtension(pi: ExtensionAPI): void {
 	});
 	pi.on("before_provider_request", (event, ctx) => {
 		const effective = effectiveSpeedMode(mode, ctx.model);
-		const ttl = effectiveCacheTtl(cache, ctx.model);
+		const ttl = CACHE_TTL_ENABLED ? effectiveCacheTtl(cache, ctx.model) : undefined;
 		if (effective === "normal" && !ttl) return;
 		const payload = asObject(event.payload);
 		if (!payload) return;
