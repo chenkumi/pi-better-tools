@@ -35,6 +35,12 @@ export function parseWebUrl(value: string): URL {
   return url;
 }
 
+/** Bare, lower-case hostname: IPv6 brackets and one trailing root dot removed. */
+function normalizedHostname(url: URL): string {
+  return url.hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
+}
+const isLocalHostname = (hostname: string) => hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local');
+
 /** Per-fetch memo of hostname checks so one page's subresources resolve each host once. */
 export type ValidationCache = Map<string, Promise<void>>;
 
@@ -56,8 +62,8 @@ export class NetworkPolicy {
   async validate(value: string, cache?: ValidationCache): Promise<URL> {
     const url = parseWebUrl(value);
     if (this.allowPrivateNetwork) return url;
-    const hostname = url.hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
-    if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local')) {
+    const hostname = normalizedHostname(url);
+    if (isLocalHostname(hostname)) {
       throw new Error('NETWORK_BLOCKED: Local network destinations are not allowed. Private and local addresses cannot be fetched; use a public URL.');
     }
     if (ipaddr.isValid(hostname)) {
@@ -76,8 +82,8 @@ export class NetworkPolicy {
   /** Fresh, all-address validation for a single HTTP connection; callers must pin this address. */
   async resolveTarget(value: string): Promise<{ url: URL; address: string }> {
     const url = parseWebUrl(value);
-    const hostname = url.hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
-    if (!this.allowPrivateNetwork && (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local'))) {
+    const hostname = normalizedHostname(url);
+    if (!this.allowPrivateNetwork && isLocalHostname(hostname)) {
       throw new Error('NETWORK_BLOCKED: Local network destinations are not allowed.');
     }
     let addresses: readonly { address: string }[];

@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const pg = vi.hoisted(() => ({ calls: [] as unknown[], fail: undefined as string | undefined, released: [] as unknown[] }));
-const mysql = vi.hoisted(() => ({ calls: [] as unknown[], fail: false, destroyed: 0, releasedCount: 0, poolOptions: undefined as unknown }));
+const mysql = vi.hoisted(() => ({ calls: [] as unknown[], fail: false, failCreate: false, destroyed: 0, releasedCount: 0, poolOptions: undefined as unknown }));
 
 vi.mock("pg", async (importOriginal) => {
   const actual = await importOriginal<typeof import("pg")>();
@@ -25,6 +25,7 @@ vi.mock("pg", async (importOriginal) => {
 
 vi.mock("mysql2/promise", () => {
   const createPool = (options: unknown) => {
+    if (mysql.failCreate) throw new Error("synthetic driver construction failure");
     mysql.poolOptions = options;
     return {
       getConnection: async () => ({
@@ -51,7 +52,7 @@ const base = { host: "127.0.0.1", username: "u", password: "p", database: "d", s
 
 beforeEach(() => {
   pg.calls = []; pg.fail = undefined; pg.released = [];
-  mysql.calls = []; mysql.fail = false; mysql.destroyed = 0; mysql.releasedCount = 0;
+  mysql.calls = []; mysql.fail = false; mysql.failCreate = false; mysql.destroyed = 0; mysql.releasedCount = 0;
 });
 
 describe("PostgreSQL runtime", () => {
@@ -88,6 +89,15 @@ describe("PostgreSQL runtime", () => {
 });
 
 describe("MySQL runtime", () => {
+  it("retries adapter construction after a failure instead of caching the rejection until reload", async () => {
+    const runtime = new SqlConnectorRuntime({ mysql: { ...base, port: 3306 } });
+    mysql.failCreate = true;
+    await expect(runtime.state("mysql")).rejects.toThrow("synthetic driver construction failure");
+    mysql.failCreate = false;
+    await expect(runtime.state("mysql")).resolves.toMatchObject({ engine: "mysql" });
+    await runtime.close();
+  });
+
   it("bounds the connection queue", async () => {
     await new SqlConnectorRuntime({ mysql: { ...base, port: 3306 } }).state("mysql");
     expect((mysql.poolOptions as { queueLimit: number }).queueLimit).toBe(32);

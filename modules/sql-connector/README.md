@@ -44,7 +44,7 @@
 
 根 runtime dependencies 固定為 `mysql2@3.24.6`、`mssql@12.7.9`、`pg@8.23.1`，由根 lockfile 管理（2026-10-16 更新；來源快照身份不變）；宿主 Pi peers 不放入 runtime dependencies。從根目錄執行 `npm install --ignore-scripts` 或 `npm ci --ignore-scripts`。
 
-MSSQL Windows Authentication 另需 optional dependency `msnodesqlv8@5.6.0` 的原生 bindings，以及系統 ODBC driver。一般 MySQL／PostgreSQL／MSSQL SQL Authentication 不需要它。整合版只在建立 Windows Authentication adapter 時才 require `mssql/msnodesqlv8`，不因未編譯／未安裝 ODBC binding 阻止整個套件載入。
+MSSQL Windows Authentication 另需 optional dependency `msnodesqlv8@5.6.0` 的原生 bindings，以及系統 ODBC driver。一般 MySQL／PostgreSQL／MSSQL SQL Authentication 不需要它。整合版只在建立 Windows Authentication adapter 時才 require `mssql/msnodesqlv8`，不因未編譯／未安裝 ODBC binding 阻止整個套件載入。adapter 建立失敗不會被快取：同一 session 補裝 binding 後，下一次操作會重新嘗試建立（2026-10-23 前會一直回傳同一個失敗直到 reload）；不會因此改用其他認證方式。
 
 需要 Windows Authentication 時，在根目錄明確執行 `npm rebuild msnodesqlv8 --foreground-scripts`，並自行安裝對應 ODBC driver；無可用 prebuild 時需要該套件要求的 native build 工具。根 allowScripts 僅允許固定的 `msnodesqlv8@5.6.0` 與原有 node-pty，不自動允許其他 dependency scripts。未安裝原生 driver 時不退回另一種認證。此任務不自動安裝系統 ODBC 或連線真實資料庫。
 

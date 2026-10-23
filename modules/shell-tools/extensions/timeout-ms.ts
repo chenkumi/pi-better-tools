@@ -12,7 +12,7 @@ import { Type } from "typebox";
 import { Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { stripVTControlCharacters } from "node:util";
 
-import { ShellJobs, compactJob, timeoutMessage } from "../src/background-jobs.js";
+import { ShellJobs, compactJob, isActiveJobStatus, timeoutMessage } from "../src/background-jobs.js";
 import { registerBackgroundLifecycleGuidance } from "../src/background-guidance.js";
 import { registerApiInterruptionRenderer } from "../src/api-interruption-renderer.js";
 import { isManagedForegroundChild } from "../src/managed-child.js";
@@ -23,15 +23,16 @@ import { addDetachHint } from "../src/detach-hint.js";
 import { createShellMonitorPublisher } from "../src/monitor-publisher.js";
 import { renderShellCompletion, renderShellJobResult } from "../src/completion-renderer.js";
 import { renderShellOutput } from "../src/output-renderer.js";
-
-/** Polling a running job repeats this text each time; keep it short (full tail stays in structuredContent). */
-const RUNNING_TAIL_CHARS = 2000;
 import { writeFailureDebugLog, type FailureDetails } from "../src/debug-log.mjs";
 import {
   MAX_TIMEOUT_MS,
   timeoutMsToRenderSeconds,
   timeoutMsToSeconds,
 } from "../src/timeout-ms.mjs";
+
+/** Polling a running job repeats this text each time; keep it short (full tail stays in structuredContent). */
+const RUNNING_TAIL_CHARS = 2000;
+const ALREADY_FINISHED_NOTICE = "Job already finished; no new cancellation was requested. The existing outcome is unchanged.";
 
 const display = (text: string, limit: number) => stripVTControlCharacters(text.slice(0, limit))
   .replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/g, "");
@@ -74,6 +75,52 @@ const timedOutMessage = (message: string, foregroundOnly = false) => message.rep
   const text = timeoutMessage(seconds);
   return lead + (foregroundOnly ? text.replace(/ Use background:true separately if you want asynchronous execution\./, "") : text);
 });
+
+/** Replaces the host's bare timeout line with one naming timeoutMs and the way out; every other error passes through. */
+function withTimeoutHint(error: unknown, timeoutMs: unknown, foregroundOnly: boolean): unknown {
+  if (timeoutMs === undefined || !(error instanceof Error)) return error;
+  const timedOut = timedOutMessage(error.message, foregroundOnly);
+  return timedOut !== error.message ? new Error(timedOut, { cause: error }) : error;
+}
+
+/**
+ * Validates the raw input in a fixed order, before any settings read, backend creation or spawn. Presence of
+ * `background` is rejected for a managed child, even false/undefined, including direct execute calls that
+ * bypass host schema validation.
+ */
+function parseShellInput(name: string, input: Record<string, unknown>, foregroundOnly: boolean) {
+  if (foregroundOnly && "background" in input) throw new Error("Managed subagent Shell is foreground-only; background is not accepted.");
+  // Schema validation can be skipped when AJV is unavailable, so reject the
+  // legacy seconds field explicitly instead of silently running unbounded.
+  if (input.timeout !== undefined) {
+    throw new Error(
+      `${name} no longer accepts timeout (seconds); use timeoutMs in milliseconds, e.g. 20000 for 20 seconds.`,
+    );
+  }
+  const backgroundInput = input.background;
+  if (backgroundInput !== undefined && typeof backgroundInput !== "boolean") throw new Error("background must be a boolean");
+  if (typeof input.command !== "string") throw new Error("command must be a string");
+  const timeout = timeoutMsToSeconds(input.timeoutMs as number | undefined);
+  return { command: input.command, timeout, background: backgroundInput === true };
+}
+
+type Receipt = { jobId: string; status: "running"; liveLogPath: string };
+
+function receiptResult(pi: ExtensionAPI, ctx: ExtensionContext, timeoutMs: unknown, receipt: Receipt, headline: string) {
+  // A job without timeoutMs has no upper bound, so ask Monitor for a display-only sampler (best effort).
+  let monitorId: string | undefined;
+  if (timeoutMs === undefined) {
+    try { monitorId = requestAutoMonitor({ sessionId: ctx.sessionManager.getSessionId(), cwd: canonicalMonitorCwd(ctx.cwd) }, receipt.jobId); } catch { /* monitor is optional */ }
+  }
+  const monitorNote = monitorId ? `\nMonitor ${monitorId} samples this job every ${AUTO_MONITOR_INTERVAL_MS / 1000}s (display only, no model wake-up; monitor_stop to stop it).` : "";
+  // The receipt names only what this loadout can actually do.
+  let canQuery = false;
+  try { canQuery = pi.getActiveTools?.().includes("shell_job_status") ?? false; } catch { /* host may not expose it */ }
+  const next = canQuery
+    ? "Progress: shell_job_status or read log tail. Completion is auto-reported."
+    : "Progress: read log tail. Completion is auto-reported (shell_job_status/cancel not selected).";
+  return { content: [{ type: "text" as const, text: `${headline}\njob ${receipt.jobId} running\nlog ${receipt.liveLogPath}\n${next}${monitorNote}` }], details: undefined, structuredContent: receipt };
+}
 
 const receiptSchema = Type.Object({
   jobId: Type.String(), status: Type.Literal("running"), liveLogPath: Type.String(),
@@ -180,22 +227,7 @@ function registerTimeoutMsOverride(
       };
       try {
         if (!ctx) throw new Error("Pi did not provide the shell tool execution context");
-        // Presence is rejected, even false/undefined, including direct execute
-        // calls that bypass host schema validation. No settings/backend/spawn yet.
-        if (foregroundOnly && "background" in input) throw new Error("Managed subagent Shell is foreground-only; background is not accepted.");
-        // Schema validation can be skipped when AJV is unavailable, so reject the
-        // legacy seconds field explicitly instead of silently running unbounded.
-        if ((input as { timeout?: unknown }).timeout !== undefined) {
-          throw new Error(
-            `${name} no longer accepts timeout (seconds); use timeoutMs in milliseconds, e.g. 20000 for 20 seconds.`,
-          );
-        }
-        const backgroundInput = (input as { background?: unknown }).background;
-        if (backgroundInput !== undefined && typeof backgroundInput !== "boolean") throw new Error("background must be a boolean");
-        if (typeof input.command !== "string") throw new Error("command must be a string");
-        const timeout = timeoutMsToSeconds(input.timeoutMs);
-        const command = input.command;
-        const background = backgroundInput === true;
+        const { command, timeout, background } = parseShellInput(name, input as Record<string, unknown>, foregroundOnly);
         // Snapshot effective shell settings before accepting, rather than reading
         // a later turn's overrides when the deferred runner starts.
         let jobWrap: ((ops: BashOperations) => BashOperations) | undefined;
@@ -212,31 +244,12 @@ function registerTimeoutMsOverride(
             return result;
           } catch (error) {
             if (background || handedOff) await logFailure({ kind: "exception", error });
-            if (error instanceof Error && input.timeoutMs !== undefined) {
-              const timedOut = timedOutMessage(error.message, foregroundOnly);
-              if (timedOut !== error.message) throw new Error(timedOut, { cause: error });
-            }
-            throw error;
+            throw withTimeoutHint(error, input.timeoutMs, foregroundOnly);
           }
-        };
-        const receiptResult = (receipt: { jobId: string; status: "running"; liveLogPath: string }, headline: string) => {
-          // A job without timeoutMs has no upper bound, so ask Monitor for a display-only sampler (best effort).
-          let monitorId: string | undefined;
-          if (input.timeoutMs === undefined) {
-            try { monitorId = requestAutoMonitor({ sessionId: ctx.sessionManager.getSessionId(), cwd: canonicalMonitorCwd(ctx.cwd) }, receipt.jobId); } catch { /* monitor is optional */ }
-          }
-          const monitorNote = monitorId ? `\nMonitor ${monitorId} samples this job every ${AUTO_MONITOR_INTERVAL_MS / 1000}s (display only, no model wake-up; monitor_stop to stop it).` : "";
-          // The receipt names only what this loadout can actually do.
-          let canQuery = false;
-          try { canQuery = pi.getActiveTools?.().includes("shell_job_status") ?? false; } catch { /* host may not expose it */ }
-          const next = canQuery
-            ? "Progress: shell_job_status or read log tail. Completion is auto-reported."
-            : "Progress: read log tail. Completion is auto-reported (shell_job_status/cancel not selected).";
-          return { content: [{ type: "text" as const, text: `${headline}\njob ${receipt.jobId} running\nlog ${receipt.liveLogPath}\n${next}${monitorNote}` }], details: undefined, structuredContent: receipt };
         };
         if (background) {
           if (!jobs) throw new Error("Managed subagent Shell is foreground-only");
-          return receiptResult(jobs.submit(ctx, name, toolCallId, signal, run, command), "Background job accepted; its outcome will be reported when it finishes.");
+          return receiptResult(pi, ctx, input.timeoutMs, jobs.submit(ctx, name, toolCallId, signal, run, command), "Background job accepted; its outcome will be reported when it finishes.");
         }
         const autoMs = jobs && input.timeoutMs === undefined ? resolveAutoBackgroundMs(pi.getSettings?.()) : 0;
         // Without a UI nobody can press the detach shortcut, so only the timer can trigger a handoff.
@@ -292,15 +305,10 @@ function registerTimeoutMsOverride(
         const why = outcome === "manual"
           ? "Command moved to a background job at the user's request"
           : `Command still running after ${autoMs / 1000}s without timeoutMs; moved to a background job automatically`;
-        return receiptResult(receipt, `${why} (the same process keeps running; Esc no longer stops it, use shell_job_cancel). Its outcome will be reported when it finishes.`);
+        return receiptResult(pi, ctx, input.timeoutMs, receipt, `${why} (the same process keeps running; Esc no longer stops it, use shell_job_cancel). Its outcome will be reported when it finishes.`);
       } catch (error) {
         await logFailure({ kind: "exception", error });
-        // Replace the host's bare timeout line with one naming timeoutMs and the way out.
-        if (input.timeoutMs !== undefined && error instanceof Error) {
-          const timedOut = timedOutMessage(error.message, foregroundOnly);
-          if (timedOut !== error.message) throw new Error(timedOut, { cause: error });
-        }
-        throw error;
+        throw withTimeoutHint(error, input.timeoutMs, foregroundOnly);
       }
     },
   });
@@ -351,8 +359,8 @@ export default function (pi: ExtensionAPI) {
       renderResult(result, options, theme, context) {
         const component = renderShellJobResult(result, options, theme, context)!;
         const status = (result.structuredContent as { status?: string } | undefined)?.status;
-        if (action !== "cancel" || result.isError || !status || status === "running" || status === "cancelling") return component;
-        const notice = new Text(theme.fg("dim", "Job already finished; no new cancellation was requested. The existing outcome is unchanged."), 0, 0);
+        if (action !== "cancel" || result.isError || !status || isActiveJobStatus(status)) return component;
+        const notice = new Text(theme.fg("dim", ALREADY_FINISHED_NOTICE), 0, 0);
         return { invalidate() { component.invalidate(); notice.invalidate(); }, render(width) { return [...notice.render(width), ...component.render(width)].slice(0, 300); } };
       },
       async execute(_id, input, _signal, _onUpdate, ctx) {
@@ -362,7 +370,7 @@ export default function (pi: ExtensionAPI) {
         // Model text is compacted; structuredContent keeps the full schema-compatible result.
         const text = "jobs" in result
           ? JSON.stringify(result.jobs.map(j => ({ jobId: j.jobId, status: j.status, command: j.command.slice(0, 80), elapsedMs: j.elapsedMs, ...(j.exitCode !== undefined ? { exitCode: j.exitCode } : {}), ...(j.error ? { error: j.error } : {}) })))
-          : JSON.stringify(compactJob(result, { output: action === "status", outputLimit: result.status === "running" || result.status === "cancelling" ? RUNNING_TAIL_CHARS : undefined })) + (action === "cancel" ? result.status === "cancelling" ? "\nCancellation requested; waiting for cleanup. Exit of all descendant processes is not confirmed." : "\nJob already finished; no new cancellation was requested. The existing outcome is unchanged." : "");
+          : JSON.stringify(compactJob(result, { output: action === "status", outputLimit: isActiveJobStatus(result.status) ? RUNNING_TAIL_CHARS : undefined })) + (action === "cancel" ? result.status === "cancelling" ? "\nCancellation requested; waiting for cleanup. Exit of all descendant processes is not confirmed." : `\n${ALREADY_FINISHED_NOTICE}` : "");
         return { content: [{ type: "text", text }], details: undefined, structuredContent: result };
       },
     });

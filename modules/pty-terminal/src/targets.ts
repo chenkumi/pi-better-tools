@@ -9,6 +9,9 @@ export interface LaunchPlan {
 	transport: Transport;
 }
 
+/** Valid configured target name; also filters which names an unknown-target error may list. */
+const TARGET_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+
 function record(value: unknown): value is Record<string, unknown> {
 	return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -25,10 +28,10 @@ export function quotePosix(value: string): string {
 export function resolveTarget(command: string, args: string[], options: SpawnOptions & { target?: string }, defaultCwd: string, settings: unknown, platform: NodeJS.Platform = process.platform): LaunchPlan {
 	const target = options.target ?? "local";
 	if (target === "local") return { command, args, options, target, transport: "local" };
-	if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(target)) throw new Error("Invalid PTY target name");
+	if (!TARGET_NAME.test(target)) throw new Error("Invalid PTY target name");
 	if (!record(settings) || !record(settings.targets) || !Object.hasOwn(settings.targets, target)) {
 		// Settings reach here already trust-filtered by the host; list names only (never host/cwd/distribution values).
-		const names = record(settings) && record(settings.targets) ? Object.keys(settings.targets).filter(name => /^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(name)).sort() : [];
+		const names = record(settings) && record(settings.targets) ? Object.keys(settings.targets).filter(name => TARGET_NAME.test(name)).sort() : [];
 		throw new Error(`Unknown PTY target: ${target}. Configured targets: ${names.length ? names.join(", ") : "(none)"}; "local" is the default.`);
 	}
 	const config = settings.targets[target];

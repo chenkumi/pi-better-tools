@@ -3,7 +3,7 @@ import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { FileToolError } from "./errors.js";
+import { FileToolError, errnoCode } from "./errors.js";
 
 export const FILE_TOOLS_PROJECT_NAME = "pi-file-tools";
 
@@ -32,7 +32,7 @@ export function loadFileToolsGlobalConfig(
   try {
     source = readFileSync(configPath, "utf8");
   } catch (error) {
-    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return { debugLog: false };
+    if (errnoCode(error) === "ENOENT") return { debugLog: false };
     return degrade(`Could not read Pi global settings at ${configPath}: ${error instanceof Error ? error.message : String(error)}.`);
   }
 
@@ -98,16 +98,29 @@ function createFailureRecord(tool: string, toolCallId: string, request: unknown,
   };
 }
 
+function defaultFailureLogDirectory(): string {
+  return join(homedir(), ".pi", "logs", FILE_TOOLS_PROJECT_NAME);
+}
+
+/** One JSON Lines entry, appended to the UTC-dated `YYYY-MM-DD.jsonl` file of its timestamp. */
+function failureLogEntry(logDirectory: string, tool: string, toolCallId: string, request: unknown, error: unknown): { file: string; line: string } {
+  const record = createFailureRecord(tool, toolCallId, request, error);
+  return { file: join(logDirectory, `${record.timestamp.slice(0, 10)}.jsonl`), line: `${JSON.stringify(record)}\n` };
+}
+
+const LOG_DIRECTORY_OPTIONS = { recursive: true, mode: 0o700 } as const;
+const LOG_FILE_OPTIONS = { encoding: "utf8", mode: 0o600 } as const;
+
 function appendFailureLogSync(
   tool: string,
   toolCallId: string,
   request: unknown,
   error: unknown,
-  logDirectory = join(homedir(), ".pi", "logs", FILE_TOOLS_PROJECT_NAME),
+  logDirectory = defaultFailureLogDirectory(),
 ): void {
-  const record = createFailureRecord(tool, toolCallId, request, error);
-  mkdirSync(logDirectory, { recursive: true, mode: 0o700 });
-  appendFileSync(join(logDirectory, `${record.timestamp.slice(0, 10)}.jsonl`), `${JSON.stringify(record)}\n`, { encoding: "utf8", mode: 0o600 });
+  const entry = failureLogEntry(logDirectory, tool, toolCallId, request, error);
+  mkdirSync(logDirectory, LOG_DIRECTORY_OPTIONS);
+  appendFileSync(entry.file, entry.line, LOG_FILE_OPTIONS);
 }
 
 export async function writeFileToolFailureLog(
@@ -115,11 +128,11 @@ export async function writeFileToolFailureLog(
   toolCallId: string,
   request: unknown,
   error: unknown,
-  logDirectory = join(homedir(), ".pi", "logs", FILE_TOOLS_PROJECT_NAME),
+  logDirectory = defaultFailureLogDirectory(),
 ): Promise<void> {
-  const record = createFailureRecord(tool, toolCallId, request, error);
-  await mkdir(logDirectory, { recursive: true, mode: 0o700 });
-  await appendFile(join(logDirectory, `${record.timestamp.slice(0, 10)}.jsonl`), `${JSON.stringify(record)}\n`, { encoding: "utf8", mode: 0o600 });
+  const entry = failureLogEntry(logDirectory, tool, toolCallId, request, error);
+  await mkdir(logDirectory, LOG_DIRECTORY_OPTIONS);
+  await appendFile(entry.file, entry.line, LOG_FILE_OPTIONS);
 }
 
 export function prepareWithFailureLogging<T>(

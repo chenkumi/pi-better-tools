@@ -4,18 +4,20 @@ import { Container, Text, type Component } from "@earendil-works/pi-tui";
 import { readFile, stat } from "node:fs/promises";
 import { stripVTControlCharacters } from "node:util";
 import { Type } from "typebox";
-import { FileToolError, classifyFsError, formatFileToolErrorForDisplay } from "../src/errors.js";
+import { FileToolError, UNSAFE_DISPLAY_CHARACTERS, classifyFsError, formatFileToolErrorForDisplay } from "../src/errors.js";
 import { executeWithFailureLogging, loadFileToolsGlobalConfig, prepareWithFailureLogging } from "../src/debug-logging.js";
 import {
   assertInputSize,
   assertRegularReadableFile,
   editTextFile,
+  isSupportedRegexFlags,
   MAX_EDIT_OPERATIONS,
   MAX_REGEX_PATTERN_LENGTH,
   compactPatch,
   readTextBuffer,
   truncateFeedback,
   writeTextFile,
+  SHA256_HEX_LENGTH,
   SHA256_TOKEN_LENGTH,
   type EditResult,
   type RangeEdit,
@@ -23,14 +25,18 @@ import {
 import { resolveToolPath } from "../src/path-utils.js";
 import { findUniqueSkillFallbackPath } from "../src/skill-paths.js";
 import { hintMissingSubagentLog } from "../src/subagent-log-paths.js";
-import { registerSearchTools } from "../src/search-tools.js";
+import { registerLsTool } from "../src/search-tools.js";
 
 class WriteCallWithCount extends Container {
   preview?: Component;
   readonly count = new Text("", 0, 0);
 }
 
-const HASH_PATTERN = `^(missing|[a-fA-F0-9]{${SHA256_TOKEN_LENGTH}}|[a-fA-F0-9]{64})$`;
+/** A compact version token or a legacy full SHA-256 digest (regex alternatives, unanchored). */
+const VERSION_TOKEN_ALTERNATIVES = `[a-fA-F0-9]{${SHA256_TOKEN_LENGTH}}|[a-fA-F0-9]{${SHA256_HEX_LENGTH}}`;
+const VERSION_TOKEN_REGEX = new RegExp(`^(?:${VERSION_TOKEN_ALTERNATIVES})$`);
+const HASH_PATTERN = `^(missing|${VERSION_TOKEN_ALTERNATIVES})$`;
+const FILE_WRITE_SUCCESS_MARKER = "[FILE_WRITE_SUCCESS]";
 const strictObject = { additionalProperties: false } as const;
 
 // Spread metadata so older hosts without ToolAnnotations in their declarations
@@ -77,7 +83,7 @@ const editSchema = Type.Object(
     path: Type.String({ minLength: 1, description: "Existing file path, relative to the current working directory or absolute." }),
     expectedHash: Type.Optional(
       Type.String({
-        pattern: `^([a-fA-F0-9]{${SHA256_TOKEN_LENGTH}}|[a-fA-F0-9]{64})$`,
+        pattern: `^(${VERSION_TOKEN_ALTERNATIVES})$`,
         description: "Optional 32-character SHA-256 version token from the latest read (legacy 64-character SHA-256 is also accepted). The edit fails with STALE_FILE if the file changed.",
       }),
     ),
@@ -172,7 +178,7 @@ function optionalPositiveInteger(value: unknown, field: string, context: Argumen
 
 function validateHash(value: unknown, field: string, allowMissing: boolean, context: ArgumentErrorContext = {}): string | undefined {
   if (value === undefined) return undefined;
-  const validHash = typeof value === "string" && new RegExp(`^(?:[a-fA-F0-9]{${SHA256_TOKEN_LENGTH}}|[a-fA-F0-9]{64})$`).test(value);
+  const validHash = typeof value === "string" && VERSION_TOKEN_REGEX.test(value);
   if (!validHash && !(allowMissing && value === "missing")) {
     throw new FileToolError("INVALID_ARGUMENT", `${field} must be a ${SHA256_TOKEN_LENGTH}-character SHA-256 version token${allowMissing ? " or 'missing'" : ""}.`, {
       ...context,
@@ -248,104 +254,108 @@ export function prepareEditArguments(value: unknown) {
     });
   }
 
-  const edits: RangeEdit[] = input.edits.map((rawEdit, editIndex) => {
-    const edit = nullOptionalsAsUndefined(
-      requireObject(rawEdit, `edit.edits[${editIndex}]`, { path, editIndex }),
-      ["oldText", "regex", "regexFlags", "lineRange", "replaceAll", "replacementMode"],
-    );
-    rejectUnknown(
-      edit,
-      ["oldText", "regex", "regexFlags", "newText", "lineRange", "replaceAll", "replacementMode"],
-      `edit.edits[${editIndex}]`,
-      { path, editIndex },
-    );
-    const hasOldText = typeof edit.oldText === "string";
-    const hasRegex = typeof edit.regex === "string";
-    if (hasOldText === hasRegex || (hasOldText && edit.oldText === "") || (hasRegex && edit.regex === "")) {
-      throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}] requires exactly one non-empty oldText or regex.`, {
-        path,
-        editIndex,
-        recovery: "Use oldText for exact matching or regex for pattern matching, but not both.",
-      });
-    }
-    if (typeof edit.newText !== "string") {
-      throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}].newText must be a string.`, {
-        path,
-        editIndex,
-        recovery: "Provide replacement text; use an empty string only for deletion.",
-      });
-    }
-
-    let lineRange: { start: number; end: number } | undefined;
-    if (edit.lineRange !== undefined) {
-      const range = requireObject(edit.lineRange, `edit.edits[${editIndex}].lineRange`, { path, editIndex });
-      rejectUnknown(range, ["start", "end"], `edit.edits[${editIndex}].lineRange`, { path, editIndex });
-      const start = optionalPositiveInteger(range.start, `edit.edits[${editIndex}].lineRange.start`, { path, editIndex });
-      const end = optionalPositiveInteger(range.end, `edit.edits[${editIndex}].lineRange.end`, { path, editIndex });
-      if (start === undefined || end === undefined || end < start) {
-        throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}].lineRange must contain valid start and end values.`, {
-          path,
-          editIndex,
-          recovery: "Use positive 1-based start/end values with end greater than or equal to start.",
-        });
-      }
-      lineRange = { start, end };
-    }
-
-    if (edit.regexFlags !== undefined && (!hasRegex || typeof edit.regexFlags !== "string" || !/^[imsu]*$/.test(edit.regexFlags) || new Set(edit.regexFlags).size !== edit.regexFlags.length)) {
-      throw new FileToolError("INVALID_REGEX", `edit.edits[${editIndex}].regexFlags is invalid.`, {
-        path,
-        editIndex,
-        recovery: "Use each of i, m, s, and u at most once, and only with regex.",
-      });
-    }
-    if (edit.replaceAll !== undefined && typeof edit.replaceAll !== "boolean") {
-      throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}].replaceAll must be a boolean.`, { path, editIndex });
-    }
-    if (edit.replacementMode !== undefined && edit.replacementMode !== "literal" && edit.replacementMode !== "template") {
-      throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}].replacementMode is invalid.`, { path, editIndex });
-    }
-    if (edit.replacementMode === "template" && !hasRegex) {
-      throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}].replacementMode=template requires regex.`, {
-        path,
-        editIndex,
-        recovery: "Use literal replacementMode for oldText edits.",
-      });
-    }
-    if (hasRegex) {
-      if ((edit.regex as string).length > MAX_REGEX_PATTERN_LENGTH) {
-        throw new FileToolError("INVALID_REGEX", `edit.edits[${editIndex}].regex exceeds the pattern length limit.`, {
-          path,
-          editIndex,
-          recovery: `Use a regex no longer than ${MAX_REGEX_PATTERN_LENGTH} UTF-16 code units.`,
-        });
-      }
-      try {
-        new RegExp(edit.regex as string, (edit.regexFlags as string | undefined) ?? "");
-      } catch (error) {
-        throw new FileToolError("INVALID_REGEX", `edit.edits[${editIndex}].regex is invalid: ${error instanceof Error ? error.message : String(error)}`, {
-          path,
-          editIndex,
-          recovery: "Correct the ECMAScript regular expression and retry.",
-        });
-      }
-    }
-
-    return {
-      ...(hasOldText ? { oldText: edit.oldText as string } : { regex: edit.regex as string }),
-      ...(edit.regexFlags !== undefined ? { regexFlags: edit.regexFlags as string } : {}),
-      newText: edit.newText,
-      ...(lineRange ? { lineRange } : {}),
-      replaceAll: edit.replaceAll === true,
-      replacementMode: edit.replacementMode === "template" ? "template" : "literal",
-    };
-  });
+  const edits: RangeEdit[] = input.edits.map((rawEdit, editIndex) => prepareEditOperation(rawEdit, editIndex, path));
 
   return {
     path,
     expectedHash: validateHash(input.expectedHash, "edit.expectedHash", false, { path }),
     edits,
   };
+}
+
+/** Validate and normalize one edit.edits item (field set, match mode, lineRange, flags, regex syntax). */
+function prepareEditOperation(rawEdit: unknown, editIndex: number, path: string): RangeEdit {
+  const edit = nullOptionalsAsUndefined(
+    requireObject(rawEdit, `edit.edits[${editIndex}]`, { path, editIndex }),
+    ["oldText", "regex", "regexFlags", "lineRange", "replaceAll", "replacementMode"],
+  );
+  rejectUnknown(
+    edit,
+    ["oldText", "regex", "regexFlags", "newText", "lineRange", "replaceAll", "replacementMode"],
+    `edit.edits[${editIndex}]`,
+    { path, editIndex },
+  );
+  const hasOldText = typeof edit.oldText === "string";
+  const hasRegex = typeof edit.regex === "string";
+  if (hasOldText === hasRegex || (hasOldText && edit.oldText === "") || (hasRegex && edit.regex === "")) {
+    throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}] requires exactly one non-empty oldText or regex.`, {
+      path,
+      editIndex,
+      recovery: "Use oldText for exact matching or regex for pattern matching, but not both.",
+    });
+  }
+  if (typeof edit.newText !== "string") {
+    throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}].newText must be a string.`, {
+      path,
+      editIndex,
+      recovery: "Provide replacement text; use an empty string only for deletion.",
+    });
+  }
+
+  const lineRange = edit.lineRange === undefined ? undefined : prepareEditLineRange(edit.lineRange, editIndex, path);
+
+  if (edit.regexFlags !== undefined && (!hasRegex || typeof edit.regexFlags !== "string" || !isSupportedRegexFlags(edit.regexFlags))) {
+    throw new FileToolError("INVALID_REGEX", `edit.edits[${editIndex}].regexFlags is invalid.`, {
+      path,
+      editIndex,
+      recovery: "Use each of i, m, s, and u at most once, and only with regex.",
+    });
+  }
+  if (edit.replaceAll !== undefined && typeof edit.replaceAll !== "boolean") {
+    throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}].replaceAll must be a boolean.`, { path, editIndex });
+  }
+  if (edit.replacementMode !== undefined && edit.replacementMode !== "literal" && edit.replacementMode !== "template") {
+    throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}].replacementMode is invalid.`, { path, editIndex });
+  }
+  if (edit.replacementMode === "template" && !hasRegex) {
+    throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}].replacementMode=template requires regex.`, {
+      path,
+      editIndex,
+      recovery: "Use literal replacementMode for oldText edits.",
+    });
+  }
+  if (hasRegex) {
+    if ((edit.regex as string).length > MAX_REGEX_PATTERN_LENGTH) {
+      throw new FileToolError("INVALID_REGEX", `edit.edits[${editIndex}].regex exceeds the pattern length limit.`, {
+        path,
+        editIndex,
+        recovery: `Use a regex no longer than ${MAX_REGEX_PATTERN_LENGTH} UTF-16 code units.`,
+      });
+    }
+    try {
+      new RegExp(edit.regex as string, (edit.regexFlags as string | undefined) ?? "");
+    } catch (error) {
+      throw new FileToolError("INVALID_REGEX", `edit.edits[${editIndex}].regex is invalid: ${error instanceof Error ? error.message : String(error)}`, {
+        path,
+        editIndex,
+        recovery: "Correct the ECMAScript regular expression and retry.",
+      });
+    }
+  }
+
+  return {
+    ...(hasOldText ? { oldText: edit.oldText as string } : { regex: edit.regex as string }),
+    ...(edit.regexFlags !== undefined ? { regexFlags: edit.regexFlags as string } : {}),
+    newText: edit.newText,
+    ...(lineRange ? { lineRange } : {}),
+    replaceAll: edit.replaceAll === true,
+    replacementMode: edit.replacementMode === "template" ? "template" : "literal",
+  };
+}
+
+function prepareEditLineRange(value: unknown, editIndex: number, path: string): { start: number; end: number } {
+  const range = requireObject(value, `edit.edits[${editIndex}].lineRange`, { path, editIndex });
+  rejectUnknown(range, ["start", "end"], `edit.edits[${editIndex}].lineRange`, { path, editIndex });
+  const start = optionalPositiveInteger(range.start, `edit.edits[${editIndex}].lineRange.start`, { path, editIndex });
+  const end = optionalPositiveInteger(range.end, `edit.edits[${editIndex}].lineRange.end`, { path, editIndex });
+  if (start === undefined || end === undefined || end < start) {
+    throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}].lineRange must contain valid start and end values.`, {
+      path,
+      editIndex,
+      recovery: "Use positive 1-based start/end values with end greater than or equal to start.",
+    });
+  }
+  return { start, end };
 }
 
 export function formatEditSuccessFeedback(result: EditResult, compact = compactPatch(result.patch)): { content: string; truncated: boolean } {
@@ -418,6 +428,18 @@ export function detectImageMime(buffer: Buffer): string | undefined {
   return undefined;
 }
 
+function joinTextBlocks(content: ReadonlyArray<{ type: string }>): string {
+  return content
+    .filter((block): block is { type: "text"; text: string } => block.type === "text")
+    .map((block) => block.text)
+    .join("\n");
+}
+
+/** Streaming argument size shown under write/edit calls; not disk write progress. */
+function formatReceivedBytes(bytes: number, argsComplete: boolean): string {
+  return `${argsComplete ? "received" : "receiving"} ${bytes.toLocaleString("en-US")} bytes`;
+}
+
 async function readBufferAtPath(absolutePath: string, displayPath: string, signal?: AbortSignal): Promise<Buffer> {
   return withFileMutationQueue(absolutePath, async () => {
     try {
@@ -464,7 +486,7 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
       // The host renderer only consumes common content and optional truncation fields.
       const builtinResult = result as Parameters<NonNullable<typeof builtinRead.renderResult>>[0];
       if (!context.isError) return builtinRead.renderResult?.(builtinResult, options, theme, context) ?? new Text("", 0, 0);
-      const text = result.content.filter(block => block.type === "text").map(block => block.text).join("\n");
+      const text = joinTextBlocks(result.content);
       return new Text(theme.fg("error", formatFileToolErrorForDisplay(text, options.expanded, "read")), 0, 0);
     },
     async execute(toolCallId, params, signal, onUpdate, ctx) {
@@ -550,14 +572,14 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
       // Keep the host's preview/highlight cache separate from our wrapper.
       component.preview = builtinWrite.renderCall!(args, theme, { ...context, lastComponent: component.preview });
       const bytes = typeof args?.content === "string" ? Buffer.byteLength(args.content, "utf8") : 0;
-      component.count.setText(theme.fg("muted", `${context.argsComplete ? "received" : "receiving"} ${bytes.toLocaleString("en-US")} bytes`));
+      component.count.setText(theme.fg("muted", formatReceivedBytes(bytes, context.argsComplete)));
       component.clear();
       component.addChild(component.preview);
       component.addChild(component.count);
       return component;
     },
     renderResult(result, { expanded, isPartial }, theme, context) {
-      const text = result.content.filter(block => block.type === "text").map(block => block.text).join("\n");
+      const text = joinTextBlocks(result.content);
       if (context.isError) return new Text(theme.fg("error", formatFileToolErrorForDisplay(text, expanded, "write")), 0, 0);
       if (isPartial) return new Text(theme.fg("muted", "Writing file…"), 0, 0);
       let summary = "File written", detail = "";
@@ -567,8 +589,8 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
       if (!payload || typeof payload !== "object") {
         payload = undefined;
         try {
-          const marker = text.indexOf("[FILE_WRITE_SUCCESS]");
-          if (marker !== -1) payload = JSON.parse(text.slice(marker + "[FILE_WRITE_SUCCESS]".length).trim());
+          const marker = text.indexOf(FILE_WRITE_SUCCESS_MARKER);
+          if (marker !== -1) payload = JSON.parse(text.slice(marker + FILE_WRITE_SUCCESS_MARKER.length).trim());
         } catch { /* missing success metadata still gets a compact result */ }
       }
       if (payload) {
@@ -576,7 +598,7 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
         if (typeof payload.path === "string") detail += `\nPath: ${payload.path}`;
         if (typeof payload.sha256 === "string") detail += `\nSHA-256: ${payload.sha256}`;
       }
-      const clean = stripVTControlCharacters(summary + (expanded ? detail : "")).replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, "");
+      const clean = stripVTControlCharacters(summary + (expanded ? detail : "")).replace(UNSAFE_DISPLAY_CHARACTERS, "");
       return new Text(theme.fg("success", clean), 0, 0);
     },
     async execute(toolCallId, params, signal, _onUpdate, ctx) {
@@ -588,7 +610,7 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
             content: [
               {
                 type: "text",
-                text: `[FILE_WRITE_SUCCESS] ${JSON.stringify({ sha256: result.sha256, bytes: result.bytes, ...(result.created ? { created: true } : {}) })}`,
+                text: `${FILE_WRITE_SUCCESS_MARKER} ${JSON.stringify({ sha256: result.sha256, bytes: result.bytes, ...(result.created ? { created: true } : {}) })}`,
               },
             ],
             details: { path: result.path, sha256: result.sha256, bytes: result.bytes, created: result.created },
@@ -623,16 +645,13 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
         ? args.edits.reduce((total, edit) => total + (typeof edit?.newText === "string" ? Buffer.byteLength(edit.newText, "utf8") : 0), 0)
         : 0;
       component.setText(
-        `${theme.fg("toolTitle", theme.bold("edit"))} ${theme.fg("accent", preview.path)} ${theme.fg("dim", `[${preview.ranges}]`)}\n${theme.fg("muted", `${context.argsComplete ? "received" : "receiving"} ${bytes.toLocaleString("en-US")} bytes`)}`,
+        `${theme.fg("toolTitle", theme.bold("edit"))} ${theme.fg("accent", preview.path)} ${theme.fg("dim", `[${preview.ranges}]`)}\n${theme.fg("muted", formatReceivedBytes(bytes, context.argsComplete))}`,
       );
       return component;
     },
     renderResult(result, _options, theme, context) {
       const component = context.lastComponent instanceof Text ? context.lastComponent : new Text("", 0, 0);
-      const text = result.content
-        .filter((block) => block.type === "text")
-        .map((block) => block.text)
-        .join("\n");
+      const text = joinTextBlocks(result.content);
       if (context.isError) {
         component.setText(theme.fg("error", formatFileToolErrorForDisplay(text, context.expanded)));
       } else {
@@ -675,5 +694,5 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
     },
   });
 
-  registerSearchTools(pi);
+  registerLsTool(pi);
 }

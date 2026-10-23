@@ -12,7 +12,7 @@ import {
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
-import { SqliteManager, type SqlParams } from "./sqlite-manager.js";
+import { SqliteManager, errorMessage, type SqlParams } from "./sqlite-manager.js";
 
 const sqliteNamespace = {
   name: "sqlite",
@@ -47,21 +47,16 @@ const paramsSchema = Type.Optional(Type.Any({
   description: "Optional SQL bindings. Use an array only when every placeholder is ?, or an object only for :name/@name/$name placeholders. Do not mix both styles; object keys may omit the prefix.",
 }));
 
-const querySchema = Type.Object({
-  sql: Type.String({ minLength: 1, description: "A single SQL statement that returns rows (normally SELECT)" }),
+const statementSchema = (sqlDescription: string) => Type.Object({
+  sql: Type.String({ minLength: 1, description: sqlDescription }),
   bindings: paramsSchema,
   params: paramsSchema,
 });
 
-type QueryInput = Static<typeof querySchema>;
+const querySchema = statementSchema("A single SQL statement that returns rows (normally SELECT)");
+const executeSchema = statementSchema("A single write or schema SQL statement (INSERT, UPDATE, DELETE, CREATE, etc.)");
 
-const executeSchema = Type.Object({
-  sql: Type.String({ minLength: 1, description: "A single write or schema SQL statement (INSERT, UPDATE, DELETE, CREATE, etc.)" }),
-  bindings: paramsSchema,
-  params: paramsSchema,
-});
-
-type ExecuteInput = Static<typeof executeSchema>;
+type StatementInput = Static<typeof querySchema>;
 
 function normalizePath(input: string, cwd: string): string {
   const path = input.startsWith("@") ? input.slice(1) : input;
@@ -104,10 +99,6 @@ async function resolveFixedDatabase(ctx: ExtensionContext): Promise<FixedDatabas
   }
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 function asParams(params: unknown): SqlParams | undefined {
   if (params === undefined) return undefined;
   if (Array.isArray(params)) return params;
@@ -115,7 +106,7 @@ function asParams(params: unknown): SqlParams | undefined {
   throw new Error("SQL bindings must be an array for positional placeholders or an object for named placeholders.");
 }
 
-function getBindings(input: QueryInput | ExecuteInput): SqlParams | undefined {
+function getBindings(input: StatementInput): SqlParams | undefined {
   // `bindings` avoids a transport-level `params` field collision in some tool clients.
   return asParams(input.bindings ?? input.params);
 }

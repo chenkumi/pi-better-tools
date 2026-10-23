@@ -1,4 +1,4 @@
-import http, { type IncomingMessage } from 'node:http';
+import http, { type ClientRequest, type IncomingMessage } from 'node:http';
 import https from 'node:https';
 import type { Duplex } from 'node:stream';
 import { Transform, Writable } from 'node:stream';
@@ -48,8 +48,42 @@ export type BoundedResponse = {
 
 const HOP_BY_HOP = new Set(['host', 'connection', 'content-length', 'transfer-encoding', 'keep-alive', 'proxy-connection', 'upgrade', 'accept-encoding']);
 
-function reasonOf(signal: AbortSignal): Error {
+/** The abort reason when it is an Error (deadline, shutdown), else the generic cancellation. */
+export function abortReason(signal: AbortSignal): Error {
   return signal.reason instanceof Error ? signal.reason : new Error('CANCELLED: Fetch was cancelled.');
+}
+
+/** Send the request and wait for its response head. Every terminal path settles exactly once: a
+ * 101 Upgrade emits neither 'response' nor 'error' (Node hands the socket to 'upgrade' and only then
+ * emits 'close'), so without these listeners a hostile or misconfigured server could hold the
+ * operation, its queue permit and shutdown forever. Shared by the browser and static HTTP paths. */
+export function awaitResponse(request: ClientRequest, signal: AbortSignal, cancelReason: (signal: AbortSignal) => Error,
+  upgradeMessage: string, body?: Buffer): Promise<IncomingMessage> {
+  return new Promise<IncomingMessage>((resolve, reject) => {
+    let pending = true;
+    const settle = (error?: Error, value?: IncomingMessage) => {
+      if (!pending) return;
+      pending = false;
+      signal.removeEventListener('abort', onCancel);
+      request.off('upgrade', onUpgrade);
+      request.off('close', onClose);
+      if (error) reject(error); else resolve(value!);
+    };
+    const onCancel = () => settle(cancelReason(signal));
+    const onUpgrade = (_response: IncomingMessage, socket: Duplex) => {
+      // The upgraded socket is detached from the request; it must be destroyed explicitly.
+      socket.destroy();
+      settle(new Error(upgradeMessage));
+    };
+    const onClose = () => settle(new Error('NETWORK_ERROR: The connection closed before any response.'));
+    request.once('response', (value: IncomingMessage) => settle(undefined, value));
+    request.once('upgrade', onUpgrade);
+    request.once('close', onClose);
+    signal.addEventListener('abort', onCancel, { once: true });
+    // Stays attached after settlement so a late socket error is never unhandled.
+    request.on('error', (error: Error) => settle(error));
+    request.end(body);
+  });
 }
 
 function limiter(limit: number, message: string, onChunk?: (bytes: number) => void): Transform {
@@ -63,7 +97,7 @@ function limiter(limit: number, message: string, onChunk?: (bytes: number) => vo
 
 export async function requestBounded(input: BoundedRequest): Promise<BoundedResponse> {
   const { signal } = input;
-  if (signal.aborted) throw reasonOf(signal);
+  if (signal.aborted) throw abortReason(signal);
   const url = new URL(input.url);
   const headers: Record<string, string> = {};
   for (const [name, value] of Object.entries(input.headers)) if (!HOP_BY_HOP.has(name.toLowerCase())) headers[name] = value;
@@ -74,34 +108,12 @@ export async function requestBounded(input: BoundedRequest): Promise<BoundedResp
   const destroy = async () => { request.destroy(); await closed; };
   let incoming: IncomingMessage;
   try {
-    incoming = await new Promise<IncomingMessage>((resolve, reject) => {
-      let pending = true;
-      const settle = (error?: Error, value?: IncomingMessage) => {
-        if (!pending) return;
-        pending = false;
-        signal.removeEventListener('abort', onCancel);
-        request.off('upgrade', onUpgrade);
-        request.off('close', onClose);
-        if (error) reject(error); else resolve(value!);
-      };
-      const onCancel = () => settle(reasonOf(signal));
-      // A 101 Upgrade emits neither 'response' nor 'error'; destroy the detached socket explicitly.
-      const onUpgrade = (_response: IncomingMessage, socket: Duplex) => {
-        socket.destroy();
-        settle(new Error('UNSUPPORTED_CONTENT: The server switched to another protocol (HTTP 101 Upgrade).'));
-      };
-      const onClose = () => settle(new Error('NETWORK_ERROR: The connection closed before any response.'));
-      request.once('response', (value: IncomingMessage) => settle(undefined, value));
-      request.once('upgrade', onUpgrade);
-      request.once('close', onClose);
-      signal.addEventListener('abort', onCancel, { once: true });
-      // Stays attached so a late socket error is never unhandled.
-      request.on('error', (error: Error) => settle(error));
-      request.end(input.body && input.body.byteLength ? input.body : undefined);
-    });
+    incoming = await awaitResponse(request, signal, abortReason,
+      'UNSUPPORTED_CONTENT: The server switched to another protocol (HTTP 101 Upgrade).',
+      input.body && input.body.byteLength ? input.body : undefined);
   } catch (error) {
     await destroy();
-    if (signal.aborted) throw reasonOf(signal);
+    if (signal.aborted) throw abortReason(signal);
     throw error;
   }
   const flat: Record<string, string> = {};
@@ -135,7 +147,7 @@ export async function requestBounded(input: BoundedRequest): Promise<BoundedResp
         if (decoder) await pipeline(incoming, wire, decoder, decoded, sink, { signal });
         else await pipeline(incoming, wire, decoded, sink, { signal });
       } catch (error) {
-        if (signal.aborted) throw reasonOf(signal);
+        if (signal.aborted) throw abortReason(signal);
         if (error instanceof Error && /^(TOO_LARGE|UNSUPPORTED_CONTENT):/.test(error.message)) throw error;
         throw new Error('NETWORK_ERROR: Could not read the response body.');
       }

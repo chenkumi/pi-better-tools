@@ -1,4 +1,5 @@
 import { Type, type TSchema } from 'typebox';
+import { MAX_SEARCH_RESULTS, REST_PROVIDERS } from './search.ts';
 
 export function outputSchema(data: TSchema) {
   return Type.Object({
@@ -16,13 +17,14 @@ export const fetchOutputSchema = outputSchema(Type.Object({
   warnings: Type.Array(Type.String()), content: Type.String(), contentTruncated: Type.Boolean(),
 }));
 
+// Derived from the REST provider list so a newly supported provider cannot fall outside the declared contract.
 export const searchOutputSchema = outputSchema(Type.Object({
-  provider: Type.Union([Type.Literal('brave'), Type.Literal('exa')]),
+  provider: Type.Union(REST_PROVIDERS.map(provider => Type.Literal(provider))),
   query: Type.String(),
   results: Type.Array(Type.Object({
     title: Type.String(), url: Type.String(), snippet: Type.Optional(Type.String()),
     publishedAt: Type.Optional(Type.String()),
-  }), { maxItems: 10 }),
+  }), { maxItems: MAX_SEARCH_RESULTS }),
   warnings: Type.Array(Type.String()),
 }));
 

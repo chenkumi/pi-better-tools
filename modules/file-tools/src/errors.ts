@@ -1,6 +1,9 @@
 import { stripVTControlCharacters } from "node:util";
 
-const safeDisplay = (text: string) => stripVTControlCharacters(text).replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, "");
+/** C0/C1 controls (except tab and LF) and bidi overrides, stripped from TUI display text. */
+export const UNSAFE_DISPLAY_CHARACTERS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g;
+
+const safeDisplay = (text: string) => stripVTControlCharacters(text).replace(/\r\n?/g, "\n").replace(UNSAFE_DISPLAY_CHARACTERS, "");
 
 export type FileToolErrorCode =
   | "INVALID_ARGUMENT"
@@ -193,13 +196,17 @@ export function abortIfRequested(signal?: AbortSignal): void {
   }
 }
 
+/** The string `code` of a Node.js system error (ENOENT, EPERM, ...), if any. */
+export function errnoCode(error: unknown): string | undefined {
+  return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
+    ? error.code
+    : undefined;
+}
+
 export function classifyFsError(error: unknown, path: string, operation: "read" | "write" | "edit"): FileToolError {
   if (error instanceof FileToolError) return error;
 
-  const causeCode =
-    typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
-      ? error.code
-      : undefined;
+  const causeCode = errnoCode(error);
   const causeMessage = error instanceof Error ? error.message : String(error);
 
   if (error instanceof Error && error.name === "AbortError") {

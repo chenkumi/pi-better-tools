@@ -1,5 +1,5 @@
 /** Gemini's server-side Google Search grounding for Pi's `google-generative-ai` adapter. */
-const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+import { isRecord as record } from './record.ts';
 
 export interface GeminiIdentity { api: string; provider: string; id?: string }
 /** Combining built-in tools with function declarations is documented for Gemini 3 and newer only. */

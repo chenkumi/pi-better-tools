@@ -6,6 +6,7 @@ import { clip, toolOutput, MAX_INLINE_BYTES, MAX_INLINE_LINES, MAX_STRUCTURED_BY
 import { Check } from 'typebox/value';
 import { fetchOutputSchema, searchOutputSchema } from '../../src/tool-schemas.ts';
 import { FetchService } from '../../src/fetch/service.js';
+import { REST_PROVIDERS } from '../../src/search.ts';
 
 test('Unicode byte clipping and terminal control cleanup', async () => {
   assert.equal(clip('中😀文', 7, 10), '中😀');
@@ -48,6 +49,14 @@ test('structured fetch and REST contracts are queryable, bounded, and preserve o
   assert.ok(Check(searchOutputSchema, searched.structuredContent));
   assert.equal(searched.structuredContent.data!.results[0]!.url, 'https://example.com/');
   assert.ok(!Check(searchOutputSchema, { ...searched.structuredContent, data: { ...data, provider: 'openai' } }));
+});
+
+test('the search output schema accepts every REST provider that web_search can return', async () => {
+  for (const provider of REST_PROVIDERS) {
+    const data = { provider, query: 'fixture', results: [{ title: 'T', url: 'https://example.com/' }], warnings: [] };
+    const searched = await toolOutput('Search result', {}, data);
+    assert.ok(Check(searchOutputSchema, searched.structuredContent), `${provider} result must match searchOutputSchema`);
+  }
 });
 
 test('oversized structured data is omitted rather than bypassing output bounds, including escaping', async () => {

@@ -1,11 +1,11 @@
 import { sanitizeText } from './output.ts';
 import { supportsNativeSearch, type ModelIdentity } from './native-openai.ts';
 import { supportsGeminiNativeSearch } from './native-google.ts';
+import { isRecord as record } from './record.ts';
 
 export const SOURCE_ENTRY_TYPE = 'pi-web-tools.native-sources';
 export const MAX_SOURCE_ENTRIES = 50;
 export const MAX_SOURCE_BYTES = 24 * 1024;
-const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 export interface Source { url: string; title?: string }
 export interface Citation extends Source { startIndex?: number; endIndex?: number }
 export interface NativeSourceRecord {

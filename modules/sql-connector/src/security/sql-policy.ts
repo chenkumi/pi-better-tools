@@ -5,6 +5,9 @@ function denied(message: string): never {
   throw new SqlConnectorError("POLICY_DENIED", message);
 }
 
+/** Largest row count a read may request through LIMIT/TOP (per statement; set operations add up for MSSQL). */
+const MAX_READ_ROWS = 200;
+
 const BACKSLASH_DENIED = "Backslashes inside string literals are not allowed because their meaning depends on server settings; pass the value as a bound parameter.";
 
 /** PostgreSQL identifiers may contain `$` after the first character, so `a$b$` is not a dollar quote. */
@@ -209,18 +212,18 @@ function assertReadLimit(engine: Engine, code: string): void {
     for (const branch of topLevel.split(/\b(?:union|intersect|except)\b/)) {
       const top = /\bselect\s+(?:distinct\s+)?top\s+(\d+)\b/.exec(branch);
       const amount = Number(top?.[1]);
-      if (!top || !Number.isInteger(amount) || amount < 1 || amount > 200) {
+      if (!top || !Number.isInteger(amount) || amount < 1 || amount > MAX_READ_ROWS) {
         denied("MSSQL reads must use TOP n with n from 1 to 200 in every SELECT of a UNION/INTERSECT/EXCEPT.");
       }
       total += amount;
     }
-    if (total > 200) denied("MSSQL reads must return at most 200 rows; the TOP values of a set operation add up.");
+    if (total > MAX_READ_ROWS) denied("MSSQL reads must return at most 200 rows; the TOP values of a set operation add up.");
     return;
   }
 
   const limit = /\blimit\s+(\d+)\b/.exec(topLevel);
   const amount = Number(limit?.[1]);
-  if (!limit || !Number.isInteger(amount) || amount < 1 || amount > 200) {
+  if (!limit || !Number.isInteger(amount) || amount < 1 || amount > MAX_READ_ROWS) {
     denied(`${engine} reads must use LIMIT n with n from 1 to 200.`);
   }
 }

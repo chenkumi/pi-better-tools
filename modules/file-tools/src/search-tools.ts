@@ -5,7 +5,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 /** Only ls is overridden here; grep/find are left to the host or FFF. */
-export function registerSearchTools(pi: ExtensionAPI): void {
+export function registerLsTool(pi: ExtensionAPI): void {
   const ls = createLsToolDefinition(process.cwd());
   pi.registerTool({
     ...ls,

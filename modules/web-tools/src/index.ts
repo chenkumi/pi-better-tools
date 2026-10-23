@@ -1,23 +1,27 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { StringEnum } from '@earendil-works/pi-ai';
 import { Type } from 'typebox';
-import { CONFIG_PATH, defaults, loadConfig, resolveKey, type Credential, type Provider } from './config.ts';
+import { CONFIG_PATH, defaults, loadConfig, resolveKey, type Credential } from './config.ts';
 import type { ModelIdentity } from './native-openai.ts';
 import { NATIVE_GUIDANCE_BY_ADAPTER, NATIVE_GUIDANCES, injectNative, isNativeProvider, nativeInactiveReason, selectNative } from './native.ts';
 import { clip, sanitizeText, toolOutput } from './output.ts';
 import { executeWithDebugLog, logToolExecutionFailure } from './debug-log.ts';
 import { fetchOutputSchema, searchOutputSchema, webToolMetadata } from './tool-schemas.ts';
 import { captureGroundingSources, captureNativeSources, formatSourceRecord, readSourceRecord, SOURCE_ENTRY_TYPE, type NativeSourceRecord, type ParsedProviderEvent } from './native-sources.ts';
-import { search, type PiCredentialResolver } from './search.ts';
+import { isRestProvider, MAX_QUERY_CHARS, MAX_SEARCH_RESULTS, search, type PiCredentialResolver, type RestProvider } from './search.ts';
 import type { FetchService } from './fetch/service.ts';
 import { webRenderers } from './renderers.ts';
 
 export default function webTools(pi: ExtensionAPI) { return registerWebTools(pi, loadConfig); }
 
 const PROMPT_SECTION = 'pi_web_tools_native_search';
-const REST_PROVIDERS = ['brave', 'exa', 'deepseek'] as const;
-const PROVIDER_LABELS: Record<(typeof REST_PROVIDERS)[number], string> = { brave: 'Brave', exa: 'Exa', deepseek: 'DeepSeek' };
-const isRestProvider = (provider: Provider): provider is (typeof REST_PROVIDERS)[number] => (REST_PROVIDERS as readonly string[]).includes(provider);
+const PROVIDER_LABELS: Record<RestProvider, string> = { brave: 'Brave', exa: 'Exa', deepseek: 'DeepSeek' };
+/** web_fetch keeps this much cleaned content in structured data; the text output has its own bounds. */
+const FETCH_DATA_MAX_BYTES = 16 * 1024;
+const FETCH_DATA_MAX_LINES = 900;
+const SNIPPET_PREVIEW_CHARS = 600;
+/** Source captures awaiting their turn_end; older entries are evicted first. */
+const MAX_PENDING_SOURCES = 4;
 /** DeepSeek is the only REST provider with a Pi login; explicit config credentials still win in search.ts. */
 const piCredential = (ctx: ExtensionContext): PiCredentialResolver => async provider => {
   const registry = (ctx as { modelRegistry?: { getApiKeyForProvider(name: string): Promise<string | undefined> } }).modelRegistry;
@@ -33,6 +37,7 @@ export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig
   let servicePromise: Promise<FetchService> | undefined;
   let stopped = false;
   const shutdown = new AbortController();
+  const withShutdown = (signal: AbortSignal | undefined) => signal ? AbortSignal.any([signal, shutdown.signal]) : shutdown.signal;
   const notify = (ctx: ExtensionContext, message: string, level: 'info' | 'warning') => {
     message = sanitizeText(message);
     if (ctx.hasUI) ctx.ui.notify(message, level); else report(message);
@@ -78,12 +83,12 @@ export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig
     async execute(_id, args, signal, onUpdate, ctx) {
       return executeWithDebugLog(ctx, 'web_fetch', async () => {
       onUpdate?.({ content: [{ type: 'text', text: 'Loading webpage…' }], details: {} });
-      const combined = signal ? AbortSignal.any([signal, shutdown.signal]) : shutdown.signal;
+      const combined = withShutdown(signal);
       combined.throwIfAborted();
       const service = await getFetchService();
       const result = await service.fetch(args, combined);
       const { content, ...metadata } = result;
-      const cleanContent = sanitizeText(content), boundedContent = clip(cleanContent, 16 * 1024, 900);
+      const cleanContent = sanitizeText(content), boundedContent = clip(cleanContent, FETCH_DATA_MAX_BYTES, FETCH_DATA_MAX_LINES);
       const data = { ...metadata, title: sanitizeText(result.title), warnings: result.warnings.map(sanitizeText), content: boundedContent, contentTruncated: boundedContent !== cleanContent };
       return toolOutput([
         `Title: ${result.title}`, `URL: ${result.url}`, ...(result.finalUrl !== result.url ? [`Final URL: ${result.finalUrl}`] : []),
@@ -109,8 +114,8 @@ export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig
         'Query tips: use concise keywords, quote exact phrases, and add a site: or year term to narrow results.',
       ],
       parameters: Type.Object({
-        query: Type.String({ minLength: 1, maxLength: 2000 }),
-        numResults: Type.Optional(Type.Integer({ minimum: 1, maximum: 10 })),
+        query: Type.String({ minLength: 1, maxLength: MAX_QUERY_CHARS }),
+        numResults: Type.Optional(Type.Integer({ minimum: 1, maximum: MAX_SEARCH_RESULTS })),
       }),
       // Older sessions/models may still send provider; the configured provider is authoritative, so drop it.
       prepareArguments: (args: unknown) => {
@@ -119,9 +124,8 @@ export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig
       },
       async execute(_id, args, signal, _onUpdate, ctx) {
         return executeWithDebugLog(ctx, 'web_search', async () => {
-        const combined = signal ? AbortSignal.any([signal, shutdown.signal]) : shutdown.signal;
-        const result = await search(config, args, combined, undefined, piCredential(ctx));
-        const brief = (s: string) => { const chars = [...s]; return chars.length > 600 ? `${chars.slice(0, 600).join('')}…` : s; };
+        const result = await search(config, args, withShutdown(signal), undefined, piCredential(ctx));
+        const brief = (s: string) => { const chars = [...s]; return chars.length > SNIPPET_PREVIEW_CHARS ? `${chars.slice(0, SNIPPET_PREVIEW_CHARS).join('')}…` : s; };
         const text = [`Query: ${result.query}`, 'External, untrusted search results:', '',
           ...result.results.map((r, i) => `[${i + 1}] ${r.title}\n${r.url}${r.snippet ? `\n${brief(r.snippet)}` : ''}${r.publishedAt ? `\nPublished: ${r.publishedAt}` : ''}`),
           ...(result.results.length ? [] : ['No results. Rewrite the query with different keywords (fewer, more specific terms) and search again.']), ...result.warnings.map(w => `Warning: ${w}`),
@@ -174,7 +178,7 @@ export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig
       const sources = (captureOpenAiSources ? captureNativeSources(event) : undefined) ??
         (captureGoogleSources ? captureGroundingSources(event) : undefined);
       if (!sources) return;
-      if (pending.size >= 4) pending.delete(pending.keys().next().value!);
+      if (pending.size >= MAX_PENDING_SOURCES) pending.delete(pending.keys().next().value!);
       pending.set(sourceKey(sources), sources);
     });
     pi.on('turn_start', () => { pending.clear(); });

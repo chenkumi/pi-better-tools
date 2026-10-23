@@ -1,4 +1,5 @@
 import { Worker } from 'node:worker_threads';
+import { abortReason } from './bounded.js';
 import { extractHtml, MAX_EXTRACTED_BYTES, MAX_HTML_BYTES, type ContentFormat, type ExtractionMode, type ExtractionResult } from './extract-core.mjs';
 
 export { extractHtml, MAX_EXTRACTED_BYTES, MAX_HTML_BYTES };
@@ -106,8 +107,6 @@ export function shutdownExtractionWorkers(): Promise<void> {
   shuttingDown = Promise.all(workers.map((pooled) => pooled.gone)).then(() => {}).finally(() => { shuttingDown = undefined; });
   return shuttingDown;
 }
-
-const abortReason = (signal: AbortSignal) => signal.reason instanceof Error ? signal.reason : new Error('CANCELLED: Fetch was cancelled.');
 
 /**
  * Extract in a terminable worker thread. `signal` aborting (cancel, fetch deadline, shutdown)

@@ -1,5 +1,5 @@
 /** Anthropic's server-side web_search tool for Pi's `anthropic-messages` adapter. */
-const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+import { isRecord as record } from './record.ts';
 
 export interface AnthropicIdentity { api: string; provider: string }
 /** Fixed conservative cap, matching the tool definition used by other hosted-search clients. */

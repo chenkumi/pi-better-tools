@@ -6,6 +6,10 @@ import type { DatabaseConfig, Engine, QueryExecution, SqlConnectorConfig, SqlSca
 import { SqlConnectorError } from "./types.js";
 
 const QUERY_TIMEOUT_MS = 30_000;
+/** Pool sizing and connection timing shared by every engine's driver pool. */
+const POOL_MAX_CONNECTIONS = 4;
+const CONNECT_TIMEOUT_MS = 10_000;
+const POOL_IDLE_TIMEOUT_MS = 30_000;
 /** Bounded waiting for a pooled connection; a full queue fails instead of growing without limit. */
 const MYSQL_QUEUE_LIMIT = 32;
 const require = createRequire(import.meta.url);
@@ -35,6 +39,20 @@ function rowsFrom(value: unknown): Array<Record<string, unknown>> {
   if (!Array.isArray(value)) return [];
   return value.filter((row): row is Record<string, unknown> => typeof row === "object" && row !== null && !Array.isArray(row));
 }
+
+/** MySQL and PostgreSQL bind positional parameters only. */
+function assertPositionalParams(params: QueryParams, tool: string): asserts params is SqlScalar[] | undefined {
+  if (params !== undefined && !Array.isArray(params)) {
+    throw new SqlConnectorError("POLICY_DENIED", `${tool} params must be a JSON array.`);
+  }
+}
+
+/** Server-reported database and version, falling back to the configured database name. */
+function stateFrom(engine: Engine, row: Record<string, unknown> | undefined, databaseColumn: string, configuredDatabase: string | undefined): StateExecution {
+  return { engine, database: row?.[databaseColumn] ? String(row[databaseColumn]) : (configuredDatabase ?? null), version: row?.version ? String(row.version) : null };
+}
+
+const shuttingDown = () => new SqlConnectorError("CONNECTIVITY", "The SQL connector is shutting down.");
 
 function aborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) throw new SqlConnectorError("TIMEOUT", "The database request was cancelled.");
@@ -69,9 +87,9 @@ class MysqlAdapter implements Adapter {
       database: config.database,
       ssl: config.ssl ? {} : undefined,
       waitForConnections: true,
-      connectionLimit: 4,
+      connectionLimit: POOL_MAX_CONNECTIONS,
       queueLimit: MYSQL_QUEUE_LIMIT,
-      connectTimeout: 10_000,
+      connectTimeout: CONNECT_TIMEOUT_MS,
       multipleStatements: false,
     });
   }
@@ -107,17 +125,14 @@ class MysqlAdapter implements Adapter {
       const [rows] = await this.withConnection(signal, (connection) =>
         connection.query("SELECT VERSION() AS version, DATABASE() AS current_database"),
       );
-      const row = rowsFrom(rows)[0];
-      return { engine: "mysql", database: row?.current_database ? String(row.current_database) : (this.config.database ?? null), version: row?.version ? String(row.version) : null };
+      return stateFrom("mysql", rowsFrom(rows)[0], "current_database", this.config.database);
     } catch (error) {
       return databaseError("mysql", error, signal);
     }
   }
 
   async query(sql: string, params: QueryParams, signal?: AbortSignal): Promise<QueryExecution> {
-    if (params !== undefined && !Array.isArray(params)) {
-      throw new SqlConnectorError("POLICY_DENIED", "mysql_query params must be a JSON array.");
-    }
+    assertPositionalParams(params, "mysql_query");
     try {
       const [rows] = await this.withConnection(signal, async (connection) => {
         // Defense in depth behind the SQL policy: the server rejects writes to non-temporary tables.
@@ -133,9 +148,7 @@ class MysqlAdapter implements Adapter {
   }
 
   async update(sql: string, params: QueryParams, signal?: AbortSignal): Promise<UpdateExecution> {
-    if (params !== undefined && !Array.isArray(params)) {
-      throw new SqlConnectorError("POLICY_DENIED", "mysql_update params must be a JSON array.");
-    }
+    assertPositionalParams(params, "mysql_update");
     try {
       const [result] = await this.withConnection(signal, (connection) => connection.execute(sql, params ?? []));
       const affectedRows = typeof result === "object" && result !== null && "affectedRows" in result
@@ -164,9 +177,9 @@ class MssqlAdapter implements Adapter {
       ...(config.port === undefined ? {} : { port: config.port }),
       ...(config.windowsAuth ? { driver: config.odbcDriver } : { user: config.username, password: config.password }),
       database: config.database,
-      connectionTimeout: 10_000,
+      connectionTimeout: CONNECT_TIMEOUT_MS,
       requestTimeout: QUERY_TIMEOUT_MS,
-      pool: { max: 4, min: 0, idleTimeoutMillis: 30_000 },
+      pool: { max: POOL_MAX_CONNECTIONS, min: 0, idleTimeoutMillis: POOL_IDLE_TIMEOUT_MS },
       options: {
         encrypt: config.ssl,
         trustServerCertificate: config.trustServerCertificate,
@@ -219,8 +232,7 @@ class MssqlAdapter implements Adapter {
     try {
       const request = (await this.connectedPool(signal)).request();
       const result = await this.runRequest(request, signal, () => request.query("SELECT @@VERSION AS version, DB_NAME() AS current_database"));
-      const row = rowsFrom(result.recordset)[0];
-      return { engine: "mssql", database: row?.current_database ? String(row.current_database) : (this.config.database ?? null), version: row?.version ? String(row.version) : null };
+      return stateFrom("mssql", rowsFrom(result.recordset)[0], "current_database", this.config.database);
     } catch (error) {
       return databaseError("mssql", error, signal);
     }
@@ -266,9 +278,9 @@ class PgsqlAdapter implements Adapter {
       password: config.password,
       database: config.database,
       ssl: config.ssl ? { rejectUnauthorized: true } : undefined,
-      max: 4,
-      idleTimeoutMillis: 30_000,
-      connectionTimeoutMillis: 10_000,
+      max: POOL_MAX_CONNECTIONS,
+      idleTimeoutMillis: POOL_IDLE_TIMEOUT_MS,
+      connectionTimeoutMillis: CONNECT_TIMEOUT_MS,
       statement_timeout: QUERY_TIMEOUT_MS,
       query_timeout: QUERY_TIMEOUT_MS,
     });
@@ -307,17 +319,14 @@ class PgsqlAdapter implements Adapter {
       const result = await this.withClient(signal, (client) =>
         client.query("SELECT version() AS version, current_database() AS database"),
       );
-      const row = rowsFrom(result.rows)[0];
-      return { engine: "pgsql", database: row?.database ? String(row.database) : (this.config.database ?? null), version: row?.version ? String(row.version) : null };
+      return stateFrom("pgsql", rowsFrom(result.rows)[0], "database", this.config.database);
     } catch (error) {
       return databaseError("pgsql", error, signal);
     }
   }
 
   async query(sql: string, params: QueryParams, signal?: AbortSignal): Promise<QueryExecution> {
-    if (params !== undefined && !Array.isArray(params)) {
-      throw new SqlConnectorError("POLICY_DENIED", "pgsql_query params must be a JSON array.");
-    }
+    assertPositionalParams(params, "pgsql_query");
     try {
       const result = await this.withClient(signal, async (client) => {
         // Defense in depth behind the SQL policy: one extended-protocol statement in a read-only transaction.
@@ -333,9 +342,7 @@ class PgsqlAdapter implements Adapter {
   }
 
   async update(sql: string, params: QueryParams, signal?: AbortSignal): Promise<UpdateExecution> {
-    if (params !== undefined && !Array.isArray(params)) {
-      throw new SqlConnectorError("POLICY_DENIED", "pgsql_update params must be a JSON array.");
-    }
+    assertPositionalParams(params, "pgsql_update");
     try {
       const result = await this.withClient(signal, (client) => client.query(pgQueryConfig(sql, params)));
       return { affectedRows: result.rowCount ?? 0 };
@@ -381,7 +388,7 @@ export class SqlConnectorRuntime {
   }
 
   private async adapter(engine: Engine): Promise<Adapter> {
-    if (this.closing) throw new SqlConnectorError("CONNECTIVITY", "The SQL connector is shutting down.");
+    if (this.closing) throw shuttingDown();
     const existing = this.adapters.get(engine);
     if (existing) return existing;
 
@@ -399,12 +406,15 @@ export class SqlConnectorRuntime {
           : new PgsqlAdapter(config);
       if (this.closing) {
         void adapter.close();
-        throw new SqlConnectorError("CONNECTIVITY", "The SQL connector is shutting down.");
+        throw shuttingDown();
       }
       this.adapters.set(engine, adapter);
       this.creating.delete(engine);
       return adapter;
     });
+    // A failed construction (e.g. an optional native driver that cannot load) must not be cached: the next call
+    // retries instead of repeating the same rejection until reload. Concurrent callers of this attempt still share it.
+    promise.catch(() => { if (this.creating.get(engine) === promise) this.creating.delete(engine); });
     this.creating.set(engine, promise);
     return promise;
   }

@@ -7,6 +7,9 @@ const clean = (value: unknown, max = 1000) => typeof value === "string" || typeo
   ? stripVTControlCharacters(String(value).slice(0, max * 4)).replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, "").slice(0, max) : "";
 const oneLine = (value: unknown, max = 300) => clean(value, max).replace(/\s+/g, " ");
 type Action = "spawn" | "write" | "read" | "resize" | "wait_exit" | "kill" | "list";
+/** Display-only bounds (characters, collapsed preview lines); tool output has its own caps in output.ts. */
+const MAX_DISPLAY_CHARS = 50 * 1024;
+const COLLAPSED_OUTPUT_LINES = 12;
 
 /** Presentation only: never spawn, drain, write, resize or terminate a PTY. */
 export function ptyRenderers(action: Action): Pick<ToolDefinition, "renderCall" | "renderResult"> {
@@ -31,10 +34,10 @@ export function ptyRenderers(action: Action): Pick<ToolDefinition, "renderCall" 
       const session = oneLine(data.sessionId ?? input.sessionId) || "unknown";
       const lines: string[] = [];
       if (action === "read" || (action === "write" && text.trim() !== "ok" && text.trim() !== "")) {
-        const body = clean(text, 50 * 1024);
+        const body = clean(text, MAX_DISPLAY_CHARS);
         const all = body.split("\n");
-        lines.push(`PTY output · ${session}${action === "write" ? " (after write)" : ""}`, (expanded ? body : all.slice(0, 12).join("\n")) || "No pending output");
-        if (!expanded && all.length > 12) lines.push(`… (${all.length - 12} more lines; expand to view)`);
+        lines.push(`PTY output · ${session}${action === "write" ? " (after write)" : ""}`, (expanded ? body : all.slice(0, COLLAPSED_OUTPUT_LINES).join("\n")) || "No pending output");
+        if (!expanded && all.length > COLLAPSED_OUTPUT_LINES) lines.push(`… (${all.length - COLLAPSED_OUTPUT_LINES} more lines; expand to view)`);
         if (data.truncated === true) lines.push("Output truncated; the remainder stays buffered for the next read.");
       } else if (action === "list") {
         if (!Array.isArray(value)) lines.push("PTY session details unavailable");
@@ -68,7 +71,7 @@ export function ptyRenderers(action: Action): Pick<ToolDefinition, "renderCall" 
         lines.push(`PTY input sent · ${session}`);
       }
       const output = lines.join("\n");
-      return new Text(theme.fg("toolOutput", output.slice(0, 50 * 1024) + (output.length > 50 * 1024 ? "\n… (display truncated)" : "")), 0, 0);
+      return new Text(theme.fg("toolOutput", output.slice(0, MAX_DISPLAY_CHARS) + (output.length > MAX_DISPLAY_CHARS ? "\n… (display truncated)" : "")), 0, 0);
     },
   };
 }

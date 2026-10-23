@@ -61,17 +61,30 @@ export function isFailedResult(result: CompactSubagentResult): boolean {
 	return result.status === "failed" || result.status === "aborted" || (result.status !== "running" && result.exitCode !== 0);
 }
 
+export const NO_ASSISTANT_TEXT = "No assistant text was returned.";
+
 export function getResultOutput(result: CompactSubagentResult): string {
-	if (!isFailedResult(result)) return result.output || "No assistant text was returned.";
+	if (!isFailedResult(result)) return result.output || NO_ASSISTANT_TEXT;
 	if (result.output && result.errorMessage) return `${result.output}\n\n${result.status === "aborted" ? "Stop reason" : "Error"}: ${result.errorMessage}`;
-	return result.output || result.errorMessage || "No assistant text was returned.";
+	return result.output || result.errorMessage || NO_ASSISTANT_TEXT;
+}
+
+/** Shared by parent text and the TUI renderer. */
+export function resumeAvailabilityText(result: CompactSubagentResult): string {
+	return result.status === "running" ? "Running; resume is unavailable while this task is active."
+		: result.canResume ? "Resume available: a verified conversation checkpoint is ready." : "Resume is currently unavailable for this result.";
+}
+
+/** Shared by parent text and the TUI renderer. */
+export function logStatusText(result: CompactSubagentResult): string {
+	if (result.logPath) return `Subsession log: ${result.logPath}`;
+	if (result.logError) return `Subsession log unavailable: ${result.logError}`;
+	return result.status === "running" ? "Subsession log is being created." : "No subsession log path was provided for this result.";
 }
 
 export function withLogPath(result: CompactSubagentResult, output = getResultOutput(result)): string {
-	if (result.subagentSessionId) output += `\n\nSubagent session: ${result.subagentSessionId}\n${result.status === "running" ? "Running; resume is unavailable while this task is active." : result.canResume ? "Resume available: a verified conversation checkpoint is ready." : "Resume is currently unavailable for this result."}`;
-	if (result.logPath) return `${output}\n\nSubsession log: ${result.logPath}`;
-	if (result.logError) return `${output}\n\nSubsession log unavailable: ${result.logError}`;
-	return `${output}\n\n${result.status === "running" ? "Subsession log is being created." : "No subsession log path was provided for this result."}`;
+	if (result.subagentSessionId) output += `\n\nSubagent session: ${result.subagentSessionId}\n${resumeAvailabilityText(result)}`;
+	return `${output}\n\n${logStatusText(result)}`;
 }
 
 export function formatParentTaskOutput(result: CompactSubagentResult, label?: string): string {
@@ -84,7 +97,7 @@ export function formatParentResults(
 	mode: "single" | "parallel" | "chain",
 	results: CompactSubagentResult[],
 ): string {
-	if (results.length === 0) return "No assistant text was returned.";
+	if (results.length === 0) return NO_ASSISTANT_TEXT;
 	if (mode === "single") return withLogPath(results[0]);
 	return results
 		.map((result) =>
@@ -157,8 +170,10 @@ export function compactResult(input: CompactSubagentResult & Record<string, unkn
 
 // Invocation-only metadata: not serialized, not a managed storage/public schema field.
 const summaries = new WeakMap<object, string>();
+/** Bound of one retained terminal summary line (UTF-8 bytes). */
+export const MAX_RESULT_SUMMARY_BYTES = 512;
 export function hasResultSummary(result: object): boolean { return summaries.has(result); }
-export function retainResultSummary(result: object, summary: string): void { summaries.set(result, firstLineSummary(summary, 512)); }
+export function retainResultSummary(result: object, summary: string): void { summaries.set(result, firstLineSummary(summary, MAX_RESULT_SUMMARY_BYTES)); }
 export function copyResultSummary<T extends object>(source: object, target: T): T {
 	if (summaries.has(source)) summaries.set(target, summaries.get(source)!);
 	return target;

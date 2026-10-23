@@ -1,7 +1,7 @@
 import { performance } from 'node:perf_hooks';
 import { setupCommand } from '../../../../setup/commands.mjs';
-import { parseSetCookie, requestBounded, ResponseBudget, type BoundedResponse } from './bounded.js';
-import { fetchStatic } from './http.js';
+import { abortReason, parseSetCookie, requestBounded, ResponseBudget, type BoundedResponse } from './bounded.js';
+import { DOCUMENT_CONTENT_TYPES, fetchStatic } from './http.js';
 import { chromium, type Browser, type BrowserContext, type Route } from 'playwright';
 import { extractHtmlIsolated, MAX_HTML_BYTES, prewarmExtractionWorker, shutdownExtractionWorkers, type ContentFormat, type ExtractionMode } from './extract.js';
 import { NetworkPolicy, parseWebUrl, type ValidationCache } from './network.js';
@@ -31,15 +31,16 @@ export function exceedsResponseLimit(headers: Record<string, string>, bodyBytes?
   return (Number.isFinite(declared) && declared > limit) || (bodyBytes !== undefined && bodyBytes > limit);
 }
 
-function abortError(signal: AbortSignal): Error {
-  return signal.reason instanceof Error ? signal.reason : new Error('CANCELLED: Fetch was cancelled.');
-}
-function checkAbort(signal: AbortSignal): void { if (signal.aborted) throw abortError(signal); }
+const CLOSED_MESSAGE = 'CLOSED: Fetch service is closed.';
+const CANCELLED_MESSAGE = 'CANCELLED: Fetch was cancelled.';
+const HTML_TOO_LARGE_MESSAGE = 'TOO_LARGE: HTML response exceeds the 5 MiB limit.';
+
+function checkAbort(signal: AbortSignal): void { if (signal.aborted) throw abortReason(signal); }
 
 function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   return new Promise((resolve, reject) => {
-    const onAbort = () => reject(abortError(signal));
-    if (signal.aborted) { promise.catch(() => {}); reject(abortError(signal)); return; }
+    const onAbort = () => reject(abortReason(signal));
+    if (signal.aborted) { promise.catch(() => {}); reject(abortReason(signal)); return; }
     signal.addEventListener('abort', onAbort, { once: true });
     promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
   });
@@ -67,7 +68,7 @@ export class FetchQueue {
       const onAbort = () => {
         const index = this.waiting.indexOf(entry);
         if (index >= 0) this.waiting.splice(index, 1);
-        reject(abortError(signal));
+        reject(abortReason(signal));
       };
       signal.addEventListener('abort', onAbort, { once: true });
       this.waiting.push(entry);
@@ -83,6 +84,37 @@ export class FetchQueue {
       this.waiting.shift()?.grant();
     };
   }
+}
+
+function validateFetchInput(input: FetchInput): void {
+  if (input.format !== undefined && !['markdown', 'text'].includes(input.format)) throw new Error('INVALID_INPUT: Unsupported content format.');
+  if (input.extraction !== undefined && !['auto', 'main', 'body'].includes(input.extraction)) throw new Error('INVALID_INPUT: Unsupported extraction mode.');
+  if (input.waitForSelector !== undefined && (!input.waitForSelector.trim() || input.waitForSelector.length > 2048)) throw new Error('INVALID_INPUT: Selector must contain between 1 and 2048 characters.');
+}
+
+/** Read a routed response body: the main document against the HTML cap, subresources against the per-fetch budget. */
+async function readRouteBody(response: BoundedResponse, mainNavigation: boolean, budget: ResponseBudget, warnings: Set<string>): Promise<Buffer> {
+  if (mainNavigation) {
+    const type = (response.headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase();
+    if (type && !DOCUMENT_CONTENT_TYPES.includes(type)) {
+      throw new Error('UNSUPPORTED_CONTENT: Only HTML and plain text pages are supported (PDF, images and binary files are not). Look for an HTML version or abstract page, or search for a text mirror.');
+    }
+    if (Number(response.headers['content-length']) > MAX_HTML_BYTES) throw new Error(HTML_TOO_LARGE_MESSAGE);
+    try { return await response.readBody(MAX_HTML_BYTES); }
+    catch (error) { throw error instanceof Error && error.message.startsWith('TOO_LARGE:') ? new Error(HTML_TOO_LARGE_MESSAGE) : error; }
+  }
+  try { return await response.readBody(MAX_RESPONSE_BYTES, budget); }
+  catch (error) {
+    if (error instanceof Error && error.message.startsWith('TOO_LARGE:')) warnings.add('Some subresources exceeded the size limits and were blocked; rendered content may be incomplete.');
+    throw error;
+  }
+}
+
+/** Wait for `promise`, but no longer than `ms`; the timer never keeps the process alive. */
+function settleWithin(promise: Promise<void>, ms: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([promise, new Promise<void>((resolve) => { timer = setTimeout(resolve, ms); timer.unref?.(); })])
+    .finally(() => clearTimeout(timer));
 }
 
 export type BrowserLaunchReason = 'missing-executable' | 'system-dependencies' | 'permission' | 'timeout' | 'unknown';
@@ -144,7 +176,7 @@ export class FetchService {
   }
 
   private async getBrowser(): Promise<Browser> {
-    if (this.closed) throw new Error('CLOSED: Fetch service is closed.');
+    if (this.closed) throw new Error(CLOSED_MESSAGE);
     if (this.browser?.isConnected()) return this.browser;
     if (!this.launching) {
       this.launching = chromium.launch({
@@ -153,13 +185,13 @@ export class FetchService {
         timeout: this.options.timeoutMs,
         args: ['--disable-background-networking', '--force-webrtc-ip-handling-policy=disable_non_proxied_udp'],
       }).then(async (browser) => {
-        if (this.closed) { await browser.close(); throw new Error('CLOSED: Fetch service is closed.'); }
+        if (this.closed) { await browser.close(); throw new Error(CLOSED_MESSAGE); }
         this.browser = browser;
         browser.on('disconnected', () => { if (this.browser === browser) this.browser = undefined; });
         this.scheduleIdle();
         return browser;
       }).catch((error: unknown) => {
-        if (this.closed) throw new Error('CLOSED: Fetch service is closed.');
+        if (this.closed) throw new Error(CLOSED_MESSAGE);
         throw browserLaunchError(error, this.options.channel);
       }).finally(() => { this.launching = undefined; });
     }
@@ -185,15 +217,25 @@ export class FetchService {
     this.idleTimer.unref();
   }
 
+  /** Without a browser executable: one static HTTP document, no JavaScript or subresources. */
+  private async fetchStaticFallback(input: FetchInput, requestedUrl: string, signal: AbortSignal, remaining: () => number, browserError: BrowserLaunchError): Promise<FetchResult> {
+    const document = await fetchStatic(requestedUrl, this.policy, signal);
+    remaining();
+    const extracted = await extractHtmlIsolated(document.html, document.finalUrl, input.format, input.extraction, signal);
+    remaining();
+    return { url: input.url, finalUrl: document.finalUrl, status: document.status, fetchedAt: new Date().toISOString(), ...extracted,
+      warnings: [...extracted.warnings, `Static HTTP mode: JavaScript and subresources were not loaded; content may be incomplete. ${browserError.message}`] };
+  }
+
   async fetch(input: FetchInput, signal?: AbortSignal): Promise<FetchResult> {
-    if (this.closed) throw new Error('CLOSED: Fetch service is closed.');
-    if (signal?.aborted) throw new Error('CANCELLED: Fetch was cancelled.');
+    if (this.closed) throw new Error(CLOSED_MESSAGE);
+    if (signal?.aborted) throw new Error(CANCELLED_MESSAGE);
     const controller = new AbortController();
     const localSignal = controller.signal;
     const deadline = performance.now() + this.options.timeoutMs;
     const timeout = () => controller.abort(new Error('TIMEOUT: Fetch deadline exceeded (including queue and browser startup). Try a different page, or set waitForSelector to an element that appears early.'));
     const timer = setTimeout(timeout, this.options.timeoutMs);
-    const onAbort = () => controller.abort(new Error('CANCELLED: Fetch was cancelled.'));
+    const onAbort = () => controller.abort(new Error(CANCELLED_MESSAGE));
     signal?.addEventListener('abort', onAbort, { once: true });
     this.operations.add(controller);
     let finishOperation!: () => void;
@@ -217,9 +259,7 @@ export class FetchService {
       return Math.max(1, Math.ceil(deadline - performance.now()));
     };
     try {
-      if (input.format !== undefined && !['markdown', 'text'].includes(input.format)) throw new Error('INVALID_INPUT: Unsupported content format.');
-      if (input.extraction !== undefined && !['auto', 'main', 'body'].includes(input.extraction)) throw new Error('INVALID_INPUT: Unsupported extraction mode.');
-      if (input.waitForSelector !== undefined && (!input.waitForSelector.trim() || input.waitForSelector.length > 2048)) throw new Error('INVALID_INPUT: Selector must contain between 1 and 2048 characters.');
+      validateFetchInput(input);
       // One DNS validation per hostname within this fetch (the connected address is still checked per response).
       const validated: ValidationCache = new Map();
       const validate = (value: string) => this.policy.validate(value, validated);
@@ -235,12 +275,7 @@ export class FetchService {
         remaining();
         if (!(error instanceof BrowserLaunchError) || error.reason !== 'missing-executable') throw error;
         if (input.waitForSelector) throw new BrowserLaunchError('missing-executable', `Static HTTP cannot honor waitForSelector; a browser is required. ${error.message}`);
-        const document = await fetchStatic(requestedUrl, this.policy, localSignal);
-        remaining();
-        const extracted = await extractHtmlIsolated(document.html, document.finalUrl, input.format, input.extraction, localSignal);
-        remaining();
-        return { url: input.url, finalUrl: document.finalUrl, status: document.status, fetchedAt: new Date().toISOString(), ...extracted,
-          warnings: [...extracted.warnings, `Static HTTP mode: JavaScript and subresources were not loaded; content may be incomplete. ${error.message}`] };
+        return await this.fetchStaticFallback(input, requestedUrl, localSignal, remaining, error);
       }
       // A context can finish creating after cancellation. Its creating promise owns
       // late cleanup; the caller still receives cancellation without waiting for it.
@@ -325,22 +360,7 @@ export class FetchService {
           }
           if (exceedsResponseLimit(headers)) throw new Error('TOO_LARGE: Response exceeds the 10 MiB limit.');
           if (mainNavigation && response.status >= 400) throw new Error(`HTTP_ERROR: Server returned HTTP ${response.status}.`);
-          let body: Buffer;
-          if (mainNavigation) {
-            const type = (headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase();
-            if (type && !['text/html', 'application/xhtml+xml', 'text/plain'].includes(type)) {
-              throw new Error('UNSUPPORTED_CONTENT: Only HTML and plain text pages are supported (PDF, images and binary files are not). Look for an HTML version or abstract page, or search for a text mirror.');
-            }
-            if (Number(headers['content-length']) > MAX_HTML_BYTES) throw new Error('TOO_LARGE: HTML response exceeds the 5 MiB limit.');
-            try { body = await response.readBody(MAX_HTML_BYTES); }
-            catch (error) { throw error instanceof Error && error.message.startsWith('TOO_LARGE:') ? new Error('TOO_LARGE: HTML response exceeds the 5 MiB limit.') : error; }
-          } else {
-            try { body = await response.readBody(MAX_RESPONSE_BYTES, budget); }
-            catch (error) {
-              if (error instanceof Error && error.message.startsWith('TOO_LARGE:')) warnings.add('Some subresources exceeded the size limits and were blocked; rendered content may be incomplete.');
-              throw error;
-            }
-          }
+          const body = await readRouteBody(response, mainNavigation, budget, warnings);
           checkAbort(localSignal);
           // The body is already decoded: drop encoding/length headers so the browser does not decode twice.
           const fulfillHeaders = { ...headers };
@@ -404,9 +424,7 @@ export class FetchService {
       localSignal.removeEventListener('abort', onLocalAbort);
       try {
         // A hung close must not hold the queue slot forever; the browser is reaped on idle/close().
-        let closeTimer: ReturnType<typeof setTimeout> | undefined;
-        await Promise.race([closeContext(), new Promise<void>((resolve) => { closeTimer = setTimeout(resolve, CLOSE_CONTEXT_TIMEOUT_MS); closeTimer.unref?.(); })])
-          .finally(() => clearTimeout(closeTimer));
+        await settleWithin(closeContext(), CLOSE_CONTEXT_TIMEOUT_MS);
       } finally {
         release?.();
       }
@@ -421,7 +439,7 @@ export class FetchService {
     if (this.closePromise) return this.closePromise;
     this.closed = true;
     if (this.idleTimer) clearTimeout(this.idleTimer);
-    for (const controller of this.operations) controller.abort(new Error('CLOSED: Fetch service is closed.'));
+    for (const controller of this.operations) controller.abort(new Error(CLOSED_MESSAGE));
     const workersClosed = shutdownExtractionWorkers();
     this.closePromise = (async () => {
       const browser = this.browser;

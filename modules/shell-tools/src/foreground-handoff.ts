@@ -1,5 +1,5 @@
 import type { BashOperations } from "@earendil-works/pi-coding-agent";
-import { MAX_LOG_BYTES, TAIL_BYTES } from "./background-jobs.js";
+import { MAX_LOG_BYTES, appendTail } from "./background-jobs.js";
 
 /** Safety net: a foreground command without timeoutMs moves to a background job after this long. */
 export const DEFAULT_AUTO_BACKGROUND_MS = 180_000;
@@ -34,7 +34,7 @@ export function createForegroundHandoff() {
       const part = Buffer.from(data.subarray(0, room));
       head.push(part); headBytes += part.length;
     }
-    tail = data.length >= TAIL_BYTES ? Buffer.from(data.subarray(data.length - TAIL_BYTES)) : Buffer.concat([tail, data]).subarray(-TAIL_BYTES);
+    tail = appendTail(tail, data);
   };
 
   return {

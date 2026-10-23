@@ -17,6 +17,17 @@ const MAX_NOTICE_JOBS = 32;
 const states = new Set(["accepted", "queued", "running", "cancelling", "completed", "failed", "cancelled", "timed_out", "aborted", "skipped"]);
 const terminal = new Set(["completed", "failed", "cancelled", "timed_out", "aborted", "skipped"]);
 const reasons = new Set(["quit", "reload", "new", "resume", "fork", "owner_unavailable", "notification_failure"]);
+/** Shell tools whose results are background receipts only when their call asked for background:true. */
+const SHELL_TOOLS = ["bash", "powershell"];
+/** Tool results that can carry legacy lifecycle evidence for each kind. */
+const RESULT_TOOLS: Record<RecoveryKind, readonly string[]> = {
+  shell: [...SHELL_TOOLS, "shell_job_status", "shell_job_cancel"],
+  subagent: ["subagent", "subagent_message", "subagent_status", "subagent_cancel"],
+};
+/** Management tools whose terminal result confirms the outcome. */
+const STATUS_TOOLS = ["shell_job_status", "shell_job_cancel", "subagent_status", "subagent_cancel"];
+/** Bound on tasks per batch job. */
+const MAX_TASKS = 32;
 const object = (value: unknown): Record<string, any> | undefined => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : undefined;
 const id = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 200 && /^[a-zA-Z0-9_.:-]+$/.test(v);
 const clean = (v: unknown, limit = 200) => typeof v === "string" ? stripVTControlCharacters(v.slice(0, limit)).replace(/[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/g, " ") : "";
@@ -50,7 +61,7 @@ function projection(value: unknown): RecoverySnapshot | undefined {
   if (Number.isSafeInteger(v.exitCode)) out.exitCode = v.exitCode;
   if (id(v.errorCode)) out.errorCode = v.errorCode;
   if (v.tasks !== undefined) {
-    if (!Array.isArray(v.tasks) || !v.tasks.length || v.tasks.length > 32) return;
+    if (!Array.isArray(v.tasks) || !v.tasks.length || v.tasks.length > MAX_TASKS) return;
     out.tasks = [];
     for (const item of v.tasks) {
       const t = object(item);
@@ -102,8 +113,8 @@ function parseCost(content: unknown): number {
 function legacy(entry: any, kind: RecoveryKind, owner: string, cwd: string, backgroundCalls: ReadonlySet<string>): SavedState[] {
   const m = entry.type === "message" ? object(entry.message) : undefined;
   let values: any[] = [];
-  if (kind === "shell" && m?.role === "toolResult" && !m.isError && ["bash", "powershell", "shell_job_status", "shell_job_cancel"].includes(m.toolName)) {
-    if (["bash", "powershell"].includes(m.toolName) && !backgroundCalls.has(m.toolCallId)) return [];
+  if (kind === "shell" && m?.role === "toolResult" && !m.isError && RESULT_TOOLS.shell.includes(m.toolName)) {
+    if (SHELL_TOOLS.includes(m.toolName) && !backgroundCalls.has(m.toolCallId)) return [];
     const p = object(m.structuredContent) ?? jsonText(m.content);
     if (object(p)?.jobId) values = [p];
     else if (Array.isArray(object(p)?.jobs)) values = p.jobs.slice(0, MAX_JOBS);
@@ -114,7 +125,7 @@ function legacy(entry: any, kind: RecoveryKind, owner: string, cwd: string, back
       if (match) values = [{ jobId: match[1], status: "running" }];
     }
   }
-  if (kind === "subagent" && m?.role === "toolResult" && ["subagent", "subagent_message", "subagent_status", "subagent_cancel"].includes(m.toolName) && !m.isError) {
+  if (kind === "subagent" && m?.role === "toolResult" && RESULT_TOOLS.subagent.includes(m.toolName) && !m.isError) {
     const p = object(m.details) ?? object(m.structuredContent) ?? object(jsonText(m.content));
     const r = object(p?.background) ?? p;
     if (r?.jobId && Array.isArray(r.tasks)) values = [r];
@@ -122,11 +133,11 @@ function legacy(entry: any, kind: RecoveryKind, owner: string, cwd: string, back
   // Historical jobs have no trustworthy original owner metadata. The containing session
   // is their evidence scope; fork/clone inheritance is handled by the caller.
   return values.slice(0, MAX_JOBS).flatMap(v => {
-    if (!object(v) || (v.tasks !== undefined && (!Array.isArray(v.tasks) || v.tasks.length > 32))) return [];
+    if (!object(v) || (v.tasks !== undefined && (!Array.isArray(v.tasks) || v.tasks.length > MAX_TASKS))) return [];
     const p = projection({ jobId: v.jobId, state: v.status, exitCode: v.exitCode, errorCode: v.errorCode,
       tasks: Array.isArray(v.tasks) ? v.tasks.map((t: any) => ({ taskId: t?.taskId, subagentSessionId: t?.subagentSessionId, state: t?.status, exitCode: t?.result?.exitCode, errorCode: t?.result?.errorCode })) : undefined });
     if (!p) return [];
-    const confirmed = ["shell_job_status", "shell_job_cancel", "subagent_status", "subagent_cancel"].includes(m?.toolName) && terminal.has(p.state) && !p.tasks?.some(t => !terminal.has(t.state));
+    const confirmed = STATUS_TOOLS.includes(m?.toolName) && terminal.has(p.state) && !p.tasks?.some(t => !terminal.has(t.state));
     return [{ ...p, version: 1 as const, kind, owner, cwd, runtimeId: "legacy", started: false, terminal: confirmed }];
   });
 }
@@ -139,7 +150,7 @@ export function reconcileRecovery(entries: readonly any[], branch: readonly any[
   for (const e of entries.slice(-MAX_SCAN_ENTRIES)) {
     const m = e.type === "message" ? object(e.message) : undefined;
     if (m?.role !== "assistant" || !Array.isArray(m.content)) continue;
-    for (const c of m.content.slice(0, 128)) if (c?.type === "toolCall" && ["bash", "powershell"].includes(c.name) && object(c.arguments)?.background === true && typeof c.id === "string" && c.id.length <= 512) backgroundCalls.add(c.id);
+    for (const c of m.content.slice(0, 128)) if (c?.type === "toolCall" && SHELL_TOOLS.includes(c.name) && object(c.arguments)?.background === true && typeof c.id === "string" && c.id.length <= 512) backgroundCalls.add(c.id);
   }
   let incomplete = entries.length > MAX_SCAN_ENTRIES || branch.length > MAX_SCAN_ENTRIES, bytes = 0;
   for (const e of branch.slice(-MAX_SCAN_ENTRIES).reverse()) {
@@ -177,10 +188,8 @@ export function reconcileRecovery(entries: readonly any[], branch: readonly any[
       latest.set(s.jobId, s);
     } else if (options.allowLegacy !== false) {
       const m = e.type === "message" ? object(e.message) : undefined;
-      if (m?.role !== "toolResult" || !["bash", "powershell", "shell_job_status", "shell_job_cancel", "subagent", "subagent_message", "subagent_status", "subagent_cancel"].includes(m.toolName)) continue;
-      if (kind === "shell" && !["bash", "powershell", "shell_job_status", "shell_job_cancel"].includes(m.toolName)) continue;
-      if (kind === "subagent" && !["subagent", "subagent_message", "subagent_status", "subagent_cancel"].includes(m.toolName)) continue;
-      if (["bash", "powershell"].includes(m.toolName) && !backgroundCalls.has(m.toolCallId)) continue;
+      if (m?.role !== "toolResult" || !RESULT_TOOLS[kind].includes(m.toolName)) continue;
+      if (SHELL_TOOLS.includes(m.toolName) && !backgroundCalls.has(m.toolCallId)) continue;
       // One aggregate budget includes branch notices, legacy text and projected journals.
       const cost = object(m.details) || object(m.structuredContent) ? 1024 : parseCost(m.content);
       bytes += cost;
@@ -284,7 +293,7 @@ export const renderRecoveryNotice: MessageRenderer = (message, { expanded }, the
     if (expanded) {
       rows.push(`Last recorded state: ${clean(j.lastKnownState)}; reason: ${clean(j.reason)}`);
       if (j.outcome) rows.push(`Recorded outcome: ${clean(j.outcome)}${Number.isSafeInteger(j.exitCode) ? ` · exit ${j.exitCode}` : ""}`);
-      for (const t of Array.isArray(j.tasks) ? j.tasks.slice(0, 32) : []) rows.push(`Task: ${clean(t.taskId)} · ${clean(t.state)}${t.subagentSessionId ? ` · session ${clean(t.subagentSessionId)}` : ""}`);
+      for (const t of Array.isArray(j.tasks) ? j.tasks.slice(0, MAX_TASKS) : []) rows.push(`Task: ${clean(t.taskId)} · ${clean(t.state)}${t.subagentSessionId ? ` · session ${clean(t.subagentSessionId)}` : ""}`);
       rows.push(`Next: ${clean(j.nextAction, 500)}`);
     }
   }

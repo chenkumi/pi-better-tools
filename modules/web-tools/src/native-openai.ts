@@ -1,5 +1,6 @@
+import { isRecord as record } from './record.ts';
+
 export interface ModelIdentity { api: string; provider: string }
-const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 export function supportsNativeSearch(model: ModelIdentity | undefined): boolean {
   if (!model) return false;
   if (model.api === 'openai-codex-responses') return model.provider === 'openai-codex';

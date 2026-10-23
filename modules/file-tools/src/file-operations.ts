@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 import { ulid } from "ulid";
 import { constants as fsConstants } from "node:fs";
-import { access, link, lstat, mkdir, open, readFile, rename, rmdir, stat, unlink } from "node:fs/promises";
+import { access, link, lstat, mkdir, open, readFile, rename, rmdir, stat, unlink, type FileHandle } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { Worker } from "node:worker_threads";
 import { createDiffFeedback } from "./diff-runner.js";
-import { FileToolError, abortIfRequested, classifyFsError } from "./errors.js";
+import { FileToolError, abortIfRequested, classifyFsError, errnoCode } from "./errors.js";
 
 export const MAX_OUTPUT_LINES = 2000;
 export const MAX_OUTPUT_BYTES = 50 * 1024;
@@ -22,6 +22,10 @@ export const REGEX_TIMEOUT_MS = 1000;
 const REGEX_STARTUP_GRACE_MS = 2000;
 export const MAX_CANDIDATE_RANGES = 20;
 export const SHA256_TOKEN_LENGTH = 32;
+/** Length of a full hex SHA-256 digest, still accepted as a legacy version token. */
+export const SHA256_HEX_LENGTH = 64;
+
+type LineEnding = "\n" | "\r\n" | "\r";
 
 export interface TruncationDetails {
   content: string;
@@ -127,7 +131,6 @@ interface MatchedEdit {
   matchEnd: number;
   rawStart: number;
   rawEnd: number;
-  matchedText: string;
   replacement: string;
   changed: boolean;
   matchedLineStart: number;
@@ -238,7 +241,7 @@ function countOccurrences(text: string, needle: string): number {
   return count;
 }
 
-function preferredLineEnding(raw: string): "\n" | "\r\n" | "\r" {
+function preferredLineEnding(raw: string): LineEnding {
   if (!raw.includes("\r")) return "\n";
   const crlfCount = countOccurrences(raw, "\r\n");
   const lfCount = countOccurrences(raw, "\n") - crlfCount;
@@ -248,7 +251,7 @@ function preferredLineEnding(raw: string): "\n" | "\r\n" | "\r" {
   return "\n";
 }
 
-function restoreNewTextLineEndings(text: string, ending: "\n" | "\r\n" | "\r"): string {
+function restoreNewTextLineEndings(text: string, ending: LineEnding): string {
   const normalized = normalizeLf(text);
   if (ending === "\r\n") return normalized.replace(/\n/g, "\r\n");
   if (ending === "\r") return normalized.replace(/\n/g, "\r");
@@ -368,6 +371,19 @@ interface RegexSession {
   text?: string;
 }
 
+/** Only i, m, s and u, each at most once; replaceAll (not g) controls global matching. */
+export function isSupportedRegexFlags(flags: string): boolean {
+  return /^[imsu]*$/.test(flags) && new Set(flags).size === flags.length;
+}
+
+function regexTimeoutError(displayPath: string, editIndex: number): FileToolError {
+  return new FileToolError("REGEX_TIMEOUT", `edits[${editIndex}].regex exceeded the execution time limit.`, {
+    path: displayPath,
+    editIndex,
+    recovery: "Use a simpler regex, narrow lineRange, or use literal oldText.",
+  });
+}
+
 function validateRegexConfiguration(pattern: string, flags: string, displayPath: string, editIndex: number): void {
   if (pattern.length > MAX_REGEX_PATTERN_LENGTH) {
     throw new FileToolError("INVALID_REGEX", `edits[${editIndex}].regex exceeds the pattern length limit.`, {
@@ -376,7 +392,7 @@ function validateRegexConfiguration(pattern: string, flags: string, displayPath:
       recovery: `Use a regex no longer than ${MAX_REGEX_PATTERN_LENGTH} UTF-16 code units.`,
     });
   }
-  if (!/^[imsu]*$/.test(flags) || new Set(flags).size !== flags.length) {
+  if (!isSupportedRegexFlags(flags)) {
     throw new FileToolError("INVALID_REGEX", `edits[${editIndex}].regexFlags contains unsupported or duplicate flags.`, {
       path: displayPath,
       editIndex,
@@ -406,13 +422,7 @@ async function collectRegexMatches(
 ): Promise<RegexMatch[]> {
   validateRegexConfiguration(pattern, flags, displayPath, editIndex);
   abortIfRequested(signal);
-  if (timeoutMs <= 0) {
-    throw new FileToolError("REGEX_TIMEOUT", `edits[${editIndex}].regex exceeded the execution time limit.`, {
-      path: displayPath,
-      editIndex,
-      recovery: "Use a simpler regex, narrow lineRange, or use literal oldText.",
-    });
-  }
+  if (timeoutMs <= 0) throw regexTimeoutError(displayPath, editIndex);
 
   return new Promise<RegexMatch[]>((resolve, reject) => {
     const worker = session.worker ??= new Worker(REGEX_WORKER_SOURCE, { eval: true });
@@ -438,11 +448,7 @@ async function collectRegexMatches(
       editIndex,
       recovery: "Read the file again before retrying the edit.",
     })));
-    const onTimeout = () => finish(() => reject(new FileToolError("REGEX_TIMEOUT", `edits[${editIndex}].regex exceeded the execution time limit.`, {
-      path: displayPath,
-      editIndex,
-      recovery: "Use a simpler regex, narrow lineRange, or use literal oldText.",
-    })));
+    const onTimeout = () => finish(() => reject(regexTimeoutError(displayPath, editIndex)));
     // Worker start-up and the structured clone of a large text are not regex time: the
     // execution budget restarts when the worker reports it began, bounded by a start-up grace.
     timer = setTimeout(onTimeout, timeoutMs + REGEX_STARTUP_GRACE_MS);
@@ -829,11 +835,11 @@ async function readMutationSnapshot(absolutePath: string, displayPath: string): 
     try {
       buffer = await readFile(absolutePath);
     } catch (error) {
-      const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+      const code = errnoCode(error);
       if (code === "EACCES" || code === "EPERM") {
         throw new FileToolError("FILE_NOT_READABLE", "The target file could not be read for safe snapshot validation.", {
           path: displayPath,
-          causeCode: typeof code === "string" ? code : undefined,
+          causeCode: code,
           recovery: "Grant read permission before attempting a guarded mutation.",
         });
       }
@@ -843,7 +849,7 @@ async function readMutationSnapshot(absolutePath: string, displayPath: string): 
     return { exists: true, buffer, hash: sha256(buffer), mode: fileStat.mode, fingerprint: statFingerprint(fileStat) };
   } catch (error) {
     if (error instanceof FileToolError) throw error;
-    const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+    const code = errnoCode(error);
     if (code === "ENOENT" || code === "ENOTDIR") return { exists: false };
     throw error;
   }
@@ -872,7 +878,7 @@ function verifyExpectedHash(current: MutationSnapshot, expectedHash: string | un
   const normalizedExpectedHash = expectedHash.toLowerCase();
   const expectedMatches = normalizedExpectedHash.length === SHA256_TOKEN_LENGTH
     ? current.hash?.startsWith(normalizedExpectedHash) === true
-    : normalizedExpectedHash.length === 64 && current.hash === normalizedExpectedHash;
+    : normalizedExpectedHash.length === SHA256_HEX_LENGTH && current.hash === normalizedExpectedHash;
   if (!expectedMatches) {
     throw new FileToolError("STALE_FILE", "The file changed after it was read; refusing to overwrite stale content.", {
       path: displayPath,
@@ -922,8 +928,7 @@ async function cleanupTemporaryFile(temporaryPath: string): Promise<void> {
   try {
     await unlink(temporaryPath);
   } catch (error) {
-    const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
-    if (code !== "ENOENT") {
+    if (errnoCode(error) !== "ENOENT") {
       process.emitWarning(`Could not remove temporary file ${temporaryPath}: ${error instanceof Error ? error.message : String(error)}`, {
         code: "PI_FILE_TOOLS_TEMP_CLEANUP",
       });
@@ -931,7 +936,7 @@ async function cleanupTemporaryFile(temporaryPath: string): Promise<void> {
   }
 }
 
-async function applyHandleMode(handle: Awaited<ReturnType<typeof open>>, mode: number, path: string): Promise<void> {
+async function applyHandleMode(handle: FileHandle, mode: number, path: string): Promise<void> {
   try {
     await handle.chmod(mode & 0o7777);
   } catch (error) {
@@ -941,11 +946,11 @@ async function applyHandleMode(handle: Awaited<ReturnType<typeof open>>, mode: n
   }
 }
 
-async function syncHandle(handle: Awaited<ReturnType<typeof open>>): Promise<void> {
+async function syncHandle(handle: FileHandle): Promise<void> {
   try {
     await handle.sync();
   } catch (error) {
-    const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+    const code = errnoCode(error);
     // Some filesystems cannot fsync; durability is best-effort there.
     if (code !== "EINVAL" && code !== "ENOTSUP" && code !== "ENOSYS" && code !== "EPERM") throw error;
   }
@@ -953,6 +958,7 @@ async function syncHandle(handle: Awaited<ReturnType<typeof open>>): Promise<voi
 
 // Windows sharing violations (antivirus/indexer/search) can hold a file for seconds: total backoff ~3.1s.
 const WINDOWS_RENAME_ATTEMPTS = 12;
+const WINDOWS_RENAME_BACKOFF_STEP_MS = 50;
 const WINDOWS_RENAME_MAX_DELAY_MS = 500;
 const RENAME_RETRY_CODES = new Set(["EPERM", "EBUSY", "EACCES"]);
 
@@ -968,10 +974,10 @@ async function renameWithRetry(
       await rename(from, to);
       return;
     } catch (error) {
-      const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+      const code = errnoCode(error);
       // Windows reports transient sharing violations (antivirus/indexer) as EPERM/EBUSY/EACCES.
-      if (attempt >= attempts || typeof code !== "string" || !RENAME_RETRY_CODES.has(code)) throw error;
-      await new Promise((resolve) => setTimeout(resolve, Math.min(50 * attempt, WINDOWS_RENAME_MAX_DELAY_MS)));
+      if (attempt >= attempts || code === undefined || !RENAME_RETRY_CODES.has(code)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, Math.min(WINDOWS_RENAME_BACKOFF_STEP_MS * attempt, WINDOWS_RENAME_MAX_DELAY_MS)));
       abortIfRequested(signal);
       // The file may have changed while we waited; the hash check must hold for every attempt.
       await beforeRetry?.();
@@ -997,6 +1003,53 @@ async function removeCreatedDirectories(leaf: string, createdRoot: string | unde
 
 const LINK_FALLBACK_CODES = new Set(["EPERM", "ENOSYS", "EACCES", "ENOTSUP", "EOPNOTSUPP", "EXDEV", "EMLINK", "EINVAL"]);
 
+/**
+ * Create a target that was missing at snapshot time without ever replacing a path that appeared
+ * since. Returns only once the file is committed; on failure nothing it created remains.
+ */
+async function commitNewFile(
+  temporaryPath: string,
+  absolutePath: string,
+  displayPath: string,
+  content: string,
+  targetMode: number | undefined,
+): Promise<void> {
+  const staleError = () => new FileToolError("STALE_FILE", "The target path appeared during file creation; refusing to replace it.", {
+    path: displayPath,
+    expectedHash: "missing",
+    recovery: "Read the newly created path and retry only if overwrite is intended.",
+  });
+  try {
+    // Hard-link creation is atomic and fails instead of replacing a path created after our snapshot.
+    await link(temporaryPath, absolutePath);
+    return;
+  } catch (error) {
+    const code = errnoCode(error);
+    if (code === "EEXIST") throw staleError();
+    if (code === undefined || !LINK_FALLBACK_CODES.has(code)) throw error;
+  }
+  // Filesystems without hard links (FAT, some network shares): exclusive create instead.
+  let targetHandle: FileHandle | undefined;
+  let targetCreated = false;
+  try {
+    try {
+      targetHandle = await open(absolutePath, "wx", targetMode);
+    } catch (openError) {
+      if (errnoCode(openError) === "EEXIST") throw staleError();
+      throw openError;
+    }
+    targetCreated = true;
+    await targetHandle.writeFile(content, "utf8");
+    await syncHandle(targetHandle);
+    await targetHandle.close();
+    targetHandle = undefined;
+  } catch (fallbackError) {
+    if (targetHandle !== undefined) await targetHandle.close().catch(() => undefined);
+    if (targetCreated) await cleanupTemporaryFile(absolutePath);
+    throw fallbackError;
+  }
+}
+
 async function atomicWrite(
   absolutePath: string,
   displayPath: string,
@@ -1008,7 +1061,7 @@ async function atomicWrite(
   const directory = dirname(absolutePath);
   const createdRoot = await mkdir(directory, { recursive: true });
   const temporaryPath = join(directory, `.pi-ft-${ulid().toUpperCase()}.tmp`);
-  let temporaryHandle: Awaited<ReturnType<typeof open>> | undefined;
+  let temporaryHandle: FileHandle | undefined;
   let temporaryCreated = false;
   let committed = false;
   const targetMode = snapshot.exists ? snapshot.mode : 0o666 & ~process.umask();
@@ -1035,42 +1088,8 @@ async function atomicWrite(
       });
       committed = true;
     } else {
-      const staleError = () => new FileToolError("STALE_FILE", "The target path appeared during file creation; refusing to replace it.", {
-        path: displayPath,
-        expectedHash: "missing",
-        recovery: "Read the newly created path and retry only if overwrite is intended.",
-      });
-      try {
-        // Hard-link creation is atomic and fails instead of replacing a path created after our snapshot.
-        await link(temporaryPath, absolutePath);
-        committed = true;
-      } catch (error) {
-        const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
-        if (code === "EEXIST") throw staleError();
-        if (typeof code !== "string" || !LINK_FALLBACK_CODES.has(code)) throw error;
-        // Filesystems without hard links (FAT, some network shares): exclusive create instead.
-        let targetHandle: Awaited<ReturnType<typeof open>> | undefined;
-        let targetCreated = false;
-        try {
-          try {
-            targetHandle = await open(absolutePath, "wx", targetMode);
-          } catch (openError) {
-            const openCode = typeof openError === "object" && openError !== null && "code" in openError ? openError.code : undefined;
-            if (openCode === "EEXIST") throw staleError();
-            throw openError;
-          }
-          targetCreated = true;
-          await targetHandle.writeFile(content, "utf8");
-          await syncHandle(targetHandle);
-          await targetHandle.close();
-          targetHandle = undefined;
-          committed = true;
-        } catch (fallbackError) {
-          if (targetHandle !== undefined) await targetHandle.close().catch(() => undefined);
-          if (targetCreated && !committed) await cleanupTemporaryFile(absolutePath);
-          throw fallbackError;
-        }
-      }
+      await commitNewFile(temporaryPath, absolutePath, displayPath, content, targetMode);
+      committed = true;
     }
     // rename/link is the commit point. Cancellation after this point must not turn a committed write into an error.
   } catch (error) {
@@ -1161,6 +1180,138 @@ async function collectOperationMatches(
   );
 }
 
+/** Check one edit's fields and lineRange bounds before any matching; returns its replacement mode. */
+function assertEditOperationValid(edit: EditOperation, editIndex: number, map: LineMap, displayPath: string): "literal" | "template" {
+  const hasOldText = typeof edit.oldText === "string";
+  const hasRegex = typeof edit.regex === "string";
+  if (hasOldText === hasRegex || typeof edit.newText !== "string") {
+    throw new FileToolError("INVALID_ARGUMENT", `edits[${editIndex}] must provide exactly one of oldText or regex and must provide string newText.`, {
+      path: displayPath,
+      editIndex,
+      recovery: "Provide one matching mode and a replacement string.",
+    });
+  }
+  if ((hasOldText && edit.oldText!.length === 0) || (hasRegex && edit.regex!.length === 0)) {
+    throw new FileToolError("INVALID_ARGUMENT", `edits[${editIndex}] cannot use an empty oldText or regex.`, {
+      path: displayPath,
+      editIndex,
+      recovery: "Provide a non-empty literal or regular expression.",
+    });
+  }
+  assertValidUtf16(edit.newText, displayPath, editIndex);
+  if (edit.regexFlags !== undefined && !hasRegex) {
+    throw new FileToolError("INVALID_ARGUMENT", `edits[${editIndex}].regexFlags requires regex.`, {
+      path: displayPath,
+      editIndex,
+      recovery: "Remove regexFlags or use regex matching.",
+    });
+  }
+  const replacementMode = edit.replacementMode ?? "literal";
+  if (replacementMode !== "literal" && replacementMode !== "template") {
+    throw new FileToolError("INVALID_ARGUMENT", `edits[${editIndex}].replacementMode is invalid.`, {
+      path: displayPath,
+      editIndex,
+      recovery: "Use literal or template.",
+    });
+  }
+  if (replacementMode === "template" && !hasRegex) {
+    throw new FileToolError("INVALID_ARGUMENT", `edits[${editIndex}].replacementMode=template requires regex.`, {
+      path: displayPath,
+      editIndex,
+      recovery: "Use literal replacementMode for oldText edits.",
+    });
+  }
+  if (edit.replaceAll !== undefined && typeof edit.replaceAll !== "boolean") {
+    throw new FileToolError("INVALID_ARGUMENT", `edits[${editIndex}].replaceAll must be a boolean.`, {
+      path: displayPath,
+      editIndex,
+      recovery: "Use true to replace every match or false to require one match.",
+    });
+  }
+
+  const lineRange = edit.lineRange;
+  if (lineRange && (!Number.isInteger(lineRange.start) || !Number.isInteger(lineRange.end) || lineRange.start < 1 || lineRange.end < lineRange.start)) {
+    throw new FileToolError("INVALID_ARGUMENT", `edits[${editIndex}].lineRange is invalid.`, {
+      path: displayPath,
+      editIndex,
+      lineRange,
+      recovery: "Use positive 1-based start/end values with end greater than or equal to start.",
+    });
+  }
+  if (lineRange && lineRange.end > lineCount(map)) {
+    throw new FileToolError("RANGE_OUT_OF_BOUNDS", `edits[${editIndex}].lineRange extends beyond the end of the file.`, {
+      path: displayPath,
+      editIndex,
+      lineRange,
+      recovery: `Use a range within lines 1-${lineCount(map)}.`,
+    });
+  }
+  return replacementMode;
+}
+
+/**
+ * Match one edit inside its lineRange window (or the whole file). A ranged literal miss falls back
+ * to a unique whole-file match; otherwise a miss or an ambiguous non-replaceAll match throws.
+ */
+async function findScopedMatches(
+  view: NormalizedView,
+  map: LineMap,
+  edit: EditOperation,
+  editIndex: number,
+  deadline: number,
+  displayPath: string,
+  signal: AbortSignal | undefined,
+  session: RegexSession,
+): Promise<{ rangeStart: number; rangeContent: string; operationMatches: RegexMatch[] }> {
+  const lineRange = edit.lineRange;
+  let rangeStart = lineRange ? map.starts[lineRange.start - 1] : 0;
+  let rangeContent = lineRange
+    ? view.text.slice(rangeStart, lineContentEnd(map, lineRange.end - 1))
+    : view.text;
+  const regexDeadline = Math.min(deadline, Date.now() + REGEX_TIMEOUT_MS);
+  let operationMatches = await collectOperationMatches(rangeContent, edit, displayPath, editIndex, regexDeadline, signal, session);
+  assertEditDeadline(deadline, displayPath, editIndex);
+
+  if (operationMatches.length === 0) {
+    let candidates: RegexMatch[] = [];
+    if (lineRange && rangeContent.length !== view.text.length) {
+      const candidateRegexDeadline = Math.min(deadline, Date.now() + REGEX_TIMEOUT_MS);
+      candidates = await collectOperationMatches(view.text, edit, displayPath, editIndex, candidateRegexDeadline, signal, session);
+    }
+    assertEditDeadline(deadline, displayPath, editIndex);
+    if (lineRange && edit.oldText !== undefined && candidates.length === 1) {
+      // Recover a missed range only when the literal is unique in the whole file.
+      rangeStart = 0;
+      rangeContent = view.text;
+      operationMatches = candidates;
+    } else {
+      throw new FileToolError(lineRange ? "TEXT_NOT_FOUND_IN_RANGE" : "TEXT_NOT_FOUND", `edits[${editIndex}] did not match inside the requested search scope.`, {
+        path: displayPath,
+        editIndex,
+        lineRange,
+        occurrences: candidates.length || undefined,
+        candidateRanges: candidates.length > 0 ? candidateRanges(map, 0, candidates) : undefined,
+        rangePreview: lineRange ? previewRange(map, lineRange.start, lineRange.end) : undefined,
+        recovery: lineRange
+          ? "Use a candidate range, read the range again, or correct the match. A unique literal match outside the range is applied automatically; ambiguous matches are not."
+          : "Read the file again and copy exact text without the read tool's line-number prefixes.",
+      });
+    }
+  }
+  if (!edit.replaceAll && operationMatches.length > 1) {
+    throw new FileToolError("AMBIGUOUS_MATCH", `edits[${editIndex}] matched more than once inside the requested search scope.`, {
+      path: displayPath,
+      editIndex,
+      lineRange,
+      occurrences: operationMatches.length,
+      candidateRanges: candidateRanges(map, rangeStart, operationMatches),
+      rangePreview: lineRange ? previewRange(map, lineRange.start, lineRange.end) : undefined,
+      recovery: "Provide lineRange, include more surrounding text, use a more specific regex, or explicitly set replaceAll=true.",
+    });
+  }
+  return { rangeStart, rangeContent, operationMatches };
+}
+
 async function validateEdits(
   view: NormalizedView,
   map: LineMap,
@@ -1192,116 +1343,9 @@ async function validateEditsWithSession(
     abortIfRequested(signal);
     assertEditDeadline(deadline, displayPath, editIndex);
     const edit = edits[editIndex];
-    const hasOldText = typeof edit.oldText === "string";
-    const hasRegex = typeof edit.regex === "string";
-    if (hasOldText === hasRegex || typeof edit.newText !== "string") {
-      throw new FileToolError("INVALID_ARGUMENT", `edits[${editIndex}] must provide exactly one of oldText or regex and must provide string newText.`, {
-        path: displayPath,
-        editIndex,
-        recovery: "Provide one matching mode and a replacement string.",
-      });
-    }
-    if ((hasOldText && edit.oldText!.length === 0) || (hasRegex && edit.regex!.length === 0)) {
-      throw new FileToolError("INVALID_ARGUMENT", `edits[${editIndex}] cannot use an empty oldText or regex.`, {
-        path: displayPath,
-        editIndex,
-        recovery: "Provide a non-empty literal or regular expression.",
-      });
-    }
-    assertValidUtf16(edit.newText, displayPath, editIndex);
-    if (edit.regexFlags !== undefined && !hasRegex) {
-      throw new FileToolError("INVALID_ARGUMENT", `edits[${editIndex}].regexFlags requires regex.`, {
-        path: displayPath,
-        editIndex,
-        recovery: "Remove regexFlags or use regex matching.",
-      });
-    }
-    const replacementMode = edit.replacementMode ?? "literal";
-    if (replacementMode !== "literal" && replacementMode !== "template") {
-      throw new FileToolError("INVALID_ARGUMENT", `edits[${editIndex}].replacementMode is invalid.`, {
-        path: displayPath,
-        editIndex,
-        recovery: "Use literal or template.",
-      });
-    }
-    if (replacementMode === "template" && !hasRegex) {
-      throw new FileToolError("INVALID_ARGUMENT", `edits[${editIndex}].replacementMode=template requires regex.`, {
-        path: displayPath,
-        editIndex,
-        recovery: "Use literal replacementMode for oldText edits.",
-      });
-    }
-    if (edit.replaceAll !== undefined && typeof edit.replaceAll !== "boolean") {
-      throw new FileToolError("INVALID_ARGUMENT", `edits[${editIndex}].replaceAll must be a boolean.`, {
-        path: displayPath,
-        editIndex,
-        recovery: "Use true to replace every match or false to require one match.",
-      });
-    }
-
+    const replacementMode = assertEditOperationValid(edit, editIndex, map, displayPath);
     const lineRange = edit.lineRange;
-    if (lineRange && (!Number.isInteger(lineRange.start) || !Number.isInteger(lineRange.end) || lineRange.start < 1 || lineRange.end < lineRange.start)) {
-      throw new FileToolError("INVALID_ARGUMENT", `edits[${editIndex}].lineRange is invalid.`, {
-        path: displayPath,
-        editIndex,
-        lineRange,
-        recovery: "Use positive 1-based start/end values with end greater than or equal to start.",
-      });
-    }
-    if (lineRange && lineRange.end > lineCount(map)) {
-      throw new FileToolError("RANGE_OUT_OF_BOUNDS", `edits[${editIndex}].lineRange extends beyond the end of the file.`, {
-        path: displayPath,
-        editIndex,
-        lineRange,
-        recovery: `Use a range within lines 1-${lineCount(map)}.`,
-      });
-    }
-
-    let rangeStart = lineRange ? map.starts[lineRange.start - 1] : 0;
-    let rangeContent = lineRange
-      ? view.text.slice(rangeStart, lineContentEnd(map, lineRange.end - 1))
-      : view.text;
-    const regexDeadline = Math.min(deadline, Date.now() + REGEX_TIMEOUT_MS);
-    let operationMatches = await collectOperationMatches(rangeContent, edit, displayPath, editIndex, regexDeadline, signal, session);
-    assertEditDeadline(deadline, displayPath, editIndex);
-
-    if (operationMatches.length === 0) {
-      let candidates: RegexMatch[] = [];
-      if (lineRange && rangeContent.length !== view.text.length) {
-        const candidateRegexDeadline = Math.min(deadline, Date.now() + REGEX_TIMEOUT_MS);
-        candidates = await collectOperationMatches(view.text, edit, displayPath, editIndex, candidateRegexDeadline, signal, session);
-      }
-      assertEditDeadline(deadline, displayPath, editIndex);
-      if (lineRange && edit.oldText !== undefined && candidates.length === 1) {
-        // Recover a missed range only when the literal is unique in the whole file.
-        rangeStart = 0;
-        rangeContent = view.text;
-        operationMatches = candidates;
-      } else {
-        throw new FileToolError(lineRange ? "TEXT_NOT_FOUND_IN_RANGE" : "TEXT_NOT_FOUND", `edits[${editIndex}] did not match inside the requested search scope.`, {
-          path: displayPath,
-          editIndex,
-          lineRange,
-          occurrences: candidates.length || undefined,
-          candidateRanges: candidates.length > 0 ? candidateRanges(map, 0, candidates) : undefined,
-          rangePreview: lineRange ? previewRange(map, lineRange.start, lineRange.end) : undefined,
-          recovery: lineRange
-            ? "Use a candidate range, read the range again, or correct the match. A unique literal match outside the range is applied automatically; ambiguous matches are not."
-            : "Read the file again and copy exact text without the read tool's line-number prefixes.",
-        });
-      }
-    }
-    if (!edit.replaceAll && operationMatches.length > 1) {
-      throw new FileToolError("AMBIGUOUS_MATCH", `edits[${editIndex}] matched more than once inside the requested search scope.`, {
-        path: displayPath,
-        editIndex,
-        lineRange,
-        occurrences: operationMatches.length,
-        candidateRanges: candidateRanges(map, rangeStart, operationMatches),
-        rangePreview: lineRange ? previewRange(map, lineRange.start, lineRange.end) : undefined,
-        recovery: "Provide lineRange, include more surrounding text, use a more specific regex, or explicitly set replaceAll=true.",
-      });
-    }
+    const { rangeStart, rangeContent, operationMatches } = await findScopedMatches(view, map, edit, editIndex, deadline, displayPath, signal, session);
 
     const selectedMatches = edit.replaceAll ? operationMatches : operationMatches.slice(0, 1);
     let operationChanged = 0;
@@ -1334,7 +1378,6 @@ async function validateEditsWithSession(
         matchEnd,
         rawStart: rawOffsetFor(view, matchStart),
         rawEnd: rawOffsetFor(view, matchEnd),
-        matchedText: match.text,
         replacement,
         changed,
         matchedLineStart: lineForOffset(map, matchStart),
@@ -1360,6 +1403,12 @@ async function validateEditsWithSession(
     }
   }
 
+  sortAndAssertDisjoint(matched, displayPath);
+  return matched;
+}
+
+/** Sort matches by position in place and reject any pair that overlaps (see matchesConflict). */
+function sortAndAssertDisjoint(matched: MatchedEdit[], displayPath: string): void {
   matched.sort((left, right) => left.matchStart - right.matchStart || left.matchEnd - right.matchEnd);
   for (let leftIndex = 0; leftIndex < matched.length; leftIndex++) {
     for (let rightIndex = leftIndex + 1; rightIndex < matched.length; rightIndex++) {
@@ -1375,11 +1424,9 @@ async function validateEditsWithSession(
       }
     }
   }
-
-  return matched;
 }
 
-function renderRawReplacement(raw: string, edit: MatchedEdit, defaultEnding: "\n" | "\r\n" | "\r"): string {
+function renderRawReplacement(raw: string, edit: MatchedEdit, defaultEnding: LineEnding): string {
   const matchedRaw = raw.slice(edit.rawStart, edit.rawEnd);
   const ending = matchedRaw.includes("\r\n")
     ? "\r\n"
@@ -1394,7 +1441,7 @@ function renderRawReplacement(raw: string, edit: MatchedEdit, defaultEnding: "\n
 function validateResultSize(
   raw: string,
   matched: MatchedEdit[],
-  defaultEnding: "\n" | "\r\n" | "\r",
+  defaultEnding: LineEnding,
   displayPath: string,
   prefixBytes = 0,
 ): void {
@@ -1416,7 +1463,7 @@ function validateResultSize(
 function applyMatchedEdits(
   raw: string,
   matched: MatchedEdit[],
-  defaultEnding: "\n" | "\r\n" | "\r",
+  defaultEnding: LineEnding,
 ): { text: string; replacedRanges: Array<[number, number]> } {
   const parts: string[] = [];
   const replacedRanges: Array<[number, number]> = [];

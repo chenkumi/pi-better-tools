@@ -91,7 +91,7 @@ export async function logToolFailure(options: ToolFailureLogOptions): Promise<st
       await appendFile(path, line, { encoding: 'utf8', mode: 0o600, flag: 'a' });
       if (process.platform !== 'win32') await chmod(path, 0o600);
       logged = true;
-      await pruneOldLogs(directory, date);
+      await pruneOldLogs(directory);
     });
     appendTails.set(path, queued);
     try { await queued; } finally { if (appendTails.get(path) === queued) appendTails.delete(path); }
@@ -102,7 +102,7 @@ export async function logToolFailure(options: ToolFailureLogOptions): Promise<st
   }
 }
 
-async function pruneOldLogs(directory: string, _today: string): Promise<void> {
+async function pruneOldLogs(directory: string): Promise<void> {
   try {
     const files = (await readdir(directory)).filter(name => /^tool-errors-\d{4}-\d{2}-\d{2}\.jsonl$/.test(name)).sort().reverse();
     let kept = 0;

@@ -14,6 +14,9 @@ export const MAX_BLOB_BYTES = 1024;
  */
 export const BUSY_TIMEOUT_MS = 2000;
 
+/** Non-system tables: shared by the status count and the table list. */
+const USER_TABLES = "FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'";
+
 const TRANSACTION_CONTROL = /^(?:begin|commit|end|rollback|savepoint|release)(?![A-Za-z0-9_])/i;
 
 /** Strip leading whitespace, semicolons and SQL comments so the first keyword can be inspected. */
@@ -91,8 +94,7 @@ export class SqliteManager {
           : `Database created: ${filePath} did not exist, so a new empty database was created. If you meant an existing database, check the path, then sqlite_open it.`,
       };
     } catch (error) {
-      this.database = undefined;
-      this.currentPath = undefined;
+      this.forgetConnection();
       return { success: false, message: `Failed to open database: ${errorMessage(error)}` };
     }
   }
@@ -105,8 +107,7 @@ export class SqliteManager {
     try {
       const closedPath = this.currentPath;
       this.database.close();
-      this.database = undefined;
-      this.currentPath = undefined;
+      this.forgetConnection();
       return { success: true, message: `Database closed: ${closedPath}` };
     } catch (error) {
       return { success: false, message: `Failed to close database: ${errorMessage(error)}` };
@@ -119,9 +120,7 @@ export class SqliteManager {
 
     let tables: number | null = null;
     try {
-      tables = (db.prepare(
-        "SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
-      ).get() as { count: number }).count;
+      tables = (db.prepare(`SELECT COUNT(*) AS count ${USER_TABLES}`).get() as { count: number }).count;
     } catch {
       // A status call should still succeed if SQLite cannot read its catalogue.
     }
@@ -197,9 +196,7 @@ export class SqliteManager {
   }
 
   listTables(): { tables: string[] } {
-    const rows = this.getDatabase().prepare(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
-    ).all() as { name: string }[];
+    const rows = this.getDatabase().prepare(`SELECT name ${USER_TABLES} ORDER BY name`).all() as { name: string }[];
     return { tables: rows.map((row) => row.name) };
   }
 
@@ -261,6 +258,10 @@ export class SqliteManager {
   private closeIfOpen(): void {
     if (!this.database) return;
     this.database.close();
+    this.forgetConnection();
+  }
+
+  private forgetConnection(): void {
     this.database = undefined;
     this.currentPath = undefined;
   }
@@ -278,6 +279,6 @@ function quoteIdentifier(value: string): string {
   return `"${value.replaceAll('"', '""')}"`;
 }
 
-function errorMessage(error: unknown): string {
+export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

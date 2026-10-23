@@ -1,5 +1,7 @@
 const MAX_ROWS = 200;
 const MAX_BYTES = 48 * 1024;
+/** Longer string cell values are cut and marked with an ellipsis. */
+const MAX_STRING_CHARS = 4_000;
 const SENSITIVE_COLUMN = /^(password|password_hash|secret|token|access_token|refresh_token|api_key)$/i;
 
 export interface FormattedRows {
@@ -13,7 +15,7 @@ export interface FormattedRows {
 
 function normaliseValue(value: unknown): unknown {
   if (value === null || typeof value === "boolean" || typeof value === "number" || typeof value === "string") {
-    return typeof value === "string" && value.length > 4_000 ? `${value.slice(0, 4_000)}…` : value;
+    return typeof value === "string" && value.length > MAX_STRING_CHARS ? `${value.slice(0, MAX_STRING_CHARS)}…` : value;
   }
   if (value instanceof Date) return value.toISOString();
   if (Buffer.isBuffer(value)) return `[Buffer: ${value.length} bytes]`;

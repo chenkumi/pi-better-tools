@@ -1,11 +1,15 @@
 import http, { type IncomingMessage, type RequestOptions } from 'node:http';
 import https from 'node:https';
 import { isIP } from 'node:net';
-import { Transform, Writable, type Duplex } from 'node:stream';
+import { Transform, Writable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createBrotliDecompress, createGunzip, createInflate } from 'node:zlib';
+import { awaitResponse } from './bounded.js';
 import { MAX_HTML_BYTES } from './extract.js';
 import { NetworkPolicy } from './network.js';
+
+/** Media types accepted as a page document, by both the static and the browser path. */
+export const DOCUMENT_CONTENT_TYPES = ['text/html', 'application/xhtml+xml', 'text/plain'];
 
 /** Keep the URL hostname (Host and TLS identity), but never perform a second DNS lookup. */
 export function pinnedOptions(url: URL, address: string, signal: AbortSignal): RequestOptions & { rejectUnauthorized: boolean; autoSelectFamily: boolean } {
@@ -13,7 +17,7 @@ export function pinnedOptions(url: URL, address: string, signal: AbortSignal): R
     hostname: url.hostname.replace(/^\[|\]$/g, ''),
     agent: false, signal, method: 'GET', autoSelectFamily: false,
     rejectUnauthorized: true,
-    headers: { accept: 'text/html, application/xhtml+xml, text/plain', 'accept-encoding': 'gzip, deflate, br' },
+    headers: { accept: DOCUMENT_CONTENT_TYPES.join(', '), 'accept-encoding': 'gzip, deflate, br' },
     lookup: (_host, options, callback) => {
       const family = isIP(address);
       if (options.all) callback(null, [{ address, family }]);
@@ -69,7 +73,7 @@ export function decodeDocument(body: Buffer, contentType: string): string {
 async function readDocument(response: IncomingMessage, signal: AbortSignal): Promise<string> {
   const type = response.headers['content-type'] ?? '';
   if (/\battachment\b/i.test(response.headers['content-disposition'] ?? '') ||
-      !['text/html', 'application/xhtml+xml', 'text/plain'].includes(type.split(';')[0]!.trim().toLowerCase())) {
+      !DOCUMENT_CONTENT_TYPES.includes(type.split(';')[0]!.trim().toLowerCase())) {
     throw new Error('UNSUPPORTED_CONTENT: Only HTML and plain text pages are supported; find an HTML version instead.');
   }
   if (Number(response.headers['content-length']) > MAX_HTML_BYTES) throw new Error('TOO_LARGE: HTTP response exceeds the 5 MiB limit.');
@@ -94,35 +98,8 @@ export async function fetchStatic(value: string, policy: NetworkPolicy, signal: 
       aborted(signal);
       const request = (url.protocol === 'https:' ? https : http).request(url, pinnedOptions(url, address, signal));
       try {
-        // Every terminal path must settle this wait exactly once. A 101 Upgrade emits neither
-        // 'response' nor 'error' (Node hands the socket to 'upgrade' and only then emits 'close'),
-        // so without these listeners a hostile or misconfigured server could hold the operation,
-        // its queue permit and shutdown forever.
-        const response = await new Promise<IncomingMessage>((resolve, reject) => {
-          let pending = true;
-          const settle = (error?: Error, value?: IncomingMessage) => {
-            if (!pending) return;
-            pending = false;
-            signal.removeEventListener('abort', onCancel);
-            request.off('upgrade', onUpgrade);
-            request.off('close', onClose);
-            if (error) reject(error); else resolve(value!);
-          };
-          const onCancel = () => settle(cancelReason(signal));
-          const onUpgrade = (_response: IncomingMessage, socket: Duplex) => {
-            // The upgraded socket is detached from the request; it must be destroyed explicitly.
-            socket.destroy();
-            settle(new Error('UNSUPPORTED_CONTENT: The server switched to another protocol (HTTP 101 Upgrade), which static HTTP mode does not support. Look for an HTML version instead.'));
-          };
-          const onClose = () => settle(new Error('NETWORK_ERROR: The connection closed before any response.'));
-          request.once('response', (incoming: IncomingMessage) => settle(undefined, incoming));
-          request.once('upgrade', onUpgrade);
-          request.once('close', onClose);
-          signal.addEventListener('abort', onCancel, { once: true });
-          // Stays attached after settlement so a late socket error is never unhandled.
-          request.on('error', (error: Error) => settle(error));
-          request.end();
-        });
+        const response = await awaitResponse(request, signal, cancelReason,
+          'UNSUPPORTED_CONTENT: The server switched to another protocol (HTTP 101 Upgrade), which static HTTP mode does not support. Look for an HTML version instead.');
         try {
           const status = response.statusCode ?? 0;
           if ([301, 302, 303, 307, 308].includes(status) && response.headers.location) {

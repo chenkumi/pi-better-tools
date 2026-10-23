@@ -4,10 +4,15 @@ import { decodeControlEscapes } from "./escape.ts";
 import { parseEnvPolicy } from "./env.ts";
 import { KEY_NAMES, resolveKeys } from "./keys.ts";
 import { truncatePtyOutput, type OutputFormat } from "./output.ts";
-import { droppedNotice, KILL_SIGNALS, MAX_COLS, MAX_ROWS, MAX_WAIT_MS, PtySessionManager, sharedOrphanRegistry, type ReadSnapshot } from "./pty-manager.ts";
+import { DEFAULT_COLS, DEFAULT_ROWS, droppedNotice, KILL_SIGNALS, MAX_COLS, MAX_ROWS, MAX_WAIT_MS, PtySessionManager, sharedOrphanRegistry, type ReadSnapshot } from "./pty-manager.ts";
 import { compileWaitFor, MAX_WAIT_FOR_LENGTH } from "./wait-for.ts";
 import { resolveTarget } from "./targets.ts";
 import { ptyRenderers } from "./renderers.ts";
+
+/** pty_read wait when nothing is pending, and the longer default when waitFor or settleMs asks for a condition. */
+const DEFAULT_READ_TIMEOUT_MS = 1_000;
+const CONDITIONAL_READ_TIMEOUT_MS = 5_000;
+const DEFAULT_EXIT_WAIT_MS = 5_000;
 
 const positiveInteger = (description: string, maximum?: number) => Type.Integer({ minimum: 1, ...(maximum ? { maximum } : {}), description });
 
@@ -18,8 +23,8 @@ const spawnParameters = Type.Object({
 	command: Type.String({ description: "Executable path or command name to run." }),
 	args: Type.Optional(Type.Array(Type.String({ description: "One command argument." }), { description: "Arguments passed to the command." })),
 	cwd: Type.Optional(Type.String({ description: "Working directory on the target. Local defaults to Pi cwd; remote uses configured absolute POSIX cwd." })),
-	cols: Type.Optional(positiveInteger(`Terminal columns (max ${MAX_COLS}). Defaults to 100.`, MAX_COLS)),
-	rows: Type.Optional(positiveInteger(`Terminal rows (max ${MAX_ROWS}). Defaults to 30.`, MAX_ROWS)),
+	cols: Type.Optional(positiveInteger(`Terminal columns (max ${MAX_COLS}). Defaults to ${DEFAULT_COLS}.`, MAX_COLS)),
+	rows: Type.Optional(positiveInteger(`Terminal rows (max ${MAX_ROWS}). Defaults to ${DEFAULT_ROWS}.`, MAX_ROWS)),
 	env: Type.Optional(Type.Record(Type.String(), Type.String(), { description: "Additional environment variables." })),
 });
 
@@ -119,7 +124,7 @@ export default function (pi: ExtensionAPI) {
 		...PTY_EXPOSURE,
 		...ptyRenderers("read"),
 		label: "PTY read",
-		description: "Read and drain accumulated PTY output (capped at 2,000 lines/50 KiB; the rest stays buffered). If nothing is pending, waits up to timeoutMs (default 1000; 5000 when waitFor or settleMs is set). Cancelling only stops the wait; the session stays.",
+		description: `Read and drain accumulated PTY output (capped at 2,000 lines/50 KiB; the rest stays buffered). If nothing is pending, waits up to timeoutMs (default ${DEFAULT_READ_TIMEOUT_MS}; ${CONDITIONAL_READ_TIMEOUT_MS} when waitFor or settleMs is set). Cancelling only stops the wait; the session stays.`,
 		promptSnippet: "pty_read: collect output from a PTY session, optionally waiting for a pattern or quiet period",
 		parameters: Type.Object({
 			sessionId: Type.String({ description: "PTY session id." }),
@@ -133,7 +138,7 @@ export default function (pi: ExtensionAPI) {
 		async execute(_toolCallId, params, signal) {
 			const waitFor = params.waitFor === undefined ? undefined : compileWaitFor(params.waitFor);
 			const snapshot = await sessions.readEx(params.sessionId, {
-				timeoutMs: params.timeoutMs ?? (waitFor || params.settleMs ? 5_000 : 1_000),
+				timeoutMs: params.timeoutMs ?? (waitFor || params.settleMs ? CONDITIONAL_READ_TIMEOUT_MS : DEFAULT_READ_TIMEOUT_MS),
 				signal, waitFor, settleMs: params.settleMs, since: params.since, format: params.format,
 			});
 			return deliver(params.sessionId, snapshot, params.format ?? "raw", params.since === undefined);
@@ -166,11 +171,11 @@ export default function (pi: ExtensionAPI) {
 		description: "Wait for a PTY process to exit and return its transport exit code. On timeout returns exitCode -1 with timedOut:true. SSH exit 255 may be a connection error.",
 		parameters: Type.Object({
 			sessionId: Type.String({ description: "PTY session id." }),
-			timeoutMs: Type.Optional(positiveInteger(`Maximum wait in milliseconds (max ${MAX_WAIT_MS}). Defaults to 5000.`, MAX_WAIT_MS)),
+			timeoutMs: Type.Optional(positiveInteger(`Maximum wait in milliseconds (max ${MAX_WAIT_MS}). Defaults to ${DEFAULT_EXIT_WAIT_MS}.`, MAX_WAIT_MS)),
 		}),
 		executionMode: "sequential",
 		async execute(_toolCallId, params, signal) {
-			const result = await sessions.waitForExit(params.sessionId, params.timeoutMs ?? 5_000, signal);
+			const result = await sessions.waitForExit(params.sessionId, params.timeoutMs ?? DEFAULT_EXIT_WAIT_MS, signal);
 			const { signal: exitSignal, ...rest } = result;
 			return { content: [{ type: "text", text: JSON.stringify({ ...rest, ...(exitSignal ? { signal: exitSignal } : {}) }) }], details: result };
 		},
