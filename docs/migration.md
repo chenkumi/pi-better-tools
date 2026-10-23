@@ -26,7 +26,7 @@ SQLite is included at `modules/sqlite-tools/src/index.ts`; disable the standalon
 
 ## Local-source extensions and Blackhole vendoring
 
-The root pins pi-open-tui 0.3.11 and @ff-labs/pi-fff 0.11.0 as npm dependencies. Blackhole is now the local 0.5.12 snapshot in `modules/blackhole/`, replacing npm pi-blackhole 0.5.11. The manifest loads sixteen local TS entries and two npm entries (eighteen total). Run `npm ci --ignore-scripts` only at the repository root; no nested install, plugin manager or automatic Pi install is introduced. Upstream nested metadata/scripts are historical; root Pi 1.3.0 remains authoritative.
+The root pins pi-open-tui 0.3.11 and @ff-labs/pi-fff 0.11.0 as npm dependencies. Blackhole is now the local 0.5.12 snapshot in `modules/blackhole/`, replacing npm pi-blackhole 0.5.11. The manifest loads sixteen local TS entries and two npm entries (eighteen total). Run `npm ci --ignore-scripts` only at the repository root; no nested install, plugin manager or automatic Pi install is introduced. Upstream nested metadata/scripts are historical; the root Pi pin (currently 1.4.0) remains authoritative.
 
 For an existing pi-better-tools source mount, the root manifest change is sufficient: do not add another global/project Blackhole entry. Reload/restart after current background work has settled. Existing standalone `npm:pi-blackhole`, pi-open-tui and pi-fff resources must be disabled manually if still selected. This repository does not edit real settings/auth or remove installed standalone packages.
 
