@@ -4819,6 +4819,56 @@
   ],
   "addedFiles": [
     {
+      "path": "modules/shell-tools/src/detach-hint.ts",
+      "sha256": "24753fcce280c282741640bfa85c456b93f3458b5561a41a467ea7a9cc482993",
+      "reason": "First inventoried 2026-10-23 (created 2026-10-21 in bcbc66f with no provenance record): shared Alt+J hint helper that appends the muted last line to the owning tool row and keeps the toolCallId redraw handle map; only Container rows are extended and the status bar is never written."
+    },
+    {
+      "path": "modules/shell-tools/tests/auto-background.integration.test.mjs",
+      "sha256": "7962bc085799a1d3e8d2146f255cb67d4747cd519b99ae9cb66642b120a782b5",
+      "reason": "First inventoried 2026-10-23: foreground auto-background safety net over the real extension plus real host bash definition, driven by explicit fake-process events instead of waiting for the threshold."
+    },
+    {
+      "path": "modules/shell-tools/tests/fixtures/auto-background-host.mjs",
+      "sha256": "f185cb6d660e7165e51be9eac4c700a0c5342530fb2eaab26fd8be8828c53330",
+      "reason": "First inventoried 2026-10-23: child-process fixture for the auto-background test; the real extension and host bash definition with only the process backend replaced."
+    },
+    {
+      "path": "modules/shell-tools/tests/fixtures/handoff-cancel-host.mjs",
+      "sha256": "76f14ccb060f797397d62df5726ee21bd53f9c3ed164feecdfc38baefab1202e",
+      "reason": "First inventoried 2026-10-23: isolated child fixture for SHELL-01, exercising the deferred runner boundary with controlled execution and event boundaries only."
+    },
+    {
+      "path": "modules/shell-tools/tests/fixtures/timeout-diagnostics-host.mjs",
+      "sha256": "1eb2b02a45256a29a500d7b0d375899f0a3880869c5ffdfa6ff373ddab320b9e",
+      "reason": "First inventoried 2026-10-23: degraded D17 child fixture that emits a host timeout diagnostic and immediate failure without a real wait."
+    },
+    {
+      "path": "modules/shell-tools/tests/foreground-handoff.test.ts",
+      "sha256": "1fc9af1ccae35dafdb0e98e4bd96e13d3fc21ccf77d384a99449fbf5a4d56365",
+      "reason": "First inventoried 2026-10-23: threshold parsing, output record/replay and tail bounds for the foreground handoff."
+    },
+    {
+      "path": "modules/shell-tools/tests/handoff-cancel.integration.test.mjs",
+      "sha256": "c14c30cdc70e6cd0df243b87c84dc103da0f232dd981c12ce11cda8410248520",
+      "reason": "First inventoried 2026-10-23: SHELL-01 isolated runs proving adopted foreground execution stays cancellable across the deferred runner boundary."
+    },
+    {
+      "path": "modules/shell-tools/tests/shutdown-removal-deadline.test.mjs",
+      "sha256": "334aba5ec8357eca7531b883f7f6b5d73d4230c52ca4ae6d6d335b9412f91eca",
+      "reason": "First inventoried 2026-10-23: shutdown removal deadline and recovery sweep behaviour of the background job directory."
+    },
+    {
+      "path": "modules/shell-tools/tests/timeout-diagnostics.integration.test.mjs",
+      "sha256": "74eff3cd7a56e5bfcdf7480e7e0617e6ebedd90a641bec2f65dd0635a7bad177",
+      "reason": "First inventoried 2026-10-23: D17 regression that the trailing host timeout line is rewritten and classified once, at both the real-CLI and degraded levels."
+    },
+    {
+      "path": "modules/shell-tools/tests/timeout-errors.test.ts",
+      "sha256": "8f159f591297a5d65b52826754f453313d0aceb7d3dbc9333293202e299da0c5",
+      "reason": "First inventoried 2026-10-23: timeout-ms execute catch keeps unmatched identity and wraps only the host trailing diagnostic."
+    },
+    {
       "path": "modules/shell-tools/tests/detach-on-steer.test.ts",
       "sha256": "270498d6111cde8caf1769e0a4cbd8cb7adc97727f4c82ad4c4380946280c33e",
       "reason": "2026-10-23 detach-on-steer: setting parsing (only explicit false disables), input-event selection (interactive steer, non-empty, non-slash) and one-shot detach without swallowing the message."

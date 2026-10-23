@@ -14,9 +14,11 @@ coverage/
 .claude/
 claude-work.ps1
 
-# Existing project-local artifacts
-plan/evidence/
-modules/**/issues/
+# Existing project-local artifacts (note/plan/report/issue records stay local)
+plan/
+plans/
+reports/
+issues/
 
 # Local environment files (keep example templates)
 .env
