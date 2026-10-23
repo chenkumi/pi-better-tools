@@ -51,6 +51,17 @@ async function prepareNoteDirectory(cwd: string, folder: string): Promise<string
 /** TYPE-YYYYMMDDTHHmmssSSSZ.md (UTC). */
 const noteFilename = (type: NoteType, time: number) => `${type.toUpperCase()}-${new Date(time).toISOString().replace(/[-:.]/g, "")}.md`;
 
+/** Raised only by this module's own containment checks, so cleanup never mistakes a filesystem error for one. */
+class NoteDirectoryEscapeError extends Error {}
+
+/** Real locations of cwd and the just-created file, or undefined when they cannot be resolved (e.g. a racing swap). */
+async function createdLocation(cwd: string, path: string): Promise<{ cwd: string; file: string } | undefined> {
+  try {
+    const [realCwd, file] = await Promise.all([realpath(cwd), realpath(path)]);
+    return { cwd: realCwd, file };
+  } catch { return undefined; }
+}
+
 /** Creates `path` exclusively and writes `content`; throws EEXIST when the name is taken. */
 async function createNoteFile(path: string, content: string, cwd: string, folder: string, signal: AbortSignal | undefined): Promise<void> {
   await withFileMutationQueue(path, async () => {
@@ -61,17 +72,20 @@ async function createNoteFile(path: string, content: string, cwd: string, folder
     try {
       // Post-create re-verification: if <cwd>/<folder> was swapped for a junction/symlink after the check above,
       // the empty file we just created landed outside the workspace. Remove it (it is ours, created with wx)
-      // before any content is written. Narrows the window; it is not an atomic guarantee against a persistent attacker.
-      const [cwdNow, createdNow] = await Promise.all([realpath(cwd), realpath(path)]);
-      if (isOutsideWorkspace(cwdNow, dirname(createdNow))) {
+      // before any content is written. A location that cannot be resolved is not verified and fails closed the same way.
+      // Narrows the window; it is not an atomic guarantee against a persistent attacker.
+      const location = await createdLocation(cwd, path);
+      if (!location || isOutsideWorkspace(location.cwd, dirname(location.file))) {
         await handle.close().catch(() => {});
-        await rm(createdNow, { force: true }).catch(() => {});
-        throw new Error(`NOTE_DIRECTORY_ESCAPE: ${folder}/ resolved outside the workspace during creation; the file was removed.`);
+        await rm(location?.file ?? path, { force: true }).catch(() => {});
+        throw new NoteDirectoryEscapeError(location
+          ? `NOTE_DIRECTORY_ESCAPE: ${folder}/ resolved outside the workspace during creation; the file was removed.`
+          : `NOTE_DIRECTORY_ESCAPE: ${folder}/ could not be re-verified inside the workspace during creation; the file was removed.`);
       }
       await handle.writeFile(content, "utf8");
     }
     catch (error) {
-      if (error instanceof Error && error.message.startsWith("NOTE_DIRECTORY_ESCAPE")) throw error;
+      if (error instanceof NoteDirectoryEscapeError) throw error;
       // We created this file (wx), so a partial result from e.g. ENOSPC is ours to remove.
       await handle.close().catch(() => {});
       await rm(path, { force: true }).catch(() => {});

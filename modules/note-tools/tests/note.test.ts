@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import fsPromises, { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -208,6 +209,43 @@ test("pre-aborted calls do not create a directory or file", async t => {
   const controller = new AbortController(); controller.abort();
   await assert.rejects(execute(cwd, { type: "plan", content: "x" }, controller.signal), { name: "AbortError" });
   assert.deepEqual(await readdir(cwd), []);
+});
+
+/** Swap one node:fs/promises function for this test; the extension's named imports follow via syncBuiltinESMExports. */
+function replaceFs<K extends "open" | "realpath">(t: TestContext, name: K, replacement: (typeof fsPromises)[K]) {
+  const original = fsPromises[name];
+  (fsPromises as Record<K, unknown>)[name] = replacement;
+  syncBuiltinESMExports();
+  t.after(() => { (fsPromises as Record<K, unknown>)[name] = original; syncBuiltinESMExports(); });
+  return original;
+}
+
+test("a filesystem error that merely starts with NOTE_DIRECTORY_ESCAPE still removes the partial file", async t => {
+  const cwd = await workspace(t);
+  const realOpen = fsPromises.open;
+  replaceFs(t, "open", (async (...args: Parameters<typeof fsPromises.open>) => {
+    const handle = await realOpen(...args);
+    return new Proxy(handle, {
+      get(target, key) {
+        if (key === "writeFile") return async () => { throw new Error("NOTE_DIRECTORY_ESCAPE lookalike raised by the filesystem"); };
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+  }) as typeof fsPromises.open);
+  await assert.rejects(execute(cwd, { type: "plan", content: "# x" }), /lookalike/);
+  assert.deepEqual(await readdir(join(cwd, "plans")), []);
+});
+
+test("a created file whose location cannot be re-verified is removed and reported as a directory escape", async t => {
+  const cwd = await workspace(t);
+  const realRealpath = fsPromises.realpath;
+  replaceFs(t, "realpath", (async (path: Parameters<typeof fsPromises.realpath>[0], ...rest: unknown[]) => {
+    if (String(path).endsWith(".md")) throw Object.assign(new Error("ENOENT: raced away"), { code: "ENOENT" });
+    return (realRealpath as (...args: unknown[]) => Promise<string>)(path, ...rest);
+  }) as typeof fsPromises.realpath);
+  await assert.rejects(execute(cwd, { type: "plan", content: "# x" }), /NOTE_DIRECTORY_ESCAPE/);
+  assert.deepEqual(await readdir(join(cwd, "plans")), []);
 });
 
 test("filesystem failure is reported, not a success path", async t => {

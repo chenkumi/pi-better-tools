@@ -26,7 +26,7 @@
 - 寫入開始前會檢查取消；開始寫入後會完成該次寫入。
 - 若 `<cwd>/<type>` 是指向工作目錄外的 symlink／junction，回報 `NOTE_DIRECTORY_ESCAPE` 並拒絕寫入（以 realpath 驗證）。
   路徑比較以完整 segment 進行（`..`、`..` + 分隔符、絕對路徑才算逃逸），因此指向工作區內名為 `..archive` 之類目錄的 junction 會被接受。
-- 已知限制（威脅模型）：realpath 檢查之後祖先目錄被外部寫入者換成指向工作區外的 junction 時，`wx` 建立後會再以 realpath 重新驗證父目錄；若已逃出工作區，立即移除剛建立的空檔並回報 `NOTE_DIRECTORY_ESCAPE`（寫入內容前）。這縮小但不消除視窗：不宣稱原子防禦，持續性外部 writer 在驗證之後再次替換仍不在範圍內；host 的 mutation queue 不鎖外部 writer。`tests/note-toctou.integration.test.mjs` 覆蓋單次替換情境。
+- 已知限制（威脅模型）：realpath 檢查之後祖先目錄被外部寫入者換成指向工作區外的 junction 時，`wx` 建立後會再以 realpath 重新驗證父目錄；若已逃出工作區，或重新驗證時 realpath 失敗（例如替換競態），都視為未通過驗證：立即移除剛建立的空檔並回報 `NOTE_DIRECTORY_ESCAPE`（寫入內容前），不會以一般檔案錯誤回報。escape 只以模組內部專用的錯誤類別辨識，不比對訊息文字，因此任何其他寫入錯誤都會清除剛建立的檔案。這縮小但不消除視窗：不宣稱原子防禦，持續性外部 writer 在驗證之後再次替換仍不在範圍內；host 的 mutation queue 不鎖外部 writer。`tests/note-toctou.integration.test.mjs` 覆蓋單次替換情境。
 - 空白或僅空白字元的內容回報 `NOTE_EMPTY`，訊息指示模型補上完整文件後重呼叫，不建立任何檔案。
 - 內容上限 8 MiB（UTF-8 位元組），超過回報 `NOTE_TOO_LARGE`；寫入中途失敗（例如磁碟已滿）時，會盡力刪除本次建立的殘缺檔案後再回報錯誤。
 - 本工具僅負責新增；後續讀取或修改請用檔案工具（read／edit／write）操作回傳的路徑。
