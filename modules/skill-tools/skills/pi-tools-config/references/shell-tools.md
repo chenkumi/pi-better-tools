@@ -15,13 +15,14 @@ Bash 執行讀取 Pi 有效設定（全域與受信任專案 settings）：
 {
   "shellPath": "/bin/bash",
   "shellCommandPrefix": "",
-  "pi-shell-tools": { "autoBackgroundMs": 180000 }
+  "pi-shell-tools": { "autoBackgroundMs": 180000, "detachOnSteer": true }
 }
 ```
 
 - `shellPath` 請換成目標平台的真實 Bash 路徑；Windows 可用 Git Bash。
 - `shellCommandPrefix` 只適用 Bash，不套用 PowerShell；不要放入密碼或有破壞性的前綴。
 - `pi-shell-tools.autoBackgroundMs` 預設 180000，正整數毫秒；0 停用前景自動轉背景。它不是指令總逾時。
+- `pi-shell-tools.detachOnSteer` 預設 true；互動中前景 Shell／Subagent 執行時送出 steer 文字會自動轉背景（同 Alt+J），設 false 停用。
 - 改持久設定後 `/reload`，SDK 可 reload settings／使用有效覆寫；重載前先處理仍必要的背景工作。
 
 除錯開關是另一個來源：固定家目錄 `~/.pi/agent/settings.json` 的 `pi-shell-tools.debugLog`，預設 false；不跟隨 `PI_CODING_AGENT_DIR`，也不採專案值，每次失敗重讀。True 會在 `~/.pi/logs/pi-shell-tools/` 寫含原始命令／輸出的診斷，需自行清理。

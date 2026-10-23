@@ -319,7 +319,7 @@
           "historicalDeltaAudit": "unavailable",
           "localSnapshotReview": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
           "previousRecordedSha256": "8dc8e0c4f1fbbb52f54b097e115799144126bba02887583cc26069956757f543",
-          "sha256": "f711a2077cdb19f504d03bde60d4338ed13e986a19d169cd6ab1581372e8b7b5",
+          "sha256": "f9fa1c9119593bbd017aa1549cd06caafd25298e8baf6a93e5f65e866e327ebd",
           "reason": "Shell commands, effective settings, fixed-home diagnostics and total timeout semantics."
         },
         {
@@ -429,17 +429,17 @@
         },
         {
           "path": "modules/skill-tools/skills/clean-code-refactor/SKILL.md",
-          "sha256": "59cb0329a706edc6bf869498ebe7a34ea93b498524e490203934046a860dee1e",
+          "sha256": "62f088b42e063fef6578c12bd8441ee7642ee260d5cebf0da315c7f0b61482e4",
           "reason": "Native skill added 2026-10-23: behavior-preserving clean code refactoring workflow for Pi."
         },
         {
           "path": "modules/skill-tools/skills/clean-code-refactor/references/principles.md",
-          "sha256": "d6145fcee86954965c2b1f71048ff4adb8790fe994562064136cd709ed13e148",
+          "sha256": "b921c7b36c3c1820c5922cb26dbe69683a38b3ac307efe4fe9525902210b9ccd",
           "reason": "Native skill reference added 2026-10-23: clean code signals, non-goals, dead-code rules and tool pitfalls."
         },
         {
           "path": "modules/skill-tools/skills/clean-code-refactor/references/review-checklist.md",
-          "sha256": "3a5335916e51346c7fdb58e46e5bf438f07169176013265b08285a806fa87c98",
+          "sha256": "28b655e626f6b88f965986622c2f76821d2cf67b3ca7ab48232000e0994af5f7",
           "reason": "Native skill reference added 2026-10-23: equivalence review checklist and subagent delegation brief."
         },
         {

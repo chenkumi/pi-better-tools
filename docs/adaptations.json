@@ -1,7 +1,14 @@
 {
   "schemaVersion": 1,
-  "defectFix20261023": {"scope":"2026-10-23 user-requested repair of two defects found during the clean-code refactor. (1) web-tools searchOutputSchema.provider omitted 'deepseek' although web_search returns it; the union is now derived from REST_PROVIDERS and maxItems from MAX_SEARCH_RESULTS. (2) sql-connector SqlConnectorRuntime.adapter() cached a rejected adapter construction in `creating`, so that engine failed until reload; a failed attempt is now dropped so the next call retries. Concurrent callers of one attempt still share it; no authentication fallback, TLS or driver-loading change.","evidence":"New tests were red before the repair (deepseek result rejected by the schema; second state() call returned the cached rejection) and green after: web-tools 97 + 2, sql-connector 41."},
-  "cleanCodeModules20261023": {"scope":"2026-10-23 user-requested behavior-preserving clean-code refactor of user-owned imported modules (subagents, file-tools, shell-tools, sqlite-tools, web-tools, pty-terminal, sql-connector). Blackhole and Schedule Prompt (third-party) untouched. Duplicated logic/constants unified, long functions split into named steps with check/error order preserved, provably dead internal code removed. No tool name, schema, settings key, storage path, persisted format, prompt/error text, trust, TLS/auth, timing or cancellation change. Exported APIs used across modules unchanged (only additions).","evidence":"Per module test:module baseline equal to final: subagents 439+84, file-tools 253 pass/2 skip + 18 + 18 pass/3 todo, shell-tools 165+32, sqlite-tools 45+6, web-tools 96 + web-read 2, pty-terminal 79 + 11/1 skip, sql-connector 40 (Vitest); monitor and fork re-run after shell/web changes. test:heavy not run.","historyPolicy":"cleanCodeModules20261023PreviousSha256 preserves each changed file's prior active fingerprint; earlier records and historical-delta claims are unchanged and not re-certified."},
+  "defectFix20261023": {
+    "scope": "2026-10-23 user-requested repair of two defects found during the clean-code refactor. (1) web-tools searchOutputSchema.provider omitted 'deepseek' although web_search returns it; the union is now derived from REST_PROVIDERS and maxItems from MAX_SEARCH_RESULTS. (2) sql-connector SqlConnectorRuntime.adapter() cached a rejected adapter construction in `creating`, so that engine failed until reload; a failed attempt is now dropped so the next call retries. Concurrent callers of one attempt still share it; no authentication fallback, TLS or driver-loading change.",
+    "evidence": "New tests were red before the repair (deepseek result rejected by the schema; second state() call returned the cached rejection) and green after: web-tools 97 + 2, sql-connector 41."
+  },
+  "cleanCodeModules20261023": {
+    "scope": "2026-10-23 user-requested behavior-preserving clean-code refactor of user-owned imported modules (subagents, file-tools, shell-tools, sqlite-tools, web-tools, pty-terminal, sql-connector). Blackhole and Schedule Prompt (third-party) untouched. Duplicated logic/constants unified, long functions split into named steps with check/error order preserved, provably dead internal code removed. No tool name, schema, settings key, storage path, persisted format, prompt/error text, trust, TLS/auth, timing or cancellation change. Exported APIs used across modules unchanged (only additions).",
+    "evidence": "Per module test:module baseline equal to final: subagents 439+84, file-tools 253 pass/2 skip + 18 + 18 pass/3 todo, shell-tools 165+32, sqlite-tools 45+6, web-tools 96 + web-read 2, pty-terminal 79 + 11/1 skip, sql-connector 40 (Vitest); monitor and fork re-run after shell/web changes. test:heavy not run.",
+    "historyPolicy": "cleanCodeModules20261023PreviousSha256 preserves each changed file's prior active fingerprint; earlier records and historical-delta claims are unchanged and not re-certified."
+  },
   "foregroundDetachShortcutAltJ": {
     "scope": "Change the shared Shell/Subagents foreground-detach shortcut from ctrl+y to alt+j, including the status hint, Shell integration assertion and both module READMEs.",
     "reason": "Pi 1.3.0 binds ctrl+y to tui.editor.yank by default; alt+j is unassigned in its default keymap. No dispatch, handoff, cancellation or settings behavior changes. Historical fingerprints are not refreshed by this record."
@@ -34,7 +41,10 @@
   "geminiAndDeepSeekSearch20261017": {
     "plan": "plan/PLAN-20261017T120515308Z.md",
     "baselineCommit": "9ffc99d4294761a68b72f2b345341d22857cf340",
-    "includedCheckpointCommits": ["94798ad3cac003211df5663b120d2a79430d420a", "41da68588d98224624916e48b34da0bc15e144b1"],
+    "includedCheckpointCommits": [
+      "94798ad3cac003211df5663b120d2a79430d420a",
+      "41da68588d98224624916e48b34da0bc15e144b1"
+    ],
     "scope": "User-requested hosted-search support research and the chosen options C: provider deepseek REST search and provider native Gemini grounding. Web config/schema, native adapter dispatch, search transport, unit tests, module README, pi-tools-config reference and root AGENTS.md mode description.",
     "reason": "Brave/Exa/openai behavior, tool names, schemas, storage paths and trust semantics unchanged. DeepSeek borrows pi's stored deepseek credential only when the config sets none, and anthropic-messages stays unsupported because pi drops server tool blocks. Gemini injection is limited to gemini-3/gemini-4 on the pi google provider because only Gemini 3 and newer are documented to combine built-in search with function declarations. Offline verification (typecheck, lint, unit tests) does not certify a live Google or DeepSeek request; the documented provider behavior is unverified against the real APIs."
   },
@@ -1552,14 +1562,69 @@
     ]
   },
   "files": [
-    { "path": "modules/web-tools/src/tool-schemas.ts", "originalSha256": "9ce94920dfb1322dea0e99676d3a73b6ac36a0e7e6eb30b2764d442741967460", "sha256": "b97fdb5e328647107534666beba2a9b8e28ee6edb2a2c74b9d5ffa901a4f4e4a", "reason": "2026-10-23 defect repair: searchOutputSchema provider union derived from REST_PROVIDERS (adds the missing 'deepseek'); maxItems from MAX_SEARCH_RESULTS." },
-    { "path": "modules/subagents/extensions/subagent/agents.ts", "originalSha256": "2ed5107e92fc0513474b89f910ca0bd6bd8461bfca3290793221f4707d559f3a", "sha256": "791910707fe8da9de87776d8c5b48a42a9a0729d552f3bd8fa64c4e0910e7817", "reason": "2026-10-23 clean code: removed formatAgentList, which had no caller anywhere in the repository." },
-    { "path": "modules/sql-connector/src/index.ts", "originalSha256": "1d9bd021290ed221afca9f2d272d4c005073afbe72ce4cadb0643ceb02bc003c", "sha256": "ec86d7911cd77789aa11fa5f483112d0d29418b99b565520a7954626452eb9e1", "reason": "Relocate entry; preserve configured-only registration/trust/status/reload/shutdown. Replace full-system-prompt hook with loaded engine state tool guidance; shared Runtime owns deferred hints." },
-    { "path": "modules/sql-connector/src/runtime.ts", "originalSha256": "8e5bca546a73bf486091d12ed34dfe95b74c2c8986b50525b540e2d9ba2458a5", "scanFix20261020PreviousSha256": "9c6a777e8e7bf32b5d6799bf6a97606d7d70b1b18a572df7efb2f0013f8fc1b2", "scanFix20261020Adaptation": "2026-10-20 pg and mssql pools register an error listener so an idle-connection error cannot crash the host process.", "scanFix20261017PreviousSha256": "e0f5d4d988ce6a1182050ee359d13b6e004a4dc3d14b6985db18fa28c2218e28", "scanFix20261017Adaptation": "2026-10-17 PG extended protocol + BEGIN READ ONLY reads; MySQL START TRANSACTION READ ONLY + 30s client read timeout, queueLimit 32; failed connections discarded; MSSQL close waits for an in-progress connect.", "cleanCodeModules20261023PreviousSha256": "5c9edd81f6342f13124900ced3bcbf1a5b8f2a51de79ddde209d509f4379a955", "cleanCodeModules20261023Adaptation": "2026-10-23 clean code: assertPositionalParams, stateFrom, shuttingDown replace duplicates; pool/timeout constants named; TLS, auth and lazy msnodesqlv8 loading untouched.", "defectFix20261023PreviousSha256": "ce1bff414d4faca41e4b9dc7bd1fad57366283cd59debcb6134e635596ec123a", "defectFix20261023Adaptation": "2026-10-23 defect repair: a rejected adapter construction is removed from `creating` so the next call retries instead of failing until reload.", "sha256": "951737135b6be4b3df1580c640a4a6b8a96861b83fabe13f14130c48428dd5eb", "reason": "Only defer require of optional mssql/msnodesqlv8 until Windows Authentication adapter construction; driver/query/pool/cancellation semantics unchanged." },
-    { "path": "modules/sql-connector/src/tools.ts", "originalSha256": "f563b24c1975bf05854b2310b1571d1801b215497a04f42ad5943149604d25e2", "sha256": "246aeeeedc9aa0e598a79662a4b865591eb054a565fed08e2ecaba921a38c9f4", "reason": "All engine tools deferred in existing engine namespaces; short discovery description and loaded-state guidance. Preserve schemas, SQL validation, bindings, UI confirmation and execution." },
-    { "path": "modules/sql-connector/test/extension.test.ts", "originalSha256": "221a204029ee9e2ff379e33ff6db60a84498c6dcd1e9e6943d56110ff3f3506b", "sha256": "ca4d21405e8a25634b70d9c16211f71abe8c1f3f7acc54ff7917abeac23b1e67", "reason": "Relocated import; configured-only/status/placeholder assertions retained, assert deferred namespace and guidance instead of old full-prompt replacement; close fixture runtime." },
-    { "path": "modules/sql-connector/README.md", "originalSha256": "ea1eb27c92d2490545298ecb14e4aa70e170016c002c916686e8850b17e63538", "reliabilityFix20261020PreviousSha256": "ba288f9d307d32d39e8c61046dd3b9ae7bcda3917a13f600042ac3c142f577d8", "reliabilityFix20261020Adaptation": "Documented the stricter MSSQL TOP rules.", "dependencyUpgradePreviousSha256": "86c1571dba25ab233425b719c6d8e6281170fa70423fecb130693eadf755f388", "scanFix20261017PreviousSha256": "a06234dafa0c72eb53521fd12e0dd82e26d7808d5a42efd35bfedb4e7eb7bb9d", "scanFix20261017Adaptation": "2026-10-17 document engine-aware lexical policy, MSSQL statement keywords, PG extended/read-only and MySQL read-only/timeout/queue defenses and their limits.", "defectFix20261023PreviousSha256": "9910f036efa6765bb538e5154e02d01b885bd3c5766ec5cbf9e36e50e0b24493", "defectFix20261023Adaptation": "2026-10-23 documents that a failed adapter construction is retried on the next operation (no authentication fallback).", "sha256": "21d57d416cddf219579cfbb053c3678840d126a22dcb42130bfbe076ab570075", "reason": "Integrated root install, deferred discovery, trust/configuration and explicit optional native driver guidance; live-database validation limits." },
-    { "path": "modules/sql-connector/tsconfig.json", "originalSha256": "eaf3aef05da611725356b70503195a9f82ab763f0358fcc19eb4e37904a4d65a", "sha256": "88e4b426a7cdaaa1800793e5dc0130401195c8494cf0b78462b7f4f5122aa982", "reason": "Include relocated src/test plus integration test directory; original strict options retained." },
+    {
+      "path": "modules/web-tools/src/tool-schemas.ts",
+      "originalSha256": "9ce94920dfb1322dea0e99676d3a73b6ac36a0e7e6eb30b2764d442741967460",
+      "sha256": "b97fdb5e328647107534666beba2a9b8e28ee6edb2a2c74b9d5ffa901a4f4e4a",
+      "reason": "2026-10-23 defect repair: searchOutputSchema provider union derived from REST_PROVIDERS (adds the missing 'deepseek'); maxItems from MAX_SEARCH_RESULTS."
+    },
+    {
+      "path": "modules/subagents/extensions/subagent/agents.ts",
+      "originalSha256": "2ed5107e92fc0513474b89f910ca0bd6bd8461bfca3290793221f4707d559f3a",
+      "sha256": "791910707fe8da9de87776d8c5b48a42a9a0729d552f3bd8fa64c4e0910e7817",
+      "reason": "2026-10-23 clean code: removed formatAgentList, which had no caller anywhere in the repository."
+    },
+    {
+      "path": "modules/sql-connector/src/index.ts",
+      "originalSha256": "1d9bd021290ed221afca9f2d272d4c005073afbe72ce4cadb0643ceb02bc003c",
+      "sha256": "ec86d7911cd77789aa11fa5f483112d0d29418b99b565520a7954626452eb9e1",
+      "reason": "Relocate entry; preserve configured-only registration/trust/status/reload/shutdown. Replace full-system-prompt hook with loaded engine state tool guidance; shared Runtime owns deferred hints."
+    },
+    {
+      "path": "modules/sql-connector/src/runtime.ts",
+      "originalSha256": "8e5bca546a73bf486091d12ed34dfe95b74c2c8986b50525b540e2d9ba2458a5",
+      "scanFix20261020PreviousSha256": "9c6a777e8e7bf32b5d6799bf6a97606d7d70b1b18a572df7efb2f0013f8fc1b2",
+      "scanFix20261020Adaptation": "2026-10-20 pg and mssql pools register an error listener so an idle-connection error cannot crash the host process.",
+      "scanFix20261017PreviousSha256": "e0f5d4d988ce6a1182050ee359d13b6e004a4dc3d14b6985db18fa28c2218e28",
+      "scanFix20261017Adaptation": "2026-10-17 PG extended protocol + BEGIN READ ONLY reads; MySQL START TRANSACTION READ ONLY + 30s client read timeout, queueLimit 32; failed connections discarded; MSSQL close waits for an in-progress connect.",
+      "cleanCodeModules20261023PreviousSha256": "5c9edd81f6342f13124900ced3bcbf1a5b8f2a51de79ddde209d509f4379a955",
+      "cleanCodeModules20261023Adaptation": "2026-10-23 clean code: assertPositionalParams, stateFrom, shuttingDown replace duplicates; pool/timeout constants named; TLS, auth and lazy msnodesqlv8 loading untouched.",
+      "defectFix20261023PreviousSha256": "ce1bff414d4faca41e4b9dc7bd1fad57366283cd59debcb6134e635596ec123a",
+      "defectFix20261023Adaptation": "2026-10-23 defect repair: a rejected adapter construction is removed from `creating` so the next call retries instead of failing until reload.",
+      "sha256": "951737135b6be4b3df1580c640a4a6b8a96861b83fabe13f14130c48428dd5eb",
+      "reason": "Only defer require of optional mssql/msnodesqlv8 until Windows Authentication adapter construction; driver/query/pool/cancellation semantics unchanged."
+    },
+    {
+      "path": "modules/sql-connector/src/tools.ts",
+      "originalSha256": "f563b24c1975bf05854b2310b1571d1801b215497a04f42ad5943149604d25e2",
+      "sha256": "246aeeeedc9aa0e598a79662a4b865591eb054a565fed08e2ecaba921a38c9f4",
+      "reason": "All engine tools deferred in existing engine namespaces; short discovery description and loaded-state guidance. Preserve schemas, SQL validation, bindings, UI confirmation and execution."
+    },
+    {
+      "path": "modules/sql-connector/test/extension.test.ts",
+      "originalSha256": "221a204029ee9e2ff379e33ff6db60a84498c6dcd1e9e6943d56110ff3f3506b",
+      "sha256": "ca4d21405e8a25634b70d9c16211f71abe8c1f3f7acc54ff7917abeac23b1e67",
+      "reason": "Relocated import; configured-only/status/placeholder assertions retained, assert deferred namespace and guidance instead of old full-prompt replacement; close fixture runtime."
+    },
+    {
+      "path": "modules/sql-connector/README.md",
+      "originalSha256": "ea1eb27c92d2490545298ecb14e4aa70e170016c002c916686e8850b17e63538",
+      "reliabilityFix20261020PreviousSha256": "ba288f9d307d32d39e8c61046dd3b9ae7bcda3917a13f600042ac3c142f577d8",
+      "reliabilityFix20261020Adaptation": "Documented the stricter MSSQL TOP rules.",
+      "dependencyUpgradePreviousSha256": "86c1571dba25ab233425b719c6d8e6281170fa70423fecb130693eadf755f388",
+      "scanFix20261017PreviousSha256": "a06234dafa0c72eb53521fd12e0dd82e26d7808d5a42efd35bfedb4e7eb7bb9d",
+      "scanFix20261017Adaptation": "2026-10-17 document engine-aware lexical policy, MSSQL statement keywords, PG extended/read-only and MySQL read-only/timeout/queue defenses and their limits.",
+      "defectFix20261023PreviousSha256": "9910f036efa6765bb538e5154e02d01b885bd3c5766ec5cbf9e36e50e0b24493",
+      "defectFix20261023Adaptation": "2026-10-23 documents that a failed adapter construction is retried on the next operation (no authentication fallback).",
+      "sha256": "21d57d416cddf219579cfbb053c3678840d126a22dcb42130bfbe076ab570075",
+      "reason": "Integrated root install, deferred discovery, trust/configuration and explicit optional native driver guidance; live-database validation limits."
+    },
+    {
+      "path": "modules/sql-connector/tsconfig.json",
+      "originalSha256": "eaf3aef05da611725356b70503195a9f82ab763f0358fcc19eb4e37904a4d65a",
+      "sha256": "88e4b426a7cdaaa1800793e5dc0130401195c8494cf0b78462b7f4f5122aa982",
+      "reason": "Include relocated src/test plus integration test directory; original strict options retained."
+    },
     {
       "path": "modules/sqlite-tools/src/index.ts",
       "originalSha256": "9c590036e2d49c95034c53bbd4a5d3f820b900385bdc3e79a2a5822e8f9a157b",
@@ -2000,7 +2065,11 @@
       "originalSha256": "376b39ee2aaed1b440a186ab4fdb1012f783449536d66b31eca3841f2baf835d",
       "defectRepairPreviousSha256": "794c6d759821c8ee5af39fd68f04fe57d76cd4b8d8060263ce760473c32db833",
       "reviewReproductionPreviousSha256": "2d9d5b848d315bf327b79b77af9b44aeac922baebda87a5e1b3e1c8e3bc6583a",
-      "dependencyUpgradePreviousSha256": "3e0cdde7d478037b557e6c7563d988ff6759f76896175b56c6f374e4093c317a", "webSetupPreviousSha256": "8923ed0cfa7c88fdae3f2b683ced26dec6ca1c7c3ac8bca7f7c700f066531888", "scanFix20261017PreviousSha256": "a49dc539ecce509319415950c110e1eacd6fbc19d665591206345de86d0f97d1", "scanFix20261017Adaptation": "2026-10-17 document cost-adaptive waitFor retry pause (2x attempt cost, 50..1000ms).", "sha256": "71d9cac7698f7fe9b98f5111649cee979ac65523fec83cfaee41d56545f49e7e",
+      "dependencyUpgradePreviousSha256": "3e0cdde7d478037b557e6c7563d988ff6759f76896175b56c6f374e4093c317a",
+      "webSetupPreviousSha256": "8923ed0cfa7c88fdae3f2b683ced26dec6ca1c7c3ac8bca7f7c700f066531888",
+      "scanFix20261017PreviousSha256": "a49dc539ecce509319415950c110e1eacd6fbc19d665591206345de86d0f97d1",
+      "scanFix20261017Adaptation": "2026-10-17 document cost-adaptive waitFor retry pause (2x attempt cost, 50..1000ms).",
+      "sha256": "71d9cac7698f7fe9b98f5111649cee979ac65523fec83cfaee41d56545f49e7e",
       "tokenTrimPreviousSha256": "b2f4d30e80013e3b2f90bab91058d878c05b20c9bfb59bbe0a0bbafe8915b267",
       "reason": "Replace standalone install/publishing guidance with root integration, target schema, SSH/WSL prerequisites, native dependency setup, security and actual test boundaries; preserve source identity/port attribution. Document presentation-only PTY previews and caveats, pinned npm 12 native-script policy and npm-run env adapter; consumer parent project must approve its own setup. 2026-10-06 local adaptation (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: MH2/M14-M15/L24-L27: retry debounce/deadline, ready compute budget, single-pass escapes, unread admission protection, buffer slack, exited-write refusal and exit-aware pause reviewed; held-until-termination workers and target trust retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-11 R4: exited POSIX transport avoids old-PID signals; Windows handles release and opportunistic retention documented. 2026-10-15 user-authorized: deferred-tool activation, fallback and hint moved to Pi Runtime (deferred-tools.ts); modules only declare exposure/namespace.",
       "checklistReviewPreviousSha256": "1d6d339f2490c1c1eda4d0df664af9e63ab1fc60053a8fb7dd68e12da1543e3a",
@@ -2311,12 +2380,12 @@
       "jobsPanelPreviousSha256": "04b2b6d38d76e9254d92ea943c8f40a61001a7a48788b0b5ab95e58cd1b12f59",
       "refactorPreviousSha256": "65e99f12308a002ead89f70d17b034d368c2807683054b9b8e9a4b432cd853fe",
       "piBoltInvocationPreviousSha256": "16dfcb049464521d90ae7efd454b3f83cb055f3ccef4b4baac41878fe8eaa20a",
-      "sha256": "b79624676c53c80d0d555475b66534fea02425f528f48c612cd6c47f874268a0",
+      "sha256": "d975da063fbb2c180b20e4f65dfcdf0a2f035700731c5f5b0c7d76fd06557828",
       "detachHint20261021PreviousSha256": "a2e39ae9637169bb9b55df280d1a0e614bce965974c7d8cadb0ad4b93d94b82d",
       "detachHint20261021Adaptation": "2026-10-21 document the hint on the subagent tool call's own last rendered line instead of the status bar.",
       "previousRejectedTuiSha256": "bdd1c25ab276cb1150338f9638020e3d05813e32070c8276c225ca5b1641c7c1",
       "rejectedTuiAdaptation": "2026-10-08 document rejection diagnostic rendering, actual Pi 1.0.0 context error contract and historical JSON fallback; original model reply/admission and no-replay policy unchanged.",
-      "reason": "Document mandatory managed persistence, removed parameter, storage paths, unchanged resume guard and explicit mock/native/CLI test boundaries. Document user/skill-only model/thinking overrides, exact registry parsing policy and model-first invalid-selection fallback defaults and limitations. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted. 2026-10-05 async adaptation: User-authorized session-owned background/control/query implementation or offline regression contract adaptation; synchronous defaults and existing safety assertions retained. 2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy. 2026-10-06 Pi 1.0.0-only support: README states background interaction and outputSchema verification against Pi 1.0.0 only; hash re-recorded on the LF working tree. 2026-10-08 current local snapshot review: H1/M1-M4/L1-L4: current project-agent admission, held child permits/writer locks, process-group cancellation, rename retry, late I/O ownership and protocol accounting reviewed; intentional bounded spool/backpressure/checkpoint integrity retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: H1/M1-M4/L1-L4 preserved; additional M4 fix keeps actual FileHandle.close rejection as an ownership barrier, preserves primary/close diagnostics and structured finalize errors, observes abandon rejection immediately, and requires writerCloseConfirmed before normal release/rollback. Normal/late/late-create red-green regressions reviewed. User-authorized TUI/model notice wording now describes delegated data as not instructions and not an error label; queued/accepted presentation is neutral, statuses/schema/trust/followUp unchanged. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: H1/M1-M4/L1-L4 preserved; additional M4 fix keeps actual FileHandle.close rejection as an ownership barrier, preserves primary/close diagnostics and structured finalize errors, observes abandon rejection immediately, and requires writerCloseConfirmed before normal release/rollback. Normal/late/late-create red-green regressions reviewed. User-authorized TUI/model notice wording now describes delegated data as not instructions and not an error label; queued/accepted presentation is neutral, statuses/schema/trust/followUp unchanged. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: H1/M1-M4/L1-L4 preserved; additional M4 fix keeps actual FileHandle.close rejection as an ownership barrier, preserves primary/close diagnostics and structured finalize errors, observes abandon rejection immediately, and requires writerCloseConfirmed before normal release/rollback. Normal/late/late-create red-green regressions reviewed. User-authorized TUI/model notice wording now describes delegated data as not instructions and not an error label; queued/accepted presentation is neutral, statuses/schema/trust/followUp unchanged. Authorized English comparison-table messages now clarify control/query completion scope, snapshots/late usage, capacity refusal, agent search scope and per-tool progress; foreground resume/log/aborted labels and truncation hints reflect available data without changing ownership or runner outcomes. Offline resume-provider and cross renderer fixtures follow the new English checkpoint/control labels. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 user-authorized RPC startup diagnostics: bounded best-effort command/write/correlation observers, token-bound allowlisted guard milestones and child runtime versions, frozen failure-time observations separate from cleanup, stage-specific unknown-cause guidance, event/timer-injected privacy and guard-authority regressions. No changed deadline/retry/status/schema/trust/ownership or managed/debug persistence version; original causes remain primary.\n2026-10-08 user-approved session-addressed messaging: create-only subagent, actual managed IDs at acceptance (OQ1=A), stable-session message routing to live control or guarded asynchronous continuation, explicit busy/blocked/refusal guidance, live-only query, admission and writer ownership safeguards, migrated contracts and regression fixtures. No credential/settings/history rewrite, deadline changes, unknown-delivery retry or source refresh. This records current local bytes, not unavailable historical equivalence. 2026-10-08 authorized session-load background reconciliation: payload-free versioned journal before allocation/runner admission; persistent-conversation fence; bounded same-owner/cwd inventory and active-branch evidence dedup; neutral model-visible triggerTurn:false notices; no restart, child resume, control replay, lock/native mutation or process-tree termination claim. 2026-10-11 R6/R7/R8/R9: election fence fail-closed recovery, initialization ownership, pending-allocation cancellation and uppercase control metadata limits. 2026-10-15 documents confirmProjectAgents removal.",
+      "reason": "Document mandatory managed persistence, removed parameter, storage paths, unchanged resume guard and explicit mock/native/CLI test boundaries. Document user/skill-only model/thinking overrides, exact registry parsing policy and model-first invalid-selection fallback defaults and limitations. UUID→ULID: new IDs via the ulid package (lowercase); legacy UUID accepted where persisted. 2026-10-05 async adaptation: User-authorized session-owned background/control/query implementation or offline regression contract adaptation; synchronous defaults and existing safety assertions retained. 2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy. 2026-10-06 Pi 1.0.0-only support: README states background interaction and outputSchema verification against Pi 1.0.0 only; hash re-recorded on the LF working tree. 2026-10-08 current local snapshot review: H1/M1-M4/L1-L4: current project-agent admission, held child permits/writer locks, process-group cancellation, rename retry, late I/O ownership and protocol accounting reviewed; intentional bounded spool/backpressure/checkpoint integrity retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: H1/M1-M4/L1-L4 preserved; additional M4 fix keeps actual FileHandle.close rejection as an ownership barrier, preserves primary/close diagnostics and structured finalize errors, observes abandon rejection immediately, and requires writerCloseConfirmed before normal release/rollback. Normal/late/late-create red-green regressions reviewed. User-authorized TUI/model notice wording now describes delegated data as not instructions and not an error label; queued/accepted presentation is neutral, statuses/schema/trust/followUp unchanged. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: H1/M1-M4/L1-L4 preserved; additional M4 fix keeps actual FileHandle.close rejection as an ownership barrier, preserves primary/close diagnostics and structured finalize errors, observes abandon rejection immediately, and requires writerCloseConfirmed before normal release/rollback. Normal/late/late-create red-green regressions reviewed. User-authorized TUI/model notice wording now describes delegated data as not instructions and not an error label; queued/accepted presentation is neutral, statuses/schema/trust/followUp unchanged. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: H1/M1-M4/L1-L4 preserved; additional M4 fix keeps actual FileHandle.close rejection as an ownership barrier, preserves primary/close diagnostics and structured finalize errors, observes abandon rejection immediately, and requires writerCloseConfirmed before normal release/rollback. Normal/late/late-create red-green regressions reviewed. User-authorized TUI/model notice wording now describes delegated data as not instructions and not an error label; queued/accepted presentation is neutral, statuses/schema/trust/followUp unchanged. Authorized English comparison-table messages now clarify control/query completion scope, snapshots/late usage, capacity refusal, agent search scope and per-tool progress; foreground resume/log/aborted labels and truncation hints reflect available data without changing ownership or runner outcomes. Offline resume-provider and cross renderer fixtures follow the new English checkpoint/control labels. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 user-authorized RPC startup diagnostics: bounded best-effort command/write/correlation observers, token-bound allowlisted guard milestones and child runtime versions, frozen failure-time observations separate from cleanup, stage-specific unknown-cause guidance, event/timer-injected privacy and guard-authority regressions. No changed deadline/retry/status/schema/trust/ownership or managed/debug persistence version; original causes remain primary.\n2026-10-08 user-approved session-addressed messaging: create-only subagent, actual managed IDs at acceptance (OQ1=A), stable-session message routing to live control or guarded asynchronous continuation, explicit busy/blocked/refusal guidance, live-only query, admission and writer ownership safeguards, migrated contracts and regression fixtures. No credential/settings/history rewrite, deadline changes, unknown-delivery retry or source refresh. This records current local bytes, not unavailable historical equivalence. 2026-10-08 authorized session-load background reconciliation: payload-free versioned journal before allocation/runner admission; persistent-conversation fence; bounded same-owner/cwd inventory and active-branch evidence dedup; neutral model-visible triggerTurn:false notices; no restart, child resume, control replay, lock/native mutation or process-tree termination claim. 2026-10-11 R6/R7/R8/R9: election fence fail-closed recovery, initialization ownership, pending-allocation cancellation and uppercase control metadata limits. 2026-10-15 documents confirmProjectAgents removal. 2026-10-23 user-requested: sending an interactive steer message auto-runs the Alt+J foreground detach (pi-shell-tools.detachOnSteer, default on); README documents it. Code: modules/shell-tools/src/manual-detach.ts input handler.",
       "previousAsyncRecordedSha256": "87c74395adbdaaae7687df2e429192da4432bbf9c880068f5c9f27403a625d55",
       "checklistReviewPreviousSha256": "e605ab377e470f4bf52fba38b47a8a04e7cd31c6f197d440d530b859850ccd53",
       "checklistReviewBaselineSha256": "71d9cc9d792a2eb623fabfe87b47f13415badb699b3fa79679d325bfd7515e2c",
@@ -2338,7 +2407,8 @@
       "defectRepairPreviousSha256": "7575a8a5a11d117dfc80ed66b486977a6e8186039b86588aa0318c69a5c16e05",
       "fffOverridePreviousSha256": "2f6176275212f7ac56280f9d46eb34e0946d23708702b01ef5339b6035d86dc8",
       "reviewReproductionPreviousSha256": "58d168fdf1b47e5515915b9ca05997c85f1c8bffff99d137bbe4c3dc49532e1a",
-      "dependencyUpgradePreviousSha256": "4a197b6adcd3af2973f43824986e0b8c56df5be8fc816317791a0a9019238d0e", "sha256": "c17cf7bc02f10f21c9a67a4d04e51bb2f9b7316a05bb97ffd3266992531594a3",
+      "dependencyUpgradePreviousSha256": "4a197b6adcd3af2973f43824986e0b8c56df5be8fc816317791a0a9019238d0e",
+      "sha256": "c17cf7bc02f10f21c9a67a4d04e51bb2f9b7316a05bb97ffd3266992531594a3",
       "preMergeRecordedSha256": "78f3b63cb59458fbd3cbeb9057a4012d55fc33e032cb65a0b6c1d109a7ddc703",
       "mergeNormalization": "Fetched LF bytes exactly reconstruct the earlier recorded CRLF hash; no test edits this merge.",
       "reason": "Resolve the development regression dependency link against the integration root; production smoke independently installs real dependencies without links. Pi 1.0.0 upgrade: require advanced annotation, nested pipeline, codemode and renderer probes on Pi 1.0.0 (the only supported host; older-host matrix verification was removed) instead of skipping the new host. Strict single-package legacy-array/npm-12-keyed parsing retains identity and resource assertions; merge also preserves relative archive filename plus cwd for Windows GNU tar. Pi 1.0.0 is the only supported host: the advanced-probe requirement now asserts on 1.0.0 only (0.99.x verification removed). 2026-10-11 R1: fixed integration entry imports actual registered edit/disk/diff-worker regression."
@@ -2346,7 +2416,8 @@
     {
       "path": "modules/web-tools/tests/unit/pi-citation-compat.test.ts",
       "originalSha256": "92b40b0f8b65ed23c665335425a737d1ff868956c7f613faf15bed4597606b16",
-      "dependencyUpgradePreviousSha256": "6e4da7d77c7b9d647b7559419c3c76ddb28c42af32fdb12f3954914a8a5b51bb", "sha256": "d2b369230f12a9dd585274834d8e78fbef0d5ee7e42671ea98bb82ca9b95a82f",
+      "dependencyUpgradePreviousSha256": "6e4da7d77c7b9d647b7559419c3c76ddb28c42af32fdb12f3954914a8a5b51bb",
+      "sha256": "d2b369230f12a9dd585274834d8e78fbef0d5ee7e42671ea98bb82ca9b95a82f",
       "reason": "Resolve the root Pi decoder probe and explicitly audit Pi 1.0.0 (the only supported host) through the modern stream-hook contract. Retain callback count, response identity, allowlisted sources/citations, SECRET_QUERY privacy and normalized annotation-only URL-loss assertions. Pi 1.0.0 is the only supported host: the stream-hook contract assertions now require 1.0.0; the 0.85.1 fallback branch was removed."
     },
     {
@@ -2437,11 +2508,11 @@
       "scanFix20261017Adaptation": "2026-10-17 document per event-loop-turn coalescing of output-driven panel redraws.",
       "driftReconcile20261021PreviousSha256": "38a698fe834625728275b20fdbd3e9f3e804649232472c0f095dd3c0ec486497",
       "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
-      "sha256": "6a255eeee925f381737da2f9a6b81cc600fa01fd657e1b5cca4c9e98e048873e",
+      "sha256": "fd1e367b4bf06bf957e0877e352724d7a73fb5c6a918cddf9c34df477e178597",
       "detachHint20261021PreviousSha256": "6890a5499d54528ee019c406ac7fbf2571ecf481ca393047d4e246c29183427e",
       "detachHint20261021Adaptation": "2026-10-21 document the hint as the tool call's last rendered line (muted, same shape as Pi's expand hint), the call/result placement rule, and that it is never written to the status bar.",
       "notificationBatchingPreviousSha256": "496539ba1fb125f18cb6fa1e517345023195e4a8e73665cb8d037b82d8911cf7",
-      "reason": "User-requested UUID→ULID: documentation updated for ULID identifiers (legacy UUID noted where still accepted). 2026-10-05 async adaptation: User-authorized session-owned background/control/query implementation or offline regression contract adaptation; synchronous defaults and existing safety assertions retained. 2026-10-06 local adaptation (shell-tools): background job status/list fields and jobId-less listing, tail ring buffer, MAX_RAW_CAPTURE_BYTES 8192, cancel race fix, compactJob text slimming, timeoutMs description, receipt decided dynamically via getActiveTools. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: L28-L30: existing bounded directory removal retry/dead-owner sweep and startup-inclusive idle-timeout documentation verified with module typecheck/unit/integration; per-output owner/generation fence retained as safety-relevant negligible overhead. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: L28-L30 existing protections preserved; additionally user-authorized informational background notice/output wording now explains returned data is not instructions and not an error label, without changing payload/schema, authoritative outcomes, cancellation or followUp delivery; corresponding TUI/agent notification regressions reviewed. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: L28-L30 existing protections preserved; additionally user-authorized informational background notice/output wording now explains returned data is not instructions and not an error label, without changing payload/schema, authoritative outcomes, cancellation or followUp delivery; corresponding TUI/agent notification regressions reviewed. English comparison-table messages now distinguish acceptance latency, authoritative cancellation with nonzero exit, notification versus disk-log retention, terminal cancel no-op, capacity refusal and retained-history errors; status/cancel TUI uses bounded named fields. Idle-timeout hint separates background execution from the unchanged timeout timer; (timeout 20s), synchronous host rendering, schema, trust and lifecycle preserved. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 authorized session-load background reconciliation: payload-free versioned journal before allocation/runner admission; persistent-conversation fence; bounded same-owner/cwd inventory and active-branch evidence dedup; neutral model-visible triggerTurn:false notices; no restart, child resume, control replay, lock/native mutation or process-tree termination claim. 2026-10-11 R19: bounded detached asynchronous sweep/eviction, actual shutdown removal barrier and residual I/O limits documented.",
+      "reason": "User-requested UUID→ULID: documentation updated for ULID identifiers (legacy UUID noted where still accepted). 2026-10-05 async adaptation: User-authorized session-owned background/control/query implementation or offline regression contract adaptation; synchronous defaults and existing safety assertions retained. 2026-10-06 local adaptation (shell-tools): background job status/list fields and jobId-less listing, tail ring buffer, MAX_RAW_CAPTURE_BYTES 8192, cancel race fix, compactJob text slimming, timeoutMs description, receipt decided dynamically via getActiveTools. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: L28-L30: existing bounded directory removal retry/dead-owner sweep and startup-inclusive idle-timeout documentation verified with module typecheck/unit/integration; per-output owner/generation fence retained as safety-relevant negligible overhead. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: L28-L30 existing protections preserved; additionally user-authorized informational background notice/output wording now explains returned data is not instructions and not an error label, without changing payload/schema, authoritative outcomes, cancellation or followUp delivery; corresponding TUI/agent notification regressions reviewed. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 current local snapshot review: L28-L30 existing protections preserved; additionally user-authorized informational background notice/output wording now explains returned data is not instructions and not an error label, without changing payload/schema, authoritative outcomes, cancellation or followUp delivery; corresponding TUI/agent notification regressions reviewed. English comparison-table messages now distinguish acceptance latency, authoritative cancellation with nonzero exit, notification versus disk-log retention, terminal cancel no-op, capacity refusal and retained-history errors; status/cancel TUI uses bounded named fields. Idle-timeout hint separates background execution from the unchanged timeout timer; (timeout 20s), synchronous host rendering, schema, trust and lifecycle preserved. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-08 authorized session-load background reconciliation: payload-free versioned journal before allocation/runner admission; persistent-conversation fence; bounded same-owner/cwd inventory and active-branch evidence dedup; neutral model-visible triggerTurn:false notices; no restart, child resume, control replay, lock/native mutation or process-tree termination claim. 2026-10-11 R19: bounded detached asynchronous sweep/eviction, actual shutdown removal barrier and residual I/O limits documented. 2026-10-23 user-requested: sending an interactive steer message auto-runs the Alt+J foreground detach (pi-shell-tools.detachOnSteer, default on); README documents it. Code: modules/shell-tools/src/manual-detach.ts input handler.",
       "previousAsyncRecordedSha256": "4cf1899449bd49eded5204b56f79c4d5162c9cbf0f0f604577841a0a7ea30a5d",
       "checklistReviewPreviousSha256": "ab0c7819c1f5e708897722c8fe1eb34675aff0b13d9d9162fa61146228bf9212",
       "checklistReviewBaselineSha256": "90e4e2aa987ec1b4f2fb150b67fd567408a03b0eea2a18c09292926378309cf6",
@@ -3225,7 +3296,9 @@
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
-      "path": "modules/blackhole/src/hooks/before-compact.ts", "backgroundJobsPreviousSha256": "c94f3ed202d3a6b131e6e30acfc92fea986c84ec42376223feaecb336260b1ab", "backgroundJobsAdaptation": "2026-10-22 Background Jobs reminder: live id/status list from the Monitor capability rendezvous (activeJobBriefs), no commands/task text/output; generated \"jobs\" span stripped on later compactions, never carried forward.",
+      "path": "modules/blackhole/src/hooks/before-compact.ts",
+      "backgroundJobsPreviousSha256": "c94f3ed202d3a6b131e6e30acfc92fea986c84ec42376223feaecb336260b1ab",
+      "backgroundJobsAdaptation": "2026-10-22 Background Jobs reminder: live id/status list from the Monitor capability rendezvous (activeJobBriefs), no commands/task text/output; generated \"jobs\" span stripped on later compactions, never carried forward.",
       "originalSha256": "ae812589f93e1c5d45c0dc5f5d6ad4c035e5a3d0ab7be951e4cd08ca19bae738",
       "notificationEvidencePreviousSha256": "910e44fc74934293e0317eb914ac4ea94976e820043ff4dae0bde915ca5337ab",
       "notificationEvidenceAdaptation": "2026-10-09 structural evidence summary and optional actual insertion span/digest/refs provenance for fallback/append trailing; verified-only carry/strip isolates heuristics. No timing/tail change or legacy compaction backfill.",
@@ -4745,23 +4818,115 @@
     }
   ],
   "addedFiles": [
-    { "path": "modules/web-tools/src/record.ts", "sha256": "fd021601ea41834fbcbfb99061696b50cefe33b59118d06319cb14b3a3307716", "reason": "2026-10-23 clean code: shared plain-object check previously copied in five web-tools files." },
-    { "path": "modules/shell-tools/src/foreground-handoff.ts", "sha256": "b6cab92aa3f67ad21cb9ebfe18c6ebbc5c5bf68764360416c07aac481d4f7886", "reason": "First inventoried cleanCodeModules20261023 (no earlier provenance record existed). 2026-10-23 clean code: shared appendTail." },
-    { "path": "modules/blackhole/src/core/background-jobs-section.ts", "sha256": "9c0db65dc6dc54201f2c58d45135971c1ed2f8c023ec882b1b66a9697264e8fb", "reason": "2026-10-22 Local addition: renders the live [Background Jobs] reminder (id/status only, 16 rows) from activeJobBriefs; failure yields no section." },
-    { "path": "modules/blackhole/tests/background-jobs-section.test.ts", "sha256": "0c2a61174ed089eecdd054dba72cdcfea0860387678df13d5c918e9308b40770", "reason": "2026-10-22 Renderer, jobs-span compose/strip/no-carry-forward, hook and append-mode regressions for the Background Jobs section." },
-    { "path": "modules/pty-terminal/tests/setup-diagnostic.test.ts", "sha256": "eab570ada0e6e5c8ba90e808da7a85ece50f9629a1a503f8b8b6342f2becb903", "reason": "PLAN-20261016T150815022Z CP1: package-instance native setup diagnostic regression; no real installation." },
-    { "path": "modules/pty-terminal/tests/setup.integration.test.mjs", "webSetupCp5PreviousSha256": "41f279ffd99063ae47afdaada7dab7464f758dd23f96b74e59a4617959a4b7ae", "sha256": "551e46715591c2e8859ba6bd668cc1da74703beae1188d6dee47322da22d0d03", "reason": "PLAN-20261016T150815022Z CP1: isolated setup CLI subprocess contract from arbitrary cwd. CP5 adds a read-only probe comparing the doctor executable directory with the real Playwright CLI dry-run location for a relative browser cache from a foreign cwd; no download or cache write." },
-    { "path": "tests/unit/setup.test.mjs", "webSetupCp5PreviousSha256": "dc167d3fbecafbff002ca31b539640b5962e62ea654b7f22b277b33584dddea0", "sha256": "65e4a205355636bfc7de277ac1505ad7503abb1558a27774b1b2a0e0da6ee4b8", "reason": "PLAN-20261016T150815022Z CP1: parsing, dependency resolution, quoting, readonly doctor and explicit consumer approval tests. CP5 adds the caller-cwd and unmodified relative-cache contract for the installer child." },
-    { "path": "modules/web-tools/src/fetch/http.ts", "webSetupCp5PreviousSha256": "078a443516bef320c0c8af8198f8fc177c2b1e75ff51a8ec4e6788dedf13ed0b", "cleanCodeModules20261023PreviousSha256": "f54c32d3dbf497c0808a2d34de7fece68266a60bce7d841d1afa88611781c4ab", "cleanCodeModules20261023Adaptation": "2026-10-23 clean code: uses awaitResponse; DOCUMENT_CONTENT_TYPES for the allowlist and accept header (same string).", "sha256": "ac7dde00d75cf66c114f12e63e4f5844ac2a9989b14649eb3847e7132a99810b", "reason": "PLAN-20261016T150815022Z CP2: static HTTP pins validated addresses per redirect, preserves TLS identity and bounds streaming/decoding; no browser-path SSRF certification. CP5 settles the headers wait exactly once on response, error, upgrade (HTTP 101 with socket destroyed), premature close and abort, so a protocol switch can no longer hold the operation, its queue permit or shutdown." },
-    { "path": "modules/web-tools/tests/fixtures/missing-browser.ts", "sha256": "7db7cad9afdc5d19c2d44b38062f9781cc889d4c29bda37ebeb8e47d79b22747", "reason": "PLAN-20261016T150815022Z CP2: isolated real missing-browser process with empty cache; personal browser caches untouched." },
-    { "path": "modules/web-tools/tests/fixtures/tls-material.ts", "sha256": "c22ddc14f0b015b9899b47871fb0edba91777664194eae41e98da82bc33a788e", "reason": "PLAN-20261016T150815022Z CP2: copied existing public test-only certificate/key material; not real credentials." },
-    { "path": "modules/web-tools/tests/integration/static-http.test.ts", "webSetupCp5PreviousSha256": "029b15b94cdaaec2f96183c06f09f38081eb4a56021c1000a0ac2698a84b9ba6", "sha256": "56e12cd34b0904f2d1c96774b3932a68e5c9b18493e631cef781214f77e931ff", "reason": "PLAN-20261016T150815022Z CP2: controlled HTTP/TLS and real missing-browser fallback integration, redirect/network restrictions and static limitations. CP5 adds a raw-socket 101 regression proving rejection, client socket close, a released operation and a reusable queue slot without fixed waits." },
-    { "path": "modules/web-tools/tests/unit/static-http.test.ts", "sha256": "d6ad5ae7a1dbfcd40013c24f39f0e8cc1f28b9ede50b65306558277bdc5cdaf8", "reason": "PLAN-20261016T150815022Z CP2: deterministic transport input, size, charset, cancellation and policy regressions." },
-    { "path": "modules/web-tools/src/native.ts", "geminiAndDeepSeekSearch20261017PreviousSha256": "2537a01911212747850e4f96bb7783e24f01d832d7f2c52fdf5ea0c73add6a9a", "anthropicNativeSearch20261017Adaptation": "Add the anthropic adapter to selection, injection dispatch, guidance registry and inactive reasons; Gemini and OpenAI branches unchanged.", "sha256": "4dd8d03d953ca6a4f09cad81fc3c052b667660346b7d69f8aa39e99b64d9ac87", "reason": "PLAN-20261017T120515308Z CP2: native adapter selection and per-adapter guidance for provider openai (unchanged OpenAI-family scope) and provider native (OpenAI family plus Gemini 3+), with specific inactive reasons for Gemini 2.x, Vertex, Anthropic and non-native providers. PLAN-20261017T153936832Z S5: provider native also selects the Anthropic adapter for the pi anthropic provider." },
-    { "path": "modules/web-tools/src/native-anthropic.ts", "cleanCodeModules20261023PreviousSha256": "06b10655ef1a1cda651422e4fadbd17de1dd682cbab48a018e80723141298965", "cleanCodeModules20261023Adaptation": "2026-10-23 clean code: shared isRecord from record.ts.", "sha256": "1e732d7234eb60c8694a934d69e76ee42ae1f9530a1e6f63ec85faa29b390dfd", "reason": "PLAN-20261017T153936832Z S5: Anthropic server-side web_search tool injection (web_search_20250305, max_uses 8) for the pi anthropic provider, idempotent, conflict-rejecting and fail-closed on unexpected payload shapes. First-party only: compatible endpoints were not probed, and pi 1.3.0 drops the returned server blocks (the API accepts that, verified live)." },
-    { "path": "modules/web-tools/src/native-google.ts", "cleanCodeModules20261023PreviousSha256": "79a7f2ec1b794cce7daa84f023e678fbed222b534140fd20a4afaf0c9c0f168b", "cleanCodeModules20261023Adaptation": "2026-10-23 clean code: shared isRecord from record.ts.", "sha256": "6ded2c355127bf7e721aeb73f33696711b63fafecc4aa43be107199e1cf7cbb9", "reason": "PLAN-20261017T120515308Z CP2: Gemini grounding injection into the pi google adapter payload (camelCase googleSearch plus includeServerSideToolInvocations), idempotent, conflict-rejecting and fail-closed on unexpected payload shapes; user-facing behavior is documented in modules/web-tools/README.md." },
-    { "path": "modules/web-tools/tests/unit/native.test.ts", "geminiAndDeepSeekSearch20261017PreviousSha256": "f6c372f2c8285be8dccfaf34e4e5a8d94d0582570a7962297c336316bf1fe0f0", "anthropicNativeSearch20261017Adaptation": "Add Anthropic selection/injection/idempotence/conflict/reason cases and widen the guidance-registry assertion.", "sha256": "47782e12415bd15ceb1d6918529a1eb70c868229c3155489c749470b66f3b5cc", "reason": "PLAN-20261017T120515308Z CP2: offline selection, injection, idempotence, conflict and inactive-reason regressions for the Gemini adapter; no live provider request is made. PLAN-20261017T153936832Z S5 adds the Anthropic adapter regressions." },
-    { "path": "tests/fixtures/web-setup-production.mjs", "sha256": "e0bef22ab308fffc715c8ec11415fcf0b54d0d381ad9dbc01bdc90c59f95b144", "reason": "PLAN-20261016T150815022Z CP4: isolated production tarball setup/doctor and missing-browser fallback probe; no live provider or implicit OS installation." },
+    {
+      "path": "modules/shell-tools/tests/detach-on-steer.test.ts",
+      "sha256": "270498d6111cde8caf1769e0a4cbd8cb7adc97727f4c82ad4c4380946280c33e",
+      "reason": "2026-10-23 detach-on-steer: setting parsing (only explicit false disables), input-event selection (interactive steer, non-empty, non-slash) and one-shot detach without swallowing the message."
+    },
+    {
+      "path": "modules/shell-tools/src/manual-detach.ts",
+      "sha256": "022cadd2eaae63f2fc43a7936a821ac9956a186fe5d45c9c34970e7920099408",
+      "reason": "First inventoried 2026-10-23 (created earlier with no provenance record): the shared Shell/Subagents foreground-detach registry and Alt+J shortcut; adds the steer input handler honouring pi-shell-tools.detachOnSteer (default on, explicit false disables)."
+    },
+    {
+      "path": "modules/web-tools/src/record.ts",
+      "sha256": "fd021601ea41834fbcbfb99061696b50cefe33b59118d06319cb14b3a3307716",
+      "reason": "2026-10-23 clean code: shared plain-object check previously copied in five web-tools files."
+    },
+    {
+      "path": "modules/shell-tools/src/foreground-handoff.ts",
+      "sha256": "b6cab92aa3f67ad21cb9ebfe18c6ebbc5c5bf68764360416c07aac481d4f7886",
+      "reason": "First inventoried cleanCodeModules20261023 (no earlier provenance record existed). 2026-10-23 clean code: shared appendTail."
+    },
+    {
+      "path": "modules/blackhole/src/core/background-jobs-section.ts",
+      "sha256": "9c0db65dc6dc54201f2c58d45135971c1ed2f8c023ec882b1b66a9697264e8fb",
+      "reason": "2026-10-22 Local addition: renders the live [Background Jobs] reminder (id/status only, 16 rows) from activeJobBriefs; failure yields no section."
+    },
+    {
+      "path": "modules/blackhole/tests/background-jobs-section.test.ts",
+      "sha256": "0c2a61174ed089eecdd054dba72cdcfea0860387678df13d5c918e9308b40770",
+      "reason": "2026-10-22 Renderer, jobs-span compose/strip/no-carry-forward, hook and append-mode regressions for the Background Jobs section."
+    },
+    {
+      "path": "modules/pty-terminal/tests/setup-diagnostic.test.ts",
+      "sha256": "eab570ada0e6e5c8ba90e808da7a85ece50f9629a1a503f8b8b6342f2becb903",
+      "reason": "PLAN-20261016T150815022Z CP1: package-instance native setup diagnostic regression; no real installation."
+    },
+    {
+      "path": "modules/pty-terminal/tests/setup.integration.test.mjs",
+      "webSetupCp5PreviousSha256": "41f279ffd99063ae47afdaada7dab7464f758dd23f96b74e59a4617959a4b7ae",
+      "sha256": "551e46715591c2e8859ba6bd668cc1da74703beae1188d6dee47322da22d0d03",
+      "reason": "PLAN-20261016T150815022Z CP1: isolated setup CLI subprocess contract from arbitrary cwd. CP5 adds a read-only probe comparing the doctor executable directory with the real Playwright CLI dry-run location for a relative browser cache from a foreign cwd; no download or cache write."
+    },
+    {
+      "path": "tests/unit/setup.test.mjs",
+      "webSetupCp5PreviousSha256": "dc167d3fbecafbff002ca31b539640b5962e62ea654b7f22b277b33584dddea0",
+      "sha256": "65e4a205355636bfc7de277ac1505ad7503abb1558a27774b1b2a0e0da6ee4b8",
+      "reason": "PLAN-20261016T150815022Z CP1: parsing, dependency resolution, quoting, readonly doctor and explicit consumer approval tests. CP5 adds the caller-cwd and unmodified relative-cache contract for the installer child."
+    },
+    {
+      "path": "modules/web-tools/src/fetch/http.ts",
+      "webSetupCp5PreviousSha256": "078a443516bef320c0c8af8198f8fc177c2b1e75ff51a8ec4e6788dedf13ed0b",
+      "cleanCodeModules20261023PreviousSha256": "f54c32d3dbf497c0808a2d34de7fece68266a60bce7d841d1afa88611781c4ab",
+      "cleanCodeModules20261023Adaptation": "2026-10-23 clean code: uses awaitResponse; DOCUMENT_CONTENT_TYPES for the allowlist and accept header (same string).",
+      "sha256": "ac7dde00d75cf66c114f12e63e4f5844ac2a9989b14649eb3847e7132a99810b",
+      "reason": "PLAN-20261016T150815022Z CP2: static HTTP pins validated addresses per redirect, preserves TLS identity and bounds streaming/decoding; no browser-path SSRF certification. CP5 settles the headers wait exactly once on response, error, upgrade (HTTP 101 with socket destroyed), premature close and abort, so a protocol switch can no longer hold the operation, its queue permit or shutdown."
+    },
+    {
+      "path": "modules/web-tools/tests/fixtures/missing-browser.ts",
+      "sha256": "7db7cad9afdc5d19c2d44b38062f9781cc889d4c29bda37ebeb8e47d79b22747",
+      "reason": "PLAN-20261016T150815022Z CP2: isolated real missing-browser process with empty cache; personal browser caches untouched."
+    },
+    {
+      "path": "modules/web-tools/tests/fixtures/tls-material.ts",
+      "sha256": "c22ddc14f0b015b9899b47871fb0edba91777664194eae41e98da82bc33a788e",
+      "reason": "PLAN-20261016T150815022Z CP2: copied existing public test-only certificate/key material; not real credentials."
+    },
+    {
+      "path": "modules/web-tools/tests/integration/static-http.test.ts",
+      "webSetupCp5PreviousSha256": "029b15b94cdaaec2f96183c06f09f38081eb4a56021c1000a0ac2698a84b9ba6",
+      "sha256": "56e12cd34b0904f2d1c96774b3932a68e5c9b18493e631cef781214f77e931ff",
+      "reason": "PLAN-20261016T150815022Z CP2: controlled HTTP/TLS and real missing-browser fallback integration, redirect/network restrictions and static limitations. CP5 adds a raw-socket 101 regression proving rejection, client socket close, a released operation and a reusable queue slot without fixed waits."
+    },
+    {
+      "path": "modules/web-tools/tests/unit/static-http.test.ts",
+      "sha256": "d6ad5ae7a1dbfcd40013c24f39f0e8cc1f28b9ede50b65306558277bdc5cdaf8",
+      "reason": "PLAN-20261016T150815022Z CP2: deterministic transport input, size, charset, cancellation and policy regressions."
+    },
+    {
+      "path": "modules/web-tools/src/native.ts",
+      "geminiAndDeepSeekSearch20261017PreviousSha256": "2537a01911212747850e4f96bb7783e24f01d832d7f2c52fdf5ea0c73add6a9a",
+      "anthropicNativeSearch20261017Adaptation": "Add the anthropic adapter to selection, injection dispatch, guidance registry and inactive reasons; Gemini and OpenAI branches unchanged.",
+      "sha256": "4dd8d03d953ca6a4f09cad81fc3c052b667660346b7d69f8aa39e99b64d9ac87",
+      "reason": "PLAN-20261017T120515308Z CP2: native adapter selection and per-adapter guidance for provider openai (unchanged OpenAI-family scope) and provider native (OpenAI family plus Gemini 3+), with specific inactive reasons for Gemini 2.x, Vertex, Anthropic and non-native providers. PLAN-20261017T153936832Z S5: provider native also selects the Anthropic adapter for the pi anthropic provider."
+    },
+    {
+      "path": "modules/web-tools/src/native-anthropic.ts",
+      "cleanCodeModules20261023PreviousSha256": "06b10655ef1a1cda651422e4fadbd17de1dd682cbab48a018e80723141298965",
+      "cleanCodeModules20261023Adaptation": "2026-10-23 clean code: shared isRecord from record.ts.",
+      "sha256": "1e732d7234eb60c8694a934d69e76ee42ae1f9530a1e6f63ec85faa29b390dfd",
+      "reason": "PLAN-20261017T153936832Z S5: Anthropic server-side web_search tool injection (web_search_20250305, max_uses 8) for the pi anthropic provider, idempotent, conflict-rejecting and fail-closed on unexpected payload shapes. First-party only: compatible endpoints were not probed, and pi 1.3.0 drops the returned server blocks (the API accepts that, verified live)."
+    },
+    {
+      "path": "modules/web-tools/src/native-google.ts",
+      "cleanCodeModules20261023PreviousSha256": "79a7f2ec1b794cce7daa84f023e678fbed222b534140fd20a4afaf0c9c0f168b",
+      "cleanCodeModules20261023Adaptation": "2026-10-23 clean code: shared isRecord from record.ts.",
+      "sha256": "6ded2c355127bf7e721aeb73f33696711b63fafecc4aa43be107199e1cf7cbb9",
+      "reason": "PLAN-20261017T120515308Z CP2: Gemini grounding injection into the pi google adapter payload (camelCase googleSearch plus includeServerSideToolInvocations), idempotent, conflict-rejecting and fail-closed on unexpected payload shapes; user-facing behavior is documented in modules/web-tools/README.md."
+    },
+    {
+      "path": "modules/web-tools/tests/unit/native.test.ts",
+      "geminiAndDeepSeekSearch20261017PreviousSha256": "f6c372f2c8285be8dccfaf34e4e5a8d94d0582570a7962297c336316bf1fe0f0",
+      "anthropicNativeSearch20261017Adaptation": "Add Anthropic selection/injection/idempotence/conflict/reason cases and widen the guidance-registry assertion.",
+      "sha256": "47782e12415bd15ceb1d6918529a1eb70c868229c3155489c749470b66f3b5cc",
+      "reason": "PLAN-20261017T120515308Z CP2: offline selection, injection, idempotence, conflict and inactive-reason regressions for the Gemini adapter; no live provider request is made. PLAN-20261017T153936832Z S5 adds the Anthropic adapter regressions."
+    },
+    {
+      "path": "tests/fixtures/web-setup-production.mjs",
+      "sha256": "e0bef22ab308fffc715c8ec11415fcf0b54d0d381ad9dbc01bdc90c59f95b144",
+      "reason": "PLAN-20261016T150815022Z CP4: isolated production tarball setup/doctor and missing-browser fallback probe; no live provider or implicit OS installation."
+    },
     {
       "path": "modules/shell-tools/src/output-renderer.ts",
       "sha256": "ffcca8ee0ef4fa5481522acb7a0eb6bcd7159a5b6ffc36461e98613e874dd41f",
@@ -4784,9 +4949,22 @@
       "previousSha256": "d404b666e185c977a55ca2a5ad40835f32e4d00dc5cf53ba6327487b36e4c882",
       "reason": "2026-10-16 R7: relocate existing test helper outside packaged src; only relative imports and stale packaging comment changed. Existing fixture/isolation/cleanup behavior retained."
     },
-    { "path": "modules/sql-connector/test/tools.test.ts", "sha256": "941c765434264f9c6202067e3aec91173aa2e67c1a244785b0d617d98ce5fef4", "reason": "Focused deferred metadata/bindings/redaction/confirmation safety tests for all three engines using fake runtime, no database connection." },
-    { "path": "modules/sql-connector/tests/sdk.integration.test.mjs", "dependencyUpgradePreviousSha256": "4a79c697b37e5f6c07d192f8b6e582e424abb84854b05a0ae37b6c27a0564c42", "sha256": "bfba715218cdacc41dbe6b27b07b264cb826bc2130693a37e816d4dfa2f23f68", "reason": "Isolated real SDK subprocess runner for search/fallback/trust/config/selection/reload; no live databases or model calls." },
-    { "path": "modules/sql-connector/tests/fixtures/sdk-host.mjs", "sha256": "a4c2eb47cc1e3fed9f2c7e96876fc1289172b3ab02fdab26a44bd433947dffa7", "reason": "Relocatable offline Pi 1.2.0 host fixture also used against production tarball; configured engines deferred/searchable, hint disappears, UI-less updates and bad SQL denied before driver access; old runtime closed after reload." },
+    {
+      "path": "modules/sql-connector/test/tools.test.ts",
+      "sha256": "941c765434264f9c6202067e3aec91173aa2e67c1a244785b0d617d98ce5fef4",
+      "reason": "Focused deferred metadata/bindings/redaction/confirmation safety tests for all three engines using fake runtime, no database connection."
+    },
+    {
+      "path": "modules/sql-connector/tests/sdk.integration.test.mjs",
+      "dependencyUpgradePreviousSha256": "4a79c697b37e5f6c07d192f8b6e582e424abb84854b05a0ae37b6c27a0564c42",
+      "sha256": "bfba715218cdacc41dbe6b27b07b264cb826bc2130693a37e816d4dfa2f23f68",
+      "reason": "Isolated real SDK subprocess runner for search/fallback/trust/config/selection/reload; no live databases or model calls."
+    },
+    {
+      "path": "modules/sql-connector/tests/fixtures/sdk-host.mjs",
+      "sha256": "a4c2eb47cc1e3fed9f2c7e96876fc1289172b3ab02fdab26a44bd433947dffa7",
+      "reason": "Relocatable offline Pi 1.2.0 host fixture also used against production tarball; configured engines deferred/searchable, hint disappears, UI-less updates and bad SQL denied before driver access; old runtime closed after reload."
+    },
     {
       "path": "modules/shell-tools/src/job-view.ts",
       "sha256": "0755505b4db6e9db6d6b5a1e4dee92cac79e2f41e271dd9d28963eac39a9f8f1",
@@ -4962,7 +5140,8 @@
     },
     {
       "path": "modules/shell-tools/tests/monitor-exec.integration.test.mjs",
-      "dependencyUpgradePreviousSha256": "032c1beb85336ee856ed59fb88e202d8c5e24fc85f9308b8cc328002c06f1524", "sha256": "c220ae8f177a772ab0e88858e37e83765ed03a71128cd76f37df98e3285b34b4",
+      "dependencyUpgradePreviousSha256": "032c1beb85336ee856ed59fb88e202d8c5e24fc85f9308b8cc328002c06f1524",
+      "sha256": "c220ae8f177a772ab0e88858e37e83765ed03a71128cd76f37df98e3285b34b4",
       "reason": "Review actual offline Pi trust-aware normalized settings/pre-abort/cancel/actual-close adapter acceptance; no sleeps/providers."
     },
     {
@@ -4982,18 +5161,23 @@
       "reason": "Exact reviewed B1 wrapper fingerprint, original assertions retained; Windows8.3 alias remains blocked."
     },
     {
-      "path": "modules/shell-tools/src/monitor-capability.ts", "backgroundJobsPreviousSha256": "7eacb40de5bf51a388711d3eee2e09c07065a5547102e659da2c926dd9e23cce", "backgroundJobsAdaptation": "2026-10-22 Background Jobs reminder: live id/status list from the Monitor capability rendezvous (activeJobBriefs), no commands/task text/output; generated \"jobs\" span stripped on later compactions, never carried forward.",
+      "path": "modules/shell-tools/src/monitor-capability.ts",
+      "backgroundJobsPreviousSha256": "7eacb40de5bf51a388711d3eee2e09c07065a5547102e659da2c926dd9e23cce",
+      "backgroundJobsAdaptation": "2026-10-22 Background Jobs reminder: live id/status list from the Monitor capability rendezvous (activeJobBriefs), no commands/task text/output; generated \"jobs\" span stripped on later compactions, never carried forward.",
       "sha256": "17795530a1c7f8057ee57e8db06ce8736776f92f2787ed1efd232f54520c4550",
       "reason": "Monitor readonly generation capability and revoke; JobKind now also admits the Fork module's fork_job provider."
     },
     {
       "path": "modules/shell-tools/src/monitor-exec.ts",
       "monitorReviewPreviousSha256": "a91c2d3db26050ac33598e9d6eaa9f51b67d5d06582b3be552375a56455f12a8",
-      "dependencyUpgradePreviousSha256": "c4d3884eaadd8f6e15ab234182f9520e454900897a9ff0736b74901adec883cf", "sha256": "6eab21c4e2820280d15b354dda450d642a84e1950b868235c3602ffcbfc886b0",
+      "dependencyUpgradePreviousSha256": "c4d3884eaadd8f6e15ab234182f9520e454900897a9ff0736b74901adec883cf",
+      "sha256": "6eab21c4e2820280d15b354dda450d642a84e1950b868235c3602ffcbfc886b0",
       "reason": "Pi1.1.0 Monitor channel/close seam reuses effective Shell resolver/environment/cancellation; ignored stdin, no legacy transport fallback."
     },
     {
-      "path": "modules/shell-tools/src/monitor-publisher.ts", "backgroundJobsPreviousSha256": "d5c7cf6c0c777b0ac9f6ee0486f179871ec49a805e79f74a8e89a60fd9af90ea", "backgroundJobsAdaptation": "2026-10-22 Background Jobs reminder: live id/status list from the Monitor capability rendezvous (activeJobBriefs), no commands/task text/output; generated \"jobs\" span stripped on later compactions, never carried forward.",
+      "path": "modules/shell-tools/src/monitor-publisher.ts",
+      "backgroundJobsPreviousSha256": "d5c7cf6c0c777b0ac9f6ee0486f179871ec49a805e79f74a8e89a60fd9af90ea",
+      "backgroundJobsAdaptation": "2026-10-22 Background Jobs reminder: live id/status list from the Monitor capability rendezvous (activeJobBriefs), no commands/task text/output; generated \"jobs\" span stripped on later compactions, never carried forward.",
       "cleanCodeModules20261023PreviousSha256": "ca88ab1da3963b5a3e69a2c3d638887d8123f5238f2143aefbd7b7ad48c797a0",
       "cleanCodeModules20261023Adaptation": "2026-10-23 clean code: shared isActiveJobStatus.",
       "sha256": "d625044bdb0bf35e5e2d629eb66ef525dbc7b8f8dc0aace5fea85df695aa2ce9",
@@ -5002,12 +5186,16 @@
       "reason": "Readonly Monitor capability lifecycle."
     },
     {
-      "path": "modules/subagents/extensions/subagent/monitor-capability.ts", "backgroundJobsPreviousSha256": "d04a164b4176749a4588782b5b55a38b0ae519eafd7a5aecb4ba67b8c27d9fb8", "backgroundJobsAdaptation": "2026-10-22 Background Jobs reminder: live id/status list from the Monitor capability rendezvous (activeJobBriefs), no commands/task text/output; generated \"jobs\" span stripped on later compactions, never carried forward.",
+      "path": "modules/subagents/extensions/subagent/monitor-capability.ts",
+      "backgroundJobsPreviousSha256": "d04a164b4176749a4588782b5b55a38b0ae519eafd7a5aecb4ba67b8c27d9fb8",
+      "backgroundJobsAdaptation": "2026-10-22 Background Jobs reminder: live id/status list from the Monitor capability rendezvous (activeJobBriefs), no commands/task text/output; generated \"jobs\" span stripped on later compactions, never carried forward.",
       "sha256": "9a02e5b53a8b1e59ed42921a454498640331981e3ac342d0a8adea989dbb2fb0",
       "reason": "Monitor verified provisional-safe readonly job projection, no private query answers."
     },
     {
-      "path": "modules/shell-tools/tests/monitor-capability.test.ts", "backgroundJobsPreviousSha256": "d156f30e5bfed340df036cce5677d5ff46e5c1298d9312abc56aaf5b3a3a3329", "backgroundJobsAdaptation": "2026-10-22 Background Jobs reminder: live id/status list from the Monitor capability rendezvous (activeJobBriefs), no commands/task text/output; generated \"jobs\" span stripped on later compactions, never carried forward.",
+      "path": "modules/shell-tools/tests/monitor-capability.test.ts",
+      "backgroundJobsPreviousSha256": "d156f30e5bfed340df036cce5677d5ff46e5c1298d9312abc56aaf5b3a3a3329",
+      "backgroundJobsAdaptation": "2026-10-22 Background Jobs reminder: live id/status list from the Monitor capability rendezvous (activeJobBriefs), no commands/task text/output; generated \"jobs\" span stripped on later compactions, never carried forward.",
       "monitorReviewPreviousSha256": "bc687fd8bad5fcd0801ebab2d778977b0a0fcaeb4e441f7779e43045d31826ea",
       "sha256": "319edcd02f582c9ed14b1b5d2a016aa7fc4112bf6d9f5f4d35674a5346ebdf12",
       "reason": "Monitor generation/revoke/foreign-cwd regressions."
@@ -5019,7 +5207,9 @@
       "reason": "Monitor stdin-transport red-green refusal regression."
     },
     {
-      "path": "modules/subagents/tests/monitor-capability.test.ts", "backgroundJobsPreviousSha256": "ffafa1e4db6d7e383b3673b499352499039473cb98b8344096c2accd6d6639cc", "backgroundJobsAdaptation": "2026-10-22 Background Jobs reminder: live id/status list from the Monitor capability rendezvous (activeJobBriefs), no commands/task text/output; generated \"jobs\" span stripped on later compactions, never carried forward.",
+      "path": "modules/subagents/tests/monitor-capability.test.ts",
+      "backgroundJobsPreviousSha256": "ffafa1e4db6d7e383b3673b499352499039473cb98b8344096c2accd6d6639cc",
+      "backgroundJobsAdaptation": "2026-10-22 Background Jobs reminder: live id/status list from the Monitor capability rendezvous (activeJobBriefs), no commands/task text/output; generated \"jobs\" span stripped on later compactions, never carried forward.",
       "monitorReviewPreviousSha256": "16552855bc87100f337ae8d505530246982d46353c9c57c213053e1404cf7ff7",
       "sha256": "c23d607142b5373f8160abca34bbd63d480b9ded902821108f05f6d1fd041104",
       "reason": "Monitor provisional cleanup/query/owner tests, existing guard fixtures unchanged."
@@ -5028,7 +5218,8 @@
       "path": "tests/fixtures/monitor-production.mjs",
       "packageMonitorRepairPreviousSha256": "7a992fbeb37017158422a800b8ce3c24dfa1937801d69fe4fb4fa2e37a2d1780",
       "packageMonitorRepair": "Terminal failure-before/after rejects with narrow lifecycle/cleanup diagnostics; completed success requires actual close/no cleanup pending; original data/status/privacy/cleanup assertions and deadline unchanged.",
-      "dependencyUpgradePreviousSha256": "817d75aef60dabb47b6dceea091565de73754abac12025e210983a0809244297", "sha256": "1684ef99b72a8e1936835bdd1ab22a5aa487fff5fc034140dfe7abfdda944f96",
+      "dependencyUpgradePreviousSha256": "817d75aef60dabb47b6dceea091565de73754abac12025e210983a0809244297",
+      "sha256": "1684ef99b72a8e1936835bdd1ab22a5aa487fff5fc034140dfe7abfdda944f96",
       "monitorV1SecondProbeSha256": "07dca5b70be0248e3c4ffb4ff6bf478287f6100b0584a65ec436d214108cda84",
       "monitorV1InitialSha256": "a4581c19d371d04b6668652049792d77bf3e29f33c2a0667207ecc2dfc2f252e",
       "probeCorrection": "Redaction assertions reject a unique query secret and token key in all receipts plus query/fragment delimiters in websocket preview; command/path-withheld safe placeholders remain valid.",
@@ -5083,7 +5274,8 @@
     },
     {
       "path": "modules/subagents/tests/managed-child-shell.integration.test.mjs",
-      "dependencyUpgradePreviousSha256": "b586097157112b96f1a403e156e883cd363b6bb1eff139c790fe419f66ee54bd", "sha256": "ecf43ea404952f26e71f59fd0b32dead18296887515c2a1cc4523c6aaa7cc235",
+      "dependencyUpgradePreviousSha256": "b586097157112b96f1a403e156e883cd363b6bb1eff139c790fe419f66ee54bd",
+      "sha256": "ecf43ea404952f26e71f59fd0b32dead18296887515c2a1cc4523c6aaa7cc235",
       "reason": "2026-10-09 actual offline CLI new/resume/ready-query both guard/Shell load orders with original builders/EOF close."
     },
     {
@@ -5098,7 +5290,8 @@
     },
     {
       "path": "modules/subagents/tests/fixtures/child-shell-guard-reload-host.mjs",
-      "dependencyUpgradePreviousSha256": "23c36117e3dcc5898874218f7b1f7688dcd106343cb265fdc6f3ea87bc205bac", "sha256": "cf61bcd86b9daf2c5c8190e49b7d18f8dd6aeceafef64a6089d28e63464b0164",
+      "dependencyUpgradePreviousSha256": "23c36117e3dcc5898874218f7b1f7688dcd106343cb265fdc6f3ea87bc205bac",
+      "sha256": "cf61bcd86b9daf2c5c8190e49b7d18f8dd6aeceafef64a6089d28e63464b0164",
       "reason": "2026-10-09 isolated Pi1.1.0 guard/Shell reload, offline admission/close sentinel, Unicode/equal-length same-inode invalid-UTF8 raw mutation."
     },
     {
@@ -5181,7 +5374,8 @@
     {
       "path": "modules/shell-tools/tests/notification-batching.integration.test.mjs",
       "completionSteeringPreviousSha256": "ebfe8215a61a4bbd3d5aa7cf6a6798ddb6da2f343ded5c98a3bed47ac1e60ba5",
-      "dependencyUpgradePreviousSha256": "8c6ebb6f3d929708f37236466e33f87c2ec4fe3416f403b9ce260f2ea8d5b345", "sha256": "665afb43de9efd0b3a7438b55cba487cece0ca0d7331631c1765d9ce2237a9c8",
+      "dependencyUpgradePreviousSha256": "8c6ebb6f3d929708f37236466e33f87c2ec4fe3416f403b9ce260f2ea8d5b345",
+      "sha256": "665afb43de9efd0b3a7438b55cba487cece0ca0d7331631c1765d9ce2237a9c8",
       "reason": "2026-10-09 isolated actual Pi 1.1.0 normal/queued/aborted one-batch probes, owned by Shell integration group."
     },
     {
@@ -5272,7 +5466,8 @@
       "lintCleanupPreviousSha256": "c260e6a00d87d45b858f0e5fc5069f435e643cd5677dd6a153bcf01e948a640d",
       "lintCleanupAdaptation": "2026-10-12 check action and close arbitration outside finally, retaining dual-failure AggregateError including falsy primary; only both-success cases published.",
       "promptSectionsPreviousSha256": "8d29e8bb5fb19b4681402bf7db40615cba195dd6c177f44351c6aa18fd008f41",
-      "dependencyUpgradePreviousSha256": "9c390f4762353e6f5543b0aa62007f3d062ff061f1d53877ad97d9933a732475", "sha256": "942fa1c15fb24f9e72d5219fd14e01471d56f60d9ca11feb4c1207c9f999233f",
+      "dependencyUpgradePreviousSha256": "9c390f4762353e6f5543b0aa62007f3d062ff061f1d53877ad97d9933a732475",
+      "sha256": "942fa1c15fb24f9e72d5219fd14e01471d56f60d9ca11feb4c1207c9f999233f",
       "monitorPreviousSha256": "8c75ebec3fea1e6664d780c7a6a9b0ddf9574ca7d6c922df032a19de5ed9f1b6",
       "monitorAdaptation": "Inactive/reload/exclusion Monitor probes with existing fourteen SDK cases.",
       "previousVersionToken": "35e5f94b07a61f81cc4ac6ed14eb85e6",
@@ -5280,13 +5475,15 @@
     },
     {
       "path": "modules/subagents/tests/notification-host.integration.test.ts",
-      "dependencyUpgradePreviousSha256": "6ab46acb5771fcf6228e0f5910cdcfbd93ee8d3957a6549dd085d399e38301b7", "sha256": "6b3d401bd4e1609d17fb8b69ae101556fae97cb0dd23999056412e33897d584b",
+      "dependencyUpgradePreviousSha256": "6ab46acb5771fcf6228e0f5910cdcfbd93ee8d3957a6549dd085d399e38301b7",
+      "sha256": "6b3d401bd4e1609d17fb8b69ae101556fae97cb0dd23999056412e33897d584b",
       "reason": "2026-10-08 phase-one worker handoff: actual isolated Pi 1.0.0 SDK notification boundary runner; streaming queue, idle persistence and asynchronous host failure remain distinct from callback return. No paid model, real settings or delivery acknowledgment."
     },
     {
       "path": "modules/subagents/tests/fixtures/notification-host.ts",
       "completionSteeringPreviousSha256": "c5a787e6a1c3fe613195fbde85480b49bac24dc03b69e9c0e8ccb8955e7a7488",
-      "dependencyUpgradePreviousSha256": "fbacbaa9f8ca70a69e2f80faa696e061bef7932367cd73b77cf1c975c57e2d2a", "sha256": "3b673021429b922a68f84fa2c4258de8a35be594d1bee3238ebd1425f27e1333",
+      "dependencyUpgradePreviousSha256": "fbacbaa9f8ca70a69e2f80faa696e061bef7932367cd73b77cf1c975c57e2d2a",
+      "sha256": "3b673021429b922a68f84fa2c4258de8a35be594d1bee3238ebd1425f27e1333",
       "reason": "2026-10-08 phase-one worker handoff: offline synthetic SDK fixture observes real followUp admission, parent persistence and host async rejection with one callback attempt; extension hostAcknowledgment stays unknown."
     },
     {
@@ -5474,12 +5671,14 @@
     },
     {
       "path": "tests/fixtures/schedule-deadline.mjs",
-      "dependencyUpgradePreviousSha256": "fef2f151d10b5b8872375e2faf1d3c9df0bc1120ff7a2afbbc1d4ea01dd120e4", "sha256": "036ade39ef23e920fb71d0f3b49c595e0411714c06cec9d04f681ee9d6ed2770",
+      "dependencyUpgradePreviousSha256": "fef2f151d10b5b8872375e2faf1d3c9df0bc1120ff7a2afbbc1d4ea01dd120e4",
+      "sha256": "036ade39ef23e920fb71d0f3b49c595e0411714c06cec9d04f681ee9d6ed2770",
       "reason": "2026-10-07 isolated real Pi 1.0.0 extension loader/nullable tool schema/CRUD/deadline startup and session reinitialize probe; no model calls or fixed waiting."
     },
     {
       "path": "tests/integration/schedule-deadline.test.mjs",
-      "dependencyUpgradePreviousSha256": "89be80d5c12e7d0417bb8ae9c696d3266b1bc70883e8f96278b4b311c475530f", "sha256": "fdc26fb1526074857a77363b41848ec317fbd51775227acfd66f62730e7e0dad",
+      "dependencyUpgradePreviousSha256": "89be80d5c12e7d0417bb8ae9c696d3266b1bc70883e8f96278b4b311c475530f",
+      "sha256": "fdc26fb1526074857a77363b41848ec317fbd51775227acfd66f62730e7e0dad",
       "reason": "2026-10-07 Schedule Prompt-owned real-host fixture runner with isolated environment/home/workspace and cleanup."
     },
     {
@@ -5557,7 +5756,8 @@
       "skillToolsAdaptation": "Add skill catalogue/path/lazy-body startup/reload checks and thirteen-local/two-npm identity; historical import limits unchanged.",
       "sqliteIntegrationPreviousSha256": "84d4fb9600380bcf3aa85b7c9350aef51858a93436c15bd8c8242152ef317b82",
       "sqlConnectorPreviousSha256": "86f9d35cd1c5a88ca5b87b66b9ad08641bfbe503948dd161a968e8da847291da",
-      "fileAuditPreviousSha256": "fd671e2df12235f91997441b900a7c346ca583a595e61fed4b6d7daf859cc196", "sha256": "0d3ac34c6ce40948052ce002490226b1fac67fed866e4f4daab9032898695c2d",
+      "fileAuditPreviousSha256": "fd671e2df12235f91997441b900a7c346ca583a595e61fed4b6d7daf859cc196",
+      "sha256": "0d3ac34c6ce40948052ce002490226b1fac67fed866e4f4daab9032898695c2d",
       "noteFoldersPreviousSha256": "ae4c75e665dab4a87f97421f2cde3f3b12224e6c8c27e2fee970e12c419181a7",
       "monitorPreviousSha256": "d68c632101f534218e28089d187349924154b461edef427b62f8f46f539a2362",
       "monitorReason": "Native Monitor adds three inactive tools and twelve-local/fourteen-total manifest assertions; accepted existing probes unchanged.",
@@ -6051,7 +6251,8 @@
       "skillToolsAdaptation": "Exact thirteen-local/two-npm count; all existing modes and module-directory identity comparisons retained.",
       "sqliteIntegrationPreviousSha256": "34f607a39f21211c1aac01d7f1586fe17835d2437fbb08aa821115c8877a84b3",
       "sqlConnectorPreviousSha256": "aa11681ae096696b8c10ca454377ce7e62f58c449074f63a17d39663fe1e55b7",
-      "fileAuditPreviousSha256": "08338493fea79f35e974f403738b9205e9fd4ac7772d6568a9dc7dafe1d022af", "sha256": "bcc1adee26872eac530d7e896729ec8aaa48de39569cd93048a287f699a84b15",
+      "fileAuditPreviousSha256": "08338493fea79f35e974f403738b9205e9fd4ac7772d6568a9dc7dafe1d022af",
+      "sha256": "bcc1adee26872eac530d7e896729ec8aaa48de39569cd93048a287f699a84b15",
       "validationRepairAdaptation": "2026-10-10 isolated real rg before5 grep-capable modes; all7 modes/assertions preserved.",
       "monitorPreviousSha256": "5b082b208b6de9863b30e887ddbfcaed4450a256fafbf8006c60f90447fa0f32",
       "monitorReason": "Monitor-owned manifest acceptance adds native module and exact twelve-local/fourteen-total entries, preserving earlier activation/protocol probes.",
@@ -6084,7 +6285,8 @@
     },
     {
       "path": "modules/shell-tools/tests/fixtures/recovery-host.ts",
-      "dependencyUpgradePreviousSha256": "af1524366c82806ec0f79a4d10f71ef070ceb300448d66d558239ccd03e10c54", "sha256": "d2e30ee70e057641b4ab009305fc597e6b0f8c5ea0a7addb8ac6b9250abf3077",
+      "dependencyUpgradePreviousSha256": "af1524366c82806ec0f79a4d10f71ef070ceb300448d66d558239ccd03e10c54",
+      "sha256": "d2e30ee70e057641b4ab009305fc597e6b0f8c5ea0a7addb8ac6b9250abf3077",
       "reason": "2026-10-08 authorized session-load background reconciliation: payload-free versioned journal before allocation/runner admission; persistent-conversation fence; bounded same-owner/cwd inventory and active-branch evidence dedup; neutral model-visible triggerTurn:false notices; no restart, child resume, control replay, lock/native mutation or process-tree termination claim. Compaction-aware buildContextEntries dedup preserves fresh model-visible notices after old notices leave context; isolated host compaction probe asserts four persisted/two context-visible notices.",
       "supersededWithinBackgroundRecoverySha256": "677c1e1ad781273b2d1d242c372ccf7e173cf0e464a5fbe30031599ade722508"
     },
@@ -6124,14 +6326,16 @@
       "path": "tests/fixtures/blackhole-display.mjs",
       "blackholeNativeCutRootPreviousSha256": "1eb56dee956cf65de5d19ea872c2f8aaf0619fd3aec1b6e01dd7db9b7bc9c68b",
       "blackholeNativeCutRootPreviousReason": "Isolated offline Pi 1.0.0 native compact/persist/reopen/display renderer test; empty auth/passive workers, duplicate-safe and zero provider requests. Also reused by production tarball smoke.",
-      "dependencyUpgradePreviousSha256": "52df56c52393356bd256533882197ff3aa28192cde2cc8831eb15c0187849c15", "sha256": "fbee03d35d82f1d0e80c76f82629c1464627101f758f68aec9ad80f2db623780",
+      "dependencyUpgradePreviousSha256": "52df56c52393356bd256533882197ff3aa28192cde2cc8831eb15c0187849c15",
+      "sha256": "fbee03d35d82f1d0e80c76f82629c1464627101f758f68aec9ad80f2db623780",
       "reason": "Root fixture migration to actual Pi1.1.0 native preparation/cut/tokens/input, not compact-all: retained newest final is not copied; only newest dropped final persists, resumes/renders fully, plain custom zero LLM projection, sanitized text, duplicate-safe, empty auth/providerCalls0. Fresh loader per live/resumed scenario. Test-only public readonly audit, no module/SDK/config/source hash signing; unedited fresh projection scope only. Source repairs/re-review/final stable module/root adoption remain pending; history/logs preserved. Evidence plan/evidence/blackhole-native-cut-root-20261009-v1. 2026-10-09 ROOT W1 correction of report/REPORT-20261009T151009168Z.md: previous active SHA256 ba009d94d1d1c18ec579fe8e60735673901adfa810db414d25d34b1987f630b1 and preceding rationale retained as history; pre-W1 providerCalls0 established observed external-fetch zero only, not model-stream zero. Shared public instance streamFunction throwing counter is now proven by actual Agent.prompt existing-wrong-field red/correct green and retained wrong-field negative control, with isolated positive control count1 separate from A/B modelStreamCalls0; actualExternalFetchCalls independently0 and providerCalls explicitly its compatibility alias. All rawBefore entries exact on disk/reopen and reopened compaction cut/tokens/summary exact. Fresh binding only, dispose not shutdown proof; edited/memory-on remains a separate gate. Evidence plan/evidence/blackhole-root-counter-w1-20261009-v1; no Blackhole source signing, adoption or root/package/module acceptance."
     },
     {
       "path": "tests/integration/blackhole-display.test.mjs",
       "blackholeNativeCutRootPreviousSha256": "63f82870925d627ca2516daf18f7f203f73f4205bc3f433e15d605086aae8204",
       "blackholeNativeCutRootPreviousReason": "Isolated offline Pi 1.0.0 native compact/persist/reopen/display renderer test; empty auth/passive workers, duplicate-safe and zero provider requests. Also reused by production tarball smoke.",
-      "dependencyUpgradePreviousSha256": "08e313df6a60eb64354e30880a7552b901311e5ffd3aee969fefa996916af908", "sha256": "2e8879890431a748005b617d878a0d46d647637c383e9ab7c9fc34abd44a6b43",
+      "dependencyUpgradePreviousSha256": "08e313df6a60eb64354e30880a7552b901311e5ffd3aee969fefa996916af908",
+      "sha256": "2e8879890431a748005b617d878a0d46d647637c383e9ab7c9fc34abd44a6b43",
       "reason": "Strict actual Pi1.1.0 nativeCut JSON contract parser, exact two scenarios/cut/tokens/settings and retained/drop/duplicate/displayOnly/resume/render/providerCalls0 assertions; obsolete compactAll flag absent, original failing logs kept. Narrow root migration only, not Blackhole source acceptance or full-root release. 2026-10-09 ROOT W1: previous active SHA256 7349cdd969b3f8f5e5eccc5528cb40760b5a1d29a8a3efd629a43b601627a92e and rationale preserved above. Separate real public Agent.prompt positive/intentional-wrong-field controls prove the same fixture installer is used by host; A/B independently require modelStreamCalls0, actualExternalFetchCalls0, compatibility providerCalls0 and exact counter semantics at top and each row. Require disk-raw/reopened-compaction exact flags. Actual wrapper/package blocks reject counter-positive/absent and old-field-semantic payloads offline; schema checks are not production scenarios. Narrow ROOT repair only, unchanged readonly audit not refreshed, pending independent re-review and parent freeze/gates."
     },
     {
@@ -6140,7 +6344,9 @@
       "reason": "Authorized test-only public session_before_compact readonly observer: clone actual authoritative preparation/branch IDs for exact assertions; no result/cancel/override/cut/settings mutation. Not a user extension, package manifest resource or personal-config dependency; copied beside temporary production probe only."
     },
     {
-      "path": "modules/blackhole/src/core/generated-summary-spans.ts", "backgroundJobsPreviousSha256": "7985ce3820e3ed2b6f7d8a1d6462e0815a023ccf6aeadb0ab6cd5a305e058095", "backgroundJobsAdaptation": "2026-10-22 Background Jobs reminder: live id/status list from the Monitor capability rendezvous (activeJobBriefs), no commands/task text/output; generated \"jobs\" span stripped on later compactions, never carried forward.",
+      "path": "modules/blackhole/src/core/generated-summary-spans.ts",
+      "backgroundJobsPreviousSha256": "7985ce3820e3ed2b6f7d8a1d6462e0815a023ccf6aeadb0ab6cd5a305e058095",
+      "backgroundJobsAdaptation": "2026-10-22 Background Jobs reminder: live id/status list from the Monitor capability rendezvous (activeJobBriefs), no commands/task text/output; generated \"jobs\" span stripped on later compactions, never carried forward.",
       "sha256": "7cc8b096bf82754158b915c043585b7619e893ff7983421286f16ac6b20c1a0d",
       "reason": "Pi-owned generated-summary identity/spans proof and mismatch bounds; only trusted generated spans carry/strip, not markdown/literal authority. Exact fixed Review4 snapshot; inherited limited core scope in blackholePiOwnedSummaryMigrationReview."
     },
@@ -7815,10 +8021,27 @@
     "previousJsonRuntimeSha256": "6ce01c7788cfbf67a830a1d267847408216edc089950c326032cfcde61eb6faa",
     "provenanceRegression": "tests/integration/provenance.test.mjs: miniature offline dependency manifests/lock/entries and root drift rejection, plus unchanged original historical-limit regressions.",
     "rootFiles": [
-      { "path": "setup/cli.mjs", "sha256": "78c546889d807d29a44a46307d442447937a3f66193a3640de788e2f6e17b4cf", "reason": "PLAN-20261016T150815022Z CP1: packaged setup CLI bin; explicit invocation only." },
-      { "path": "setup/commands.d.mts", "sha256": "e7332fc37eda5d2b97d13b906aee49f6e1aace97953a4f4c7af00e0c2685b0a4", "reason": "PLAN-20261016T150815022Z CP1: typed package-instance command helper contract." },
-      { "path": "setup/commands.mjs", "sha256": "8e587ad08268c9d003a93edf2007c76d0460b2e776c4ea12beab90cd97f0ad0f", "reason": "PLAN-20261016T150815022Z CP1: quote current Node and this package CLI, not arbitrary npx downloads." },
-      { "path": "setup/core.mjs", "webSetupCp5PreviousSha256": "212dec0cf238d4493cc9020de0092819022bf5d8c61ee6a1ceffc910d9ce70df", "sha256": "abb45f6419b5c649196ef356fbba3e218850354a0780337b5a721555d136329b", "reason": "PLAN-20261016T150815022Z CP1: readonly doctor and explicit package-local browser/dependency/PTY setup; consumer approval retained, no global policy changes. CP5 keeps the caller cwd for browser children so a relative PLAYWRIGHT_BROWSERS_PATH cannot diverge from doctor and the running instance." },
+      {
+        "path": "setup/cli.mjs",
+        "sha256": "78c546889d807d29a44a46307d442447937a3f66193a3640de788e2f6e17b4cf",
+        "reason": "PLAN-20261016T150815022Z CP1: packaged setup CLI bin; explicit invocation only."
+      },
+      {
+        "path": "setup/commands.d.mts",
+        "sha256": "e7332fc37eda5d2b97d13b906aee49f6e1aace97953a4f4c7af00e0c2685b0a4",
+        "reason": "PLAN-20261016T150815022Z CP1: typed package-instance command helper contract."
+      },
+      {
+        "path": "setup/commands.mjs",
+        "sha256": "8e587ad08268c9d003a93edf2007c76d0460b2e776c4ea12beab90cd97f0ad0f",
+        "reason": "PLAN-20261016T150815022Z CP1: quote current Node and this package CLI, not arbitrary npx downloads."
+      },
+      {
+        "path": "setup/core.mjs",
+        "webSetupCp5PreviousSha256": "212dec0cf238d4493cc9020de0092819022bf5d8c61ee6a1ceffc910d9ce70df",
+        "sha256": "abb45f6419b5c649196ef356fbba3e218850354a0780337b5a721555d136329b",
+        "reason": "PLAN-20261016T150815022Z CP1: readonly doctor and explicit package-local browser/dependency/PTY setup; consumer approval retained, no global policy changes. CP5 keeps the caller cwd for browser children so a relative PLAYWRIGHT_BROWSERS_PATH cannot diverge from doctor and the running instance."
+      },
       {
         "path": "eslint.config.mjs",
         "webSetupPreviousSha256": "756a162c2f2d5b7c5d87a047e6bc9449a68cddc126be6821eb3ead3c43d7b71d",
@@ -7833,9 +8056,12 @@
         "skillToolsAdaptation": "Add native skill-tools entry and packaged src/skills assets; dependency/lock identity unchanged.",
         "sqliteIntegrationPreviousSha256": "79974365f083071f3d302a1dbb5816134efa262ae8e4989cbc48a52c70df2d32",
         "sqlConnectorPreviousSha256": "bd598c379777a7564c34dc173baadaa3f43fefe2f0f6ff83d90d8c28cd8886f2",
-        "dependencyUpgradePreviousSha256": "882d8d7f64dfa0abdd9074d9651bc9ea02f45e1b37dbb24b21c30b877911fe95", "fileAuditPreviousSha256": "41db63c07199ad7e5f00a7feb0cfe48d8deb5ba8ebe886424ed5961bd5ef1cb4", "webSetupPreviousSha256": "8f56aa746d9fe20e32a10d2d1146b768aca1cba855bc95f4145b2343032539a8", "driftReconcile20261021PreviousSha256": "7a3688786a6af57c93fb6591daabd0145c83d64ad9fa41bf2ba1f9ddbb80a7ce",
-        "dependencyUpgradePreviousSha256": "882d8d7f64dfa0abdd9074d9651bc9ea02f45e1b37dbb24b21c30b877911fe95", "fileAuditPreviousSha256": "41db63c07199ad7e5f00a7feb0cfe48d8deb5ba8ebe886424ed5961bd5ef1cb4", "webSetupPreviousSha256": "8f56aa746d9fe20e32a10d2d1146b768aca1cba855bc95f4145b2343032539a8", "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
-        "dependencyUpgradePreviousSha256": "882d8d7f64dfa0abdd9074d9651bc9ea02f45e1b37dbb24b21c30b877911fe95", "fileAuditPreviousSha256": "41db63c07199ad7e5f00a7feb0cfe48d8deb5ba8ebe886424ed5961bd5ef1cb4", "webSetupPreviousSha256": "8f56aa746d9fe20e32a10d2d1146b768aca1cba855bc95f4145b2343032539a8", "sha256": "28ca50d2a4934a2d16a9797c1d666a93c2c65facb87c34762e39768e45199a84",
+        "dependencyUpgradePreviousSha256": "882d8d7f64dfa0abdd9074d9651bc9ea02f45e1b37dbb24b21c30b877911fe95",
+        "fileAuditPreviousSha256": "41db63c07199ad7e5f00a7feb0cfe48d8deb5ba8ebe886424ed5961bd5ef1cb4",
+        "webSetupPreviousSha256": "8f56aa746d9fe20e32a10d2d1146b768aca1cba855bc95f4145b2343032539a8",
+        "driftReconcile20261021PreviousSha256": "7a3688786a6af57c93fb6591daabd0145c83d64ad9fa41bf2ba1f9ddbb80a7ce",
+        "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
+        "sha256": "28ca50d2a4934a2d16a9797c1d666a93c2c65facb87c34762e39768e45199a84",
         "monitorPreviousSha256": "ae065e8de453da9240e702351a3cb59e2db1c8432edcf9e0ad2ec02559f28d0f",
         "piRuntimePreviousSha256": "8e7419763728471a1bc7b141ed7ce177baec63cd4264392a88f51c8f74744d58",
         "previousBlackholeVendoringSha256": "de17b817107b94486ad93c642784966b1a925ce2a3427a49613c61018885f0b4",
@@ -7846,9 +8072,11 @@
         "lintStatusPreviousSha256": "570e16cddf81f6aef2b1db0231f4f6af2f8c840868759e9f28f38ce45a5caf3c",
         "lintStatusAdaptation": "2026-10-12 root npm install --save-dev --save-exact --ignore-scripts for lint dependencies and their transitive lock inventory; no module-local installation or audit fix.",
         "sqlConnectorPreviousSha256": "5d9589d53dff14cc4dc3f051853a628537f1cbee6f79f1aa257bcbbaadafe423",
-        "dependencyUpgradePreviousSha256": "7a9bf4596ca4ac82918fd5ed3573fe252ea424317115f6138929632a7ee22c73", "webSetupPreviousSha256": "c7f35b50fa4b79b3c5c6065e2889c4e9394ce5729c51e1881852dadaa5d0ab03", "driftReconcile20261021PreviousSha256": "0184660173186144adfffbcbadfc744657ff864c072b5a19ab5275865c903c5a",
-        "dependencyUpgradePreviousSha256": "7a9bf4596ca4ac82918fd5ed3573fe252ea424317115f6138929632a7ee22c73", "webSetupPreviousSha256": "c7f35b50fa4b79b3c5c6065e2889c4e9394ce5729c51e1881852dadaa5d0ab03", "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
-        "dependencyUpgradePreviousSha256": "7a9bf4596ca4ac82918fd5ed3573fe252ea424317115f6138929632a7ee22c73", "webSetupPreviousSha256": "c7f35b50fa4b79b3c5c6065e2889c4e9394ce5729c51e1881852dadaa5d0ab03", "sha256": "6ee840a5ba960d971c3d723aa22849e0f646eddcd895f037f6aba9b278fb34e4",
+        "dependencyUpgradePreviousSha256": "7a9bf4596ca4ac82918fd5ed3573fe252ea424317115f6138929632a7ee22c73",
+        "webSetupPreviousSha256": "c7f35b50fa4b79b3c5c6065e2889c4e9394ce5729c51e1881852dadaa5d0ab03",
+        "driftReconcile20261021PreviousSha256": "0184660173186144adfffbcbadfc744657ff864c072b5a19ab5275865c903c5a",
+        "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
+        "sha256": "6ee840a5ba960d971c3d723aa22849e0f646eddcd895f037f6aba9b278fb34e4",
         "monitorPreviousSha256": "860eacc0fb65c13c68890958362aef37033e05bbeb44391612ddff2a00309d8c",
         "previousBlackholeVendoringSha256": "5b22381c02b082f888a8a2ead8de754ff181fcfcb923c977e932340f24061a39",
         "reason": " 2026-10-09 reviewed Blackhole local snapshot/manifest/verification adaptation; prior integration record preserved under blackholeVendoring."
@@ -7892,14 +8120,21 @@
         "sqlConnectorPreviousSha256": "27be81703743843db960edb0eacb6d6df711e25aa8634b6e71ec7a76273f2b21",
         "piToolsConfigPreviousSha256": "83760e01830728881c79faa5c16c2099e25f2db0dc005129e8c4b0d1bb8ab4fb",
         "piToolsConfigAdaptation": "2026-10-15 document pi-tools-config command and lazy index of 16 per-module command/config references; no manifest/runtime/config/dependency change.",
-        "dependencyUpgradePreviousSha256": "afd9135fb77090c2fdd3251da69bbf6415843b0f09c3170cc4ae199bda5ec06a", "refactorPreviousSha256": "a94177740d501727565f0be9bf42a6fc4aa5081b1d95b37ce1e929c97955b28a",
-        "fileAuditPreviousSha256": "0e12f4f3f69d00f98c8835461374e1446c73a6ff1acbe0a874723b86418cb8ae", "webSetupPreviousSha256": "028348ff73f954eac5193a98877ef9d1e11092066d8d098697570c5be31fa664", "driftReconcile20261021PreviousSha256": "cdde3763812ff7e8d928f3e5d26f8f16b0f9346b26de5744f0dcce6aba7e1994",
-        "fileAuditPreviousSha256": "0e12f4f3f69d00f98c8835461374e1446c73a6ff1acbe0a874723b86418cb8ae", "webSetupPreviousSha256": "028348ff73f954eac5193a98877ef9d1e11092066d8d098697570c5be31fa664", "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
-        "fileAuditPreviousSha256": "0e12f4f3f69d00f98c8835461374e1446c73a6ff1acbe0a874723b86418cb8ae", "webSetupPreviousSha256": "028348ff73f954eac5193a98877ef9d1e11092066d8d098697570c5be31fa664", "driftReconcile20261021PreviousSha256": "0c66b51c2529058f478a18e101a77731bc0fc2f6ea5abadcba36075bf43e3d42",
-        "fileAuditPreviousSha256": "0e12f4f3f69d00f98c8835461374e1446c73a6ff1acbe0a874723b86418cb8ae", "webSetupPreviousSha256": "028348ff73f954eac5193a98877ef9d1e11092066d8d098697570c5be31fa664", "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
-        "fileAuditPreviousSha256": "0e12f4f3f69d00f98c8835461374e1446c73a6ff1acbe0a874723b86418cb8ae", "webSetupPreviousSha256": "028348ff73f954eac5193a98877ef9d1e11092066d8d098697570c5be31fa664", "gptSpeedCachePreviousSha256": "a253b6f6a0adffbd31e1f0b33c2178d12054d3e2464d2c829ecc731792d0f9a5",
-        "fileAuditPreviousSha256": "0e12f4f3f69d00f98c8835461374e1446c73a6ff1acbe0a874723b86418cb8ae", "webSetupPreviousSha256": "028348ff73f954eac5193a98877ef9d1e11092066d8d098697570c5be31fa664", "gptSpeedCacheAdaptation": "2026-10-21 GPT Speed prompt cache lifetime: new /cache-ttl-short and /cache-ttl-long commands (no arguments) and pi-gpt-speed.cache setting (short = 30m API default, request untouched; long = prompt_cache_options.ttl 12h for provider openai on the openai-responses API only, merged into existing prompt_cache_options), independent global/trusted-project precedence, extra TUI status entry gpt-cache; speed/service_tier behavior unchanged. Unit tests (55) and the real-host probe were run; OpenAI acceptance of the field was not verified against the real service.",
-        "fileAuditPreviousSha256": "0e12f4f3f69d00f98c8835461374e1446c73a6ff1acbe0a874723b86418cb8ae", "webSetupPreviousSha256": "028348ff73f954eac5193a98877ef9d1e11092066d8d098697570c5be31fa664", "forkMonitorSource20261021PreviousSha256": "31badd72d5ee3f3356f46055d54efa047027237cb793f6fedc7232fcc12ded6f", "forkMonitorSource20261021Adaptation": "2026-10-21 Monitor row now lists five sources including the readonly fork_job.", "forkMessage20261021PreviousSha256": "5bb04c61da2a13aaf3a163c5c9c6e5e526335ee4318f9bb6aa7f4d33a4028d54", "forkMessage20261021Adaptation": "2026-10-22: the Fork row also names fork_message (acceptance is not application).", "fileMonitorSourceMerge20261022PreviousSha256": "ecaf9dcf9c751d997abe4517ed0212ba496db383eedf7b817640e8a132b35636", "fileMonitorSourceMerge20261022Adaptation": "2026-10-22: merge worktree-monitor-file-source into main. The Monitor row now lists six sources including the metadata-only file source and keeps the fork_message row; the hash is recomputed over the merged text.", "sha256": "e4d2110a3ebe8c1061d90e92fe7e67fe2e81342e86463a16a980f6cdeb898f82",
+        "dependencyUpgradePreviousSha256": "afd9135fb77090c2fdd3251da69bbf6415843b0f09c3170cc4ae199bda5ec06a",
+        "refactorPreviousSha256": "a94177740d501727565f0be9bf42a6fc4aa5081b1d95b37ce1e929c97955b28a",
+        "fileAuditPreviousSha256": "0e12f4f3f69d00f98c8835461374e1446c73a6ff1acbe0a874723b86418cb8ae",
+        "webSetupPreviousSha256": "028348ff73f954eac5193a98877ef9d1e11092066d8d098697570c5be31fa664",
+        "driftReconcile20261021PreviousSha256": "0c66b51c2529058f478a18e101a77731bc0fc2f6ea5abadcba36075bf43e3d42",
+        "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
+        "gptSpeedCachePreviousSha256": "a253b6f6a0adffbd31e1f0b33c2178d12054d3e2464d2c829ecc731792d0f9a5",
+        "gptSpeedCacheAdaptation": "2026-10-21 GPT Speed prompt cache lifetime: new /cache-ttl-short and /cache-ttl-long commands (no arguments) and pi-gpt-speed.cache setting (short = 30m API default, request untouched; long = prompt_cache_options.ttl 12h for provider openai on the openai-responses API only, merged into existing prompt_cache_options), independent global/trusted-project precedence, extra TUI status entry gpt-cache; speed/service_tier behavior unchanged. Unit tests (55) and the real-host probe were run; OpenAI acceptance of the field was not verified against the real service.",
+        "forkMonitorSource20261021PreviousSha256": "31badd72d5ee3f3356f46055d54efa047027237cb793f6fedc7232fcc12ded6f",
+        "forkMonitorSource20261021Adaptation": "2026-10-21 Monitor row now lists five sources including the readonly fork_job.",
+        "forkMessage20261021PreviousSha256": "5bb04c61da2a13aaf3a163c5c9c6e5e526335ee4318f9bb6aa7f4d33a4028d54",
+        "forkMessage20261021Adaptation": "2026-10-22: the Fork row also names fork_message (acceptance is not application).",
+        "fileMonitorSourceMerge20261022PreviousSha256": "ecaf9dcf9c751d997abe4517ed0212ba496db383eedf7b817640e8a132b35636",
+        "fileMonitorSourceMerge20261022Adaptation": "2026-10-22: merge worktree-monitor-file-source into main. The Monitor row now lists six sources including the metadata-only file source and keeps the fork_message row; the hash is recomputed over the merged text.",
+        "sha256": "e4d2110a3ebe8c1061d90e92fe7e67fe2e81342e86463a16a980f6cdeb898f82",
         "piBoltFffCompat20261021PreviousSha256": "c8b06a087ec965b4557dc7b52ce2011a2fdcde45f699029dca43d87a30190f4e",
         "piBoltFffCompat20261021Adaptation": "2026-10-21 README limitation line extended with the measured Pi-Bolt facts: FFF uses the fff-node backend there (fff-bun only on the JIT build) and must not coexist with opensec-pi-fff; details in docs/compatibility.md.",
         "validationRepairAdaptation": "2026-10-10 test grouping, rg prerequisite/env and safe dependency rebuild docs.",
@@ -7932,10 +8167,13 @@
         "promptSectionsPreviousSha256": "0d5c0bb1421c88c9e8864b6e9549b71930f6214eefbe4b6cea058b76b2f403a4",
         "sqliteIntegrationPreviousSha256": "f9ee3df3af931f30bba418e3277f0cc9e1b8dc94a1637d2b3ffd8ac9aa4324ca",
         "sqlConnectorPreviousSha256": "b9dbfb43569bb29954197863a37683bd81cf02d930ed7f6298dedd6386e51cb4",
-        "dependencyUpgradePreviousSha256": "5636e5d4690c2edb91211296bb28db972977411042a068ac291c7bccdfd6ff46", "refactorPreviousSha256": "7fbe9d51d4921410ecc225fdf4f180e0d7af101e438e0afaeb61a345bf3476a6",
-        "fileAuditPreviousSha256": "8c0ac6debdbead3f90c90f76c2dd818c79175bbfc8e10feb6544c7bb43491d67", "webSetupPreviousSha256": "3548e66d4fc4711d3364d3a94e0c338b146f7d397d8679bba11d81e257e7d701", "gptSpeedCachePreviousSha256": "2ec90606f429b0141a88e92af7b380f8269f8f1a45b0f2d27c1778ead4d641f5",
-        "fileAuditPreviousSha256": "8c0ac6debdbead3f90c90f76c2dd818c79175bbfc8e10feb6544c7bb43491d67", "webSetupPreviousSha256": "3548e66d4fc4711d3364d3a94e0c338b146f7d397d8679bba11d81e257e7d701", "gptSpeedCacheAdaptation": "2026-10-21 GPT Speed prompt cache lifetime: new /cache-ttl-short and /cache-ttl-long commands (no arguments) and pi-gpt-speed.cache setting (short = 30m API default, request untouched; long = prompt_cache_options.ttl 12h for provider openai on the openai-responses API only, merged into existing prompt_cache_options), independent global/trusted-project precedence, extra TUI status entry gpt-cache; speed/service_tier behavior unchanged. Unit tests (55) and the real-host probe were run; OpenAI acceptance of the field was not verified against the real service.",
-        "fileAuditPreviousSha256": "8c0ac6debdbead3f90c90f76c2dd818c79175bbfc8e10feb6544c7bb43491d67", "webSetupPreviousSha256": "3548e66d4fc4711d3364d3a94e0c338b146f7d397d8679bba11d81e257e7d701", "sha256": "4fbc75f61ca0b333cd02d1f2a4ee3dc5b86087c31027f281d68363fd20b36a29",
+        "dependencyUpgradePreviousSha256": "5636e5d4690c2edb91211296bb28db972977411042a068ac291c7bccdfd6ff46",
+        "refactorPreviousSha256": "7fbe9d51d4921410ecc225fdf4f180e0d7af101e438e0afaeb61a345bf3476a6",
+        "fileAuditPreviousSha256": "8c0ac6debdbead3f90c90f76c2dd818c79175bbfc8e10feb6544c7bb43491d67",
+        "webSetupPreviousSha256": "3548e66d4fc4711d3364d3a94e0c338b146f7d397d8679bba11d81e257e7d701",
+        "gptSpeedCachePreviousSha256": "2ec90606f429b0141a88e92af7b380f8269f8f1a45b0f2d27c1778ead4d641f5",
+        "gptSpeedCacheAdaptation": "2026-10-21 GPT Speed prompt cache lifetime: new /cache-ttl-short and /cache-ttl-long commands (no arguments) and pi-gpt-speed.cache setting (short = 30m API default, request untouched; long = prompt_cache_options.ttl 12h for provider openai on the openai-responses API only, merged into existing prompt_cache_options), independent global/trusted-project precedence, extra TUI status entry gpt-cache; speed/service_tier behavior unchanged. Unit tests (55) and the real-host probe were run; OpenAI acceptance of the field was not verified against the real service.",
+        "sha256": "4fbc75f61ca0b333cd02d1f2a4ee3dc5b86087c31027f281d68363fd20b36a29",
         "monitorPreviousSha256": "073a7ba2c4aad2d104cb41bc52c5f2cc8b16b455343045456fb8dbcf40dc449f",
         "piRuntimePreviousSha256": "2c21b3aea0fa5612d7e134d71f541b363aa6e5041890c702c822ad001bae98c6",
         "notificationBatchingPreviousSha256": "9c48e1adcdcaf55e6da9b27b013f59653ed5b9e20ecaf0970397f4b6c4bdbf47",
@@ -7960,9 +8198,11 @@
         "jobsPanelPreviousSha256": "09edc73ff64f6fb837839914b8ce3d570f3b910f06fa4ce6b2a0a042162e39ec",
         "sqliteIntegrationPreviousSha256": "ae8404552d90c6b7e7126e89de4ced2f27598fd74c1418e97b4c13975becb3f9",
         "sqlConnectorPreviousSha256": "326b7373c9a1536976f87f48063fb1c146fc82dc827f68b0fa635038b575237b",
-        "fileAuditPreviousSha256": "33a9a4eaf91073baa08bf1bb277c60a1a4b88078a68eb253686854b774d29a17", "webSetupPreviousSha256": "a6bf28a630e7142c880e2e794b64e38bf530f54702abc922425334acf59a9d87", "gptSpeedCachePreviousSha256": "73043f5ea7bc0815706de5605b366e251d75ea061ce2805007f6715b8ce307a1",
-        "fileAuditPreviousSha256": "33a9a4eaf91073baa08bf1bb277c60a1a4b88078a68eb253686854b774d29a17", "webSetupPreviousSha256": "a6bf28a630e7142c880e2e794b64e38bf530f54702abc922425334acf59a9d87", "gptSpeedCacheAdaptation": "2026-10-21 GPT Speed prompt cache lifetime: new /cache-ttl-short and /cache-ttl-long commands (no arguments) and pi-gpt-speed.cache setting (short = 30m API default, request untouched; long = prompt_cache_options.ttl 12h for provider openai on the openai-responses API only, merged into existing prompt_cache_options), independent global/trusted-project precedence, extra TUI status entry gpt-cache; speed/service_tier behavior unchanged. Unit tests (55) and the real-host probe were run; OpenAI acceptance of the field was not verified against the real service.",
-        "fileAuditPreviousSha256": "33a9a4eaf91073baa08bf1bb277c60a1a4b88078a68eb253686854b774d29a17", "webSetupPreviousSha256": "a6bf28a630e7142c880e2e794b64e38bf530f54702abc922425334acf59a9d87", "sha256": "b9c2af27e1288d10fa7d6fc88030f9f18e64eaaf617b766793e74d88a32dce08",
+        "fileAuditPreviousSha256": "33a9a4eaf91073baa08bf1bb277c60a1a4b88078a68eb253686854b774d29a17",
+        "webSetupPreviousSha256": "a6bf28a630e7142c880e2e794b64e38bf530f54702abc922425334acf59a9d87",
+        "gptSpeedCachePreviousSha256": "73043f5ea7bc0815706de5605b366e251d75ea061ce2805007f6715b8ce307a1",
+        "gptSpeedCacheAdaptation": "2026-10-21 GPT Speed prompt cache lifetime: new /cache-ttl-short and /cache-ttl-long commands (no arguments) and pi-gpt-speed.cache setting (short = 30m API default, request untouched; long = prompt_cache_options.ttl 12h for provider openai on the openai-responses API only, merged into existing prompt_cache_options), independent global/trusted-project precedence, extra TUI status entry gpt-cache; speed/service_tier behavior unchanged. Unit tests (55) and the real-host probe were run; OpenAI acceptance of the field was not verified against the real service.",
+        "sha256": "b9c2af27e1288d10fa7d6fc88030f9f18e64eaaf617b766793e74d88a32dce08",
         "monitorPreviousSha256": "9a8d2f870bd1e1088be9d48cb00f47ea04545a113b38bc10f187537944299162",
         "piRuntimePreviousSha256": "b9a1d09ea980453bd48e382702e6ae3b2bfc953f5ff780597bf2e85640d4e671",
         "notificationBatchingPreviousSha256": "b6ca4c67d462a8b1fed24eaa64151822f684fb34da84b3461de6a92ac73143b2",
@@ -7985,7 +8225,9 @@
         "skillToolsAdaptation": "Document explicitly authorized one-time skill migration, reload/entry filters and manual rollback.",
         "sqliteIntegrationPreviousSha256": "add1f9c9867bfcbcf4fd6119566be982e2cec768b44ca467f3ba6b43f62ea16b",
         "sqlConnectorPreviousSha256": "22594459a79bb83b43f0e00da6eaec9dca26687647af5fd43ff315310a6cf8f9",
-        "dependencyUpgradePreviousSha256": "bd705c2bfefdbc2e9ebe4d3b57c561b385153afc1d84c274f4bf7b48c6f751fc", "webSetupPreviousSha256": "1523ddde0911156a4392adbcd2690b84f78c5890e59d4b55d38d1d8be343f6c0", "sha256": "4e6587dfd4ba3596f9339dacd9c4b0d8c4280ba2d8630499d5a291860317ff33",
+        "dependencyUpgradePreviousSha256": "bd705c2bfefdbc2e9ebe4d3b57c561b385153afc1d84c274f4bf7b48c6f751fc",
+        "webSetupPreviousSha256": "1523ddde0911156a4392adbcd2690b84f78c5890e59d4b55d38d1d8be343f6c0",
+        "sha256": "4e6587dfd4ba3596f9339dacd9c4b0d8c4280ba2d8630499d5a291860317ff33",
         "monitorPreviousSha256": "cd5c00c84260f5bd89ea1dd263ce57206424e4adb8185b3535398c584b441628",
         "piRuntimePreviousSha256": "462535864e9da0432abf132be377ce81c59d93c7f87d0d01afee9c4adf1cfc27",
         "previousBlackholeVendoringSha256": "4d6081ac112e4a3c522e2ad26e9f9341624eba20a365a532f1103a2e6d233456",
@@ -8002,9 +8244,20 @@
         "path": "AGENTS.md",
         "skillToolsPreviousSha256": "04ac845ccbe5b42aa72d381ea59cd5301f34510449ed867b266bd266b13df61f",
         "skillToolsAdaptation": "Align module count, validation selector and dynamic-resource opt-out invariant.",
-        "dependencyUpgradePreviousSha256": "594f81ba397ed314f00ef83d88e02f1b2a34350c0b279d24ef9cba1d94780543", "fileAuditPreviousSha256": "ce546e03b4359e602c4cdea2706786bb6debd9382875ca5e3be3d7015c085398", "webToolsModes20261017Adaptation": "Web row now names the OpenAI/Gemini/Anthropic native modes and the Brave/Exa/DeepSeek REST providers, the DeepSeek pi-login credential read and the verified Anthropic multi-turn finding.", "driftReconcile20261021PreviousSha256": "dfdee1eac73019cf0a6013cc391582669aacd9718e546a435910838a80bc8b8a",
-        "dependencyUpgradePreviousSha256": "594f81ba397ed314f00ef83d88e02f1b2a34350c0b279d24ef9cba1d94780543", "fileAuditPreviousSha256": "ce546e03b4359e602c4cdea2706786bb6debd9382875ca5e3be3d7015c085398", "webToolsModes20261017Adaptation": "Web row now names the OpenAI/Gemini/Anthropic native modes and the Brave/Exa/DeepSeek REST providers, the DeepSeek pi-login credential read and the verified Anthropic multi-turn finding.", "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
-        "dependencyUpgradePreviousSha256": "594f81ba397ed314f00ef83d88e02f1b2a34350c0b279d24ef9cba1d94780543", "fileAuditPreviousSha256": "ce546e03b4359e602c4cdea2706786bb6debd9382875ca5e3be3d7015c085398", "webToolsModes20261017Adaptation": "Web row now names the OpenAI/Gemini/Anthropic native modes and the Brave/Exa/DeepSeek REST providers, the DeepSeek pi-login credential read and the verified Anthropic multi-turn finding.", "forkTranscript20261021PreviousSha256": "a01d21152e3509ba07324301f6dd3340f91032a8308a8fc1474ed14a02543f43", "forkTranscript20261021Adaptation": "2026-10-21: Fork row documents the auxiliary query transcript (post-start messages only).", "forkMonitorSource20261021PreviousSha256": "ef09d3cb13fa29ffa1109ebd65149ae3ddadf7bcad932b6ab7ecc3ca985c01b8", "forkMonitorSource20261021Adaptation": "2026-10-21 Monitor contributor rule now names the five sources and the fork_job projection limits (no task text, result output, usage or native session path; results still delivered only by fork-result).", "forkMessage20261021PreviousSha256": "ab256412e0e1c05aeb44abdcac9d4481bccf3c6940bff5ce113da955f6367a59", "forkMessage20261021Adaptation": "2026-10-22: the Fork contributor rule now includes fork_message (running/blocked only, no queue or replay, 32 per Fork, acceptance never reported as application, receipts memory-only).", "fileMonitorSourceMerge20261022PreviousSha256": "d0c9c1729ef0af387191b8121ebe3eba3d5c7cfe43baf4d0e82d1c33cd31aecb", "fileMonitorSourceMerge20261022Adaptation": "2026-10-22: merge worktree-monitor-file-source into main. The Monitor contributor rule now names six sources with the file containment/metadata-only limits and keeps the fork_message rule; the hash is recomputed over the merged text.", "sha256": "e085349fc1b38fb671881d09cf002ed66e1964a8c7974d5d5a5f92dad15ebd02",
+        "dependencyUpgradePreviousSha256": "594f81ba397ed314f00ef83d88e02f1b2a34350c0b279d24ef9cba1d94780543",
+        "fileAuditPreviousSha256": "ce546e03b4359e602c4cdea2706786bb6debd9382875ca5e3be3d7015c085398",
+        "webToolsModes20261017Adaptation": "Web row now names the OpenAI/Gemini/Anthropic native modes and the Brave/Exa/DeepSeek REST providers, the DeepSeek pi-login credential read and the verified Anthropic multi-turn finding.",
+        "driftReconcile20261021PreviousSha256": "dfdee1eac73019cf0a6013cc391582669aacd9718e546a435910838a80bc8b8a",
+        "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
+        "forkTranscript20261021PreviousSha256": "a01d21152e3509ba07324301f6dd3340f91032a8308a8fc1474ed14a02543f43",
+        "forkTranscript20261021Adaptation": "2026-10-21: Fork row documents the auxiliary query transcript (post-start messages only).",
+        "forkMonitorSource20261021PreviousSha256": "ef09d3cb13fa29ffa1109ebd65149ae3ddadf7bcad932b6ab7ecc3ca985c01b8",
+        "forkMonitorSource20261021Adaptation": "2026-10-21 Monitor contributor rule now names the five sources and the fork_job projection limits (no task text, result output, usage or native session path; results still delivered only by fork-result).",
+        "forkMessage20261021PreviousSha256": "ab256412e0e1c05aeb44abdcac9d4481bccf3c6940bff5ce113da955f6367a59",
+        "forkMessage20261021Adaptation": "2026-10-22: the Fork contributor rule now includes fork_message (running/blocked only, no queue or replay, 32 per Fork, acceptance never reported as application, receipts memory-only).",
+        "fileMonitorSourceMerge20261022PreviousSha256": "d0c9c1729ef0af387191b8121ebe3eba3d5c7cfe43baf4d0e82d1c33cd31aecb",
+        "fileMonitorSourceMerge20261022Adaptation": "2026-10-22: merge worktree-monitor-file-source into main. The Monitor contributor rule now names six sources with the file containment/metadata-only limits and keeps the fork_message rule; the hash is recomputed over the merged text.",
+        "sha256": "e085349fc1b38fb671881d09cf002ed66e1964a8c7974d5d5a5f92dad15ebd02",
         "monitorPreviousSha256": "4f7cb7f8fa477837aeeb2ff3b839b675bfb7d28b3c1ad65296d432546e78dedc",
         "piRuntimePreviousSha256": "05e16dfe5531bc7ff244feb780c5e1571f18718f073a001d73767c48133023e4",
         "previousBlackholeVendoringSha256": "602c9bd571f9ec6dc59371b9eca192203e3e4f09e55b790110ee78b07b9807e7",
@@ -8028,9 +8281,10 @@
         "remainingTestsRepair": "Comment-only: serial files protect global mocks/barriers; grouping/concurrency/deadlines unchanged.",
         "sqliteIntegrationPreviousSha256": "c527ee8eb0ef2d53e9415f17e46eb4e5ae6ebb3e5dfecbd915a249d559c1ab41",
         "sqlConnectorPreviousSha256": "c7898acfb5d3f47e9431cd2243d304fc0818236aca009f0d8f9c17020f545c15",
-        "fileAuditPreviousSha256": "17ae43214b96866bcf54617c1e0cefa9796341054648891d49749825c6753d7e", "driftReconcile20261021PreviousSha256": "408deb58fadfce0cee3c8fb53c7b62d38dccfece2cee646ccd10baf33ba32d4f",
-        "fileAuditPreviousSha256": "17ae43214b96866bcf54617c1e0cefa9796341054648891d49749825c6753d7e", "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
-        "fileAuditPreviousSha256": "17ae43214b96866bcf54617c1e0cefa9796341054648891d49749825c6753d7e", "sha256": "023877e63bf7b60dd1d99d0e9daf27d8273769e3de10d7b47abc0ad713ac7749",
+        "fileAuditPreviousSha256": "17ae43214b96866bcf54617c1e0cefa9796341054648891d49749825c6753d7e",
+        "driftReconcile20261021PreviousSha256": "408deb58fadfce0cee3c8fb53c7b62d38dccfece2cee646ccd10baf33ba32d4f",
+        "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
+        "sha256": "023877e63bf7b60dd1d99d0e9daf27d8273769e3de10d7b47abc0ad713ac7749",
         "validationRepairAdaptation": "2026-10-10 explicit Blackhole unit/native stages and shared tooling unit/cross stage.",
         "monitorV1InitialSha256": "8069304fc4d6f586956f3bcd3f9582c65bc5e556f887fcdf78f5394d1bd8cc7c",
         "monitorRunnerCorrection": "Evidence scope composes after preserving accepted transform anchor; existing transformation assertions unchanged.",
@@ -8049,7 +8303,11 @@
         "skillToolsAdaptation": "Require new entry/README/SKILL.md in tarball and execute relocated skill fixture with production host.",
         "sqliteIntegrationPreviousSha256": "f2944932065be6f5215234b217c1c310ae98358d1be98fde4c9116c6d5929bf6",
         "sqlConnectorPreviousSha256": "61b1f023a7b3aedefd49d15e36a21b385b6d691829152501ba6b57d2bd37ae33",
-        "dependencyUpgradePreviousSha256": "76dadbce25b13dd2c3df7d780164d2cc8cb9ffa1290f5f2e8589583cb1760925", "fileAuditPreviousSha256": "cea5042c9b9307adb23985150c828e56ad62a6be9274bdb32374dd4537467633", "webSetupPreviousSha256": "227fc246c077c0719e833a1f4095cdbd6a6722d406584abcb73a159c6111762e", "webSetupCp4PreviousSha256": "394ce0c65e1a1fefa3f9855cf5d4b9bdf13d5ee5fefbd15702e41ca077fcbae3", "sha256": "9d86ebcc8b895e61a8d4a3ea979e3747a4729e587690f427af2758a759772dfa",
+        "dependencyUpgradePreviousSha256": "76dadbce25b13dd2c3df7d780164d2cc8cb9ffa1290f5f2e8589583cb1760925",
+        "fileAuditPreviousSha256": "cea5042c9b9307adb23985150c828e56ad62a6be9274bdb32374dd4537467633",
+        "webSetupPreviousSha256": "227fc246c077c0719e833a1f4095cdbd6a6722d406584abcb73a159c6111762e",
+        "webSetupCp4PreviousSha256": "394ce0c65e1a1fefa3f9855cf5d4b9bdf13d5ee5fefbd15702e41ca077fcbae3",
+        "sha256": "9d86ebcc8b895e61a8d4a3ea979e3747a4729e587690f427af2758a759772dfa",
         "validationRepairAdaptation": "2026-10-10 fail-fast rg prerequisite and per-mode exclusive binary copy; production assertions unchanged.",
         "monitorPreviousSha256": "9a5c5b2068209ef25eeea47dc7597565769aa3792c51611b8475acac74c0cb3d",
         "piRuntimePreviousSha256": "1a0813c27fa5622043a250a658da59b138bef856338d21a84d487920099ca153",
@@ -8068,7 +8326,8 @@
         "skillToolsAdaptation": "Keep existing assertions and add fifteen-entry identity plus lazy skill catalogue/path checks at startup/reload.",
         "sqliteIntegrationPreviousSha256": "84d4fb9600380bcf3aa85b7c9350aef51858a93436c15bd8c8242152ef317b82",
         "sqlConnectorPreviousSha256": "86f9d35cd1c5a88ca5b87b66b9ad08641bfbe503948dd161a968e8da847291da",
-        "fileAuditPreviousSha256": "fd671e2df12235f91997441b900a7c346ca583a595e61fed4b6d7daf859cc196", "sha256": "0d3ac34c6ce40948052ce002490226b1fac67fed866e4f4daab9032898695c2d",
+        "fileAuditPreviousSha256": "fd671e2df12235f91997441b900a7c346ca583a595e61fed4b6d7daf859cc196",
+        "sha256": "0d3ac34c6ce40948052ce002490226b1fac67fed866e4f4daab9032898695c2d",
         "noteFoldersPreviousSha256": "ae4c75e665dab4a87f97421f2cde3f3b12224e6c8c27e2fee970e12c419181a7",
         "monitorPreviousSha256": "d68c632101f534218e28089d187349924154b461edef427b62f8f46f539a2362",
         "piRuntimePreviousSha256": "5cf84bcff66ebbf80b4df7f1b6927bdc4019e653b3832cd04b641c7e01582cb1",
@@ -8088,7 +8347,8 @@
         "skillToolsAdaptation": "Exact thirteen-local/two-npm count; all existing modes and module-directory identity comparisons retained.",
         "sqliteIntegrationPreviousSha256": "34f607a39f21211c1aac01d7f1586fe17835d2437fbb08aa821115c8877a84b3",
         "sqlConnectorPreviousSha256": "aa11681ae096696b8c10ca454377ce7e62f58c449074f63a17d39663fe1e55b7",
-        "fileAuditPreviousSha256": "08338493fea79f35e974f403738b9205e9fd4ac7772d6568a9dc7dafe1d022af", "sha256": "bcc1adee26872eac530d7e896729ec8aaa48de39569cd93048a287f699a84b15",
+        "fileAuditPreviousSha256": "08338493fea79f35e974f403738b9205e9fd4ac7772d6568a9dc7dafe1d022af",
+        "sha256": "bcc1adee26872eac530d7e896729ec8aaa48de39569cd93048a287f699a84b15",
         "validationRepairAdaptation": "2026-10-10 isolated real rg before5 grep-capable modes; all7 modes/assertions preserved.",
         "monitorPreviousSha256": "5b082b208b6de9863b30e887ddbfcaed4450a256fafbf8006c60f90447fa0f32",
         "piRuntimePreviousSha256": "789c0df5b18a198e5efde57025a8c319e822c847514acfbe891720b28618754d",

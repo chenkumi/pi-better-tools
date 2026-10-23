@@ -94,6 +94,7 @@ Task 先寫入權限受限的 UTF-8 暫存檔，不放入 command line。同步�
 
 互動 TUI 中同步（前景）dispatch 執行時，該 `subagent` tool call 的 message render 最後一行顯示 `Alt+J: move running command/subagent to background`（muted，與 Pi 的 `N earlier lines, … to expand` 同型；**不寫狀態列**），只在該 call 被追蹤期間出現，交接或結束後消失；按下後該呼叫以 job receipt 提早返回，主代理可繼續對話，**已在執行的 child 不重啟**。提示與列重繪輔助（`detach-hint.ts`）以及快速鍵都與 Shell 共用（同一個註冊，一次轉換全部前景 Shell 指令與 Subagent dispatch）。
 
+- 送出即交接：互動 TUI 中送出一般 steer 文字時，同一個註冊會自動執行相同交接（與 Shell 共用，`pi-shell-tools.detachOnSteer: false` 停用，預設開；細節見 Shell README）。
 - 適用 single／parallel／chain。每個 task 的 `taskId` 在前景啟動前就已發出，轉換後沿用同一身分；已產生的 live log（`log_ready`）與已完成 task 結果在接手時重放進 job。parallel 沿用逐 task `task_result` ＋最後 `job_result`；chain 未開始的 step 繼續依序執行，失敗後標示 skipped。
 - 接手由 `BackgroundJobs.submit` 的 `taskIds` 選項完成，不新增第二套 registry：名額（32 submitted／8 active）、`subagent_status`／`subagent_cancel`、journal、shutdown／reload 取消與通知規則都與背景 job 相同。名額不足或 owner 已替換時不轉換，維持前景。
 - 轉換前 Esc／回合取消仍終止前景 child；轉換後回合取消不再停止，需 `subagent_cancel`。取消要求不代表整棵 process tree 已停止。

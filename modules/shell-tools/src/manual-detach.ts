@@ -77,5 +77,30 @@ export function ensureDetachShortcut(pi: ExtensionAPI): void {
       ctx.ui.notify(count > 0 ? `Moving ${count} running foreground task(s) to background` : "No running foreground shell command or subagent", "info");
     },
   });
+  pi.on?.("input", (event, ctx) => {
+    if (!shouldDetachOnInput(event, pi.getSettings?.()) || !hasForegroundWork()) return { action: "continue" as const };
+    const count = detachAllForeground();
+    if (count > 0) ctx.ui.notify(`Steer message sent: moving ${count} running foreground task(s) to background`, "info");
+    return { action: "continue" as const };
+  });
   pi.on?.("session_shutdown", () => { if (root[ownerKey] === pi) delete root[ownerKey]; });
+}
+
+const hasForegroundWork = () => active.size > 0;
+
+/** `pi-shell-tools.detachOnSteer`: `false` disables; anything else keeps the default (on). */
+export function resolveDetachOnSteer(settings: unknown): boolean {
+  return (settings as { "pi-shell-tools"?: { detachOnSteer?: unknown } } | undefined)?.["pi-shell-tools"]?.detachOnSteer !== false;
+}
+
+/** Only a typed interactive steer message (not a follow-up, slash command or empty text) moves foreground work. */
+export function shouldDetachOnInput(
+  event: { text: string; source: string; streamingBehavior?: string },
+  settings: unknown,
+): boolean {
+  return event.source === "interactive"
+    && event.streamingBehavior === "steer"
+    && event.text.trim() !== ""
+    && !event.text.trimStart().startsWith("/")
+    && resolveDetachOnSteer(settings);
 }
