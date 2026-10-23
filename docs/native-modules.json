@@ -514,10 +514,13 @@
           "fileMonitorSource20261022Adaptation": "2026-10-22: document the sixth source, file (canonical-cwd containment, metadata-only events, polling, limits).",
           "fileMonitorSourceMerge20261022PreviousSha256": "dab0ff5ff08c7cbd2ee93b8cab29b78810dc4b9e34fddd2d03403221d1ac75a4",
           "fileMonitorSourceMerge20261022Adaptation": "2026-10-22: merge worktree-monitor-file-source into main. The merged bytes carry both rounds (fork_job documentation plus the sixth source), so the hash is recomputed over the combined file; no content beyond those two rounds.",
-          "sha256": "ad58ee254692c4d681d704038d37c785c7f3eaad97ffdfafed3e56d99a5481b4",
+          "sha256": "1fd6683b784a863dc7a9b5d4efda4676523c77bc929e79b4a0247cbd0a7cfb62",
           "reason": "Contract, limits, security and producer schema/handoff.",
           "pi140Upgrade20261023PreviousSha256": "ca5b5e3c614ffad6d210a76e59212989d7bf7835be10ea126d1c24efc80ea8f0",
-          "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: current support baseline text changed from 1.3.0 to 1.4.0; historical sections retained."
+          "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: current support baseline text changed from 1.3.0 to 1.4.0; historical sections retained.",
+          "macosCompat20261023PreviousSha256": "ca5b5e3c614ffad6d210a76e59212989d7bf7835be10ea126d1c24efc80ea8f0",
+          "macosCompat20261023Adaptation": "2026-10-23 macOS: document that an absolute file path reaching the workspace through a linked parent (/tmp -> /private/tmp, junction) is accepted; the final component is not followed.",
+          "macosMerge20261023Adaptation": "2026-10-23: merge of fix/macos-compat onto the Pi 1.4.0 upgrade. Both sides changed this file; the hash is recomputed over the merged text, and each side keeps its own PreviousSha256 (both equal the shared base)."
         },
         {
           "path": "modules/monitor/src/core.ts",
@@ -582,10 +585,12 @@
           "staleProvenanceRepair20261022": "2026-10-22: the recorded hash lagged the committed content (a post-verification edit landed in 055cca3). The bytes are the reviewed fork_job sampling change; only the recorded hash is corrected here, no content change.",
           "fileMonitorSource20261022PreviousSha256": "dec0374458eba78951f5306349e901b74dec88adaf456838b1efeda9cf51e0c4",
           "fileMonitorSource20261022Adaptation": "2026-10-22: add resolveFilePath/fileLaunch (realpath containment on every sample, metadata-only polling).",
-          "sha256": "16a80e4fdbe1f9c3fe88cf5ad95cfff28e4f99c84aa3ac4e74c9f79bd3815c55",
+          "sha256": "742ea2e4f2d5222b39b389af58e8ee1cbd75f382b85fd173ee321a64571935e5",
           "reason": "Four source adapters, actual close and readonly job timer ownership.",
           "cleanCodeRound2_20261023PreviousSha256": "9d1ef6ffca6b91ace1786752fd1adeb2b257e7de28cf95df5eac48d258c24831",
-          "cleanCodeRound2_20261023Adaptation": "2026-10-23 behavior-preserving clean-code round 2 (single-responsibility splits): pollingLaunch() owns the shared timer/abort/close lifecycle of jobLaunch and fileLaunch; fileChange() names the change classification. Review fix: later() is a no-op after close, run()/later() own the stop/abort guard, and a synchronous throw from begin or a sample faults and closes (removes the abort listener, reports closed)."
+          "cleanCodeRound2_20261023Adaptation": "2026-10-23 behavior-preserving clean-code round 2 (single-responsibility splits): pollingLaunch() owns the shared timer/abort/close lifecycle of jobLaunch and fileLaunch; fileChange() names the change classification. Review fix: later() is a no-op after close, run()/later() own the stop/abort guard, and a synchronous throw from begin or a sample faults and closes (removes the abort listener, reports closed).",
+          "macosCompat20261023PreviousSha256": "16a80e4fdbe1f9c3fe88cf5ad95cfff28e4f99c84aa3ac4e74c9f79bd3815c55",
+          "macosCompat20261023Adaptation": "2026-10-23 macOS: resolveFilePath canonicalizes the nearest existing parent of an absolute path that is lexically outside the canonical root, so /tmp/<ws>/x is no longer rejected when the root is /private/tmp/<ws>; relative paths, the final component and per-sample realpath containment are unchanged."
         },
         {
           "path": "modules/monitor/tests/command.integration.test.ts",
@@ -606,8 +611,10 @@
         },
         {
           "path": "modules/monitor/tests/file-source.test.ts",
-          "sha256": "5e3f400262438c45ab42aa7966505f84dafa11c7282902c71e8bec8974e4660e",
-          "reason": "file source schema bound, workspace containment (lexical, realpath, link swap), metadata-only created/modified/deleted events, abort and extension acceptance/rejection."
+          "sha256": "5ad0d47210fbbda872f9e6c12f12a5023f72cfccd3ed5317dbd6653bc5bf9761",
+          "reason": "file source schema bound, workspace containment (lexical, realpath, link swap), metadata-only created/modified/deleted events, abort and extension acceptance/rejection.",
+          "macosCompat20261023PreviousSha256": "5e3f400262438c45ab42aa7966505f84dafa11c7282902c71e8bec8974e4660e",
+          "macosCompat20261023Adaptation": "2026-10-23 macOS: regression for an absolute path through a linked parent (junction, so it needs no privilege on Windows): existing and not-yet-created targets accepted, outside targets and the link itself rejected."
         },
         {
           "path": "modules/monitor/tests/fixtures/host.ts",
@@ -805,13 +812,15 @@
           "gptSpeedCacheAdaptation": "2026-10-21 GPT Speed prompt cache lifetime: new /cache-ttl-short and /cache-ttl-long commands (no arguments) and pi-gpt-speed.cache setting (short = 30m API default, request untouched; long = prompt_cache_options.ttl 12h for provider openai on the openai-responses API only, merged into existing prompt_cache_options), independent global/trusted-project precedence, extra TUI status entry gpt-cache; speed/service_tier behavior unchanged. Unit tests (55) and the real-host probe were run; OpenAI acceptance of the field was not verified against the real service.",
           "disableCacheTtl20261023PreviousSha256": "7d536168461eefc26353ed99c2cd0e96216dd2e81fb834eba135b121aab8c9ac",
           "disableCacheTtl20261023Adaptation": "2026-10-23 user-requested disable: the command/status/persistence/payload cases for `/cache-ttl-*` are replaced by one disabled-contract regression (no command, no footer item, no request field even with a stored cache value) and the retained `effectiveCacheTtl` policy unit test.",
-          "sha256": "33b99e7a10ea78badd16ab42959979a8039ea664c34db21337a0fbfa26eb1e8c",
+          "sha256": "26ccf8445b8eb4f46bc70474b26e4b4b067db244d2f186a9b06fc3d93e108245",
           "checklistReviewPreviousSha256": "bc3e042d832456c917db5995ca71c68f591230ae1a7090cd6b2b916099e46651",
           "checklistReviewBaselineSha256": "beb9df1b145d14be35c32f57d9eb6bb10543c8aa5a6a5ebe28d60a509d238325",
           "localSnapshotReview": "2026-10-08 current local snapshot review: M16: canonical settings target, dangling/error fail-closed behavior, bounded synchronous ELOCKED retry, lock-held mode read/chmod preservation and read-merge persistence reviewed without real user settings. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
           "historicalDeltaAudit": "unavailable",
           "previousRecordedSha256": "bc3e042d832456c917db5995ca71c68f591230ae1a7090cd6b2b916099e46651",
-          "reason": "2026-10-08 current local snapshot review: M16: canonical settings target, dangling/error fail-closed behavior, bounded synchronous ELOCKED retry, lock-held mode read/chmod preservation and read-merge persistence reviewed without real user settings. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification."
+          "reason": "2026-10-08 current local snapshot review: M16: canonical settings target, dangling/error fail-closed behavior, bounded synchronous ELOCKED retry, lock-held mode read/chmod preservation and read-merge persistence reviewed without real user settings. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
+          "macosCompat20261023PreviousSha256": "33b99e7a10ea78badd16ab42959979a8039ea664c34db21337a0fbfa26eb1e8c",
+          "macosCompat20261023Adaptation": "2026-10-23 macOS: the realpath/stat fail-closed test also matches the resolved settings path, so the statSync mock hits under a linked tmpdir (/var -> /private/var); Windows/Linux behaviour unchanged."
         },
         {
           "path": "modules/gpt-speed/tsconfig.json",

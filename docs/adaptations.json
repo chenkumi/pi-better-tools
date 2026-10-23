@@ -5361,10 +5361,13 @@
     {
       "path": "modules/subagents/tests/managed-child-shell.integration.test.mjs",
       "dependencyUpgradePreviousSha256": "b586097157112b96f1a403e156e883cd363b6bb1eff139c790fe419f66ee54bd",
-      "sha256": "7df0d70b9af5c33a1c184b34f59dace59a827a42bfdd0445d31f95de0d173d8d",
+      "sha256": "d72378b2d88f8c9ad00a1c5bd5e99ff75e4ca0ef8a93b8bff35f48e760fcf35e",
       "reason": "2026-10-09 actual offline CLI new/resume/ready-query both guard/Shell load orders with original builders/EOF close.",
       "pi140Upgrade20261023PreviousSha256": "ecf43ea404952f26e71f59fd0b32dead18296887515c2a1cc4523c6aaa7cc235",
-      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged.",
+      "macosCompat20261023PreviousSha256": "ecf43ea404952f26e71f59fd0b32dead18296887515c2a1cc4523c6aaa7cc235",
+      "macosCompat20261023Adaptation": "2026-10-23 macOS: create project .agents/skills so childTrusted:false holds on every platform instead of depending on tmpdir living under the real home (Windows).",
+      "macosMerge20261023Adaptation": "2026-10-23: merge of fix/macos-compat onto the Pi 1.4.0 upgrade. Both sides changed this file; the hash is recomputed over the merged text, and each side keeps its own PreviousSha256 (both equal the shared base)."
     },
     {
       "path": "modules/subagents/tests/fixtures/managed-child-shell-probe.ts",
@@ -5861,7 +5864,7 @@
       "sqliteIntegrationPreviousSha256": "84d4fb9600380bcf3aa85b7c9350aef51858a93436c15bd8c8242152ef317b82",
       "sqlConnectorPreviousSha256": "86f9d35cd1c5a88ca5b87b66b9ad08641bfbe503948dd161a968e8da847291da",
       "fileAuditPreviousSha256": "fd671e2df12235f91997441b900a7c346ca583a595e61fed4b6d7daf859cc196",
-      "sha256": "0d3ac34c6ce40948052ce002490226b1fac67fed866e4f4daab9032898695c2d",
+      "sha256": "a01898876c326748fe36a7305afc55e90ba9a29c10956b9190949fb13752421b",
       "noteFoldersPreviousSha256": "ae4c75e665dab4a87f97421f2cde3f3b12224e6c8c27e2fee970e12c419181a7",
       "monitorPreviousSha256": "d68c632101f534218e28089d187349924154b461edef427b62f8f46f539a2362",
       "monitorReason": "Native Monitor adds three inactive tools and twelve-local/fourteen-total manifest assertions; accepted existing probes unchanged.",
@@ -5873,7 +5876,9 @@
       "checklistReviewBaselineSha256": "8b0987476f5df3337d981af2ebacfce6f50d49935e76169d778da3b16c45977d",
       "localSnapshotReview": "2026-10-08 current local snapshot review: Root actual Pi loader/renderer fixtures: current relativePath-only Note schema/results, preserved activation/exclusion/immutability and real PTY/Shell/Schedule probes reviewed; prior recorded bytes unavailable, no historical equivalence claim. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "historicalDeltaAudit": "unavailable",
-      "previousBlackholeVendoringSha256": "e35fa506ccb9d87be8fa5f3f8f0239243a0c097bc0e85ed7a7fd05cacb905d45"
+      "previousBlackholeVendoringSha256": "e35fa506ccb9d87be8fa5f3f8f0239243a0c097bc0e85ed7a7fd05cacb905d45",
+      "macosCompat20261023PreviousSha256": "0d3ac34c6ce40948052ce002490226b1fac67fed866e4f4daab9032898695c2d",
+      "macosCompat20261023Adaptation": "2026-10-23 macOS: FFF find/grep after a write retry for up to 5 s because the FFF index is watcher-driven (FSEvents batches); the assertions are unchanged."
     },
     {
       "path": "modules/subagents/extensions/subagent/model-selection.ts",
@@ -6678,8 +6683,10 @@
     },
     {
       "path": "modules/web-tools/tests/unit/bounded.test.ts",
-      "sha256": "bff8a9ba44fe483718d955a923da1125413c85c1598804dc7bfab0b048470c5b",
-      "reason": "2026-10-20 reliability fix: WEB-01 unit tests: decompression bomb rejected while decoding, wire limit, declared length, unsupported encoding, cumulative budgets, stalled body cancel and Set-Cookie parsing."
+      "sha256": "decc297f9fb78e1fca73c45240cb7816a71f297c16fd39531796069736628b57",
+      "reason": "2026-10-20 reliability fix: WEB-01 unit tests: decompression bomb rejected while decoding, wire limit, declared length, unsupported encoding, cumulative budgets, stalled body cancel and Set-Cookie parsing.",
+      "macosCompat20261023PreviousSha256": "bff8a9ba44fe483718d955a923da1125413c85c1598804dc7bfab0b048470c5b",
+      "macosCompat20261023Adaptation": "2026-10-23 macOS: wait (bounded, 5 s) for the server close event after dispose(); macOS loopback delivers it one turn later. The closed assertion is unchanged."
     },
     {
       "path": "modules/web-tools/tests/integration/bounded-memory.test.ts",
@@ -8457,12 +8464,14 @@
         "sqliteIntegrationPreviousSha256": "84d4fb9600380bcf3aa85b7c9350aef51858a93436c15bd8c8242152ef317b82",
         "sqlConnectorPreviousSha256": "86f9d35cd1c5a88ca5b87b66b9ad08641bfbe503948dd161a968e8da847291da",
         "fileAuditPreviousSha256": "fd671e2df12235f91997441b900a7c346ca583a595e61fed4b6d7daf859cc196",
-        "sha256": "0d3ac34c6ce40948052ce002490226b1fac67fed866e4f4daab9032898695c2d",
+        "sha256": "a01898876c326748fe36a7305afc55e90ba9a29c10956b9190949fb13752421b",
         "noteFoldersPreviousSha256": "ae4c75e665dab4a87f97421f2cde3f3b12224e6c8c27e2fee970e12c419181a7",
         "monitorPreviousSha256": "d68c632101f534218e28089d187349924154b461edef427b62f8f46f539a2362",
         "piRuntimePreviousSha256": "5cf84bcff66ebbf80b4df7f1b6927bdc4019e653b3832cd04b641c7e01582cb1",
         "previousBlackholeVendoringSha256": "e35fa506ccb9d87be8fa5f3f8f0239243a0c097bc0e85ed7a7fd05cacb905d45",
-        "reason": " 2026-10-09 reviewed Blackhole local snapshot/manifest/verification adaptation; prior integration record preserved under blackholeVendoring."
+        "reason": " 2026-10-09 reviewed Blackhole local snapshot/manifest/verification adaptation; prior integration record preserved under blackholeVendoring.",
+        "macosCompat20261023PreviousSha256": "0d3ac34c6ce40948052ce002490226b1fac67fed866e4f4daab9032898695c2d",
+        "macosCompat20261023Adaptation": "2026-10-23 macOS: FFF find/grep after a write retry for up to 5 s because the FFF index is watcher-driven (FSEvents batches); the assertions are unchanged."
       },
       {
         "path": "tests/helpers/environment.mjs",

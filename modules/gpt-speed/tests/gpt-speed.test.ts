@@ -263,10 +263,12 @@ test("saving keeps a symlinked settings file and the original permissions", asyn
 
 test("settings realpath and stat errors fail closed instead of replacing settings", async t => {
 	const h = await harness(t); await h.save(h.globalPath, { theme: "keep" });
+	// statSync receives the resolved target, which differs from the lexical path under a linked tmpdir (macOS /var -> /private/var).
+	const targets = new Set([h.globalPath, fs.realpathSync(h.globalPath)]);
 	for (const name of ["realpathSync", "statSync"] as const) {
 		const original = fs[name];
 		const mock = t.mock.method(fs, name, (...args: unknown[]) => {
-			if (args[0] === h.globalPath) throw Object.assign(new Error(`${name} denied`), { code: "EACCES" });
+			if (targets.has(args[0] as string)) throw Object.assign(new Error(`${name} denied`), { code: "EACCES" });
 			return (original as (...args: unknown[]) => unknown)(...args);
 		});
 		syncBuiltinESMExports();

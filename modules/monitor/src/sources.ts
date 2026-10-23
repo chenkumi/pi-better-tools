@@ -1,5 +1,5 @@
 import { realpathSync, statSync } from 'node:fs';
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import WebSocket from 'ws';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { execMonitorCommand } from '../../shell-tools/src/monitor-exec.js';
@@ -118,8 +118,22 @@ function locate(root: string, absolute: string): FileSignature {
   if (!stat.isFile()) throw new Error('not_a_file');
   return { exists: true, sizeBytes: stat.size, mtimeMs: Math.floor(stat.mtimeMs), ino: stat.ino };
 }
+/** An absolute path may spell the workspace through a linked parent (macOS /tmp -> /private/tmp, a junction). Canonicalize its nearest
+ * existing parent so the lexical check compares like with like; the final component is not followed here (locate() checks it). */
+function canonicalParent(absolute: string): string {
+  let parent = dirname(absolute), tail = basename(absolute);
+  for (;;) {
+    try { return join(realpathSync(parent), tail); }
+    catch (error) {
+      const code = (error as NodeJS.ErrnoException).code, next = dirname(parent);
+      if ((code !== 'ENOENT' && code !== 'ENOTDIR') || next === parent) return absolute;
+      tail = join(basename(parent), tail); parent = next;
+    }
+  }
+}
 export function resolveFilePath(root: string, input: string): FileTarget {
-  const absolute = resolve(root, input), rel = relative(root, absolute);
+  const lexical = resolve(root, input);
+  const absolute = isAbsolute(input) && !inside(root, lexical) ? canonicalParent(lexical) : lexical, rel = relative(root, absolute);
   if (rel === '') throw new Error('Path must name a file inside the workspace');
   if (!inside(root, absolute)) throw new Error('Path is outside the workspace');
   try { locate(root, absolute); }

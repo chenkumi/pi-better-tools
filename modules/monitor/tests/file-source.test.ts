@@ -58,6 +58,20 @@ test('resolveFilePath rejects a link that leaves the workspace, for existing and
   } finally { w.done(); outside.done(); }
 });
 
+// macOS /tmp -> /private/tmp (or any linked parent): an absolute path spelled through an alias of the workspace is still inside it.
+test('resolveFilePath accepts an absolute path that reaches the workspace through a linked parent', () => {
+  const w = workspace(), aliases = workspace();
+  try {
+    writeFileSync(join(w.root, 'notes.txt'), 'x'); writeFileSync(join(aliases.root, 'secret.txt'), 'x');
+    const alias = join(aliases.root, 'ws');
+    symlinkSync(w.root, alias, 'junction');
+    assert.deepEqual(resolveFilePath(w.root, join(alias, 'notes.txt')), { absolute: join(w.root, 'notes.txt'), relative: 'notes.txt' });
+    assert.deepEqual(resolveFilePath(w.root, join(alias, 'new', 'a.txt')), { absolute: join(w.root, 'new', 'a.txt'), relative: join('new', 'a.txt') });
+    assert.throws(() => resolveFilePath(w.root, join(aliases.root, 'secret.txt')), /outside/);
+    assert.throws(() => resolveFilePath(w.root, alias), /outside/, 'the final component is not followed at acceptance');
+  } finally { w.done(); aliases.done(); }
+});
+
 test('file source reports metadata only and never the file content', async () => {
   const w = workspace(); const target = join(w.root, 'a.txt'); writeFileSync(target, 'SECRET-CONTENT');
   const { clock, fire } = manual(); const s = sink(); const controller = new AbortController();

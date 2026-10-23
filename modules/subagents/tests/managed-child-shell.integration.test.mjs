@@ -17,6 +17,9 @@ test("offline managed CLI new/resume/ready-query loads foreground Shell in eithe
     assert.equal(sdk.VERSION, "1.4.0");
     const agentDir = path.join(root, "agent"), home = path.join(root, "home"), cwd = fs.realpathSync(root);
     fs.mkdirSync(agentDir); fs.mkdirSync(home);
+    // childTrusted:false must not depend on where tmpdir lives (on Windows it sits under the real home's .agents/skills, on macOS/Linux it
+    // does not): project .agents/skills makes Pi require trust on every platform, and nothing records a decision, so the child is untrusted.
+    fs.mkdirSync(path.join(root, ".agents", "skills"), { recursive: true });
     fs.writeFileSync(path.join(agentDir, "settings.json"), JSON.stringify({ compaction: { enabled: false }, retry: { enabled: false } }));
     const runtime = await sdk.ModelRuntime.create({ authPath: path.join(agentDir, "auth.json"), modelsPath: null, allowModelNetwork: false, refreshOnCreate: false });
     const model = runtime.getModels()[0]; assert.ok(model);

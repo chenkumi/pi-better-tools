@@ -18,11 +18,13 @@ const get = (url: string, signal = new AbortController().signal) => requestBound
 test('gzip bomb is rejected while decoding, not after buffering, and the server connection is closed', async (t) => {
   let closed = false;
   let written = 0;
+  let serverClosed!: () => void;
+  const serverClose = new Promise<void>((resolve) => { serverClosed = resolve; });
   const site = await server((path, response) => {
     if (path !== '/bomb') { response.writeHead(404); response.end(); return; }
     response.writeHead(200, { 'content-encoding': 'gzip', 'content-type': 'text/html' });
     const gzip = createGzip(); gzip.pipe(response);
-    response.on('close', () => { closed = true; gzip.destroy(); });
+    response.on('close', () => { closed = true; gzip.destroy(); serverClosed(); });
     const chunk = Buffer.alloc(64 * 1024);
     const pump = () => {
       while (!closed && written < 2048 * MiB) { written += chunk.length; if (!gzip.write(chunk)) { gzip.once('drain', pump); return; } }
@@ -35,6 +37,10 @@ test('gzip bomb is rejected while decoding, not after buffering, and the server 
   await assert.rejects(response.readBody(5 * MiB), /^Error: TOO_LARGE:/);
   assert.ok(process.memoryUsage().rss - before < 100 * MiB, 'decoding must stop near the limit');
   await response.dispose();
+  // dispose() settles on the client socket; the server sees the close one event-loop turn later on macOS loopback, so wait for it, bounded.
+  let timer: NodeJS.Timeout | undefined;
+  await Promise.race([serverClose, new Promise<void>((resolve) => { timer = setTimeout(resolve, 5000); })]);
+  clearTimeout(timer);
   assert.equal(closed, true);
 });
 
