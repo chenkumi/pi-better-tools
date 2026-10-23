@@ -7,7 +7,7 @@ import { once } from 'node:events';
 const packageRoot = resolve(process.argv[2]), host = process.env.PI_BETTER_TOOLS_HOST;
 const sdk = await import(host ? pathToFileURL(join(host, 'dist/index.js')).href : '@earendil-works/pi-coding-agent');
 const { WebSocketServer } = await import(pathToFileURL(join(packageRoot, 'node_modules/ws/wrapper.mjs')).href);
-assert.equal(sdk.VERSION, '1.3.0'); sdk.initTheme('dark', false);
+assert.equal(sdk.VERSION, '1.4.0'); sdk.initTheme('dark', false);
 globalThis.fetch = async () => { throw new Error('Production Monitor provider/network calls forbidden'); };
 const home = homedir(), agentDir = join(home, '.pi/agent'), workspace = join(home, 'workspace');
 await mkdir(workspace, { recursive: true }); const cwd = await realpath(workspace); await mkdir(agentDir, { recursive: true }); await writeFile(join(agentDir, 'auth.json'), '{}');

@@ -42,7 +42,7 @@ description: >-
 ## 共通原則
 
 - 先分清楚使用者要改的是全域、專案還是目前 session，以及目標 cwd；各模組的設定來源不同，不一律當成 Pi `settings.json`。
-- 本技能說明以 pi-better-tools 的 Pi 1.3.0 整合行為為基準。選用元件使用實際安裝實例的 setup CLI，見 Web／PTY reference；不假定原始 repository、目前 cwd 或全域命令存在。不以 `npx` 下載另一份最新版作為修復。
+- 本技能說明以 pi-better-tools 的 Pi 1.4.0 整合行為為基準。選用元件使用實際安裝實例的 setup CLI，見 Web／PTY reference；不假定原始 repository、目前 cwd 或全域命令存在。不以 `npx` 下載另一份最新版作為修復。
 - 安裝需求不等於授權系統變更：先用 `doctor` 唯讀診斷，瀏覽器下載／native setup 依使用者明確需求執行；修改 Linux 系統依賴前另確認。skill 複製或 extension reload 不觸發安裝。
 - 一般 Pi 設定為 `<agentDir>/settings.json` 與受信任專案 `<cwd>/.pi/settings.json`；`agentDir` 預設 `~/.pi/agent`。只有明說支援的模組才跟隨 `PI_CODING_AGENT_DIR`，例外見各 reference。
 - 工具選取由 Pi 的 `defaultTools`、`--tools`、`--exclude-tools`、`--no-tools`／互動工具選取控制，不把 `defaultTools` 當嚴格 allowlist。Deferred 工具先以 `tool_search` 搜尋 namespace；被排除的工具不能靠搜尋繞過。

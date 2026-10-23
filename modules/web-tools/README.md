@@ -81,7 +81,7 @@ Repository 的 `npm run browser:install`、`browser:install-deps`、`setup:brows
 
 **Anthropic（`anthropic-messages`）**：對 Pi `anthropic` provider 注入 `{"type":"web_search_20250305","name":"web_search","max_uses":8}`。Anthropic 不相容端點（例如 `kimi-coding` 或自訂 proxy）預設不注入，因為沒實測，只顯示 inactive 原因。
 
-- Pi 1.3.0 會丟棄回應中的 `server_tool_use`／`web_search_tool_result` 與 citations。真實 API 實測（`plan/PLAN-20261017T153936832Z.md` Step 4）：後續輪次缺少這些 block 的歷史 **會被接受（200）**，只失去「檢索上下文還原」與來源顯示；保留 block 卻移除 `encrypted_content` 才回 400。因為連線不會被弄壞，本模組不需要 block replay。
+- Pi 1.4.0 會丟棄回應中的 `server_tool_use`／`web_search_tool_result` 與 citations。真實 API 實測（`plan/PLAN-20261017T153936832Z.md` Step 4）：後續輪次缺少這些 block 的歷史 **會被接受（200）**，只失去「檢索上下文還原」與來源顯示；保留 block 卻移除 `encrypted_content` 才回 400。因為連線不會被弄壞，本模組不需要 block replay。
 - 代價是模型看不到來源物件，因此指引要求回答自行寫出完整 URL；`pause_turn` 的續傳仍未實測。
 - **來源捕捉（opt-in）**：`providers.google.captureSources: true` 時，`provider_stream_event` 上的 `groundingMetadata` 會寫成與 OpenAI 同一種 `pi-web-tools.native-sources` entry（來源與 citation offsets，上限 50 項／24 KiB），可用 `/web-tools sources` 檢視。只複製 `groundingChunks[].web.uri/title` 與 `groundingSupports[].segment` 的 offsets；搜尋 query、答案文字與 `searchEntryPoint` HTML 不落地。grounding 的 URL 通常是 `vertexaisearch.cloud.google.com/grounding-api-redirect/...` 轉址，捕捉不做 follow-redirect（不在 event 裡發隱藏網路請求），所以原站只能從 chunk 的 title（通常是來源網域）推測；grounding 沒觸發就沒有紀錄。
 

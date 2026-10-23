@@ -7,7 +7,7 @@ const root = resolve(process.argv[2]);
 const host = process.env.PI_BETTER_TOOLS_HOST;
 const sdk = await import(host ? pathToFileURL(join(host, 'dist/index.js')).href : '@earendil-works/pi-coding-agent');
 const { createAssistantMessageEventStream } = await import(host ? pathToFileURL(join(host, '../pi-ai/dist/compat.js')).href : '@earendil-works/pi-ai/compat');
-assert.equal(sdk.VERSION, '1.3.0');
+assert.equal(sdk.VERSION, '1.4.0');
 const agentDir = process.env.PI_CODING_AGENT_DIR, cwd = join(agentDir, 'workspace');
 await mkdir(cwd, { recursive: true }); await mkdir(agentDir, { recursive: true }); await writeFile(join(agentDir, 'auth.json'), '{}');
 globalThis.fetch = async () => { throw new Error('Network forbidden in runtime recovery fixture'); };
@@ -23,6 +23,8 @@ let session, interactive;
 // Supported SDK UI integration: real InteractiveMode + injected offline Terminal.
 // No fabricated confirm:true and no RPC context relabelled as TUI. The genuine
 // ExtensionSelectorComponent receives keyboard input at the dialog-open barrier.
+// Pi 1.4.0 stacks extension dialogs; the visible one is the last entry.
+const visibleDialog = ui => ui.extensionDialogs.at(-1)?.component;
 function createOfflineTui(session, onDialog) {
   let ui;
   const terminal = { columns: 100, rows: 30, kittyProtocolActive: false,
@@ -30,9 +32,9 @@ function createOfflineTui(session, onDialog) {
     clearLine() {}, clearFromCursor() {}, clearScreen() {}, setTitle() {}, setProgress() {},
     setProgramStatus(status) {
       if (status.state === 'blocked' && status.kind === 'permission') queueMicrotask(() => {
-        assert.ok(ui.extensionSelector, 'real host confirmation selector is mounted');
-        assert.ok(ui.extensionSelector.render(100).some(line => line.includes('Review bounded API-error recovery?')));
-        onDialog(ui.extensionSelector);
+        assert.ok(visibleDialog(ui), 'real host confirmation selector is mounted');
+        assert.ok(visibleDialog(ui).render(100).some(line => line.includes('Review bounded API-error recovery?')));
+        onDialog(visibleDialog(ui));
       });
     },
   };
@@ -133,7 +135,7 @@ try {
       dialogAction = async selector => {
         await session.setModel(modelRuntime.getModel(model.provider, 'local-other'));
         await session.setModel(modelRuntime.getModel(model.provider, model.id));
-        assert.equal(interactive.extensionSelector, undefined, 'model change aborts mounted approval UI');
+        assert.equal(visibleDialog(interactive), undefined, 'model change aborts mounted approval UI');
         selector.handleInput('\r'); // a stale UI response cannot approve
       };
       await session.prompt('/runtime-recover Testing my own local application; read-only authorized scope.');
@@ -144,7 +146,7 @@ try {
         const user = manager.getBranch().find(e => e.type === 'message' && e.message.role === 'user');
         await session.navigateTree(user.id, { summarize: false });
         await session.navigateTree(leaf, { summarize: false });
-        assert.equal(interactive.extensionSelector, undefined, 'tree change aborts mounted approval UI');
+        assert.equal(visibleDialog(interactive), undefined, 'tree change aborts mounted approval UI');
         selector.handleInput('\r');
       };
       await session.prompt('/runtime-recover Testing my own local application; read-only authorized scope.');

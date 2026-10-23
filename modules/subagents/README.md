@@ -102,7 +102,7 @@ Task 先寫入權限受限的 UTF-8 暫存檔，不放入 command line。同步�
 - 轉換後 usage 與背景 job 一致，不自動加入 host totals。無 UI（print／RPC）與 managed child 不提供。
 - 測試：`tests/foreground-detach.integration.test.ts`（真實隔離 Pi child ＋ fake provider，以 `hold-enabled`／`hold-release` 事件門讓 child 停在執行中；單一／parallel＋`subagent_cancel`／chain）。
 
-背景互動的 RPC／entries 行為最初以 Pi 1.1.0 驗證；專案目前支援基準為 Pi 1.3.0（見根 AGENTS.md）。不支援 canonical inMemory entries/leaf replay 的 host 會拒絕 query，不降級使用空白或猜測的 context。
+背景互動的 RPC／entries 行為最初以 Pi 1.1.0 驗證；專案目前支援基準為 Pi 1.4.0（見根 AGENTS.md）。不支援 canonical inMemory entries/leaf replay 的 host 會拒絕 query，不降級使用空白或猜測的 context。
 
 ### Session 載入時核對背景工作
 

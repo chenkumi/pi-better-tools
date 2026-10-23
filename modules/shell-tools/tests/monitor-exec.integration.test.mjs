@@ -10,7 +10,7 @@ test('review adapter W2: actual offline Pi effective shellPath/prefix/trust plus
   const fixture = await createPiFixture(); const previousFetch = globalThis.fetch;
   globalThis.fetch = async () => { throw new Error('Monitor exec integration external fetch forbidden'); };
   try {
-    const sdk = fixture.sdk; assert.equal(sdk.VERSION, '1.3.0');
+    const sdk = fixture.sdk; assert.equal(sdk.VERSION, '1.4.0');
     for (const trusted of [false, true]) {
       console.log(`[monitor-exec-host] Checking actual effective settings, projectTrusted=${trusted}`);
       const shell = sdk.getShellConfig().shell;

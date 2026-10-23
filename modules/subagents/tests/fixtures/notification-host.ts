@@ -7,7 +7,7 @@ import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
 import { BackgroundJobs } from "../../extensions/subagent/background.ts";
 
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; }
-assert.equal(sdk.VERSION, "1.3.0");
+assert.equal(sdk.VERSION, "1.4.0");
 globalThis.fetch = async () => { throw new Error("Network forbidden in offline SDK notification fixture"); };
 const root = process.cwd();
 const results: unknown[] = [];

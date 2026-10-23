@@ -36,4 +36,4 @@ pi -e ./modules/skill-tools/src/index.ts
 npm run test:module -- skill-tools
 ```
 
-包含 strict typecheck、單元 hook 契約，以及隔離 home／agentDir 的真實 Pi startup／reload／停用與 skill command expansion 驗證；不呼叫真實 provider。根 cross／production smoke 另驗證所有入口共存及 tarball 包含 skill 資源。
+包含 strict typecheck、單元 hook 契約，以及隔離 home／agentDir 的真實 Pi startup／reload／停用與 skill command expansion 驗證；不呼叫真實 provider。根 cross／production smoke 另驗證所有入口共存及 tarball 包含 skill 資源；技能目錄內的 `scripts/`（例如 `agents-md-creator/scripts/estimate_tokens.py`）是 SKILL.md 會呼叫的 runtime 資源，隨套件發布且列為必要檔案，其他位置的 `scripts/` 仍視為開發內容而拒絕。

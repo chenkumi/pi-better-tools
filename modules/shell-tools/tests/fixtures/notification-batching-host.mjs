@@ -9,7 +9,7 @@ import shellExtension from '../../extensions/timeout-ms.ts';
 
 const mode = process.argv[2];
 assert.ok(['normal', 'queued', 'aborted', 'preflight-failed', 'streaming', 'one-at-a-time'].includes(mode));
-assert.equal(sdk.VERSION, '1.3.0');
+assert.equal(sdk.VERSION, '1.4.0');
 const home = homedir(), agentDir = join(home, '.pi/agent'), cwd = join(home, 'workspace');
 assert.equal(resolve(process.env.PI_CODING_AGENT_DIR), resolve(agentDir));
 await mkdir(agentDir, { recursive: true }); await mkdir(cwd, { recursive: true });

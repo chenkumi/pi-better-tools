@@ -16,7 +16,7 @@ for (const mode of ['search', 'fallback', 'untrusted', 'absent', 'invalid', 'rea
       const output = await runCommand(`SQL Connector ${mode}`, process.execPath, [fixture, root, mode], { cwd: home, env: isolatedEnv(home), timeoutMs: 90000 });
       const result = JSON.parse(output.trim().split('\n').at(-1));
       assert.equal(result.status, 'passed');
-      assert.equal(result.host, '1.3.0');
+      assert.equal(result.host, '1.4.0');
       assert.equal(result.networkCalls, 0);
       assert.equal(result.databaseConnections, 0);
     } finally { await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }

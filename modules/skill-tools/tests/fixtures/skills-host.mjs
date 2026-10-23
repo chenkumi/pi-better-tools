@@ -7,7 +7,7 @@ const root = resolve(process.argv[2]);
 const host = process.env.PI_BETTER_TOOLS_HOST;
 const sdk = await import(host ? pathToFileURL(join(host, 'dist/index.js')).href : '@earendil-works/pi-coding-agent');
 const { createAssistantMessageEventStream } = await import(host ? pathToFileURL(join(host, '../pi-ai/dist/compat.js')).href : '@earendil-works/pi-ai/compat');
-assert.equal(sdk.VERSION, '1.3.0');
+assert.equal(sdk.VERSION, '1.4.0');
 const agentDir = process.env.PI_CODING_AGENT_DIR;
 const cwd = join(agentDir, 'workspace');
 const relocated = join(agentDir, 'relocated-package');

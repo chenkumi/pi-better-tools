@@ -16,7 +16,7 @@ for (const mode of ['normal', 'queued', 'aborted', 'preflight-failed', 'streamin
       cwd: home, env: { ...isolatedEnv(home), TEMP: join(home, 'tmp'), TMP: join(home, 'tmp'), TMPDIR: join(home, 'tmp') }, timeoutMs: 90000,
     });
     const result = JSON.parse(output.trim().split('\n').at(-1));
-    assert.equal(result.status, 'passed'); assert.equal(result.host, '1.3.0'); assert.equal(result.mode, mode);
+    assert.equal(result.status, 'passed'); assert.equal(result.host, '1.4.0'); assert.equal(result.mode, mode);
     assert.equal(result.notifications, mode === 'preflight-failed' ? 1 : 5); assert.equal(result.jobs, mode === 'preflight-failed' ? 1 : 5); assert.equal(result.providerCalls, 0);
     assert.equal(result.fixtureModelCalls, mode === 'preflight-failed' ? 1 : mode === 'one-at-a-time' ? 6 : mode === 'queued' ? 3 : 2);
   } finally { await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }

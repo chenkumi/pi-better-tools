@@ -45,7 +45,7 @@ export default function tuiObserver(pi: ExtensionAPI, extraScripts: Record<strin
       queueMicrotask(async () => {
         try {
           if (options?.signal?.aborted) throw new Error("A/B request aborted");
-          // Pi 1.3.0 embeds prompt/tool deltas in system messages. Preserve the full
+          // Pi 1.4.0 embeds prompt/tool deltas in system messages. Preserve the full
           // transcript as evidence, but tokenize this explicit semantic projection
           // once, without double-counting system sections or UI-only result details.
           const payload = { systemPrompt: getCurrentSystemPrompt(context.messages), tools: getCurrentTools(context.messages),

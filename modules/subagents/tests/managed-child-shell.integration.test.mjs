@@ -14,7 +14,7 @@ test("offline managed CLI new/resume/ready-query loads foreground Shell in eithe
   const progress = setInterval(() => console.log("Managed child CLI verification in progress..."), 5000);
   try {
     const sdk = await import("@earendil-works/pi-coding-agent");
-    assert.equal(sdk.VERSION, "1.3.0");
+    assert.equal(sdk.VERSION, "1.4.0");
     const agentDir = path.join(root, "agent"), home = path.join(root, "home"), cwd = fs.realpathSync(root);
     fs.mkdirSync(agentDir); fs.mkdirSync(home);
     fs.writeFileSync(path.join(agentDir, "settings.json"), JSON.stringify({ compaction: { enabled: false }, retry: { enabled: false } }));

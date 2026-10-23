@@ -43,7 +43,7 @@
 ## 驗證與交付
 
 - 先讀取欲修改模組的 `AGENTS.md`／README；其舊版依賴、獨立 lockfile 與 scripts 宣告是匯入時的歷史資訊，整合版本／命令以根 manifest 為準。未匯入的來源報告位置見 `docs/source-references.md`。
-- 專案只支援 Pi 1.3.0：開發基準與 production smoke 都只驗證 1.3.0，不再維護 1.2.0 或更早版本的相容驗證。模組匯入時的版本不是目前基準；不以 wildcard peers 宣稱其他版本相容。
+- 專案只支援 Pi 1.4.0：開發基準與 production smoke 都只驗證 1.4.0，不再維護 1.3.0 或更早版本的相容驗證。模組匯入時的版本不是目前基準；不以 wildcard peers 宣稱其他版本相容。
 - 驗證命令與分組以根 `package.json`、`scripts/run-checks.mjs` 為準；純文件修改核對事實、命令及引用路徑，不必執行程式測試。`npm run build` 目前為 no-op，不代表型別或 runtime 驗證。
 - 測試依變更範圍分組，不要每次都跑全部：
   - `npm test`（單元）：每次修改程式碼後的基本檢查；`npm run typecheck`：修改 TS 型別、介面或 schema 時。JS／TS 修改另執行 `npm run lint`（correctness baseline，不自動 `--fix`，不等於安全審查）。

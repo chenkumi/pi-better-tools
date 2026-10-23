@@ -1,6 +1,6 @@
 # File Audit
 
-原生 Pi 1.3.0 extension。追蹤本 session 成功的 `read`／`write`／`edit`／`note`，提供有界限、唯讀的近期 provenance 增量檢查，不取代 `npm run sources:verify`。
+原生 Pi 1.4.0 extension。追蹤本 session 成功的 `read`／`write`／`edit`／`note`，提供有界限、唯讀的近期 provenance 增量檢查，不取代 `npm run sources:verify`。
 
 ## 載入與拆裝
 
@@ -59,7 +59,7 @@ pi --no-extensions -e ./modules/file-audit/src/index.ts
 npm run test:module -- file-audit
 ```
 
-包括 strict typecheck、容量／窗口／排序、note 結構化路徑、成功事件、掃描 bytes 與錯誤、命令／輸出邊界，以及隔離 home/agentDir/cwd 的真實 Pi 1.3.0 native/File Tools/Note/nested/reload/tree/new/resume／獨立載入／不載入 probes。SDK fixture 的 TUI 通知 callback 由測試擷取；另有下述真正 PTY TUI A/B，兩者不是同一項驗證。只使用離線合成 provider，`providerCalls` 指實際外部 fetch 次數，`streamCalls` 另記合成模型串流次數。根 cross／production smoke 另驗證 manifest 共存與乾淨 tarball 載入。
+包括 strict typecheck、容量／窗口／排序、note 結構化路徑、成功事件、掃描 bytes 與錯誤、命令／輸出邊界，以及隔離 home/agentDir/cwd 的真實 Pi 1.4.0 native/File Tools/Note/nested/reload/tree/new/resume／獨立載入／不載入 probes。SDK fixture 的 TUI 通知 callback 由測試擷取；另有下述真正 PTY TUI A/B，兩者不是同一項驗證。只使用離線合成 provider，`providerCalls` 指實際外部 fetch 次數，`streamCalls` 另記合成模型串流次數。根 cross／production smoke 另驗證 manifest 共存與乾淨 tarball 載入。
 
 ### 真實 TUI A/B 與 token overhead
 
@@ -69,7 +69,7 @@ node --test modules/file-audit/tests/tui-ab.integration.test.mjs
 
 測試使用 `node-pty` 啟動真正 CLI（需先安裝 PTY native binding，見根 README 的 `pty:install`），不是 print/RPC 或假 UI。regular A→B、fullscreen B→A 各用獨立 home/agentDir/cwd；A 明確不載入本 extension、B 明確 `-e` 載入，其餘工具相同。以 PTY 輸入 prompt、`/file-audit` 與測試觀察命令；保留真正通知與畫面，驗證 note、失敗 read 排除、去重、已植入 provenance mismatch、容量與窗口。
 
-兩組各執行12個相同的合成模型請求，驗證手動 status/check 不觸發額外模型請求、後續 context 無報告污染、工具宣告不增加。Pi 1.3.0 prompt/tool deltas 由 system messages 的公開 helpers 還原，經 onPayload hook 後記錄；未修改 transcript 另存。比較語意 payload 時只正規化隔離根路徑與自動產生的 note UTC 檔名，不移除 Audit 訊息。這能驗證 context overhead，不證明真人收尾時間改善或真實模型解題品質。
+兩組各執行12個相同的合成模型請求，驗證手動 status/check 不觸發額外模型請求、後續 context 無報告污染、工具宣告不增加。Pi 1.4.0 prompt/tool deltas 由 system messages 的公開 helpers 還原，經 onPayload hook 後記錄；未修改 transcript 另存。比較語意 payload 時只正規化隔離根路徑與自動產生的 note UTC 檔名，不移除 Audit 訊息。這能驗證 context overhead，不證明真人收尾時間改善或真實模型解題品質。
 
 預設不安裝 tokenizer，token estimate 欄位為 null，不冒充已量測。若要重算估值，可在**另一個暫存目錄**以停用 scripts 的 npm 安裝 `js-tiktoken@1.0.21`，然後在測試行程設定：
 

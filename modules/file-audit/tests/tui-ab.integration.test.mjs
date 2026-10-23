@@ -12,8 +12,8 @@ const evidence = scope ? join(root, 'plan/evidence', scope, 'tui-ab') : null;
 const tokenizer = await loadTokenizer();
 
 for (const [mode, order] of [['regular', [false, true]], ['fullscreen', [true, false]]]) {
-  test(`Pi 1.3.0 ${mode} PTY: File Audit A/B diagnostics, bounded tracking and provider-context overhead`, { timeout: 240000 }, async () => {
-    assert.equal(VERSION, '1.3.0');
+  test(`Pi 1.4.0 ${mode} PTY: File Audit A/B diagnostics, bounded tracking and provider-context overhead`, { timeout: 240000 }, async () => {
+    assert.equal(VERSION, '1.4.0');
     const result = await runComparison(mode, order, evidence, tokenizer);
     assert.equal(result.extraCalls, 0); assert.equal(result.externalCalls, 0);
     assert.equal(result.normalizedPayloadsEqual, true);

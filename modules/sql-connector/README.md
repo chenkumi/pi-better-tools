@@ -1,6 +1,6 @@
 # SQL Connector（整合版）
 
-來源為使用者擁有的 `D:/projects/pi-sql-connector` 0.1.0，已納入本模組，不依賴來源路徑。入口為 `modules/sql-connector/src/index.ts`；根 package／lockfile 是唯一安裝單元，支援基準為 Pi 1.3.0。來源快照與適配記錄見 `docs/sources.json`、`docs/adaptations.json`。原來源宣告 MIT，整合專案採根 MIT LICENSE。
+來源為使用者擁有的 `D:/projects/pi-sql-connector` 0.1.0，已納入本模組，不依賴來源路徑。入口為 `modules/sql-connector/src/index.ts`；根 package／lockfile 是唯一安裝單元，支援基準為 Pi 1.4.0。來源快照與適配記錄見 `docs/sources.json`、`docs/adaptations.json`。原來源宣告 MIT，整合專案採根 MIT LICENSE。
 
 ## 支援的資料庫與 deferred tools
 

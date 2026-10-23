@@ -50,6 +50,7 @@ const required = [
   'modules/skill-tools/skills/draft-plan/SKILL.md',
   'modules/skill-tools/skills/execute-plan/SKILL.md',
   'modules/skill-tools/skills/write-prompt/SKILL.md',
+  'modules/skill-tools/skills/agents-md-creator/scripts/estimate_tokens.py',
   ...['core', 'schema', 'lines', 'network', 'sources', 'renderers'].map(name => `modules/monitor/src/${name}.ts`),
   'modules/monitor/LICENSE', 'modules/monitor/package.json',
   ...['identity', 'snapshot', 'child', 'child-guard', 'manager', 'store', 'args'].map(name => `modules/fork/src/${name}.ts`), 'modules/fork/LICENSE', 'modules/fork/package.json',
@@ -85,7 +86,9 @@ function checkContents(pack) {
   for (const path of required) assert.ok(paths.includes(path), `missing tarball resource ${path}`);
   for (const path of paths) {
     assert.ok(!isAbsolute(path) && !path.split('/').includes('..'), `unsafe package path ${path}`);
-    assert.ok(!/(^|\/)(node_modules|tests|plan|scripts|\.git)(\/|$)/.test(path), `development content leaked: ${path}`);
+    // A skill's own scripts/ are runtime resources its SKILL.md invokes; any other scripts/ is development content.
+    const checked = path.replace(/^modules\/skill-tools\/skills\/[^/]+\/scripts\//, '');
+    assert.ok(!/(^|\/)(node_modules|tests|plan|scripts|\.git)(\/|$)/.test(checked), `development content leaked: ${path}`);
     assert.ok(!/package-lock\.json$/.test(path));
   }
 }

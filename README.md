@@ -10,7 +10,7 @@
 
 ## 本機安裝
 
-需要 Node.js **`^22.22.2 || ^24.15.0 || >=26.0.0`**（與 jsdom 30 的 runtime 需求一致） 與 `@earendil-works/*` namespace 的 Pi。只支援 Pi **1.3.0**（開發基準與 production smoke 皆為 1.3.0；不維護 1.2.0 或更早版本），不代表其他 Pi 版本相容。
+需要 Node.js **`^22.22.2 || ^24.15.0 || >=26.0.0`**（與 jsdom 30 的 runtime 需求一致） 與 `@earendil-works/*` namespace 的 Pi。只支援 Pi **1.4.0**（開發基準與 production smoke 皆為 1.4.0；不維護 1.3.0 或更早版本），不代表其他 Pi 版本相容。
 
 ```powershell
 cd D:\projects\pi-better-tools
@@ -54,7 +54,7 @@ pi-better-tools pty setup
 
 根 `dependencies` 固定包含 `pi-open-tui@0.3.11`、`@ff-labs/pi-fff@0.11.0`。Blackhole 0.5.12 原始碼已納入 `modules/blackhole/`，Pi 改載入 `./modules/blackhole/src/index.ts`，不再依賴 npm 的 `pi-blackhole`。`npm ci --ignore-scripts` 會安裝兩個 npm packages；manifest 為十七個本地入口加兩個 npm 入口，共十九個。仍維持 `private: true`，不需要 npm 發布、bundledDependencies 或 postinstall 呼叫 pi install。
 
-換機請下載／複製本專案原始碼及 lockfile，在新機重新執行上述安裝步驟，然後只掛載本專案目錄；不要跨 OS／CPU 複製 node_modules。**本機掛載不會自動執行 npm install**。Repository `.npmrc` 設 `legacy-peer-deps=true`，避免依賴 peers 自動安裝另一份 Pi SDK；Blackhole 快照的上游開發版本／peer 範圍只作歷史 metadata，整合基準為 Pi 1.3.0，不以此設定宣稱相容。
+換機請下載／複製本專案原始碼及 lockfile，在新機重新執行上述安裝步驟，然後只掛載本專案目錄；不要跨 OS／CPU 複製 node_modules。**本機掛載不會自動執行 npm install**。Repository `.npmrc` 設 `legacy-peer-deps=true`，避免依賴 peers 自動安裝另一份 Pi SDK；Blackhole 快照的上游開發版本／peer 範圍只作歷史 metadata，整合基準為 Pi 1.4.0，不以此設定宣稱相容。
 
 啟用整合入口前，請手動停用原本 `npm:pi-open-tui`、`npm:pi-blackhole`、`npm:@ff-labs/pi-fff` 的獨立 extension 資源，避免 hooks／commands／tools 重複載入。Repository 不會改寫真實 Pi settings 或卸載它們。`pi config` 的既有 extension filters 仍有效；只掛載單一 module 入口不會載入全部套件。
 
@@ -152,7 +152,7 @@ file-tools 只保留 `ls` 搜尋／目錄包裝（`defaultActive:false`），不
 
 ### 結構化 run-start 指引
 
-Subagents 的 `pi_subagents_agent_catalog`、Web 的 `pi_web_tools_native_search` 與共享 `pi_better_tools_background_lifecycle` 由 `before_agent_start` 各自維護獨立 section，不再因 catalog 而強制替換整份 system prompt；停用工具時移除自己的內容，保留其他 sections、custom prompt 與外部 forced prompt 支援。Runtime 仍使用既有任務 admission 證據鏈；宿主若提供 `messageType`，明確 custom run 不取得新任務候選，`user` 也不等同真人新任務。支援／驗證基準已升為 Pi 1.3.0（根 devDependencies 與 lockfile），不再維護 1.2.0 或更早版本。詳見 [架構](docs/architecture.md#structured-run-start-prompt-composition-2026-10-13)。
+Subagents 的 `pi_subagents_agent_catalog`、Web 的 `pi_web_tools_native_search` 與共享 `pi_better_tools_background_lifecycle` 由 `before_agent_start` 各自維護獨立 section，不再因 catalog 而強制替換整份 system prompt；停用工具時移除自己的內容，保留其他 sections、custom prompt 與外部 forced prompt 支援。Runtime 仍使用既有任務 admission 證據鏈；宿主若提供 `messageType`，明確 custom run 不取得新任務候選，`user` 也不等同真人新任務。支援／驗證基準已升為 Pi 1.4.0（根 devDependencies 與 lockfile），不再維護 1.3.0 或更早版本。詳見 [架構](docs/architecture.md#structured-run-start-prompt-composition-2026-10-13)。
 
 ### 工具 TUI 顯示
 
@@ -231,6 +231,10 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 6. 執行 `ssh -o BatchMode=yes macos` 確認無需互動即可登入；成功後依 [PTY README](modules/pty-terminal/README.md) 設定 `transport: "ssh"`、`host: "macos"` 與 Mac 上的絕對 `cwd`。
 
 需要協助實際連線時，只需提供 **SSH host alias** 與 **Mac 上的專案絕對路徑**，並明確授權實連；不需要提供密碼。若一定要使用帳號密碼，需另行實作讓使用者直接在終端機輸入、不經過模型的互動登入介面；目前 extension 未提供此功能。
+
+### 2026-10-23 Pi 1.4.0 升級
+
+根四個 Pi devDependencies 與 lockfile 升為 1.4.0，Shell 的 Monitor backend 閘門與真實 host 斷言改為只接受 1.4.0，不再驗證 1.3.0。其他依賴不變。宿主差異與影響見 [遷移說明](docs/migration.md#pi-140-upgrade-2026-10-23)。
 
 ### 2026-10-16 依賴更新
 

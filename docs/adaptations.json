@@ -1,5 +1,10 @@
 {
   "schemaVersion": 1,
+  "pi140Upgrade20261023": {
+    "scope": "2026-10-23 user-requested Pi 1.4.0 upgrade. The four Pi devDependencies/lockfile, the exact-version Shell Monitor backend gate and real-host version assertions move from 1.3.0 to 1.4.0; the Pi Runtime real-TUI fixture reads the visible dialog from the 1.4.0 dialog stack. No runtime dependency, upstream snapshot refresh, hostContract migration, personal settings/auth or paid provider calls.",
+    "history": "Only changed active fingerprints gain pi140Upgrade20261023PreviousSha256 and pi140Upgrade20261023Adaptation; historical fingerprints and the 1.3.0 upgrade records are retained.",
+    "verification": "Results of the test groups actually run are reported in the delivery notes; a fingerprint refresh alone does not certify behavior."
+  },
   "defectFix20261023": {
     "scope": "2026-10-23 user-requested repair of two defects found during the clean-code refactor. (1) web-tools searchOutputSchema.provider omitted 'deepseek' although web_search returns it; the union is now derived from REST_PROVIDERS and maxItems from MAX_SEARCH_RESULTS. (2) sql-connector SqlConnectorRuntime.adapter() cached a rejected adapter construction in `creating`, so that engine failed until reload; a failed attempt is now dropped so the next call retries. Concurrent callers of one attempt still share it; no authentication fallback, TLS or driver-loading change.",
     "evidence": "New tests were red before the repair (deepseek result rejected by the schema; second state() call returned the cached rejection) and green after: web-tools 97 + 2, sql-connector 41."
@@ -1616,8 +1621,10 @@
       "scanFix20261017Adaptation": "2026-10-17 document engine-aware lexical policy, MSSQL statement keywords, PG extended/read-only and MySQL read-only/timeout/queue defenses and their limits.",
       "defectFix20261023PreviousSha256": "9910f036efa6765bb538e5154e02d01b885bd3c5766ec5cbf9e36e50e0b24493",
       "defectFix20261023Adaptation": "2026-10-23 documents that a failed adapter construction is retried on the next operation (no authentication fallback).",
-      "sha256": "21d57d416cddf219579cfbb053c3678840d126a22dcb42130bfbe076ab570075",
-      "reason": "Integrated root install, deferred discovery, trust/configuration and explicit optional native driver guidance; live-database validation limits."
+      "sha256": "9c870e35ba1e1113b6e759d546ebab56ff2c9615a3496cb746676258f4be3a42",
+      "reason": "Integrated root install, deferred discovery, trust/configuration and explicit optional native driver guidance; live-database validation limits.",
+      "pi140Upgrade20261023PreviousSha256": "21d57d416cddf219579cfbb053c3678840d126a22dcb42130bfbe076ab570075",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: current support baseline text changed from 1.3.0 to 1.4.0; historical sections retained."
     },
     {
       "path": "modules/sql-connector/tsconfig.json",
@@ -2070,14 +2077,16 @@
       "webSetupPreviousSha256": "8923ed0cfa7c88fdae3f2b683ced26dec6ca1c7c3ac8bca7f7c700f066531888",
       "scanFix20261017PreviousSha256": "a49dc539ecce509319415950c110e1eacd6fbc19d665591206345de86d0f97d1",
       "scanFix20261017Adaptation": "2026-10-17 document cost-adaptive waitFor retry pause (2x attempt cost, 50..1000ms).",
-      "sha256": "71d9cac7698f7fe9b98f5111649cee979ac65523fec83cfaee41d56545f49e7e",
+      "sha256": "dcf0947cd8579003c3d9b87263eb8c23ca164def37ace94b714937623087413b",
       "tokenTrimPreviousSha256": "b2f4d30e80013e3b2f90bab91058d878c05b20c9bfb59bbe0a0bbafe8915b267",
       "reason": "Replace standalone install/publishing guidance with root integration, target schema, SSH/WSL prerequisites, native dependency setup, security and actual test boundaries; preserve source identity/port attribution. Document presentation-only PTY previews and caveats, pinned npm 12 native-script policy and npm-run env adapter; consumer parent project must approve its own setup. 2026-10-06 local adaptation (pty-terminal): waitFor/settleMs, format text, cursor/since, keys/readAfterMs, env allow/deny filtering via pi-pty-terminal.env.{allow,deny}, timedOut and SSH 255 notes, slimmer returns; new env.ts/keys.ts/wait-for.ts. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: MH2/M14-M15/L24-L27: retry debounce/deadline, ready compute budget, single-pass escapes, unread admission protection, buffer slack, exited-write refusal and exit-aware pause reviewed; held-until-termination workers and target trust retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-11 R4: exited POSIX transport avoids old-PID signals; Windows handles release and opportunistic retention documented. 2026-10-15 user-authorized: deferred-tool activation, fallback and hint moved to Pi Runtime (deferred-tools.ts); modules only declare exposure/namespace.",
       "checklistReviewPreviousSha256": "1d6d339f2490c1c1eda4d0df664af9e63ab1fc60053a8fb7dd68e12da1543e3a",
       "checklistReviewBaselineSha256": "a7ff5bb88e977345b320489380be04cf81475df7ac42d6f64298bc5490cd0969",
       "localSnapshotReview": "2026-10-08 current local snapshot review: MH2/M14-M15/L24-L27: retry debounce/deadline, ready compute budget, single-pass escapes, unread admission protection, buffer slack, exited-write refusal and exit-aware pause reviewed; held-until-termination workers and target trust retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "historicalDeltaAudit": "unavailable",
-      "deferredSharedPreviousSha256": "f7cd14241b2958fad61481e5f7a83f0321ddfd8fc94041b4f335a2535180ceea"
+      "deferredSharedPreviousSha256": "f7cd14241b2958fad61481e5f7a83f0321ddfd8fc94041b4f335a2535180ceea",
+      "pi140Upgrade20261023PreviousSha256": "71d9cac7698f7fe9b98f5111649cee979ac65523fec83cfaee41d56545f49e7e",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: current support baseline text changed from 1.3.0 to 1.4.0; historical sections retained."
     },
     {
       "path": "modules/file-tools/extensions/file-tools.ts",
@@ -2213,7 +2222,7 @@
       "geminiLiveVerification20261017Adaptation": "Record the funded Gemini live result: googleSearch plus function declarations accepted on gemini-3.8-flash and gemini-4-argon; groundingMetadata is visible through provider_stream_event; the model decides whether to search, and a grounded answer cites a vertexaisearch redirect URL.",
       "defectFix20261023PreviousSha256": "73006e888b3765a3abee4d881c4406ea3f0f2f3afdf2712352e2a4e3c568798e",
       "defectFix20261023Adaptation": "2026-10-23 documents that web_search data.provider covers brave/exa/deepseek.",
-      "sha256": "94760b2bc60cb5d1541383447af1467d2bc40fca5162493136c76991126bc700",
+      "sha256": "23950ef083e6f409efd1061b185b7b08e6b310ad94bf201e6356335e4a287762",
       "geminiGroundingCapture20261017PreviousSha256": "1ea872f9e8b7c0a819ed27263f74d6421504c9ccb5d31a6497a5ed53b473928f",
       "geminiGroundingCapture20261017Adaptation": "Document providers.google.captureSources, what grounding capture stores and omits, the redirect-URL limitation, and the updated status output.",
       "preChangeSha256": "5f5f1d8c15836abe56ea10966bf83517d9e780adb620765c4bc5c53aa758fdc8",
@@ -2221,7 +2230,9 @@
       "localSnapshotReview": "2026-10-03: complete pre-change README inspected against local Web config/provider/network/browser contracts; pre-change bytes match initial commit f14b837.\n2026-10-08 current local snapshot review: H2/M12-M13/L10-L13: current peer-address post-response mitigation (not IP pinning), bounded terminable extraction worker ownership, unnecessary-resource blocking and per-fetch DNS memo reviewed; documented fail-closed/retention/context-close policies retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "reason": "Update root Node requirements, explicit Linux browser setup, cwd basename contract and presentation-only Fetch/REST Search renderers. Document user-requested default Codex native search, removed experimental setting/warning and manual field removal before reload. Pre-existing baseline-to-preChange delta remains unaudited because original contents are unavailable; this record does not certify original-diff or behavior equivalence. 2026-10-06 local adaptation (web-tools): actionable next-step error hints, web_search provider field removed (prepareArguments drops legacy argument), dynamic description/guidelines, text slimming. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: H2/M12-M13/L10-L13: current peer-address post-response mitigation (not IP pinning), bounded terminable extraction worker ownership, unnecessary-resource blocking and per-fetch DNS memo reviewed; documented fail-closed/retention/context-close policies retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "checklistReviewPreviousSha256": "effd0a3e97805e0a9cf539d1ab97404ffc5140b4e0d733e9945ef544331b0c54",
-      "checklistReviewBaselineSha256": "5bb269f03eef729f3283923b826c011bdfabd16b0e69f53c53aa3462233ffc5f"
+      "checklistReviewBaselineSha256": "5bb269f03eef729f3283923b826c011bdfabd16b0e69f53c53aa3462233ffc5f",
+      "pi140Upgrade20261023PreviousSha256": "94760b2bc60cb5d1541383447af1467d2bc40fca5162493136c76991126bc700",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: current support baseline text changed from 1.3.0 to 1.4.0; historical sections retained."
     },
     {
       "path": "modules/shell-tools/tsconfig.json",
@@ -2383,7 +2394,7 @@
       "jobsPanelPreviousSha256": "04b2b6d38d76e9254d92ea943c8f40a61001a7a48788b0b5ab95e58cd1b12f59",
       "refactorPreviousSha256": "65e99f12308a002ead89f70d17b034d368c2807683054b9b8e9a4b432cd853fe",
       "piBoltInvocationPreviousSha256": "16dfcb049464521d90ae7efd454b3f83cb055f3ccef4b4baac41878fe8eaa20a",
-      "sha256": "d975da063fbb2c180b20e4f65dfcdf0a2f035700731c5f5b0c7d76fd06557828",
+      "sha256": "ebf2e1be3091ecbd0520771af48d47ecb856b6d70ebfb4ceae6d76c90a1d937a",
       "detachHint20261021PreviousSha256": "a2e39ae9637169bb9b55df280d1a0e614bce965974c7d8cadb0ad4b93d94b82d",
       "detachHint20261021Adaptation": "2026-10-21 document the hint on the subagent tool call's own last rendered line instead of the status bar.",
       "previousRejectedTuiSha256": "bdd1c25ab276cb1150338f9638020e3d05813e32070c8276c225ca5b1641c7c1",
@@ -2395,7 +2406,9 @@
       "localSnapshotReview": "2026-10-08 current local snapshot review: H1/M1-M4/L1-L4: current project-agent admission, held child permits/writer locks, process-group cancellation, rename retry, late I/O ownership and protocol accounting reviewed; intentional bounded spool/backpressure/checkpoint integrity retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.\n2026-10-08 current local snapshot review: H1/M1-M4/L1-L4 preserved; additional M4 fix keeps actual FileHandle.close rejection as an ownership barrier, preserves primary/close diagnostics and structured finalize errors, observes abandon rejection immediately, and requires writerCloseConfirmed before normal release/rollback. Normal/late/late-create red-green regressions reviewed. User-authorized TUI/model notice wording now describes delegated data as not instructions and not an error label; queued/accepted presentation is neutral, statuses/schema/trust/followUp unchanged. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.\n2026-10-08 current local snapshot review: H1/M1-M4/L1-L4 preserved; additional M4 fix keeps actual FileHandle.close rejection as an ownership barrier, preserves primary/close diagnostics and structured finalize errors, observes abandon rejection immediately, and requires writerCloseConfirmed before normal release/rollback. Normal/late/late-create red-green regressions reviewed. User-authorized TUI/model notice wording now describes delegated data as not instructions and not an error label; queued/accepted presentation is neutral, statuses/schema/trust/followUp unchanged. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.\n2026-10-08 current local snapshot review: H1/M1-M4/L1-L4 preserved; additional M4 fix keeps actual FileHandle.close rejection as an ownership barrier, preserves primary/close diagnostics and structured finalize errors, observes abandon rejection immediately, and requires writerCloseConfirmed before normal release/rollback. Normal/late/late-create red-green regressions reviewed. User-authorized TUI/model notice wording now describes delegated data as not instructions and not an error label; queued/accepted presentation is neutral, statuses/schema/trust/followUp unchanged. Authorized English comparison-table messages now clarify control/query completion scope, snapshots/late usage, capacity refusal, agent search scope and per-tool progress; foreground resume/log/aborted labels and truncation hints reflect available data without changing ownership or runner outcomes. Offline resume-provider and cross renderer fixtures follow the new English checkpoint/control labels. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.\n2026-10-08 user-authorized RPC startup diagnostics: bounded best-effort command/write/correlation observers, token-bound allowlisted guard milestones and child runtime versions, frozen failure-time observations separate from cleanup, stage-specific unknown-cause guidance, event/timer-injected privacy and guard-authority regressions. No changed deadline/retry/status/schema/trust/ownership or managed/debug persistence version; original causes remain primary.",
       "historicalDeltaAudit": "unavailable",
       "previousBackgroundRecoverySha256": "63711c4596bc42c8f07686de19b632e98580225caa062ee0e213be8ee4307319",
-      "confirmProjectAgentsRemovalPreviousSha256": "5495fbbf559042d40d014ae1cbd9cf289bdce1be17b0487b5db59425859db84f"
+      "confirmProjectAgentsRemovalPreviousSha256": "5495fbbf559042d40d014ae1cbd9cf289bdce1be17b0487b5db59425859db84f",
+      "pi140Upgrade20261023PreviousSha256": "d975da063fbb2c180b20e4f65dfcdf0a2f035700731c5f5b0c7d76fd06557828",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: current support baseline text changed from 1.3.0 to 1.4.0; historical sections retained."
     },
     {
       "path": "modules/file-tools/package.json",
@@ -2411,17 +2424,21 @@
       "fffOverridePreviousSha256": "2f6176275212f7ac56280f9d46eb34e0946d23708702b01ef5339b6035d86dc8",
       "reviewReproductionPreviousSha256": "58d168fdf1b47e5515915b9ca05997c85f1c8bffff99d137bbe4c3dc49532e1a",
       "dependencyUpgradePreviousSha256": "4a197b6adcd3af2973f43824986e0b8c56df5be8fc816317791a0a9019238d0e",
-      "sha256": "c17cf7bc02f10f21c9a67a4d04e51bb2f9b7316a05bb97ffd3266992531594a3",
+      "sha256": "95d119317c659b4fdfed410b4f2657ec85b0f6ce53e3a627dd4cf019be7ba39c",
       "preMergeRecordedSha256": "78f3b63cb59458fbd3cbeb9057a4012d55fc33e032cb65a0b6c1d109a7ddc703",
       "mergeNormalization": "Fetched LF bytes exactly reconstruct the earlier recorded CRLF hash; no test edits this merge.",
-      "reason": "Resolve the development regression dependency link against the integration root; production smoke independently installs real dependencies without links. Pi 1.0.0 upgrade: require advanced annotation, nested pipeline, codemode and renderer probes on Pi 1.0.0 (the only supported host; older-host matrix verification was removed) instead of skipping the new host. Strict single-package legacy-array/npm-12-keyed parsing retains identity and resource assertions; merge also preserves relative archive filename plus cwd for Windows GNU tar. Pi 1.0.0 is the only supported host: the advanced-probe requirement now asserts on 1.0.0 only (0.99.x verification removed). 2026-10-11 R1: fixed integration entry imports actual registered edit/disk/diff-worker regression."
+      "reason": "Resolve the development regression dependency link against the integration root; production smoke independently installs real dependencies without links. Pi 1.0.0 upgrade: require advanced annotation, nested pipeline, codemode and renderer probes on Pi 1.0.0 (the only supported host; older-host matrix verification was removed) instead of skipping the new host. Strict single-package legacy-array/npm-12-keyed parsing retains identity and resource assertions; merge also preserves relative archive filename plus cwd for Windows GNU tar. Pi 1.0.0 is the only supported host: the advanced-probe requirement now asserts on 1.0.0 only (0.99.x verification removed). 2026-10-11 R1: fixed integration entry imports actual registered edit/disk/diff-worker regression.",
+      "pi140Upgrade20261023PreviousSha256": "c17cf7bc02f10f21c9a67a4d04e51bb2f9b7316a05bb97ffd3266992531594a3",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
     },
     {
       "path": "modules/web-tools/tests/unit/pi-citation-compat.test.ts",
       "originalSha256": "92b40b0f8b65ed23c665335425a737d1ff868956c7f613faf15bed4597606b16",
       "dependencyUpgradePreviousSha256": "6e4da7d77c7b9d647b7559419c3c76ddb28c42af32fdb12f3954914a8a5b51bb",
-      "sha256": "d2b369230f12a9dd585274834d8e78fbef0d5ee7e42671ea98bb82ca9b95a82f",
-      "reason": "Resolve the root Pi decoder probe and explicitly audit Pi 1.0.0 (the only supported host) through the modern stream-hook contract. Retain callback count, response identity, allowlisted sources/citations, SECRET_QUERY privacy and normalized annotation-only URL-loss assertions. Pi 1.0.0 is the only supported host: the stream-hook contract assertions now require 1.0.0; the 0.85.1 fallback branch was removed."
+      "sha256": "6d2351333fff480de88cd50727ef85d5d4af603f9282e9484b1685e6e501dfe7",
+      "reason": "Resolve the root Pi decoder probe and explicitly audit Pi 1.0.0 (the only supported host) through the modern stream-hook contract. Retain callback count, response identity, allowlisted sources/citations, SECRET_QUERY privacy and normalized annotation-only URL-loss assertions. Pi 1.0.0 is the only supported host: the stream-hook contract assertions now require 1.0.0; the 0.85.1 fallback branch was removed.",
+      "pi140Upgrade20261023PreviousSha256": "d2b369230f12a9dd585274834d8e78fbef0d5ee7e42671ea98bb82ca9b95a82f",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
     },
     {
       "path": "modules/file-tools/src/file-operations.ts",
@@ -2511,7 +2528,7 @@
       "scanFix20261017Adaptation": "2026-10-17 document per event-loop-turn coalescing of output-driven panel redraws.",
       "driftReconcile20261021PreviousSha256": "38a698fe834625728275b20fdbd3e9f3e804649232472c0f095dd3c0ec486497",
       "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
-      "sha256": "fd1e367b4bf06bf957e0877e352724d7a73fb5c6a918cddf9c34df477e178597",
+      "sha256": "ee2922a4a8cd2f9ab7fc8d0583aec6201891b8eadd70d5c4462a8ff14734bbdc",
       "detachHint20261021PreviousSha256": "6890a5499d54528ee019c406ac7fbf2571ecf481ca393047d4e246c29183427e",
       "detachHint20261021Adaptation": "2026-10-21 document the hint as the tool call's last rendered line (muted, same shape as Pi's expand hint), the call/result placement rule, and that it is never written to the status bar.",
       "notificationBatchingPreviousSha256": "496539ba1fb125f18cb6fa1e517345023195e4a8e73665cb8d037b82d8911cf7",
@@ -2521,7 +2538,9 @@
       "checklistReviewBaselineSha256": "90e4e2aa987ec1b4f2fb150b67fd567408a03b0eea2a18c09292926378309cf6",
       "localSnapshotReview": "2026-10-08 current local snapshot review: L28-L30: existing bounded directory removal retry/dead-owner sweep and startup-inclusive idle-timeout documentation verified with module typecheck/unit/integration; per-output owner/generation fence retained as safety-relevant negligible overhead. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.\n2026-10-08 current local snapshot review: L28-L30 existing protections preserved; additionally user-authorized informational background notice/output wording now explains returned data is not instructions and not an error label, without changing payload/schema, authoritative outcomes, cancellation or followUp delivery; corresponding TUI/agent notification regressions reviewed. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.\n2026-10-08 current local snapshot review: L28-L30 existing protections preserved; additionally user-authorized informational background notice/output wording now explains returned data is not instructions and not an error label, without changing payload/schema, authoritative outcomes, cancellation or followUp delivery; corresponding TUI/agent notification regressions reviewed. English comparison-table messages now distinguish acceptance latency, authoritative cancellation with nonzero exit, notification versus disk-log retention, terminal cancel no-op, capacity refusal and retained-history errors; status/cancel TUI uses bounded named fields. Idle-timeout hint separates background execution from the unchanged timeout timer; (timeout 20s), synchronous host rendering, schema, trust and lifecycle preserved. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "historicalDeltaAudit": "unavailable",
-      "previousBackgroundRecoverySha256": "25a41230b7ca4c55157d58fa1aeeba194c3fe3284006071ef73f926cf094b57e"
+      "previousBackgroundRecoverySha256": "25a41230b7ca4c55157d58fa1aeeba194c3fe3284006071ef73f926cf094b57e",
+      "pi140Upgrade20261023PreviousSha256": "fd1e367b4bf06bf957e0877e352724d7a73fb5c6a918cddf9c34df477e178597",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: current support baseline text changed from 1.3.0 to 1.4.0; historical sections retained."
     },
     {
       "path": "modules/subagents/tests/debug-log.test.ts",
@@ -4838,8 +4857,10 @@
     },
     {
       "path": "modules/shell-tools/tests/fixtures/handoff-cancel-host.mjs",
-      "sha256": "76f14ccb060f797397d62df5726ee21bd53f9c3ed164feecdfc38baefab1202e",
-      "reason": "First inventoried 2026-10-23: isolated child fixture for SHELL-01, exercising the deferred runner boundary with controlled execution and event boundaries only."
+      "sha256": "640a2919326cdd53a30de343d96b61d03eb18cb4d1b186914c2c92ab75139f98",
+      "reason": "First inventoried 2026-10-23: isolated child fixture for SHELL-01, exercising the deferred runner boundary with controlled execution and event boundaries only.",
+      "pi140Upgrade20261023PreviousSha256": "76f14ccb060f797397d62df5726ee21bd53f9c3ed164feecdfc38baefab1202e",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
     },
     {
       "path": "modules/shell-tools/tests/fixtures/timeout-diagnostics-host.mjs",
@@ -4958,8 +4979,10 @@
       "path": "modules/web-tools/src/native-anthropic.ts",
       "cleanCodeModules20261023PreviousSha256": "06b10655ef1a1cda651422e4fadbd17de1dd682cbab48a018e80723141298965",
       "cleanCodeModules20261023Adaptation": "2026-10-23 clean code: shared isRecord from record.ts.",
-      "sha256": "1e732d7234eb60c8694a934d69e76ee42ae1f9530a1e6f63ec85faa29b390dfd",
-      "reason": "PLAN-20261017T153936832Z S5: Anthropic server-side web_search tool injection (web_search_20250305, max_uses 8) for the pi anthropic provider, idempotent, conflict-rejecting and fail-closed on unexpected payload shapes. First-party only: compatible endpoints were not probed, and pi 1.3.0 drops the returned server blocks (the API accepts that, verified live)."
+      "sha256": "05de64350ab95c3119405bf58ba657e332195f09e9c937d625e8c5dc942f8eb5",
+      "reason": "PLAN-20261017T153936832Z S5: Anthropic server-side web_search tool injection (web_search_20250305, max_uses 8) for the pi anthropic provider, idempotent, conflict-rejecting and fail-closed on unexpected payload shapes. First-party only: compatible endpoints were not probed, and pi 1.3.0 drops the returned server blocks (the API accepts that, verified live).",
+      "pi140Upgrade20261023PreviousSha256": "1e732d7234eb60c8694a934d69e76ee42ae1f9530a1e6f63ec85faa29b390dfd",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: comment names the current Pi 1.4.0 host; no code change."
     },
     {
       "path": "modules/web-tools/src/native-google.ts",
@@ -4982,8 +5005,10 @@
     },
     {
       "path": "modules/shell-tools/src/output-renderer.ts",
-      "sha256": "ffcca8ee0ef4fa5481522acb7a0eb6bcd7159a5b6ffc36461e98613e874dd41f",
-      "reason": "2026-10-16 user-requested Pi 1.3.0 presentation-only adapter: host-generated sanitized output Text gets visual-row rails and tail preview, omission hint follows output; host warnings/timing, data and execution are unchanged."
+      "sha256": "3b9353d1cf2fa8636c924d4c21b667c711dd6e3431518250f33b4841fbf005e2",
+      "reason": "2026-10-16 user-requested Pi 1.3.0 presentation-only adapter: host-generated sanitized output Text gets visual-row rails and tail preview, omission hint follows output; host warnings/timing, data and execution are unchanged.",
+      "pi140Upgrade20261023PreviousSha256": "ffcca8ee0ef4fa5481522acb7a0eb6bcd7159a5b6ffc36461e98613e874dd41f",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: comment names the current Pi 1.4.0 host; no code change."
     },
     {
       "path": "modules/shell-tools/src/widget-binding.ts",
@@ -5010,8 +5035,10 @@
     {
       "path": "modules/sql-connector/tests/sdk.integration.test.mjs",
       "dependencyUpgradePreviousSha256": "4a79c697b37e5f6c07d192f8b6e582e424abb84854b05a0ae37b6c27a0564c42",
-      "sha256": "bfba715218cdacc41dbe6b27b07b264cb826bc2130693a37e816d4dfa2f23f68",
-      "reason": "Isolated real SDK subprocess runner for search/fallback/trust/config/selection/reload; no live databases or model calls."
+      "sha256": "f21606b53112d890a9b15d273dca7f91931d7296c2de7d2af573394ab8705aab",
+      "reason": "Isolated real SDK subprocess runner for search/fallback/trust/config/selection/reload; no live databases or model calls.",
+      "pi140Upgrade20261023PreviousSha256": "bfba715218cdacc41dbe6b27b07b264cb826bc2130693a37e816d4dfa2f23f68",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
     },
     {
       "path": "modules/sql-connector/tests/fixtures/sdk-host.mjs",
@@ -5194,8 +5221,10 @@
     {
       "path": "modules/shell-tools/tests/monitor-exec.integration.test.mjs",
       "dependencyUpgradePreviousSha256": "032c1beb85336ee856ed59fb88e202d8c5e24fc85f9308b8cc328002c06f1524",
-      "sha256": "c220ae8f177a772ab0e88858e37e83765ed03a71128cd76f37df98e3285b34b4",
-      "reason": "Review actual offline Pi trust-aware normalized settings/pre-abort/cancel/actual-close adapter acceptance; no sleeps/providers."
+      "sha256": "a5ea7cedf6b4931f59e33597ea66be475489b87465d66f363970b030c92a4b62",
+      "reason": "Review actual offline Pi trust-aware normalized settings/pre-abort/cancel/actual-close adapter acceptance; no sleeps/providers.",
+      "pi140Upgrade20261023PreviousSha256": "c220ae8f177a772ab0e88858e37e83765ed03a71128cd76f37df98e3285b34b4",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
     },
     {
       "path": "modules/blackhole/tests/note-file-review.test.ts",
@@ -5224,8 +5253,10 @@
       "path": "modules/shell-tools/src/monitor-exec.ts",
       "monitorReviewPreviousSha256": "a91c2d3db26050ac33598e9d6eaa9f51b67d5d06582b3be552375a56455f12a8",
       "dependencyUpgradePreviousSha256": "c4d3884eaadd8f6e15ab234182f9520e454900897a9ff0736b74901adec883cf",
-      "sha256": "6eab21c4e2820280d15b354dda450d642a84e1950b868235c3602ffcbfc886b0",
-      "reason": "Pi1.1.0 Monitor channel/close seam reuses effective Shell resolver/environment/cancellation; ignored stdin, no legacy transport fallback."
+      "sha256": "879cf76354a37315472c4ba4a95446e119c19dc18bbd9654e6a1d6ad412d46b2",
+      "reason": "Pi1.1.0 Monitor channel/close seam reuses effective Shell resolver/environment/cancellation; ignored stdin, no legacy transport fallback.",
+      "pi140Upgrade20261023PreviousSha256": "6eab21c4e2820280d15b354dda450d642a84e1950b868235c3602ffcbfc886b0",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact-version Monitor backend gate and its message now require 1.4.0; resolver/cancellation/close behavior unchanged."
     },
     {
       "path": "modules/shell-tools/src/monitor-publisher.ts",
@@ -5272,11 +5303,13 @@
       "packageMonitorRepairPreviousSha256": "7a992fbeb37017158422a800b8ce3c24dfa1937801d69fe4fb4fa2e37a2d1780",
       "packageMonitorRepair": "Terminal failure-before/after rejects with narrow lifecycle/cleanup diagnostics; completed success requires actual close/no cleanup pending; original data/status/privacy/cleanup assertions and deadline unchanged.",
       "dependencyUpgradePreviousSha256": "817d75aef60dabb47b6dceea091565de73754abac12025e210983a0809244297",
-      "sha256": "1684ef99b72a8e1936835bdd1ab22a5aa487fff5fc034140dfe7abfdda944f96",
+      "sha256": "a8d16a0f9f6c78694e9b658611c3fd6bf4a8dfbae7adc71000436a66ba83a50d",
       "monitorV1SecondProbeSha256": "07dca5b70be0248e3c4ffb4ff6bf478287f6100b0584a65ec436d214108cda84",
       "monitorV1InitialSha256": "a4581c19d371d04b6668652049792d77bf3e29f33c2a0667207ecc2dfc2f252e",
       "probeCorrection": "Redaction assertions reject a unique query secret and token key in all receipts plus query/fragment delimiters in websocket preview; command/path-withheld safe placeholders remain valid.",
-      "reason": "Actual production Pi1.1 loader command/WS close and readonly providers; no external model calls."
+      "reason": "Actual production Pi1.1 loader command/WS close and readonly providers; no external model calls.",
+      "pi140Upgrade20261023PreviousSha256": "1684ef99b72a8e1936835bdd1ab22a5aa487fff5fc034140dfe7abfdda944f96",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
     },
     {
       "path": "modules/shell-tools/src/managed-child.ts",
@@ -5328,8 +5361,10 @@
     {
       "path": "modules/subagents/tests/managed-child-shell.integration.test.mjs",
       "dependencyUpgradePreviousSha256": "b586097157112b96f1a403e156e883cd363b6bb1eff139c790fe419f66ee54bd",
-      "sha256": "ecf43ea404952f26e71f59fd0b32dead18296887515c2a1cc4523c6aaa7cc235",
-      "reason": "2026-10-09 actual offline CLI new/resume/ready-query both guard/Shell load orders with original builders/EOF close."
+      "sha256": "7df0d70b9af5c33a1c184b34f59dace59a827a42bfdd0445d31f95de0d173d8d",
+      "reason": "2026-10-09 actual offline CLI new/resume/ready-query both guard/Shell load orders with original builders/EOF close.",
+      "pi140Upgrade20261023PreviousSha256": "ecf43ea404952f26e71f59fd0b32dead18296887515c2a1cc4523c6aaa7cc235",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
     },
     {
       "path": "modules/subagents/tests/fixtures/managed-child-shell-probe.ts",
@@ -5344,8 +5379,10 @@
     {
       "path": "modules/subagents/tests/fixtures/child-shell-guard-reload-host.mjs",
       "dependencyUpgradePreviousSha256": "23c36117e3dcc5898874218f7b1f7688dcd106343cb265fdc6f3ea87bc205bac",
-      "sha256": "cf61bcd86b9daf2c5c8190e49b7d18f8dd6aeceafef64a6089d28e63464b0164",
-      "reason": "2026-10-09 isolated Pi1.1.0 guard/Shell reload, offline admission/close sentinel, Unicode/equal-length same-inode invalid-UTF8 raw mutation."
+      "sha256": "e3443e06958200e8d0d8e219de9be4e452bcbe5d86ef167de9c864681bb4f048",
+      "reason": "2026-10-09 isolated Pi1.1.0 guard/Shell reload, offline admission/close sentinel, Unicode/equal-length same-inode invalid-UTF8 raw mutation.",
+      "pi140Upgrade20261023PreviousSha256": "cf61bcd86b9daf2c5c8190e49b7d18f8dd6aeceafef64a6089d28e63464b0164",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
     },
     {
       "path": "modules/subagents/tests/child-startup-receipt.test.ts",
@@ -5428,16 +5465,20 @@
       "path": "modules/shell-tools/tests/notification-batching.integration.test.mjs",
       "completionSteeringPreviousSha256": "ebfe8215a61a4bbd3d5aa7cf6a6798ddb6da2f343ded5c98a3bed47ac1e60ba5",
       "dependencyUpgradePreviousSha256": "8c6ebb6f3d929708f37236466e33f87c2ec4fe3416f403b9ce260f2ea8d5b345",
-      "sha256": "665afb43de9efd0b3a7438b55cba487cece0ca0d7331631c1765d9ce2237a9c8",
-      "reason": "2026-10-09 isolated actual Pi 1.1.0 normal/queued/aborted one-batch probes, owned by Shell integration group."
+      "sha256": "167f4d81f76a2479cef14533ddadd7e3136b0567ec13f6dff656650bf3567bbd",
+      "reason": "2026-10-09 isolated actual Pi 1.1.0 normal/queued/aborted one-batch probes, owned by Shell integration group.",
+      "pi140Upgrade20261023PreviousSha256": "665afb43de9efd0b3a7438b55cba487cece0ca0d7331631c1765d9ce2237a9c8",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
     },
     {
       "path": "modules/shell-tools/tests/fixtures/notification-batching-host.mjs",
       "completionSteeringPreviousSha256": "8b0a21cc572856813fea2d6e0d05a9bd10abca90d126ac39bded9244e55f9bf9",
       "dependencyUpgradePreviousSha256": "0c55cf64509e0120f42eb5a6c00fccd04ffa189f22c791e8db5a1ebec150ab84",
       "checkRepairPreviousSha256": "b2b104b6da18139385c954b0ff64d5604ebbc4686cadd6e0f270ea4d428eaa04",
-      "sha256": "c9aa2de330ac6cc34601bdf1d65e0361611a2b1802b73a0705599500ddfa2dab",
-      "reason": "2026-10-09 real production Shell factory/SDK hooks and local backend; journal terminal barriers, synthetic offline stream, network forbidden, five mixed results preserved in one persisted/model-visible batch."
+      "sha256": "ebdf4518f32d2041996a2319559c6991b7d552a957d43dd20bb9d31006860916",
+      "reason": "2026-10-09 real production Shell factory/SDK hooks and local backend; journal terminal barriers, synthetic offline stream, network forbidden, five mixed results preserved in one persisted/model-visible batch.",
+      "pi140Upgrade20261023PreviousSha256": "c9aa2de330ac6cc34601bdf1d65e0361611a2b1802b73a0705599500ddfa2dab",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
     },
     {
       "path": "modules/shell-tools/src/api-interruption-renderer.ts",
@@ -5520,24 +5561,30 @@
       "lintCleanupAdaptation": "2026-10-12 check action and close arbitration outside finally, retaining dual-failure AggregateError including falsy primary; only both-success cases published.",
       "promptSectionsPreviousSha256": "8d29e8bb5fb19b4681402bf7db40615cba195dd6c177f44351c6aa18fd008f41",
       "dependencyUpgradePreviousSha256": "9c390f4762353e6f5543b0aa62007f3d062ff061f1d53877ad97d9933a732475",
-      "sha256": "942fa1c15fb24f9e72d5219fd14e01471d56f60d9ca11feb4c1207c9f999233f",
+      "sha256": "e81efabf9bad8bdcc7fdde0e0df5b9ae906f62019db1e2c373d0b5fad84e4c05",
       "monitorPreviousSha256": "8c75ebec3fea1e6664d780c7a6a9b0ddf9574ca7d6c922df032a19de5ed9f1b6",
       "monitorAdaptation": "Inactive/reload/exclusion Monitor probes with existing fourteen SDK cases.",
       "previousVersionToken": "35e5f94b07a61f81cc4ac6ed14eb85e6",
-      "reason": "Pin existing offline host contract to Pi 1.1.0 without relaxing assertions; add search selection/exclusion/reload, durationMs and agent_settled.aborted checks. Earlier root snapshot hashes remain historical."
+      "reason": "Pin existing offline host contract to Pi 1.1.0 without relaxing assertions; add search selection/exclusion/reload, durationMs and agent_settled.aborted checks. Earlier root snapshot hashes remain historical.",
+      "pi140Upgrade20261023PreviousSha256": "942fa1c15fb24f9e72d5219fd14e01471d56f60d9ca11feb4c1207c9f999233f",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: version assertion 1.4.0; restored-loadout check also expects the extension tools the branch never mentioned (declarable exposure, defaultActive !== false) per Pi 1.4.0 #11062. The recorded tools, the delayed fixture_late fence and the exact-set comparison are unchanged."
     },
     {
       "path": "modules/subagents/tests/notification-host.integration.test.ts",
       "dependencyUpgradePreviousSha256": "6ab46acb5771fcf6228e0f5910cdcfbd93ee8d3957a6549dd085d399e38301b7",
-      "sha256": "6b3d401bd4e1609d17fb8b69ae101556fae97cb0dd23999056412e33897d584b",
-      "reason": "2026-10-08 phase-one worker handoff: actual isolated Pi 1.0.0 SDK notification boundary runner; streaming queue, idle persistence and asynchronous host failure remain distinct from callback return. No paid model, real settings or delivery acknowledgment."
+      "sha256": "13e30f00fce4d7b801a5560b9bd2a20fe401eaf12eca658d4093dd5a48cc1394",
+      "reason": "2026-10-08 phase-one worker handoff: actual isolated Pi 1.0.0 SDK notification boundary runner; streaming queue, idle persistence and asynchronous host failure remain distinct from callback return. No paid model, real settings or delivery acknowledgment.",
+      "pi140Upgrade20261023PreviousSha256": "6b3d401bd4e1609d17fb8b69ae101556fae97cb0dd23999056412e33897d584b",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
     },
     {
       "path": "modules/subagents/tests/fixtures/notification-host.ts",
       "completionSteeringPreviousSha256": "c5a787e6a1c3fe613195fbde85480b49bac24dc03b69e9c0e8ccb8955e7a7488",
       "dependencyUpgradePreviousSha256": "fbacbaa9f8ca70a69e2f80faa696e061bef7932367cd73b77cf1c975c57e2d2a",
-      "sha256": "3b673021429b922a68f84fa2c4258de8a35be594d1bee3238ebd1425f27e1333",
-      "reason": "2026-10-08 phase-one worker handoff: offline synthetic SDK fixture observes real followUp admission, parent persistence and host async rejection with one callback attempt; extension hostAcknowledgment stays unknown."
+      "sha256": "0d8dffbf0ccc8c6ea5c6a2065be1d7d360884987189da7bba3bb255f4b53329f",
+      "reason": "2026-10-08 phase-one worker handoff: offline synthetic SDK fixture observes real followUp admission, parent persistence and host async rejection with one callback attempt; extension hostAcknowledgment stays unknown.",
+      "pi140Upgrade20261023PreviousSha256": "3b673021429b922a68f84fa2c4258de8a35be594d1bee3238ebd1425f27e1333",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
     },
     {
       "path": "modules/subagents/tests/runner-prompt-lifecycle.test.ts",
@@ -5725,14 +5772,18 @@
     {
       "path": "tests/fixtures/schedule-deadline.mjs",
       "dependencyUpgradePreviousSha256": "fef2f151d10b5b8872375e2faf1d3c9df0bc1120ff7a2afbbc1d4ea01dd120e4",
-      "sha256": "036ade39ef23e920fb71d0f3b49c595e0411714c06cec9d04f681ee9d6ed2770",
-      "reason": "2026-10-07 isolated real Pi 1.0.0 extension loader/nullable tool schema/CRUD/deadline startup and session reinitialize probe; no model calls or fixed waiting."
+      "sha256": "b24e8cfeb7e1d18559655ee3d982a8661eb91bf338da6cfe9f09bd7472f34879",
+      "reason": "2026-10-07 isolated real Pi 1.0.0 extension loader/nullable tool schema/CRUD/deadline startup and session reinitialize probe; no model calls or fixed waiting.",
+      "pi140Upgrade20261023PreviousSha256": "036ade39ef23e920fb71d0f3b49c595e0411714c06cec9d04f681ee9d6ed2770",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
     },
     {
       "path": "tests/integration/schedule-deadline.test.mjs",
       "dependencyUpgradePreviousSha256": "89be80d5c12e7d0417bb8ae9c696d3266b1bc70883e8f96278b4b311c475530f",
-      "sha256": "fdc26fb1526074857a77363b41848ec317fbd51775227acfd66f62730e7e0dad",
-      "reason": "2026-10-07 Schedule Prompt-owned real-host fixture runner with isolated environment/home/workspace and cleanup."
+      "sha256": "d133630bad27b548735d0f81245e87952ef8c825555faeda3c35e5e990fa6d67",
+      "reason": "2026-10-07 Schedule Prompt-owned real-host fixture runner with isolated environment/home/workspace and cleanup.",
+      "pi140Upgrade20261023PreviousSha256": "fdc26fb1526074857a77363b41848ec317fbd51775227acfd66f62730e7e0dad",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
     },
     {
       "path": "modules/subagents/extensions/subagent/title.ts",
@@ -6339,9 +6390,11 @@
     {
       "path": "modules/shell-tools/tests/fixtures/recovery-host.ts",
       "dependencyUpgradePreviousSha256": "af1524366c82806ec0f79a4d10f71ef070ceb300448d66d558239ccd03e10c54",
-      "sha256": "d2e30ee70e057641b4ab009305fc597e6b0f8c5ea0a7addb8ac6b9250abf3077",
+      "sha256": "eb42c98784efce94331499bc9ca12d128d9a80e0fdb4cf37f1068c72e3c31009",
       "reason": "2026-10-08 authorized session-load background reconciliation: payload-free versioned journal before allocation/runner admission; persistent-conversation fence; bounded same-owner/cwd inventory and active-branch evidence dedup; neutral model-visible triggerTurn:false notices; no restart, child resume, control replay, lock/native mutation or process-tree termination claim. Compaction-aware buildContextEntries dedup preserves fresh model-visible notices after old notices leave context; isolated host compaction probe asserts four persisted/two context-visible notices.",
-      "supersededWithinBackgroundRecoverySha256": "677c1e1ad781273b2d1d242c372ccf7e173cf0e464a5fbe30031599ade722508"
+      "supersededWithinBackgroundRecoverySha256": "677c1e1ad781273b2d1d242c372ccf7e173cf0e464a5fbe30031599ade722508",
+      "pi140Upgrade20261023PreviousSha256": "d2e30ee70e057641b4ab009305fc597e6b0f8c5ea0a7addb8ac6b9250abf3077",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
     },
     {
       "path": "modules/subagents/tests/recovery.test.ts",
@@ -6380,16 +6433,20 @@
       "blackholeNativeCutRootPreviousSha256": "1eb56dee956cf65de5d19ea872c2f8aaf0619fd3aec1b6e01dd7db9b7bc9c68b",
       "blackholeNativeCutRootPreviousReason": "Isolated offline Pi 1.0.0 native compact/persist/reopen/display renderer test; empty auth/passive workers, duplicate-safe and zero provider requests. Also reused by production tarball smoke.",
       "dependencyUpgradePreviousSha256": "52df56c52393356bd256533882197ff3aa28192cde2cc8831eb15c0187849c15",
-      "sha256": "fbee03d35d82f1d0e80c76f82629c1464627101f758f68aec9ad80f2db623780",
-      "reason": "Root fixture migration to actual Pi1.1.0 native preparation/cut/tokens/input, not compact-all: retained newest final is not copied; only newest dropped final persists, resumes/renders fully, plain custom zero LLM projection, sanitized text, duplicate-safe, empty auth/providerCalls0. Fresh loader per live/resumed scenario. Test-only public readonly audit, no module/SDK/config/source hash signing; unedited fresh projection scope only. Source repairs/re-review/final stable module/root adoption remain pending; history/logs preserved. Evidence plan/evidence/blackhole-native-cut-root-20261009-v1. 2026-10-09 ROOT W1 correction of report/REPORT-20261009T151009168Z.md: previous active SHA256 ba009d94d1d1c18ec579fe8e60735673901adfa810db414d25d34b1987f630b1 and preceding rationale retained as history; pre-W1 providerCalls0 established observed external-fetch zero only, not model-stream zero. Shared public instance streamFunction throwing counter is now proven by actual Agent.prompt existing-wrong-field red/correct green and retained wrong-field negative control, with isolated positive control count1 separate from A/B modelStreamCalls0; actualExternalFetchCalls independently0 and providerCalls explicitly its compatibility alias. All rawBefore entries exact on disk/reopen and reopened compaction cut/tokens/summary exact. Fresh binding only, dispose not shutdown proof; edited/memory-on remains a separate gate. Evidence plan/evidence/blackhole-root-counter-w1-20261009-v1; no Blackhole source signing, adoption or root/package/module acceptance."
+      "sha256": "f8a46d4bcc3ff4573248c4b7a1b5315a9d910e81a3a1e53a20cf8b3c15469c60",
+      "reason": "Root fixture migration to actual Pi1.1.0 native preparation/cut/tokens/input, not compact-all: retained newest final is not copied; only newest dropped final persists, resumes/renders fully, plain custom zero LLM projection, sanitized text, duplicate-safe, empty auth/providerCalls0. Fresh loader per live/resumed scenario. Test-only public readonly audit, no module/SDK/config/source hash signing; unedited fresh projection scope only. Source repairs/re-review/final stable module/root adoption remain pending; history/logs preserved. Evidence plan/evidence/blackhole-native-cut-root-20261009-v1. 2026-10-09 ROOT W1 correction of report/REPORT-20261009T151009168Z.md: previous active SHA256 ba009d94d1d1c18ec579fe8e60735673901adfa810db414d25d34b1987f630b1 and preceding rationale retained as history; pre-W1 providerCalls0 established observed external-fetch zero only, not model-stream zero. Shared public instance streamFunction throwing counter is now proven by actual Agent.prompt existing-wrong-field red/correct green and retained wrong-field negative control, with isolated positive control count1 separate from A/B modelStreamCalls0; actualExternalFetchCalls independently0 and providerCalls explicitly its compatibility alias. All rawBefore entries exact on disk/reopen and reopened compaction cut/tokens/summary exact. Fresh binding only, dispose not shutdown proof; edited/memory-on remains a separate gate. Evidence plan/evidence/blackhole-root-counter-w1-20261009-v1; no Blackhole source signing, adoption or root/package/module acceptance.",
+      "pi140Upgrade20261023PreviousSha256": "fbee03d35d82f1d0e80c76f82629c1464627101f758f68aec9ad80f2db623780",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
     },
     {
       "path": "tests/integration/blackhole-display.test.mjs",
       "blackholeNativeCutRootPreviousSha256": "63f82870925d627ca2516daf18f7f203f73f4205bc3f433e15d605086aae8204",
       "blackholeNativeCutRootPreviousReason": "Isolated offline Pi 1.0.0 native compact/persist/reopen/display renderer test; empty auth/passive workers, duplicate-safe and zero provider requests. Also reused by production tarball smoke.",
       "dependencyUpgradePreviousSha256": "08e313df6a60eb64354e30880a7552b901311e5ffd3aee969fefa996916af908",
-      "sha256": "2e8879890431a748005b617d878a0d46d647637c383e9ab7c9fc34abd44a6b43",
-      "reason": "Strict actual Pi1.1.0 nativeCut JSON contract parser, exact two scenarios/cut/tokens/settings and retained/drop/duplicate/displayOnly/resume/render/providerCalls0 assertions; obsolete compactAll flag absent, original failing logs kept. Narrow root migration only, not Blackhole source acceptance or full-root release. 2026-10-09 ROOT W1: previous active SHA256 7349cdd969b3f8f5e5eccc5528cb40760b5a1d29a8a3efd629a43b601627a92e and rationale preserved above. Separate real public Agent.prompt positive/intentional-wrong-field controls prove the same fixture installer is used by host; A/B independently require modelStreamCalls0, actualExternalFetchCalls0, compatibility providerCalls0 and exact counter semantics at top and each row. Require disk-raw/reopened-compaction exact flags. Actual wrapper/package blocks reject counter-positive/absent and old-field-semantic payloads offline; schema checks are not production scenarios. Narrow ROOT repair only, unchanged readonly audit not refreshed, pending independent re-review and parent freeze/gates."
+      "sha256": "2bf6b0a7f9b40f4580bc2342a91afad59ee5834c9fdff4aba086845ca8daa07a",
+      "reason": "Strict actual Pi1.1.0 nativeCut JSON contract parser, exact two scenarios/cut/tokens/settings and retained/drop/duplicate/displayOnly/resume/render/providerCalls0 assertions; obsolete compactAll flag absent, original failing logs kept. Narrow root migration only, not Blackhole source acceptance or full-root release. 2026-10-09 ROOT W1: previous active SHA256 7349cdd969b3f8f5e5eccc5528cb40760b5a1d29a8a3efd629a43b601627a92e and rationale preserved above. Separate real public Agent.prompt positive/intentional-wrong-field controls prove the same fixture installer is used by host; A/B independently require modelStreamCalls0, actualExternalFetchCalls0, compatibility providerCalls0 and exact counter semantics at top and each row. Require disk-raw/reopened-compaction exact flags. Actual wrapper/package blocks reject counter-positive/absent and old-field-semantic payloads offline; schema checks are not production scenarios. Narrow ROOT repair only, unchanged readonly audit not refreshed, pending independent re-review and parent freeze/gates.",
+      "pi140Upgrade20261023PreviousSha256": "2e8879890431a748005b617d878a0d46d647637c383e9ab7c9fc34abd44a6b43",
+      "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
     },
     {
       "path": "tests/fixtures/blackhole-display-audit.ts",
@@ -8114,11 +8171,13 @@
         "webSetupPreviousSha256": "8f56aa746d9fe20e32a10d2d1146b768aca1cba855bc95f4145b2343032539a8",
         "driftReconcile20261021PreviousSha256": "7a3688786a6af57c93fb6591daabd0145c83d64ad9fa41bf2ba1f9ddbb80a7ce",
         "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
-        "sha256": "28ca50d2a4934a2d16a9797c1d666a93c2c65facb87c34762e39768e45199a84",
+        "sha256": "76e4672417233dd6a11d57a2acf68da1c4148a18b3b3507f2b957a16fe96e13c",
         "monitorPreviousSha256": "ae065e8de453da9240e702351a3cb59e2db1c8432edcf9e0ad2ec02559f28d0f",
         "piRuntimePreviousSha256": "8e7419763728471a1bc7b141ed7ce177baec63cd4264392a88f51c8f74744d58",
         "previousBlackholeVendoringSha256": "de17b817107b94486ad93c642784966b1a925ce2a3427a49613c61018885f0b4",
-        "reason": " 2026-10-09 reviewed Blackhole local snapshot/manifest/verification adaptation; prior integration record preserved under blackholeVendoring."
+        "reason": " 2026-10-09 reviewed Blackhole local snapshot/manifest/verification adaptation; prior integration record preserved under blackholeVendoring.",
+        "pi140Upgrade20261023PreviousSha256": "28ca50d2a4934a2d16a9797c1d666a93c2c65facb87c34762e39768e45199a84",
+        "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: four Pi devDependencies and lockfile moved to 1.4.0; runtime dependencies unchanged."
       },
       {
         "path": "package-lock.json",
@@ -8129,10 +8188,12 @@
         "webSetupPreviousSha256": "c7f35b50fa4b79b3c5c6065e2889c4e9394ce5729c51e1881852dadaa5d0ab03",
         "driftReconcile20261021PreviousSha256": "0184660173186144adfffbcbadfc744657ff864c072b5a19ab5275865c903c5a",
         "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
-        "sha256": "6ee840a5ba960d971c3d723aa22849e0f646eddcd895f037f6aba9b278fb34e4",
+        "sha256": "c1a7f4c847e3b1c3261fcd652b8310d2aeafbb5e386fec182f5802d94822c452",
         "monitorPreviousSha256": "860eacc0fb65c13c68890958362aef37033e05bbeb44391612ddff2a00309d8c",
         "previousBlackholeVendoringSha256": "5b22381c02b082f888a8a2ead8de754ff181fcfcb923c977e932340f24061a39",
-        "reason": " 2026-10-09 reviewed Blackhole local snapshot/manifest/verification adaptation; prior integration record preserved under blackholeVendoring."
+        "reason": " 2026-10-09 reviewed Blackhole local snapshot/manifest/verification adaptation; prior integration record preserved under blackholeVendoring.",
+        "pi140Upgrade20261023PreviousSha256": "6ee840a5ba960d971c3d723aa22849e0f646eddcd895f037f6aba9b278fb34e4",
+        "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: four Pi devDependencies and lockfile moved to 1.4.0; runtime dependencies unchanged."
       },
       {
         "path": ".npmrc",
@@ -8189,7 +8250,7 @@
         "fileMonitorSourceMerge20261022Adaptation": "2026-10-22: merge worktree-monitor-file-source into main. The Monitor row now lists six sources including the metadata-only file source and keeps the fork_message row; the hash is recomputed over the merged text.",
         "disableCacheTtl20261023PreviousSha256": "e4d2110a3ebe8c1061d90e92fe7e67fe2e81342e86463a16a980f6cdeb898f82",
         "disableCacheTtl20261023Adaptation": "2026-10-23 user-requested disable: the GPT Speed row and section say `/cache-ttl-*` is disabled (no command, no `Cache:` status, no `prompt_cache_options.ttl`) and keep the re-enable specification in the module README.",
-        "sha256": "8fb5d0a1338dbc77b985303ee72e760b9322f379e6af5de8c1ac5172b8710f8e",
+        "sha256": "7f3a6b8be3c3b851fe4f387c21f0f7d679c1f473fab4224e59406e4ea950f608",
         "piBoltFffCompat20261021PreviousSha256": "c8b06a087ec965b4557dc7b52ce2011a2fdcde45f699029dca43d87a30190f4e",
         "piBoltFffCompat20261021Adaptation": "2026-10-21 README limitation line extended with the measured Pi-Bolt facts: FFF uses the fff-node backend there (fff-bun only on the JIT build) and must not coexist with opensec-pi-fff; details in docs/compatibility.md.",
         "validationRepairAdaptation": "2026-10-10 test grouping, rg prerequisite/env and safe dependency rebuild docs.",
@@ -8198,7 +8259,9 @@
         "previousRejectedTuiSha256": "5807cbdcc0657679b4fce2563864194639508b43913d98e81d40575d0c5fc899",
         "previousBackgroundRecoverySha256": "6ec0d4d4f8584fcfbb5b3cd83db7414c14d05a2001cea48d8ff815afaee22497",
         "reason": " 2026-10-08 authorized session-load background reconciliation: payload-free versioned journal before allocation/runner admission; persistent-conversation fence; bounded same-owner/cwd inventory and active-branch evidence dedup; neutral model-visible triggerTurn:false notices; no restart, child resume, control replay, lock/native mutation or process-tree termination claim. 2026-10-09 reviewed Blackhole local snapshot/manifest/verification adaptation; prior integration record preserved under blackholeVendoring. 2026-10-11 parent-authorized settled documentation: nineteen confirmed repair contracts, retained regression guidance and OS/mock/resource limits; no release/provider certification.",
-        "previousBlackholeVendoringSha256": "f9c56ff2a545421ed9ef54e2c1550f00a7140be05cfa22701a7935bd9d93e6a1"
+        "previousBlackholeVendoringSha256": "f9c56ff2a545421ed9ef54e2c1550f00a7140be05cfa22701a7935bd9d93e6a1",
+        "pi140Upgrade20261023PreviousSha256": "8fb5d0a1338dbc77b985303ee72e760b9322f379e6af5de8c1ac5172b8710f8e",
+        "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: current support baseline text changed from 1.3.0 to 1.4.0; historical sections retained."
       },
       {
         "path": "docs/architecture.md",
@@ -8230,14 +8293,16 @@
         "gptSpeedCacheAdaptation": "2026-10-21 GPT Speed prompt cache lifetime: new /cache-ttl-short and /cache-ttl-long commands (no arguments) and pi-gpt-speed.cache setting (short = 30m API default, request untouched; long = prompt_cache_options.ttl 12h for provider openai on the openai-responses API only, merged into existing prompt_cache_options), independent global/trusted-project precedence, extra TUI status entry gpt-cache; speed/service_tier behavior unchanged. Unit tests (55) and the real-host probe were run; OpenAI acceptance of the field was not verified against the real service.",
         "disableCacheTtl20261023PreviousSha256": "4fbc75f61ca0b333cd02d1f2a4ee3dc5b86087c31027f281d68363fd20b36a29",
         "disableCacheTtl20261023Adaptation": "2026-10-23: the GPT Speed architecture line states three speed commands with the cache pair disabled and `pi-gpt-speed.cache` parsed but unused.",
-        "sha256": "2142798b0ed2d74ae11369fc0bfa6ab1773d79099a4dbe06c06f4e2019900adf",
+        "sha256": "7d23a37e492348cb8dbbd46416cda00ae66d4f6794cee33ea2e6ade95b3f04df",
         "monitorPreviousSha256": "073a7ba2c4aad2d104cb41bc52c5f2cc8b16b455343045456fb8dbcf40dc449f",
         "piRuntimePreviousSha256": "2c21b3aea0fa5612d7e134d71f541b363aa6e5041890c702c822ad001bae98c6",
         "notificationBatchingPreviousSha256": "9c48e1adcdcaf55e6da9b27b013f59653ed5b9e20ecaf0970397f4b6c4bdbf47",
         "previousBackgroundRecoverySha256": "0b026ca6b8d13740cf2be851c0a29b69c0711609db22c4be05d759a0738c6b62",
         "reason": " 2026-10-08 authorized session-load background reconciliation: payload-free versioned journal before allocation/runner admission; persistent-conversation fence; bounded same-owner/cwd inventory and active-branch evidence dedup; neutral model-visible triggerTurn:false notices; no restart, child resume, control replay, lock/native mutation or process-tree termination claim. Compaction-aware buildContextEntries dedup preserves fresh model-visible notices after old notices leave context; isolated host compaction probe asserts four persisted/two context-visible notices. 2026-10-09 reviewed Blackhole local snapshot/manifest/verification adaptation; prior integration record preserved under blackholeVendoring. 2026-10-11 parent-authorized settled architecture: acquisition/allocation ownership, async housekeeping, schema admission, schedule generations/batch and bounded recall/resolution; no OS sandbox/ack claim.",
         "supersededWithinBackgroundRecoverySha256": "b572a0f8d780f163535be461ce49b3526957d4d6cc046c6b89169822b0a088e1",
-        "previousBlackholeVendoringSha256": "a0d31a75c1024a844eb8a36545c2ff51e28fcbf76144c019a7704205f1ab430e"
+        "previousBlackholeVendoringSha256": "a0d31a75c1024a844eb8a36545c2ff51e28fcbf76144c019a7704205f1ab430e",
+        "pi140Upgrade20261023PreviousSha256": "2142798b0ed2d74ae11369fc0bfa6ab1773d79099a4dbe06c06f4e2019900adf",
+        "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: current support baseline text changed from 1.3.0 to 1.4.0; historical sections retained."
       },
       {
         "path": "docs/configuration.md",
@@ -8286,11 +8351,13 @@
         "sqlConnectorPreviousSha256": "22594459a79bb83b43f0e00da6eaec9dca26687647af5fd43ff315310a6cf8f9",
         "dependencyUpgradePreviousSha256": "bd705c2bfefdbc2e9ebe4d3b57c561b385153afc1d84c274f4bf7b48c6f751fc",
         "webSetupPreviousSha256": "1523ddde0911156a4392adbcd2690b84f78c5890e59d4b55d38d1d8be343f6c0",
-        "sha256": "4e6587dfd4ba3596f9339dacd9c4b0d8c4280ba2d8630499d5a291860317ff33",
+        "sha256": "800692fcd79fc45aff69de6231537f5ba51644b76a00015bb89b6800680dcee7",
         "monitorPreviousSha256": "cd5c00c84260f5bd89ea1dd263ce57206424e4adb8185b3535398c584b441628",
         "piRuntimePreviousSha256": "462535864e9da0432abf132be377ce81c59d93c7f87d0d01afee9c4adf1cfc27",
         "previousBlackholeVendoringSha256": "4d6081ac112e4a3c522e2ad26e9f9341624eba20a365a532f1103a2e6d233456",
-        "reason": " 2026-10-09 reviewed Blackhole local snapshot/manifest/verification adaptation; prior integration record preserved under blackholeVendoring."
+        "reason": " 2026-10-09 reviewed Blackhole local snapshot/manifest/verification adaptation; prior integration record preserved under blackholeVendoring.",
+        "pi140Upgrade20261023PreviousSha256": "4e6587dfd4ba3596f9339dacd9c4b0d8c4280ba2d8630499d5a291860317ff33",
+        "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: current support baseline text changed from 1.3.0 to 1.4.0; historical sections retained."
       },
       {
         "path": "THIRD_PARTY_NOTICES.md",
@@ -8316,12 +8383,14 @@
         "forkMessage20261021Adaptation": "2026-10-22: the Fork contributor rule now includes fork_message (running/blocked only, no queue or replay, 32 per Fork, acceptance never reported as application, receipts memory-only).",
         "fileMonitorSourceMerge20261022PreviousSha256": "d0c9c1729ef0af387191b8121ebe3eba3d5c7cfe43baf4d0e82d1c33cd31aecb",
         "fileMonitorSourceMerge20261022Adaptation": "2026-10-22: merge worktree-monitor-file-source into main. The Monitor contributor rule now names six sources with the file containment/metadata-only limits and keeps the fork_message rule; the hash is recomputed over the merged text.",
-        "sha256": "e085349fc1b38fb671881d09cf002ed66e1964a8c7974d5d5a5f92dad15ebd02",
+        "sha256": "3b8e18880534b68632d54825284c62411d0c7b92bdbcb97a8feae3ec071b94c5",
         "monitorPreviousSha256": "4f7cb7f8fa477837aeeb2ff3b839b675bfb7d28b3c1ad65296d432546e78dedc",
         "piRuntimePreviousSha256": "05e16dfe5531bc7ff244feb780c5e1571f18718f073a001d73767c48133023e4",
         "previousBlackholeVendoringSha256": "602c9bd571f9ec6dc59371b9eca192203e3e4f09e55b790110ee78b07b9807e7",
         "reason": " 2026-10-09 reviewed Blackhole local snapshot/manifest/verification adaptation; prior integration record preserved under blackholeVendoring.",
-        "deferredSharedPreviousSha256": "1e0ee456ddb46f28e4df5c426f4e48e6ba8d13211540a798f229d2d3ebc195f9"
+        "deferredSharedPreviousSha256": "1e0ee456ddb46f28e4df5c426f4e48e6ba8d13211540a798f229d2d3ebc195f9",
+        "pi140Upgrade20261023PreviousSha256": "e085349fc1b38fb671881d09cf002ed66e1964a8c7974d5d5a5f92dad15ebd02",
+        "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: current support baseline text changed from 1.3.0 to 1.4.0; historical sections retained."
       },
       {
         "path": "scripts/verify-sources.mjs",
@@ -8366,12 +8435,14 @@
         "fileAuditPreviousSha256": "cea5042c9b9307adb23985150c828e56ad62a6be9274bdb32374dd4537467633",
         "webSetupPreviousSha256": "227fc246c077c0719e833a1f4095cdbd6a6722d406584abcb73a159c6111762e",
         "webSetupCp4PreviousSha256": "394ce0c65e1a1fefa3f9855cf5d4b9bdf13d5ee5fefbd15702e41ca077fcbae3",
-        "sha256": "9d86ebcc8b895e61a8d4a3ea979e3747a4729e587690f427af2758a759772dfa",
+        "sha256": "7f4ef476fb79158e4f7c640566c764cf39c6ea2c0f35c34ba26b137685f17eac",
         "validationRepairAdaptation": "2026-10-10 fail-fast rg prerequisite and per-mode exclusive binary copy; production assertions unchanged.",
         "monitorPreviousSha256": "9a5c5b2068209ef25eeea47dc7597565769aa3792c51611b8475acac74c0cb3d",
         "piRuntimePreviousSha256": "1a0813c27fa5622043a250a658da59b138bef856338d21a84d487920099ca153",
         "previousBlackholeVendoringSha256": "688a0440c5b6ce4488d28adaa77ebfd501c20924fb773dcc22942c5054295c7c",
-        "reason": " 2026-10-09 reviewed Blackhole local snapshot/manifest/verification adaptation; prior integration record preserved under blackholeVendoring."
+        "reason": " 2026-10-09 reviewed Blackhole local snapshot/manifest/verification adaptation; prior integration record preserved under blackholeVendoring.",
+        "pi140Upgrade20261023PreviousSha256": "9d86ebcc8b895e61a8d4a3ea979e3747a4729e587690f427af2758a759772dfa",
+        "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: the tarball development-content check exempts skill-owned scripts/ (runtime resources its SKILL.md invokes) and requires agents-md-creator/scripts/estimate_tokens.py; all other scripts/, tests/, plan/, node_modules and .git paths are still rejected."
       },
       {
         "path": "tests/fixtures/json-schema-runtime.mjs",

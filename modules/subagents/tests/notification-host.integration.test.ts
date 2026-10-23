@@ -20,7 +20,7 @@ test("real Pi 1.1.0 SDK observes streaming queue, idle persistence and async hos
 	try {
 		assert.equal(await closed, 0, diagnostic);
 		const result = JSON.parse(output.trim().split("\n").at(-1)!);
-		assert.equal(result.hostVersion, "1.3.0"); assert.equal(result.status, "passed");
+		assert.equal(result.hostVersion, "1.4.0"); assert.equal(result.status, "passed");
 		assert.deepEqual(result.cases.map((entry: any) => entry.mode), ["streaming", "idle", "async-failure"]);
 		assert.equal(result.cases[0].queuedObserved, 1); assert.equal(result.cases[0].persistedObserved, true);
 		assert.equal(result.cases[1].persistedObserved, true); assert.equal(result.cases[2].hostAsyncFailureObserved, true);

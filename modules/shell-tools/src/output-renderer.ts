@@ -4,7 +4,7 @@ import { Container, Spacer, Text, truncateToWidth, type Component } from "@earen
 type ResultRenderer = NonNullable<ReturnType<typeof createBashToolDefinition>["renderResult"]>;
 const PREVIEW_ROWS = 5;
 
-/** Decorate host-produced output only; warnings, sanitization and clocks stay with Pi 1.3.0. */
+/** Decorate host-produced output only; warnings, sanitization and clocks stay with Pi 1.4.0. */
 export function renderShellOutput(
   renderResult: ResultRenderer,
   ...[result, options, theme, context]: Parameters<ResultRenderer>

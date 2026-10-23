@@ -22,7 +22,7 @@ class ManualClock implements Clock {
   clear = (id: unknown) => { this.tasks.delete(id as number); };
   advance(ms: number) { this.time += ms; for (const [id, task] of [...this.tasks]) if (task.at <= this.time) { this.tasks.delete(id); task.fn(); } }
 }
-assert.equal(sdk.VERSION, '1.3.0'); sdk.initTheme('dark', false);
+assert.equal(sdk.VERSION, '1.4.0'); sdk.initTheme('dark', false);
 const mode = process.argv[2] ?? 'shell-first', home = homedir(), cwd = await import('node:fs/promises').then(fs => fs.realpath(join(home, 'workspace')).catch(async () => { await fs.mkdir(join(home, 'workspace')); return fs.realpath(join(home, 'workspace')); }));
 const agentDir = join(home, '.pi/agent'); await mkdir(agentDir, { recursive: true }); await writeFile(join(agentDir, 'auth.json'), '{}');
 const childProvider = fileURLToPath(new URL('./offline-provider.ts', import.meta.url));

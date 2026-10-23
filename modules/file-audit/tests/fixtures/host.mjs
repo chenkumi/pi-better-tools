@@ -12,7 +12,7 @@ const sdk = await import(host ? pathToFileURL(join(host, 'dist/index.js')).href 
 const ai = await import(host ? pathToFileURL(join(host, '../pi-ai/dist/index.js')).href : '@earendil-works/pi-ai');
 const require = createRequire(host ? join(host, 'package.json') : import.meta.url);
 const { Type } = await import(pathToFileURL(require.resolve('typebox')).href);
-assert.equal(sdk.VERSION, '1.3.0'); sdk.initTheme('dark', false);
+assert.equal(sdk.VERSION, '1.4.0'); sdk.initTheme('dark', false);
 let networkCalls = 0;
 globalThis.fetch = async () => { networkCalls++; throw new Error('Network forbidden'); };
 const heartbeat = setInterval(() => console.error('[file-audit] Offline host or cleanup still running...'), 10000);

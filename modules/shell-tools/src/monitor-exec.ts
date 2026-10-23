@@ -16,11 +16,11 @@ export interface MonitorProcessEvents { stdout(data: Buffer): void; stderr(data:
  * Pi's public operations merge channels and settle on exit; reuse its actual shell resolver,
  * environment, detached-child tracking and best-effort process-tree cancellation instead of copying them.
  * Internal backend functions are resolved RELATIVE to the installed pinned host, never a source checkout.
- * Missing/version-incompatible host fails closed; this is a Pi1.3.0-specific adaptation, not wildcard support.
+ * Missing/version-incompatible host fails closed; this is a Pi 1.4.0-specific adaptation, not wildcard support.
  */
 export async function execMonitorCommand(pi: Pick<ExtensionAPI, 'getSettings'>, ctx: ExtensionContext, tool: 'bash' | 'powershell', command: string, signal: AbortSignal, events: MonitorProcessEvents, seam: MonitorExecSeam = {}, options: MonitorExecOptions = {}): Promise<void> {
   if (isManagedForegroundChild()) throw new Error('Managed child cannot execute Monitor commands');
-  if (VERSION !== '1.3.0') throw new Error('Monitor command backend requires Pi 1.3.0');
+  if (VERSION !== '1.4.0') throw new Error('Monitor command backend requires Pi 1.4.0');
   if (signal.aborted) { events.closed(null, null, false); return; }
   const settings = pi.getSettings();
   const shellPath = SettingsManager.inMemory({ shellPath: settings.shellPath }).getShellPath();

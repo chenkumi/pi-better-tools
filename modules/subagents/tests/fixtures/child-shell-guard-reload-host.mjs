@@ -15,7 +15,7 @@ const fingerprint = () => {
   return { dev: String(info.dev), ino: String(info.ino), mtimeNs: String(info.mtimeNs) };
 };
 fs.mkdirSync(agentDir); fs.mkdirSync(cwd); fs.writeFileSync(path.join(agentDir, 'auth.json'), '{}');
-assert.equal(sdk.VERSION, '1.3.0');
+assert.equal(sdk.VERSION, '1.4.0');
 globalThis.fetch = async () => { throw new Error('Network forbidden in guard reload fixture'); };
 sdk.initTheme('dark', false);
 const modelId = mode === 'unicode-stable' ? '多位-é-😀-模型' : ['replacement-character-stable', 'invalid-utf8'].includes(mode) ? 'offline-\uFFFD' : 'offline';

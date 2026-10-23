@@ -17,7 +17,7 @@ test('Pi skill discovery, reload, package relocation, command expansion and exte
       { cwd: home, env: { ...isolatedEnv(home), TEMP: join(home, 'tmp'), TMP: join(home, 'tmp'), TMPDIR: join(home, 'tmp') }, timeoutMs: 50000 });
     const result = JSON.parse(output.trim().split('\n').at(-1));
     assert.equal(result.status, 'passed');
-    assert.equal(result.host, '1.3.0');
+    assert.equal(result.host, '1.4.0');
     assert.equal(result.providerCalls, 0);
     assert.deepEqual(result.cases, ['startup', 'reload', 'relocated', 'lazy-body', 'skill-command', 'extension-filter', 'no-tools']);
   } finally { await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }

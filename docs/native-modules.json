@@ -1,5 +1,9 @@
 {
   "schemaVersion": 1,
+  "pi140Upgrade20261023": {
+    "scope": "2026-10-23 user-requested Pi 1.4.0 upgrade. The four Pi devDependencies/lockfile, the exact-version Shell Monitor backend gate and real-host version assertions move from 1.3.0 to 1.4.0; the Pi Runtime real-TUI fixture reads the visible dialog from the 1.4.0 dialog stack. No runtime dependency, upstream snapshot refresh, hostContract migration, personal settings/auth or paid provider calls.",
+    "history": "Only changed active fingerprints gain pi140Upgrade20261023PreviousSha256 and pi140Upgrade20261023Adaptation; historical fingerprints and the 1.3.0 upgrade records are retained."
+  },
   "cleanCodeSkill20261023": {
     "scope": "2026-10-23 user-requested native skill clean-code-refactor in modules/skill-tools/skills: the clean code theory and the behavior-preserving refactoring workflow used in this repository's 2026-10-23 cleanups, rewritten for Pi (edit/write, subagent delegation, Shell background jobs, note). No new tools, commands, settings or runtime code; provided through the existing resources_discover skill path. The skill links only to files inside its own directory.",
     "evidence": "test:module skill-tools (discovery, reload, relocation, extension filtering) and sources:verify."
@@ -72,7 +76,9 @@
       "files": [
         {
           "path": "modules/file-audit/README.md",
-          "sha256": "07a9fcc0572f27bd18f9ef263ce3f55f884886eec23c4f39b8e878aadcb64560"
+          "sha256": "96777898949e51fea5219884c83b41a44449c3c47322e160d007b58091468745",
+          "pi140Upgrade20261023PreviousSha256": "07a9fcc0572f27bd18f9ef263ce3f55f884886eec23c4f39b8e878aadcb64560",
+          "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: current support baseline text changed from 1.3.0 to 1.4.0; historical sections retained."
         },
         {
           "path": "modules/file-audit/src/activity-window.ts",
@@ -134,7 +140,9 @@
           "localSnapshotReview": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
           "reason": "Hash drift reconciled as a current-state record; see driftReconcile20261021.",
           "previousRecordedSha256": "9a7b9df2ec91a93607fb889d1168dbd030382384b2901d1416b0abb1346f6ea7",
-          "sha256": "44c5cad62cc5031a722cd540418a8f9a61bf497bbd7758e05c21a3c3735cfdb6"
+          "sha256": "7229b967071550eb175711ee159db5a71ba9d284b400c712ba91172b17368903",
+          "pi140Upgrade20261023PreviousSha256": "44c5cad62cc5031a722cd540418a8f9a61bf497bbd7758e05c21a3c3735cfdb6",
+          "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
         },
         {
           "path": "modules/file-audit/tests/fixtures/inventory.ts",
@@ -152,7 +160,9 @@
         },
         {
           "path": "modules/file-audit/tests/fixtures/tui-observer.ts",
-          "sha256": "e21f2a51b7395583d6757538048ebd8a9e979137cacefc6b87eab4255b2e3f22"
+          "sha256": "63a584f6e0edf121242c0cfeb8b61fc0ead8d0d33b7bd636fce9d3978bbcb4dd",
+          "pi140Upgrade20261023PreviousSha256": "e21f2a51b7395583d6757538048ebd8a9e979137cacefc6b87eab4255b2e3f22",
+          "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
         },
         {
           "path": "modules/file-audit/tests/fixtures/tui-workflow.mjs",
@@ -168,7 +178,9 @@
         },
         {
           "path": "modules/file-audit/tests/host.integration.test.mjs",
-          "sha256": "b4e1e206b2101c82893bec562fdf18220e96246f48a3d3d9fd9612eca87f09e2"
+          "sha256": "a07d4f2a0f5e2ee5e96d3225cdc23f34f9c7c64c732b727a4e031e1d4eb00efb",
+          "pi140Upgrade20261023PreviousSha256": "b4e1e206b2101c82893bec562fdf18220e96246f48a3d3d9fd9612eca87f09e2",
+          "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
         },
         {
           "path": "modules/file-audit/tests/paths.test.ts",
@@ -190,11 +202,15 @@
         },
         {
           "path": "modules/file-audit/tests/tui-ab.integration.test.mjs",
-          "sha256": "a5a8098ae6fad985b2816703c4a20fe574001fca2f8fa10973caf1319e464b0e"
+          "sha256": "ac441be950f904cbf460d4651713928f469022cfa796ecf491c439dea60754e1",
+          "pi140Upgrade20261023PreviousSha256": "a5a8098ae6fad985b2816703c4a20fe574001fca2f8fa10973caf1319e464b0e",
+          "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
         },
         {
           "path": "modules/file-audit/tests/tui-workflow.integration.test.mjs",
-          "sha256": "2ccb7ec6847cd8bce277779d0254cca397fed5e273e34f837a0da9f393154873"
+          "sha256": "24469f537fae6b3021950db4ddf2b514e13bea2edf2febade119e259095f06b0",
+          "pi140Upgrade20261023PreviousSha256": "2ccb7ec6847cd8bce277779d0254cca397fed5e273e34f837a0da9f393154873",
+          "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
         },
         {
           "path": "modules/file-audit/tsconfig.json",
@@ -231,8 +247,10 @@
           "webSetupPreviousSha256": "fefe6c47330bca22e71c7c6c3b5f8c1144f41713f640a04a868ed2c85f0e086a",
           "geminiAndDeepSeekSearch20261017PreviousSha256": "59143e778eb3b8e3b3238e0878f2ad85c01cc9270b9d7528e3479b25fd626eb9",
           "anthropicNativeSearch20261017PreviousSha256": "8f08d4c6eea16e11e11b13d865d5f62ad40994529199e5849ea2efc98e545961",
-          "sha256": "6b7784ae5ae1fce2a67ed0bbb0554888f931150eac71741c088784dc9d924685",
-          "reason": "Native lazy module-config index with expanded English configuration-intent metadata, explicit routine-use/application-development exclusions and self-contained references. 2026-10-17: Web row names the OpenAI/Gemini native modes and the Brave/Exa/DeepSeek REST providers, then adds the Anthropic native mode."
+          "sha256": "74d69a6cc5da35449cc8592008f144dcdf87d8f1e3e3022f3c37bec3b8c4c841",
+          "reason": "Native lazy module-config index with expanded English configuration-intent metadata, explicit routine-use/application-development exclusions and self-contained references. 2026-10-17: Web row names the OpenAI/Gemini native modes and the Brave/Exa/DeepSeek REST providers, then adds the Anthropic native mode.",
+          "pi140Upgrade20261023PreviousSha256": "6b7784ae5ae1fce2a67ed0bbb0554888f931150eac71741c088784dc9d924685",
+          "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: current support baseline text changed from 1.3.0 to 1.4.0; historical sections retained."
         },
         {
           "path": "modules/skill-tools/skills/pi-tools-config/references/blackhole.md",
@@ -379,11 +397,13 @@
           "configRoutingPreviousSha256": "e3bc504f3b44e53e72a851ab70fb761e09c4b10fee9e70cbdb002522eb226849",
           "fileAuditPreviousSha256": "ffaec803485b2f74022a29aed6b4c83ec4f693f467c5e441039c22f235ac8551",
           "webSetupPreviousSha256": "7391acb72d943002f73a308e9add2352c8ea2e55c1c486aab63bdd656c55a75f",
-          "sha256": "7edb08d32d8852c0bb91aee2e3fecfbdd15c002e94a28a85984d2ae00bef7fca",
+          "sha256": "25c276b1a1a5bed1238d3e004656bc8137bf37bd581a82675ee82b1fd73e3144",
           "pi130UpgradeReconcile20261017PreviousSha256": "4b1fc6f455922fe287879895a8ad487e85faf03b77d7090dd6ae934364d41aa8",
           "reason": "Usage, extension-filter boundary, migration/rollback and validation instructions. 2026-10-17 recorded hash reconciled to the committed text from commit a22fe48, which documented the added expert-lens and verify-findings skills.",
           "cleanCodeSkill20261023PreviousSha256": "0b2a2f64a20fab4ef9879a29d6edba0a71e8f2d268690256f1fe95af0a834d15",
-          "cleanCodeSkill20261023Adaptation": "2026-10-23 documents the bundled clean-code-refactor skill and its /skill:clean-code-refactor usage."
+          "cleanCodeSkill20261023Adaptation": "2026-10-23 documents the bundled clean-code-refactor skill and its /skill:clean-code-refactor usage.",
+          "pi140Upgrade20261023PreviousSha256": "7edb08d32d8852c0bb91aee2e3fecfbdd15c002e94a28a85984d2ae00bef7fca",
+          "pi140Upgrade20261023Adaptation": "2026-10-23: documents that skill-bundled scripts/ ship as runtime resources and are required by the production smoke."
         },
         {
           "path": "modules/skill-tools/tsconfig.json",
@@ -418,16 +438,20 @@
         {
           "path": "modules/skill-tools/tests/skills.integration.test.mjs",
           "dependencyUpgradePreviousSha256": "15ec2240e22bd0ba6bd3ab7cce1a44c60d8e978d8552c6ce801d4acaaa919ee0",
-          "sha256": "d53bc5b294e184c7b857b25a12eea71c16c6ec203eac2bb7e2b1eff285e99d1d",
-          "reason": "Isolated-home real Pi1.1.0 wrapper, no external provider calls."
+          "sha256": "32c2e61363c0ec9eac78a02045fc893799c0e1d7eacded23bcfef5d04da1c866",
+          "reason": "Isolated-home real Pi1.1.0 wrapper, no external provider calls.",
+          "pi140Upgrade20261023PreviousSha256": "d53bc5b294e184c7b857b25a12eea71c16c6ec203eac2bb7e2b1eff285e99d1d",
+          "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
         },
         {
           "path": "modules/skill-tools/tests/fixtures/skills-host.mjs",
           "configRoutingPreviousSha256": "c41eae49431378366c182a52b32ac4b02a5fe379207954249a027575bffaba62",
           "dependencyUpgradePreviousSha256": "a7a703ccb6c8a7bbbd37a4deacf0fec0cbfd026fb3eee4d25e41db9c73c53f8a",
           "webSetupPreviousSha256": "3c277dfbb33739a22520c0935ae5cce60ad3adfa8b718f07ae394530ee6a44f2",
-          "sha256": "c4b09042a99b62d7e983c1779730cb23af26e9a02c097756af035e8141f648ad",
-          "reason": "Relocated package discovery, startup/reload, lazy catalogue/body, command expansion, package extension filters and no-tools; reused by production tarball smoke."
+          "sha256": "10efb231dac9dfa87b7625b5e974b5f16c004366a74a4f89157f1496a154118f",
+          "reason": "Relocated package discovery, startup/reload, lazy catalogue/body, command expansion, package extension filters and no-tools; reused by production tarball smoke.",
+          "pi140Upgrade20261023PreviousSha256": "c4b09042a99b62d7e983c1779730cb23af26e9a02c097756af035e8141f648ad",
+          "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
         },
         {
           "path": "modules/skill-tools/skills/clean-code-refactor/SKILL.md",
@@ -490,8 +514,10 @@
           "fileMonitorSource20261022Adaptation": "2026-10-22: document the sixth source, file (canonical-cwd containment, metadata-only events, polling, limits).",
           "fileMonitorSourceMerge20261022PreviousSha256": "dab0ff5ff08c7cbd2ee93b8cab29b78810dc4b9e34fddd2d03403221d1ac75a4",
           "fileMonitorSourceMerge20261022Adaptation": "2026-10-22: merge worktree-monitor-file-source into main. The merged bytes carry both rounds (fork_job documentation plus the sixth source), so the hash is recomputed over the combined file; no content beyond those two rounds.",
-          "sha256": "ca5b5e3c614ffad6d210a76e59212989d7bf7835be10ea126d1c24efc80ea8f0",
-          "reason": "Contract, limits, security and producer schema/handoff."
+          "sha256": "ad58ee254692c4d681d704038d37c785c7f3eaad97ffdfafed3e56d99a5481b4",
+          "reason": "Contract, limits, security and producer schema/handoff.",
+          "pi140Upgrade20261023PreviousSha256": "ca5b5e3c614ffad6d210a76e59212989d7bf7835be10ea126d1c24efc80ea8f0",
+          "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: current support baseline text changed from 1.3.0 to 1.4.0; historical sections retained."
         },
         {
           "path": "modules/monitor/src/core.ts",
@@ -588,8 +614,10 @@
           "monitorReviewPreviousSha256": "ee8633727511b5d055d9b6f6907755b29aa9b8a4e30c9272d448e2a58dd9df4e",
           "monitorDefaultActivePreviousSha256": "ff346f8667b2d687819cf15f3e71142f7ebbe596c8177a4fdb1523a683d199a9",
           "dependencyUpgradePreviousSha256": "89254d028b305d1037c65bb0261f7197a538edef2dc5bb7f15597f4e8481cfbd",
-          "sha256": "a59a1434e3f2e2db43407f1e376f314e3f8cdaf7beea8061f7093214b60c6b24",
-          "reason": "Actual offline Pi four-source/load-order/child/reload fixture."
+          "sha256": "c09ee03adaf1d3cc8473afdd89c1fe4f9e8bd4bd47341d7b8eb2679fb3d829eb",
+          "reason": "Actual offline Pi four-source/load-order/child/reload fixture.",
+          "pi140Upgrade20261023PreviousSha256": "a59a1434e3f2e2db43407f1e376f314e3f8cdaf7beea8061f7093214b60c6b24",
+          "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
         },
         {
           "path": "modules/monitor/tests/fixtures/offline-provider.ts",
@@ -609,8 +637,10 @@
         {
           "path": "modules/monitor/tests/host.integration.test.mjs",
           "dependencyUpgradePreviousSha256": "05337b0a83a65aa81349eaf828169e6b4591f71da749d32c96df6f8e53d82031",
-          "sha256": "4588bc58c8c5ee219506c0798d4ac8a48006db5d344f995d567b39cf797b79a9",
-          "reason": "Isolated real offline Pi1.1 host subprocess acceptance."
+          "sha256": "4ddd92facca5399bc7f129e603e6a4a29746589ea749979e651b5048fc74e383",
+          "reason": "Isolated real offline Pi1.1 host subprocess acceptance.",
+          "pi140Upgrade20261023PreviousSha256": "4588bc58c8c5ee219506c0798d4ac8a48006db5d344f995d567b39cf797b79a9",
+          "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
         },
         {
           "path": "modules/monitor/tests/network.integration.test.ts",
@@ -1096,13 +1126,17 @@
           "path": "modules/pi-runtime/tests/runtime.integration.test.mjs",
           "runtimeSafetyPreviousSha256": "12b11269aeffe4797223c6907849c26e8458d621502488cfdfa96852ccda81bc",
           "dependencyUpgradePreviousSha256": "98291788e4ede6277905fefbcea6372672f5950be7c0895c30018cf70ba7b0ef",
-          "sha256": "d07c2c5644d0898d5158357debbf1fe6da0f00e43c89ee139b68afc54995fe39"
+          "sha256": "f6b796cb4eddaa6071a3e0cdaab0a7254feb2074ba3ed2a2d8d3b58e142b633b",
+          "pi140Upgrade20261023PreviousSha256": "d07c2c5644d0898d5158357debbf1fe6da0f00e43c89ee139b68afc54995fe39",
+          "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: exact host version assertions/titles changed from 1.3.0 to 1.4.0; behavior probes unchanged."
         },
         {
           "path": "modules/pi-runtime/tests/fixtures/runtime-host.mjs",
           "runtimeSafetyPreviousSha256": "29a708f5d742cb33ff2bf01f69dc153f8d0e122dcc4e64e11082ec16caa95886",
           "dependencyUpgradePreviousSha256": "216e6dbfccdfad4bb914d5011bde068863c0486eff858205fb5e1d1ee0db807a",
-          "sha256": "fd96a6435b2f6443cecd695df5eafdb6faa3da0747081ab050abcbbf9f408d0a"
+          "sha256": "de6ab8a5ab4846e64af3ecf5706a2d3e32339f0eac7d91ef4583f911ccddcb04",
+          "pi140Upgrade20261023PreviousSha256": "fd96a6435b2f6443cecd695df5eafdb6faa3da0747081ab050abcbbf9f408d0a",
+          "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: host version assertion 1.4.0; the real-TUI probe reads the visible dialog from InteractiveMode.extensionDialogs (1.4.0 stacks dialogs) instead of the removed extensionSelector field. Assertions unchanged."
         },
         {
           "path": "modules/pi-runtime/src/deferred-tools.ts",

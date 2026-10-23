@@ -183,6 +183,17 @@ The Scheduler module was removed (2026-10-06; unrelated to the later Schedule Pr
 
 Do not delete shared schedules/native sessions/logs as part of rollback. No rollback can undo completed tool side effects, and cancellation does not establish arbitrary descendant-process termination.
 
+## Pi 1.4.0 upgrade (2026-10-23)
+
+The four root Pi development packages, the Shell Monitor backend gate and real-host assertions now target only 1.4.0; 1.3.0 is no longer verified. Runtime peers remain host-provided. Run root `npm ci --ignore-scripts`; no other dependency, personal Pi install, settings/auth, historical session or managed hostContract migration occurs.
+
+Host changes that touch this package:
+
+- Resumed sessions and `/tree` keep extension tools active when the branch recorded its loadout before they registered. The host still honors `defaultActive: false`, allowlists/exclusions and tools the branch removed, so File Tools' inactive `grep`/`find` registrations and manual deactivation are unchanged.
+- Concurrent extension `select`/`confirm`/`input`/`editor` dialogs now stack instead of replacing each other. Pi Runtime recovery and SQL Connector write confirmations rely only on the public UI context; the Pi Runtime real-TUI fixture reads the visible dialog from the host's dialog stack.
+- `generateSummary()` ignores `reserveTokens`; `compaction.reserveTokens` only controls when compaction starts. Blackhole does not call `generateSummary()`, and it still adds its own OpenCode session headers to its direct provider requests.
+- Pi still drops Anthropic `server_tool_use`/`web_search_tool_result` blocks and OpenAI annotation-only URLs, so the Web Tools native-search guidance is unchanged.
+
 ## Pi 1.3.0 and dependency upgrade (2026-10-16)
 
 The four root Pi development packages and real-host assertions now target only 1.3.0; the Shell Monitor backend gate is pinned to that installed version. Runtime peers remain host-provided. Run root `npm ci --ignore-scripts`, explicit `npm run pty:install` and `npm run browser:install` for the updated node-pty beta.15 and Playwright 1.64.1. No personal Pi install, settings/auth, historical session or managed hostContract migration occurs. TypeScript 6.0.3 (not unsupported 7.x), Node 22 types and explicit Vite for Vitest 5 are compatibility choices, not unexamined latest tags.
