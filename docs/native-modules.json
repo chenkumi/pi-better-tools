@@ -1,5 +1,9 @@
 {
   "schemaVersion": 1,
+  "cleanCodeSkill20261023": {
+    "scope": "2026-10-23 user-requested native skill clean-code-refactor in modules/skill-tools/skills: the clean code theory and the behavior-preserving refactoring workflow used in this repository's 2026-10-23 cleanups, rewritten for Pi (edit/write, subagent delegation, Shell background jobs, note). No new tools, commands, settings or runtime code; provided through the existing resources_discover skill path. The skill links only to files inside its own directory.",
+    "evidence": "test:module skill-tools (discovery, reload, relocation, extension filtering) and sources:verify."
+  },
   "noteEscapeFix20261023": {
     "scope": "note-tools defect repair from the round-2 code review: error-class based escape detection and fail-closed handling of an unverifiable post-create realpath. Behavior change limited to which error is reported and that cleanup always runs for non-escape failures.",
     "evidence": "New note.test.ts cases were red on the previous code (partial file left; ENOENT reported) and green after; test:module note-tools 26 + 3 passed."
@@ -373,9 +377,11 @@
           "configRoutingPreviousSha256": "e3bc504f3b44e53e72a851ab70fb761e09c4b10fee9e70cbdb002522eb226849",
           "fileAuditPreviousSha256": "ffaec803485b2f74022a29aed6b4c83ec4f693f467c5e441039c22f235ac8551",
           "webSetupPreviousSha256": "7391acb72d943002f73a308e9add2352c8ea2e55c1c486aab63bdd656c55a75f",
-          "sha256": "0b2a2f64a20fab4ef9879a29d6edba0a71e8f2d268690256f1fe95af0a834d15",
+          "sha256": "7edb08d32d8852c0bb91aee2e3fecfbdd15c002e94a28a85984d2ae00bef7fca",
           "pi130UpgradeReconcile20261017PreviousSha256": "4b1fc6f455922fe287879895a8ad487e85faf03b77d7090dd6ae934364d41aa8",
-          "reason": "Usage, extension-filter boundary, migration/rollback and validation instructions. 2026-10-17 recorded hash reconciled to the committed text from commit a22fe48, which documented the added expert-lens and verify-findings skills."
+          "reason": "Usage, extension-filter boundary, migration/rollback and validation instructions. 2026-10-17 recorded hash reconciled to the committed text from commit a22fe48, which documented the added expert-lens and verify-findings skills.",
+          "cleanCodeSkill20261023PreviousSha256": "0b2a2f64a20fab4ef9879a29d6edba0a71e8f2d268690256f1fe95af0a834d15",
+          "cleanCodeSkill20261023Adaptation": "2026-10-23 documents the bundled clean-code-refactor skill and its /skill:clean-code-refactor usage."
         },
         {
           "path": "modules/skill-tools/tsconfig.json",
@@ -420,6 +426,26 @@
           "webSetupPreviousSha256": "3c277dfbb33739a22520c0935ae5cce60ad3adfa8b718f07ae394530ee6a44f2",
           "sha256": "c4b09042a99b62d7e983c1779730cb23af26e9a02c097756af035e8141f648ad",
           "reason": "Relocated package discovery, startup/reload, lazy catalogue/body, command expansion, package extension filters and no-tools; reused by production tarball smoke."
+        },
+        {
+          "path": "modules/skill-tools/skills/clean-code-refactor/SKILL.md",
+          "sha256": "59cb0329a706edc6bf869498ebe7a34ea93b498524e490203934046a860dee1e",
+          "reason": "Native skill added 2026-10-23: behavior-preserving clean code refactoring workflow for Pi."
+        },
+        {
+          "path": "modules/skill-tools/skills/clean-code-refactor/references/principles.md",
+          "sha256": "d6145fcee86954965c2b1f71048ff4adb8790fe994562064136cd709ed13e148",
+          "reason": "Native skill reference added 2026-10-23: clean code signals, non-goals, dead-code rules and tool pitfalls."
+        },
+        {
+          "path": "modules/skill-tools/skills/clean-code-refactor/references/review-checklist.md",
+          "sha256": "3a5335916e51346c7fdb58e46e5bf438f07169176013265b08285a806fa87c98",
+          "reason": "Native skill reference added 2026-10-23: equivalence review checklist and subagent delegation brief."
+        },
+        {
+          "path": "modules/skill-tools/skills/clean-code-refactor/references/report.md",
+          "sha256": "fd13e3e9e39ecf8184b2bff1594b8d8ae7890253d5838718b200d71a42d712f5",
+          "reason": "Native skill reference added 2026-10-23: delivery report format."
         }
       ]
     },
