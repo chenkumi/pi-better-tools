@@ -84,7 +84,7 @@ const editSchema = Type.Object(
     expectedHash: Type.Optional(
       Type.String({
         pattern: `^(${VERSION_TOKEN_ALTERNATIVES})$`,
-        description: "Optional 32-character SHA-256 version token from the latest read (legacy 64-character SHA-256 is also accepted). The edit fails with STALE_FILE if the file changed.",
+        description: "Optional 32-character SHA-256 version token from the latest read (legacy 64-character SHA-256 is also accepted). The edit fails with STALE_FILE if the file changed. 'missing' is write-only and is rejected here.",
       }),
     ),
     edits: Type.Array(
@@ -180,9 +180,12 @@ function validateHash(value: unknown, field: string, allowMissing: boolean, cont
   if (value === undefined) return undefined;
   const validHash = typeof value === "string" && VERSION_TOKEN_REGEX.test(value);
   if (!validHash && !(allowMissing && value === "missing")) {
+    const recovery = allowMissing
+      ? "Omit expectedHash unless you need the concurrency guard; otherwise read the file and pass the token from its FILE_METADATA, or use 'missing' only when the path must not exist."
+      : "Call read on this path (any line range) and pass the token from its FILE_METADATA; after your own edit in the same turn, reuse that result's sha256After. Do not look for a hash elsewhere, and 'missing' is not valid for edit.";
     throw new FileToolError("INVALID_ARGUMENT", `${field} must be a ${SHA256_TOKEN_LENGTH}-character SHA-256 version token${allowMissing ? " or 'missing'" : ""}.`, {
       ...context,
-      recovery: "Use the sha256 version token returned by the latest read operation.",
+      recovery,
     });
   }
   return (value as string).toLowerCase();
@@ -632,7 +635,7 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
       "After AMBIGUOUS_MATCH or a ranged miss, use returned candidateRanges to choose a narrower lineRange or include more exact surrounding text.",
       "Use replaceAll=true only when every match in the selected scope should change. Otherwise the selected scope must contain exactly one match.",
       "Use JavaScript ECMAScript RegExp syntax for regex patterns, not Python/PCRE syntax. Pass flags separately via regexFlags: for multiline ^/$ use regexFlags='m' rather than a bare inline flag such as (?m). Only i, m, s, u are accepted, each at most once; never pass g. Use replacementMode=template only when capture substitution such as $1 is required; use literal otherwise.",
-      "Pass the 32-character SHA-256 version token from the latest read as edit.expectedHash whenever available so stale edits fail safely. You may reuse the sha256After returned by the previous edit as the next expectedHash.",
+      "Pass the 32-character SHA-256 version token from the latest read as edit.expectedHash whenever available so stale edits fail safely. You may reuse the sha256After returned by the previous edit as the next expectedHash; 'missing' is write-only and is rejected here.",
       "Each edits item needs exactly one non-empty oldText or regex plus newText. All edits in one call refer to the original pre-edit snapshot and must target non-overlapping text.",
     ],
     parameters: editSchema,

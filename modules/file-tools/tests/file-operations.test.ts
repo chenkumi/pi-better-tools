@@ -63,6 +63,24 @@ describe("SHA-256 version tokens", () => {
     assert.equal(prepareWriteArguments({ path: "x", content: "content", expectedHash: fullHash }).expectedHash, fullHash);
     assert.equal(prepareEditArguments({ path: "x", expectedHash: fullHash, edits: edit }).expectedHash, fullHash);
   });
+
+  it("a rejected token points at read and the previous edit's sha256After instead of a repository search", () => {
+    const rejection = (action: () => unknown): FileToolError => {
+      try { action(); } catch (error) { assert.ok(error instanceof FileToolError); return error; }
+      return assert.fail("Expected a FileToolError");
+    };
+    const editError = rejection(() => prepareEditArguments({ path: "known.txt", expectedHash: "missing", edits: [{ oldText: "a", newText: "b" }] }));
+    assert.equal(editError.payload.code, "INVALID_ARGUMENT");
+    assert.equal(editError.payload.path, "known.txt");
+    assert.match(editError.payload.recovery ?? "", /Call read on this path/);
+    assert.match(editError.payload.recovery ?? "", /sha256After/);
+    assert.match(editError.payload.recovery ?? "", /'missing' is not valid for edit/);
+    assert.match(editError.payload.recovery ?? "", /Do not look for a hash elsewhere/);
+
+    const writeError = rejection(() => prepareWriteArguments({ path: "known.txt", content: "x", expectedHash: "bogus" }));
+    assert.match(writeError.payload.recovery ?? "", /Omit expectedHash/);
+    assert.match(writeError.payload.recovery ?? "", /'missing' only when the path must not exist/);
+  });
 });
 
 describe("checklist atomic commit regressions", () => {
