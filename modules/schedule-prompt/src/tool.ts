@@ -71,18 +71,18 @@ export function createCronTool(
       const storage = getStorage();
       const scheduler = getScheduler();
       
-      // Prevent recursive scheduling from within scheduled prompts
-      if (params.action === "add" && isInScheduledExecution(ctx.sessionManager)) {
-        throw new Error(
-          "Cannot create scheduled prompts from within a scheduled prompt execution. This prevents infinite loops."
-        );
-      }
-
       const action = params.action;
       const details: CronToolDetails = {
         action,
         jobs: [],
       };
+
+      // A scheduled turn may only read the schedule. Every mutation (add, update, remove, enable, disable, cleanup) could
+      // rewrite or delete other jobs or build a self-sustaining chain, so the guard sits before the action dispatch.
+      if (action !== "list" && isInScheduledExecution(ctx.sessionManager)) {
+        details.error = `Cannot ${action} scheduled prompts from within a scheduled prompt execution. This prevents infinite loops and unattended rewrites of the schedule.`;
+        return { isError: true, content: [{ type: "text", text: `✗ Error: ${details.error}` }], details };
+      }
 
       try {
         switch (action) {

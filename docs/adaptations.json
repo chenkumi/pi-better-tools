@@ -1,5 +1,23 @@
 {
   "schemaVersion": 1,
+  "scanFixes20261024": {
+    "scope": "2026-10-24 fixes for the verified findings of reports/REPORT-20261024T045912330Z.md, third-party modules included at the user's request: H1 Blackhole cleanup session directories, H2 Blackhole settings modal, H3/WB2 Schedule Prompt scheduled-turn guard, H4 sql-connector stacked SELECT, DB-003 unknown engine keys, DB-005 sqlite single statement, SH-001/SH-002/SH-004 Shell timeout sentinel, retried handoff and invalid handshake, MON-1/MON-2 Monitor retired generations and websocket startup cancel, SA-002 process-wide admission, FT-003/FT-004 file-tools agent dir and file URL. Not changed on purpose: SA-001 (slot held until real child close is the documented conservative design), sqlite_query read-only (INSERT ... RETURNING would have no tool), web-tools Azure native search (unknown provider combinations are deliberately not injected).",
+    "verification": "Each fix has a regression test that was red first; unit, typecheck, lint, module groups and sources:verify are listed in the delivery note. Real Pi TUI, real databases and the heavy groups were not run."
+  },
+  "batchTaskView20261024": {
+    "scope": "2026-10-24 user-requested Jobs overlay change plus a delivery-mode cleanup. (1) A concurrent Subagent batch (two or more tasks) now opens a task list first (state, activity, live marker) and one task at a time shows its own conversation or, when it has no live copy, its own metadata; Esc steps back one level (task -> list -> close). PanelJob gains an optional tasks list; single-task jobs, Fork and Shell are unchanged. (2) Subagent messages that do not trigger a turn (log_ready, job_result with no unannounced task) are now tagged deliverAs \"steer\" like every other background notification; Pi ignores deliverAs when triggerTurn is false, so behavior is unchanged.",
+    "files": [
+      "modules/shell-tools/src/job-view.ts",
+      "modules/shell-tools/tests/live-transcript.test.ts",
+      "modules/subagents/extensions/subagent/background.ts",
+      "modules/subagents/extensions/subagent/index.ts",
+      "modules/subagents/README.md",
+      "modules/subagents/tests/background.integration.test.ts",
+      "modules/subagents/tests/rpc-interaction.integration.test.ts",
+      "docs/configuration.md"
+    ],
+    "verification": "Unit tests for the task level, release/vanish fallbacks and the registry projection; subagents module group run. Real Pi TUI and the heavy groups were not run."
+  },
   "steerDeliveryDefault20261024": {
     "scope": "2026-10-24 user-requested policy: background notifications default to deliverAs \"steer\"; followUp only when steer is not workable or has a documented stability concern. Monitor now submits as steer and no longer subscribes to agent_start/agent_settled (the 30 s per-owner throttle, batching and retry limits are unchanged; MonitorRuntime.setBusy stays only as an optional embedder hold used by unit tests). Fork fork-result now uses triggerTurn:true / steer. Shell and Subagent already used steer. Policy recorded in AGENTS.md and docs/architecture.md.",
     "files": [
@@ -1644,7 +1662,9 @@
       "scanFix20261017Adaptation": "2026-10-17 document engine-aware lexical policy, MSSQL statement keywords, PG extended/read-only and MySQL read-only/timeout/queue defenses and their limits.",
       "defectFix20261023PreviousSha256": "9910f036efa6765bb538e5154e02d01b885bd3c5766ec5cbf9e36e50e0b24493",
       "defectFix20261023Adaptation": "2026-10-23 documents that a failed adapter construction is retried on the next operation (no authentication fallback).",
-      "sha256": "9c870e35ba1e1113b6e759d546ebab56ff2c9615a3496cb746676258f4be3a42",
+      "scanFixes20261024PreviousSha256": "9c870e35ba1e1113b6e759d546ebab56ff2c9615a3496cb746676258f4be3a42",
+      "scanFixes20261024Adaptation": "2026-10-24: documents rejected unknown engine keys and the stacked-SELECT rule (scan H4/DB-003).",
+      "sha256": "99aa998b4fe8f344964282033873cbaeb37dc933893016cdd2ce4685cd64adf2",
       "reason": "Integrated root install, deferred discovery, trust/configuration and explicit optional native driver guidance; live-database validation limits.",
       "pi140Upgrade20261023PreviousSha256": "21d57d416cddf219579cfbb053c3678840d126a22dcb42130bfbe076ab570075",
       "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: current support baseline text changed from 1.3.0 to 1.4.0; historical sections retained."
@@ -1672,7 +1692,9 @@
       "reliabilityFix20261020Adaptation": "SQLC-05: MSSQL reads reject TOP ... PERCENT and WITH TIES, and every UNION/INTERSECT/EXCEPT branch needs its own TOP 1..200 with a combined total of at most 200. MySQL and PostgreSQL policy unchanged. Regression tests in test/policy-bypass.test.ts.",
       "cleanCodeModules20261023PreviousSha256": "8d482d3e540f1f36b3ac08a6212e656741cb85b827c3e94b13631ff3f4e029af",
       "cleanCodeModules20261023Adaptation": "2026-10-23 clean code: MAX_READ_ROWS replaces four literal 200 comparisons; denial messages unchanged.",
-      "sha256": "b963696a0c709e68d9142edc5b6bec01653105cb6d488ec62049c1667289c4f7",
+      "scanFixes20261024PreviousSha256": "b963696a0c709e68d9142edc5b6bec01653105cb6d488ec62049c1667289c4f7",
+      "scanFixes20261024Adaptation": "2026-10-24: hasStackedMssqlSelect: SELECT count outside parentheses must not exceed 1 + set operators; updates may not carry a top-level SELECT (scan H4).",
+      "sha256": "9fe93c88c7aec2a2f206553488de9734005ee63732b4eb4386cfe06dd66c6790",
       "reason": "2026-10-17 scan fix (BUG-001): engine-aware lexical split (PG dollar quotes and nested comments, MSSQL ]] escapes and nested comments, MySQL backticks/#/-- rule), backslashes in MySQL/PG literals denied, MSSQL statement-start keywords denied in reads and updates, NUL and unterminated identifiers denied. Existing allowlist, LIMIT/TOP and WHERE rules unchanged."
     },
     {
@@ -1690,7 +1712,9 @@
       "reliabilityFix20261020Adaptation": "SQLT-02/SQLT-03: bounded busy timeout on open (2000 ms), transaction-control statements rejected before prepare, and an open transaction is rolled back and reported after each query/execute. SQLT-01 (synchronous query cannot time out) is documented as a known limitation and not fixed. Regression tests in tests/sqlite-manager.test.ts and tests/busy-timeout.integration.test.ts.",
       "cleanCodeModules20261023PreviousSha256": "ad3a894b635a1ba602e908a0e7a000c52068d31e74c2df664981c131919c5c30",
       "cleanCodeModules20261023Adaptation": "2026-10-23 clean code: USER_TABLES SQL fragment (identical SQL), forgetConnection, exported errorMessage.",
-      "sha256": "9ac8d2755a1f08a3f5efcd2fb00831857a7eb6f6e3de755f6a0ae2afee540f7e",
+      "scanFixes20261024PreviousSha256": "9ac8d2755a1f08a3f5efcd2fb00831857a7eb6f6e3de755f6a0ae2afee540f7e",
+      "scanFixes20261024Adaptation": "2026-10-24: assertSingleStatement refuses a trailing second statement instead of letting node:sqlite drop it silently (scan DB-005).",
+      "sha256": "3847be2bd2576b7ce010bf9c74c36b16c5dc15aee0434e32d57adb530a55302e",
       "reason": "2026-10-17 scan fix (BUG-003/004): no PRAGMA journal_mode=WAL on open; creation of a missing path reported; query streams rows with 10,000-row/8 MiB bound and 1 KiB BLOB prefix (truncated flag)."
     },
     {
@@ -1722,7 +1746,9 @@
       "reliabilityFix20261020Adaptation": "Documented the busy-timeout trade-off, transaction-control rejection and the known synchronous-query limitation (SQLT-01).",
       "scanFix20261017PreviousSha256": "5bc6cbae0434347961747c5b5361959e7cf2013eadfab98b5e3c09fe1326e906",
       "scanFix20261017Adaptation": "2026-10-17 document streamed 10,000-row/8 MiB read bound, BLOB prefix, unchanged journal mode, creation message and 24h saved-output retention.",
-      "sha256": "5f5f3993c26147ef21095b5dd901e4fbb5fbe48a33071a804b3411025b2e96cc",
+      "scanFixes20261024PreviousSha256": "5f5f3993c26147ef21095b5dd901e4fbb5fbe48a33071a804b3411025b2e96cc",
+      "scanFixes20261024Adaptation": "2026-10-24: documents the single-statement rule and that sqlite_query is not read-only (scan DB-005/DB-006).",
+      "sha256": "b5ddc394164bb224c792179fc2760d908ab5eaac1ec839ae6b2b7ec658ac51c2",
       "reason": "Integrated usage, shared deferred hint, root baseline and preserved lifecycle/settings/safety."
     },
     {
@@ -1788,7 +1814,9 @@
       "path": "modules/schedule-prompt/CHANGELOG.md",
       "originalSha256": "b56ca95f7e7a43b4ee1a718e0c13735f67b0c712397ba29596ab4d1a012bea48",
       "defectRepairPreviousSha256": "eb1a055be0406f2a5ade38c9ed84bb24cb48dedd0f621b31ccd13070be87420e",
-      "sha256": "a54654c0180ecb68939caa50766ecf49f3870f69705a3893aa3fbdebd60b7638",
+      "scanFixes20261024PreviousSha256": "a54654c0180ecb68939caa50766ecf49f3870f69705a3893aa3fbdebd60b7638",
+      "scanFixes20261024Adaptation": "2026-10-24: records the scheduled-turn mutation guard (scan WB2-001).",
+      "sha256": "b1dabe05ebf7bef3781a719a4ab534c59b0c4354ae1108bc551a4918748a6165",
       "reason": "2026-10-07 explicitly local deadline feature, not an upstream release."
     },
     {
@@ -1804,7 +1832,9 @@
       "defectRepairPreviousSha256": "653b53ee1753dbbcbe110fed17b348f0325df115e02aa7fba2670c7ae3870587",
       "reviewReproductionPreviousSha256": "600cb1bf2d24fbba5ba7e42156d8896c0e219e3495ac135b30664d84898461f8",
       "reportRepairPreviousSha256": "5c0480cc3076bccd8faa3ef15fbef1e42fc701bc9ac6b0d9dd5fb9dbe165c4af",
-      "sha256": "0c4780181de42c5b5b09a212a0748c88b367a5eda81c6f9f41dc8721ffba8ec7",
+      "scanFixes20261024PreviousSha256": "0c4780181de42c5b5b09a212a0748c88b367a5eda81c6f9f41dc8721ffba8ec7",
+      "scanFixes20261024Adaptation": "2026-10-24: every action except list is rejected as an isError result inside a scheduled execution, before the action dispatch (scan WB2-001/004/006).",
+      "sha256": "a585a1d7b72289d55cd22ae627d6a7dc1958db12d117ba925d7430987e7004d0",
       "reason": "2026-10-07 normalize/validate add and merged update deadlines, explicit-null clearing, enable guard and cutoff render/result display. No implicit re-enable. 2026-10-11 R13: manual tool cleanup uses actual deleted locked batch and only unschedules removed jobs."
     },
     {
@@ -1985,7 +2015,9 @@
       "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
       "cleanCodeModules20261023PreviousSha256": "894122aacb9a1047028b83617e324498039c08d6eddc2b7af6af9582d87d9688",
       "cleanCodeModules20261023Adaptation": "2026-10-23 clean code: withTimeoutHint replaces two identical timeout rewrites; parseShellInput keeps the original validation order; receiptResult hoisted; ALREADY_FINISHED_NOTICE named; isActiveJobStatus.",
-      "sha256": "5a1a9f2e07c3d1b6bec1ad8db45914336c11eebc734d7129d059c0ac45ed8892",
+      "scanFixes20261024PreviousSha256": "5a1a9f2e07c3d1b6bec1ad8db45914336c11eebc734d7129d059c0ac45ed8892",
+      "scanFixes20261024Adaptation": "2026-10-24: the 2147483647 sentinel counts as no timeout for the 180 s safety net and the auto Monitor; a rejected automatic handoff is retried and the call stays detachable (scan SH-001/SH-002).",
+      "sha256": "75c0a0e0f76b5d6e5ff87b14dcf694428f1ae2f41da01f2dd7a65b6ac7697917",
       "detachHint20261021PreviousSha256": "a8911b6042ecea42eada709896be8b2c83b3ac79b7e741248ba20ad78480995e",
       "detachHint20261021Adaptation": "2026-10-21 move the Alt+J hint out of the status bar into the tool call's own render: the call preview carries the muted last line until a partial result exists, then the result region does; tracking is keyed by toolCallId and each render remembers its invalidate so start/end redraw immediately. Timeout, handoff, receipt and abort semantics unchanged.",
       "tokenTrimPreviousSha256": "f7df7eb75c014ac5ca2c46ba4c244fd856af630e3d8ca1e884c7692b20b15565",
@@ -2205,7 +2237,9 @@
       "streamingCharsAdaptation": "2026-10-16 document dynamic received-argument counts, UTF-16 units, empty/partial inputs, schema-array edit scope and no disk-commit implication; host write preview preserved.",
       "streamingBytesPreviousSha256": "905300cb5048d1edd24d57637bf641f40dc8671efd6eceb615f64cf64ebf49aa",
       "streamingBytesAdaptation": "2026-10-16 document UTF-8 byte progress replacing character counts, write success-unit consistency and edit replacement-byte rather than final-file-size semantics.",
-      "sha256": "52cf05c5970372032a38593b40833adf490897d68565a3506e1c92953ac0e35d",
+      "scanFixes20261024PreviousSha256": "52cf05c5970372032a38593b40833adf490897d68565a3506e1c92953ac0e35d",
+      "scanFixes20261024Adaptation": "2026-10-24: documents that the settings path follows the host getAgentDir (scan FT-003).",
+      "sha256": "9307b8531ed45884062d47a6c2b79a896f7dfefdead62854d55c67ec4703ceda",
       "piBoltFffCompat20261021PreviousSha256": "3378ae0c332d60cca97339eeb317271baef9947149945c6e56478a62d5056127",
       "piBoltFffCompat20261021Adaptation": "2026-10-21 document FFF behaviour measured on Pi-Bolt 0.9.6 (JIT off): @ff-labs/fff-bun blocked by the host's JIT_ONLY_PACKAGES so the SDK falls back to @ff-labs/fff-node, override mode and real find/grep results, Pi-Bolt's path-based FFF detection missing this thin wrapper, do-not-coexist with opensec-pi-fff and the packages-filter route to it. Documentation only; wrapper code unchanged.",
       "pi130UpgradeReconcile20261017PreviousSha256": "b8451d226b5b4df06c150620a5466a2c721642479eb62b513a2cd6afc29f9e61",
@@ -2292,7 +2326,9 @@
       "cleanCodeModules20261023Adaptation": "2026-10-23 clean code: dispatchModel/dispatchThinkingLevel replace three copies of the model/thinking selection; managedSessionRoot, canonicalSessionRoot, isSavedModelRegistered, annotateObservedState, durationOr, clearChildTimers, resultStatusStyle replace duplicated code; validateKnownEvent, observePresentation, retainAssistantOutput, runMetadata extracted from the runner; unreachable second agent check removed; named limits and messages; dispatchMode computed once.",
       "liveJobView20261023PreviousSha256": "fd8f949e8fd162c7f1acadef1b62c9927f74ad856ec34dc65a338ba304ef67aa",
       "liveJobView20261023Adaptation": "2026-10-23: RunnerRuntime.onEvent forwards already-validated child events for the live viewer only; a throwing observer never alters child execution or diagnostics.",
-      "sha256": "932d298695a244445d2666bee5558ad0410d30364024cf800cedb02f83f756e0",
+      "scanFixes20261024PreviousSha256": "932d298695a244445d2666bee5558ad0410d30364024cf800cedb02f83f756e0",
+      "scanFixes20261024Adaptation": "2026-10-24: one active-child semaphore per process via globalThis (scan SA-002); non-waking messages tagged deliverAs steer.",
+      "sha256": "0e634709ea0e509bb3afcc1f6ef4c25f53ece8444f9ff697aa23cb6e837a4d60",
       "detachHint20261021PreviousSha256": "115c0ba04533a74d49e6c33b1de5062c9a9ca5775dc241c2bff38fcf21f815f5",
       "detachHint20261021Adaptation": "2026-10-21 track the foreground dispatch under its toolCallId and append the Alt+J hint through the shared detach-hint helper on the call (while no partial result exists) and result renders. Detach, adoption, child ownership and cancellation paths unchanged.",
       "tokenTrimPreviousSha256": "7336fb704d5007baddfe4173ccbe2ef143f3e957addbd201b94b70cec27a819a",
@@ -2421,7 +2457,9 @@
       "piBoltInvocationPreviousSha256": "16dfcb049464521d90ae7efd454b3f83cb055f3ccef4b4baac41878fe8eaa20a",
       "liveJobView20261023PreviousSha256": "ebf2e1be3091ecbd0520771af48d47ecb856b6d70ebfb4ceae6d76c90a1d937a",
       "liveJobView20261023Adaptation": "2026-10-23: documents the per-task live conversation copy fed by onEvent and its release rules.",
-      "sha256": "0bb2a9255d4518ec5edde9cc33a8f517c7b868cb9769a6cd56c18879122cca12",
+      "scanFixes20261024PreviousSha256": "0bb2a9255d4518ec5edde9cc33a8f517c7b868cb9769a6cd56c18879122cca12",
+      "scanFixes20261024Adaptation": "2026-10-24: documents the process-wide admission budget across /reload.",
+      "sha256": "29b12db9c174aeaf09fa6161f4a24980e39b581b296cbbfc46e89dca752dcf2c",
       "detachHint20261021PreviousSha256": "a2e39ae9637169bb9b55df280d1a0e614bce965974c7d8cadb0ad4b93d94b82d",
       "detachHint20261021Adaptation": "2026-10-21 document the hint on the subagent tool call's own last rendered line instead of the status bar.",
       "previousRejectedTuiSha256": "bdd1c25ab276cb1150338f9638020e3d05813e32070c8276c225ca5b1641c7c1",
@@ -2557,7 +2595,9 @@
       "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
       "liveJobView20261023PreviousSha256": "ee2922a4a8cd2f9ab7fc8d0583aec6201891b8eadd70d5c4462a8ff14734bbdc",
       "liveJobView20261023Adaptation": "2026-10-23: documents the live detail view (in-memory copy, Ctrl+O expansion, m metadata, follow-at-end, release at the terminal state, version-based panel signature).",
-      "sha256": "dfd4eb5b56d30ac4c1ec635cf7875242c70bbc4ac8d911575ba1e76c3b5faeb6",
+      "scanFixes20261024PreviousSha256": "dfd4eb5b56d30ac4c1ec635cf7875242c70bbc4ac8d911575ba1e76c3b5faeb6",
+      "scanFixes20261024Adaptation": "2026-10-24: documents the sentinel and the retried handoff.",
+      "sha256": "649afa610c1789a07a48120688779ebe9f4fa9995fd7db5ca57ef40229684636",
       "detachHint20261021PreviousSha256": "6890a5499d54528ee019c406ac7fbf2571ecf481ca393047d4e246c29183427e",
       "detachHint20261021Adaptation": "2026-10-21 document the hint as the tool call's last rendered line (muted, same shape as Pi's expand hint), the call/result placement rule, and that it is never written to the status bar.",
       "notificationBatchingPreviousSha256": "496539ba1fb125f18cb6fa1e517345023195e4a8e73665cb8d037b82d8911cf7",
@@ -2725,7 +2765,9 @@
     {
       "path": "modules/file-tools/src/path-utils.ts",
       "originalSha256": "1977da15b78cefc88609eda7aca077384a1d7225d63c624d1697d9227e9f8448",
-      "sha256": "de9c23e0e3a75581e067af9360c31c7aa56ec3ee0b2ee0a17179c44f5638fda6",
+      "scanFixes20261024PreviousSha256": "de9c23e0e3a75581e067af9360c31c7aa56ec3ee0b2ee0a17179c44f5638fda6",
+      "scanFixes20261024Adaptation": "2026-10-24: a malformed file:// URL becomes a structured INVALID_ARGUMENT error instead of a raw URIError (scan FT-004).",
+      "sha256": "7ca4f1adadaa4a129e244ebf30ff2048252a8c310b5c76a4ec25b444ea24f8fd",
       "reason": "2026-10-06 local adaptation (file-tools): read/edit/write return slimming (no LINE_PREFIX, single-line metadata, compactPatch, no write details), error recovery points to shell, description/schema/guidelines de-duplicated. Assertions kept or tightened; not a source-identical copy."
     },
     {
@@ -2799,7 +2841,9 @@
       "reason": "2026-10-08 current local snapshot review: MH1/M10-M11/L5-L9: current short temp names/bounded Windows retries, full-hash plus final stat stale fences, request-local regex reuse, diagnostic payload redaction and settings fallback reviewed; @ convention/diff fail-closed and metadata/TOCTOU limitations retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "cleanCodeModules20261023PreviousSha256": "a7be684621a955e7ab332c9078a66052c0c52fbf5a999eff75b1910a17268d8f",
       "cleanCodeModules20261023Adaptation": "2026-10-23 clean code: shared default log directory, entry serialization and option constants for the sync/async writers; errnoCode for ENOENT.",
-      "sha256": "bdf0c3f7ecf71c7a87c1f22146eeb5665abdbc7c4ead2b9dc19869893e386abd"
+      "scanFixes20261024PreviousSha256": "bdf0c3f7ecf71c7a87c1f22146eeb5665abdbc7c4ead2b9dc19869893e386abd",
+      "scanFixes20261024Adaptation": "2026-10-24: the settings path defaults to the host getAgentDir(), which expands ~ (scan FT-003).",
+      "sha256": "ef2cc3f645af65c6dfd94a08c124f9dc7b3c67ea16dc6f5519023e22f25ae7f3"
     },
     {
       "path": "modules/file-tools/tests/debug-logging.test.ts",
@@ -2917,7 +2961,9 @@
       "checkRepairPreviousSha256": "c70e7fe0417f44e2b3eb7ece57bc93813806f38562c3cdf73cc0335ed89b41f6",
       "liveJobView20261023PreviousSha256": "cd78350c0ec96a1a54cbb24ab9d823af8852d87489662162dc9c443d6307c5e9",
       "liveJobView20261023Adaptation": "2026-10-23: documents the new [Active Monitors] compaction block (source, coarse target, state, remaining lifetime, id, label, caps, partial, no carry-forward).",
-      "sha256": "a233fed28c7823a49a4126261f803bc0711b8a3e4270b887c43202db1ed4bf57",
+      "scanFixes20261024PreviousSha256": "a233fed28c7823a49a4126261f803bc0711b8a3e4270b887c43202db1ed4bf57",
+      "scanFixes20261024Adaptation": "2026-10-24: documents the session directories searched by /blackhole cleanup (scan H1).",
+      "sha256": "75528effa9e02a04e3f94cf1a0c60b1b8ceb66ddd26f37a5a49500bee4f4be6e",
       "validationRepairAdaptation": "2026-10-10 unit/native grouping and process budgets documentation only.",
       "previousTestHarnessRepairSha256": "91ae8a69279d7ac7c8c8bcc5326b159fee8687881cf3a839e6eeeaaf30887f0c",
       "previousNotificationEvidenceReason": "Add local installation, behavior, regression and verification boundary above unchanged upstream documentation. Normalize source CRLF working-tree bytes to repository-required LF; semantic content unchanged by this normalization. Subsequent 2026-10-09 semantic adaptation: document isolated unit passive allowlist, relative-only import alias, portable fixtures, EROFS injection and worker invocation barriers.",
@@ -3079,7 +3125,9 @@
       "path": "modules/blackhole/src/commands/cleanup.ts",
       "originalSha256": "838efdd4b7af2c9cd57cf31959b6f42626b6fcfa5ba6da3edcee7c7af8885ea2",
       "reportRepairPreviousSha256": "06e203984f7f6cc5e54585f2a453d090b669888b521507ac543d46035e627ff8",
-      "sha256": "48b696f52ce68cd06d00e7c04c92616bc7e5966f73a1b3d6a6e2ba22f8b3a199",
+      "scanFixes20261024PreviousSha256": "48b696f52ce68cd06d00e7c04c92616bc7e5966f73a1b3d6a6e2ba22f8b3a199",
+      "scanFixes20261024Adaptation": "2026-10-24: cleanup searches every known session directory, including the running session and the project (scan H1).",
+      "sha256": "eaa1acbd36f99e45928ffa937c602119db70f73f4638a4130e2f017c660ef7d7",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -3463,7 +3511,9 @@
       "path": "modules/blackhole/src/om/cleanup.ts",
       "originalSha256": "663b527102101429460c7e415ee1097cce34d3859d2d81aee4827542301550d6",
       "reportRepairPreviousSha256": "f86f728cc2329fa48567d0fb03ec69fec8440138cfec7c557c5c5cce586db487",
-      "sha256": "b79ff2574346a92bd9ca390b37c2eaa91bb5f701b67c894743e8b31b165975bc",
+      "scanFixes20261024PreviousSha256": "b79ff2574346a92bd9ca390b37c2eaa91bb5f701b67c894743e8b31b165975bc",
+      "scanFixes20261024Adaptation": "2026-10-24: findSessionDirs covers default, global and project sessionDir, PI_CODING_AGENT_SESSION_DIR, --session-dir and the current session dir; ~ expands with homedir() (scan H1).",
+      "sha256": "bcfdcc4551fee095e2ea287fafef56ffbc6d62b6b6d6e1a70181820b3f612b29",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -3739,7 +3789,9 @@
       "piOwnedSummaryMigrationPreviousSha256": "29330a1c3e7afd14b1b555a658886a1be5863e3af57a0966861e05d289361db7",
       "piOwnedSummaryMigrationAdaptation": "Successful Reset/Delete replaces full Save buffer with fresh layers; observable existing-file refusal prevents false refresh and preserves dirty edits. Review4 adds only eight production lines over accepted Review3 flow; limited W1/W2/W3 static acceptance.",
       "defectRepairPreviousSha256": "229b61c5a8f10f4ad2a4223ee13303a01e106493613075160debd50dd61a12d1",
-      "sha256": "674f4c8516fc7e0e3651a3a46ccd9a292c58c11879361a65b47aa14f69165b8f",
+      "scanFixes20261024PreviousSha256": "674f4c8516fc7e0e3651a3a46ccd9a292c58c11879361a65b47aa14f69165b8f",
+      "scanFixes20261024Adaptation": "2026-10-24: a failed confirmed save/reset/delete dismisses the nested confirm so the modal is not stranded (scan H2).",
+      "sha256": "d65783f3144d4d404df34b160e7866a309f1ec0e132e44bb9bdf543e4191f087",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -4856,6 +4908,13 @@
       "originalSha256": "92c342c75c936dce9a5b789db120d7c83d4c2b818ed73a5e48458b04c806dbb7",
       "sha256": "8c7597bfaebd88545416b9c4f094784e42042333810a0871740c87935fd0637f",
       "reason": "2026-10-20 FIL-01: dynamic import of diff with a ready message, and windows over 1000 lines are diffed in segments resynchronised at 10 identical lines with line numbers restored. Hunk boundaries match whole-file jsdiff; byte-identical minimal diffs on ties are not guaranteed."
+    },
+    {
+      "path": "modules/sql-connector/src/config.ts",
+      "originalSha256": "048d36837ce05a629031ce114bf6fab8b90daf443ecb3b4a1ad6541522f9bbe0",
+      "scanFixes20261024Adaptation": "2026-10-24: per-engine keys are limited to the ten documented fields; unknown keys are refused with CONFIG_INVALID naming the key only (scan DB-003).",
+      "sha256": "be2bfc0d5242aeed6f8ab7aa89bd525d114ffc747bc39db58ca69c8f06d76090",
+      "reason": "per-engine keys are limited to the ten documented fields; unknown keys are refused with CONFIG_INVALID naming the key only (scan DB-003)."
     }
   ],
   "subagentTitleChanges": [
@@ -4875,12 +4934,12 @@
   "addedFiles": [
     {
       "path": "modules/shell-tools/src/live-transcript.ts",
-      "sha256": "b417dee3a2bc446941a8f52dd95cf62676468ffd88c3dae3c14250e92ff43448",
+      "sha256": "1d9da9450e7d35f788d757f23d538c0a884e150150bead2d6319532ce5263556",
       "reason": "2026-10-23 live job view: in-memory LiveTranscript (host message components, streaming assistant replaced in place) and bounded OutputTranscript (128 KiB tail), plus TranscriptView rendering either copy with Ctrl+O tool-result expansion; released at the job's terminal state, never a record or model input."
     },
     {
       "path": "modules/shell-tools/tests/live-transcript.test.ts",
-      "sha256": "77fd38fafff029a74a905548c9d01a35a47976e72a6bd83b4db01354160dfd4e",
+      "sha256": "dd91cc1495cad0ccc389d799d692baded6adf3fb37fd414a9506931ea3963940",
       "reason": "2026-10-23: live copy ingest/release, streamed-message replacement, output bounds and control stripping, overlay live/metadata and Ctrl+O toggles, panel signature and subagent registry copy lifecycle."
     },
     {
@@ -5104,7 +5163,7 @@
       "path": "modules/shell-tools/src/job-view.ts",
       "liveJobView20261023PreviousSha256": "0755505b4db6e9db6d6b5a1e4dee92cac79e2f41e271dd9d28963eac39a9f8f1",
       "liveJobView20261023Adaptation": "2026-10-23: detail view renders a running job's live copy (conversation or output tail) with follow-at-end, m metadata toggle and Ctrl+O tool expansion; panelSignature fingerprints copies by version and never serializes their payload. Metadata fallback, 300-line and 256-field bounds unchanged.",
-      "sha256": "c111cd9a71b1e89e6823312b76f5b0613a44d9156c1f3c74fc5eb2172784be51",
+      "sha256": "13abfa90660e6cc26a1a0ebcdda594594163ef338989b2fe82d332364c9ad317",
       "reason": "2026-10-12 pure job/known-usage presentation, stable grouping/order, five two-line rows with Unicode/height budget; SDK selector/metadata-only More/details; no execution/log/provider work."
     },
     {
@@ -5374,7 +5433,7 @@
     },
     {
       "path": "modules/shell-tools/src/managed-child.ts",
-      "sha256": "2e0ff1f34a539b329b51b9b061ad5aab67986fab5c65f23b08afafa32ee06284",
+      "sha256": "5769b075216cc00c17aade8b5fc5e318921b69e1dbd1a2f603927d08e0788f84",
       "reason": "2026-10-09 explicit foreground-v1 handshake consumption/process-local reload identity; no inferred identity or OS sandbox."
     },
     {
@@ -6032,7 +6091,7 @@
       "driftReconcile20261021PreviousSha256": "ad38e432efb4dbad550ea56bb9cb18e72887cf825614c66dee5d99bd24044a15",
       "liveJobView20261023PreviousSha256": "a87010fed98ddbe088c2505d02f0c66577e54814efc8d589b00afefeb7878902",
       "liveJobView20261023Adaptation": "2026-10-23: submit() forwards validated child events to one bounded LiveTranscript per task and releases it on task finish, run end or failure; receipts, model content and job state are unchanged.",
-      "sha256": "93d010c32bf6b7b24b4208e40c4f005cf142783843a2fcd4508df7fdfd2319ca",
+      "sha256": "fbdf9608e361db35c33c7e8ba2c99e62d3639d7590a90ae71869165e6e07df6e",
       "driftReconcile20261021": "2026-10-21 drift reconciliation: the file changed after its last recorded hash and before this record; plan/evidence/subagents fingerprints bound a background.ts change to 2026-10-20T02:46Z..2026-10-21T00:37Z, the pi-provider.ts change cannot be bounded; no earlier content is available (no VCS), so the delta is not diffed and this is a current-state record only, not equivalence certification. subagents module tests passed with the current content.",
       "reason": "User-authorized session-owned bounded background registry or verified RPC/query bridge; synchronous default, owner/cancellation, canonical context and resource safety preserved. 2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: H1/M1-M4/L1-L4 preserved; additional M4 fix keeps actual FileHandle.close rejection as an ownership barrier, preserves primary/close diagnostics and structured finalize errors, observes abandon rejection immediately, and requires writerCloseConfirmed before normal release/rollback. Normal/late/late-create red-green regressions reviewed. User-authorized TUI/model notice wording now describes delegated data as not instructions and not an error label; queued/accepted presentation is neutral, statuses/schema/trust/followUp unchanged. Authorized English comparison-table messages now clarify control/query completion scope, snapshots/late usage, capacity refusal, agent search scope and per-tool progress; foreground resume/log/aborted labels and truncation hints reflect available data without changing ownership or runner outcomes. Offline resume-provider and cross renderer fixtures follow the new English checkpoint/control labels.\n2026-10-08 user-approved session-addressed messaging: create-only subagent, actual managed IDs at acceptance (OQ1=A), stable-session message routing to live control or guarded asynchronous continuation, explicit busy/blocked/refusal guidance, live-only query, admission and writer ownership safeguards, migrated contracts and regression fixtures. No credential/settings/history rewrite, deadline changes, unknown-delivery retry or source refresh. This records current local bytes, not unavailable historical equivalence. 2026-10-08 authorized session-load background reconciliation: payload-free versioned journal before allocation/runner admission; persistent-conversation fence; bounded same-owner/cwd inventory and active-branch evidence dedup; neutral model-visible triggerTurn:false notices; no restart, child resume, control replay, lock/native mutation or process-tree termination claim. 2026-10-11 R8: cancel preparation wait while actual promise/admission remain owned until settlement; accepted background lifetime stays job-owned.",
       "checklistReviewPreviousSha256": "31198f86501123be0ce9e94db673fef57027d8e4d2da4d47529a40e257f79704",
@@ -6079,7 +6138,7 @@
       "path": "modules/subagents/tests/background.integration.test.ts",
       "completionSteeringPreviousSha256": "0fa0a87afc067b5f17835c0c10874a97dff377df245d9924a0c2748bded7624d",
       "jobsPanelPreviousSha256": "0e4715134bc7bceed266793270c6e8768fe77d1cd14b2a1b345a473de4d5ad7f",
-      "sha256": "0fa0a87afc067b5f17835c0c10874a97dff377df245d9924a0c2748bded7624d",
+      "sha256": "73d4716f61e7b7052abb6506645a1ac67e9eef999af5dc74f6acb24c6864ef5e",
       "reason": "Offline background/RPC/control/query acceptance, isolation, shutdown, resource limits or actual-host continuation regression; isolated workspace/provider, no paid API or real credentials. 2026-10-06 local adaptation (subagents): status jobId-less listing, Union outputSchema, finalLogPath, capacity error with payload, foreground structuredContent, slim receipt/notification, bundled agent/prompt output contracts, promptGuidelines. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: H1/M1-M4/L1-L4 preserved; additional M4 fix keeps actual FileHandle.close rejection as an ownership barrier, preserves primary/close diagnostics and structured finalize errors, observes abandon rejection immediately, and requires writerCloseConfirmed before normal release/rollback. Normal/late/late-create red-green regressions reviewed. User-authorized TUI/model notice wording now describes delegated data as not instructions and not an error label; queued/accepted presentation is neutral, statuses/schema/trust/followUp unchanged.\n2026-10-08 user-approved session-addressed messaging: create-only subagent, actual managed IDs at acceptance (OQ1=A), stable-session message routing to live control or guarded asynchronous continuation, explicit busy/blocked/refusal guidance, live-only query, admission and writer ownership safeguards, migrated contracts and regression fixtures. No credential/settings/history rewrite, deadline changes, unknown-delivery retry or source refresh. This records current local bytes, not unavailable historical equivalence. 2026-10-08 authorized session-load background reconciliation: payload-free versioned journal before allocation/runner admission; persistent-conversation fence; bounded same-owner/cwd inventory and active-branch evidence dedup; neutral model-visible triggerTurn:false notices; no restart, child resume, control replay, lock/native mutation or process-tree termination claim.",
       "checklistReviewPreviousSha256": "febbbac7d1d2754711d49bda2acccd116541e9ddce129189448a37b0227bf0b6",
       "checklistReviewBaselineSha256": "febbbac7d1d2754711d49bda2acccd116541e9ddce129189448a37b0227bf0b6",
@@ -6127,7 +6186,7 @@
     {
       "path": "modules/subagents/tests/rpc-interaction.integration.test.ts",
       "completionSteeringPreviousSha256": "cf0a771d9dd981830b4ebcba4c7cc9f34a50213048466a3082af5ba7c8285d97",
-      "sha256": "83520cfce5dec19c84ad04ee2c2c60149e35b97ae44c8ed6fb8dc34306a3ad31",
+      "sha256": "8ad169378f3b0c93649975393191ec790f5e460a5227a309d6d6511563ed4a0b",
       "reason": "Offline background/RPC/control/query acceptance, isolation, shutdown, resource limits or actual-host continuation regression; isolated workspace/provider, no paid API or real credentials.\n2026-10-08 user-approved session-addressed messaging: create-only subagent, actual managed IDs at acceptance (OQ1=A), stable-session message routing to live control or guarded asynchronous continuation, explicit busy/blocked/refusal guidance, live-only query, admission and writer ownership safeguards, migrated contracts and regression fixtures. No credential/settings/history rewrite, deadline changes, unknown-delivery retry or source refresh. This records current local bytes, not unavailable historical equivalence."
     },
     {
@@ -6770,6 +6829,66 @@
       "path": "modules/blackhole/tests/consolidation-abort-inflight.test.ts",
       "sha256": "45456622cf682432d324a8701374eea42654a062d5538be314f09ec13cabc4d7",
       "reason": "2026-10-20 reliability fix: BLK-01 regression: an abort-ignoring provider with default config no longer leaves consolidationInFlight set after session_tree or session_start; controls for honouring provider and timeout 200."
+    },
+    {
+      "path": "modules/blackhole/tests/cleanup-session-dirs.test.ts",
+      "sha256": "4e88ad3ea57a78951091792a5a6685d40a14b2756dbab15d7ce0bafc4464433d",
+      "reason": "2026-10-24 scan H1 regression: cleanup must search every session directory Pi can use before calling a pending file orphaned."
+    },
+    {
+      "path": "modules/blackhole/tests/settings-confirm-failure.test.ts",
+      "sha256": "5f8640d964b0965505e6e2913faac6f900389f354db3c69be709431a36f37d48",
+      "reason": "2026-10-24 scan H2 regression (real createConfirm): a failing confirmed save/reset/delete leaves no dead confirm mounted."
+    },
+    {
+      "path": "modules/file-tools/tests/agent-dir-resolution.test.ts",
+      "sha256": "246c27becce7e1682b7b3f6ec03fe984b9193a1db8890d4132953b7eb992a4b1",
+      "reason": "2026-10-24 scan FT-003 regression: the settings path follows the host agent directory including ~."
+    },
+    {
+      "path": "modules/file-tools/tests/file-url-errors.test.ts",
+      "sha256": "bb957fe1b2468a5145dc1c664d71ceca943d80747d856d06f224edbaec453ea0",
+      "reason": "2026-10-24 scan FT-004 regression: malformed file URLs are structured INVALID_ARGUMENT errors."
+    },
+    {
+      "path": "modules/schedule-prompt/test/scheduled-mutation-guard.test.ts",
+      "sha256": "d167aff7b2bcba710d90843ff2d690d0ff89e44d214c9cbfc4eb46259eb5522c",
+      "reason": "2026-10-24 scan WB2-001 regression: a scheduled turn may only read the schedule."
+    },
+    {
+      "path": "modules/shell-tools/tests/auto-background-edge.integration.test.mjs",
+      "sha256": "a256a162de985678dacba90e565b5bf79694635ca25f4cc5db4cdbc88bab7ee7",
+      "reason": "2026-10-24 scan SH-001/SH-002 regression: sentinel counts as no timeout; a rejected handoff is retried."
+    },
+    {
+      "path": "modules/shell-tools/tests/fixtures/auto-background-edge-host.mjs",
+      "sha256": "79742b0b0611a88d75c9da6a70fd815e31149b538af86c238802961b9f99d6d5",
+      "reason": "2026-10-24 fake-process host child for auto-background-edge.integration.test.mjs."
+    },
+    {
+      "path": "modules/shell-tools/tests/managed-child-invalid-handshake.test.ts",
+      "sha256": "ef1090b335728ba485823c519fb85abefb73acfd4112ea78c45a6fcb7eb4009f",
+      "reason": "2026-10-24 scan SH-004 regression: a non-JSON guard is ignored for every consumer."
+    },
+    {
+      "path": "modules/sql-connector/test/config-unknown-keys.test.ts",
+      "sha256": "20f9166b5e96d59b84a6288d653b3714096ec68b47cd08c822eb5d86f7238b1a",
+      "reason": "2026-10-24 scan DB-003 regression: unknown engine keys are refused."
+    },
+    {
+      "path": "modules/sql-connector/test/mssql-stacked-select.test.ts",
+      "sha256": "ab5cda7828cfbc00c59b797f30ca4efe053c4980607778119a1b4d8b5a95c723",
+      "reason": "2026-10-24 scan H4 regression: stacked SELECT after a read or a write is refused."
+    },
+    {
+      "path": "modules/sqlite-tools/tests/single-statement.test.ts",
+      "sha256": "fc7b9696d6ada8560aa8ddddca58205007536dd312c199af2482e926a7ec9d2e",
+      "reason": "2026-10-24 scan DB-005 regression: a trailing second statement is refused."
+    },
+    {
+      "path": "modules/subagents/tests/admission-shared-across-reload.test.ts",
+      "sha256": "e4983852b0b2b36c96747a08049fc1bca43ee6015da178e430e51c73a73c2354",
+      "reason": "2026-10-24 scan SA-002 regression: admission budget and child semaphore survive a module re-evaluation."
     }
   ],
   "blackholePiOwnedSummaryMigrationReview": {
@@ -8406,7 +8525,7 @@
         "gptSpeedCacheAdaptation": "2026-10-21 GPT Speed prompt cache lifetime: new /cache-ttl-short and /cache-ttl-long commands (no arguments) and pi-gpt-speed.cache setting (short = 30m API default, request untouched; long = prompt_cache_options.ttl 12h for provider openai on the openai-responses API only, merged into existing prompt_cache_options), independent global/trusted-project precedence, extra TUI status entry gpt-cache; speed/service_tier behavior unchanged. Unit tests (55) and the real-host probe were run; OpenAI acceptance of the field was not verified against the real service.",
         "disableCacheTtl20261023PreviousSha256": "b9c2af27e1288d10fa7d6fc88030f9f18e64eaaf617b766793e74d88a32dce08",
         "disableCacheTtl20261023Adaptation": "2026-10-23: configuration says `/cache-ttl-*` is disabled, no ttl is sent and a stored cache value has no effect.",
-        "sha256": "023d04c9b03f8752b5ba373f42f5e26bc845d7dc6cba215ab1ffa8c7145e2733",
+        "sha256": "0d919b0ba5af11cd3f0ef44ecacc95b5da19a57893b5a6de76c34ad509d5fd7f",
         "monitorPreviousSha256": "9a8d2f870bd1e1088be9d48cb00f47ea04545a113b38bc10f187537944299162",
         "piRuntimePreviousSha256": "b9a1d09ea980453bd48e382702e6ae3b2bfc953f5ff780597bf2e85640d4e671",
         "notificationBatchingPreviousSha256": "b6ca4c67d462a8b1fed24eaa64151822f684fb34da84b3461de6a92ac73143b2",

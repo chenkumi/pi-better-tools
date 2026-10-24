@@ -22,7 +22,7 @@ async function fixture() {
 	registerSubagent({ registerMessageRenderer() {}, registerTool(tool) { tools.set(tool.name, tool); }, on(name, handler) { handlers.set(name, handler); }, sendMessage(message, options) {
 		const details = message.details as any;
 		assert.equal(message.display, details.kind !== 'log_ready');
-		assert.deepEqual(options, { triggerTurn: details.kind !== 'log_ready', deliverAs: details.kind === 'log_ready' ? 'followUp' : 'steer' });
+		assert.deepEqual(options, { triggerTurn: details.kind !== 'log_ready', deliverAs: 'steer' });
 		notices.push({ ...details, options }); for (const notify of waiters.splice(0)) notify();
 	} } as ExtensionAPI, { debugLog: false, sessionRootDir: join(root, "managed"), invocation: args => ({ command: process.execPath, args: [launcher, root, resolve(cli!), ...args] }) });
 	let calls = 0;

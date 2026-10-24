@@ -104,12 +104,15 @@ function parseShellInput(name: string, input: Record<string, unknown>, foregroun
   return { command: input.command, timeout, background: backgroundInput === true };
 }
 
+/** After a rejected handoff the safety net tries again at most this often. */
+const RETRY_HANDOFF_MS = 5000;
+
 type Receipt = { jobId: string; status: "running"; liveLogPath: string };
 
 function receiptResult(pi: ExtensionAPI, ctx: ExtensionContext, timeoutMs: unknown, receipt: Receipt, headline: string) {
   // A job without timeoutMs has no upper bound, so ask Monitor for a display-only sampler (best effort).
   let monitorId: string | undefined;
-  if (timeoutMs === undefined) {
+  if (timeoutMs === undefined || timeoutMs === MAX_TIMEOUT_MS) {
     try { monitorId = requestAutoMonitor({ sessionId: ctx.sessionManager.getSessionId(), cwd: canonicalMonitorCwd(ctx.cwd) }, receipt.jobId); } catch { /* monitor is optional */ }
   }
   const monitorNote = monitorId ? `\nMonitor ${monitorId} samples this job every ${AUTO_MONITOR_INTERVAL_MS / 1000}s (display only, no model wake-up; monitor_stop to stop it).` : "";
@@ -251,55 +254,69 @@ function registerTimeoutMsOverride(
           if (!jobs) throw new Error("Managed subagent Shell is foreground-only");
           return receiptResult(pi, ctx, input.timeoutMs, jobs.submit(ctx, name, toolCallId, signal, run, command), "Background job accepted; its outcome will be reported when it finishes.");
         }
-        const autoMs = jobs && input.timeoutMs === undefined ? resolveAutoBackgroundMs(pi.getSettings?.()) : 0;
+        const autoMs = jobs && (input.timeoutMs === undefined || input.timeoutMs === MAX_TIMEOUT_MS) ? resolveAutoBackgroundMs(pi.getSettings?.()) : 0;
         // Without a UI nobody can press the detach shortcut, so only the timer can trigger a handoff.
         if (!jobs || (autoMs === 0 && !ctx.hasUI)) return await run(signal);
         // The SAME process is adopted by a background job, so the turn is released. It is never restarted.
         // Triggers: the user's detach shortcut (any foreground command), or the autoMs safety net for a
         // command without timeoutMs (e.g. an endless loop). A timeoutMs keeps applying inside the adopted run.
         let manualDetach!: () => void;
-        const manual = new Promise<"manual">(resolve => { manualDetach = () => resolve("manual"); });
-        const untrack = ctx.hasUI ? trackForeground(toolCallId, manualDetach) : () => {};
+        let manual!: Promise<"manual">;
+        const track = () => {
+          manual = new Promise<"manual">(resolve => { manualDetach = () => resolve("manual"); });
+          return ctx.hasUI ? trackForeground(toolCallId, manualDetach) : () => {};
+        };
+        let untrack = track();
         const handoff = createForegroundHandoff();
         const foreground = new AbortController();
         const forwardAbort = () => foreground.abort(signal?.reason);
         if (signal?.aborted) forwardAbort(); else signal?.addEventListener("abort", forwardAbort, { once: true });
         const unlink = () => signal?.removeEventListener("abort", forwardAbort);
         const running = run(foreground.signal, handoff.wrap, onUpdate && (update => { if (!handedOff) onUpdate(update); }));
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        const outcome = await Promise.race([
-          running.then(value => ({ value }), error => ({ error })),
-          manual,
-          ...(autoMs > 0 ? [new Promise<"timer">(resolve => { timer = setTimeout(() => resolve("timer"), autoMs); })] : []),
-        ]);
-        if (timer !== undefined) clearTimeout(timer);
-        untrack();
-        if (typeof outcome !== "string") {
-          unlink();
-          if ("error" in outcome) throw outcome.error;
-          return outcome.value;
-        }
-        if (signal?.aborted) { unlink(); return await running; }
+        const settled = running.then(value => ({ value }), error => ({ error }));
+        let waitMs = autoMs;
+        let outcome: "manual" | "timer" | { value: Awaited<typeof running> } | { error: unknown };
         let receipt;
         let unlinkJob: (() => void) | undefined;
-        try {
-          receipt = jobs!.submit(ctx, name, toolCallId, undefined, async (jobSignal, wrap) => {
-            try {
-              handoff.attach(wrap, ctx.cwd, jobSignal);
-              return await running;
-            } finally { unlinkJob?.(); unlinkJob = undefined; }
-          }, command, jobSignal => {
-            // Link cancellation at acceptance, not inside the deferred runner: that boundary may never
-            // run (owner replaced first), and the adopted process must not outlive the job that owns it.
-            const onJobAbort = () => foreground.abort(jobSignal.reason);
-            if (jobSignal.aborted) { onJobAbort(); return; }
-            jobSignal.addEventListener("abort", onJobAbort, { once: true });
-            unlinkJob = () => jobSignal.removeEventListener("abort", onJobAbort);
-          });
-        } catch {
-          // No capacity (or owner unavailable): stay a normal foreground command, still linked to the turn's abort.
-          unlinkJob?.(); unlinkJob = undefined;
-          try { return await running; } finally { unlink(); }
+        for (;;) {
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          outcome = await Promise.race([
+            settled,
+            manual,
+            ...(waitMs > 0 ? [new Promise<"timer">(resolve => { timer = setTimeout(() => resolve("timer"), waitMs); })] : []),
+          ]);
+          if (timer !== undefined) clearTimeout(timer);
+          untrack();
+          if (typeof outcome !== "string") {
+            unlink();
+            if ("error" in outcome) throw outcome.error;
+            return outcome.value;
+          }
+          if (signal?.aborted) { unlink(); return await running; }
+          try {
+            receipt = jobs!.submit(ctx, name, toolCallId, undefined, async (jobSignal, wrap) => {
+              try {
+                handoff.attach(wrap, ctx.cwd, jobSignal);
+                return await running;
+              } finally { unlinkJob?.(); unlinkJob = undefined; }
+            }, command, jobSignal => {
+              // Link cancellation at acceptance, not inside the deferred runner: that boundary may never
+              // run (owner replaced first), and the adopted process must not outlive the job that owns it.
+              const onJobAbort = () => foreground.abort(jobSignal.reason);
+              if (jobSignal.aborted) { onJobAbort(); return; }
+              jobSignal.addEventListener("abort", onJobAbort, { once: true });
+              unlinkJob = () => jobSignal.removeEventListener("abort", onJobAbort);
+            });
+            break;
+          } catch {
+            // No capacity (or owner unavailable): stay a normal foreground command, still linked to the turn's abort.
+            unlinkJob?.(); unlinkJob = undefined;
+            // A rejection is not final: offer the handoff again (shortcut, steer) and retry the safety net shortly, so the
+            // command that was meant to be released is adopted as soon as room appears instead of holding the turn.
+            if (waitMs === 0 && !ctx.hasUI) { try { return await running; } finally { unlink(); } }
+            untrack = track();
+            waitMs = autoMs > 0 ? Math.min(autoMs, RETRY_HANDOFF_MS) : 0;
+          }
         }
         handedOff = true; unlink();
         const why = outcome === "manual"

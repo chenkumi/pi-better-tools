@@ -189,12 +189,26 @@ const MSSQL_STATEMENT_KEYWORDS = words(MSSQL_STATEMENT_WORDS);
 // SET is part of UPDATE itself; every other statement keyword would append a second statement to the batch.
 const MSSQL_UPDATE_FORBIDDEN = words(["merge", "truncate", "create", "alter", "drop", "grant", "revoke", "execute", "exec", "call", ...MSSQL_STATEMENT_WORDS.filter(word => word !== "set")]);
 
+/**
+ * SQL Server needs no separator between statements, so `SELECT ... SELECT ...` is two statements. Outside parentheses a
+ * query has one SELECT plus one per set operator; an UPDATE or DELETE has none; an INSERT ... VALUES has none and an
+ * INSERT ... SELECT follows the query rule. Subqueries, CTE bodies and EXISTS sit inside parentheses and are not counted.
+ */
+function hasStackedMssqlSelect(code: string, kind?: string): boolean {
+  const top = topLevelCode(code);
+  const selects = top.match(/\bselect\b/g)?.length ?? 0;
+  const allowedByOperators = 1 + (top.match(/\b(?:union|intersect|except)\b/g)?.length ?? 0);
+  if (kind === "update" || kind === "delete") return selects > 0;
+  if (kind === "insert" && /\bvalues\b/.test(top)) return selects > 0;
+  return selects > allowedByOperators;
+}
+
 function hasForbiddenReadConstruct(engine: Engine, code: string): boolean {
   return (
     /\b(insert|update|delete|merge|truncate|create|alter|drop|grant|revoke|execute|exec|call)\b/.test(code) ||
     /\bselect\b[\s\S]*\binto\b/.test(code) ||
     /\bfor\s+(update|share)\b|\block\s+in\s+share\s+mode\b/.test(code) ||
-    (engine === "mssql" && MSSQL_STATEMENT_KEYWORDS.test(code))
+    (engine === "mssql" && (MSSQL_STATEMENT_KEYWORDS.test(code) || hasStackedMssqlSelect(code)))
   );
 }
 
@@ -259,7 +273,7 @@ export function assertUpdateSql(engine: Engine, sql: string): void {
   if ((kind === "update" || kind === "delete") && !/\bwhere\b/.test(topLevelCode(code))) {
     denied("UPDATE and DELETE statements must include a top-level WHERE clause.");
   }
-  if (engine === "mssql" && (MSSQL_UPDATE_FORBIDDEN.test(code) || hasAppendedMssqlStatement(code, kind))) {
+  if (engine === "mssql" && (MSSQL_UPDATE_FORBIDDEN.test(code) || hasAppendedMssqlStatement(code, kind) || hasStackedMssqlSelect(code, kind))) {
     denied("Only one INSERT, UPDATE, or DELETE statement is allowed. Quote identifiers that are SQL keywords as [name].");
   }
 }

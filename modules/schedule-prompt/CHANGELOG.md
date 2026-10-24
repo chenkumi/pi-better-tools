@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (Pi Better Tools local adaptation, 2026-10-24; scan finding WB2-001)
+- A scheduled turn may only read the schedule: `update`, `remove`, `enable`, `disable`, `cleanup` and `add` now all return an `isError` result inside a scheduled execution (previously only `add` was guarded, and by throwing), so an injected scheduled run cannot rewrite, disable or delete other jobs.
+
 ### Fixed (Pi Better Tools local adaptation, 2026-10-10; defects D02/D04/D06/D08/D09/D10)
 - D02: project schedules (`.pi/schedule-prompts.json`, project settings file) load and start only when `ctx.isProjectTrusted()`; an untrusted project gets no timers, widget or command, and `schedule_prompt` returns an error. Scheduler `start()`/fire re-check trust. The child session creates one `SettingsManager` with the parent's trust and shares it between the resource loader and `createAgentSession`.
 - D04: child sessions are disposed with an awaited `session_shutdown` followed by `dispose()`; failures are returned as `cleanupError` and kept by the scheduler (`getCleanupFailures()`). `stop()` closes admission and aborts; `drain()` (bounded) waits for accepted/initializing children and is awaited on session shutdown/replacement. This is in-process cleanup, not an OS sandbox, and is separate from Subagents' child guarantees.

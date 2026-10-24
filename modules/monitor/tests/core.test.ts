@@ -135,3 +135,50 @@ test('notifications are submitted as steer (wake flag follows wakeAgent) without
   assert.deepEqual(quiet, [{ triggerTurn: false, deliverAs: 'steer' }]);
   b.finish(); await turn(); await b.runtime.shutdown(); void w;
 });
+
+// MON-1: a source whose close is still unknown after shutdown used to make bind() throw, which disabled every Monitor
+// tool in the next session. It now stays tracked (bounded, counted against capacity) while the new session works.
+const hung = async () => { await new Promise<void>(() => {}); };
+const nextOwner = (n: number) => ({ sessionId: `session-${n}`, cwd: '/canonical/workspace' });
+const shutdownHeld = async (f: ReturnType<typeof fixture>) => { const done = f.runtime.shutdown(); f.clock.advance(2000); await done; };
+
+test('MON-1: an unsettled previous generation no longer blocks the next session, and still counts against capacity', async () => {
+  const f = fixture();
+  f.runtime.start(validateStart({ source: { kind: 'command', tool: 'bash', command: 'hung' } }), hung); await turn();
+  await shutdownHeld(f);
+  const owner = nextOwner(2);
+  assert.doesNotThrow(() => f.runtime.bind(owner, () => owner));
+  assert.deepEqual(f.runtime.list(owner), []);
+  const launch = async () => { await new Promise<void>(() => {}); };
+  for (let i = 0; i < 3; i++) f.runtime.start(validateStart({ source: { kind: 'command', tool: 'bash', command: `c${i}` } }), launch);
+  assert.throws(() => f.runtime.start(validateStart({ source: { kind: 'command', tool: 'bash', command: 'one-too-many' } }), launch), /active capacity is 4/);
+});
+
+test('MON-1: unsettled previous generations are bounded: with four of them the next rebind is refused', async () => {
+  const f = fixture();
+  for (let n = 2; n <= 4; n++) {
+    f.runtime.start(validateStart({ source: { kind: 'command', tool: 'bash', command: `hung-${n}` } }), hung); await turn();
+    await shutdownHeld(f);
+    const owner = nextOwner(n);
+    assert.doesNotThrow(() => f.runtime.bind(owner, () => owner), `rebind ${n}`);
+  }
+  f.runtime.start(validateStart({ source: { kind: 'command', tool: 'bash', command: 'hung-5' } }), hung); await turn();
+  await shutdownHeld(f);
+  const owner = nextOwner(5);
+  assert.throws(() => f.runtime.bind(owner, () => owner), /cleanup is not settled/);
+});
+
+test('MON-1: a retired source that finally closes gives its capacity back', async () => {
+  const f = fixture();
+  let closeOld!: () => void;
+  const closable = async (sink: SourceSink) => { sink.started(); await new Promise<void>(resolve => { closeOld = resolve; }); sink.closed({ sourceClosed: true }); };
+  f.runtime.start(validateStart({ source: { kind: 'command', tool: 'bash', command: 'closable' } }), closable); await turn();
+  await shutdownHeld(f);
+  const owner = nextOwner(2);
+  f.runtime.bind(owner, () => owner);
+  const launch = async () => { await new Promise<void>(() => {}); };
+  for (let i = 0; i < 3; i++) f.runtime.start(validateStart({ source: { kind: 'command', tool: 'bash', command: `c${i}` } }), launch);
+  assert.throws(() => f.runtime.start(validateStart({ source: { kind: 'command', tool: 'bash', command: 'blocked' } }), launch), /active capacity is 4/);
+  closeOld(); await turn(); await turn();
+  assert.doesNotThrow(() => f.runtime.start(validateStart({ source: { kind: 'command', tool: 'bash', command: 'now-fits' } }), launch));
+});

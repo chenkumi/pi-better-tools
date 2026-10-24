@@ -103,7 +103,9 @@ const MAX_CONCURRENCY = 8;
 const MAX_CHAIN_STEPS = 32;
 const AGENT_CATALOG_SECTION = "pi_subagents_agent_catalog";
 // Shared by every subagent tool call in this process: total active children never exceed MAX_CONCURRENCY.
-const activeChildren = new Semaphore(MAX_CONCURRENCY);
+// One semaphore per process, not per module instance: /reload re-evaluates this module while old children may still run.
+const activeChildrenKey = Symbol.for("pi-better-tools.subagents.active-children.v1");
+const activeChildren = ((globalThis as typeof globalThis & { [activeChildrenKey]?: Semaphore })[activeChildrenKey] ??= new Semaphore(MAX_CONCURRENCY));
 const SETTLED_EXIT_GRACE_MS = 5000;
 // stderr alone may renew the inactivity deadline only this many deadlines after the last stdout byte.
 const STDERR_ONLY_RENEWAL_FACTOR = 4;
@@ -1348,7 +1350,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 		// A job_result only wakes the parent when it reports tasks that no task_result covered (cancelled/skipped).
 		const wake = kind === "job_result" ? (scope?.unnotified ?? 0) > 0 : kind !== "log_ready";
 		pi.sendMessage({ customType: "subagent_background", content: JSON.stringify(interaction ? { ...interaction, jobId: receipt.jobId, outputTrust: OUTPUT_TRUST_NOTICE } : { ...slim, ...(scope ? { scope } : {}), ...(kind === "log_ready" ? {} : { outputTrust: OUTPUT_TRUST_NOTICE }) }), display: kind !== "log_ready", details: scope ? { ...details, scope } : details },
-			{ triggerTurn: wake, deliverAs: wake ? "steer" : "followUp" });
+			{ triggerTurn: wake, deliverAs: "steer" });
 	}, () => MAX_CONCURRENCY - activeChildren.free, () => widget.refresh(), runtime.onNotificationObservation,
 		(owner, cwd, snapshot) => recovery.accept(snapshot, { owner, cwd }));
 	let revokeMonitor: (() => void) | undefined;

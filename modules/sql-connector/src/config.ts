@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ENGINES, type DatabaseConfig, type Engine, type SqlConnectorConfig, SqlConnectorError } from "./types.js";
 
+/** The documented per-engine fields; engine-specific ones are still validated below. */
+const ENGINE_KEYS = ["host", "port", "username", "password", "database", "ssl", "windowsAuth", "instanceName", "odbcDriver", "trustServerCertificate"];
 const DEFAULT_PORT: Record<Engine, number> = {
   mysql: 3306,
   mssql: 1433,
@@ -41,6 +43,13 @@ function resolvePassword(value: unknown, env: NodeJS.ProcessEnv, optional: boole
 function parseDatabaseConfig(engine: Engine, value: unknown, env: NodeJS.ProcessEnv): DatabaseConfig {
   if (!isRecord(value)) {
     throw new SqlConnectorError("CONFIG_INVALID", `The \"${engine}\" configuration must be an object.`);
+  }
+
+  // A misspelled key (for example `sll`) would otherwise be ignored and silently weaken the connection.
+  for (const key of Object.keys(value)) {
+    if (!ENGINE_KEYS.includes(key)) {
+      throw new SqlConnectorError("CONFIG_INVALID", `Unsupported database configuration field \"${engine}.${key}\".`);
+    }
   }
 
   const windowsAuth = engine === "mssql" && value.windowsAuth === true;

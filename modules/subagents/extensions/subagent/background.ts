@@ -56,7 +56,10 @@ interface Job extends BackgroundReceipt {
 }
 // Shared admission budget across extension instances/reloads; active child permits
 // remain owned by the existing runner. Cancellation retains admission until cleanup.
-let submittedTasks = 0;
+// Pi re-evaluates this module on /reload, so the counter lives on globalThis (like the message reservations):
+// a module-level variable would restart from zero while the previous instance's children still run.
+const admissionKey = Symbol.for("pi-better-tools.subagents.admission.v1");
+const sharedAdmission = ((globalThis as typeof globalThis & { [admissionKey]?: { submittedTasks: number } })[admissionKey] ??= { submittedTasks: 0 });
 const MAX_SUBMITTED = 32;
 const MAX_RETAINED_JOBS = 64;
 const MAX_ACTIVE = 8;
@@ -103,6 +106,8 @@ export function slimJobList(jobs: BackgroundJobSummary[]): Record<string, unknow
 		tasks: job.tasks.map(task => ({ taskId: task.taskId, agent: task.agent, status: task.status, ...(typeof task.canMessage === "boolean" ? { canMessage: task.canMessage } : {}), ...(task.summary ? { summary: task.summary } : {}) })) })) };
 }
 
+// A finished task shows its status; its last progress text would read as work still in flight.
+const progressActivity = (job: Job, index: number, status: string) => ["completed", "failed", "aborted", "skipped"].includes(status) ? status : job.widgetProgress[index]?.activity ?? (status === "queued" ? "Queued" : status);
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
 	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -180,8 +185,9 @@ export class BackgroundJobs {
 			const state = active && job.cancelRequested ? "cancelling" : finalizing ? "finalizing" : job.status;
 			const usage: PanelUsage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: 0 };
 			let reported = 0;
-			const details: string[] = [];
+			const details: string[] = [], taskDetails: string[][] = [];
 			for (const [index, task] of job.tasks.entries()) {
+				const detailStart = details.length;
 				const result = isPlainRecord(task.result) ? task.result : {}, progress = job.widgetProgress[index];
 				// Query usage is independent. Never add live query usage to its main task.
 				let queries = job.interactive.get(index)?.snapshot().queries ?? task.queries ?? [];
@@ -203,6 +209,7 @@ export class BackgroundJobs {
 				if (typeof result.exitCode === "number") details.push(`Exit code: ${result.exitCode}`);
 				if (typeof result.errorCode === "string") details.push(`Reason code: ${safeJobText(result.errorCode, 256)}`);
 				for (const q of queries.slice(0, 32)) details.push(`Independent query ${safeJobText(q.queryId, 256)} · ${q.status}${q.cleanupPending ? " · cleanup pending" : ""}${q.usageUnknown ? " · usage unknown" : ""} · ${usageDetails(panelUsage(q.usage))}`);
+				taskDetails[index] = details.slice(detailStart);
 			}
 			let activity = state === "cancelling" ? `Cancel requested · ${finalizing ? "finalizing · " : ""}awaiting settlement` : state === "finalizing" ? "Finalizing · finishing cleanup" : !active ? job.status : job.tasks.length > 1 ? `${running} running / ${queued} queued / ${job.tasks.length - running - queued} finished` : job.widgetProgress[0]?.activity ?? (queued ? "Queued" : job.readonlyQueryId ? "Query running · snapshot request" : "Starting");
 			if (reported && reported < job.tasks.length) activity += " · usage partial";
@@ -210,13 +217,16 @@ export class BackgroundJobs {
 			return { kind: "subagents", jobId: job.jobId, label: job.tasks.length > 1 ? `batch (${job.tasks.length} tasks)` : `${safeJobText(job.tasks[0].agent, 64)}${job.readonlyQueryId ? " (query)" : ""}`,
 				title: safeJobText(job.widgetTitles[0] ?? "", 256), state, active, activity, startedAt: job.widgetStartedAt,
 				usage: reported ? usage : undefined, usageState: reported ? "reported" : active ? "pending" : "unknown", details,
+				// A concurrent batch lists every task so the viewer can open one at a time; single-task jobs stay flat.
+				...(job.tasks.length > 1 ? { tasks: job.tasks.map((task, i) => ({ id: task.taskId, label: `${safeJobText(task.agent, 64)} #${i + 1}`, state: task.status,
+					activity: safeJobText(progressActivity(job, i, task.status), 256), details: taskDetails[i] ?? [], ...(active && job.transcripts[i] ? { transcript: job.transcripts[i]! } : {}) })) } : {}),
 				...(active && job.transcripts.some(Boolean) ? { transcripts: job.tasks.flatMap((task, i) => job.transcripts[i] ? [{ label: `${safeJobText(task.agent, 64)} #${i + 1}`, transcript: job.transcripts[i]! }] : []) } : {}) };
 		});
 	}
 	/** Current admission load, for actionable capacity diagnostics. */
 	load(): string {
 		const active = this.activeCount?.();
-		return `submitted ${submittedTasks}/${MAX_SUBMITTED}${active === undefined ? "" : `, active ${active}/${MAX_ACTIVE}`}`;
+		return `submitted ${sharedAdmission.submittedTasks}/${MAX_SUBMITTED}${active === undefined ? "" : `, active ${active}/${MAX_ACTIVE}`}`;
 	}
 	/** Read-only listing of this owner's retained jobs, newest first. */
 	list(owner: string, cwd: string): BackgroundJobSummary[] {
@@ -352,7 +362,7 @@ export class BackgroundJobs {
 	submit(owner: string, cwd: string, epoch: number, agents: string[], run: (signal: AbortSignal, taskIds: string[], live: (index: number, sessionId: string, path: string) => void, finish: (index: number, result: unknown, status: BackgroundTask["status"]) => void, attach: (index: number, handle: RpcInteraction) => void, interaction: (index: number, notice: InteractionNotice) => void, progress: (index: number, data: TaskPresentation) => void, events: (index: number, event: unknown) => void) => Promise<void>, widgetTitles: readonly (string | undefined)[] = [], admission?: Promise<void>, readonlyQueryId?: string, options: BackgroundSubmitOptions = {}) {
 		if (this.closed || epoch !== this.generation) throw new Error("BACKGROUND_RUNTIME_CLOSED: owner session changed during preflight");
 		if (options.taskIds && options.taskIds.length !== agents.length) throw new Error("INVALID_DISPATCH: taskIds must match agents");
-		if (!agents.length || agents.length > MAX_SUBMITTED || submittedTasks + agents.length > MAX_SUBMITTED) throw new Error(`BACKGROUND_CAPACITY: Request not accepted: capacity limit reached. at most ${MAX_SUBMITTED} submitted background tasks process-wide (now ${this.load()}; this request adds ${agents.length}). Next: call subagent_status (no jobId lists your jobs) to see what is still running, subagent_cancel jobs you no longer need, or split the work into smaller batches and submit the rest after task_result completion notifications arrive.`);
+		if (!agents.length || agents.length > MAX_SUBMITTED || sharedAdmission.submittedTasks + agents.length > MAX_SUBMITTED) throw new Error(`BACKGROUND_CAPACITY: Request not accepted: capacity limit reached. at most ${MAX_SUBMITTED} submitted background tasks process-wide (now ${this.load()}; this request adds ${agents.length}). Next: call subagent_status (no jobId lists your jobs) to see what is still running, subagent_cancel jobs you no longer need, or split the work into smaller batches and submit the rest after task_result completion notifications arrive.`);
 		for (const [id, job] of this.jobs) {
 			if (this.jobs.size < MAX_RETAINED_JOBS) break;
 			if (!["queued", "running"].includes(job.status)) this.jobs.delete(id);
@@ -363,7 +373,7 @@ export class BackgroundJobs {
 		if (!admission) job.recovery = this.persist?.(owner, cwd, this.snapshot(job));
 		if (readonlyQueryId) Object.assign(job.tasks[0], { queries: [{ queryId: readonlyQueryId, status: "accepted" }], readOnlyQuery: true, logPending: false, canMessage: false });
 		this.jobs.set(job.jobId, job);
-		submittedTasks += agents.length;
+		sharedAdmission.submittedTasks += agents.length;
 		const receipt = this.view(job);
 		this.changed(job);
 		// Defer runner admission until the queued receipt has been constructed. Do not
@@ -447,7 +457,7 @@ export class BackgroundJobs {
 				// Retain only bounded plain receipts, not exited ChildProcess/event
 				// closures that can retain native contexts and full runner output.
 				for (const [index, handle] of job.interactive) { handle.close(job.controller.signal.aborted); Object.assign(job.tasks[index], handle.snapshot(), { canMessage: false }); }
-				job.interactive.clear(); submittedTasks -= agents.length;
+				job.interactive.clear(); sharedAdmission.submittedTasks -= agents.length;
 				if (job.readonlyQueryId) {
 					let notice = job.readonlyQueryNotice;
 					if (!notice || job.readonlyQueryRunnerError !== undefined) {

@@ -10,7 +10,10 @@ export function consumeManagedChildGuard(): any {
   const encoded = process.env.PI_SUBAGENTS_GUARD;
   if (encoded) {
     delete process.env.PI_SUBAGENTS_GUARD;
-    slot.__piSubagentsGuardExpected = JSON.parse(encoded);
+    // The parent always writes valid JSON. A broken value is a configuration mistake: ignore it for every consumer
+    // (instead of letting the first one throw and the rest see nothing) and say so once.
+    try { slot.__piSubagentsGuardExpected = JSON.parse(encoded); }
+    catch { process.emitWarning("PI_SUBAGENTS_GUARD is not valid JSON and was ignored; this process is not treated as a managed child."); }
   }
   return slot.__piSubagentsGuardExpected;
 }

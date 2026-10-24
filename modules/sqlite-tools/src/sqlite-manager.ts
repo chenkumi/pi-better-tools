@@ -44,6 +44,40 @@ function assertNotTransactionControl(sql: string): void {
   }
 }
 
+const TRIGGER_STATEMENT = /^create\s+(?:temp\s+|temporary\s+)?trigger\b/i;
+
+/**
+ * node:sqlite compiles only the first statement and silently drops the rest. Refuse a trailing statement instead of
+ * skipping it. A trigger body holds semicolons of its own, so CREATE TRIGGER is left to SQLite.
+ */
+function assertSingleStatement(sql: string): void {
+  if (TRIGGER_STATEMENT.test(leadingKeywordText(sql))) return;
+  let index = 0;
+  while (index < sql.length) {
+    const char = sql[index]!;
+    const next = sql[index + 1];
+    if (char === "'" || char === '"' || char === "`") {
+      index += 1;
+      while (index < sql.length && !(sql[index] === char && sql[index + 1] !== char)) index += sql[index] === char ? 2 : 1;
+    } else if (char === "[") {
+      const end = sql.indexOf("]", index + 1);
+      index = end < 0 ? sql.length : end;
+    } else if (char === "-" && next === "-") {
+      const end = sql.indexOf("\n", index);
+      index = end < 0 ? sql.length : end;
+    } else if (char === "/" && next === "*") {
+      const end = sql.indexOf("*/", index + 2);
+      index = end < 0 ? sql.length : end + 1;
+    } else if (char === ";") {
+      if (leadingKeywordText(sql.slice(index + 1)).length > 0) {
+        throw new Error("Only one SQL statement per call is supported; SQLite would silently ignore the rest. Send each statement in its own call.");
+      }
+      return;
+    }
+    index += 1;
+  }
+}
+
 export interface QueryResult {
   columns: string[];
   rows: unknown[][];
@@ -130,6 +164,7 @@ export class SqliteManager {
 
   query(sql: string, params?: SqlParams): QueryResult {
     assertNotTransactionControl(sql);
+    assertSingleStatement(sql);
     return this.guardTransaction(() => this.runQuery(sql, params));
   }
 
@@ -170,6 +205,7 @@ export class SqliteManager {
 
   execute(sql: string, params?: SqlParams): { changes: number | bigint; lastInsertRowid: number | bigint } {
     assertNotTransactionControl(sql);
+    assertSingleStatement(sql);
     return this.guardTransaction(() => this.runExecute(sql, params));
   }
 

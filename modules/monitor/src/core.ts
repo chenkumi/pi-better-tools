@@ -28,12 +28,20 @@ export function sameOwner(a: Owner | undefined, b: Owner | undefined) { return !
 function terminal(state: State) { return !['starting', 'running', 'stopping'].includes(state); }
 /** Owner-local bounded state; submitted batches are never replayed and no delivery ack is invented. */
 export class MonitorRuntime {
-  private monitors = new Map<string, Monitor>(); private owner?: Owner; private current?: () => Owner | undefined;
+  private monitors = new Map<string, Monitor>();
+  /** Sources of earlier generations whose close is still unknown: tracked and counted, but never reachable by the new owner. */
+  private retired = new Set<Monitor>();
+  private owner?: Owner; private current?: () => Owner | undefined;
   private generation = 0; private disposed = true; private busy = false; private flushing = false; private scheduled?: unknown; private lastSubmit = -Infinity; private batchSequence = 0; private resumeAfterId?: string;
   constructor(private send: (message: any, options: { triggerTurn: boolean; deliverAs: 'steer' }) => void, private clock: Clock = realClock) {}
   private mono() { return this.clock.mono ? this.clock.mono() : this.clock.now(); }
   bind(owner: Owner, current: () => Owner | undefined) {
-    if (!this.disposed || [...this.monitors.values()].some(m => m.cleanupPending)) throw new Error('Monitor previous generation cleanup is not settled');
+    if (!this.disposed) throw new Error('Monitor previous generation cleanup is not settled');
+    // A source whose close is unknown keeps its ownership (and its capacity) but must not disable Monitor for the whole
+    // next session; the number of such leftovers is bounded so repeated rebinds cannot pile up processes.
+    for (const m of this.monitors.values()) if (m.cleanupPending) this.retired.add(m);
+    for (const m of [...this.retired]) if (!m.cleanupPending) this.retired.delete(m);
+    if (this.retired.size >= LIMITS.active) throw new Error('Monitor previous generation cleanup is not settled');
     this.generation++; this.owner = { ...owner }; this.current = current; this.disposed = false; this.busy = false; this.monitors.clear(); this.lastSubmit = -Infinity; this.resumeAfterId = undefined;
   }
   private valid() { try { return !this.disposed && sameOwner(this.owner, this.current?.()); } catch { return false; } }
@@ -46,7 +54,8 @@ export class MonitorRuntime {
   }
   start(input: Start, launch: Launch, signal?: AbortSignal) {
     this.owned(); if (signal?.aborted) throw new Error('Monitor aborted before acceptance');
-    if ([...this.monitors.values()].filter(m => !terminal(m.state) || m.cleanupPending).length >= LIMITS.active) throw new Error('Monitor active capacity is 4');
+    const unsettledRetired = [...this.retired].filter(m => m.cleanupPending).length;
+    if ([...this.monitors.values()].filter(m => !terminal(m.state) || m.cleanupPending).length + unsettledRetired >= LIMITS.active) throw new Error('Monitor active capacity is 4');
     while (this.monitors.size >= LIMITS.retained) {
       const oldest = [...this.monitors.values()].find(m => terminal(m.state) && !m.cleanupPending && !m.events.length);
       if (!oldest) throw new Error('Monitor receipt capacity is 32; active and pending notifications cannot be evicted');

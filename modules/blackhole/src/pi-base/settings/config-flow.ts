@@ -324,6 +324,8 @@ async function openEditMode(params: ConfigFlowParams, scope: string): Promise<vo
       dirtyKeys.clear();
       done(undefined);
     } catch (err) {
+      // The confirmed confirm is already resolved; leaving it mounted would swallow every key and strand the modal.
+      activeEditBody?.dismissOverlay();
       params.ctx.ui.notify(err instanceof Error ? err.message : String(err), "error");
     }
   }
@@ -381,6 +383,7 @@ async function openEditMode(params: ConfigFlowParams, scope: string): Promise<vo
       inspection = params.inspect();
       activeEditBody?.dismissOverlay();
     } catch (err) {
+      activeEditBody?.dismissOverlay();
       params.ctx.ui.notify(err instanceof Error ? err.message : String(err), "error");
     }
   }
@@ -421,6 +424,7 @@ async function openEditMode(params: ConfigFlowParams, scope: string): Promise<vo
       inspection = params.inspect();
       activeEditBody?.dismissOverlay();
     } catch (err) {
+      activeEditBody?.dismissOverlay();
       params.ctx.ui.notify(err instanceof Error ? err.message : String(err), "error");
     }
   }

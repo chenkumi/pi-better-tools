@@ -45,7 +45,7 @@ Job snapshot submission transaction：selected/in-flight事件仍留queue並計�
 
 Stop-reason system event只記一次；stop／expiry／fault要求先提交時，晚到actual close另外產生`source_closed`終結更新（未close而settle則`terminal`/cleanup unknown），不重播先前submitted資料。
 
-Busy 由 `agent_start`／`agent_settled` 控制；不使用 agent_end／preflight latch。同步 send throw 保留 batch，最多3次、下一合法機會重試；非同步提交無可靠宿主 ack，submitted 不表示 delivered/persisted，未知 delivery 不重播。Shutdown/reload/owner loss 抑制舊owner回送，不恢復來源／receipt。等待 close 最多2秒後可留下 cleanup unknown；晚到 close 才補真正 evidence，不冒稱 descendants 已清理。Actual command close、WS close、timer cleared 各有來源證據，exit/result/cancel request 都不能替代 close。
+通知不等主 Agent 回合結束：以 `steer` 直接提交（Pi 的 steering 佇列在安全回合邊界插入），核心的 `setBusy` 只是 embedder 的選用保留閥、Pi extension 不呼叫。同步 send throw 保留 batch，最多3次、下一合法機會重試；非同步提交無可靠宿主 ack，submitted 不表示 delivered/persisted，未知 delivery 不重播。Shutdown/reload/owner loss 抑制舊owner回送，不恢復來源／receipt。等待 close 最多2秒後可留下 cleanup unknown；晚到 close 才補真正 evidence，不冒稱 descendants 已清理。Cleanup unknown 的上一代來源不再使 `bind()` 失敗而讓整個行程的 Monitor 失效：它們留在 retired 集合（仍追蹤、仍計入 active 上限 4，新 owner 無法讀取或操作），未結清世代累積到 4 個時才拒絕下一次 bind；來源終於 close 後名額即歸還。WebSocket 在 DNS／前置階段被 `monitor_stop`、shutdown 取消時終結為 `startupCanceled`（非 `source_error`）；單純逾時仍是失敗。Actual command close、WS close、timer cleared 各有來源證據，exit/result/cancel request 都不能替代 close。
 
 ### 去密邊界（不是任意來源資料 scrubber）
 

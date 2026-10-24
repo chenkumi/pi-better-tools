@@ -120,7 +120,7 @@
 
 ## 設定
 
-唯一設定鍵為 `pi-file-tools.debugLog`（boolean，預設 `false`），寫在 Pi 全域設定檔 `~/.pi/agent/settings.json`；若設定了 `PI_CODING_AGENT_DIR`，則為該目錄下的 `settings.json`。檔案不存在視為預設值；檔案無法讀取、JSON 無效、`pi-file-tools` 不是物件或 `debugLog` 不是 boolean 時，擴充仍會載入，改以 `debugLog: false` 運作並發出 `PI_FILE_TOOLS_SETTINGS` 警告（含設定檔路徑）。
+唯一設定鍵為 `pi-file-tools.debugLog`（boolean，預設 `false`），寫在 Pi 全域設定檔 `~/.pi/agent/settings.json`；若設定了 `PI_CODING_AGENT_DIR`，則為該目錄下的 `settings.json`（以宿主的 `getAgentDir()` 解析，含開頭 `~` 的展開，與宿主讀同一份檔案）。檔案不存在視為預設值；檔案無法讀取、JSON 無效、`pi-file-tools` 不是物件或 `debugLog` 不是 boolean 時，擴充仍會載入，改以 `debugLog: false` 運作並發出 `PI_FILE_TOOLS_SETTINGS` 警告（含設定檔路徑）。
 
 ```json
 {

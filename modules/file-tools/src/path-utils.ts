@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { FileToolError } from "./errors.js";
 
 const UNICODE_SPACES = /[\u00a0\u2000-\u200a\u202f\u205f\u3000]/g;
 
@@ -13,6 +14,17 @@ function normalizeWindowsShellPath(path: string): string {
   return match ? `${match[1].toUpperCase()}:\\${(match[2] ?? "").replaceAll("/", "\\")}` : path;
 }
 
+function fileUrlToPath(url: string): string {
+  try {
+    return fileURLToPath(url);
+  } catch {
+    // Node reports malformed escapes and encoded separators as a raw URIError / TypeError; surface the tool's own error.
+    throw new FileToolError("INVALID_ARGUMENT", `The file URL is not valid: ${url.length > 200 ? `${url.slice(0, 200)}…` : url}`, {
+      recovery: "Pass a plain path, or a well-formed file:// URL without malformed percent escapes or encoded path separators.",
+    });
+  }
+}
+
 function normalizeLocalPath(path: string): string {
   if (process.platform === "win32") path = normalizeWindowsShellPath(path);
   if (path === "~") return homedir();
@@ -21,7 +33,7 @@ function normalizeLocalPath(path: string): string {
   }
   // Node performs URL decoding and rejects malformed/encoded separators. Never
   // silently turn a file URL into a relative filename on the wrong drive.
-  return /^file:\/\//.test(path) ? fileURLToPath(path) : path;
+  return /^file:\/\//.test(path) ? fileUrlToPath(path) : path;
 }
 
 export function normalizeToolPath(input: string): string {

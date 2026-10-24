@@ -40,7 +40,7 @@ for (const mode of ["single", "parallel", "chain", "resume"] as const) {
 						assert.doesNotMatch(modelNotice.outputTrust, /untrusted/);
 						assert.equal(modelNotice.status, data.status);
 					}
-					if (data.kind === "log_ready") assert.deepEqual(options, { triggerTurn: false, deliverAs: "followUp" });
+					if (data.kind === "log_ready") assert.deepEqual(options, { triggerTurn: false, deliverAs: "steer" });
 					if (data.kind === "log_ready") for (const task of data.tasks) if (task.liveLogPath) { assert.equal(task.finalLogPath, task.liveLogPath.replace(/\.partial$/, "")); const finalPath = task.finalLogPath; liveChecks.push(stat(task.liveLogPath).catch(error => { if (error?.code !== "ENOENT") throw error; return stat(finalPath); })); } // the live file may already be renamed to its announced final path
 					if (data.kind === "job_result" || (data.kind === "task_result" && !data.scope?.taskId)) complete(data);
 				} } as ExtensionAPI, { debugLog: false, sessionRootDir: join(root, "managed"), invocation: args => ({ command: process.execPath, args: [launcher, root, resolve(cli!), ...args] }) });

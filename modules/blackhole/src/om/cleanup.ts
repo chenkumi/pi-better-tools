@@ -12,6 +12,7 @@
  * appear in ANY session JSONL file across all known session directories.
  */
 import { existsSync, readdirSync, readFileSync, statSync, unlinkSync } from "node:fs";
+import { homedir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
@@ -158,47 +159,66 @@ function scanSessionDir(dir: string): Set<string> {
   return ids;
 }
 
+/** `~` means the user's home directory (os.homedir), not $HOME: Windows usually has no HOME. */
+function expandHome(dir: string): string {
+  if (dir === "~") return homedir();
+  if (dir[0] === "~" && (dir[1] === "/" || dir[1] === sep)) return join(homedir(), dir.slice(2));
+  return dir;
+}
+
 /**
- * Read sessionDir override from settings.json, if any.
- * Returns the resolved absolute path, or undefined if not set or unreadable.
+ * Read the `sessionDir` override from one settings.json, if any.
+ * A missing file is fine; an unreadable or malformed one throws so the scan fails closed.
  */
-function readSettingsSessionDir(): string | undefined {
+function readSessionDirSetting(settingsPath: string): string | undefined {
   try {
-    const settingsPath = join(getAgentDir(), "settings.json");
     const raw = JSON.parse(readFileSync(settingsPath, "utf-8")) as Record<string, unknown>;
     const dir = raw.sessionDir;
-    if (typeof dir === "string" && dir.trim().length > 0) {
-      // Expand ~ if present
-      const expanded = dir.startsWith("~") ? join(process.env.HOME ?? "/home", dir.slice(2)) : dir;
-      return resolve(expanded);
-    }
+    if (typeof dir === "string" && dir.trim().length > 0) return dir.trim();
   } catch (error) {
     if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
   }
   return undefined;
 }
 
-/**
- * Find all known session directories.
- * Always includes the default sessions dir; also includes custom sessionDir
- * from settings.json if present and different from the default.
- */
 /** Get the default sessions directory. */
 function getDefaultSessionsDir(): string {
   return join(getAgentDir(), "sessions");
 }
 
-function findSessionDirs(): string[] {
-  const dirs: string[] = [];
-  const default_ = getDefaultSessionsDir();
-  dirs.push(default_);
+export interface SessionDirHints {
+  /** Process arguments for `--session-dir` (defaults to this process's). */
+  argv?: readonly string[];
+  /** Project directory whose `.pi/settings.json` may set `sessionDir`. */
+  cwd?: string;
+  /** The running session's own directory (SessionManager.getSessionDir). */
+  currentSessionDir?: string;
+}
 
-  const custom = readSettingsSessionDir();
-  if (custom && custom !== default_) {
-    dirs.push(custom);
+/**
+ * Every session directory Pi can be using: the default one, `sessionDir` from the global and the project settings,
+ * PI_CODING_AGENT_SESSION_DIR, `--session-dir`, and the running session's own directory. A pending file is only
+ * orphaned when its session is absent from all of them, so the list errs on the side of including more.
+ */
+export function findSessionDirs(hints: SessionDirHints = {}): string[] {
+  const dirs = new Set<string>();
+  const add = (dir: string | undefined, base?: string) => {
+    if (!dir || dir.trim().length === 0) return;
+    const expanded = expandHome(dir.trim());
+    dirs.add(base ? resolve(base, expanded) : resolve(expanded));
+  };
+  add(getDefaultSessionsDir());
+  add(readSessionDirSetting(join(getAgentDir(), "settings.json")));
+  if (hints.cwd) add(readSessionDirSetting(join(hints.cwd, ".pi", "settings.json")), hints.cwd);
+  add(process.env.PI_CODING_AGENT_SESSION_DIR);
+  const argv = hints.argv ?? process.argv.slice(2);
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "--session-dir" && i + 1 < argv.length) add(argv[i + 1]);
+    else if (arg.startsWith("--session-dir=")) add(arg.slice("--session-dir=".length));
   }
-
-  return dirs;
+  add(hints.currentSessionDir);
+  return [...dirs];
 }
 
 /**

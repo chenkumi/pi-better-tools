@@ -79,8 +79,10 @@ test('review S1: abort before acceptance does not launch, accepted turn abort de
   assert.throws(() => f.runtime.start(input(), async () => { launched = true; }, pre.signal), /before acceptance/); await turn(); assert.equal(launched, false);
   const tool = new AbortController(), row = f.start({ durationMs: 1000 }, tool.signal, false); tool.abort(); await turn(); assert.equal(row.signal().aborted, false);
   f.clock.advance(1000); assert.equal(row.signal().aborted, true); assert.equal(f.runtime.status(row.id).state, 'stopping'); assert.equal(f.runtime.status(row.id).cleanupPending, true); assert.equal(f.runtime.status(row.id).cleanupEvidence.sourceClosed, false);
-  const shutdown = f.runtime.shutdown(); f.clock.advance(2000); await shutdown; assert.throws(() => f.runtime.bind(f.owner, () => f.owner), /cleanup/);
-  const count = f.messages.length; row.finish(); await f.runtime.settled(row.id); f.clock.advance(30000); assert.equal(f.messages.length, count, 'old owner suppressed'); f.runtime.bind(f.owner, () => f.owner); assert.deepEqual(f.runtime.list(), []); await f.runtime.shutdown();
+  const shutdown = f.runtime.shutdown(); f.clock.advance(2000); await shutdown;
+  // The unsettled source keeps its fence (tracked, counted) but no longer disables Monitor for the next session.
+  f.runtime.bind(f.owner, () => f.owner); assert.deepEqual(f.runtime.list(), []);
+  const count = f.messages.length; row.finish(); await turn(); await turn(); f.clock.advance(30000); assert.equal(f.messages.length, count, 'old owner suppressed'); assert.deepEqual(f.runtime.list(), []); await f.runtime.shutdown();
 });
 test('review S1: synchronous send reentry never replays data and later close remains deliverable', async () => {
   let f!: ReturnType<typeof fixture>, id = '', reentered = false;

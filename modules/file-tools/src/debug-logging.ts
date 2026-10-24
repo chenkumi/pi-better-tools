@@ -3,6 +3,7 @@ import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { FileToolError, errnoCode } from "./errors.js";
 
 export const FILE_TOOLS_PROJECT_NAME = "pi-file-tools";
@@ -11,7 +12,8 @@ export interface FileToolsGlobalConfig {
   debugLog?: boolean;
 }
 
-export function getFileToolsConfigPath(agentDir = process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent")): string {
+/** The host's own agent directory (it expands `~` in PI_CODING_AGENT_DIR), so both read the same settings.json. */
+export function getFileToolsConfigPath(agentDir = getAgentDir()): string {
   return join(agentDir, "settings.json");
 }
 

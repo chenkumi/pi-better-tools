@@ -6,6 +6,8 @@ import { stripVTControlCharacters } from "node:util";
 export type PanelKind = "subagents" | "shell" | "fork";
 export type UsageState = "pending" | "reported" | "unknown" | "na";
 export interface PanelUsage { input: number; output: number; cacheRead: number; cacheWrite: number; totalTokens: number; cost: number }
+/** One task of a concurrent batch. `transcript` exists only while that task runs. */
+export interface PanelTask { id: string; label: string; state: string; activity: string; details: string[]; transcript?: TranscriptSource }
 /** Plain presentation only; never a receipt, execution registry or accounting ledger. */
 export interface PanelJob {
   kind: PanelKind;
@@ -21,10 +23,13 @@ export interface PanelJob {
   details: string[];
   /** Live in-memory copies of running jobs (one per child task or one output tail); dropped by the owner at the terminal state. */
   transcripts?: readonly { label: string; transcript: TranscriptSource }[];
+  /** Present for concurrent batches (two or more tasks): the viewer lists them and opens one at a time. */
+  tasks?: readonly PanelTask[];
 }
 /** Change fingerprint for the panel: live copies are summarised by version, never serialized. */
-export const panelSignature = (jobs: readonly PanelJob[]) => JSON.stringify(jobs.map(job => job.transcripts?.length
-  ? { ...job, transcripts: job.transcripts.map(t => [t.label, t.transcript.version, t.transcript.isReleased]) }
+export const panelSignature = (jobs: readonly PanelJob[]) => JSON.stringify(jobs.map(job => job.transcripts?.length || job.tasks?.length
+  ? { ...job, transcripts: job.transcripts?.map(t => [t.label, t.transcript.version, t.transcript.isReleased]),
+    tasks: job.tasks?.map(t => ({ ...t, transcript: t.transcript && [t.transcript.version, t.transcript.isReleased] })) }
   : job));
 export const jobKey = (job: PanelJob) => `${job.kind}:${job.jobId}`;
 export const safeJobText = (text: string, limit = 8192) => stripVTControlCharacters(text.slice(0, limit))
@@ -104,22 +109,39 @@ export class JobsOverlay implements Component {
   private unsubscribe: Array<() => void> = [];
   private subscribed?: string;
   private subscribedSources: readonly TranscriptSource[] = [];
+  /** Second level for concurrent batches: the opened task, and the cursor while the task list is shown. */
+  private taskKey?: string;
+  private taskCursor?: string;
   constructor(private source: () => PanelJob[], private theme: Theme, private requestRender: () => void, private done: () => void, private height: () => number, private tui?: TUI, private cwd = process.cwd(), initialDetail?: string) { this.detailKey = initialDetail; }
   invalidate() { this.list?.invalidate(); }
   refresh() { if (!this.disposed) this.requestRender(); }
   dispose() { this.disposed = true; this.dropViews(); }
   private dropViews() { for (const off of this.unsubscribe.splice(0)) off(); this.views.clear(); this.subscribed = undefined; this.subscribedSources = []; }
+  private isBatch(job?: PanelJob): job is PanelJob & { tasks: readonly PanelTask[] } { return !!job?.tasks && job.tasks.length > 1; }
+  private taskLines(job: PanelJob, width: number): string[] {
+    const tasks = job.tasks ?? [], running = tasks.filter(t => t.state === "running").length;
+    const index = Math.max(0, tasks.findIndex(t => t.id === this.taskCursor));
+    const rows = Math.max(1, this.pageRows - 1), start = Math.max(0, Math.min(index - Math.floor(rows / 2), tasks.length - rows));
+    const lines = [this.theme.fg("dim", truncateToWidth(`${tasks.length} concurrent tasks · ${running} running`, width))];
+    for (const [i, t] of tasks.slice(start, start + rows).entries()) {
+      const selected = start + i === index, icon = t.state === "running" ? "●" : t.state === "queued" ? "◷" : t.state === "completed" ? "✓" : "○";
+      const live = t.transcript && !t.transcript.isReleased ? " · live" : "";
+      const text = truncateToWidth(`${selected ? "▸" : " "} ${icon} ${safeJobText(t.label, 64)} · ${safeJobText(t.state)}${live} · ${safeJobText(t.activity, 256)}`, width);
+      lines.push(selected ? this.theme.fg("accent", text) : text);
+    }
+    return lines;
+  }
   private detailHasLive() {
     const job = this.source().find(j => jobKey(j) === this.detailKey);
     return !!this.tui && !!job?.transcripts?.some(t => !t.transcript.isReleased);
   }
   /** Live lines for a running job; undefined when there is no live copy (use metadata). */
-  private conversation(job: PanelJob, width: number): string[] | undefined {
-    const live = (job.transcripts ?? []).filter(t => !t.transcript.isReleased);
+  private conversation(job: PanelJob, width: number, task?: PanelTask): string[] | undefined {
+    const live = (task ? (task.transcript ? [{ label: task.label, transcript: task.transcript }] : []) : job.transcripts ?? []).filter(t => !t.transcript.isReleased);
     if (!this.tui || !live.length) { if (this.subscribed) this.dropViews(); return; }
     this.liveLabel = live.every(t => t.transcript.mode === "output") ? "Live output (memory copy)" : "Live conversation (memory copy)";
     // Identity, not list position: the panel list is compacted, so a different task's copy can sit at the same index.
-    const sources = live.map(t => t.transcript), key = jobKey(job);
+    const sources = live.map(t => t.transcript), key = jobKey(job) + (task ? `/${task.id}` : "");
     if (this.subscribed !== key || sources.length !== this.subscribedSources.length || sources.some((source, i) => source !== this.subscribedSources[i])) {
       this.dropViews();
       this.subscribed = key; this.subscribedSources = sources;
@@ -140,9 +162,21 @@ export class JobsOverlay implements Component {
     if (matchesKey(data, "ctrl+c")) { this.done(); return; }
     if (matchesKey(data, "escape")) {
       // A running job's live view replaces the list: Esc closes the whole overlay. Metadata-only details still go back to the list.
+      // Inside one task of a batch, Esc goes back to the task list so a sibling can be picked.
+      if (this.detailKey && this.taskKey) { this.taskKey = undefined; this.offset = 0; this.fromEnd = 0; this.metadata = false; this.liveDetail = false; this.dropViews(); this.refresh(); return; }
       if (this.detailKey && this.detailHasLive()) { this.done(); return; }
-      if (this.detailKey) { this.detailKey = undefined; this.offset = 0; this.fromEnd = 0; this.metadata = false; this.liveDetail = false; this.expanded = false; this.dropViews(); this.refresh(); } else this.done(); return; }
+      if (this.detailKey) { this.detailKey = undefined; this.taskKey = undefined; this.taskCursor = undefined; this.offset = 0; this.fromEnd = 0; this.metadata = false; this.liveDetail = false; this.expanded = false; this.dropViews(); this.refresh(); } else this.done(); return; }
     if (matchesKey(data, "tab") && !this.detailKey) { this.finishedOnly = !this.finishedOnly; this.signature = undefined; this.selected = undefined; this.refresh(); return; }
+    const current = this.detailKey ? this.source().find(j => jobKey(j) === this.detailKey) : undefined;
+    if (this.isBatch(current) && !this.taskKey) {
+      const tasks = current.tasks, index = Math.max(0, tasks.findIndex(t => t.id === this.taskCursor));
+      if (matchesKey(data, "up")) this.taskCursor = tasks[Math.max(0, index - 1)]!.id;
+      else if (matchesKey(data, "down")) this.taskCursor = tasks[Math.min(tasks.length - 1, index + 1)]!.id;
+      else if (matchesKey(data, "pageUp")) this.taskCursor = tasks[Math.max(0, index - this.pageRows)]!.id;
+      else if (matchesKey(data, "pageDown")) this.taskCursor = tasks[Math.min(tasks.length - 1, index + this.pageRows)]!.id;
+      else if (matchesKey(data, "enter")) { this.taskKey = tasks[index]!.id; this.offset = 0; this.fromEnd = 0; this.metadata = false; }
+      this.refresh(); return;
+    }
     if (this.detailKey && (this.liveDetail || this.metadata) && (data === "m" || data === "M")) { this.metadata = !this.metadata; this.offset = 0; this.fromEnd = 0; this.refresh(); return; }
     if (this.detailKey && this.liveDetail && matchesKey(data, "ctrl+o")) {
       // Same key as the host's "Toggle tool output": tool cards in the live view render at their own expansion state.
@@ -178,15 +212,20 @@ export class JobsOverlay implements Component {
     if (this.disposed) return []; // Owner/source checks can close this lease during rendering.
     const lines: string[] = [];
     let title = `Jobs · ${this.finishedOnly ? "Recent finished" : "Active / Recent finished"}`;
+    let listing = false;
     if (this.detailKey) {
       const job = jobs.find(j => jobKey(j) === this.detailKey);
-      title = job ? `Job details · ${safeJobText(job.label, 64)}` : "Job no longer retained";
-      const raw = job ? [jobHeading(job), `Job ID: ${safeJobText(job.jobId)}`, `State: ${safeJobText(job.state)} · ${safeJobText(job.activity)}`, usageLabel(job), ...job.details.slice(0, 256), ...(job.details.length > 256 ? ["… metadata fields omitted (256-field limit)"] : []), "Retained metadata only; no logs read. Cancel requested is not proof of process-tree exit."] : ["This job is no longer retained in this session/runtime."];
-      const chat = job && !this.metadata ? this.conversation(job, Math.max(1, inner)) : undefined;
+      const batch = this.isBatch(job), task = batch && this.taskKey ? job.tasks.find(t => t.id === this.taskKey) : undefined;
+      if (this.taskKey && !task) this.taskKey = undefined; // that task is no longer retained: fall back to the list
+      listing = batch && !task;
+      title = !job ? "Job no longer retained" : task ? `Task · ${safeJobText(task.label, 64)}` : batch ? `Job details · ${safeJobText(job.label, 64)} · ${job.tasks.length} concurrent tasks` : `Job details · ${safeJobText(job.label, 64)}`;
+      const raw = task ? [`${task.label} · ${task.state}`, `Activity: ${task.activity}`, ...task.details.slice(0, 256), ...(task.details.length > 256 ? ["… metadata fields omitted (256-field limit)"] : []), ...(job?.state === "cancelling" ? ["Job cancel requested; that is not proof the task or its process tree has exited."] : []), "Retained metadata only; no logs read."] : job ? [jobHeading(job), `Job ID: ${safeJobText(job.jobId)}`, `State: ${safeJobText(job.state)} · ${safeJobText(job.activity)}`, usageLabel(job), ...job.details.slice(0, 256), ...(job.details.length > 256 ? ["… metadata fields omitted (256-field limit)"] : []), "Retained metadata only; no logs read. Cancel requested is not proof of process-tree exit."] : ["This job is no longer retained in this session/runtime."];
+      const chat = job && !this.metadata && !listing ? this.conversation(job, Math.max(1, inner), task) : undefined;
       this.liveDetail = !!chat;
       if (!job) this.dropViews();
       const wrapped: string[] = [];
-      if (chat) {
+      if (listing) lines.push(...this.taskLines(job!, Math.max(1, inner)));
+      else if (chat) {
         const maxFromEnd = Math.max(0, chat.length - this.pageRows);
         this.fromEnd = Math.min(this.fromEnd, maxFromEnd);
         const end = chat.length - this.fromEnd;
@@ -196,7 +235,7 @@ export class JobsOverlay implements Component {
         wrapped.push(...wrapTextWithAnsi(safeJobText(line), Math.max(1, inner)).slice(0, 300 - wrapped.length));
         if (wrapped.length === 300) break;
       }
-      if (!chat) {
+      if (!chat && !listing) {
         if (wrapped.length === 300) wrapped[299] = "… details omitted (300-line limit)";
         this.offset = Math.min(this.offset, Math.max(0, wrapped.length - this.pageRows));
         lines.push(...wrapped.slice(this.offset, this.offset + this.pageRows));
@@ -212,14 +251,14 @@ export class JobsOverlay implements Component {
         });
         const index = displayed.findIndex(j => jobKey(j) === selected);
         this.list.setSelectedIndex(Math.max(0, index));
-        this.list.onSelect = item => { this.detailKey = item.value; this.offset = 0; this.fromEnd = 0; this.metadata = false; this.refresh(); };
+        this.list.onSelect = item => { this.detailKey = item.value; this.taskKey = undefined; this.taskCursor = undefined; this.offset = 0; this.fromEnd = 0; this.metadata = false; this.refresh(); };
         this.list.onCancel = () => this.done();
         this.signature = signature;
         this.selected = this.list.getSelectedItem()?.value;
       }
       lines.push(...this.list!.render(inner));
     }
-    const footer = this.theme.fg("dim", this.detailKey ? [this.detailHasLive() ? "Esc Close" : "Esc Back", ...(this.liveDetail || this.metadata ? ["m Conversation/Metadata"] : []), ...(this.liveDetail ? ["Ctrl+O Expand"] : []), "Ctrl+C Close"].join(" · ") : "↑↓ Select · Enter Details · Tab Finished/All · Esc Close");
+    const footer = this.theme.fg("dim", this.detailKey ? [!this.taskKey && this.detailHasLive() ? "Esc Close" : "Esc Back", ...(listing ? ["↑↓ Select", "Enter Open"] : []), ...(this.liveDetail || this.metadata ? ["m Conversation/Metadata"] : []), ...(this.liveDetail ? ["Ctrl+O Expand"] : []), "Ctrl+C Close"].join(" · ") : "↑↓ Select · Enter Details · Tab Finished/All · Esc Close");
     const content = (contentRows === 1 ? [footer] : [this.theme.fg("accent", title), ...lines.slice(0, bodyRows), footer]).map(s => truncateToWidth(s, inner, "…", true));
     if (!bordered) return content.map(s => truncateToWidth(s, width));
     const border = (s: string) => this.theme.fg("border", s);

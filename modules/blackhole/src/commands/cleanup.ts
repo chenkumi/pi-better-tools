@@ -20,6 +20,7 @@ import { visibleWidth } from "../om/key-matcher.js";
 import {
   analyzeOrphaned,
   deleteOrphanedBatch,
+  findSessionDirs,
   describeFile,
   type PendingFile,
 } from "../om/cleanup.js";
@@ -266,13 +267,15 @@ function createCleanupPicker(
  */
 export async function handleCleanup(ctx: ExtensionContext): Promise<void> {
   const protectedIds = () => [ctx.sessionManager.getSessionId()].filter((id): id is string => typeof id === "string" && id.length > 0);
-  const { orphaned, scanComplete } = analyzeOrphaned(undefined, undefined, protectedIds());
+  // Sessions may live outside the default directory (--session-dir, env, project settings); search all of them.
+  const sessionDirs = () => findSessionDirs({ cwd: ctx.cwd, currentSessionDir: ctx.sessionManager.getSessionDir?.() });
+  const { orphaned, scanComplete } = analyzeOrphaned(undefined, sessionDirs(), protectedIds());
   if (!scanComplete) {
     ctx.ui.notify("pi-blackhole: Session scan incomplete; pending cleanup refused.", "warning");
     return;
   }
   const deleteSelected = (pf: PendingFile) => {
-    const deleted = deleteOrphanedBatch([pf], undefined, undefined, protectedIds()) > 0;
+    const deleted = deleteOrphanedBatch([pf], undefined, sessionDirs(), protectedIds()) > 0;
     if (!deleted) ctx.ui.notify("pi-blackhole: Pending file was not deleted (active, unknown, or deletion failed).", "warning");
     return deleted;
   };
@@ -307,7 +310,7 @@ export async function handleCleanup(ctx: ExtensionContext): Promise<void> {
   );
 
   if (result === "deleteAll") {
-    const deleted = deleteOrphanedBatch(items, undefined, undefined, protectedIds());
+    const deleted = deleteOrphanedBatch(items, undefined, sessionDirs(), protectedIds());
     const intended = items.length;
     if (deleted === intended) {
       ctx.ui.notify(

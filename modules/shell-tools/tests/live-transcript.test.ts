@@ -252,3 +252,145 @@ test('opening a live view from the list replaces the list: Esc closes the overla
   assert.match(plain(second.render(100).join('\n')), /Active \/ Recent finished/);
   overlay.dispose(); second.dispose();
 });
+
+const taskCopy = (text: string) => {
+  const t = new LiveTranscript();
+  t.ingest({ type: 'message_start', message: { role: 'user', content: text } });
+  return t;
+};
+const batchJob = (tasks: PanelJob['tasks']): PanelJob => ({ kind: 'subagents', jobId: 'BATCH1', label: 'batch (3 tasks)', title: 't', state: 'running', active: true, activity: '2 running / 1 queued', usageState: 'pending', details: ['Whole batch metadata'], tasks,
+  transcripts: tasks!.flatMap(t => t.transcript ? [{ label: t.label, transcript: t.transcript }] : []) });
+
+test('batch: a job with concurrent tasks opens a task list first, then one task at a time; Esc steps back one level', () => {
+  const one = taskCopy('conversation of ONE'), two = taskCopy('conversation of TWO');
+  const tasks = [
+    { id: 'T1', label: 'worker #1', state: 'running', activity: 'reading', details: ['Task 1 meta'], transcript: one },
+    { id: 'T2', label: 'worker #2', state: 'running', activity: 'editing', details: ['Task 2 meta'], transcript: two },
+    { id: 'T3', label: 'worker #3', state: 'queued', activity: 'Queued', details: ['Task 3 meta'] },
+  ];
+  let closed = 0;
+  const overlay = new JobsOverlay(() => [batchJob(tasks)], theme, () => {}, () => { closed++; }, () => 30, tui, process.cwd());
+  overlay.render(100); overlay.handleInput('\r');
+  let text = plain(overlay.render(100).join('\n'));
+  assert.match(text, /3 concurrent tasks · 2 running/); assert.match(text, /worker #1/); assert.match(text, /worker #3/);
+  assert.doesNotMatch(text, /conversation of/, 'the list level shows no conversation');
+  overlay.handleInput('\x1b[B'); overlay.handleInput('\r');
+  text = plain(overlay.render(100).join('\n'));
+  assert.match(text, /Task · worker #2/); assert.match(text, /conversation of TWO/); assert.doesNotMatch(text, /conversation of ONE/);
+  assert.match(text, /Esc Back/);
+  overlay.handleInput('\x1b');
+  assert.equal(closed, 0, 'Esc inside a task returns to the task list');
+  assert.match(plain(overlay.render(100).join('\n')), /3 concurrent tasks/);
+  overlay.handleInput('\x1b[B'); overlay.handleInput('\r');
+  text = plain(overlay.render(100).join('\n'));
+  assert.match(text, /Task 3 meta/, 'a task without a live copy shows its own metadata'); assert.doesNotMatch(text, /Task 2 meta/);
+  overlay.handleInput('\x1b'); overlay.handleInput('\x1b');
+  assert.equal(closed, 1, 'Esc on the task list closes the overlay while the batch has live copies');
+  overlay.dispose();
+});
+
+test('batch: a task whose copy is released falls back to its metadata; a vanished task falls back to the list', () => {
+  const one = taskCopy('conversation of ONE');
+  let tasks: NonNullable<PanelJob['tasks']> = [
+    { id: 'T1', label: 'worker #1', state: 'running', activity: 'a', details: ['Task 1 meta'], transcript: one },
+    { id: 'T2', label: 'worker #2', state: 'running', activity: 'b', details: ['Task 2 meta'], transcript: taskCopy('conversation of TWO') },
+  ];
+  const overlay = new JobsOverlay(() => [batchJob(tasks)], theme, () => {}, () => {}, () => 30, tui, process.cwd());
+  overlay.render(100); overlay.handleInput('\r'); overlay.handleInput('\r');
+  assert.match(plain(overlay.render(100).join('\n')), /conversation of ONE/);
+  one.release();
+  const released = plain(overlay.render(100).join('\n'));
+  assert.match(released, /Task 1 meta/); assert.doesNotMatch(released, /Live conversation/);
+  tasks = [tasks[1]!, { id: 'T9', label: 'worker #9', state: 'running', activity: 'c', details: [] }];
+  assert.match(plain(overlay.render(100).join('\n')), /concurrent tasks/, 'the opened task is gone: back to the list');
+  overlay.dispose();
+});
+
+test('batch: panel signature follows task copy versions without serialising their payload', () => {
+  const copy = taskCopy('secret payload text');
+  const job = batchJob([{ id: 'T1', label: 'w #1', state: 'running', activity: 'a', details: [], transcript: copy }, { id: 'T2', label: 'w #2', state: 'queued', activity: 'q', details: [] }]);
+  const before = panelSignature([job]);
+  copy.ingest({ type: 'message_start', message: { role: 'user', content: 'more' } });
+  assert.notEqual(panelSignature([job]), before);
+  assert.doesNotMatch(panelSignature([job]), /secret payload text/);
+});
+
+test('subagent registry: a concurrent batch exposes every task (id, state, own details, live copy only while running)', async () => {
+  const { BackgroundJobs } = await import('../../subagents/extensions/subagent/background.ts');
+  let enter!: () => void, hold!: () => void;
+  const entered = new Promise<void>(resolve => { enter = resolve; }), held = new Promise<void>(resolve => { hold = resolve; });
+  const jobs = new BackgroundJobs(() => {});
+  try {
+    jobs.submit('owner', '/cwd', jobs.epoch, ['alpha', 'beta'], async (_s, ids, live, _f, _a, _x, _p, events) => {
+      live(0, 'session-a', '/a.partial'); live(1, 'session-b', '/b.partial');
+      events(1, { type: 'message_start', message: { role: 'user', content: 'only beta has events' } });
+      enter(); await held;
+    }, ['first', 'second']);
+    await entered;
+    const [panel] = jobs.panelJobs('owner', '/cwd');
+    assert.equal(panel!.tasks?.length, 2);
+    assert.deepEqual(panel!.tasks!.map(t => t.label), ['alpha #1', 'beta #2']);
+    assert.equal(panel!.tasks![0]!.transcript, undefined); assert.ok(panel!.tasks![1]!.transcript);
+    assert.match(panel!.tasks![1]!.details.join('\n'), /beta/); assert.doesNotMatch(panel!.tasks![1]!.details.join('\n'), /alpha/);
+    assert.ok(panel!.tasks!.every(t => t.id.length > 0));
+  } finally { hold(); await jobs.shutdown(50); }
+});
+
+test('subagent registry: single-task jobs stay flat (no task level)', async () => {
+  const { BackgroundJobs } = await import('../../subagents/extensions/subagent/background.ts');
+  let enter!: () => void, hold!: () => void;
+  const entered = new Promise<void>(resolve => { enter = resolve; }), held = new Promise<void>(resolve => { hold = resolve; });
+  const jobs = new BackgroundJobs(() => {});
+  try {
+    jobs.submit('owner', '/cwd', jobs.epoch, ['solo'], async (_s, _i, live, _f, _a, _x, _p, events) => {
+      live(0, 'session', '/live.partial'); events(0, { type: 'message_start', message: { role: 'user', content: 'x' } }); enter(); await held;
+    }, ['t']);
+    await entered;
+    assert.equal(jobs.panelJobs('owner', '/cwd')[0]!.tasks, undefined);
+  } finally { hold(); await jobs.shutdown(50); }
+});
+
+test('batch: opening a task keeps the safety note, the cancel caveat and a visible omission marker', () => {
+  const details = Array.from({ length: 300 }, (_, i) => `detail line ${i}`);
+  const tasks = [
+    { id: 'T1', label: 'worker #1', state: 'running', activity: 'a', details: ['Task 1 meta'] },
+    { id: 'T2', label: 'worker #2', state: 'queued', activity: 'Queued', details },
+  ];
+  const job: PanelJob = { ...batchJob(tasks), state: 'cancelling' };
+  const overlay = new JobsOverlay(() => [job], theme, () => {}, () => {}, () => 30, tui, process.cwd());
+  overlay.render(100); overlay.handleInput('\r'); overlay.handleInput('\x1b[B'); overlay.handleInput('\r');
+  for (let i = 0; i < 60; i++) { overlay.handleInput('\x1b[6~'); }
+  const end = plain(overlay.render(100).join('\n'));
+  assert.match(end, /256-field limit/); assert.match(end, /not proof the task or its process tree has exited/); assert.match(end, /Retained metadata only; no logs read/);
+  overlay.dispose();
+});
+
+test('batch: PageUp/PageDown move the task cursor by a page', () => {
+  const tasks = Array.from({ length: 25 }, (_, i) => ({ id: `T${i + 1}`, label: `worker #${i + 1}`, state: 'running', activity: 'a', details: [] }));
+  const overlay = new JobsOverlay(() => [batchJob(tasks)], theme, () => {}, () => {}, () => 30, tui, process.cwd());
+  overlay.render(100); overlay.handleInput('\r');
+  const selected = () => Number(/▸ \S+ worker #(\d+)/.exec(plain(overlay.render(100).join('\n')))?.[1]);
+  assert.equal(selected(), 1);
+  overlay.handleInput('\x1b[6~'); assert.ok(selected() > 3, 'PageDown jumps more than one row');
+  overlay.handleInput('\x1b[5~'); assert.equal(selected(), 1);
+  overlay.dispose();
+});
+
+test('subagent registry: a finished task of a running batch shows its status, not its last progress text', async () => {
+  const { BackgroundJobs } = await import('../../subagents/extensions/subagent/background.ts');
+  let enter!: () => void, hold!: () => void;
+  const entered = new Promise<void>(resolve => { enter = resolve; }), held = new Promise<void>(resolve => { hold = resolve; });
+  const jobs = new BackgroundJobs(() => {});
+  try {
+    jobs.submit('owner', '/cwd', jobs.epoch, ['alpha', 'beta'], async (_s, _i, live, finish, _a, _x, progress) => {
+      live(0, 'session-a', '/a.partial'); live(1, 'session-b', '/b.partial');
+      progress(0, { activity: 'bash: npm test', usageReported: false }); progress(1, { activity: 'reading files', usageReported: false });
+      finish(0, { status: 'completed' }, 'completed');
+      enter(); await held;
+    }, ['first', 'second']);
+    await entered;
+    const tasks = jobs.panelJobs('owner', '/cwd')[0]!.tasks!;
+    assert.equal(tasks[0]!.state, 'completed'); assert.equal(tasks[0]!.activity, 'completed');
+    assert.equal(tasks[1]!.state, 'running'); assert.equal(tasks[1]!.activity, 'reading files');
+  } finally { hold(); await jobs.shutdown(50); }
+});

@@ -36,7 +36,11 @@ export function websocketLaunch(source: Endpoint | NetworkSource, clock: Clock =
         if (signal.aborted) finish(); else prepareEndpoint(source).then(value => finish(value), () => finish());
       });
       if (signal.aborted || clock.now() >= deadline) { sink.closed({ sourceClosed: true, startupCanceled: true }); return; }
-    } catch { sink.fault('source_error'); sink.closed({ sourceClosed: true, startupFailed: true }, true); return; }
+    } catch {
+      // An abort (monitor_stop, shutdown) while the endpoint was being prepared is a cancellation, not a broken endpoint.
+      if (signal.aborted) { sink.closed({ sourceClosed: true, startupCanceled: true }); return; }
+      sink.fault('source_error'); sink.closed({ sourceClosed: true, startupFailed: true }, true); return;
+    }
     await new Promise<void>(resolve => {
       let ws: WebSocket;
       try { ws = new WebSocket(endpoint.url, pinnedOptions(endpoint, deadline - clock.now())); }
