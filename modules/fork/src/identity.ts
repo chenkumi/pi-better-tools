@@ -35,8 +35,8 @@ export function hasForkMarker(entries: readonly { type?: string; customType?: st
 
 /** Why this process/session may not create a Fork, or undefined for a root session. Reads trusted startup data only. */
 export function forkCreationRefusal(entries: readonly { type?: string; customType?: string }[]): string | undefined {
-	if (consumeManagedChildGuard()) return "FORK_FORBIDDEN: Subagent processes cannot create a Fork.";
-	if (consumeForkChildGuard()) return "FORK_FORBIDDEN: A Fork process cannot create another Fork.";
-	if (hasForkMarker(entries)) return "FORK_FORBIDDEN: This conversation is itself a Fork and cannot create another Fork.";
+	if (consumeManagedChildGuard()) return "FORK_FORBIDDEN: Subagent processes cannot create a Fork. Do the task directly in this process, or use the subagent tool for a fresh-context worker.";
+	if (consumeForkChildGuard()) return "FORK_FORBIDDEN: A Fork process cannot create another Fork. Do the task directly in this process, or use the subagent tool for a fresh-context worker.";
+	if (hasForkMarker(entries)) return "FORK_FORBIDDEN: This conversation is itself a Fork and cannot create another Fork. Do the task directly in this process, or use the subagent tool for a fresh-context worker.";
 	return undefined;
 }

@@ -20,7 +20,7 @@ export function clip(text: string, maxBytes: number, maxLines: number): string {
 }
 export async function toolOutput<T extends object>(text: string, metadata: Record<string, unknown> = {}, data?: T) {
   text = sanitizeText(text);
-  if (Buffer.byteLength(text) > 2 * 1024 * 1024) throw new Error('OUTPUT_TOO_LARGE: cleaned output exceeds 2 MiB');
+  if (Buffer.byteLength(text) > 2 * 1024 * 1024) throw new Error('OUTPUT_TOO_LARGE: cleaned output exceeds 2 MiB; narrow it with extraction:"main" or fetch a more specific page.');
   const truncated = Buffer.byteLength(text) > MAX_INLINE_BYTES || text.split('\n').length > MAX_INLINE_LINES;
   let content = text;
   let fullOutputPath: string | undefined;

@@ -200,11 +200,16 @@ export async function runObserver(args: RunObserverArgs): Promise<ObserverResult
       let added = 0;
       let duplicates = 0;
       let rejected = 0;
-      for (const obs of params.observations) {
+      const rejectedDetails: string[] = [];
+      for (const [obsIndex, obs] of params.observations.entries()) {
         totalProposed++;
         const sourceEntryIds = normalizeSourceEntryIds(obs.sourceEntryIds, allowedSourceEntryIds);
         if (!sourceEntryIds) {
           rejected++;
+          if (rejectedDetails.length < 5) {
+            const given = Array.isArray(obs.sourceEntryIds) ? obs.sourceEntryIds.slice(0, 3).map((id) => JSON.stringify(String(id).slice(0, 40))).join(", ") : "none";
+            rejectedDetails.push(`observations[${obsIndex}] (sourceEntryIds: ${given})`);
+          }
           continue;
         }
         const content = truncateRecordContent(obs.content);
@@ -228,7 +233,7 @@ export async function runObserver(args: RunObserverArgs): Promise<ObserverResult
       totalRejected += rejected;
       const rejectedPart =
         rejected > 0
-          ? ` ${rejected} observation${rejected === 1 ? "" : "s"} rejected for missing or invalid sourceEntryIds.`
+          ? ` ${rejected} observation${rejected === 1 ? "" : "s"} rejected for missing or invalid sourceEntryIds: ${rejectedDetails.join("; ")}${rejected > rejectedDetails.length ? "; ..." : ""}. Each sourceEntryIds must be a non-empty list of entry ids copied from the "Source entry id" lines of the chunk (entry ids from the chunk only).`
           : "";
       const terminates = params.complete === true && rejected === 0;
       if (terminates) closedByCompleteBatch = true;

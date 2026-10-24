@@ -84,13 +84,13 @@ export function extractHtml(html, url, format = 'markdown', mode = 'auto') {
       else if (mode === 'main') warnings.push('No non-empty main element found; using the document body.');
     }
     if (!selected) { selected = document.body; extraction = 'body'; }
-    if (!selected?.textContent?.trim()) throw new Error('EMPTY_CONTENT: The page has no extractable text.');
+    if (!selected?.textContent?.trim()) throw new Error('EMPTY_CONTENT: The page has no extractable text. If it is rendered by JavaScript, set waitForSelector to a content element; otherwise try extraction:"body".');
     let content;
     if (format === 'text') content = asText(selected);
     else {
       content = getTurndown().turndown(selected.innerHTML).trim();
     }
-    if (!content.trim()) throw new Error('EMPTY_CONTENT: The page has no extractable content.');
+    if (!content.trim()) throw new Error('EMPTY_CONTENT: The page has no extractable content. If it is rendered by JavaScript, set waitForSelector to a content element; otherwise try extraction:"body".');
     if (Buffer.byteLength(content, 'utf8') > MAX_EXTRACTED_BYTES) {
       // Tool output is clipped far below this limit; truncate instead of failing.
       content = Buffer.from(content, 'utf8').subarray(0, MAX_EXTRACTED_BYTES).toString('utf8').replace(/�+$/u, '');

@@ -109,7 +109,13 @@ export async function startArm(directory, enabled, mode, options = {}) {
 export function requestText(request, home, normalize) {
   const value = JSON.stringify(request.payload);
   if (!normalize) return value;
-  return value.split(JSON.stringify(home).slice(1, -1)).join('<HOME>')
+  // Tool results can embed the resolved path inside nested JSON text, so cover several escape depths (deepest first).
+  let escapedHome = home;
+  const homeForms = [];
+  for (let depth = 0; depth < 3; depth++) { escapedHome = JSON.stringify(escapedHome).slice(1, -1); homeForms.unshift(escapedHome); }
+  let text = value;
+  for (const form of homeForms) text = text.split(form).join('<HOME>');
+  return text
     .split(home.replaceAll('\\', '/')).join('<HOME>')
     .replace(/TASK-\d{8}T\d{9}Z\.md/g, 'TASK-<UTC>.md');
 }

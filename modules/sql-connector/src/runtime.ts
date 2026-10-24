@@ -2,6 +2,7 @@ import mssql from "mssql";
 import { createRequire } from "node:module";
 import mysql from "mysql2/promise";
 import { Pool as PgPool, type PoolClient, type QueryConfig } from "pg";
+import { classifyDriverError } from "./driver-errors.js";
 import type { DatabaseConfig, Engine, QueryExecution, SqlConnectorConfig, SqlScalar, StateExecution, UpdateExecution } from "./types.js";
 import { SqlConnectorError } from "./types.js";
 
@@ -43,7 +44,8 @@ function rowsFrom(value: unknown): Array<Record<string, unknown>> {
 /** MySQL and PostgreSQL bind positional parameters only. */
 function assertPositionalParams(params: QueryParams, tool: string): asserts params is SqlScalar[] | undefined {
   if (params !== undefined && !Array.isArray(params)) {
-    throw new SqlConnectorError("POLICY_DENIED", `${tool} params must be a JSON array.`);
+    const received = params === null ? "null" : typeof params;
+    throw new SqlConnectorError("POLICY_DENIED", `${tool} params must be a JSON array of values in placeholder order (received ${received}); ${tool.startsWith("pgsql") ? "$1 takes the first element" : "each ? takes the next element"}, e.g. [1, "x"].`);
   }
 }
 
@@ -52,27 +54,23 @@ function stateFrom(engine: Engine, row: Record<string, unknown> | undefined, dat
   return { engine, database: row?.[databaseColumn] ? String(row[databaseColumn]) : (configuredDatabase ?? null), version: row?.version ? String(row.version) : null };
 }
 
-const shuttingDown = () => new SqlConnectorError("CONNECTIVITY", "The SQL connector is shutting down.");
+const shuttingDown = () => new SqlConnectorError("CONNECTIVITY", "The SQL connector is shutting down (the session ended or is reloading). Do not retry in this session; wait for the reload to finish or start a new session.");
 
 function aborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) throw new SqlConnectorError("TIMEOUT", "The database request was cancelled.");
 }
 
-function databaseError(engine: Engine, error: unknown, signal?: AbortSignal): never {
-  if (error instanceof SqlConnectorError) throw error;
-  if (signal?.aborted) throw new SqlConnectorError("TIMEOUT", `${engine} request was cancelled.`);
+interface DatabaseErrorOptions {
+  write?: boolean;
+  config?: DatabaseConfig;
+}
 
-  const code = typeof error === "object" && error !== null && "code" in error ? String((error as { code?: unknown }).code) : "";
-  if (/(timeout|etimedout|esocket|econnreset)/i.test(code)) {
-    throw new SqlConnectorError("TIMEOUT", `${engine} request timed out or the connection was interrupted.`);
+function databaseError(engine: Engine, error: unknown, signal: AbortSignal | undefined, options: DatabaseErrorOptions = {}): never {
+  if (error instanceof SqlConnectorError) throw error;
+  if (signal?.aborted) {
+    throw new SqlConnectorError("TIMEOUT", `${engine} request was cancelled.${options.write ? " The update may or may not have been applied; verify with a SELECT before retrying." : ""}`);
   }
-  if (/(access_denied|elogin|28p01|authentication|certificate|tls)/i.test(code)) {
-    throw new SqlConnectorError("AUTH_OR_TLS", `${engine} authentication or TLS configuration failed.`);
-  }
-  if (/(econnrefused|enotfound|ehostunreach)/i.test(code)) {
-    throw new SqlConnectorError("CONNECTIVITY", `${engine} database connection failed.`);
-  }
-  throw new SqlConnectorError("DRIVER_INTERNAL", `${engine} database request failed.`);
+  throw classifyDriverError(engine, error, { ...options, queryTimeoutMs: QUERY_TIMEOUT_MS, connectTimeoutMs: CONNECT_TIMEOUT_MS });
 }
 
 class MysqlAdapter implements Adapter {
@@ -127,7 +125,7 @@ class MysqlAdapter implements Adapter {
       );
       return stateFrom("mysql", rowsFrom(rows)[0], "current_database", this.config.database);
     } catch (error) {
-      return databaseError("mysql", error, signal);
+      return databaseError("mysql", error, signal, { config: this.config });
     }
   }
 
@@ -143,7 +141,7 @@ class MysqlAdapter implements Adapter {
       });
       return { rows: rowsFrom(rows), rowCount: rowsFrom(rows).length };
     } catch (error) {
-      return databaseError("mysql", error, signal);
+      return databaseError("mysql", error, signal, { config: this.config });
     }
   }
 
@@ -156,7 +154,7 @@ class MysqlAdapter implements Adapter {
         : 0;
       return { affectedRows };
     } catch (error) {
-      return databaseError("mysql", error, signal);
+      return databaseError("mysql", error, signal, { write: true, config: this.config });
     }
   }
 
@@ -207,11 +205,11 @@ class MssqlAdapter implements Adapter {
   private bind(request: mssql.Request, params: QueryParams): void {
     if (params === undefined) return;
     if (Array.isArray(params)) {
-      throw new SqlConnectorError("POLICY_DENIED", "mssql_query and mssql_update params must be a JSON object.");
+      throw new SqlConnectorError("POLICY_DENIED", 'mssql_query and mssql_update params must be a JSON object keyed by parameter name without "@" (received an array), e.g. {"id": 1} for @id.');
     }
     for (const [name, value] of Object.entries(params)) {
       if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
-        throw new SqlConnectorError("POLICY_DENIED", "MSSQL parameter names must contain only letters, numbers, and underscores.");
+        throw new SqlConnectorError("POLICY_DENIED", `MSSQL parameter name ${JSON.stringify(name.length > 64 ? `${name.slice(0, 64)}...` : name)} is invalid: names must contain only letters, numbers and underscores and must not start with a digit. Omit the leading '@' from params keys: pass {"id": 1} for @id.`);
       }
       request.input(name, value);
     }
@@ -234,7 +232,7 @@ class MssqlAdapter implements Adapter {
       const result = await this.runRequest(request, signal, () => request.query("SELECT @@VERSION AS version, DB_NAME() AS current_database"));
       return stateFrom("mssql", rowsFrom(result.recordset)[0], "current_database", this.config.database);
     } catch (error) {
-      return databaseError("mssql", error, signal);
+      return databaseError("mssql", error, signal, { config: this.config });
     }
   }
 
@@ -245,7 +243,7 @@ class MssqlAdapter implements Adapter {
       const result = await this.runRequest(request, signal, () => request.query(sql));
       return { rows: rowsFrom(result.recordset), rowCount: result.rowsAffected?.[0] ?? rowsFrom(result.recordset).length };
     } catch (error) {
-      return databaseError("mssql", error, signal);
+      return databaseError("mssql", error, signal, { config: this.config });
     }
   }
 
@@ -256,7 +254,7 @@ class MssqlAdapter implements Adapter {
       const result = await this.runRequest(request, signal, () => request.query(sql));
       return { affectedRows: result.rowsAffected?.reduce((sum, value) => sum + value, 0) ?? 0 };
     } catch (error) {
-      return databaseError("mssql", error, signal);
+      return databaseError("mssql", error, signal, { write: true, config: this.config });
     }
   }
 
@@ -321,7 +319,7 @@ class PgsqlAdapter implements Adapter {
       );
       return stateFrom("pgsql", rowsFrom(result.rows)[0], "database", this.config.database);
     } catch (error) {
-      return databaseError("pgsql", error, signal);
+      return databaseError("pgsql", error, signal, { config: this.config });
     }
   }
 
@@ -337,7 +335,7 @@ class PgsqlAdapter implements Adapter {
       });
       return { rows: rowsFrom(result.rows), rowCount: result.rowCount };
     } catch (error) {
-      return databaseError("pgsql", error, signal);
+      return databaseError("pgsql", error, signal, { config: this.config });
     }
   }
 
@@ -347,7 +345,7 @@ class PgsqlAdapter implements Adapter {
       const result = await this.withClient(signal, (client) => client.query(pgQueryConfig(sql, params)));
       return { affectedRows: result.rowCount ?? 0 };
     } catch (error) {
-      return databaseError("pgsql", error, signal);
+      return databaseError("pgsql", error, signal, { write: true, config: this.config });
     }
   }
 
@@ -396,7 +394,7 @@ export class SqlConnectorRuntime {
     if (creating) return creating;
 
     const config = this.config[engine];
-    if (!config) throw new SqlConnectorError("ENGINE_NOT_CONFIGURED", `${engine} is not configured.`);
+    if (!config) throw new SqlConnectorError("ENGINE_NOT_CONFIGURED", `The ${engine} tools have no database connection configured for this project. Ask the user to set up a ${engine} connection, then run /sql-connector-reload.`);
 
     const promise = Promise.resolve().then(() => {
       const adapter: Adapter = engine === "mysql"

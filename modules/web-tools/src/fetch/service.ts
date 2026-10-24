@@ -6,6 +6,8 @@ import { chromium, type Browser, type BrowserContext, type Route } from 'playwri
 import { extractHtmlIsolated, MAX_HTML_BYTES, prewarmExtractionWorker, shutdownExtractionWorkers, type ContentFormat, type ExtractionMode } from './extract.js';
 import { NetworkPolicy, parseWebUrl, type ValidationCache } from './network.js';
 import { installPlaywrightTlsCompatibility } from './playwright-tls-compat.js';
+import { MAX_SELECTOR_CHARS } from '../tool-schemas.ts';
+import { describeNetworkFailure, httpStatusAdvice } from './failure.js';
 
 export type FetchOptions = {
   channel: 'chromium' | 'chrome';
@@ -58,7 +60,7 @@ export class FetchQueue {
       this.active++;
       return Promise.resolve(this.releaseOnce());
     }
-    if (this.waiting.length >= this.maxQueued) return Promise.reject(new Error('BUSY: Fetch queue is full.'));
+    if (this.waiting.length >= this.maxQueued) return Promise.reject(new Error('BUSY: web_fetch queue is full (too many running and waiting fetches); wait for running fetches to finish and retry later instead of issuing more in parallel.'));
     return new Promise((resolve, reject) => {
       const entry = { grant: () => {
         signal.removeEventListener('abort', onAbort);
@@ -86,10 +88,19 @@ export class FetchQueue {
   }
 }
 
+/** Bounded, printable rendering of an agent-supplied enum value for error text. */
+const shown = (value: unknown) => JSON.stringify(String(value).replace(/[^ -~]/g, '?').slice(0, 40));
+
+function requestHost(url: string): string {
+  try { return new URL(url).hostname.slice(0, 100); } catch { return 'unknown'; }
+}
+
 function validateFetchInput(input: FetchInput): void {
-  if (input.format !== undefined && !['markdown', 'text'].includes(input.format)) throw new Error('INVALID_INPUT: Unsupported content format.');
-  if (input.extraction !== undefined && !['auto', 'main', 'body'].includes(input.extraction)) throw new Error('INVALID_INPUT: Unsupported extraction mode.');
-  if (input.waitForSelector !== undefined && (!input.waitForSelector.trim() || input.waitForSelector.length > 2048)) throw new Error('INVALID_INPUT: Selector must contain between 1 and 2048 characters.');
+  if (input.format !== undefined && !['markdown', 'text'].includes(input.format)) throw new Error(`INVALID_INPUT: Parameter "format" must be "markdown" or "text" (received ${shown(input.format)}).`);
+  if (input.extraction !== undefined && !['auto', 'main', 'body'].includes(input.extraction)) throw new Error(`INVALID_INPUT: Parameter "extraction" must be "auto", "main" or "body" (received ${shown(input.extraction)}).`);
+  if (input.waitForSelector !== undefined && (!input.waitForSelector.trim() || input.waitForSelector.length > MAX_SELECTOR_CHARS)) {
+    throw new Error(`INVALID_INPUT: Parameter "waitForSelector" must be a CSS selector of 1 to ${MAX_SELECTOR_CHARS} non-blank characters (received ${input.waitForSelector.length} characters). Shorten it or omit it.`);
+  }
 }
 
 /** Read a routed response body: the main document against the HTML cap, subresources against the per-fetch budget. */
@@ -132,7 +143,7 @@ function browserLaunchError(error: unknown, channel: FetchOptions['channel']): E
   if (/^(?:browserType\.launch: )?(?:Executable doesn't exist at |Chromium distribution '[^']+' is not found)/.test(summary)) {
     reason = 'missing-executable';
     guidance = channel === 'chrome'
-      ? `Google Chrome executable was not found. Install Google Chrome, or set fetch.channel to "chromium" and run ${install}.`
+      ? `Google Chrome executable was not found. Install Google Chrome, or ask the user to switch the browser fetch engine to Chromium and run ${install}.`
       : `Playwright Chromium executable was not found. Install it with ${install} using the same user and browser-cache environment as Pi.`;
   } else if (/Host system is missing dependencies|error while loading shared libraries/.test(message)) {
     reason = 'system-dependencies';
@@ -142,7 +153,7 @@ function browserLaunchError(error: unknown, channel: FetchOptions['channel']): E
     guidance = 'Browser launch permission was denied. Check executable/cache permissions and OS security policy; reinstalling the browser is not necessarily required.';
   } else if (error instanceof Error && error.name === 'TimeoutError') {
     reason = 'timeout';
-    guidance = 'Browser startup timed out. Check system load and browser startup restrictions; consider increasing fetch.timeoutMs. A missing browser is not confirmed.';
+    guidance = 'Browser startup timed out. Check system load and browser startup restrictions; consider asking the user to increase the fetch time limit in the web tools configuration. A missing browser is not confirmed.';
   } else {
     guidance = 'Browser startup failed; a missing browser is not confirmed. Check browser runtime compatibility, OS security policy and available resources before retrying.';
   }
@@ -165,12 +176,12 @@ export class FetchService {
 
   constructor(private readonly options: FetchOptions, testOptions?: { allowPrivateNetwork?: boolean }) {
     installPlaywrightTlsCompatibility();
-    if (!['chromium', 'chrome'].includes(options.channel) ||
-        !Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0 ||
-        !Number.isInteger(options.maxConcurrency) || options.maxConcurrency < 1 || options.maxConcurrency > 32 ||
-        !Number.isFinite(options.idleTimeoutMs) || options.idleTimeoutMs < 0) {
-      throw new Error('CONFIG_ERROR: Invalid browser fetch options.');
-    }
+    const invalidOption =
+      !['chromium', 'chrome'].includes(options.channel) ? 'channel must be "chromium" or "chrome"' :
+      !Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0 ? 'timeoutMs must be a positive number of milliseconds' :
+      !Number.isInteger(options.maxConcurrency) || options.maxConcurrency < 1 || options.maxConcurrency > 32 ? 'maxConcurrency must be an integer from 1 to 32' :
+      !Number.isFinite(options.idleTimeoutMs) || options.idleTimeoutMs < 0 ? 'idleTimeoutMs must be a number of milliseconds, 0 or greater' : undefined;
+    if (invalidOption) throw new Error(`CONFIG_ERROR: Invalid browser fetch option: ${invalidOption} (fetch section of the web-search configuration).`);
     this.policy = new NetworkPolicy(testOptions?.allowPrivateNetwork ?? false);
     this.queue = new FetchQueue(options.maxConcurrency);
   }
@@ -233,7 +244,7 @@ export class FetchService {
     const controller = new AbortController();
     const localSignal = controller.signal;
     const deadline = performance.now() + this.options.timeoutMs;
-    const timeout = () => controller.abort(new Error('TIMEOUT: Fetch deadline exceeded (including queue and browser startup). Try a different page, or set waitForSelector to an element that appears early.'));
+    const timeout = () => controller.abort(new Error(`TIMEOUT: Fetch deadline of ${Math.round(this.options.timeoutMs / 1000)} s exceeded, including queue and browser startup. Try a different page, or set waitForSelector to an element that appears early.`));
     const timer = setTimeout(timeout, this.options.timeoutMs);
     const onAbort = () => controller.abort(new Error(CANCELLED_MESSAGE));
     signal?.addEventListener('abort', onAbort, { once: true });
@@ -328,7 +339,7 @@ export class FetchService {
             this.policy.assertConnectedAddress(response.remoteAddress);
             const location = response.headers.location;
             if (!(response.status >= 300 && response.status < 400 && location)) break;
-            if (hop >= 19) throw new Error('NETWORK_ERROR: Too many redirects.');
+            if (hop >= 19) throw new Error('NETWORK_ERROR: Too many redirects (limit 20); the URL redirects in a loop. Try the final destination URL directly.');
             const destination = new URL(location, target).href;
             await abortable(validate(destination), localSignal);
             // Each followed hop is another network request: it counts against the same per-fetch budget, otherwise a
@@ -363,7 +374,7 @@ export class FetchService {
             throw new Error('UNSUPPORTED_CONTENT: Downloads are not supported. Look for an HTML page that describes the file instead.');
           }
           if (exceedsResponseLimit(headers)) throw new Error('TOO_LARGE: Response exceeds the 10 MiB limit.');
-          if (mainNavigation && response.status >= 400) throw new Error(`HTTP_ERROR: Server returned HTTP ${response.status}.`);
+          if (mainNavigation && response.status >= 400) throw new Error(`HTTP_ERROR: Server returned HTTP ${response.status}. ${httpStatusAdvice(response.status)}`);
           const body = await readRouteBody(response, mainNavigation, budget, warnings);
           checkAbort(localSignal);
           // The body is already decoded: drop encoding/length headers so the browser does not decode twice.
@@ -372,7 +383,7 @@ export class FetchService {
           await route.fulfill({ status: response.status, headers: fulfillHeaders, body });
         } catch (error) {
           const safe = error instanceof Error && /^(NETWORK_BLOCKED|NETWORK_ERROR|INVALID_URL|UNSUPPORTED_CONTENT|TOO_LARGE|HTTP_ERROR):/.test(error.message)
-            ? error : new Error('NETWORK_ERROR: A page request failed.');
+            ? error : new Error(`NETWORK_ERROR: A page request to host "${requestHost(request.url())}" failed (${describeNetworkFailure(error)}). Retry once; if it persists try a different URL.`);
           if (mainNavigation) navigationError = safe;
           else warnings.add('Some subresources were blocked or failed network policy checks; rendered content may be incomplete.');
           await route.abort('blockedbyclient').catch(() => {});
@@ -381,7 +392,7 @@ export class FetchService {
       let response;
       let navigationTarget = requestedUrl;
       for (let hop = 0; ; hop++) {
-        if (hop >= 20) throw new Error('NETWORK_ERROR: Too many navigation redirects.');
+        if (hop >= 20) throw new Error('NETWORK_ERROR: Too many navigation redirects (limit 20); the URL redirects in a loop. Try the final destination URL directly.');
         navigationRedirect = undefined;
         navigationError = undefined;
         try {
@@ -404,7 +415,7 @@ export class FetchService {
       }
       if (navigationError) throw navigationError;
       const status = response?.status() ?? 0;
-      if (status < 200 || status >= 400 || status === 204 || status === 205) throw new Error(`HTTP_ERROR: Page returned no successful document (HTTP ${status}).`);
+      if (status < 200 || status >= 400 || status === 204 || status === 205) throw new Error(`HTTP_ERROR: Page returned no successful document (HTTP ${status}). ${httpStatusAdvice(status)}`);
       const finalUrl = page.url();
       await abortable(validate(finalUrl), localSignal);
       const html = await abortable(page.evaluate((maxBytes) => {
@@ -421,7 +432,8 @@ export class FetchService {
       checkAbort(localSignal);
       // Do not expose Playwright call logs, headers, URL tokens or raw DNS errors.
       if (error instanceof Error && /^(INVALID_URL|INVALID_INPUT|NETWORK_BLOCKED|NETWORK_ERROR|TIMEOUT|CANCELLED|CLOSED|BUSY|BROWSER_UNAVAILABLE|FETCH_FAILED|HTTP_ERROR|UNSUPPORTED_CONTENT|TOO_LARGE|EMPTY_CONTENT):/.test(error.message)) throw error;
-      throw new Error('FETCH_FAILED: Browser fetch failed.');
+      const cause = describeNetworkFailure(error);
+      throw new Error(`FETCH_FAILED: Browser fetch failed (${cause === 'unknown network error' ? 'cause not classified' : cause}). Retry once; if it persists try a different URL or format:"text".`);
     } finally {
       clearTimeout(timer);
       signal?.removeEventListener('abort', onAbort);

@@ -27,7 +27,7 @@ const changes = (s: ReturnType<typeof sink>) => s.events.filter(e => e[0] === 'd
 test('file source accepts a bounded path and refuses unknown fields or an unbounded interval', () => {
   assert.equal(validateStart({ source: { kind: 'file', path: 'a.txt' } }).source.kind, 'file');
   assert.equal((validateStart({ source: { kind: 'file', path: 'a.txt', intervalMs: 1000 } }).source as any).intervalMs, 1000);
-  assert.throws(() => validateStart({ source: { kind: 'file' } }), /bounded text/);
+  assert.throws(() => validateStart({ source: { kind: 'file' } }), /file source "path" must be a non-empty string/);
   assert.throws(() => validateStart({ source: { kind: 'file', path: '' } }));
   assert.throws(() => validateStart({ source: { kind: 'file', path: 'a.txt', intervalMs: 999 } }), /integer 1000/);
   assert.throws(() => validateStart({ source: { kind: 'file', path: 'a.txt', content: true } }), /Unknown Monitor parameter/);
@@ -141,7 +141,7 @@ test('monitor_start accepts a file inside the workspace and rejects one outside 
     await handlers.get('session_start')({}, ctx);
     const start = (path: string) => tools.get('monitor_start').execute('direct', { source: { kind: 'file', path }, wakeAgent: false }, undefined, undefined, ctx);
     const rejected = await start(join(outside.root, 'b.txt'));
-    assert.equal(rejected.isError, true); assert.match(rejected.structuredContent.error, /outside the workspace/);
+    assert.equal(rejected.isError, true); assert.match(rejected.structuredContent.error, /outside the canonical workspace/);
     assert.equal((await start('../escape.txt')).isError, true);
     assert.deepEqual((await tools.get('monitor_status').execute('direct', {}, undefined, undefined, ctx)).structuredContent, { monitors: [] }, 'a rejected path must not leave a receipt');
     const accepted = await start('a.txt');

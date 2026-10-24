@@ -43,5 +43,6 @@ test('MON-2: a startup that merely times out is still a failure', async () => {
   assert.deepEqual(calls.map(c => c.type), ['fault', 'closed']);
   assert.equal(calls[0]!.detail, 'source_error');
   assert.equal(calls[1]!.failed, true);
-  assert.deepEqual(calls[1]!.detail, { sourceClosed: true, startupFailed: true });
+  assert.deepEqual(calls[1]!.detail, { sourceClosed: true, startupFailed: true, startupError: calls[1]!.detail && (calls[1]!.detail as any).startupError });
+  assert.match((calls[1]!.detail as any).startupError, /^NETWORK_TIMEOUT: /);
 });

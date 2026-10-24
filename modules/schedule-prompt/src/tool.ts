@@ -55,6 +55,20 @@ export function isInScheduledExecution(sessionManager: { getBranch?: () => any[]
  * Create the schedule_prompt tool definition.
  * `getDefaultScope` is a getter so live setting toggles affect the next `add`.
  */
+/** "Job not found" with the ids/names this session can see, so the agent can retry without guessing. */
+function jobNotFound(jobId: string, storage: CronStorage, ctx: { sessionManager: { getSessionId(): string } }): string {
+  let known = "";
+  try {
+    const sessionId = ctx.sessionManager.getSessionId();
+    const visible = storage.getAllJobs().filter((j) => CronScheduler.isLoadedFor(j, sessionId));
+    const shown = visible.slice(0, 10).map((j) => `${j.id} (${j.name})`);
+    known = visible.length === 0
+      ? " No jobs are visible to this session."
+      : ` Known jobs: ${shown.join(", ")}${visible.length > shown.length ? `, and ${visible.length - shown.length} more` : ""}.`;
+  } catch { /* the hint is best effort */ }
+  return `Job not found: "${jobId}". Pass a job id exactly as shown by action:"list" (jobs of other sessions are hidden).${known}`;
+}
+
 export function createCronTool(
   getStorage: () => CronStorage,
   getScheduler: () => CronScheduler,
@@ -92,7 +106,7 @@ export function createCronTool(
               if (!params.schedule) missing.push("'schedule'");
               if (!params.prompt && !params.command) missing.push("'prompt' or 'command'");
               throw new Error(
-                `Missing required parameters for add action: ${missing.join(" and ")}. You must provide schedule (e.g., '+10s', '*/5 * * * * *') and either prompt (the text to execute) or command (a shell command).`
+                `Missing required parameters for add action: ${missing.join(" and ")}. Provide 'schedule' matching 'type': type "once" takes '+10s' or an ISO timestamp; type "cron" (default) takes a 6-field expression such as '0 */5 * * * *'; type "interval" takes '5m'. Also provide either 'prompt' (text to run) or 'command' (a shell command).`
               );
             }
             const kindError = jobKindError({
@@ -102,7 +116,7 @@ export function createCronTool(
             if (kindError) throw new Error(kindError);
             const isCommand = params.command !== undefined;
             if (isCommand && !(ctx.hasUI === true && typeof ctx.ui?.confirm === "function")) {
-              throw new Error("Scheduling a shell command needs an interactive session so the user can confirm the exact command; nothing was saved.");
+              throw new Error("Scheduling a shell command needs an interactive session so the user can confirm the exact command; nothing was saved. Ask the user to add it from the TUI, or use a 'prompt' job, which needs no confirmation.");
             }
             let commandCwd: string | undefined;
             if (isCommand && params.cwd !== undefined) {
@@ -163,7 +177,7 @@ export function createCronTool(
             if (isCommand) {
               const confirmed = await ctx.ui.confirm("Confirm scheduled command", [`Create "${job.name}" (${CronScheduler.describeSchedule(type, schedule)})?`, ...commandSpecLines(ctx.cwd, job)].join("\n"));
               if (!confirmed) throw new Error("The user did not confirm the scheduled command; nothing was saved.");
-              if (!scheduler.approveCommand(job)) throw new Error("The working directory is no longer available; nothing was saved.");
+              if (!scheduler.approveCommand(job)) throw new Error(`The working directory is no longer available: ${job.cwd ?? ctx.cwd}; nothing was saved. Check that it exists, then add the job again.`);
             }
             storage.addJob(job);
             scheduler.addJob(job);
@@ -189,12 +203,12 @@ export function createCronTool(
 
           case "remove": {
             if (!params.jobId) {
-              throw new Error("jobId is required for remove action");
+              throw new Error('jobId is required for the remove action; get ids with action:"list".');
             }
 
             const job = storage.getJob(params.jobId);
             if (!job) {
-              throw new Error(`Job not found: ${params.jobId}`);
+              throw new Error(jobNotFound(params.jobId, storage, ctx));
             }
 
             const removed = storage.removeJob(params.jobId);
@@ -213,25 +227,25 @@ export function createCronTool(
                 details,
               };
             }
-            throw new Error(`Failed to remove job: ${params.jobId}`);
+            throw new Error(`Failed to remove job ${params.jobId}: it was no longer in storage (another session may have removed it). Run action:"list" to check, then retry if it is still listed.`);
           }
 
           case "enable":
           case "disable": {
             if (!params.jobId) {
-              throw new Error(`jobId is required for ${action} action`);
+              throw new Error(`jobId is required for the ${action} action; get ids with action:"list".`);
             }
 
             const job = storage.getJob(params.jobId);
             if (!job) {
-              throw new Error(`Job not found: ${params.jobId}`);
+              throw new Error(jobNotFound(params.jobId, storage, ctx));
             }
 
             const enabled = action === "enable";
             if (enabled) validateJobDeadline(job);
             if (enabled && job.command !== undefined) {
               if (!(ctx.hasUI === true && typeof ctx.ui?.confirm === "function")) {
-                throw new Error("Enabling a shell command job needs an interactive session so the user can confirm the exact command.");
+                throw new Error("Enabling a shell command job needs an interactive session so the user can confirm the exact command. Ask the user to enable it from the TUI.");
               }
               const confirmed = await ctx.ui.confirm("Confirm enabling scheduled command", [`Enable "${job.name}"?`, ...commandSpecLines(ctx.cwd, job)].join("\n"));
               if (!confirmed) throw new Error("The user did not confirm enabling the scheduled command; it stays disabled.");
@@ -241,11 +255,11 @@ export function createCronTool(
               // Apply only the spec the user confirmed: re-read under the storage lock, so a peer edit made while the
               // dialog was open is refused instead of silently enabled and approved.
               const shellOf = (j: CronJob) => j.shell ?? defaultCommandShell();
-              let reason = "The job changed while waiting for confirmation; nothing was enabled.";
+              let reason = "The job changed while waiting for confirmation; nothing was enabled. Run action:\"list\" to check its current command, then call enable again.";
               const applied = storage.updateJobWith(params.jobId, (current) => {
                 if (current.command !== job.command || shellOf(current) !== shellOf(job) || current.cwd !== job.cwd) return undefined;
                 const candidate: CronJob = { ...current, enabled: true };
-                if (!scheduler.approveCommand(candidate)) { reason = "The working directory is no longer available; the job stays disabled."; return undefined; }
+                if (!scheduler.approveCommand(candidate)) { reason = `The working directory is no longer available: ${candidate.cwd ?? ctx.cwd}; the job stays disabled. Check that it exists, then call enable again.`; return undefined; }
                 updated = candidate;
                 return { enabled: true };
               });
@@ -306,12 +320,12 @@ export function createCronTool(
 
           case "update": {
             if (!params.jobId) {
-              throw new Error("jobId is required for update action");
+              throw new Error('jobId is required for the update action; get ids with action:"list".');
             }
 
             const job = storage.getJob(params.jobId);
             if (!job) {
-              throw new Error(`Job not found: ${params.jobId}`);
+              throw new Error(jobNotFound(params.jobId, storage, ctx));
             }
 
             // Reject empty-string model (schema also enforces minLength: 1).
@@ -327,7 +341,7 @@ export function createCronTool(
             if (job.command !== undefined) {
               const stray = (["prompt", "model", "notify", "extensions", "skills"] as const).filter((key) => params[key] !== undefined);
               if (stray.length > 0) throw new Error(`${stray.map((k) => `'${k}'`).join(", ")} cannot be set on a command job; remove and re-add it to change its kind.`);
-              if (params.timeoutMs !== undefined && !isValidCommandTimeout(params.timeoutMs)) throw new Error("'timeoutMs' must be an integer from 1 to 2147483647");
+              if (params.timeoutMs !== undefined && !isValidCommandTimeout(params.timeoutMs)) throw new Error(`'timeoutMs' must be an integer number of milliseconds from 1 to 2147483647 (a stall limit: the run is stopped after this long without output, not a total time limit), got ${String(params.timeoutMs)}.`);
             } else {
               const stray = (["command", "shell", "cwd", "timeoutMs"] as const).filter((key) => params[key] !== undefined);
               if (stray.length > 0) throw new Error(`${stray.map((k) => `'${k}'`).join(", ")} cannot be set on a prompt job; remove and re-add it to change its kind.`);
@@ -362,6 +376,11 @@ export function createCronTool(
             if (params.endAt !== undefined) {
               updates.endAt = params.endAt === null ? undefined : normalizeEndAt(params.endAt);
             }
+            if (Object.keys(updates).length === 0 && !params.schedule && params.endAt === undefined) {
+              throw new Error(
+                `No fields to update were given for job ${params.jobId}; nothing was changed. Pass at least one of: name, schedule, endAt, description${job.command !== undefined ? ", command, shell, cwd, timeoutMs" : ", prompt, model, notify, extensions, skills"}.`
+              );
+            }
             const updated = { ...job, ...updates };
             validateJobDeadline(updated, params.endAt !== undefined && params.endAt !== null);
             if (job.command !== undefined) {
@@ -369,11 +388,11 @@ export function createCronTool(
               const same = updated.command === job.command && (updated.shell ?? defaultCommandShell()) === (job.shell ?? defaultCommandShell()) && updated.cwd === job.cwd;
               if (!same) {
                 if (!(ctx.hasUI === true && typeof ctx.ui?.confirm === "function")) {
-                  throw new Error("Changing a shell command job needs an interactive session so the user can confirm the exact command; nothing was changed.");
+                  throw new Error("Changing a shell command job needs an interactive session so the user can confirm the exact command; nothing was changed. Ask the user to change it from the TUI.");
                 }
                 const confirmed = await ctx.ui.confirm("Confirm scheduled command", [`Update "${updated.name}"?`, ...commandSpecLines(ctx.cwd, updated)].join("\n"));
                 if (!confirmed) throw new Error("The user did not confirm the changed command; nothing was changed.");
-                if (!scheduler.approveCommand(updated)) throw new Error("The working directory is no longer available; nothing was changed.");
+                if (!scheduler.approveCommand(updated)) throw new Error(`The working directory is no longer available: ${updated.cwd ?? ctx.cwd}; nothing was changed. Check that it exists, then retry.`);
               }
             }
             storage.updateJob(params.jobId, updates);
@@ -442,7 +461,7 @@ export function createCronTool(
           }
 
           default:
-            throw new Error(`Unknown action: ${action}`);
+            throw new Error(`Unknown action: ${String(action)}. Valid actions: add, remove, list, enable, disable, update, cleanup.`);
         }
       } catch (error) {
         details.error = error instanceof Error ? error.message : String(error);

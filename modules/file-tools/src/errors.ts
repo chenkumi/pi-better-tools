@@ -203,11 +203,47 @@ export function errnoCode(error: unknown): string | undefined {
     : undefined;
 }
 
-export function classifyFsError(error: unknown, path: string, operation: "read" | "write" | "edit"): FileToolError {
+const MAX_ECHO_CHARS = 80;
+
+/** JSON type name for error messages: "null" and "array" are distinguished from "object". */
+export function typeName(value: unknown): string {
+  return value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
+}
+
+/** A bounded, single-line rendering of a received argument value for error messages (strings are quoted and truncated). */
+export function describeReceived(value: unknown): string {
+  if (value === undefined) return "undefined";
+  if (typeof value === "string") {
+    if (value.length === 0) return "empty string";
+    const flat = value.replace(/[\x00-\x1f\x7f-\x9f]/g, " ");
+    return flat.length > MAX_ECHO_CHARS ? `${JSON.stringify(flat.slice(0, MAX_ECHO_CHARS))}... (${value.length} chars)` : JSON.stringify(flat);
+  }
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") return String(value);
+  if (value === null) return "null";
+  return Array.isArray(value) ? `array of ${value.length}` : typeof value;
+}
+
+const OPERATION_GERUND = { read: "reading", write: "writing", edit: "editing" } as const;
+
+/** Specific explanation and fix for filesystem errno codes that would otherwise surface as raw Node text. */
+const ERRNO_HINTS: Record<string, { reason: string; recovery: string }> = {
+  ENOSPC: { reason: "no space left on the device", recovery: "Free disk space or write to a different location, then retry." },
+  EROFS: { reason: "the file system is read-only", recovery: "Choose a path on a writable file system." },
+  ENAMETOOLONG: { reason: "the path or one of its segments is too long", recovery: "Use a shorter path." },
+  ELOOP: { reason: "too many symbolic links were encountered", recovery: "Resolve the symbolic link loop or use the real path." },
+  EEXIST: { reason: "a path component already exists as a file where a directory is needed", recovery: "Use ls on the parent directories to find the conflicting file, then choose a different path." },
+  EISDIR: { reason: "the path is a directory, not a file", recovery: "Pass a file path; use ls to inspect directories." },
+  EMFILE: { reason: "too many open files in this process", recovery: "Wait for other operations to finish, then retry." },
+  ENFILE: { reason: "too many open files on the system", recovery: "Wait for other operations to finish, then retry." },
+  EBUSY: { reason: "the file is busy or locked by another process", recovery: "Close whatever holds the file, then retry." },
+};
+
+export function classifyFsError(error: unknown, path: string, operation: "read" | "write" | "edit", absolutePath?: string): FileToolError {
   if (error instanceof FileToolError) return error;
 
   const causeCode = errnoCode(error);
   const causeMessage = error instanceof Error ? error.message : String(error);
+  const where = absolutePath && absolutePath !== path ? ` (resolved to ${absolutePath})` : "";
 
   if (error instanceof Error && error.name === "AbortError") {
     return new FileToolError("OPERATION_ABORTED", "The file operation was aborted.", {
@@ -216,11 +252,20 @@ export function classifyFsError(error: unknown, path: string, operation: "read" 
     });
   }
 
-  if (causeCode === "ENOENT" || causeCode === "ENOTDIR") {
-    return new FileToolError("FILE_NOT_FOUND", `Cannot ${operation} because the target file does not exist.`, {
+  if (causeCode === "ENOTDIR") {
+    return new FileToolError("FILE_NOT_FOUND", `Cannot ${operation} ${path}${where}: ENOTDIR, a parent path component is not a directory.`, {
       path,
       causeCode,
-      recovery: operation === "write" ? "Omit expectedHash or use expectedHash=\"missing\" to create a new file." : "Check the path and read the file again.",
+      recovery: "A segment of the path is an existing regular file; use ls on the parent directories to find it, then choose a different path.",
+    });
+  }
+  if (causeCode === "ENOENT") {
+    return new FileToolError("FILE_NOT_FOUND", `File not found: ${path}${where}.`, {
+      path,
+      causeCode,
+      recovery: operation === "write"
+        ? "A parent directory is missing or was removed concurrently; retry, and omit expectedHash or use expectedHash=\"missing\" to create a new file."
+        : "Check the path (relative paths resolve against the session cwd) and use ls to list the directory.",
     });
   }
   if (causeCode === "EACCES" || causeCode === "EPERM") {
@@ -231,7 +276,15 @@ export function classifyFsError(error: unknown, path: string, operation: "read" 
     });
   }
 
-  return new FileToolError("IO_ERROR", `Filesystem operation failed: ${causeMessage}`, {
+  const hint = causeCode ? ERRNO_HINTS[causeCode] : undefined;
+  if (hint) {
+    return new FileToolError("IO_ERROR", `Filesystem error ${causeCode} while ${OPERATION_GERUND[operation]} ${path}${where}: ${hint.reason}.`, {
+      path,
+      causeCode,
+      recovery: hint.recovery,
+    });
+  }
+  return new FileToolError("IO_ERROR", `Filesystem error${causeCode ? ` ${causeCode}` : ""} while ${OPERATION_GERUND[operation]} ${path}${where}: ${causeMessage.slice(0, 300)}`, {
     path,
     causeCode,
     recovery: "Inspect the path and filesystem state, then retry after reading the file again.",

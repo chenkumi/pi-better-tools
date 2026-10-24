@@ -129,5 +129,5 @@ test("local spawn applies pi-pty-terminal.env allow/deny from effective settings
 	assert.match(await run({}), /V=leak;X=yes;/);
 	assert.match(await run({ env: { deny: ["PTY_TEST_*"] } }), /V=none;X=yes;/);
 	assert.match(await run({ env: { allow: ["PATH", "SystemRoot", "SYSTEMROOT", "PATHEXT", "TEMP", "TMP", "windir"] } }), /V=none;X=yes;/);
-	await assert.rejects(run({ env: { allow: "PATH" } }), /pi-pty-terminal\.env\.allow/);
+	await assert.rejects(run({ env: { allow: "PATH" } }), /allowed-variables list/);
 });

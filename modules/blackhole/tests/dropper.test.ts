@@ -343,6 +343,21 @@ describe("V3 dropper agent", () => {
     await expect(runDropper({ ...baseArgs, agentLoop: loop })).resolves.toEqual(["aaaaaaaaaaaa"]);
   });
 
+  it("tells the model about unknown and duplicate ids with the valid-id hint", async () => {
+    const receipts: string[] = [];
+    const loop = fakeAgentLoop(async (_prompts, context) => {
+      const r1 = await context.tools[0].execute("tool-1", { ids: ["aaaaaaaaaaaa", "missing", "aaaaaaaaaaaa"] });
+      receipts.push(r1.content[0].text);
+      const r2 = await context.tools[0].execute("tool-2", { ids: ["aaaaaaaaaaaa"] });
+      receipts.push(r2.content[0].text);
+    });
+    await runDropper({ ...baseArgs, agentLoop: loop });
+    expect(receipts[0]).toContain('Ignored 1 id(s) that are not active observations: "missing"');
+    expect(receipts[0]).toContain("Ignored 1 duplicate id(s)");
+    expect(receipts[0]).toContain("12-character observation ids");
+    expect(receipts[1]).toContain("Ignored 1 duplicate id(s)");
+  });
+
   it("returns critical proposed ids when they are the selected valid candidates", async () => {
     const loop = fakeAgentLoop(async (_prompts, context) => {
       await context.tools[0].execute("tool-1", {

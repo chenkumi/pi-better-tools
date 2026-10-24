@@ -19,7 +19,6 @@ import * as path from "node:path";
 import type { AgentToolResult, ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { StringEnum, type JsonValue } from "@earendil-works/pi-ai";
 import {
-	CONFIG_DIR_NAME,
 	type ExtensionAPI,
 	type ExtensionContext,
 	type Theme,
@@ -43,7 +42,7 @@ import { ensureDetachShortcut, trackForeground } from "../../../shell-tools/src/
 import { addDetachHint } from "../../../shell-tools/src/detach-hint.js";
 import { panelUsage, safeJobText } from "../../../shell-tools/src/job-view.js";
 import { Semaphore, killProcessTree } from "./concurrency.ts";
-import { selectDispatchDefaults } from "./model-selection.ts";
+import { describeIgnoredOverrides, selectDispatchDefaults } from "./model-selection.ts";
 import { displayTitle, isValidTitle, MAX_TITLE_LENGTH } from "./title.ts";
 import { ManagedSession, SessionError, ConversationDigest, canonicalCwd, snapshotConfig, validateConfig } from "./session-store.ts";
 import {
@@ -184,6 +183,28 @@ function appendBoundedText(current: string, next: string, maxBytes: number): str
 
 function errorToString(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
+}
+
+/** A rejection code is the leading UPPER_SNAKE token; anything else (a sentence) is reported as MESSAGE_REJECTED. */
+export function messageRejectionCode(error: unknown): string {
+	if (error instanceof SessionError) return error.code;
+	const head = errorToString(error).split(":")[0];
+	return /^[A-Z][A-Z0-9_]{2,63}$/.test(head) ? head : "MESSAGE_REJECTED";
+}
+
+/** Caller-actionable next step for a rejected subagent_message; the agent cannot inspect files or the host. */
+export function messageNextAction(code: string): string {
+	switch (code) {
+		case "SESSION_BUSY": return "Wait for the current operation result/cleanup (query_result for queries, task_result for tasks), then submit a new instruction. Do not replay accepted or delivery_unknown controls.";
+		case "SESSION_BLOCKED": return "This session cannot be continued (it is blocked and cannot be repaired from here). Start a new subagent with the needed context; no child was accepted by this message.";
+		case "CONFIG_CHANGED": case "TRUST_REQUIRED": case "CWD_UNAVAILABLE": return "The agent definition, trust or directory changed since this session was created. Start a new subagent instead; no child was accepted by this message.";
+		case "MODEL_UNAVAILABLE": return "The model saved for this session is not registered in the current host. Register that model again or start a new subagent with an available model; no child was accepted by this message.";
+		case "SNAPSHOT_CAPACITY": return "The conversation is too large to query. Use mode \"control\" to instruct the session, or start a new subagent; no child was accepted by this message.";
+		case "SESSION_NOT_FOUND": case "OWNER_MISMATCH": return "Use subagent_status (no jobId) to list jobs, then subagent_status({ jobId }) to read the subagentSessionId of each task; only IDs created by this session and cwd can be messaged.";
+		case "INVALID_MESSAGE": case "INVALID_DISPATCH": return "Fix the named parameter and call subagent_message again; no child was accepted by this message.";
+		case "BACKGROUND_RUNTIME_CLOSED": return "The session was replaced or reloaded, so earlier jobs are gone. Start a new subagent if the work is still needed.";
+		default: return "Correct the target named in error and retry, or start a new subagent; no child was accepted by this message.";
+	}
 }
 
 function finiteNumber(value: unknown): number {
@@ -675,10 +696,11 @@ async function runSingleAgentUnlimited(
 	publishPresentation();
 	try {
 		if (signal?.aborted) { wasAborted = true; throw new Error(PARENT_ABORTED_DISPATCH); }
-		if (!agent) throw new Error(`Unknown agent: "${agentName}". Available agents: ${agents.map((entry) => `"${entry.name}"`).join(", ") || "none"}.`);
-		if (Buffer.byteLength(JSON.stringify(`Task: ${task}`)) + 64 * 1024 > SUBAGENT_MAX_STDOUT_RECORD_BYTES) throw new SessionError("INVALID_DISPATCH", "Task may exceed the bounded CLI user envelope");
+		if (!agent) throw new Error(unknownAgentMessage(agentName, agents, runtime.agentScope ?? "user"));
+		const oversized = taskEnvelopeError(task);
+		if (oversized) throw new SessionError("INVALID_DISPATCH", oversized);
 		if (!managed) {
-			const owner = { parentSessionId, parentCwd: await io.run(() => canonicalCwd(defaultCwd), "canonical parent cwd") };
+			const owner = { parentSessionId, parentCwd: await io.run(() => canonicalCwd(defaultCwd, "session working directory"), "canonical parent cwd") };
 			const config = await io.run(() => snapshotConfig(agent, runtime.agentScope ?? "user", cwd ?? defaultCwd, model, dispatchThinkingLevel(agent, dispatchDefaults), runtime.projectTrusted === true), "snapshot configuration");
 			managed = await io.run(async () => managed = await ManagedSession.allocate(managedSessionRoot(runtime), owner, config), "allocate managed session");
 		}
@@ -1267,27 +1289,63 @@ const SubagentParams = Type.Object({
 	cwd: Type.Optional(Type.String({ description: "Working directory for the agent process (single mode)" })),
 });
 
+const DISPATCH_ITEM_KEYS = ["agent", "task", "title", "cwd"];
+const receivedType = (value: unknown) => value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
+const receivedValue = (value: unknown) => typeof value === "string" ? `${receivedType(value)} ${JSON.stringify(value.length > 40 ? `${value.slice(0, 40)}...` : value)}` : receivedType(value);
+
+/** Names the title parameter, the violated rule and the received size; titles are bounded before they are counted. */
+function titleProblem(label: string, value: unknown): string {
+	if (typeof value !== "string") return `${label} must be a string of 1-50 visible characters; received ${receivedType(value)}. Omit title or pass text.`;
+	const characters = value.length > 4096 ? ">4096" : String([...value].length), bytes = Buffer.byteLength(value, "utf8");
+	if (!displayTitle(value)) return `${label} must be 1-50 visible characters; it is blank or only control characters (received ${characters} characters). Omit title or pass descriptive text.`;
+	return `${label} must be 1-50 visible characters (Unicode code points) and at most 4096 UTF-8 bytes; received ${characters} characters, ${bytes} bytes. Shorten it or omit title.`;
+}
+
+/** Agent-name error shared by foreground and background dispatch: lists the names visible in the active agentScope. */
+export function unknownAgentMessage(name: string, agents: readonly { name: string }[], scope: AgentScope, where?: string): string {
+	const list = agents.map(entry => `"${entry.name}"`).join(", ") || "none";
+	const hint = scope === "user" ? ' Project-only agents are not visible in this scope; pass agentScope "project" or "both" to use them.' : "";
+	return `Unknown agent: "${name}"${where ? ` (${where})` : ""}. Available agents (agentScope "${scope}"): ${list}.${hint}`;
+}
+
+/** The task rides in one bounded CLI user record; returns a message when it cannot fit. */
+export function taskEnvelopeError(task: string): string | undefined {
+	const bytes = Buffer.byteLength(JSON.stringify(`Task: ${task}`)), limit = SUBAGENT_MAX_STDOUT_RECORD_BYTES - 64 * 1024;
+	if (bytes <= limit) return undefined;
+	return `task is ${bytes} bytes after JSON encoding but the limit is ${limit} bytes (bounded CLI user envelope). Put the bulk of the details in a file and give the subagent its path in a shorter task.`;
+}
+
 export function normalizeDispatch(params: Record<string, any>): "single" | "parallel" | "chain" {
 	if (Object.hasOwn(params, "resume")) throw new SessionError("INVALID_DISPATCH", "resume was removed from subagent. Use subagent_message({ subagentSessionId: <complete ID>, message: <new instruction>, title?: <display title> }); mode defaults to control and safely routes to resume when ready.");
 	if (Object.hasOwn(params, "resumable")) throw new SessionError("INVALID_DISPATCH", "resumable was removed: every initial task automatically uses a managed native session. Omit this parameter.");
 	const present = (key: string) => params[key] !== undefined;
 	const nonblank = (v: unknown) => typeof v === "string" && !!v.trim();
-	const validateTitle = (value: unknown) => {
-		if (!isValidTitle(value)) throw new SessionError("INVALID_DISPATCH", "title must be nonempty text describing the work in at most 50 characters.");
+	const validateTitle = (value: unknown, label = "title") => {
+		if (!isValidTitle(value)) throw new SessionError("INVALID_DISPATCH", titleProblem(label, value));
 	};
 	validateTitle(params.title);
-	if (present("background") && typeof params.background !== "boolean") throw new SessionError("INVALID_DISPATCH", "background must be a boolean");
+	if (present("background") && typeof params.background !== "boolean") throw new SessionError("INVALID_DISPATCH", `background must be true or false; received ${receivedValue(params.background)}.`);
 
-	const modes = Number(present("agent")) + Number(present("tasks")) + Number(present("chain"));
-	if (modes !== 1) throw new SessionError("INVALID_DISPATCH", "Invalid parameters. Provide exactly one dispatch mode");
+	if (!present("agent") && present("task")) throw new SessionError("INVALID_DISPATCH", "task was given without agent. Add agent for single mode, or put task inside a tasks[]/chain[] item; to continue an existing session use subagent_message.");
+	const given = ["agent", "tasks", "chain"].filter(present);
+	if (given.length !== 1) throw new SessionError("INVALID_DISPATCH", `Provide exactly one of: single mode (agent + task), parallel mode (tasks[]), chain mode (chain[]); received ${given.length ? given.join(", ") : "none"}.`);
 	if (present("agent")) {
-		if (!nonblank(params.agent) || !nonblank(params.task)) throw new SessionError("INVALID_DISPATCH", "Single mode requires a nonempty agent and task");
+		if (!nonblank(params.agent)) throw new SessionError("INVALID_DISPATCH", `Single mode: agent is blank or not a string (received ${receivedValue(params.agent)}); pass an agent name.`);
+		if (!present("task")) throw new SessionError("INVALID_DISPATCH", "Single mode: task is missing; pass the instruction for the agent in task.");
+		if (!nonblank(params.task)) throw new SessionError("INVALID_DISPATCH", `Single mode: task is blank or not a string (received ${receivedValue(params.task)}); pass the instruction for the agent.`);
 		return "single";
 	}
-	if (present("task")) throw new SessionError("INVALID_DISPATCH", "Top-level task requires single mode; use subagent_message to continue an existing session");
-	const mode = present("tasks") ? "parallel" : "chain", items = params[mode === "parallel" ? "tasks" : "chain"];
-	if (!Array.isArray(items) || !items.length || items.some((item) => !isRecord(item) || !nonblank(item.agent) || !nonblank(item.task) || Object.keys(item).some((key) => !["agent", "task", "title", "cwd"].includes(key)))) throw new SessionError("INVALID_DISPATCH", "Dispatch items require nonempty agent/task; nested resume is unsupported");
-	for (const item of items) validateTitle(item.title);
+	const mode = present("tasks") ? "parallel" : "chain", name = mode === "parallel" ? "tasks" : "chain", items = params[name];
+	if (!Array.isArray(items)) throw new SessionError("INVALID_DISPATCH", `${name} must be an array of { agent, task, title?, cwd? }; received ${receivedType(items)}.`);
+	if (!items.length) throw new SessionError("INVALID_DISPATCH", `${name} must contain at least 1 item; received 0.`);
+	items.forEach((item, index) => {
+		const at = `${name}[${index}]`;
+		if (!isRecord(item)) throw new SessionError("INVALID_DISPATCH", `${at} must be an object { agent, task, title?, cwd? }; received ${receivedType(item)}.`);
+		const extra = Object.keys(item).find(key => !DISPATCH_ITEM_KEYS.includes(key));
+		if (extra !== undefined) throw new SessionError("INVALID_DISPATCH", `${at}: unsupported key "${extra.slice(0, 40)}" (allowed: ${DISPATCH_ITEM_KEYS.join(", ")}).${extra === "resume" || extra === "resumable" ? " Nested resume is unsupported; use subagent_message to continue a session." : " provider, model, thinkingLevel, agentScope and background are top-level parameters shared by all items."}`);
+		for (const key of ["agent", "task"] as const) if (!nonblank(item[key])) throw new SessionError("INVALID_DISPATCH", `${at}.${key} is blank, missing or not a string (received ${item[key] === undefined ? "nothing" : receivedValue(item[key])}); every item needs agent and task.`);
+	});
+	for (const [index, item] of items.entries()) validateTitle(item.title, `${name}[${index}].title`);
 	return mode;
 }
 
@@ -1368,7 +1426,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 		if (ctx.mode !== "tui" || !ctx.hasUI) return;
 		const epoch = jobs.epoch;
 		try {
-			const cwd = await canonicalCwd(ctx.cwd), owner = ctx.sessionManager.getSessionId();
+			const cwd = await canonicalCwd(ctx.cwd, "session working directory"), owner = ctx.sessionManager.getSessionId();
 			if (jobs.epoch === epoch) widget.bind(ctx, () => jobs.panelJobs(owner, cwd));
 		} catch { /* Monitoring setup cannot affect dispatch/ownership. */ }
 	});
@@ -1395,7 +1453,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 		outputSchema: name === "subagent_status" ? Type.Union([ReceiptSchema, JobListSchema]) : ReceiptSchema,
 		async execute(_id, params, _signal, _onUpdate, ctx) {
 			try {
-				const cwd = await canonicalCwd(ctx.cwd), owner = ctx.sessionManager.getSessionId();
+				const cwd = await canonicalCwd(ctx.cwd, "session working directory"), owner = ctx.sessionManager.getSessionId();
 				if (name === "subagent_status" && params.jobId === undefined) {
 					const list = { jobs: jobs.list(owner, cwd) };
 					return { content: [{ type: "text" as const, text: JSON.stringify(slimJobList(list.jobs)) }], details: list as any, structuredContent: list as unknown as JsonValue };
@@ -1412,7 +1470,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 		if (signal?.aborted) abort(); else signal?.addEventListener("abort", abort, { once: true });
 		let release: (() => void) | undefined, accepted = false, observedState = "unknown";
 		try {
-			const owner = { parentSessionId: ctx.sessionManager.getSessionId(), parentCwd: await preflight.run(() => canonicalCwd(dispatchCwd), "canonical resume owner") };
+			const owner = { parentSessionId: ctx.sessionManager.getSessionId(), parentCwd: await preflight.run(() => canonicalCwd(dispatchCwd, "session working directory"), "canonical resume owner") };
 			const root = managedSessionRoot(runtime);
 			const canonicalRoot = await preflight.run(() => canonicalSessionRoot(root), "canonical session root");
 			await preflight.run(() => ManagedSession.resolve(root, params.subagentSessionId, owner), "authorize continuation owner before contention");
@@ -1428,11 +1486,11 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 			const validate = async () => {
 				const current = discoverAgents(dispatchCwd, agentScope).agents.find(agent => agent.name === config.agent.name);
 				await validateConfig(config, current, projectTrusted);
-				if (!modelAvailable) throw new SessionError("MODEL_UNAVAILABLE", "Saved model selection is not registered in the current host");
+				if (!modelAvailable) throw new SessionError("MODEL_UNAVAILABLE", "The model saved for this session is not registered in the current host; register it again, or start a new subagent with an available model");
 			};
 			await preflight.run(validate, "validate continuation configuration");
 			const details = (results: SingleResult[], progress?: LiveProgress[]): SubagentDetails => ({ mode: "single", agentScope, projectAgentsDir: discoverAgents(dispatchCwd, agentScope).projectAgentsDir, ...(params.title ? { title: params.title.trim() } : {}), results, ...(progress ? { progress } : {}) });
-			const debugLog = runtime.debugLog ?? await preflight.run(() => readGlobalDebugLogSetting(runtime.settingsAgentDir ?? getAgentDir()), "read debug configuration");
+			const debugLog = runtime.debugLog ?? await preflight.run(() => readGlobalDebugLogSetting(runtime.settingsAgentDir ?? getAgentDir()), "read the failure-diagnostics option");
 			if (signal?.aborted || preflight.stopped) throw new Error("Message submission aborted before acceptance");
 			const receipt = await jobs.submitManaged(owner.parentSessionId, owner.parentCwd, epoch, [config.agent.name], async () => [session.id], async (jobSignal, ids, live, finish, attach, interaction, presentation, events) => {
 				try {
@@ -1457,7 +1515,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 		if (signal?.aborted) abort(); else signal?.addEventListener("abort", abort, { once: true });
 		const cleanup = async () => { await gate.whenIdle(); try { await managed?.release(); } finally { release?.(); } };
 		try {
-			const owner = { parentSessionId: ctx.sessionManager.getSessionId(), parentCwd: await gate.run(() => canonicalCwd(ctx.cwd), "canonical query owner") };
+			const owner = { parentSessionId: ctx.sessionManager.getSessionId(), parentCwd: await gate.run(() => canonicalCwd(ctx.cwd, "session working directory"), "canonical query owner") };
 			const root = managedSessionRoot(runtime);
 			const canonicalRoot = await gate.run(() => canonicalSessionRoot(root), "canonical query session root");
 			// Authorize before checking shared contention, including old runtimes:
@@ -1513,12 +1571,17 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 			const mode = params.mode ?? "control";
 			let observedState = "unknown";
 			try {
-				if (Object.keys(params).some(key => !["subagentSessionId", "message", "mode", "title"].includes(key)) || typeof params.subagentSessionId !== "string" || !params.subagentSessionId) throw new SessionError("INVALID_MESSAGE", "Use subagent_message({ subagentSessionId: <complete ID>, message }); jobId/taskId addressing was removed.");
+				if (Object.keys(params).some(key => !["subagentSessionId", "message", "mode", "title"].includes(key)) || typeof params.subagentSessionId !== "string" || !params.subagentSessionId) {
+					const allowed = ["subagentSessionId", "message", "mode", "title"], extra = Object.keys(params).find(key => !allowed.includes(key));
+					throw new SessionError("INVALID_MESSAGE", extra !== undefined
+						? `unexpected key "${extra.slice(0, 40)}"; allowed: ${allowed.join(", ")}. subagent_message addresses a session by subagentSessionId (shown as "Subagent session" in the subagent result); jobId/taskId addressing was removed.`
+						: "subagentSessionId must be a nonempty string: the complete session ID shown in the subagent result or subagent_status({ jobId }).");
+				}
 				validateInteraction(params.message);
-				if (!["control", "query"].includes(mode)) throw new SessionError("INVALID_MESSAGE", "mode must be control or query");
-				if (!isValidTitle(params.title)) throw new SessionError("INVALID_MESSAGE", "title must be nonempty text of at most 50 characters");
-				const cwd = await canonicalCwd(ctx.cwd);
-				if (jobs.epoch !== epoch) throw new SessionError("BACKGROUND_RUNTIME_CLOSED", "Owner session changed during message routing");
+				if (!["control", "query"].includes(mode)) throw new SessionError("INVALID_MESSAGE", `mode must be "control" or "query"; received ${typeof mode === "string" ? JSON.stringify(mode.slice(0, 40)) : typeof mode}. Omit mode for control.`);
+				if (!isValidTitle(params.title)) throw new SessionError("INVALID_MESSAGE", titleProblem("title", params.title));
+				const cwd = await canonicalCwd(ctx.cwd, "session working directory");
+				if (jobs.epoch !== epoch) throw new SessionError("BACKGROUND_RUNTIME_CLOSED", "The session was replaced or reloaded while the message was being routed; earlier jobs are gone. Start a new subagent if the work is still needed");
 				if (signal?.aborted) throw new SessionError("MESSAGE_ABORTED", "Message submission aborted before acceptance");
 				const target = jobs.locate(params.subagentSessionId, owner, cwd);
 				observedState = target?.state ?? "unknown";
@@ -1532,9 +1595,9 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 				}
 				return { content: [{ type: "text", text: JSON.stringify(receipt) }], details: receipt, structuredContent: JSON.parse(JSON.stringify(receipt)) as JsonValue };
 			} catch (error) {
-				const errorCode = error instanceof SessionError ? error.code : errorToString(error).split(":")[0];
+				const errorCode = messageRejectionCode(error);
 				observedState = typeof (error as any)?.observedState === "string" ? (error as any).observedState : observedState;
-				const receipt = { subagentSessionId: params.subagentSessionId ?? "", mode, status: "rejected", errorCode, observedState, nextAction: errorCode === "SESSION_BUSY" ? "Wait for the current operation result/cleanup (query_result for queries, task_result for tasks), then submit a new instruction. Do not replay accepted or delivery_unknown controls." : "Inspect the diagnostic and correct the target/configuration; no child was accepted by this message.", error: errorToString(error) };
+				const receipt = { subagentSessionId: params.subagentSessionId ?? "", mode, status: "rejected", errorCode, observedState, nextAction: messageNextAction(errorCode), error: errorToString(error) };
 				return { content: [{ type: "text", text: JSON.stringify(receipt) }], details: receipt, structuredContent: JSON.parse(JSON.stringify(receipt)) as JsonValue, isError: true };
 			}
 		},
@@ -1548,7 +1611,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 			`Dispatch limits: parallel mode accepts at most ${MAX_PARALLEL_TASKS} tasks and chain mode at most ${MAX_CHAIN_STEPS} steps; at most ${MAX_CONCURRENCY} children run at once across all subagent calls in this process.`,
 			"Every initial task automatically saves a managed native session whose stable ID is returned, even while queued; an ID does not mean checkpoint ready or interactive. background:true returns a queued job receipt and submits a task_result via steer as each task settles (parallel mode then adds one job_result for the whole batch); subagent_status (omit jobId to list) and subagent_cancel manage jobs. Background work stops on exit, reload or session replacement.",
 			"Each task records its non-reasoning child transcript in a sub-session JSONL log; parent results contain only assistant output, status, usage, and the log path. Child Pi processes always exclude the subagent tool, so there is no recursive dispatch.",
-			`Default agent scope is "user" (bundled package agents plus user agents from ${path.join(getAgentDir(), "agents")}); set agentScope: "both" (or "project") to use project-local agents in ${CONFIG_DIR_NAME}/agents.`,
+			`Default agent scope is "user" (bundled package agents plus the user's own agents); set agentScope: "both" (or "project") to use project-local agents.`,
 		].join(" "),
 		promptSnippet: "Delegate a self-contained task to an isolated subagent context",
 		promptGuidelines: [
@@ -1562,9 +1625,10 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 		parameters: SubagentParams,
 
 		async execute(toolCallId, params, signal, onUpdate, ctx) {
+			params = structuredClone(params);
+			const dispatch = async (): Promise<any> => {
 			const epoch = jobs.epoch;
 			const dispatchCwd = ctx.cwd;
-			params = structuredClone(params);
 			const projectTrusted = ctx.isProjectTrusted();
 			let mode: ReturnType<typeof normalizeDispatch>;
 			try { mode = normalizeDispatch(params); }
@@ -1614,7 +1678,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 				return { content: [{ type: "text", text: `Request not accepted: capacity limit reached. Too many parallel tasks (${params.tasks.length}). Max is ${MAX_PARALLEL_TASKS} per call (now ${jobs.load()}; at most ${MAX_CONCURRENCY} children run at once). Next: split into batches of at most ${MAX_PARALLEL_TASKS} tasks and send later batches after earlier ones finish; for background work use subagent_status (no jobId lists your jobs) or subagent_cancel to free capacity.` }], details: makeDetails("parallel")([]), isError: true };
 			}
 			if (params.chain && params.chain.length > MAX_CHAIN_STEPS) {
-				return { content: [{ type: "text", text: `Request not accepted: capacity limit reached. Too many chain steps (${params.chain.length}). Max is ${MAX_CHAIN_STEPS}.` }], details: makeDetails("chain")([]), isError: true };
+				return { content: [{ type: "text", text: `Request not accepted: capacity limit reached. Too many chain steps (${params.chain.length}). Max is ${MAX_CHAIN_STEPS}. Next: split the work into stages of at most ${MAX_CHAIN_STEPS} steps and pass the earlier stage output in the next call's first task.` }], details: makeDetails("chain")([]), isError: true };
 			}
 
 			// Fail closed: untrusted project agents always need approval; the removed legacy confirmProjectAgents parameter, if still sent, is ignored.
@@ -1642,7 +1706,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 						const results = await mapWithConcurrencyLimit(requested, MAX_CONCURRENCY, (item) =>
 							runSingleAgent(ctx.cwd, dispatchDefaultsFor(item.agent), agents, item.agent, item.task, item.cwd, item.step, canceled.signal, undefined, makeDetails(mode), parentSessionId, toolCallId, taskRuntime, item.title),
 						);
-						return { content: [{ type: "text", text: `Canceled: project-local agents not approved.\n\n${formatParentResults(mode, results)}` }], details: makeDetails(mode)(results), structuredContent: foregroundStructured(mode, results), usage: asToolUsage(results), isError: true };
+						return { content: [{ type: "text", text: `Canceled: project-local agents not approved (approval was denied or aborted; no child started). Use agentScope "user" to avoid the approval prompt.\n\n${formatParentResults(mode, results)}` }], details: makeDetails(mode)(results), structuredContent: foregroundStructured(mode, results), usage: asToolUsage(results), isError: true };
 					}
 				}
 			}
@@ -1650,8 +1714,8 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 			if (params.background) {
 				try {
 					const items = (params.chain ?? params.tasks ?? [{ agent: params.agent!, task: params.task!, cwd: params.cwd, title: params.title }]).map(item => ({ ...item, defaults: dispatchDefaultsFor(item.agent) }));
-					for (const item of items) if (!agents.some(agent => agent.name === item.agent)) throw new SessionError("INVALID_DISPATCH", `Unknown agent: ${item.agent}`);
-					const ownerCwd = await canonicalCwd(dispatchCwd);
+					for (const [index, item] of items.entries()) if (!agents.some(agent => agent.name === item.agent)) throw new SessionError("INVALID_DISPATCH", unknownAgentMessage(item.agent, agents, agentScope, params.chain ? `chain[${index}].agent` : params.tasks ? `tasks[${index}].agent` : "agent"));
+					const ownerCwd = await canonicalCwd(dispatchCwd, "session working directory");
 					if (signal?.aborted) throw new Error("Background submission aborted before acceptance");
 					const sessions: ManagedSession[] = [];
 					const receipt = await jobs.submitManaged(parentSessionId, ownerCwd, epoch, items.map(item => item.agent), async preparationSignal => {
@@ -1766,11 +1830,11 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 				settle(0, result);
 				return { content: [{ type: "text", text: formatParentResults("single", [result]) }], details: makeDetails("single")([result]), structuredContent: foregroundStructured("single", [result]), usage: asToolUsage([result]), ...(isFailedResult(result) ? { isError: true } : {}) };
 			}
-			return { content: [{ type: "text", text: "Invalid parameters." }], details: makeDetails("single")([]) };
+			return { content: [{ type: "text", text: "Invalid parameters: no dispatch mode matched; provide exactly one of agent+task, tasks[] or chain[]." }], details: makeDetails("single")([]) };
 			};
 			if (!handoff) return await runForeground(signal, onUpdate);
 
-			const ownerCwd = await canonicalCwd(dispatchCwd);
+			const ownerCwd = await canonicalCwd(dispatchCwd, "session working directory");
 			const foreground = new AbortController();
 			const forwardAbort = () => foreground.abort(signal?.reason);
 			if (signal?.aborted) forwardAbort(); else signal?.addEventListener("abort", forwardAbort, { once: true });
@@ -1802,6 +1866,15 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 			detached = true; unlink();
 			return { content: [{ type: "text", text: `Moved to a background job at the user's request. The same children keep running (not restarted; Esc no longer stops them, use subagent_cancel). Do not poll; results arrive as task_result notifications.
 ${JSON.stringify(slimReceipt(receipt))}` }], details: { ...makeDetails(dispatchMode)([]), background: receipt }, structuredContent: jsonReceipt(receipt) };
+			};
+			const result = await dispatch();
+			// Ignored overrides are not an error; tell the agent in a separate block so receipt JSON stays parseable.
+			let notes: string[] = [];
+			try {
+				const firstName = params.chain?.[0]?.agent ?? params.tasks?.[0]?.agent ?? params.agent;
+				notes = describeIgnoredOverrides(ctx, { provider: params.provider?.trim(), model: params.model?.trim(), thinkingLevel: params.thinkingLevel }, discoverAgents(ctx.cwd, params.agentScope ?? "user").agents.find(agent => agent.name === firstName)?.model);
+			} catch { /* notes are best effort */ }
+			return notes.length && !result.isError && Array.isArray(result.content) ? { ...result, content: [...result.content, { type: "text" as const, text: `Note: ${notes.join(" ")}` }] } : result;
 		},
 
 		renderCall(args, theme, context) {

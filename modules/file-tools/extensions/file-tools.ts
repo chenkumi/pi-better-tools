@@ -4,7 +4,7 @@ import { Container, Text, type Component } from "@earendil-works/pi-tui";
 import { readFile, stat } from "node:fs/promises";
 import { stripVTControlCharacters } from "node:util";
 import { Type } from "typebox";
-import { FileToolError, UNSAFE_DISPLAY_CHARACTERS, classifyFsError, formatFileToolErrorForDisplay } from "../src/errors.js";
+import { FileToolError, UNSAFE_DISPLAY_CHARACTERS, classifyFsError, describeReceived, formatFileToolErrorForDisplay, typeName } from "../src/errors.js";
 import { executeWithFailureLogging, loadFileToolsGlobalConfig, prepareWithFailureLogging } from "../src/debug-logging.js";
 import {
   assertInputSize,
@@ -130,7 +130,7 @@ interface ArgumentErrorContext {
 
 function requireObject(value: unknown, tool: string, context: ArgumentErrorContext = {}): UnknownRecord {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new FileToolError("INVALID_ARGUMENT", `${tool} input must be an object.`, {
+    throw new FileToolError("INVALID_ARGUMENT", `${tool} input must be an object (received ${typeName(value)}).`, {
       ...context,
       recovery: `Call ${tool} using its declared JSON object schema.`,
     });
@@ -149,7 +149,7 @@ function nullOptionalsAsUndefined(input: UnknownRecord, fields: readonly string[
 function rejectUnknown(input: UnknownRecord, allowed: readonly string[], tool: string, context: ArgumentErrorContext = {}): void {
   const unknown = Object.keys(input).filter((key) => !allowed.includes(key));
   if (unknown.length > 0) {
-    throw new FileToolError("INVALID_ARGUMENT", `${tool} contains unsupported field(s): ${unknown.join(", ")}.`, {
+    throw new FileToolError("INVALID_ARGUMENT", `${tool} contains unsupported field(s): ${unknown.join(", ")} (allowed: ${allowed.join(", ")}).`, {
       ...context,
       recovery: `Use only the fields declared by the ${tool} schema.`,
     });
@@ -158,7 +158,7 @@ function rejectUnknown(input: UnknownRecord, allowed: readonly string[], tool: s
 
 function requirePath(value: unknown, tool: string): string {
   if (typeof value !== "string" || value.length === 0) {
-    throw new FileToolError("INVALID_ARGUMENT", `${tool}.path must be a non-empty string.`, {
+    throw new FileToolError("INVALID_ARGUMENT", `${tool}.path must be a non-empty string (received ${describeReceived(value)}).`, {
       recovery: "Provide a relative or absolute file path.",
     });
   }
@@ -168,9 +168,10 @@ function requirePath(value: unknown, tool: string): string {
 function optionalPositiveInteger(value: unknown, field: string, context: ArgumentErrorContext = {}): number | undefined {
   if (value === undefined) return undefined;
   if (!Number.isInteger(value) || (value as number) < 1) {
-    throw new FileToolError("INVALID_ARGUMENT", `${field} must be a positive integer.`, {
+    const received = typeof value === "string" ? `${describeReceived(value)} (string)` : describeReceived(value);
+    throw new FileToolError("INVALID_ARGUMENT", `${field} must be an integer >= 1 (received ${received}).`, {
       ...context,
-      recovery: `Provide ${field} as a 1-based positive integer.`,
+      recovery: `Provide ${field} as a 1-based JSON number such as 10, not a string, decimal or zero.`,
     });
   }
   return value as number;
@@ -183,7 +184,9 @@ function validateHash(value: unknown, field: string, allowMissing: boolean, cont
     const recovery = allowMissing
       ? "Omit expectedHash unless you need the concurrency guard; otherwise read the file and pass the token from its FILE_METADATA, or use 'missing' only when the path must not exist."
       : "Call read on this path (any line range) and pass the token from its FILE_METADATA; after your own edit in the same turn, reuse that result's sha256After. Do not look for a hash elsewhere, and 'missing' is not valid for edit.";
-    throw new FileToolError("INVALID_ARGUMENT", `${field} must be a ${SHA256_TOKEN_LENGTH}-character SHA-256 version token${allowMissing ? " or 'missing'" : ""}.`, {
+    const length = typeof value === "string" ? ` (${value.length} chars)` : "";
+    const accepted = `${SHA256_TOKEN_LENGTH} or ${SHA256_HEX_LENGTH} hex characters of a SHA-256 version token${allowMissing ? ", or 'missing'" : ""}`;
+    throw new FileToolError("INVALID_ARGUMENT", `${field} must be ${accepted} (received ${describeReceived(value)}${length}).`, {
       ...context,
       recovery,
     });
@@ -206,7 +209,7 @@ export function prepareWriteArguments(value: unknown) {
   const path = requirePath(input.path, "write");
   rejectUnknown(input, ["path", "content", "expectedHash"], "write", { path });
   if (typeof input.content !== "string") {
-    throw new FileToolError("INVALID_ARGUMENT", "write.content must be a string.", {
+    throw new FileToolError("INVALID_ARGUMENT", `write.content must be a string (received ${describeReceived(input.content)}).`, {
       path: typeof input.path === "string" ? input.path : undefined,
       recovery: "Provide the complete file content. Use an empty string only to intentionally clear the file.",
     });
@@ -225,8 +228,8 @@ export function prepareEditArguments(value: unknown) {
   if (typeof input.edits === "string") {
     try {
       input.edits = JSON.parse(input.edits);
-    } catch {
-      throw new FileToolError("INVALID_ARGUMENT", "edit.edits is a string but does not contain valid JSON.", {
+    } catch (error) {
+      throw new FileToolError("INVALID_ARGUMENT", `edit.edits is a string but not valid JSON: ${error instanceof Error ? error.message : String(error)}; received ${describeReceived(input.edits)}.`, {
         path: typeof input.path === "string" ? input.path : undefined,
         recovery: "Pass edits as a JSON array using the declared schema.",
       });
@@ -236,22 +239,35 @@ export function prepareEditArguments(value: unknown) {
     input.edits = [input.edits];
   }
   if ("oldText" in input || "regex" in input || "newText" in input || "lineRange" in input || "lineStart" in input || "lineEnd" in input) {
-    throw new FileToolError("INVALID_ARGUMENT", "Top-level replacement fields are not supported by the edit contract.", {
+    const found = ["oldText", "regex", "newText", "lineRange", "lineStart", "lineEnd"].filter((field) => field in input);
+    throw new FileToolError("INVALID_ARGUMENT", `Top-level replacement fields are not supported by the edit contract (found: ${found.join(", ")}).`, {
       path: typeof input.path === "string" ? input.path : undefined,
-      recovery: "Move matching, replacement, and lineRange fields into an edits array item.",
+      recovery: 'Move matching, replacement, and lineRange fields into an edits array item, e.g. {"path":"f.txt","edits":[{"oldText":"old","newText":"new"}]}.',
     });
   }
 
   const path = requirePath(input.path, "edit");
   rejectUnknown(input, ["path", "expectedHash", "edits"], "edit", { path });
-  if (!Array.isArray(input.edits) || input.edits.length === 0) {
-    throw new FileToolError("INVALID_ARGUMENT", "edit.edits must contain at least one replacement.", {
+  if (input.edits === undefined) {
+    throw new FileToolError("INVALID_ARGUMENT", "edit.edits is required (received undefined).", {
+      path,
+      recovery: "Provide edits as an array with at least one item of exactly one of oldText or regex plus newText.",
+    });
+  }
+  if (!Array.isArray(input.edits)) {
+    throw new FileToolError("INVALID_ARGUMENT", `edit.edits must be an array (received ${describeReceived(input.edits)}).`, {
+      path,
+      recovery: "Provide edits as an array with at least one item of exactly one of oldText or regex plus newText.",
+    });
+  }
+  if (input.edits.length === 0) {
+    throw new FileToolError("INVALID_ARGUMENT", "edit.edits must contain at least one replacement (received an empty array).", {
       path,
       recovery: "Provide at least one edit with exactly one of oldText or regex plus newText.",
     });
   }
   if (input.edits.length > MAX_EDIT_OPERATIONS) {
-    throw new FileToolError("INVALID_ARGUMENT", `edit.edits cannot contain more than ${MAX_EDIT_OPERATIONS} operations.`, {
+    throw new FileToolError("INVALID_ARGUMENT", `edit.edits cannot contain more than ${MAX_EDIT_OPERATIONS} operations (received ${input.edits.length}).`, {
       path,
       recovery: "Split the edit into smaller operations.",
     });
@@ -281,14 +297,17 @@ function prepareEditOperation(rawEdit: unknown, editIndex: number, path: string)
   const hasOldText = typeof edit.oldText === "string";
   const hasRegex = typeof edit.regex === "string";
   if (hasOldText === hasRegex || (hasOldText && edit.oldText === "") || (hasRegex && edit.regex === "")) {
-    throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}] requires exactly one non-empty oldText or regex.`, {
+    const cause = hasOldText && hasRegex ? "both oldText and regex were given"
+      : !hasOldText && !hasRegex ? "neither oldText nor regex was given (or the value is not a string)"
+      : hasOldText ? "oldText is empty" : "regex is empty";
+    throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}] requires exactly one non-empty oldText or regex: ${cause}.`, {
       path,
       editIndex,
       recovery: "Use oldText for exact matching or regex for pattern matching, but not both.",
     });
   }
   if (typeof edit.newText !== "string") {
-    throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}].newText must be a string.`, {
+    throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}].newText must be a string (received ${describeReceived(edit.newText)}).`, {
       path,
       editIndex,
       recovery: "Provide replacement text; use an empty string only for deletion.",
@@ -298,17 +317,28 @@ function prepareEditOperation(rawEdit: unknown, editIndex: number, path: string)
   const lineRange = edit.lineRange === undefined ? undefined : prepareEditLineRange(edit.lineRange, editIndex, path);
 
   if (edit.regexFlags !== undefined && (!hasRegex || typeof edit.regexFlags !== "string" || !isSupportedRegexFlags(edit.regexFlags))) {
-    throw new FileToolError("INVALID_REGEX", `edit.edits[${editIndex}].regexFlags is invalid.`, {
+    const reason = !hasRegex
+      ? "regexFlags requires regex (use regex, or remove regexFlags for oldText edits)"
+      : `regexFlags ${describeReceived(edit.regexFlags)} is not allowed (allowed: i, m, s, u, each at most once; use replaceAll:true instead of g)`;
+    throw new FileToolError("INVALID_REGEX", `edit.edits[${editIndex}].${reason}.`, {
       path,
       editIndex,
-      recovery: "Use each of i, m, s, and u at most once, and only with regex.",
+      recovery: "Use each of i, m, s, and u at most once, and only with regex; use replaceAll:true for global replacement.",
     });
   }
   if (edit.replaceAll !== undefined && typeof edit.replaceAll !== "boolean") {
-    throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}].replaceAll must be a boolean.`, { path, editIndex });
+    throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}].replaceAll must be a boolean (received ${describeReceived(edit.replaceAll)}).`, {
+      path,
+      editIndex,
+      recovery: "Use JSON true/false, not a string.",
+    });
   }
   if (edit.replacementMode !== undefined && edit.replacementMode !== "literal" && edit.replacementMode !== "template") {
-    throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}].replacementMode is invalid.`, { path, editIndex });
+    throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}].replacementMode must be "literal" or "template" (received ${describeReceived(edit.replacementMode)}).`, {
+      path,
+      editIndex,
+      recovery: 'Use "literal" (default, newText inserted verbatim) or "template" (regex edits only; $1, $& expand), or omit replacementMode.',
+    });
   }
   if (edit.replacementMode === "template" && !hasRegex) {
     throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}].replacementMode=template requires regex.`, {
@@ -319,7 +349,7 @@ function prepareEditOperation(rawEdit: unknown, editIndex: number, path: string)
   }
   if (hasRegex) {
     if ((edit.regex as string).length > MAX_REGEX_PATTERN_LENGTH) {
-      throw new FileToolError("INVALID_REGEX", `edit.edits[${editIndex}].regex exceeds the pattern length limit.`, {
+      throw new FileToolError("INVALID_REGEX", `edit.edits[${editIndex}].regex is ${(edit.regex as string).length} UTF-16 code units; the limit is ${MAX_REGEX_PATTERN_LENGTH}.`, {
         path,
         editIndex,
         recovery: `Use a regex no longer than ${MAX_REGEX_PATTERN_LENGTH} UTF-16 code units.`,
@@ -352,7 +382,9 @@ function prepareEditLineRange(value: unknown, editIndex: number, path: string): 
   const start = optionalPositiveInteger(range.start, `edit.edits[${editIndex}].lineRange.start`, { path, editIndex });
   const end = optionalPositiveInteger(range.end, `edit.edits[${editIndex}].lineRange.end`, { path, editIndex });
   if (start === undefined || end === undefined || end < start) {
-    throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}].lineRange must contain valid start and end values.`, {
+    const prefix = `edit.edits[${editIndex}].lineRange`;
+    const problem = start === undefined ? `${prefix}.start is required` : end === undefined ? `${prefix}.end is required` : `${prefix}.end (${end}) is less than lineRange.start (${start})`;
+    throw new FileToolError("INVALID_ARGUMENT", `${problem}.`, {
       path,
       editIndex,
       recovery: "Use positive 1-based start/end values with end greater than or equal to start.",
@@ -453,7 +485,7 @@ async function readBufferAtPath(absolutePath: string, displayPath: string, signa
       assertInputSize(buffer.length, displayPath);
       return buffer;
     } catch (error) {
-      throw classifyFsError(error, displayPath, "read");
+      throw classifyFsError(error, displayPath, "read", absolutePath);
     }
   });
 }
@@ -520,7 +552,9 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
           autoCorrected = true;
         }
         if (signal?.aborted) {
-          throw new FileToolError("OPERATION_ABORTED", "The read operation was aborted.");
+          throw new FileToolError("OPERATION_ABORTED", "The read operation was aborted.", {
+            recovery: "Retry the read if the content is still needed.",
+          });
         }
         const imageMime = detectImageMime(buffer);
         if (imageMime) {

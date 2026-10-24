@@ -26,6 +26,7 @@ import { renderShellOutput } from "../src/output-renderer.js";
 import { writeFailureDebugLog, type FailureDetails } from "../src/debug-log.mjs";
 import {
   MAX_TIMEOUT_MS,
+  describeReceived,
   timeoutMsToRenderSeconds,
   timeoutMsToSeconds,
 } from "../src/timeout-ms.mjs";
@@ -88,8 +89,10 @@ function withTimeoutHint(error: unknown, timeoutMs: unknown, foregroundOnly: boo
  * `background` is rejected for a managed child, even false/undefined, including direct execute calls that
  * bypass host schema validation.
  */
+const FOREGROUND_ONLY_MESSAGE = "Managed subagent Shell is foreground-only; background is not accepted. Remove the background parameter and run in the foreground, bounding it with timeoutMs if needed.";
+
 function parseShellInput(name: string, input: Record<string, unknown>, foregroundOnly: boolean) {
-  if (foregroundOnly && "background" in input) throw new Error("Managed subagent Shell is foreground-only; background is not accepted.");
+  if (foregroundOnly && "background" in input) throw new Error(FOREGROUND_ONLY_MESSAGE);
   // Schema validation can be skipped when AJV is unavailable, so reject the
   // legacy seconds field explicitly instead of silently running unbounded.
   if (input.timeout !== undefined) {
@@ -98,8 +101,8 @@ function parseShellInput(name: string, input: Record<string, unknown>, foregroun
     );
   }
   const backgroundInput = input.background;
-  if (backgroundInput !== undefined && typeof backgroundInput !== "boolean") throw new Error("background must be a boolean");
-  if (typeof input.command !== "string") throw new Error("command must be a string");
+  if (backgroundInput !== undefined && typeof backgroundInput !== "boolean") throw new Error(`background must be a boolean (true or false); received ${describeReceived(backgroundInput)}. Omit it for a foreground command.`);
+  if (typeof input.command !== "string") throw new Error(`command is required and must be a string containing the shell command to run; received ${input.command === undefined ? "undefined" : input.command === null ? "null" : typeof input.command}.`);
   const timeout = timeoutMsToSeconds(input.timeoutMs as number | undefined);
   return { command: input.command, timeout, background: backgroundInput === true };
 }
@@ -229,7 +232,7 @@ function registerTimeoutMsOverride(
         }
       };
       try {
-        if (!ctx) throw new Error("Pi did not provide the shell tool execution context");
+        if (!ctx) throw new Error("Pi did not provide the shell tool execution context (host fault); the command was not run. Retry the call.");
         const { command, timeout, background } = parseShellInput(name, input as Record<string, unknown>, foregroundOnly);
         // Snapshot effective shell settings before accepting, rather than reading
         // a later turn's overrides when the deferred runner starts.
@@ -251,7 +254,7 @@ function registerTimeoutMsOverride(
           }
         };
         if (background) {
-          if (!jobs) throw new Error("Managed subagent Shell is foreground-only");
+          if (!jobs) throw new Error(FOREGROUND_ONLY_MESSAGE);
           return receiptResult(pi, ctx, input.timeoutMs, jobs.submit(ctx, name, toolCallId, signal, run, command), "Background job accepted; its outcome will be reported when it finishes.");
         }
         const autoMs = jobs && (input.timeoutMs === undefined || input.timeoutMs === MAX_TIMEOUT_MS) ? resolveAutoBackgroundMs(pi.getSettings?.()) : 0;
@@ -368,7 +371,7 @@ export default function (pi: ExtensionAPI) {
         : "Request cancellation of a shell background job owned by this session. cancelling does not confirm the process tree has exited.",
       parameters: Type.Object(action === "status"
         ? { jobId: Type.Optional(Type.String({ description: "Job to inspect; omit to list all jobs." })) }
-        : { jobId: Type.String() }, { additionalProperties: false }),
+        : { jobId: Type.String({ description: "Job to cancel: the jobId from the background receipt or from shell_job_status." }) }, { additionalProperties: false }),
       outputSchema: action === "status" ? Type.Union([jobSchema, listSchema]) : jobSchema,
       renderCall(args, theme) {
         return new Text(theme.fg("toolTitle", `Shell job ${action} ${display(typeof args?.jobId === "string" ? args.jobId : action === "status" ? "(list)" : "…", 64)}`), 0, 0);
@@ -381,6 +384,12 @@ export default function (pi: ExtensionAPI) {
         return { invalidate() { component.invalidate(); notice.invalidate(); }, render(width) { return [...notice.render(width), ...component.render(width)].slice(0, 300); } };
       },
       async execute(_id, input, _signal, _onUpdate, ctx) {
+        if (action === "cancel" && (typeof input.jobId !== "string" || input.jobId === "")) {
+          throw new Error(`jobId is required (non-empty string); received ${describeReceived(input.jobId)}. Call shell_job_status with no arguments to list job ids, then pass one as jobId.`);
+        }
+        if (action === "status" && input.jobId !== undefined && (typeof input.jobId !== "string" || input.jobId === "")) {
+          throw new Error(`jobId must not be empty and must be a string; received ${describeReceived(input.jobId)}. Call shell_job_status with no arguments (omit jobId) to list job ids.`);
+        }
         const result = action === "status" && input.jobId === undefined
           ? { jobs: jobs.list(ctx) }
           : jobs[action](ctx, input.jobId as string);

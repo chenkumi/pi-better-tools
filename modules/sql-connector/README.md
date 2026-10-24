@@ -30,7 +30,7 @@
 }
 ```
 
-只有 `ctx.isProjectTrusted()` 為 true 時讀取設定。未信任、未設定或設定無效時不註冊資料庫工具；無效設定以安全訊息回報。沒有 SQLite 的 `SQLITE_PATH`／manual-open 模式，也不讀來源專案或使用者 home 的設定檔。
+只有 `ctx.isProjectTrusted()` 為 true 時讀取設定。未信任、未設定或設定無效時不註冊資料庫工具；無效設定以安全訊息回報：UI 通知與狀態列之外，`before_agent_start` 會把一段有界的原因（錯誤碼與中性描述，例如「the user password」「the database host」；不含設定欄位、檔案路徑、環境變數名稱或任何值）附加到 system prompt（優先走 structured section），讓沒有 UI 的 agent 也知道工具為何缺席並請使用者修正後 `/sql-connector-reload`；此舉不註冊任何工具，也不改信任、TLS 或認證。所有 agent 可見文字（工具結果、錯誤、prompt 注入）只提及工具、工具參數、錯誤碼與 slash command；精確的欄位、檔案與環境變數名稱只出現在給人看的 UI 通知（`SqlConnectorError.humanMessage`）。沒有 SQLite 的 `SQLITE_PATH`／manual-open 模式，也不讀來源專案或使用者 home 的設定檔。
 
 - 預設 port：MySQL 3306、MSSQL 1433、PostgreSQL 5432。
 - 密碼接受 literal 或完整 `${ENV_VAR}`，不做任意字串插值。MySQL 可省略／留空 username、password、database 使用 driver/server 預設。

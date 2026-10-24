@@ -5,6 +5,8 @@ import { extractHtml, MAX_EXTRACTED_BYTES, MAX_HTML_BYTES, type ContentFormat, t
 export { extractHtml, MAX_EXTRACTED_BYTES, MAX_HTML_BYTES };
 export type { ContentFormat, ExtractionMode, ExtractionResult };
 
+const EXTRACTION_REMEDY = 'Retry once; if it persists try format:"text" or extraction:"body", or fetch a different URL for the same content.';
+const EXTRACTION_FAILED = `the page HTML could not be converted. ${EXTRACTION_REMEDY}`;
 const SAFE_WORKER_ERROR = /^(EMPTY_CONTENT|TOO_LARGE):/;
 /** Heap cap for one extraction worker so a hostile document cannot exhaust the host process. */
 const WORKER_HEAP_MB = 1024;
@@ -121,8 +123,8 @@ export function extractHtmlIsolated(
     const pooled = acquire();
     if (!pooled) {
       reject(new Error(shuttingDown || owned.size >= MAX_EXTRACTION_WORKERS
-        ? 'BUSY: Content extraction worker capacity is occupied (including terminating workers).'
-        : 'FETCH_FAILED: Could not start the content extraction worker.'));
+        ? 'BUSY: Content extraction worker capacity is occupied (including terminating workers); retry in a few seconds and avoid running many web_fetch calls in parallel.'
+        : 'FETCH_FAILED: Could not start the content extraction worker thread (resource limit or internal error); retry shortly, and if it persists reload the session.'));
       return;
     }
     const { worker } = pooled;
@@ -140,11 +142,11 @@ export function extractHtmlIsolated(
       if ('ready' in message) return;
       finish(true, () => {
         if (message.ok) resolve(message.result);
-        else reject(SAFE_WORKER_ERROR.test(message.message) ? new Error(message.message) : new Error('FETCH_FAILED: Content extraction failed.'));
+        else reject(SAFE_WORKER_ERROR.test(message.message) ? new Error(message.message) : new Error(`FETCH_FAILED: Content extraction failed: ${EXTRACTION_FAILED}`));
       });
     };
-    const onError = () => finish(false, () => reject(new Error('FETCH_FAILED: Content extraction failed.')));
-    const onExit = () => finish(false, () => reject(new Error('FETCH_FAILED: Content extraction worker exited without a result.')));
+    const onError = () => finish(false, () => reject(new Error(`FETCH_FAILED: Content extraction failed: the extraction worker crashed or could not start (possibly out of memory on a very large or complex page). ${EXTRACTION_REMEDY}`)));
+    const onExit = () => finish(false, () => reject(new Error(`FETCH_FAILED: Content extraction worker exited without a result (possibly out of memory on a very large or complex page). ${EXTRACTION_REMEDY}`)));
     signal.addEventListener('abort', onAbort, { once: true });
     worker.on('message', onMessage); worker.on('error', onError); worker.on('exit', onExit);
     void pooled.ready.then((ok) => {

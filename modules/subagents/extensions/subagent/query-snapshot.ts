@@ -13,7 +13,10 @@ export function messageText(content: unknown): string {
 	return Array.isArray(content) ? content.filter(part => part?.type === "text").map(part => part.text).join("\n") : "";
 }
 export function validateInteraction(message: unknown): asserts message is string {
-	if (typeof message !== "string" || !message.trim() || Buffer.byteLength(message, "utf8") > MAX_INTERACTION_BYTES) throw new Error("INVALID_MESSAGE: nonblank literal text of at most 64 KiB required");
+	if (typeof message !== "string") throw new Error(`INVALID_MESSAGE: message must be a string of literal text; received ${message === null ? "null" : typeof message}.`);
+	if (!message.trim()) throw new Error("INVALID_MESSAGE: message is blank; pass the nonblank instruction or question.");
+	const bytes = Buffer.byteLength(message, "utf8");
+	if (bytes > MAX_INTERACTION_BYTES) throw new Error(`INVALID_MESSAGE: message is ${bytes} bytes but at most ${MAX_INTERACTION_BYTES} UTF-8 bytes (64 KiB) are accepted; limits count bytes, not characters, so multibyte text counts more. Shorten it or put details in a file and send its path.`);
 }
 /** Validate provider pairing, never repair/reorder or discard opaque message fields. */
 export function pendingTools(messages: Message[]): Set<string> {

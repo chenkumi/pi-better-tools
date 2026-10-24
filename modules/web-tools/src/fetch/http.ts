@@ -6,6 +6,7 @@ import { pipeline } from 'node:stream/promises';
 import { createBrotliDecompress, createGunzip, createInflate } from 'node:zlib';
 import { awaitResponse } from './bounded.js';
 import { MAX_HTML_BYTES } from './extract.js';
+import { describeNetworkFailure, httpStatusAdvice } from './failure.js';
 import { NetworkPolicy } from './network.js';
 
 /** Media types accepted as a page document, by both the static and the browser path. */
@@ -62,7 +63,7 @@ export function decodeDocument(body: Buffer, contentType: string): string {
   }
   let text: string;
   try { text = new TextDecoder(encoding ?? 'utf-8').decode(body); }
-  catch { throw new Error('UNSUPPORTED_CONTENT: Unsupported document charset.'); }
+  catch { throw new Error(`UNSUPPORTED_CONTENT: Unsupported document charset "${String(encoding).replace(/[^\x21-\x7e]/g, '?').slice(0, 40)}". Try a different URL (for example a UTF-8 or printer-friendly version of the page).`); }
   if (/^text\/plain\b/i.test(contentType)) {
     text = '<!doctype html><html><body><main><pre>' + text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre></main></body></html>';
   }
@@ -79,7 +80,7 @@ async function readDocument(response: IncomingMessage, signal: AbortSignal): Pro
   if (Number(response.headers['content-length']) > MAX_HTML_BYTES) throw new Error('TOO_LARGE: HTTP response exceeds the 5 MiB limit.');
   const encoding = (response.headers['content-encoding'] ?? 'identity').trim().toLowerCase();
   const decoder = encoding === 'gzip' ? createGunzip() : encoding === 'deflate' ? createInflate() : encoding === 'br' ? createBrotliDecompress() : undefined;
-  if (!decoder && encoding !== 'identity') throw new Error('UNSUPPORTED_CONTENT: Unsupported HTTP content encoding.');
+  if (!decoder && encoding !== 'identity') throw new Error(`UNSUPPORTED_CONTENT: Unsupported HTTP content encoding "${encoding.replace(/[^\x21-\x7e]/g, '?').slice(0, 40)}" (supported: gzip, deflate, br, identity). Try a different URL.`);
   const chunks: Buffer[] = [];
   const sink = new Writable({ write(chunk: Buffer, _encoding, done) { chunks.push(chunk); done(); } });
   const wireLimit = byteLimit(MAX_HTML_BYTES);
@@ -104,10 +105,10 @@ export async function fetchStatic(value: string, policy: NetworkPolicy, signal: 
           const status = response.statusCode ?? 0;
           if ([301, 302, 303, 307, 308].includes(status) && response.headers.location) {
             try { target = new URL(response.headers.location, url).href; }
-            catch { throw new Error('INVALID_URL: Invalid redirect destination.'); }
+            catch { throw new Error('INVALID_URL: The server sent an invalid redirect destination (Location header is not a valid URL); try a different URL.'); }
             continue;
           }
-          if (status < 200 || status >= 300 || status === 204 || status === 205) throw new Error(`HTTP_ERROR: Page returned no successful document (HTTP ${status}).`);
+          if (status < 200 || status >= 300 || status === 204 || status === 205) throw new Error(`HTTP_ERROR: Page returned no successful document (HTTP ${status}). ${httpStatusAdvice(status)}`);
           const html = await readDocument(response, signal);
           aborted(signal);
           return { html, finalUrl: url.href, status };
@@ -121,10 +122,10 @@ export async function fetchStatic(value: string, policy: NetworkPolicy, signal: 
         await closed;
       }
     }
-    throw new Error('NETWORK_ERROR: Too many redirects.');
+    throw new Error('NETWORK_ERROR: Too many redirects (limit 20); the URL redirects in a loop. Try the final destination URL directly.');
   } catch (error) {
     aborted(signal);
     if (error instanceof Error && /^(NETWORK_BLOCKED|NETWORK_ERROR|INVALID_URL|HTTP_ERROR|UNSUPPORTED_CONTENT|TOO_LARGE):/.test(error.message)) throw error;
-    throw new Error('NETWORK_ERROR: Static HTTP request failed (check TLS, connectivity and server response).');
+    throw new Error(`NETWORK_ERROR: Static HTTP request failed (${describeNetworkFailure(error)}). Retry once; if it persists try a different URL.`);
   }
 }

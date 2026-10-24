@@ -5,6 +5,7 @@ import { ulid } from "ulid";
 import { writeJsonFile, writeJsonStdout } from "../src/delivery.ts";
 import { extractJsonCandidates } from "../src/extract.ts";
 import { compileSchema, type CompiledSchema } from "../src/schema.ts";
+import { isValidationFault } from "../src/validation-schema.mjs";
 import { validationPool } from "../src/validation-pool.ts";
 
 const TOOL = "json_output";
@@ -94,12 +95,17 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
         const data = rawArguments.has(id) ? rawArguments.get(id) : clone(params);
         rawArguments.delete(id);
         const reason = await schema!.validate(data, signal);
-        if (reason !== undefined) throw new Error(`${TOOL} arguments do not match the schema: ${reason}`);
+        if (reason !== undefined) {
+          if (isValidationFault(reason)) {
+            throw new Error(`${TOOL} could not validate the arguments (validator fault: ${reason}); this is not a schema mismatch. Call ${TOOL} again with the same arguments.`);
+          }
+          throw new Error(`${TOOL} arguments do not match the schema: ${reason}. Call ${TOOL} again with corrected arguments matching the declared schema; pass the fields directly, not wrapped in another object.`);
+        }
         const text = JSON.stringify(data);
         if (accepted && accepted.text !== text) {
           fail("conflicting results: json_output was called twice with different content");
           // Returning (not throwing) lets every tool in the batch agree to terminate, so no further model request is made.
-          return { content: [{ type: "text" as const, text: "A different result was already submitted; the run has failed." }], details: undefined, terminate: true };
+          return { content: [{ type: "text" as const, text: "A different result was already submitted; the run has failed. The first result is not replaced and nothing more can be sent." }], details: undefined, terminate: true };
         }
         accepted = { data, text };
         return { content: [{ type: "text" as const, text: "Result recorded." }], details: undefined, terminate: true };

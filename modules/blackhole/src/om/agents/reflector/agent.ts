@@ -165,7 +165,8 @@ export async function runReflector(args: RunReflectorArgs): Promise<ReflectorRes
       let added = 0;
       let duplicates = 0;
       let rejected = 0;
-      for (const proposal of params.reflections) {
+      const rejectedDetails: string[] = [];
+      for (const [reflectionIndex, proposal] of params.reflections.entries()) {
         const content = normalizeReflectionContent(proposal.content);
         const supportingObservationIds = normalizeSupportingObservationIds(
           proposal.supportingObservationIds,
@@ -173,6 +174,13 @@ export async function runReflector(args: RunReflectorArgs): Promise<ReflectorRes
         );
         if (!content || !supportingObservationIds) {
           rejected++;
+          if (rejectedDetails.length < 5) {
+            if (!content) rejectedDetails.push(`reflections[${reflectionIndex}]: content must be a non-empty single line (no line breaks)`);
+            else {
+              const given = Array.isArray(proposal.supportingObservationIds) ? proposal.supportingObservationIds.slice(0, 3).map((id) => JSON.stringify(String(id).slice(0, 40))).join(", ") : "none";
+              rejectedDetails.push(`reflections[${reflectionIndex}]: unknown or empty supportingObservationIds (${given}); use ids shown in the observation lines`);
+            }
+          }
           continue;
         }
         const id = hashId(content);
@@ -194,7 +202,7 @@ export async function runReflector(args: RunReflectorArgs): Promise<ReflectorRes
       if (terminates) closedByCompleteBatch = true;
       else if (added > 0 || rejected > 0) closedByCompleteBatch = false;
       const rejectionReason =
-        rejected > 0 ? " (invalid content or unknown supporting observation ids)" : "";
+        rejected > 0 ? ` (invalid content or unknown supporting observation ids: ${rejectedDetails.join("; ")}${rejected > rejectedDetails.length ? "; ..." : ""})` : "";
       const refusal =
         params.complete === true && rejected > 0
           ? ` complete=true was not honored: ${rejected} reflection${rejected === 1 ? "" : "s"} in this batch still ${rejected === 1 ? "needs" : "need"} correcting — re-submit them with supportingObservationIds copied from the observation lines; anything not re-submitted is discarded and will not be recorded.`

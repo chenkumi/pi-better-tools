@@ -6,7 +6,8 @@ import { stripVTControlCharacters } from "node:util";
 import { consumeManagedChildGuard } from "../../shell-tools/src/managed-child.ts";
 import { consumeForkChildGuard } from "./identity.ts";
 import { renderForkResult } from "./result-renderer.ts";
-import { RESULT_TYPE, acceptFork, findOwnedJob, messageFork, onSessionShutdown, onSessionStart, onTurnEnd, ownedJobs, requestCancel, summarize } from "./manager.ts";
+import { isTerminal } from "./store.ts";
+import { RESULT_TYPE, acceptFork, notFoundText, findOwnedJob, messageFork, onSessionShutdown, onSessionStart, onTurnEnd, ownedJobs, requestCancel, summarize } from "./manager.ts";
 import { publishForkMonitor } from "./monitor-capability.ts";
 
 const display = (value: unknown, max = 300) => typeof value === "string" ? stripVTControlCharacters(value.slice(0, max * 4)).replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f‪-‮⁦-⁩]/g, "").slice(0, max) : "";
@@ -20,7 +21,7 @@ const renderers = (name: string) => ({
 });
 const ownedJobOrThrow = (ctx: Parameters<typeof findOwnedJob>[0], jobId: unknown) => {
 	const job = findOwnedJob(ctx, jobId);
-	if (!job) throw new Error("FORK_NOT_FOUND: no such Fork in this conversation.");
+	if (!job) throw new Error(`FORK_NOT_FOUND: ${notFoundText(jobId)}`);
 	return job;
 };
 const textResult = (text: string, details: Record<string, unknown>) => ({ content: [{ type: "text" as const, text }], details });
@@ -61,9 +62,9 @@ export default function (pi: ExtensionAPI) {
 		description: "Read-only status of Forks created from THIS conversation. Without jobId lists up to 32; with jobId shows one including its bounded result.",
 		annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
 		defaultActive: true,
-		parameters: Type.Object({ jobId: Type.Optional(Type.String()) }, { additionalProperties: false }),
+		parameters: Type.Object({ jobId: Type.Optional(Type.String({ minLength: 1, description: "Fork job ID returned by fork; omit to list." })) }, { additionalProperties: false }),
 		async execute(_id, params, _signal, _onUpdate, ctx) {
-			if (params.jobId) {
+			if (params.jobId !== undefined) {
 				const summary = summarize(ownedJobOrThrow(ctx, params.jobId), true);
 				return textResult(JSON.stringify(summary), summary);
 			}
@@ -83,7 +84,9 @@ export default function (pi: ExtensionAPI) {
 		parameters: Type.Object({ jobId: Type.String() }, { additionalProperties: false }),
 		async execute(_id, params, _signal, _onUpdate, ctx) {
 			const job = ownedJobOrThrow(ctx, params.jobId);
-			await requestCancel(job);
+			if (isTerminal(job.record.status)) return textResult(`Fork ${job.record.jobId} is already ${job.record.status}; nothing to cancel.`, summarize(job)); // requestCancel would be a no-op
+			try { await requestCancel(job); }
+			catch (error) { throw new Error(`FORK_CANCEL_FAILED: ${display(String((error as Error)?.message ?? error), 200)}; the child may still be running. Check fork_status ${job.record.jobId}.`); }
 			const summary = summarize(job);
 			return textResult(`Cancel requested for ${job.record.jobId}; status ${job.record.status}. Requested is not the same as exited.`, summary);
 		},
@@ -96,7 +99,7 @@ export default function (pi: ExtensionAPI) {
 		description: "Send one instruction to a Fork created from THIS conversation while it is running (or blocked). mode defaults to follow_up, which waits for the current turn; steer interrupts it and can abandon work in progress. Accepted is not applied: the receipt reports queued, not_applied or delivery_unknown, and fork_status shows applied only once the child's own conversation contains the message. A non-live Fork is refused, never queued, retried or replayed; this is not cancellation and it does not wake the parent.",
 		annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
 		defaultActive: true,
-		parameters: Type.Object({ jobId: Type.String({ minLength: 1 }), message: Type.String({ minLength: 1, maxLength: 65536 }), mode: Type.Optional(Type.Union([Type.Literal("follow_up"), Type.Literal("steer")])) }, { additionalProperties: false }),
+		parameters: Type.Object({ jobId: Type.String({ minLength: 1 }), message: Type.String({ minLength: 1, maxLength: 65536, description: "Nonblank instruction text; at most 64 KiB of UTF-8 bytes (multibyte text counts more than characters)." }), mode: Type.Optional(Type.Union([Type.Literal("follow_up"), Type.Literal("steer")])) }, { additionalProperties: false }),
 		async execute(_id, params, _signal, _onUpdate, ctx) {
 			const receipt = await messageFork(ctx, params.jobId, params.message, params.mode ?? "follow_up");
 			return textResult(JSON.stringify(receipt), { ...receipt });

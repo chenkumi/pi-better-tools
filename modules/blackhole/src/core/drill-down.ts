@@ -435,7 +435,7 @@ export function expandEntryFileDetailed(
   const expand = (): DrillDownResult => {
   const position = loaded.rendered.findIndex(entry => entry.index === entryIndex);
   if (position < 0) {
-    return { text: loaded.incomplete ? `Entry #${entryIndex} unavailable in inspected session history.` : `Entry #${entryIndex} not found in session history.` };
+    return { text: loaded.incomplete ? `Entry #${entryIndex} unavailable in inspected session history.` : `Entry #${entryIndex} not found in session history. Use an entry index shown in recall results (run recall with a query first, or expand:[N] with a listed index).` };
   }
 
   const msg = rawMessages[position];
@@ -475,7 +475,7 @@ export function expandEntryFileDetailed(
   // Special case: #42:file keyword
   if (pathPattern === "file") {
     if (calls.length === 0) {
-      return { text: `No file content found in entry #${entryIndex}.` };
+      return { text: `No file content found in entry #${entryIndex}. It has no write/edit/note file operation; use #${entryIndex}:text for its message text, or pick another entry.` };
     }
     if (calls.length === 1) {
       return formatToolCallContent(calls[0], entryIndex, {
@@ -492,7 +492,7 @@ export function expandEntryFileDetailed(
   }
 
   if (matched.length === 0) {
-    return { text: `No file content found in entry #${entryIndex} for "${pathPattern}".` };
+    return { text: `No file content found in entry #${entryIndex} for "${pathPattern}". No file operation path contains that text; use #${entryIndex}:file to list the entry's file operations.` };
   }
 
   if (matched.length > 1) {

@@ -283,3 +283,75 @@ test("content over the size cap is rejected before any directory is created", as
   assert.deepEqual(await readdir(cwd), []);
 });
 
+
+const message = async (promise: Promise<unknown>): Promise<string> => {
+  try { await promise; } catch (error) { return (error as Error).message; }
+  throw new Error("expected rejection");
+};
+
+test("invalid arguments are reported per parameter with the received value and the fix", async t => {
+  const cwd = await workspace(t);
+  let m = await message(execute(cwd, { type: "../outside", content: "x" } as never));
+  assert.match(m, /^NOTE_INVALID_ARGUMENTS:/);
+  assert.match(m, /parameter "type" must be one of plan, design, issue, research, report, task/);
+  assert.match(m, /received "\.\.\/outside"/);
+  m = await message(execute(cwd, { type: 7, content: "x" } as never));
+  assert.match(m, /received number/);
+  m = await message(execute(cwd, { type: "plan", content: 42 } as never));
+  assert.match(m, /parameter "content" must be a string/);
+  assert.match(m, /received number/);
+  m = await message(execute(cwd, { type: "plan", content: "ab\ud800cd" }));
+  assert.match(m, /parameter "content" contains a lone UTF-16 surrogate at index 2/);
+  assert.match(m, /remove it/);
+  assert.equal((await message(execute(cwd, { type: "x".repeat(500), content: "x" } as never))).length < 400, true);
+});
+
+test("unsupported fields such as path or title are named and the fix is stated", async t => {
+  const cwd = await workspace(t);
+  const m = await message(execute(cwd, { type: "plan", content: "x", path: "plans/mine.md", title: "T" } as never));
+  assert.match(m, /^NOTE_INVALID_ARGUMENTS:/);
+  assert.match(m, /unsupported parameter\(s\) "path", "title"/);
+  assert.match(m, /Only "type" and "content"/);
+  assert.match(m, /heading/);
+  assert.deepEqual(await readdir(cwd), []);
+});
+
+test("too-large content reports received size, limit and the fix", async t => {
+  const cwd = await workspace(t);
+  const m = await message(execute(cwd, { type: "plan", content: "x".repeat(MAX_NOTE_BYTES + 5) }));
+  assert.match(m, /^NOTE_TOO_LARGE:/);
+  assert.match(m, new RegExp(`${MAX_NOTE_BYTES + 5} bytes`));
+  assert.match(m, new RegExp(`limit ${MAX_NOTE_BYTES}`));
+  assert.match(m, /split/);
+});
+
+test("directory escape explains the cause, that the path is system-generated, and what to do", async t => {
+  const cwd = await workspace(t), outside = await workspace(t);
+  const { symlink } = await import("node:fs/promises");
+  try { await symlink(outside, join(cwd, "plans"), "junction"); } catch { t.skip("cannot create symlink/junction here"); return; }
+  const m = await message(execute(cwd, { type: "plan", content: "x" }));
+  assert.match(m, /^NOTE_DIRECTORY_ESCAPE:/);
+  assert.match(m, /plans\/ is a symlink or junction/);
+  assert.match(m, /system-generated/);
+  assert.match(m, /ask the user/i);
+  assert.ok(!m.includes(outside) && !m.includes(cwd), "no absolute paths");
+});
+
+test("raw filesystem errors are wrapped with operation, relative folder and hint, without absolute paths", async t => {
+  const cwd = await workspace(t);
+  await writeFile(join(cwd, "plans"), "a regular file");
+  let m = await message(execute(cwd, { type: "plan", content: "x" }));
+  assert.match(m, /^NOTE_WRITE_FAILED:/);
+  assert.match(m, /creating folder plans\//);
+  assert.match(m, /writable directory/);
+  assert.ok(!m.includes(cwd), "no absolute path");
+
+  const realOpen = fsPromises.open;
+  replaceFs(t, "open", (async () => { throw Object.assign(new Error(`ENOSPC: no space left on device, open '${join(cwd, "tasks", "x.md")}'`), { code: "ENOSPC" }); }) as unknown as typeof realOpen);
+  m = await message(execute(cwd, { type: "task", content: "x" }));
+  assert.match(m, /^NOTE_WRITE_FAILED:/);
+  assert.match(m, /writing a note in tasks\//);
+  assert.match(m, /ENOSPC/);
+  assert.match(m, /disk space/);
+  assert.ok(!m.includes(cwd), "no absolute path");
+});

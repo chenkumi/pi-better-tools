@@ -134,7 +134,7 @@ DeepSeek 憑證解析順序：設定裡的 `providers.deepseek.apiKey`／`apiKey
 - 移除 script、導覽等非正文元素，保留程式碼、列表、表格與安全的絕對連結。
 - 每次呼叫使用獨立 browser context，cookies／storage 不共用；browser 共用並於閒置後回收。取消只影響該次抓取，session shutdown／reload 時清理 browser。
 - 回傳 title、URL、HTTP status 與警告（模型可見文字不含取得時間，仍在 data）；不是 AI 摘要。`Final URL` 行僅在與請求 URL 不同時顯示（`data.finalUrl` 永遠保留）。
-- 錯誤訊息附下一步提示（仍不含 Playwright log、headers 或 DNS 細節）：`BROWSER_UNAVAILABLE` 保留錯誤碼，依已知啟動診斷分類：Playwright executable 缺少且要求 selector 時提示以相同使用者／browser cache 環境執行此安裝實例的 `browser install` CLI；Chrome executable 缺少時提示安裝 Google Chrome，或明確改用 `fetch.channel: "chromium"` 並安裝；系統依賴缺失時提示 Linux／WSL 經使用者同意執行此安裝實例的 `browser install-deps` CLI；權限拒絕時檢查 executable／cache 權限與 OS 安全政策；啟動逾時時檢查負載／啟動限制及 `fetch.timeoutMs`；其他失敗只回報啟動失敗、未確認瀏覽器缺失。依分類檢查後才重試，不一律要求重裝或開新 session。整體 fetch deadline 仍優先回報既有 `TIMEOUT`；`NETWORK_BLOCKED` 說明私有／本機位址不可抓、請改用公開 URL；`TIMEOUT` 建議調整 `waitForSelector` 或換頁；`UNSUPPORTED_CONTENT`（PDF、下載等）建議改找 HTML 版本。
+- 錯誤訊息附下一步提示（仍不含 Playwright log、headers 或 DNS 細節）：`BROWSER_UNAVAILABLE` 保留錯誤碼，依已知啟動診斷分類：Playwright executable 缺少且要求 selector 時提示以相同使用者／browser cache 環境執行此安裝實例的 `browser install` CLI；Chrome executable 缺少時提示安裝 Google Chrome，或請使用者改用 Chromium 並安裝（訊息不寫設定鍵）；系統依賴缺失時提示 Linux／WSL 經使用者同意執行此安裝實例的 `browser install-deps` CLI；權限拒絕時檢查 executable／cache 權限與 OS 安全政策；啟動逾時時檢查負載／啟動限制，並請使用者調高抓取時限（訊息不寫設定鍵）；其他失敗只回報啟動失敗、未確認瀏覽器缺失。依分類檢查後才重試，不一律要求重裝或開新 session。整體 fetch deadline 仍優先回報既有 `TIMEOUT`；`NETWORK_BLOCKED` 說明私有／本機位址不可抓、請改用公開 URL；`TIMEOUT` 建議調整 `waitForSelector` 或換頁；`UNSUPPORTED_CONTENT`（PDF、下載等）建議改找 HTML 版本。
 - HTTP 錯誤、不支援內容或空內容視為失敗。HTTP 相容路徑要求明確的 `text/html`、`application/xhtml+xml` 或 `text/plain` Content-Type；缺少 header 也拒絕，不做內容 sniffing（比 browser 路徑保守）。Plain text 先 escape 後抽取，BOM／HTTP charset／HTML early meta charset 依序解析；未知 charset 拒絕。反爬與登入頁偵測僅為啟發式。
 - 不處理 PDF、影音或下載；不登入、不繞過 CAPTCHA 或付費牆、不使用個人 cookies。
 
@@ -182,3 +182,9 @@ DeepSeek 憑證解析順序：設定裡的 `providers.deepseek.apiKey`／`apiKey
   R04 回歸：`tests/integration/fetch.test.ts` 鎖定現況（盲請求仍送達、僅阻止回應使用），「私有目標零請求」以 `todo` 記錄，不使 CI 變紅。
 - 頁面與搜尋內容是不可信的外部資料，清理 HTML 不能消除 prompt injection；網頁與搜尋結果會進入 Pi 對話並傳送給模型供應商。
 - Pi 的 offline 設定不等於阻擋本模組的網路；如需阻擋請使用 OS／container 網路政策。
+
+## Error messages
+
+Failure responses name the parameter or host, the cause category and the fix, and never include upstream bodies, headers or keys (2026-10-24 guidance pass; see plan/error-message-handoff.md).
+- When the web-search configuration is invalid, `web_search` stays unregistered and `web_fetch` guidelines carry one line with the bounded rule and how to fix it (`/reload`); no unselected tool is enabled.
+- `waitForSelector` accepts 1 to 500 characters (schema and runtime agree); timeout messages state the actual deadline in seconds and ask the user to raise the fetch time limit, without naming the settings key. Messages that reach the agent never name settings keys, environment variables or the settings file path (for example a missing search API key asks the user to set "a valid <provider> search service API key in the web tools configuration"); an invalid configuration is reported to the agent only as the error code plus a generic reason. The exact key and file names stay in human-facing output (UI warnings and `/web-tools status`).

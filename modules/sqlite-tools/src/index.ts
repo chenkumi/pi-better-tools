@@ -25,12 +25,11 @@ This extension is ported from \`easy-sqlite-mcp\` and maintains one SQLite conne
 
 ## Lifecycle
 
-- Priority: non-blank \`SQLITE_PATH\` > trusted project \`.pi/agent/sqlite.json\` > manual mode. An untrusted project's config is not read; \`SQLITE_PATH\` still applies.
-- Project config must be a JSON object such as \`{"databasePath":"./data/app.sqlite"}\` with a non-empty string. Database paths may be absolute or relative to the session working directory, not the config directory.
+- Mode: the user may fix the database for the session in advance (fixed mode); otherwise the extension is in manual mode. Fixed settings from an untrusted project are ignored.
 - In manual mode, \`sqlite_open\` and \`sqlite_close\` are registered during \`session_start\`. First call \`sqlite_open\` before using SQLite data tools; call \`sqlite_close\` when finished.
-- In either fixed mode, the extension opens the configured database during \`session_start\` and never registers \`sqlite_open\` or \`sqlite_close\`.
-- Missing config means manual mode. Invalid/unreadable config or a failed fixed database open does not fall back to manual mode; data tools report the error, including without a UI. \`sqlite_status\` and \`sqlite_manual\` remain available.
-- Mode and path are pinned for the session's extension instance. After changing project config, use \`/reload\` or restart pi. Reload/session replacement creates a fresh instance; \`session_shutdown\` closes the previous connection.
+- In fixed mode, the extension opens the database the user chose during \`session_start\` and never registers \`sqlite_open\` or \`sqlite_close\`.
+- No fixed database means manual mode. Invalid or unreadable user settings, or a failed fixed database open, do not fall back to manual mode; data tools report the error, including without a UI. \`sqlite_status\` and \`sqlite_manual\` remain available.
+- Mode and path are pinned for the session's extension instance. After the user changes the database settings, they must use \`/reload\` or restart pi (you cannot reload). Reload/session replacement creates a fresh instance; \`session_shutdown\` closes the previous connection.
 
 ## SQL parameters
 
@@ -65,6 +64,16 @@ function normalizePath(input: string, cwd: string): string {
 
 type FixedDatabase = { filePath: string; source: string };
 
+/**
+ * A startup problem with two wordings: `message` is agent-facing and never names settings files, keys or environment
+ * variables; `humanMessage` keeps those exact names and is shown only in the human UI.
+ */
+class SetupError extends Error {
+  constructor(message: string, readonly humanMessage: string) {
+    super(message);
+  }
+}
+
 async function resolveFixedDatabase(ctx: ExtensionContext): Promise<FixedDatabase | undefined> {
   const environmentPath = process.env.SQLITE_PATH?.trim();
   if (environmentPath) {
@@ -80,34 +89,41 @@ async function resolveFixedDatabase(ctx: ExtensionContext): Promise<FixedDatabas
     contents = await readFile(configPath, "utf8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
-    throw new Error(`Cannot read SQLite config ${configPath}: ${errorMessage(error)}`);
+    const code = (error as NodeJS.ErrnoException).code;
+    throw new SetupError(`Cannot read the SQLite project settings${code ? ` (${code})` : ""}.`, `Cannot read SQLite config ${configPath}: ${errorMessage(error)}`);
   }
 
+  const invalid = (agentDetail: string, humanDetail: string) => new SetupError(`Invalid SQLite project settings: ${agentDetail}`, `Invalid SQLite config ${configPath}: ${humanDetail}`);
+  let config: unknown;
   try {
     // Accept a UTF-8 BOM, which some Windows editors add to JSON files.
-    const config: unknown = JSON.parse(contents.replace(/^\uFEFF/, ""));
-    if (config === null || typeof config !== "object" || Array.isArray(config)) {
-      throw new Error("Expected a JSON object with a non-empty databasePath string.");
-    }
-    const databasePath = (config as Record<string, unknown>).databasePath;
-    if (typeof databasePath !== "string" || !databasePath.trim()) {
-      throw new Error("databasePath must be a non-empty string.");
-    }
-    return { filePath: resolve(ctx.cwd, databasePath), source: configPath };
+    config = JSON.parse(contents.replace(/^\uFEFF/, ""));
   } catch (error) {
-    throw new Error(`Invalid SQLite config ${configPath}: ${errorMessage(error)}`);
+    throw invalid("they are not valid JSON.", errorMessage(error));
   }
+  if (config === null || typeof config !== "object" || Array.isArray(config)) {
+    throw invalid("expected a JSON object with a non-empty database path string.", "Expected a JSON object with a non-empty databasePath string.");
+  }
+  const databasePath = (config as Record<string, unknown>).databasePath;
+  if (typeof databasePath !== "string" || !databasePath.trim()) {
+    throw invalid("the database path must be a non-empty string.", "databasePath must be a non-empty string.");
+  }
+  return { filePath: resolve(ctx.cwd, databasePath), source: configPath };
 }
 
 function asParams(params: unknown): SqlParams | undefined {
   if (params === undefined) return undefined;
   if (Array.isArray(params)) return params;
   if (params !== null && typeof params === "object") return params as Record<string, unknown>;
-  throw new Error("SQL bindings must be an array for positional placeholders or an object for named placeholders.");
+  const received = params === null ? "null" : typeof params;
+  throw new Error(`SQL bindings must be an array for positional placeholders or an object for named placeholders; received ${received}. Pass the values in the "bindings" field as [v1, v2] for ? placeholders or {"name": value} for :name/@name/$name placeholders.`);
 }
 
 function getBindings(input: StatementInput): SqlParams | undefined {
   // `bindings` avoids a transport-level `params` field collision in some tool clients.
+  if (input.bindings !== undefined && input.params !== undefined) {
+    throw new Error("Both `bindings` and `params` were given; they are aliases and only one is used. Pass the values in `bindings` and omit `params`.");
+  }
   return asParams(input.bindings ?? input.params);
 }
 
@@ -169,6 +185,9 @@ export default function sqliteExtension(pi: ExtensionAPI) {
   let stopped = false;
   let manualToolsRegistered = false;
 
+  /** What an agent should do about the current startup state (undefined when ready). */
+  let startupHint: string | undefined = "Wait for session_start, then call this tool again.";
+
   function ensureReady(): void {
     if (startupError) throw new Error(startupError);
   }
@@ -225,7 +244,13 @@ export default function sqliteExtension(pi: ExtensionAPI) {
     promptSnippet: "Check the active SQLite connection and database summary",
     parameters: Type.Object({}),
     async execute() {
-      return result(manager.status());
+      const status = manager.status();
+      if (status.isOpen) return result(status);
+      return result({
+        ...status,
+        ...(startupError ? { startupError } : {}),
+        hint: startupHint ?? "No database is open. In manual mode call sqlite_open with a file_path; otherwise ask the user to fix a database for this session in the SQLite database settings and run /reload.",
+      });
     },
   });
 
@@ -306,16 +331,22 @@ export default function sqliteExtension(pi: ExtensionAPI) {
       if (fixedDatabase) {
         const opened = manager.open(fixedDatabase.filePath);
         if (!opened.success) {
-          throw new Error(`Could not open SQLite database from ${fixedDatabase.source} (${fixedDatabase.filePath}): ${opened.message}`);
+          throw new SetupError(
+            `Could not open the SQLite database the user configured (${fixedDatabase.filePath}): ${opened.message}`,
+            `Could not open SQLite database from ${fixedDatabase.source} (${fixedDatabase.filePath}): ${opened.message}`,
+          );
         }
       } else {
         registerManualTools();
       }
       startupError = undefined;
+      startupHint = undefined;
     } catch (error) {
       if (stopped) return;
-      startupError = errorMessage(error);
-      if (ctx.hasUI) ctx.ui.notify(startupError, "error");
+      startupHint = "The SQLite database could not be set up. This is a problem with the user's database settings that the agent cannot fix: ask the user to correct them and run /reload. Do not fall back to another database.";
+      startupError = `${errorMessage(error)} Ask the user to fix the SQLite database settings, then run /reload (the agent cannot reload).`;
+      // Human-only UI notice: keeps the exact settings file path and variable name.
+      if (ctx.hasUI) ctx.ui.notify(`${error instanceof SetupError ? error.humanMessage : errorMessage(error)} Ask the user to fix the config file or SQLITE_PATH, then run /reload (the agent cannot reload).`, "error");
     }
   }
 
@@ -327,7 +358,8 @@ export default function sqliteExtension(pi: ExtensionAPI) {
 
   pi.on("session_shutdown", () => {
     stopped = true;
-    startupError = "SQLite session has shut down.";
+    startupError = "SQLite session has shut down; the session has ended and this tool can no longer be used. Start a new session.";
+    startupHint = "The session has ended; start a new session to use SQLite tools.";
     manager.close();
   });
 }

@@ -27,11 +27,15 @@ export function isPublicAddress(address: string): boolean {
 
 export function parseWebUrl(value: string): URL {
   let url: URL;
-  try { url = new URL(value); } catch { throw new Error('INVALID_URL: Provide an absolute HTTP(S) URL.'); }
-  if (!['http:', 'https:'].includes(url.protocol)) {
-    throw new Error('INVALID_URL: Only HTTP(S) URLs are supported.');
+  try { url = new URL(value); } catch {
+    // Echo a short, control-free prefix to help the caller spot the typo; skip it when the text may carry credentials.
+    const shown = value.includes('@') ? '' : ` (received "${value.replace(/[^ -~]/g, '?').slice(0, 80)}${value.length > 80 ? '...' : ''}")`;
+    throw new Error(`INVALID_URL: Parameter "url" is not an absolute URL${shown}. Use a public http:// or https:// URL, for example https://example.com/page.`);
   }
-  if (url.username || url.password) throw new Error('INVALID_URL: URL credentials are not allowed.');
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    throw new Error(`INVALID_URL: Parameter "url" uses scheme "${url.protocol}", which is not supported. Use a public http:// or https:// URL.`);
+  }
+  if (url.username || url.password) throw new Error('INVALID_URL: Parameter "url" contains credentials (user:password@); remove them. Pages that need login cannot be fetched, so use a public URL.');
   return url;
 }
 
@@ -44,6 +48,16 @@ const isLocalHostname = (hostname: string) => hostname === 'localhost' || hostna
 /** Per-fetch memo of hostname checks so one page's subresources resolve each host once. */
 export type ValidationCache = Map<string, Promise<void>>;
 
+// Hosts below are the ones the caller (or a redirect from the page it asked for) supplied; resolved addresses are never echoed.
+const localMessage = (host: string) => `NETWORK_BLOCKED: Host "${host}" is a local-network name (localhost, *.localhost or *.local); web_fetch only reaches public internet hosts. This may be the url itself or a redirect target; use a public http(s) URL.`;
+const literalMessage = (host: string) => {
+  let kind = 'non-public';
+  try { kind = ipaddr.process(host).range(); } catch { /* keep generic */ }
+  return `NETWORK_BLOCKED: Address "${host}" is not a public internet address (${kind}); private, loopback and link-local addresses cannot be fetched; use a public http(s) URL.`;
+};
+const dnsMessage = (host: string) => `NETWORK_ERROR: DNS lookup failed for host "${host}". Check the hostname spelling; the domain may not exist or DNS may be temporarily unavailable. This may be the url itself or a redirect target.`;
+const resolvedMessage = (host: string) => `NETWORK_BLOCKED: Host "${host}" resolves to a non-public address (every resolved address must be public), so it cannot be fetched. This may be the url itself or a redirect target; use a different public http(s) URL.`;
+
 export class NetworkPolicy {
   constructor(
     private readonly allowPrivateNetwork = false,
@@ -55,7 +69,7 @@ export class NetworkPolicy {
   assertConnectedAddress(address: string | undefined): void {
     if (this.allowPrivateNetwork) return;
     if (!address || !isPublicAddress(address)) {
-      throw new Error('NETWORK_BLOCKED: The connection reached a non-public address. Private and local addresses cannot be fetched; use a public URL.');
+      throw new Error('NETWORK_BLOCKED: The connection (possibly after a redirect or DNS change) reached a non-public address. Private and local addresses cannot be fetched; use a different public http(s) URL.');
     }
   }
 
@@ -64,10 +78,10 @@ export class NetworkPolicy {
     if (this.allowPrivateNetwork) return url;
     const hostname = normalizedHostname(url);
     if (isLocalHostname(hostname)) {
-      throw new Error('NETWORK_BLOCKED: Local network destinations are not allowed. Private and local addresses cannot be fetched; use a public URL.');
+      throw new Error(localMessage(hostname));
     }
     if (ipaddr.isValid(hostname)) {
-      if (!isPublicAddress(hostname)) throw new Error('NETWORK_BLOCKED: Non-public addresses are not allowed. Private and local addresses cannot be fetched; use a public URL.');
+      if (!isPublicAddress(hostname)) throw new Error(literalMessage(hostname));
       return url;
     }
     let check = cache?.get(hostname);
@@ -84,13 +98,13 @@ export class NetworkPolicy {
     const url = parseWebUrl(value);
     const hostname = normalizedHostname(url);
     if (!this.allowPrivateNetwork && isLocalHostname(hostname)) {
-      throw new Error('NETWORK_BLOCKED: Local network destinations are not allowed.');
+      throw new Error(localMessage(hostname));
     }
     let addresses: readonly { address: string }[];
     try { addresses = ipaddr.isValid(hostname) ? [{ address: hostname }] : await this.resolve(hostname); }
-    catch { throw new Error('NETWORK_ERROR: Could not resolve the destination.'); }
+    catch { throw new Error(dnsMessage(hostname)); }
     if (!addresses.length || addresses.some(({ address }) => !ipaddr.isValid(address) || (!this.allowPrivateNetwork && !isPublicAddress(address)))) {
-      throw new Error('NETWORK_BLOCKED: Every resolved address must be public. Private and local addresses cannot be fetched; use a public URL.');
+      throw new Error(resolvedMessage(hostname));
     }
     return { url, address: addresses[0]!.address };
   }
@@ -98,10 +112,10 @@ export class NetworkPolicy {
   private async checkResolved(hostname: string): Promise<void> {
     let addresses: readonly { address: string }[];
     try { addresses = await this.resolve(hostname); } catch {
-      throw new Error('NETWORK_ERROR: Could not resolve the destination.');
+      throw new Error(dnsMessage(hostname));
     }
     if (!addresses.length || addresses.some(({ address }) => !isPublicAddress(address))) {
-      throw new Error('NETWORK_BLOCKED: Every resolved address must be public. Private and local addresses cannot be fetched; use a public URL.');
+      throw new Error(resolvedMessage(hostname));
     }
   }
 }

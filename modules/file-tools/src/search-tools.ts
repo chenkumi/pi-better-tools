@@ -19,7 +19,7 @@ export function registerLsTool(pi: ExtensionAPI): void {
 
 /** Match host provider nullable optionals; required fields remain for host validation. */
 function normalizeOptionalNulls(args: unknown): Record<string, unknown> {
-  if (typeof args !== "object" || args === null || Array.isArray(args)) throw new Error("Search tool input must be an object.");
+  if (typeof args !== "object" || args === null || Array.isArray(args)) throw new Error(`ls input must be an object like {"path":".","limit":100} (received ${args === null ? "null" : Array.isArray(args) ? "array" : typeof args}).`);
   const result = { ...args } as Record<string, unknown>;
   for (const key of ["path", "limit"]) {
     if (result[key] === null) delete result[key];

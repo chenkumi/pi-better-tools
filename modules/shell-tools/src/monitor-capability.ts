@@ -21,7 +21,7 @@ export function publishCapability(kind: JobKind, scope: MonitorScope, generation
 }
 export function acquireCapability(kind: JobKind, scope: MonitorScope): ReadonlyJobLease {
   const id = identity(kind, scope), provider = registry().get(id);
-  const assert = () => { if (!provider || provider.revoked || registry().get(id) !== provider || !provider.valid()) throw new Error('Monitor readonly adapter unavailable or owner/cwd/generation mismatch'); };
+  const assert = () => { if (!provider || provider.revoked || registry().get(id) !== provider || !provider.valid()) throw new Error('Monitor readonly adapter unavailable or owner/cwd/generation mismatch: the observing module is not registered for this session, or the session/cwd was replaced. Re-run monitor_start in the current session while that module is loaded.'); };
   assert();
   return Object.freeze({ generation: provider!.generation, snapshot(jobId: string) { assert(); const value = provider!.read(jobId); assert(); return value; } });
 }

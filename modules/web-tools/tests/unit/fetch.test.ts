@@ -31,7 +31,7 @@ test('Playwright TLS compatibility handles a destroyed socket certificate result
 test('browser launch failures retain their code with safe, cause-specific guidance', async (t) => {
   const cases: Array<{ channel: 'chromium' | 'chrome'; error: unknown; expected: RegExp; install?: boolean }> = [
     { channel: 'chromium', error: new Error("browserType.launch: Executable doesn't exist at C:/SECRET/chrome.exe"), expected: /Playwright Chromium executable was not found/, install: true },
-    { channel: 'chrome', error: new Error("browserType.launch: Chromium distribution 'chrome' is not found at C:/SECRET/chrome.exe"), expected: /Google Chrome executable was not found.*Install Google Chrome/, install: true },
+    { channel: 'chrome', error: new Error("browserType.launch: Chromium distribution 'chrome' is not found at C:/SECRET/chrome.exe"), expected: /Google Chrome executable was not found.*Install Google Chrome, or ask the user to switch the browser fetch engine to Chromium/, install: true },
     { channel: 'chromium', error: new Error('browserType.launch: Host system is missing dependencies to run browsers. SECRET'), expected: /system dependencies are missing.*install-deps/ },
     { channel: 'chromium', error: new Error('browserType.launch: Host system is missing dependencies!\nSECRET.dll'), expected: /system dependencies are missing/ },
     { channel: 'chromium', error: new Error('browserType.launch: error while loading shared libraries: SECRET.so'), expected: /system dependencies are missing/ },
@@ -194,7 +194,7 @@ test('pre-abort, default private-network rejection, and close do not require bro
     const controller = new AbortController();
     controller.abort(new Error('external secret'));
     await assert.rejects(service.fetch({ url: 'https://example.org/' }, controller.signal), /^Error: CANCELLED:/);
-    await assert.rejects(service.fetch({ url: 'http://127.0.0.1/' }), /NETWORK_BLOCKED:.*use a public URL/);
+    await assert.rejects(service.fetch({ url: 'http://127.0.0.1/' }), /NETWORK_BLOCKED:.*use a public http\(s\) URL/);
     await assert.rejects(service.fetch({ url: 'http://user:secret@example.org/' }), (error: Error) => !error.message.includes('secret') && error.message.startsWith('INVALID_URL:'));
   } finally { await service.close(); }
   await service.close();

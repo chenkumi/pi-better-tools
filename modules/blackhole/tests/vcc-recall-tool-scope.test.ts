@@ -74,6 +74,8 @@ describe("vcc_recall scope", () => {
 
       const lineage = await invoke(tool, file, { expand: [1] });
       expect(lineage).toContain("Cannot expand indices outside active lineage: 1");
+      expect(lineage).toContain("Parameter \"expand\"");
+      expect(lineage).toContain("scope:'all'");
 
       const all = await invoke(tool, file, { expand: [1], scope: "all" });
       expect(all).toContain("Scope: all");

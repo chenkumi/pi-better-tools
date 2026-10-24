@@ -912,7 +912,7 @@ export class CronScheduler {
     if (fields.length !== 6) {
       return {
         valid: false,
-        error: `Cron expression must have 6 fields (second minute hour dom month dow), got ${fields.length}. Example: "0 * * * * *" for every minute`,
+        error: `Cron expression must have 6 fields (second minute hour dom month dow), got ${fields.length} in "${expression.slice(0, 80)}". Example: "0 * * * * *" for every minute. For a one-time run use type "once" with an ISO timestamp or '+10s'; for a fixed period use type "interval" with '5m'.`,
       };
     }
 
@@ -924,7 +924,7 @@ export class CronScheduler {
     } catch (error) {
       return {
         valid: false,
-        error: error instanceof Error ? error.message : "Invalid cron expression",
+        error: `${error instanceof Error ? error.message : "Invalid cron expression"} (received "${expression.slice(0, 80)}"). Format: second minute hour day-of-month month day-of-week; ranges sec 0-59, min 0-59, hour 0-23, dom 1-31, month 1-12, dow 0-7. Example: "0 30 9 * * 1-5" (09:30:00 on weekdays).`,
       };
     }
   }
@@ -980,7 +980,7 @@ export class CronScheduler {
       if (!intervalMs) {
         return {
           ok: false,
-          error: `Invalid interval format: ${schedule}. Use format like '5m', '1h', '30s'`,
+          error: `Invalid interval format: ${schedule}. Use an integer >= 1 plus a unit s, m, h or d, like '5m', '1h', '30s'`,
         };
       }
       if (intervalMs > MAX_TIMER_MS) {
@@ -1029,7 +1029,9 @@ export class CronScheduler {
     // cron
     const validation = CronScheduler.validateCronExpression(schedule);
     if (!validation.valid) {
-      return { ok: false, error: `Invalid cron expression: ${validation.error}` };
+      const looksOnce = /^\+\d+[smhd]$/.test(schedule.trim()) || /^\d{4}-\d{2}-\d{2}/.test(schedule.trim());
+      const hint = looksOnce ? ` '${schedule.slice(0, 80)}' looks like a one-time schedule: set type to "once" (type defaults to "cron").` : "";
+      return { ok: false, error: `Invalid cron expression: ${validation.error}${hint}` };
     }
     return { ok: true, schedule };
   }

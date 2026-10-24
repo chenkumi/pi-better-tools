@@ -4,20 +4,14 @@ import { isManagedForegroundChild } from '../../shell-tools/src/managed-child.js
 import { AUTO_MONITOR_INTERVAL_MS, acquireCapability, canonicalMonitorCwd, publishActiveMonitorBriefs, publishAutoMonitor } from '../../shell-tools/src/monitor-capability.js';
 import { MonitorRuntime, realClock, sameOwner, type Clock, type Owner } from './core.js';
 import { monitorRenderers, renderMonitorEvent } from './renderers.js';
-import { FILE_INTERVAL, JOB_INTERVAL, startSchema, validateStart } from './schema.js';
+import { FILE_INTERVAL, JOB_INTERVAL, startSchema, validateMonitorId, validateStart } from './schema.js';
 import { commandLaunch, fileLaunch, jobLaunch, resolveFilePath, websocketLaunch } from './sources.js';
 import { parseEndpoint } from './network.js';
 const strict = { additionalProperties: false };
 function scope(ctx: ExtensionContext): Owner { return { sessionId: ctx.sessionManager.getSessionId(), cwd: canonicalMonitorCwd(ctx.cwd) }; }
 function output(value: unknown, isError = false) { const data = JSON.parse(JSON.stringify(value)); return { content: [{ type: 'text' as const, text: JSON.stringify(data) }], details: data, structuredContent: data, ...(isError ? { isError: true } : {}) }; }
-/** Direct execution must not depend on host argument validation being present. */
-function validateMonitorId(value: unknown, required: boolean): { monitorId?: string } {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid Monitor ID parameters');
-  const { monitorId, ...rest } = value as { monitorId?: unknown };
-  const valid = Object.keys(rest).length === 0 && (monitorId === undefined ? !required : typeof monitorId === 'string' && monitorId.length > 0 && monitorId.length <= 128);
-  if (!valid) throw new Error('Invalid Monitor ID parameters');
-  return { monitorId: monitorId as string | undefined };
-}
+/** Lists the tool that returns valid ids for each job source, so a rejected jobId says where to look. */
+const JOB_LISTING: Record<string, string> = { shell_job: 'shell_job_status', subagent_job: 'subagent_status', fork_job: 'fork_status' };
 /** Native Monitor v1; registration is not activation and no factory-time resources start. */
 export default function monitorExtension(pi: ExtensionAPI, seam: { clock?: Clock; onRuntime?: (runtime: MonitorRuntime) => void } = {}) {
   if (isManagedForegroundChild()) return;
@@ -28,8 +22,8 @@ export default function monitorExtension(pi: ExtensionAPI, seam: { clock?: Clock
   let bound: Owner | undefined, revokeAuto: (() => void) | undefined, revokeBriefs: (() => void) | undefined;
   /** Every Monitor tool re-checks these at execution: a managed child never runs Monitor, and registration is not selection. */
   const assertExecutable = (tool: string) => {
-    if (isManagedForegroundChild()) throw new Error('Managed child cannot execute Monitor');
-    if (!pi.getActiveTools().includes(tool)) throw new Error(`${tool} is not selected`);
+    if (isManagedForegroundChild()) throw new Error(`${tool}: a managed child cannot execute Monitor; Monitor is only available to the main agent, so report the need to your parent`);
+    if (!pi.getActiveTools().includes(tool)) throw new Error(`${tool} is registered but not enabled for this session; ask the user to enable it`);
   };
   /** Shell asks for a display-only sampler on background jobs that have no timeoutMs; honours monitor_start selection and capacity. */
   const autoMonitor = (ctx: ExtensionContext) => (jobId: string) => {
@@ -58,8 +52,8 @@ export default function monitorExtension(pi: ExtensionAPI, seam: { clock?: Clock
       try {
         assertExecutable('monitor_start');
         const input = validateStart(value), owner = scope(ctx);
-        if (!sameOwner(bound, owner)) throw new Error('Monitor owner/cwd mismatch');
-        if (signal?.aborted) throw new Error('Monitor aborted before acceptance');
+        if (!sameOwner(bound, owner)) throw new Error('Monitor not started: the bound owner no longer matches this session/canonical cwd (session replaced, reloaded, or cwd changed). Start the monitor again from the current session.');
+        if (signal?.aborted) throw new Error('Monitor not started: the tool call was cancelled before acceptance. Retry if the monitor is still needed.');
         let launch;
         const source = input.source;
         if (source.kind === 'command') launch = commandLaunch(pi, ctx, source);
@@ -67,11 +61,13 @@ export default function monitorExtension(pi: ExtensionAPI, seam: { clock?: Clock
         else if (source.kind === 'file') launch = fileLaunch(owner.cwd, resolveFilePath(owner.cwd, source.path), source.intervalMs ?? FILE_INTERVAL.default, clock); // Rejects paths outside the canonical workspace before acceptance.
         else {
           const lease = acquireCapability(source.kind, owner);
-          lease.snapshot(source.jobId); // Reject missing/foreign jobs before acceptance; never query a model.
+          // Reject missing/foreign jobs before acceptance; never query a model.
+          try { lease.snapshot(source.jobId); }
+          catch (error) { throw new Error(`${source.kind} source "jobId" ${JSON.stringify(source.jobId.slice(0, 128))} was not accepted: ${error instanceof Error ? error.message : String(error)}. Pass a jobId of this session/cwd exactly as returned when the job started (list them with ${JOB_LISTING[source.kind]})`); }
           launch = jobLaunch(lease, source.jobId, source.intervalMs ?? JOB_INTERVAL.default, clock);
         }
         return output(runtime.start(input, launch, signal));
-      } catch (error) { return output({ error: error instanceof Error ? error.message : 'Monitor startup rejected' }, true); }
+      } catch (error) { return output({ error: error instanceof Error ? error.message : `Monitor startup rejected by an unexpected internal error (${String(error).slice(0, 200)}); retry once, then report it` }, true); }
     },
   });
   for (const action of ['status', 'stop'] as const) pi.registerTool({
@@ -81,10 +77,10 @@ export default function monitorExtension(pi: ExtensionAPI, seam: { clock?: Clock
     async execute(_id, value, _signal, _onUpdate, ctx) {
       try {
         assertExecutable(`monitor_${action}`);
-        const { monitorId } = validateMonitorId(value, action === 'stop'), owner = scope(ctx);
+        const { monitorId } = validateMonitorId(value, action === 'stop', `monitor_${action}`), owner = scope(ctx);
         if (!monitorId) return output({ monitors: runtime.list(owner) });
         return output(action === 'stop' ? runtime.stop(monitorId, owner) : runtime.status(monitorId, owner));
-      } catch (error) { return output({ error: error instanceof Error ? error.message : 'Monitor request rejected' }, true); }
+      } catch (error) { return output({ error: error instanceof Error ? error.message : `monitor_${action} rejected by an unexpected internal error (${String(error).slice(0, 200)}); retry once, then report it` }, true); }
     },
   });
 }

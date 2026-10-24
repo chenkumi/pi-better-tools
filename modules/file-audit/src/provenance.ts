@@ -118,6 +118,8 @@ function code(error: unknown): string {
   // Never echo arbitrary file contents, provider output or OS diagnostic paths.
   return value?.code ?? (value instanceof Error && /^[a-z-]+$/.test(value.message) ? value.message : "inspection-failed");
 }
+/** Sanitized failure code safe to show the human (errno code or a fixed token; never file contents or paths). */
+export const failureCode = code;
 async function readBounded(path: string, root: string, budget: Budget, maxFile: number, signal: AbortSignal | undefined, text: boolean): Promise<string> {
   signal?.throwIfAborted();
   const lexical = resolve(root, path);

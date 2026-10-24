@@ -204,3 +204,8 @@ status／cancel 的 TUI 使用 `Job status`、`Reason`、`Next` 及展開的 `Jo
 
 - 只改變模型可呼叫的 shell 工具，不影響 `!`／`!!` 使用者 shell 指令或 `pi.exec()`。
 - 同名 shell 工具應只由一個擴充擁有；本模組不會與 SSH、sandbox 或 spawn-hook 覆寫自動組合，也不保證保留其執行限制，不要把載入順序當作安全邊界。
+
+## Error messages
+
+Failure responses name the parameter, the rule, a bounded received value and the fix (2026-10-24 guidance pass; see plan/error-message-handoff.md). Agent-visible messages name only the tool's own arguments, tool names and error codes; settings keys such as the auto-background threshold are not named.
+- `timeoutMs` errors state the 1..2147483647 range, the unit and an example; unknown `jobId` points to `shell_job_status` without arguments; background start failures say the command was not run.

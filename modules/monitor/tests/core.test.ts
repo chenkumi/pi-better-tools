@@ -40,7 +40,7 @@ test('receipt identity, ordering, busy latch and truthful no-ack submission', as
   assert.deepEqual(f.messages[0].details.events.filter((e: any) => e.category === 'data').map((e: any) => e.text), ['first', 'second']);
   assert.equal(f.runtime.status(r.monitorId).notification.state, 'submitted');
   assert.equal(f.runtime.status(r.monitorId).notification.hostAcknowledgment, 'unknown');
-  assert.equal(f.options[0].triggerTurn, true); f.finish(); await turn(); await f.runtime.shutdown();
+  assert.equal(f.options[0].triggerTurn, true); assert.equal(f.messages[0].display, true); f.finish(); await turn(); await f.runtime.shutdown();
 });
 test('total TTL stops source, never implies close before actual barrier', async () => {
   const f = fixture(); const r = f.start({ durationMs: 1000 }); await turn(); f.clock.advance(1000);
@@ -53,7 +53,8 @@ test('idempotent stop and stopAfterEvents preserve cleanup evidence', async () =
   const f = fixture(); const r = f.start({ stopAfterEvents: 2, wakeAgent: false }); await turn(); f.sink().data('a'); f.sink().data('b');
   assert.equal(f.aborted(), true); assert.equal(f.runtime.status(r.monitorId).counts.adopted, 2);
   f.runtime.stop(r.monitorId); f.runtime.stop(r.monitorId); f.finish(); await turn(); f.clock.advance(0);
-  assert.equal(f.runtime.status(r.monitorId).state, 'limited'); assert.equal(f.options[0].triggerTurn, false); await f.runtime.shutdown();
+  assert.equal(f.runtime.status(r.monitorId).state, 'limited'); assert.equal(f.options[0].triggerTurn, false);
+  assert.equal(f.messages[0].display, false, 'a display-only batch is saved and kept in context but not rendered'); await f.runtime.shutdown();
 });
 test('rolling rate rejects 61st event, with one terminal rate event', async () => {
   const f = fixture(); const r = f.start(); await turn(); for (let i = 0; i < 61; i++) f.sink().data(String(i));
@@ -130,9 +131,11 @@ test('notifications are submitted as steer (wake flag follows wakeAgent) without
   const wake: any[] = [], quiet: any[] = [];
   const a = fixture((_m, o) => wake.push(o)); const w = a.start(); await turn(); a.sink().data('x'); a.clock.advance(0);
   assert.deepEqual(wake, [{ triggerTurn: true, deliverAs: 'steer' }], 'no agent_settled needed: nothing holds the submission back');
+  assert.equal(a.messages[0].display, true, 'a turn-requesting batch stays visible');
   a.finish(); await turn(); await a.runtime.shutdown();
   const b = fixture((_m, o) => quiet.push(o)); b.start({ wakeAgent: false }); await turn(); b.sink().data('y'); b.clock.advance(0);
   assert.deepEqual(quiet, [{ triggerTurn: false, deliverAs: 'steer' }]);
+  assert.equal(b.messages[0].display, false, 'wakeAgent:false hides the TUI panel but keeps the persisted context entry');
   b.finish(); await turn(); await b.runtime.shutdown(); void w;
 });
 

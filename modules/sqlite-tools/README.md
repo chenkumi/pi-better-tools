@@ -24,6 +24,7 @@
 - Fixed mode：啟動時開啟指定資料庫，完全不註冊 open／close，不能切換資料庫。
 - 專案設定格式：`{ "databasePath": "./data/app.sqlite" }`；相對路徑以 session `ctx.cwd` 為準，而非設定檔目錄。
 - 未信任專案不讀取設定檔；環境變數仍有效。無效設定或開啟失敗不退回 manual mode。修改設定後 `/reload`。
+- Agent 可見文字（工具結果、錯誤、`sqlite_manual`、`sqlite_status` 的 hint）只提及工具、工具參數與 slash command，以「the user's database settings」之類中性詞彙描述設定問題，不含設定檔路徑、欄位或環境變數名稱；精確名稱只出現在給人看的 UI 通知。
 
 ## SQL 與安全
 
@@ -50,3 +51,7 @@
 ## 驗證
 
 根目錄執行 `npm run test:module -- sqlite-tools`：strict typecheck、來源單元測試及離線真實 Pi SDK deferred 搜尋／提示／manual-fixed reload 與清理測試。測試不呼叫模型或真實 provider credentials；根 manifest／跨模組與封裝驗證另由 `test:cross`、`test:package` 負責。
+
+## Error messages
+
+Failure responses name the parameter, the rule and the fix (2026-10-24 guidance pass; see plan/error-message-handoff.md). Driver errors are wrapped with the operation, SQLite code, a SQL excerpt of at most 200 characters and a category hint.

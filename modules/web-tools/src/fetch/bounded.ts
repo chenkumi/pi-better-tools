@@ -75,7 +75,7 @@ export function awaitResponse(request: ClientRequest, signal: AbortSignal, cance
       socket.destroy();
       settle(new Error(upgradeMessage));
     };
-    const onClose = () => settle(new Error('NETWORK_ERROR: The connection closed before any response.'));
+    const onClose = () => settle(new Error('NETWORK_ERROR: The server closed the connection before sending any response; retry once, or try a different URL.'));
     request.once('response', (value: IncomingMessage) => settle(undefined, value));
     request.once('upgrade', onUpgrade);
     request.once('close', onClose);
@@ -135,12 +135,12 @@ export async function requestBounded(input: BoundedRequest): Promise<BoundedResp
       const encoding = (flat['content-encoding'] ?? 'identity').trim().toLowerCase();
       const decoder = encoding === 'gzip' || encoding === 'x-gzip' ? createGunzip()
         : encoding === 'deflate' ? createInflate() : encoding === 'br' ? createBrotliDecompress() : undefined;
-      if (!decoder && encoding !== 'identity' && encoding !== '') throw new Error('UNSUPPORTED_CONTENT: Unsupported HTTP content encoding.');
+      if (!decoder && encoding !== 'identity' && encoding !== '') throw new Error(`UNSUPPORTED_CONTENT: Unsupported HTTP content encoding "${encoding.replace(/[^\x21-\x7e]/g, '?').slice(0, 40)}" (supported: gzip, deflate, br, identity). Try a different URL.`);
       const declared = Number(flat['content-length']);
-      if (Number.isFinite(declared) && declared > limit) throw new Error('TOO_LARGE: Response exceeds the size limit.');
+      if (Number.isFinite(declared) && declared > limit) throw new Error('TOO_LARGE: Response exceeds the size limit; try a smaller page or a more specific URL.');
       const chunks: Buffer[] = [];
       const sink = new Writable({ write(chunk: Buffer, _encoding, done) { chunks.push(chunk); done(); } });
-      const message = 'TOO_LARGE: Response exceeds the size limit.';
+      const message = 'TOO_LARGE: Response exceeds the size limit; try a smaller page or a more specific URL.';
       const wire = limiter(limit, message);
       const decoded = limiter(limit, message, budget ? (bytes) => budget.take(bytes) : undefined);
       try {
@@ -149,7 +149,7 @@ export async function requestBounded(input: BoundedRequest): Promise<BoundedResp
       } catch (error) {
         if (signal.aborted) throw abortReason(signal);
         if (error instanceof Error && /^(TOO_LARGE|UNSUPPORTED_CONTENT):/.test(error.message)) throw error;
-        throw new Error('NETWORK_ERROR: Could not read the response body.');
+        throw new Error('NETWORK_ERROR: The connection dropped while reading the response body; retry once, or try a different URL.');
       }
       return Buffer.concat(chunks);
     },

@@ -85,7 +85,7 @@ test('deadline cancels and provider selection cannot silently fall back', async 
   })), /TIMEOUT/);
   c.provider = 'openai';
   await assert.rejects(search(c, { query: 'topic' }), /PROVIDER_UNSUPPORTED/);
-  await assert.rejects(search(config(), { query: '' }), /CONFIG_INVALID/);
+  await assert.rejects(search(config(), { query: '' }), /INVALID_INPUT:.*`query`/);
 });
 test('a legacy provider input is ignored: the configured provider is always used', async () => {
   let called = '';

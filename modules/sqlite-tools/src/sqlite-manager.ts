@@ -78,13 +78,47 @@ function assertSingleStatement(sql: string): void {
   }
 }
 
+/** An error already phrased for the agent; it must not be wrapped a second time as a driver error. */
+class GuidedError extends Error {}
+
+const SQL_EXCERPT_CHARS = 200;
+const BINDING_RULES = "bindings must match the placeholders: an array only for ? placeholders, or an object only for :name/@name/$name placeholders (never mixed)";
+
+function sqlExcerpt(sql: string): string {
+  const flat = sql.replace(/\s+/g, " ").trim();
+  return flat.length > SQL_EXCERPT_CHARS ? `${flat.slice(0, SQL_EXCERPT_CHARS)}...` : flat;
+}
+
+function driverHint(message: string, writes: boolean): string {
+  if (/constraint failed/i.test(message)) return "The statement was not applied. Fix the values (duplicate key, NOT NULL, foreign key) or check the schema with sqlite_describe_table.";
+  if (/database is locked|database table is locked|busy/i.test(message)) return "Another process holds a lock on the database; retry later. The statement was not applied.";
+  if (/readonly/i.test(message)) return "The database or its directory is read-only; ask the user to fix permissions or configure a writable database.";
+  if (/malformed|not a database|encrypted/i.test(message)) return "The file is not a readable SQLite database; check the configured path.";
+  if (/named parameter|cannot be bound|bind|column index out of range|too many parameters|parameter/i.test(message)) return `Check that ${BINDING_RULES}.`;
+  const next = writes ? "Nothing was changed by this failed statement." : "";
+  return `Check the SQL syntax and the table/column names with sqlite_list_tables and sqlite_describe_table. ${next}`.trim();
+}
+
+/** Wraps a raw node:sqlite error with the operation, SQLite code, bounded SQL and a fix hint. */
+function wrapDriverError(operation: string, error: unknown, sql: string, writes: boolean): Error {
+  if (error instanceof GuidedError) return error;
+  const detail = error as { errcode?: unknown; errstr?: unknown };
+  const code = typeof detail.errcode === "number" ? ` (SQLite code ${detail.errcode}${typeof detail.errstr === "string" ? `: ${detail.errstr}` : ""})` : "";
+  const message = errorMessage(error);
+  return new Error(`${operation} failed: ${message}${code}. SQL: ${sqlExcerpt(sql)}. ${driverHint(message, writes)}`);
+}
+
 export interface QueryResult {
   columns: string[];
   rows: unknown[][];
   rowCount: number;
   /** Present when the result was cut at MAX_QUERY_ROWS or MAX_QUERY_BYTES; more rows exist. */
   truncated?: true;
+  /** Present with `truncated`: how to narrow the query. */
+  hint?: string;
 }
+
+const TRUNCATION_HINT = `The result was cut at ${MAX_QUERY_ROWS} rows or ${MAX_QUERY_BYTES} bytes and more rows exist. Narrow it: add WHERE conditions, select fewer or shorter columns, or page with LIMIT n OFFSET m.`;
 
 function boundedValue(value: unknown): unknown {
   if (value instanceof Uint8Array && value.length > MAX_BLOB_BYTES) {
@@ -134,7 +168,10 @@ export class SqliteManager {
       };
     } catch (error) {
       this.forgetConnection();
-      return { success: false, message: `Failed to open database: ${errorMessage(error)}` };
+      return {
+        success: false,
+        message: `Failed to open database ${filePath}: ${errorMessage(error)}. Check file_path: it must be an existing SQLite file or a new file in an existing, writable directory (absolute or relative to the project cwd; a leading @ is stripped).`,
+      };
     }
   }
 
@@ -174,9 +211,9 @@ export class SqliteManager {
   }
 
   private runQuery(sql: string, params?: SqlParams): QueryResult {
-    const statement = this.getDatabase().prepare(sql);
+    const statement = this.prepareStatement("sqlite_query", sql, false);
     if (!isReader(statement)) {
-      throw new Error("sqlite_query accepts only statements that return rows. Use sqlite_execute for writes.");
+      throw new GuidedError("sqlite_query accepts only statements that return rows. Use sqlite_execute for writes.");
     }
 
     // Column names come from statement metadata, so duplicate names and empty results keep their shape.
@@ -186,26 +223,30 @@ export class SqliteManager {
     let bytes = 0;
     let truncated = false;
     // Stream rows and stop at the bounds; breaking out of the iterator resets the statement.
-    for (const row of statement.iterate(...(this.bindArgs(params) as never[])) as Iterable<unknown[]>) {
-      const values = row.map(boundedValue);
-      const rowBytes = values.reduce<number>((total, value) => total + valueBytes(value) + 8, 8);
-      if (rows.length >= MAX_QUERY_ROWS) {
-        truncated = true;
-        break;
-      }
-      if (bytes + rowBytes > MAX_QUERY_BYTES) {
-        if (rows.length === 0) {
-          throw new Error(
-            `The first row is larger than the ${MAX_QUERY_BYTES}-byte result budget. Select fewer or shorter columns, for example substr(column, 1, N).`,
-          );
+    try {
+      for (const row of statement.iterate(...(this.bindArgs(params) as never[])) as Iterable<unknown[]>) {
+        const values = row.map(boundedValue);
+        const rowBytes = values.reduce<number>((total, value) => total + valueBytes(value) + 8, 8);
+        if (rows.length >= MAX_QUERY_ROWS) {
+          truncated = true;
+          break;
         }
-        truncated = true;
-        break;
+        if (bytes + rowBytes > MAX_QUERY_BYTES) {
+          if (rows.length === 0) {
+            throw new GuidedError(
+              `The first row is larger than the ${MAX_QUERY_BYTES}-byte result budget. Select fewer or shorter columns, for example substr(column, 1, N).`,
+            );
+          }
+          truncated = true;
+          break;
+        }
+        bytes += rowBytes;
+        rows.push(values);
       }
-      bytes += rowBytes;
-      rows.push(values);
+    } catch (error) {
+      throw wrapDriverError("sqlite_query", error, sql, false);
     }
-    return { columns, rows, rowCount: rows.length, ...(truncated ? { truncated: true as const } : {}) };
+    return { columns, rows, rowCount: rows.length, ...(truncated ? { truncated: true as const, hint: TRUNCATION_HINT } : {}) };
   }
 
   execute(sql: string, params?: SqlParams): ExecuteResult {
@@ -227,13 +268,27 @@ export class SqliteManager {
   }
 
   private runExecute(sql: string, params?: SqlParams): ExecuteResult {
-    const statement = this.getDatabase().prepare(sql);
+    const statement = this.prepareStatement("sqlite_execute", sql, true);
     if (isReader(statement)) {
-      throw new Error("sqlite_execute does not accept statements that return rows. Use sqlite_query instead.");
+      throw new GuidedError("sqlite_execute does not accept statements that return rows, including INSERT/UPDATE/DELETE ... RETURNING. Use sqlite_query instead.");
     }
 
-    const result = statement.run(...(this.bindArgs(params) as never[]));
+    let result: ReturnType<StatementSync["run"]>;
+    try {
+      result = statement.run(...(this.bindArgs(params) as never[]));
+    } catch (error) {
+      throw wrapDriverError("sqlite_execute", error, sql, true);
+    }
     return { changes: result.changes, lastInsertRowid: result.lastInsertRowid };
+  }
+
+  private prepareStatement(operation: string, sql: string, writes: boolean): StatementSync {
+    const db = this.getDatabase();
+    try {
+      return db.prepare(sql);
+    } catch (error) {
+      throw wrapDriverError(operation, error, sql, writes);
+    }
   }
 
   listTables(): { tables: string[] } {
@@ -264,7 +319,7 @@ export class SqliteManager {
       pk: number;
     }>;
 
-    if (columns.length === 0) throw new Error(`Table '${tableName}' not found.`);
+    if (columns.length === 0) throw new Error(`Table '${tableName}' not found. Use sqlite_list_tables for valid names; the name is case-sensitive and must not include a schema prefix.`);
 
     const rowCount = (db.prepare(`SELECT COUNT(*) AS count FROM ${quoteIdentifier(tableName)}`).get() as {
       count: number;

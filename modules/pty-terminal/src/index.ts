@@ -19,7 +19,7 @@ const positiveInteger = (description: string, maximum?: number) => Type.Integer(
 const formatParameter = Type.Optional(Type.Union([Type.Literal("raw"), Type.Literal("text")], { description: "raw (default) keeps control sequences; text strips ANSI codes (no screen emulation)." }));
 
 const spawnParameters = Type.Object({
-	target: Type.Optional(Type.String({ description: "Named PTY target from pi-pty-terminal.targets. Defaults to local; unknown targets fail." })),
+	target: Type.Optional(Type.String({ description: "Named PTY target defined in the user's settings. Defaults to local; unknown targets fail." })),
 	command: Type.String({ description: "Executable path or command name to run." }),
 	args: Type.Optional(Type.Array(Type.String({ description: "One command argument." }), { description: "Arguments passed to the command." })),
 	cwd: Type.Optional(Type.String({ description: "Working directory on the target. Local defaults to Pi cwd; remote uses configured absolute POSIX cwd." })),
@@ -194,7 +194,7 @@ export default function (pi: ExtensionAPI) {
 		executionMode: "sequential",
 		async execute(_toolCallId, params) {
 			const result = await sessions.kill(params.sessionId, params.signal);
-			const text = { released: result.released, ...(result.released ? {} : { exited: result.exited }), ...(result.escalatedToSigkill ? { escalatedToSigkill: true } : {}), note: "local transport only; remote process tree not confirmed stopped" };
+			const text = { released: result.released, ...(result.released ? {} : { exited: result.exited }), ...(result.escalatedToSigkill ? { escalatedToSigkill: true } : {}), note: "local transport only; remote process tree not confirmed stopped", ...(result.released ? {} : { hint: `Session ${params.sessionId} is retained because the transport has not exited; call pty_kill again (optionally with signal SIGKILL on POSIX) or check pty_list.` }) };
 			return { content: [{ type: "text", text: JSON.stringify(text) }], details: result };
 		},
 	});

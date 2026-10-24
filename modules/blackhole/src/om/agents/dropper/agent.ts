@@ -240,11 +240,13 @@ export async function runDropper(args: RunDropperArgs): Promise<string[] | undef
       let requestCriticalCandidateIds = 0;
       let requestDuplicateIds = 0;
       let requestDuplicateInRunIds = 0;
+      const unknownIds: string[] = [];
       for (const id of params.ids) {
         const observation = allowed.get(id);
         if (!observation) {
           missingIdsCount++;
           requestMissingIds++;
+          if (unknownIds.length < 10) unknownIds.push(id.slice(0, 40));
           continue;
         }
         if (seenInRequest.has(id)) {
@@ -277,11 +279,16 @@ export async function runDropper(args: RunDropperArgs): Promise<string[] | undef
         totalCandidates: proposedDropIds.length,
         maxDropsAllowed,
       });
+      const duplicates = requestDuplicateIds + requestDuplicateInRunIds;
+      let notes = "";
+      if (requestMissingIds > 0) notes += ` Ignored ${requestMissingIds} id(s) that are not active observations: ${unknownIds.map((id) => JSON.stringify(id)).join(", ")}${requestMissingIds > unknownIds.length ? ", ..." : ""}.`;
+      if (duplicates > 0) notes += ` Ignored ${duplicates} duplicate id(s) already proposed.`;
+      if (requestMissingIds > 0) notes += " Use only the 12-character observation ids listed in the active observations.";
       return {
         content: [
           {
             type: "text",
-            text: `Queued ${added} drop candidate${added === 1 ? "" : "s"}. Candidates this run: ${proposedDropIds.length}. Maximum drops allowed: ${maxDropsAllowed}.`,
+            text: `Queued ${added} drop candidate${added === 1 ? "" : "s"}. Candidates this run: ${proposedDropIds.length}. Maximum drops allowed: ${maxDropsAllowed}.${notes}`,
           },
         ],
         details: {

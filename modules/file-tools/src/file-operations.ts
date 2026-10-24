@@ -152,9 +152,9 @@ function shortenHash(hash: string | undefined): string | undefined {
 
 export function assertInputSize(size: number, displayPath: string): void {
   if (size > MAX_INPUT_BYTES) {
-    throw new FileToolError("FILE_TOO_LARGE", `The file exceeds the ${MAX_INPUT_BYTES}-byte processing limit.`, {
+    throw new FileToolError("FILE_TOO_LARGE", `The input is ${size} bytes, which exceeds the ${MAX_INPUT_BYTES}-byte processing limit.`, {
       path: displayPath,
-      recovery: `Reduce the file below ${MAX_INPUT_BYTES} bytes or use a streaming/binary-aware tool.`,
+      recovery: `Keep each file or write below ${MAX_INPUT_BYTES} bytes: split the content into several files, or inspect part of a large existing file with a shell command such as head -c or sed -n.`,
     });
   }
 }
@@ -299,7 +299,7 @@ function collectLiteralMatches(
     if (index === -1) break;
     matches.push({ index, text: needle, captures: [] });
     if (matches.length > maxMatches) {
-      throw new FileToolError("TOO_MANY_MATCHES", `edits[${editIndex}] exceeded the match limit.`, {
+      throw new FileToolError("TOO_MANY_MATCHES", `edits[${editIndex}] exceeded the per-edit match limit of ${maxMatches}.`, {
         path: displayPath,
         editIndex,
         occurrences: matches.length,
@@ -377,7 +377,7 @@ export function isSupportedRegexFlags(flags: string): boolean {
 }
 
 function regexTimeoutError(displayPath: string, editIndex: number): FileToolError {
-  return new FileToolError("REGEX_TIMEOUT", `edits[${editIndex}].regex exceeded the execution time limit.`, {
+  return new FileToolError("REGEX_TIMEOUT", `edits[${editIndex}].regex exceeded the ${REGEX_TIMEOUT_MS} ms execution time limit.`, {
     path: displayPath,
     editIndex,
     recovery: "Use a simpler regex, narrow lineRange, or use literal oldText.",
@@ -462,14 +462,14 @@ async function collectRegexMatches(
       } else if (message.type === "matches" && Array.isArray(message.matches)) {
         finish(() => resolve(message.matches!), true);
       } else if (message.type === "too_many") {
-        finish(() => reject(new FileToolError("TOO_MANY_MATCHES", `edits[${editIndex}] exceeded the match limit.`, {
+        finish(() => reject(new FileToolError("TOO_MANY_MATCHES", `edits[${editIndex}] exceeded the per-edit match limit of ${MAX_REGEX_MATCHES}.`, {
           path: displayPath,
           editIndex,
           occurrences: message.count,
           recovery: "Narrow lineRange, use a more specific regex, or split the operation.",
         })));
       } else if (message.type === "too_large") {
-        finish(() => reject(new FileToolError("RESULT_TOO_LARGE", `edits[${editIndex}].regex produced too much captured match data.`, {
+        finish(() => reject(new FileToolError("RESULT_TOO_LARGE", `edits[${editIndex}].regex produced more captured match data than the worker limit allows.`, {
           path: displayPath,
           editIndex,
           recovery: "Use smaller capture groups, a narrower lineRange, or literal oldText.",
@@ -482,14 +482,14 @@ async function collectRegexMatches(
         })));
       }
     };
-    const onError = (error: Error) => finish(() => reject(new FileToolError("IO_ERROR", `Regex worker failed: ${error.message}`, {
+    const onError = (error: Error) => finish(() => reject(new FileToolError("IO_ERROR", `Regex worker failed (a transient tool fault, not caused by your arguments): ${error.message}`, {
       path: displayPath,
       editIndex,
       recovery: "Retry the operation or use literal oldText.",
     })));
     const onExit = (code: number) => {
       if (!settled) {
-        finish(() => reject(new FileToolError("IO_ERROR", `Regex worker exited with code ${code}.`, {
+        finish(() => reject(new FileToolError("IO_ERROR", `Regex worker exited with code ${code} (a transient tool fault, not caused by your arguments).`, {
           path: displayPath,
           editIndex,
           recovery: "Retry the operation or use literal oldText.",
@@ -530,7 +530,7 @@ function expandReplacementTemplate(
   const append = (value: string) => {
     outputBytes += Buffer.byteLength(value, "utf8");
     if (outputBytes > MAX_EDIT_RESULT_BYTES) {
-      throw new FileToolError("RESULT_TOO_LARGE", `edits[${editIndex}] produced an oversized replacement.`, {
+      throw new FileToolError("RESULT_TOO_LARGE", `edits[${editIndex}] produced a replacement larger than the ${MAX_EDIT_RESULT_BYTES}-byte result limit.`, {
         path: displayPath,
         editIndex,
         recovery: "Reduce replacement size or avoid expansive $` and $' template tokens.",
@@ -791,7 +791,7 @@ export async function readTextFile(
     abortIfRequested(signal);
     return readTextBuffer(buffer, displayPath, offset, limit);
   } catch (error) {
-    throw classifyFsError(error, displayPath, "read");
+    throw classifyFsError(error, displayPath, "read", absolutePath);
   }
 }
 
@@ -869,10 +869,10 @@ function verifyExpectedHash(current: MutationSnapshot, expectedHash: string | un
     return;
   }
   if (!current.exists) {
-    throw new FileToolError("FILE_NOT_FOUND", "The target file no longer exists.", {
+    throw new FileToolError("FILE_NOT_FOUND", "The target file no longer exists, but expectedHash was supplied.", {
       path: displayPath,
       expectedHash: shortenHash(expectedHash),
-      recovery: "Read the path again before deciding whether to recreate it.",
+      recovery: "Read the path again before deciding whether to recreate it; to create it anew, call write with expectedHash:\"missing\" or omit expectedHash.",
     });
   }
   const normalizedExpectedHash = expectedHash.toLowerCase();
@@ -1132,7 +1132,7 @@ export async function writeTextFile(
       created: !snapshot.exists,
     };
   } catch (error) {
-    throw classifyFsError(error, displayPath, "write");
+    throw classifyFsError(error, displayPath, "write", absolutePath);
   }
 }
 
@@ -1249,6 +1249,11 @@ function assertEditOperationValid(edit: EditOperation, editIndex: number, map: L
   return replacementMode;
 }
 
+function searchedPreview(text: string): string {
+  const limit = 80;
+  return text.length > limit ? `${text.slice(0, limit)}...` : text;
+}
+
 /**
  * Match one edit inside its lineRange window (or the whole file). A ranged literal miss falls back
  * to a unique whole-file match; otherwise a miss or an ambiguous non-replaceAll match throws.
@@ -1285,7 +1290,7 @@ async function findScopedMatches(
       rangeContent = view.text;
       operationMatches = candidates;
     } else {
-      throw new FileToolError(lineRange ? "TEXT_NOT_FOUND_IN_RANGE" : "TEXT_NOT_FOUND", `edits[${editIndex}] did not match inside the requested search scope.`, {
+      throw new FileToolError(lineRange ? "TEXT_NOT_FOUND_IN_RANGE" : "TEXT_NOT_FOUND", `edits[${editIndex}] did not match inside the requested search scope (${edit.oldText !== undefined ? "searched for" : "searched for regex"} ${JSON.stringify(searchedPreview(edit.oldText ?? edit.regex ?? ""))}).`, {
         path: displayPath,
         editIndex,
         lineRange,
@@ -1294,7 +1299,7 @@ async function findScopedMatches(
         rangePreview: lineRange ? previewRange(map, lineRange.start, lineRange.end) : undefined,
         recovery: lineRange
           ? "Use a candidate range, read the range again, or correct the match. A unique literal match outside the range is applied automatically; ambiguous matches are not."
-          : "Read the file again and copy exact text without the read tool's line-number prefixes.",
+          : "Read the file again and copy exact text without the read tool's line-number prefixes. Check whitespace: tabs vs spaces, trailing spaces and CRLF vs LF line endings must match the file exactly.",
       });
     }
   }
@@ -1363,7 +1368,7 @@ async function validateEditsWithSession(
         operationChanged += 1;
         changedReplacementBytes += Buffer.byteLength(replacement, "utf8");
         if (changedReplacementBytes > MAX_EDIT_RESULT_BYTES) {
-          throw new FileToolError("RESULT_TOO_LARGE", "The edit call produced too much replacement content.", {
+          throw new FileToolError("RESULT_TOO_LARGE", `The edit call produced more than ${MAX_EDIT_RESULT_BYTES} bytes of replacement content.`, {
             path: displayPath,
             editIndex,
             recovery: "Reduce replacement size or split the edit into smaller operations.",
@@ -1394,7 +1399,7 @@ async function validateEditsWithSession(
     }
     assertEditDeadline(deadline, displayPath, editIndex);
     if (matched.length > MAX_EDIT_MATCHES) {
-      throw new FileToolError("TOO_MANY_MATCHES", "The edit call exceeded the total replacement limit.", {
+      throw new FileToolError("TOO_MANY_MATCHES", `The edit call matched more than the total limit of ${MAX_EDIT_MATCHES} replacements.`, {
         path: displayPath,
         editIndex,
         occurrences: matched.length,
@@ -1452,7 +1457,7 @@ function validateResultSize(
     resultBytes += Buffer.byteLength(renderRawReplacement(raw, edit, defaultEnding), "utf8");
   }
   if (resultBytes > MAX_EDIT_RESULT_BYTES) {
-    throw new FileToolError("RESULT_TOO_LARGE", "The edited file would exceed the configured result size limit.", {
+    throw new FileToolError("RESULT_TOO_LARGE", `The edited file would exceed the ${MAX_EDIT_RESULT_BYTES}-byte result size limit (computed ${resultBytes} bytes).`, {
       path: displayPath,
       recovery: "Reduce replacement size or split the file before editing it.",
     });
@@ -1530,9 +1535,9 @@ export async function editTextFile(
   try {
     const snapshot = await readMutationSnapshot(absolutePath, displayPath);
     if (!snapshot.exists || !snapshot.buffer) {
-      throw new FileToolError("FILE_NOT_FOUND", "The target file does not exist.", {
+      throw new FileToolError("FILE_NOT_FOUND", `File not found: ${displayPath}${displayPath === absolutePath ? "" : ` (resolved to ${absolutePath})`}.`, {
         path: displayPath,
-        recovery: "Check the path or create the file with write.",
+        recovery: "Check the path (relative paths resolve against the session cwd) or create the file with write.",
       });
     }
     verifyExpectedHash(snapshot, expectedHash, displayPath);
@@ -1585,7 +1590,7 @@ export async function editTextFile(
     await atomicWrite(absolutePath, displayPath, finalText, snapshot, signal);
     return result;
   } catch (error) {
-    throw classifyFsError(error, displayPath, "edit");
+    throw classifyFsError(error, displayPath, "edit", absolutePath);
   }
 }
 

@@ -34,7 +34,9 @@ const ui = new Proxy({ notify(text, level) { notifications.push({ text: String(t
   if (prop === 'custom') return async factory => new Promise(done => {
     const component = factory({ terminal: { rows: 40, columns: 100 }, requestRender() {} }, theme, {}, done);
     modalStages++;
-    if (modalStages === 1) { assert.match(component.render(100).join('\n'), /Configure Session settings/); queueMicrotask(() => component.handleInput('4')); }
+    // Scope numbers count only the *available* subset and an untrusted project is listed but unavailable (BH3-002),
+    // so Session is not always "4". "end" moves to the last available scope, which is Session.
+    if (modalStages === 1) { assert.match(component.render(100).join('\n'), /Configure Session settings/); queueMicrotask(() => { component.handleInput('\x1b[F'); component.handleInput('\r'); }); }
     else {
       assert.match(component.render(100).join('\n'), /Review3.*Session/);
       const mount = component.mountOverlay.bind(component), setValues = component.setValues.bind(component), dismiss = component.dismissOverlay.bind(component);

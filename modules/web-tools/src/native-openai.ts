@@ -1,4 +1,5 @@
 import { isRecord as record } from './record.ts';
+import { unexpectedPayload } from './native-errors.ts';
 
 export interface ModelIdentity { api: string; provider: string }
 export function supportsNativeSearch(model: ModelIdentity | undefined): boolean {
@@ -9,13 +10,13 @@ export function supportsNativeSearch(model: ModelIdentity | undefined): boolean 
 }
 export function injectNativeSearch(payload: unknown): unknown {
   if (!record(payload)) return payload;
-  if (payload.tools !== undefined && !Array.isArray(payload.tools)) throw new Error('PROVIDER_UNSUPPORTED: unexpected OpenAI tools payload');
+  if (payload.tools !== undefined && !Array.isArray(payload.tools)) throw unexpectedPayload('OpenAI', 'tools', payload.tools);
   const tools = [...(payload.tools as unknown[] | undefined ?? [])];
   const native = (t: unknown) => record(t) && (t.type === 'web_search' || t.type === 'web_search_preview');
   const conflict = tools.some(t => record(t) && !native(t) && (t.name === 'web_search' || (record(t.function) && t.function.name === 'web_search')));
   if (conflict) throw new Error('TOOL_CONFLICT: another extension provides web_search; disable it before enabling native OpenAI search');
   if (!tools.some(native)) tools.push({ type: 'web_search' });
-  if (payload.include !== undefined && !Array.isArray(payload.include)) throw new Error('PROVIDER_UNSUPPORTED: unexpected OpenAI include payload');
+  if (payload.include !== undefined && !Array.isArray(payload.include)) throw unexpectedPayload('OpenAI', 'include', payload.include);
   const include = [...(payload.include as unknown[] | undefined ?? [])];
   if (!include.includes('web_search_call.action.sources')) include.push('web_search_call.action.sources');
   return { ...payload, tools, include };

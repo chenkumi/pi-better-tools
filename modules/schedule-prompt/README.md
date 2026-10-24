@@ -338,3 +338,9 @@ MIT (see [LICENSE](LICENSE))
 ## Author
 
 [tintinweb](https://github.com/tintinweb)
+
+## Error messages
+
+Local guidance pass (2026-10-24): failure responses name the parameter, the rule and the fix; see plan/error-message-handoff.md. Agent-visible storage and lock errors refer to "the scheduled prompts store" and never include the store or lock file paths; those paths remain only in human-facing console output.
+- Semantic change: `schedule_prompt` `update` with no updatable field now returns an error ("No fields to update were given…", listing the updatable fields) instead of silently succeeding.
+- "Job not found" echoes the id and points to `action:"list"`; the model is not validated at add/update time (it fails when the job fires).

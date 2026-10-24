@@ -82,15 +82,17 @@
         },
         {
           "path": "modules/file-audit/src/activity-window.ts",
-          "sha256": "c37c51e6e9681c23d724de232c68b8016eabdb0adcdea71be8be06d77f4c3eb3",
+          "sha256": "87c43ebdd58483d99a6618e06d1472c04e57b0b0dd40694350cf1a5c675852df",
           "cleanCode20261023PreviousSha256": "7b1d1078747989f1e08b62e22c03030d9eb23f662749ae38701cc2bcfe76a31c",
-          "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: increment() for the three saturating counters."
+          "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: increment() for the three saturating counters.",
+          "reason": "2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged."
         },
         {
           "path": "modules/file-audit/src/commands.ts",
-          "sha256": "51e818b7bb7f44582b133292666f8f6a263606e6b2a4e7c94d3e7aca79730f8f",
+          "sha256": "21b58a6542cdee8b479fea703caf13e4c032b8a16f7f45073012b4f82dddb29d",
           "cleanCode20261023PreviousSha256": "9465ede5a073d5239b2ebe1057f86a8d6741083f9f94ed97388a2a65ceac0f28",
-          "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: Use ownerOf() instead of three hand-built owner keys."
+          "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: Use ownerOf() instead of three hand-built owner keys.",
+          "reason": "2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged."
         },
         {
           "path": "modules/file-audit/src/events.ts",
@@ -115,8 +117,8 @@
         {
           "path": "modules/file-audit/src/provenance.ts",
           "checkRepairPreviousSha256": "deef7bd87af81d9e64672932d41725873cbab832f7a267b588f3ecf1091f7928",
-          "sha256": "83f62fd59eaf8beb1154e1ff838d8586497937061bfbd6685ea753ce1a3a67c0",
-          "reason": "Native bounded recent read/write/edit/note activity and manual provenance inspection. 2026-10-17 check repair: a candidate keeps the caller's workspace spelling and falls back to its real location only when that spelling is unsafe, so a filesystem alias (Windows 8.3 short name, junction, case) can no longer make an in-workspace file look like an escape and be silently skipped.",
+          "sha256": "da0734e182141ca688e60d820a8d66cbcab59bedd077109f5acf3178311be0b8",
+          "reason": "Native bounded recent read/write/edit/note activity and manual provenance inspection. 2026-10-17 check repair: a candidate keeps the caller's workspace spelling and falls back to its real location only when that spelling is unsafe, so a filesystem alias (Windows 8.3 short name, junction, case) can no longer make an in-workspace file look like an escape and be silently skipped. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged.",
           "cleanCode20261023PreviousSha256": "ee547149fbef4dcbb48c7bbf576a544e2d78e0be58fdb044644774352e83fe3e",
           "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: Named default byte budgets instead of repeated literals."
         },
@@ -126,7 +128,8 @@
         },
         {
           "path": "modules/file-audit/tests/commands.test.ts",
-          "sha256": "7c98d7ebeb5703bf362fc6fda1d13a1dd74f2fe18c9071f75d10d4044d6133db"
+          "sha256": "c4362f15347cd6460487221bd00a6324f93b756d7aab23a0770aed556e277f4d",
+          "reason": "2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged."
         },
         {
           "path": "modules/file-audit/tests/events.test.ts",
@@ -154,9 +157,9 @@
           "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
           "historicalDeltaAudit": "unavailable",
           "localSnapshotReview": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
-          "reason": "Hash drift reconciled as a current-state record; see driftReconcile20261021.",
+          "reason": "Hash drift reconciled as a current-state record; see driftReconcile20261021. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged.",
           "previousRecordedSha256": "fb3e14001b048d1850d5f20bc032694309d3f81341c56d7838fcd8b00c2626bc",
-          "sha256": "44c8aea5af1ac9ccd7b63227b1ab82cc0984a50245eec1b867aed4f19ce03243"
+          "sha256": "70dc5852db712cfb453b7356f78d3d44e031e3f561826433c0837ae4c8bce7ff"
         },
         {
           "path": "modules/file-audit/tests/fixtures/tui-observer.ts",
@@ -532,8 +535,12 @@
           "steerDelivery20261024Adaptation": "2026-10-24: document steer as the Monitor delivery default (same as Shell/Subagent completion messages); the busy gate is no longer wired to the parent run.",
           "scanFixes20261024PreviousSha256": "ddabcb20fe84c8e2ebace0d628b72f1cfe44ac6d131851709c3cd76d71465abd",
           "scanFixes20261024Adaptation": "2026-10-24: documents the retired-generation rule, steer delivery and websocket startup cancellation.",
-          "sha256": "abe9d87c27fb70957ac1dab7ebc545da942be5170f0acf951adec3bbed8f5fdb",
-          "reason": "Contract, limits, security and producer schema/handoff.",
+          "hiddenDisplayOnly20261024PreviousSha256": "abe9d87c27fb70957ac1dab7ebc545da942be5170f0acf951adec3bbed8f5fdb",
+          "hiddenDisplayOnly20261024Adaptation": "2026-10-24: document that display-only (wakeAgent:false) batches are persisted with display:false so the TUI hides them while the model context keeps them; display mirrors triggerTurn.",
+          "actionableErrors20261024PreviousSha256": "f6a6aba9da86481cf0eeaaa32d08a967ce3ee52a79d6e7013f9146f283e977f9",
+          "actionableErrors20261024Adaptation": "2026-10-24: document that startSchema is deliberately flat and validateStart owns the strict, actionable messages, with the 20 s job-interval example.",
+          "sha256": "843a542842d89ca20d437943da097c5eb071ef20595de33430754c792a9bb133",
+          "reason": "Contract, limits, security and producer schema/handoff. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged.",
           "pi140Upgrade20261023PreviousSha256": "ca5b5e3c614ffad6d210a76e59212989d7bf7835be10ea126d1c24efc80ea8f0",
           "pi140Upgrade20261023Adaptation": "2026-10-23 Pi 1.4.0 upgrade: current support baseline text changed from 1.3.0 to 1.4.0; historical sections retained.",
           "macosCompat20261023PreviousSha256": "ca5b5e3c614ffad6d210a76e59212989d7bf7835be10ea126d1c24efc80ea8f0",
@@ -553,8 +560,10 @@
           "steerDelivery20261024Adaptation": "2026-10-24: submit with deliverAs \"steer\" (type narrowed); setBusy remains only as an optional embedder hold.",
           "scanFixes20261024PreviousSha256": "cdc6c1e92b5e1e045b69be736d16ef9275b10c99638dbcede4edd91d7cdad984",
           "scanFixes20261024Adaptation": "2026-10-24: bind() no longer fails on an unsettled previous generation: it is retired (tracked, counted against capacity, at most four) (scan MON-1).",
-          "sha256": "1204f1533ecd75fa7b4f15c11208a88c962390db5331100ef542d37eaa9e94f8",
-          "reason": "Owner-generation bounded lifecycle/events/submission/cleanup evidence.",
+          "hiddenDisplayOnly20261024PreviousSha256": "1204f1533ecd75fa7b4f15c11208a88c962390db5331100ef542d37eaa9e94f8",
+          "hiddenDisplayOnly20261024Adaptation": "2026-10-24: send() computes requestsTurn = any selected source has wakeAgent and uses it for both display and triggerTurn, so a batch appended after the turn's final text (no reply) is not rendered while a turn-requesting batch stays visible.",
+          "sha256": "807c9c94b224eeb4c3ce9ceb5187e2f8e4286705598d9d8b19e8467960243159",
+          "reason": "Owner-generation bounded lifecycle/events/submission/cleanup evidence. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged.",
           "cleanCode20261023PreviousSha256": "d4529a8d905da2f00898bc3673e1e3449b1e89dc8232966811dfb2016fb89c61",
           "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: Export sameOwner() (was private same())."
         },
@@ -571,8 +580,10 @@
           "liveJobView20261023Adaptation": "2026-10-23: publishes the active-monitor brief reader on session_start and revokes it on shutdown, alongside the existing auto-monitor starter.",
           "steerDelivery20261024PreviousSha256": "ca62558d1c199fb4df1be5edb0f3f49dc703689c08e59055c0b174463d1556a1",
           "steerDelivery20261024Adaptation": "2026-10-24: stop subscribing to agent_start/agent_settled so delivery no longer waits for the parent run to settle.",
-          "sha256": "2e1a53e43a8e544d36903034b420a4acb7ed4e32a3ec0c53806dccbd8a8f6e62",
-          "reason": "2026-10-10 user-requested defaultActive:true; unchanged managed-child, selection and owner guards.",
+          "actionableErrors20261024PreviousSha256": "2e1a53e43a8e544d36903034b420a4acb7ed4e32a3ec0c53806dccbd8a8f6e62",
+          "actionableErrors20261024Adaptation": "2026-10-24: the owner-mismatch and pre-acceptance-cancel refusals now state the cause and the next step instead of a bare label.",
+          "sha256": "42238eb07ea2d434d09818863df342e622fe6b81a9054c798ab5984f367ff044",
+          "reason": "2026-10-10 user-requested defaultActive:true; unchanged managed-child, selection and owner guards. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged.",
           "cleanCode20261023PreviousSha256": "acc8a16abe02f8f97a361810f86491e7f26a8466676a7e284f5e7b8ada78f15b",
           "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: sameOwner() for three owner comparisons, assertExecutable() for the shared guards, validateMonitorId() for the inline ID check, named interval defaults."
         },
@@ -583,8 +594,8 @@
         },
         {
           "path": "modules/monitor/src/network.ts",
-          "sha256": "6d28a3ede858ba93c2e708bf5d8f7d7b699e51998ca1e9f68fe013e9f2e54c04",
-          "reason": "Validated pinned DNS/TLS/options for direct ws8.22."
+          "sha256": "f2e9488132e252fe2f99a8ae8f4d260b755c594bfac5e8dee92c10160ff34bca",
+          "reason": "Validated pinned DNS/TLS/options for direct ws8.22. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged."
         },
         {
           "path": "modules/monitor/src/renderers.ts",
@@ -598,8 +609,10 @@
           "forkMonitorSource20261021Adaptation": "2026-10-21: add the fork_job source literal and reuse the bounded jobId/intervalMs validation.",
           "fileMonitorSource20261022PreviousSha256": "55318d6985cebe1d802c2279c951e1cc0aa7d0762fe42a03372f1ba8edb549b4",
           "fileMonitorSource20261022Adaptation": "2026-10-22: add the file source literal and bounded path/intervalMs validation.",
-          "sha256": "5ac4e1516cf5fd1da8def8ed9c1629008472edeb0c471598018c910c4d060781",
-          "reason": "Strict discriminated inputs, limits/defaults.",
+          "sha256": "d248c6d105ecef6ec9aebdf5ae42275430890cbf3280aa9f1de9b2967639e87f",
+          "reason": "Strict discriminated inputs, limits/defaults. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged.",
+          "actionableErrors20261024PreviousSha256": "5ac4e1516cf5fd1da8def8ed9c1629008472edeb0c471598018c910c4d060781",
+          "actionableErrors20261024Adaptation": "2026-10-24: the six-branch source union is replaced by a flat, structurally permissive host schema (fields optional, bounds in descriptions) so one out-of-range value no longer yields six branch errors; validateStart keeps every per-kind requirement and bound and reports parameter, value, range and fix, and unknown parameters are still rejected.",
           "cleanCode20261023PreviousSha256": "9cb635872897bd86435fc38fd4cd4a3f0a798c5071a24d548975682ab10f1826",
           "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: jobSource() for the three identical job sources; interval/duration bounds and defaults defined once for schema and validateStart."
         },
@@ -615,8 +628,8 @@
           "fileMonitorSource20261022Adaptation": "2026-10-22: add resolveFilePath/fileLaunch (realpath containment on every sample, metadata-only polling).",
           "scanFixes20261024PreviousSha256": "742ea2e4f2d5222b39b389af58e8ee1cbd75f382b85fd173ee321a64571935e5",
           "scanFixes20261024Adaptation": "2026-10-24: websocket abort during endpoint preparation closes as startupCanceled (scan MON-2).",
-          "sha256": "db575f4d035056b09698b02a8adf2064af38d54ca503bf43a93789dc6aff7fb5",
-          "reason": "Four source adapters, actual close and readonly job timer ownership.",
+          "sha256": "e9cdbd68f9b3f3333ef78aadbdeddb98c054f28696330a00b376d18b69f7b304",
+          "reason": "Four source adapters, actual close and readonly job timer ownership. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged.",
           "cleanCodeRound2_20261023PreviousSha256": "9d1ef6ffca6b91ace1786752fd1adeb2b257e7de28cf95df5eac48d258c24831",
           "cleanCodeRound2_20261023Adaptation": "2026-10-23 behavior-preserving clean-code round 2 (single-responsibility splits): pollingLaunch() owns the shared timer/abort/close lifecycle of jobLaunch and fileLaunch; fileChange() names the change classification. Review fix: later() is a no-op after close, run()/later() own the stop/abort guard, and a synchronous throw from begin or a sample faults and closes (removes the abort listener, reports closed).",
           "macosCompat20261023PreviousSha256": "16a80e4fdbe1f9c3fe88cf5ad95cfff28e4f99c84aa3ac4e74c9f79bd3815c55",
@@ -635,20 +648,26 @@
           "steerDelivery20261024Adaptation": "2026-10-24: assert steer submission and that no parent-turn gate holds notifications back.",
           "scanFixes20261024PreviousSha256": "42d848e618a8a76dde5c449463ee3326af1f5050899ce205ce2627c8f2db280c",
           "scanFixes20261024Adaptation": "2026-10-24: MON-1 regressions: unsettled generation does not block bind, counts toward capacity, is bounded, gives capacity back.",
-          "sha256": "16013e816ca16bcd5d6bd7ce4686b524e9aed520774e228689e3c3f80cb3a323",
+          "hiddenDisplayOnly20261024PreviousSha256": "16013e816ca16bcd5d6bd7ce4686b524e9aed520774e228689e3c3f80cb3a323",
+          "hiddenDisplayOnly20261024Adaptation": "2026-10-24: assert display mirrors triggerTurn for both a turn-requesting and a display-only batch.",
+          "sha256": "40baed77c514eebab23821dbc2fbc7f949a0e1c3a4a394bf5981de9f5040bfd5",
           "reason": "Deterministic-clock limits/lifecycle/delivery/parser regressions."
         },
         {
           "path": "modules/monitor/tests/fork-source.test.ts",
-          "sha256": "ea5b208cc1b6ac28b63fe7f11696c403db956c1a5980fab2d646be62422ea7d9",
+          "actionableErrors20261024PreviousSha256": "ea5b208cc1b6ac28b63fe7f11696c403db956c1a5980fab2d646be62422ea7d9",
+          "actionableErrors20261024Adaptation": "2026-10-24: the missing-jobId refusal now asserts the actionable message instead of the old generic text.",
+          "sha256": "b4e47820cb07d93657e3a24246c725692e60426253d09b1086582752c034127f",
           "staleProvenanceRepair20261022PreviousSha256": "d0e47c45e4fa0c0109b2331574adac8c38479aaa4783bc6f0243eb51a04ee378",
           "staleProvenanceRepair20261022": "2026-10-22: the recorded hash lagged the committed content (a post-verification edit landed in 055cca3). The bytes are the reviewed fork_job source test; only the recorded hash is corrected here, no content change.",
           "reason": "fork_job schema bound, live-status sampling through blocked/awaiting_snapshot, abort and missing-capability fault."
         },
         {
           "path": "modules/monitor/tests/file-source.test.ts",
-          "sha256": "5ad0d47210fbbda872f9e6c12f12a5023f72cfccd3ed5317dbd6653bc5bf9761",
-          "reason": "file source schema bound, workspace containment (lexical, realpath, link swap), metadata-only created/modified/deleted events, abort and extension acceptance/rejection.",
+          "actionableErrors20261024PreviousSha256": "5ad0d47210fbbda872f9e6c12f12a5023f72cfccd3ed5317dbd6653bc5bf9761",
+          "actionableErrors20261024Adaptation": "2026-10-24: the missing-path refusal now asserts the actionable message instead of the old generic text.",
+          "sha256": "3192adf66636d59e449fe5919e751b55e61bab04f2ca8318d680c669398b3edd",
+          "reason": "file source schema bound, workspace containment (lexical, realpath, link swap), metadata-only created/modified/deleted events, abort and extension acceptance/rejection. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged.",
           "macosCompat20261023PreviousSha256": "5e3f400262438c45ab42aa7966505f84dafa11c7282902c71e8bec8974e4660e",
           "macosCompat20261023Adaptation": "2026-10-23 macOS: regression for an absolute path through a linked parent (junction, so it needs no privilege on Windows): existing and not-yet-created targets accepted, outside targets and the link itself rejected."
         },
@@ -692,7 +711,9 @@
         },
         {
           "path": "modules/monitor/tests/producer.test.ts",
-          "sha256": "5ce159ff3884c721e47003142a38b1f63576ffb9c611b86f0d69203d1d92f17f",
+          "hiddenDisplayOnly20261024PreviousSha256": "5ce159ff3884c721e47003142a38b1f63576ffb9c611b86f0d69203d1d92f17f",
+          "hiddenDisplayOnly20261024Adaptation": "2026-10-24: the persisted wakeAgent:false handoff entry is now display:false; the fixture asserts the actual persisted flag.",
+          "sha256": "c9f2601b465a8bb07e854b985020838a4aa261152fb1a0233b7929ecbeeb19b5",
           "reason": "Stable narrow producer fixture/unknown-cleanup validation."
         },
         {
@@ -716,6 +737,11 @@
           "scanFixes20261024Adaptation": "2026-10-24: the held-startup fence now keeps the source tracked while the next owner binds.",
           "sha256": "6fe370baa9addc797c3e922df5367ef03dd7c6d7cced881dc3bd28d6c3dbe850",
           "reason": "Review red/green deferred-close, four-source/byte-cap fairness, capacity/startup/reentry/wake regressions; deterministic clock."
+        },
+        {
+          "path": "modules/monitor/tests/schema-errors.test.ts",
+          "sha256": "e4fab49a8efc20d1ca33784b71a77599e9a77efea5ad101cb4e27d9ab6acf2c7",
+          "reason": "Regression for the reported monitor_start reply: the host schema must accept structurally valid but out-of-range arguments so validateStart explains parameter, range and fix; also asserts unknown-parameter and kind refusals stay strict."
         },
         {
           "path": "modules/monitor/tests/status.test.ts",
@@ -743,8 +769,13 @@
         },
         {
           "path": "modules/monitor/tests/websocket-startup-cancel.test.ts",
-          "sha256": "ddf78708fba2062c348a738f3c5120af373a06c5cd1fbce17833967b8f35a259",
-          "reason": "scan MON-2 regression: abort during endpoint preparation is a cancellation; a timeout is still a failure."
+          "sha256": "9937f5dec30f9b84c3d5339642d766b33faaf7c77c60e578adce7c3f5f035861",
+          "reason": "scan MON-2 regression: abort during endpoint preparation is a cancellation; a timeout is still a failure. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged."
+        },
+        {
+          "path": "modules/monitor/tests/error-messages.test.ts",
+          "sha256": "7eda37053bc7bfe8f61229dfedb35f5cd3f951ad076e0724babf7b80f7270fb0",
+          "reason": "Error-message guidance pass (2026-10-24): asserts Monitor failure messages state parameter, rule, received value and fix. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged."
         }
       ]
     },
@@ -768,12 +799,12 @@
           "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
           "scanFixes20261024bPreviousSha256": "620a59bf2e05e0bb0b26f15e999681b9c644cd1c806dcd998b4ace85c9e0b071",
           "scanFixes20261024bAdaptation": "2026-10-24: the workspace root itself is inside the workspace, so a note folder linked back to it works; links leaving the workspace are still refused (scan SH-003).",
-          "sha256": "8c924dd39c6098becf41e47f74b91ad6e339c8d16a3a3d00356d1f317df60bec",
+          "sha256": "bb3c6d996f839068f12a6a0e8f57f4fd4602e9253934fe7779352b783e12c5bc",
           "preChangeSha256": "b224c95b00c707d879e886507aa21d9be8258a6a4693b2523e12d7708175f2a4",
           "previousRecordedSha256": "b753ab14a2ffe217509ed09555fb73553f8da694f70acf928785e57492562ea3",
           "historicalDeltaAudit": "unavailable",
           "localSnapshotReview": "2026-10-03: pre-change implementation inspected; strict schema, Unicode, exclusive-create, mutation queue, bounded collisions and path result verified locally. Pre-change bytes match initial commit f14b837; earlier recorded bytes unavailable.\n2026-10-08 current local snapshot review: L20-L23: single relativePath output, bounded fence-aware title discovery and exclusive-create/collision preservation reviewed; max999ms collision offset retained intentionally. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
-          "reason": "Retain historical audit limitations. User-requested pure note call/result presentation and compact UTC YYYYMMDDTHHmmssSSSZ filenames; preserve model-facing output, millisecond collision retries and old files. 2026-10-06 local adaptation (note-tools): slug filename TYPE-<UTC timestamp>[-slug].md (CJK preserved, 40 code points), NOTE_EMPTY error, single relative path result. Assertions kept or tightened; not a source-identical copy. Hash re-recorded 2026-10-06: the slug-filename implementation described above was edited after its hash was last recorded; current content was reviewed against note-tools unit tests (22 pass) and the AGENTS.md contract. 2026-10-08 current local snapshot review: L20-L23: single relativePath output, bounded fence-aware title discovery and exclusive-create/collision preservation reviewed; max999ms collision offset retained intentionally. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
+          "reason": "Retain historical audit limitations. User-requested pure note call/result presentation and compact UTC YYYYMMDDTHHmmssSSSZ filenames; preserve model-facing output, millisecond collision retries and old files. 2026-10-06 local adaptation (note-tools): slug filename TYPE-<UTC timestamp>[-slug].md (CJK preserved, 40 code points), NOTE_EMPTY error, single relative path result. Assertions kept or tightened; not a source-identical copy. Hash re-recorded 2026-10-06: the slug-filename implementation described above was edited after its hash was last recorded; current content was reviewed against note-tools unit tests (22 pass) and the AGENTS.md contract. 2026-10-08 current local snapshot review: L20-L23: single relativePath output, bounded fence-aware title discovery and exclusive-create/collision preservation reviewed; max999ms collision offset retained intentionally. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged.",
           "checklistReviewPreviousSha256": "9527af63c3f5227c5a18698c6ff6076d09cc3ffd2a668221f07b967cc2b8f721",
           "checklistReviewBaselineSha256": "5ab49a831d289907a2ff6b6c5cfe18f159d556f2c0e658039041684000adaa5c",
           "cleanCode20261023PreviousSha256": "a7b3bb928ff7f90832547272ec444e2a7d818385554bf05c83104914647c1487",
@@ -789,8 +820,8 @@
           "streamingByteCountPreviousSha256": "dc7d7b15d4eabb63169dca53f5483acc350ea86296269f11e43771c2b5d8ed84",
           "driftReconcile20261021PreviousSha256": "6b9fd20527c4eee2fe8e1a83a35b148747db6876b4be29b84d2ac6c4e6632290",
           "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
-          "sha256": "fdca009f33720730c90c5e8d949aeae5b631c54dc88c7ea2e9b608a09f7b88ff",
-          "reason": "Update compact timestamp assertions; add UTC rollover, lexical sorting, legacy-file retention and 1000-collision exhaustion regressions without removing existing assertions. 2026-10-06 local adaptation (note-tools): slug filename TYPE-<UTC timestamp>[-slug].md (CJK preserved, 40 code points), NOTE_EMPTY error, single relative path result. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: L20-L23: single relativePath output, bounded fence-aware title discovery and exclusive-create/collision preservation reviewed; max999ms collision offset retained intentionally. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
+          "sha256": "cab966038eebb30557206cb8e733b95fdcf5c5f476676c8e8eb01dfd05e406e2",
+          "reason": "Update compact timestamp assertions; add UTC rollover, lexical sorting, legacy-file retention and 1000-collision exhaustion regressions without removing existing assertions. 2026-10-06 local adaptation (note-tools): slug filename TYPE-<UTC timestamp>[-slug].md (CJK preserved, 40 code points), NOTE_EMPTY error, single relative path result. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: L20-L23: single relativePath output, bounded fence-aware title discovery and exclusive-create/collision preservation reviewed; max999ms collision offset retained intentionally. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged.",
           "preChangeSha256": "b5d6895104641e88ae2fd06d2fb41b9f955df86c1b7fb8732b0a26e0ae4bb603",
           "checklistReviewPreviousSha256": "71dec5d32ba9d557175be46a73a68457f2fe1195d76b2c4df6b6c60dc760b664",
           "checklistReviewBaselineSha256": "293ad93d7bf038caaafa315129bea544b0b24a41d275bb153c80a81775fa0a73",
@@ -849,13 +880,13 @@
           "gptSpeedCacheAdaptation": "2026-10-21 GPT Speed prompt cache lifetime: new /cache-ttl-short and /cache-ttl-long commands (no arguments) and pi-gpt-speed.cache setting (short = 30m API default, request untouched; long = prompt_cache_options.ttl 12h for provider openai on the openai-responses API only, merged into existing prompt_cache_options), independent global/trusted-project precedence, extra TUI status entry gpt-cache; speed/service_tier behavior unchanged. Unit tests (55) and the real-host probe were run; OpenAI acceptance of the field was not verified against the real service.",
           "disableCacheTtl20261023PreviousSha256": "76a795a6395e4f3491019b115fc84ac22f908a4f511972c3a334539aabec5e37",
           "disableCacheTtl20261023Adaptation": "2026-10-23 user-requested disable: `/cache-ttl-short` and `/cache-ttl-long` are not registered (CACHE_TTL_ENABLED = false), the footer writes no `Cache:` item and the request hook never adds `prompt_cache_options.ttl`; `pi-gpt-speed.cache` is still parsed but unused and `effectiveCacheTtl` stays for a later re-enable. Speed tiers are unchanged.",
-          "sha256": "3e156fc44125835121ceac7a6f4f3e53106100d771dcf7d718ad83476599644e",
+          "sha256": "87f0b137f66fd500d2c21d6f5d0db42723f1a7400001ee01ba47a32358df0c91",
           "checklistReviewPreviousSha256": "566852a410666e7bb252333536cd378a1279c019d1604197e837b627730f0bb5",
           "checklistReviewBaselineSha256": "ee66d2d818e06441394ef787fadca73a798450a36fca26bc7d7c4d208fea5a8d",
           "localSnapshotReview": "2026-10-08 current local snapshot review: M16: canonical settings target, dangling/error fail-closed behavior, bounded synchronous ELOCKED retry, lock-held mode read/chmod preservation and read-merge persistence reviewed without real user settings. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
           "historicalDeltaAudit": "unavailable",
           "previousRecordedSha256": "566852a410666e7bb252333536cd378a1279c019d1604197e837b627730f0bb5",
-          "reason": "2026-10-08 current local snapshot review: M16: canonical settings target, dangling/error fail-closed behavior, bounded synchronous ELOCKED retry, lock-held mode read/chmod preservation and read-merge persistence reviewed without real user settings. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
+          "reason": "2026-10-08 current local snapshot review: M16: canonical settings target, dangling/error fail-closed behavior, bounded synchronous ELOCKED retry, lock-held mode read/chmod preservation and read-merge persistence reviewed without real user settings. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged.",
           "cleanCode20261023PreviousSha256": "a995894f2169b7d7bba3fef8e24658fd7c6ab1acdf7026a05656a57ebb23a5a5",
           "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: One withSyncRetry() for the lock/rename retry loops; storedValues() and SPEED_MODES replace duplicated mode/cache parsing."
         },
@@ -866,13 +897,13 @@
           "gptSpeedCacheAdaptation": "2026-10-21 GPT Speed prompt cache lifetime: new /cache-ttl-short and /cache-ttl-long commands (no arguments) and pi-gpt-speed.cache setting (short = 30m API default, request untouched; long = prompt_cache_options.ttl 12h for provider openai on the openai-responses API only, merged into existing prompt_cache_options), independent global/trusted-project precedence, extra TUI status entry gpt-cache; speed/service_tier behavior unchanged. Unit tests (55) and the real-host probe were run; OpenAI acceptance of the field was not verified against the real service.",
           "disableCacheTtl20261023PreviousSha256": "7d536168461eefc26353ed99c2cd0e96216dd2e81fb834eba135b121aab8c9ac",
           "disableCacheTtl20261023Adaptation": "2026-10-23 user-requested disable: the command/status/persistence/payload cases for `/cache-ttl-*` are replaced by one disabled-contract regression (no command, no footer item, no request field even with a stored cache value) and the retained `effectiveCacheTtl` policy unit test.",
-          "sha256": "26ccf8445b8eb4f46bc70474b26e4b4b067db244d2f186a9b06fc3d93e108245",
+          "sha256": "8dcea108a9dbfc70ff61f6ff54225cdda566400dac0086f889c0500880b87b4d",
           "checklistReviewPreviousSha256": "bc3e042d832456c917db5995ca71c68f591230ae1a7090cd6b2b916099e46651",
           "checklistReviewBaselineSha256": "beb9df1b145d14be35c32f57d9eb6bb10543c8aa5a6a5ebe28d60a509d238325",
           "localSnapshotReview": "2026-10-08 current local snapshot review: M16: canonical settings target, dangling/error fail-closed behavior, bounded synchronous ELOCKED retry, lock-held mode read/chmod preservation and read-merge persistence reviewed without real user settings. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
           "historicalDeltaAudit": "unavailable",
           "previousRecordedSha256": "bc3e042d832456c917db5995ca71c68f591230ae1a7090cd6b2b916099e46651",
-          "reason": "2026-10-08 current local snapshot review: M16: canonical settings target, dangling/error fail-closed behavior, bounded synchronous ELOCKED retry, lock-held mode read/chmod preservation and read-merge persistence reviewed without real user settings. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
+          "reason": "2026-10-08 current local snapshot review: M16: canonical settings target, dangling/error fail-closed behavior, bounded synchronous ELOCKED retry, lock-held mode read/chmod preservation and read-merge persistence reviewed without real user settings. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged.",
           "macosCompat20261023PreviousSha256": "33b99e7a10ea78badd16ab42959979a8039ea664c34db21337a0fbfa26eb1e8c",
           "macosCompat20261023Adaptation": "2026-10-23 macOS: the realpath/stat fail-closed test also matches the resolved settings path, so the statSync mock hits under a linked tmpdir (/var -> /private/var); Windows/Linux behaviour unchanged."
         },
@@ -935,15 +966,15 @@
       "files": [
         {
           "path": "modules/json-schema/src/validation-schema.mjs",
-          "sha256": "93d9aea5cf28e027f031ef1482d98910191df9c57d26e55078cbc460a42bad2b",
-          "reason": "2026-10-11 R2 shared schema-position-only default annotation pruning; instance enum/const/data preserved.",
+          "sha256": "761f57f2c44e4365970b91a900c01d29a32b23b2537995ca1f3dd08051081696",
+          "reason": "2026-10-11 R2 shared schema-position-only default annotation pruning; instance enum/const/data preserved. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged.",
           "cleanCode20261023PreviousSha256": "f3d5be96253130976783cf35d6f599b3d2463bb1553413bc67d0b8a193927ca5",
           "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: Single owner of schema-position keyword sets: childSchemas()/mapSubschemas() replace five hand-written walks; formatIssues() shared with the worker."
         },
         {
           "path": "modules/json-schema/src/validation-schema.d.mts",
-          "sha256": "02df136318949ff2dda14fcdef0e95a69775abdb1547f94d7fc0e2b102c31744",
-          "reason": "2026-10-11 R2 native declaration for shared runtime validation helper.",
+          "sha256": "106c997c0375e779704503b31f848e32a11095a4a468cba29f122a3ab3067526",
+          "reason": "2026-10-11 R2 native declaration for shared runtime validation helper. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged.",
           "cleanCode20261023PreviousSha256": "1ae801b1e04434b8382a4bc1269ee8dee4d4617d568102daa3455705d8370b68",
           "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: Declarations for the newly exported helpers."
         },
@@ -975,9 +1006,9 @@
         {
           "path": "modules/json-schema/extensions/json-schema.ts",
           "defectRepairPreviousSha256": "8e45d2c0135e1c34c8eb867d805aa560a601f307f8ce8b9bf061cb5469e6c589",
-          "sha256": "28caa39f1f15a37f9c59b5e35283e67c6e61203e6880b83cde861d82818f1261",
+          "sha256": "3c62578bc33475aa95a0a86a8b9450dcf7b63cdc0e735b1924dd9b215620ddeb",
           "preChangeSha256": "54b24fcdd98e16d99f5d7a6f1e1719d78ef95833540d14bdbf578a352c2e235a",
-          "reason": " 2026-10-06 local adaptation (json-schema): description merged, README documents validation-failure semantics and provider compatibility warning. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: M8-M9/L32-L33: retained original assistant text, schema-valid candidate selection, bounded reusable validation pool and Windows delivery rename retry reviewed; conservative pattern policy and cancellation/termination capacity retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
+          "reason": " 2026-10-06 local adaptation (json-schema): description merged, README documents validation-failure semantics and provider compatibility warning. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: M8-M9/L32-L33: retained original assistant text, schema-valid candidate selection, bounded reusable validation pool and Windows delivery rename retry reviewed; conservative pattern policy and cancellation/termination capacity retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged.",
           "checklistReviewPreviousSha256": "cb6e89aec983c86b472fa497f1267add9efcc2c4bf8c9c3f7fce01367e8adff8",
           "checklistReviewBaselineSha256": "55a51277dd8572ed3a628d4fabd3651baa1b0dda5771a8cffd377c65b9a4ff9f",
           "localSnapshotReview": "2026-10-08 current local snapshot review: M8-M9/L32-L33: retained original assistant text, schema-valid candidate selection, bounded reusable validation pool and Windows delivery rename retry reviewed; conservative pattern policy and cancellation/termination capacity retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
@@ -1122,6 +1153,11 @@
           "localSnapshotReview": "2026-10-08 current local snapshot review: M8-M9/L32-L33: retained original assistant text, schema-valid candidate selection, bounded reusable validation pool and Windows delivery rename retry reviewed; conservative pattern policy and cancellation/termination capacity retained.",
           "reason": "2026-10-08 current local snapshot review: M8-M9/L32-L33: retained original assistant text, schema-valid candidate selection, bounded reusable validation pool and Windows delivery rename retry reviewed; conservative pattern policy and cancellation/termination capacity retained.",
           "sha256": "0bf7369373c1fc717a737e1fc46bbd0d9387a8729ac4df73e59fdf73fc4ae68f"
+        },
+        {
+          "path": "modules/json-schema/tests/error-messages.test.ts",
+          "sha256": "94fae7e2f5ea4e0e6ca63f56b18afa074f8474eca3216667385dcc6cc368c3a5",
+          "reason": "Error-message guidance pass (2026-10-24): asserts json-schema failure messages are actionable. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged."
         }
       ]
     },
@@ -1280,10 +1316,10 @@
           "liveJobView20261023Adaptation": "2026-10-23: documents the in-memory live conversation copy (job.live) alongside the persisted transcript and its release on completion.",
           "steerDelivery20261024PreviousSha256": "912b76e845542fe88cc392acd8623d03c0c0630e7d123013c8a5dc68716064e0",
           "steerDelivery20261024Adaptation": "2026-10-24: fork-result is submitted with triggerTurn:true / steer (background notification default).",
-          "sha256": "61d1ed1582e00bea7058807f799c4bd59bee5353c2ad71ae93091ee390c7461a",
+          "sha256": "dfd098c56974e4c964676049d135f2695ad3d6cb3ccb4d9c8fb7a0e3d6371cce",
           "forkMessage20261021PreviousSha256": "cb6f24ee7bf49eb3cfd1a1c6630108c8ccf6921b3d654516d5df2f2eb171b37d",
           "forkMessage20261021Adaptation": "2026-10-22: documents fork_message (running/blocked only, follow_up default and steer opt-in, receipts and the applied upgrade, 32 per Fork, no queue/replay, acceptance never shown as progress).",
-          "reason": "Document defaultActive:true without config; preserve host selection, managed-child restrictions, limits and security boundaries.",
+          "reason": "Document defaultActive:true without config; preserve host selection, managed-child restrictions, limits and security boundaries. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged.",
           "transcriptPreviousSha256": "ad71f5ae342cccfed01306573ef1420186022dc53ae9471c34cf1b77c7483e52",
           "transcriptAdaptation": "2026-10-21: Fork query transcript (post-start messages only, reuses the Subagent readable-log writer; auxiliary, failures only mark it unavailable).",
           "identityPromptPreviousSha256": "e73379e3812a516e1c529b6dbe6c98be63e5eef0b16aecebee3be2f080ef3c19",
@@ -1332,10 +1368,10 @@
         },
         {
           "path": "modules/fork/src/identity.ts",
-          "sha256": "0054353aa657eb1e4e0d84d9cc501d6ab44b911d8e754f12a898f1c0003b1572",
+          "sha256": "efb78a51a4aa3b2f9cff72f758501412086445918ae09f5c430b54d6b2ca7747",
           "forkMessage20261021PreviousSha256": "84dd63570a283c28bfe18cb63e1c883a43d9415fd79471a30bda60dc703e79a4",
           "forkMessage20261021Adaptation": "2026-10-22: FORK_TOOLS now includes fork_message, so the Fork child exclusion and the tool inventory stay one list.",
-          "reason": "Native Fork implementation.",
+          "reason": "Native Fork implementation. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged.",
           "cleanCode20261023PreviousSha256": "a4335e6f1a2fa0105dbb8f699699635c7d1aaf32a574e0d693a40731eee6c426",
           "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: Add isForkTool()."
         },
@@ -1344,10 +1380,10 @@
           "forkDefaultActivePreviousSha256": "41268ad8a5d98f43f2ec57805e4f9f0d891e0f38fbd9135103da5a5eb56e80d4",
           "forkMonitorSource20261021PreviousSha256": "366d3386597479fb2e00258d835df14827b4acb792e168ae4992157bcbc48e8d",
           "forkMonitorSource20261021Adaptation": "2026-10-21: session_start publishes the readonly fork_job capability after onSessionStart and session_shutdown revokes it before cancelling; admission, args, guards and delivery unchanged.",
-          "sha256": "3cf999d43ef194abb89a775251f0841d661663ca5fdfec9f59b979720cd488e4",
+          "sha256": "342a60dab151068859f2dedc99d56af4e21f9c1160d13ad73c4e78b9ab1bc4ac",
           "forkMessage20261021PreviousSha256": "0c157d0e9217ac9a8042bfa56b43efcca114d4e59cc27f449ef701cdddfdf3fc",
           "forkMessage20261021Adaptation": "2026-10-22: registers fork_message beside the other Fork tools with the same definition factory; Monitor capability wiring, delivery and guards unchanged.",
-          "reason": "User-requested defaultActive:true for all three Fork tools; no forced activation, config changes or guard/lifecycle changes.",
+          "reason": "User-requested defaultActive:true for all three Fork tools; no forced activation, config changes or guard/lifecycle changes. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged.",
           "transcriptPreviousSha256": "d53d534b9db8e33740838d498b53de3eb5093aedabc93e7fa5292576f921cf89",
           "transcriptAdaptation": "2026-10-21: Fork query transcript (post-start messages only, reuses the Subagent readable-log writer; auxiliary, failures only mark it unavailable).",
           "cleanCode20261023PreviousSha256": "074daa44c8b8e724da4880f11159cf84b2c8a62d914231e8fce9268dd1e62954",
@@ -1379,11 +1415,11 @@
           "liveJobView20261023Adaptation": "2026-10-23: job.live LiveTranscript fed by child events and released by complete()/finishWithoutChild(); separate from the persisted auxiliary transcript and from delivery.",
           "steerDelivery20261024PreviousSha256": "7f889d4b80a2f465beb8708ff2223f1822fbecadff3db7acf262b5a9d366190b",
           "steerDelivery20261024Adaptation": "2026-10-24: fork-result sendMessage uses deliverAs \"steer\" instead of \"followUp\".",
-          "sha256": "f28bdd32410c031003ee0101eec600e4730b38ebf49bc3d00fe4ea2a10246667",
+          "sha256": "ac07add6550f5e4e1e59dfc7c61bedb336625082258df9f323ea952af466f42b",
           "forkReview20261022Adaptation": "2026-10-22 review fixes: applied is matched by the control message id (not exact text) and unconfirmed control text is released when the Fork is terminal.",
           "forkMessage20261021PreviousSha256": "af22a81f5d663abaa1c590b031c3251728b28daeffcc9a949916f423b41d791b",
           "forkMessage20261021Adaptation": "2026-10-22: messageFork (running|blocked only, 32 per Fork, receipts in memory, no status/blocked change on acceptance), applied upgrade from the child's own matching user message, and fork_status projects the newest three receipts.",
-          "reason": "Native Fork implementation.",
+          "reason": "Native Fork implementation. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged.",
           "transcriptPreviousSha256": "2c840778c46605ff4c951f9f07da089649623dfb465a050b81991cb9f3355349",
           "transcriptAdaptation": "2026-10-21: Fork query transcript (post-start messages only, reuses the Subagent readable-log writer; auxiliary, failures only mark it unavailable).",
           "identityPromptPreviousSha256": "d6ecb6b21cca9a64d94767f5a1f8fd69e1179a670a6beaee0ae8e2e0abb724f0",
@@ -1550,6 +1586,11 @@
           "path": "modules/fork/src/text.ts",
           "sha256": "a342c43d8eba98d463bef83f07347df463d691d35ee8b67cac03703f00b612a8",
           "reason": "Native fork helper added 2026-10-23: Shared errorText()/utf8Prefix() helpers (previously duplicated in manager.ts and transcript.ts)."
+        },
+        {
+          "path": "modules/fork/tests/error-messages.test.ts",
+          "sha256": "9021cec079607ef4955128c748191af66832730acb2189af4b73ae8aa413558b",
+          "reason": "Error-message guidance pass (2026-10-24): asserts fork, fork_status, fork_cancel and fork_message failure messages state parameter, rule and fix. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged."
         }
       ],
       "transcript20261021": {

@@ -23,6 +23,8 @@
 `monitor_start` 的 `source.kind:"command"` 由 Monitor 自行啟動 backend，不經巢狀 `bash` 的 `tool_call` hooks；因此只拒絕 `bash` 的 policy **不會**阻止 Monitor command source，policy 必須針對 `monitor_start`（可檢查 `input.source.command`）。這是目前明訂的授權範圍，不是已證實的權限漏洞，也不會偷偷啟用 `bash`；若產品要求兩者同範圍，需另行決定（例如 `ctx.executeTool`）。`tests/command-authorization.integration.test.mjs` 鎖定：直接 bash 被拒、可針對 `monitor_start` 攔截；「bash-deny 也涵蓋 Monitor」以 `todo` 記錄。
 共通 `durationMs` 預設300000、1000–1800000整數，包含 startup；不是 Shell idle `timeoutMs`。`wakeAgent` 預設true；false 的 display custom message 不要求模型回合。`stopAfterEvents` 可選1–600，計採納資料事件；`label` 可選80字、清控制碼。Start 立即回 pending receipt；acceptance 後 runtime 接管，不跟著原工具 call 的晚到 abort 停止。Status `{monitorId?}` 唯讀，省略列最多32；Stop `{monitorId}` 冪等、可能先回 stopping/cleanupPending。
 
+參數錯誤回饋：host 面對的 `startSchema` 刻意平坦（`source.kind` 為六值聯集，其餘欄位 optional 並附範圍描述），因為 TypeBox 對六個 source 的聯集會針對一個超界值回六個分支錯誤（`schema is false`、`must be equal to constant`），對呼叫者沒有可用資訊。真正的嚴格檢查集中在 `validateStart`：每則錯誤都說明參數名稱、收到的值、允許範圍與修正方式，例如 `intervalMs 20000` 會被回為「job source 最小 30000 ms、預設 60000」，而不是分支錯誤；`execute` 的拒絕（owner 不符、已取消、adapter unavailable）同樣附上原因與下一步。聯集比對仍由 `schema` 保證欄位型別與拒絕未知參數，不因為平坦化而接受未定義參數。
+
 ### 活躍 monitor 清單（Blackhole 壓縮提醒）
 
 Monitor 在 `session_start` 另經 `monitor-capability.ts` 發布 `publishActiveMonitorBriefs`（scope 同 owner session ＋ canonical cwd），`session_shutdown` 先 revoke。`activeMonitorBriefs(scope)` 回傳**未終結** monitor 的窄投影：`monitorId`、`source`（kind）、`state`（starting／running／stopping）、`target`（file 為 `source.path`、websocket 只留 origin、command 為 `[command withheld]`、job 為 jobId）、可選 `label`、`remainingMs`；上限16筆，reader 例外或 malformed row 只標 `partial`。投影不含命令文字、URL path／query、事件、output 或任何控制把手，不能 stop／cancel／查模型，也不代表已交付。Blackhole 的 `[Active Monitors]` 區塊即讀此清單，只代表壓縮當下。
@@ -32,8 +34,8 @@ Monitor 在 `session_start` 另經 `monitor-capability.ts` 發布 `publishActive
 `monitor_event` 已註冊原生訊息 renderer，與 Shell／Fork 通知使用相同主題背景面板與內距，依狀態用 success／error／pending；收合顯示來源狀態、短 ID 與末三筆事件，原生展開看完整 IDs、最多32筆事件及具名 job snapshot 欄位。顯示清理 ANSI／控制碼／bidi、依終端欄寬截短／換行、最多300行；renderer 不執行工具、不修改模型正文或 details，不將來源輸出當作終結／清理證據。舊的 prose＋JSON body 可有界解析；缺欄位安全顯示 unknown，不重寫已存訊息。
 
 - `wakeAgent:true`（預設）：`pi.sendMessage` 的 `triggerTurn:true, deliverAs:"steer"`，要求 Agent 回合；與 Shell／Subagent 完成通知一致：主 Agent 忙碌時也直接提交，由 Pi 的 steering 佇列在安全的回合邊界插入，不等 `agent_settled`；保留每 owner 30 秒節流。核心的 `setBusy` 只是 embedder 的選用保留閥，Pi extension 不呼叫。
-- `wakeAgent:false`：custom message 仍保存並加入模型上下文，只是不主動要求新模型回合；下次正常請求可讀到，不是只有使用者看得到。Shell 自動 Monitor 固定此模式，避免每次採樣額外呼叫模型；原 Shell job 完成通知另行喚醒。
-- 面板分別顯示 `Agent turn requested`／`Display only · no Agent turn requested`；batch 中任一選中來源為true即要求turn。舊訊息缺少欄位顯示 unavailable，receipt 與新批次 metadata 都提供每來源 `wakeAgent`。這是請求模式而非 host acknowledgment，不保證 Agent 一定產生文字回覆。
+- `wakeAgent:false`：custom message 仍保存並加入模型上下文，只是不主動要求新模型回合；下次正常請求可讀到。因為這種批次會落在當前回合 final text 之後且永遠不會被即時回應，`display` 同步設為 `false`：TUI 不渲染這些觀測面板（Pi 依 `display` 決定是否顯示 custom message，模型 context 不看此旗標），session JSONL 仍完整記錄。Shell 自動 Monitor 固定此模式，避免每次採樣額外呼叫模型；原 Shell job 完成通知另行喚醒且仍可見。
+- `display` 與 `triggerTurn` 永遠同值（batch 中任一選中來源為 true 即要求 turn 並顯示）。面板分別顯示 `Agent turn requested`／`Display only · no Agent turn requested`，後者只用於舊版已保存訊息；舊訊息缺少欄位顯示 unavailable，receipt 與新批次 metadata 都提供每來源 `wakeAgent`。這是請求模式而非 host acknowledgment，不保證 Agent 一定產生文字回覆。
 
 ## 限制與證據
 
@@ -53,7 +55,7 @@ URL origin-only preview、generic network failure等 **Monitor自產metadata** �
 
 ## `monitor_event` producer v1／Blackhole 窄交接
 
-Pi custom message：`customType:"monitor_event"`、`display:true`，固定 untrusted-data 說明＋JSON，details 權威（正文非指令）。`wakeAgent:true` 用 `triggerTurn:true,deliverAs:"steer"`；false 為 `triggerTurn:false`（Pi 在此情況不使用 `deliverAs`，串流中由 Pi 延到回合結束附加）。Details：
+Pi custom message：`customType:"monitor_event"`、`display` 與 `triggerTurn` 同值（要求回合時 true），固定 untrusted-data 說明＋JSON，details 權威（正文非指令）。`wakeAgent:true` 用 `triggerTurn:true,deliverAs:"steer"`；false 為 `triggerTurn:false`／`display:false`（Pi 在此情況不使用 `deliverAs`，串流中由 Pi 延到回合結束附加，並因 `display:false` 而不在 TUI 渲染，仍完整落盤並進入 context）。Details：
 
 - `schemaVersion:1`、`batchSequence`（owner runtime 遞增）。
 - `events[]`：`eventId`／`monitorId`（uppercase ULID）、`sequence`（per-monitor）、`observedAt`、`category:"data"|"system"`、`kind`、可選 `text`／`snapshot`、`partial`、`originalBytes`。
@@ -65,3 +67,9 @@ Pi custom message：`customType:"monitor_event"`、`display:true`，固定 untru
 ## 驗證
 
 根 `npm run test:module -- monitor` 包含 strict typecheck、deterministic-clock單元、local command/WS transports、installed ws DNS/TLS/redirect probes、隔離離線 Pi1.4.0 host 的兩載入順序／四sources／managed child／reload。`tests/fixtures/monitor-production.mjs` 是乾淨 production deps 真實loader的 command＋WS／readonly provider registration probe；由根package runner複製執行。外部providers=0；合成provider只本地stub。真實宿主 fixture 另驗預設true實際觸發離線模型回合且上下文含來源marker，false不新增回合；renderer測試含展開／收合、窄寬／Unicode、控制碼、legacy與unknown。人工TUI、真實遠端端點、其它OS與付費provider未由這些測試證明。
+
+## Error messages
+
+Failure responses name the parameter, the rule and the fix (2026-10-24 guidance pass; see plan/error-message-handoff.md). Agent-visible messages name only the tool's own arguments (including `allowPrivateNetwork` and `allowInsecure`), tool names and error codes; host allowlist flags and settings are not named.
+- A WebSocket that fails after being accepted records a bounded single-line reason (max 300 characters) in `cleanupEvidence.startupError`, readable from status and stop results. DNS pinning, private-network opt-in and TLS verification are unchanged, and resolved addresses are never echoed.
+- `stopAfterEvents` is a count (1-600), not milliseconds, and the message says so.

@@ -125,6 +125,17 @@ describe("independent-review host-shaped notification regressions", () => {
       await command.handler("call_A|fc_B", ctx); expect(sent[2].content).toContain("call_A|fc_B");
     });
   });
+  it("A7: out-of-range evidence page names parameter, value, range and fix", async () => {
+    const e = { type: "custom_message", id: "x".repeat(128), customType: "scheduled_prompt", details: { jobId: "J", mode: "subagent_done", output: "0123456789".repeat(500) } };
+    await withFile([JSON.stringify(e)], async file => {
+      const result = await execute(file, [e], 1500, 99) as any;
+      const text = result.content[0].text;
+      expect(result.isError).toBe(true);
+      expect(text).toContain('Parameter "page" 99 is outside 1..');
+      expect(text).toMatch(/pass a page between 1 and \d+/);
+      expect(result.details.notificationEvidence.reason).toBe("page_out_of_range");
+    });
+  });
   it("A6: tiny budgets diagnose no delivery; successful pages reconstruct exact selected data", async () => {
     const e = { type: "custom_message", id: "x".repeat(128), customType: "scheduled_prompt", details: { jobId: "J", mode: "subagent_done", output: "BEGIN" + "0123456789".repeat(500) + "END" } };
     const expected = renderNotificationEvidence(projectNotification(e)!).summary;

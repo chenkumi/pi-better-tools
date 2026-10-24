@@ -78,7 +78,7 @@ test("adapter validation and missing-context exceptions are logged without chang
   fixture.writeDebugSettings(enabled);
   const { session } = await shellSession();
   await assert.rejects(fixture.execute(session, "bash", { command: "printf MUST_NOT_RUN", timeoutMs: 0 }),
-    (error) => error instanceof TypeError && error.message === "timeoutMs must be a positive integer in milliseconds");
+    (error) => error instanceof TypeError && /^timeoutMs must be a positive integer between 1 and 2147483647 milliseconds .*received 0\./.test(error.message));
   await assert.rejects(fixture.execute(session, "bash", { command: "printf MUST_NOT_RUN", timeout: 3 }), /no longer accepts timeout/);
   await assert.rejects(session.getToolDefinition("bash").execute("no-context", { command: "echo forbidden" }, undefined, undefined, undefined),
     /Pi did not provide the shell tool execution context/);
@@ -171,7 +171,7 @@ test("failed log writes preserve both structured errors and thrown tool exceptio
   assert.equal(result.isError, true);
   assert.equal(result.structuredContent.exit_code, 7);
   await assert.rejects(fixture.execute(session, "bash", { command: "exit 0", timeoutMs: 0 }),
-    (error) => error instanceof TypeError && error.message === "timeoutMs must be a positive integer in milliseconds");
+    (error) => error instanceof TypeError && /^timeoutMs must be a positive integer between 1 and 2147483647 milliseconds .*received 0\./.test(error.message));
   assert.equal(fs.readFileSync(blocker, "utf8"), "existing blocker");
 });
 

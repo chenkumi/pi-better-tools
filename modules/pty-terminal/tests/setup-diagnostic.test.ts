@@ -31,6 +31,6 @@ test('spawn errors are not mislabeled as missing native dependency', () => {
   const failure = new Error('spawn denied');
   Module._load = (name, ...args) => name === 'node-pty' ? { spawn: () => { throw failure; } } : original(name, ...args);
   try {
-    assert.throws(() => new PtySessionManager().spawn('unused', [], {}, process.cwd()), error => error === failure);
+    assert.throws(() => new PtySessionManager().spawn('unused', [], {}, process.cwd()), error => error instanceof Error && error.cause === failure && /spawn denied/.test(error.message) && !/npm run pty:install|native/i.test(error.message));
   } finally { Module._load = original; }
 });

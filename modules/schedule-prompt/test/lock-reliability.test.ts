@@ -89,11 +89,12 @@ describe("SCH-01: short lock contention is absorbed", () => {
     expect(fs.existsSync(lock)).toBe(false);
   }, 60_000);
 
-  it("still fails closed (with path and guidance) once the bounded wait is exhausted by a live holder", () => {
+  it("still fails closed (with holder guidance, without file paths) once the bounded wait is exhausted by a live holder", () => {
     CronStorage.lockWaitMs = 0;
     writeOwner({ token: "t", pid: process.pid, host: hostname() });
     const storage = new CronStorage(cwd);
-    expect(() => storage.addJob(job("a"))).toThrow(/Cannot acquire scheduled prompts lock.*schedule-prompts\.json\.lock/s);
+    expect(() => storage.addJob(job("a"))).toThrow(/Cannot acquire scheduled prompts lock.*held by pid/s);
+    expect(() => storage.addJob(job("a"))).not.toThrow(/schedule-prompts|\.lock\b/);
     expect(fs.existsSync(join(lock, "owner"))).toBe(true);
     expect(storage.getAllJobs()).toEqual([]);
   });
@@ -183,14 +184,14 @@ describe("SCH-02: a force-killed lock holder is recovered conservatively", () =>
   it("never takes over a lock owned by another host, even when that pid does not exist here", () => {
     CronStorage.lockWaitMs = 0;
     writeOwner({ token: "far", pid: 2_000_000_000, host: `${hostname()}-elsewhere` });
-    expect(() => new CronStorage(cwd).addJob(job("a"))).toThrow(/schedule-prompts\.json\.lock/);
+    expect(() => new CronStorage(cwd).addJob(job("a"))).toThrow(/cannot verify liveness across hosts/);
     expect(fs.existsSync(lock)).toBe(true);
   });
 
   it("never takes over a legacy token-only or ownerless lock and tells the user how to repair it", () => {
     CronStorage.lockWaitMs = 0;
     writeOwner("1.legacytoken");
-    expect(() => new CronStorage(cwd).addJob(job("a"))).toThrow(/remove .*schedule-prompts\.json\.lock/i);
+    expect(() => new CronStorage(cwd).addJob(job("a"))).toThrow(/ask the user to remove the stale scheduled prompts lock/i);
     expect(fs.readFileSync(join(lock, "owner"), "utf8")).toBe("1.legacytoken");
     fs.rmSync(join(lock, "owner"));
     expect(() => new CronStorage(cwd).addJob(job("a"))).toThrow(/Cannot acquire scheduled prompts lock/);

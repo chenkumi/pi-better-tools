@@ -51,11 +51,15 @@ describe("Pi extension lifecycle", () => {
       expect(tool.exposure).toBe("deferred");
       expect(tool.namespace.name).toBe(tool.name.split("_")[0]);
     }
-    expect(handlers.has("before_agent_start")).toBe(false);
+    // The config-error notice hook adds nothing when the configuration is valid.
+    expect(handlers.get("before_agent_start")!({ systemPrompt: "Base", systemPromptOptions: { sections: {} } }, ctx)).toBeUndefined();
     const guidance = tools.flatMap(tool => tool.promptGuidelines ?? []).join("\n");
     expect(guidance).toContain("mysql_query/mysql_update use `?`");
     expect(guidance).toContain("pgsql_query/pgsql_update use `$1`");
     expect(guidance).not.toContain("mssql_query");
+    // Agent-facing tool text names tool arguments and tools only, never settings files, fields or variables.
+    const agentText = [guidance, ...tools.flatMap(tool => [(tool as any).description, (tool as any).promptSnippet])].join("\n");
+    expect(agentText).not.toMatch(/\.json\b|\.pi[\\/]agent|\$\{|[A-Z]*PASSWORD\b|\bssl\b|\busername\b/);
     await handlers.get("session_shutdown")!({}, ctx);
   });
 });

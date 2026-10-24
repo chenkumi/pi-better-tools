@@ -21,38 +21,39 @@ export const defaults = (): Config => ({
   providers: { openai: { captureSources: false }, google: { captureSources: false }, brave: { apiKeyEnv: 'BRAVE_API_KEY' }, exa: { apiKeyEnv: 'EXA_API_KEY' }, deepseek: {} },
   fetch: { channel: 'chromium', timeoutMs: 30000, maxConcurrency: 2, idleTimeoutMs: 60000 },
 });
-function invalid(path: string): never { throw new Error(`CONFIG_INVALID: ${path}`); }
+/** `path` names the field; `rule` states what is allowed. Received values are never echoed (they may be credentials). */
+function invalid(path: string, rule: string): never { throw new Error(`CONFIG_INVALID: ${path}: ${rule}`); }
 function object(value: unknown, path: string): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) invalid(path);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) invalid(path, 'must be a JSON object');
   return value as Record<string, unknown>;
 }
 function keys(o: Record<string, unknown>, allowed: string[], path: string) {
-  for (const key of Object.keys(o)) if (!allowed.includes(key)) invalid(`${path}: unknown field`);
+  for (const key of Object.keys(o)) if (!allowed.includes(key)) invalid(path, `unknown field; allowed fields: ${allowed.join(', ')}`);
 }
 function integer(v: unknown, min: number, max: number, path: string): number {
-  if (typeof v !== 'number' || !Number.isInteger(v) || v < min || v > max) invalid(path);
+  if (typeof v !== 'number' || !Number.isInteger(v) || v < min || v > max) invalid(path, `must be an integer from ${min} to ${max}`);
   return v;
 }
 function boolean(v: unknown, path: string): boolean {
-  if (typeof v !== 'boolean') invalid(path);
+  if (typeof v !== 'boolean') invalid(path, 'must be true or false');
   return v;
 }
 function credential(v: unknown, path: string): Credential {
   const o = object(v, path);
   keys(o, ['apiKey', 'apiKeyEnv'], path);
-  if (o.apiKey !== undefined && o.apiKeyEnv !== undefined) invalid(`${path}: apiKey and apiKeyEnv are mutually exclusive`);
+  if (o.apiKey !== undefined && o.apiKeyEnv !== undefined) invalid(path, 'apiKey and apiKeyEnv are mutually exclusive; set only one of them');
   for (const key of ['apiKey', 'apiKeyEnv']) {
-    if (o[key] !== undefined && (typeof o[key] !== 'string' || !(o[key] as string).trim())) invalid(`${path}.${key}`);
+    if (o[key] !== undefined && (typeof o[key] !== 'string' || !(o[key] as string).trim())) invalid(`${path}.${key}`, 'must be a non-empty string');
   }
-  if (o.apiKeyEnv !== undefined && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(o.apiKeyEnv as string)) invalid(`${path}.apiKeyEnv`);
+  if (o.apiKeyEnv !== undefined && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(o.apiKeyEnv as string)) invalid(`${path}.apiKeyEnv`, 'must be an environment variable name (letters, digits and underscore, not starting with a digit), not the key itself');
   return o as Credential;
 }
 export function parseConfig(value: unknown): Config {
   const o = object(value, 'root'), c = defaults();
   keys(o, ['version', 'provider', 'enabled', 'numResults', 'searchTimeoutMs', 'providers', 'fetch'], 'root');
-  if (o.version !== undefined && o.version !== 1) invalid('version');
+  if (o.version !== undefined && o.version !== 1) invalid('version', 'must be 1');
   if (o.provider !== undefined) {
-    if (!['openai', 'native', 'brave', 'exa', 'deepseek'].includes(o.provider as string)) invalid('provider');
+    if (!['openai', 'native', 'brave', 'exa', 'deepseek'].includes(o.provider as string)) invalid('provider', 'must be one of openai, native, brave, exa, deepseek');
     c.provider = o.provider as Provider;
   }
   if (o.enabled !== undefined) c.enabled = boolean(o.enabled, 'enabled');
@@ -73,7 +74,7 @@ export function parseConfig(value: unknown): Config {
     const f = object(o.fetch, 'fetch');
     keys(f, ['channel', 'timeoutMs', 'maxConcurrency', 'idleTimeoutMs'], 'fetch');
     if (f.channel !== undefined) {
-      if (f.channel !== 'chromium' && f.channel !== 'chrome') invalid('fetch.channel');
+      if (f.channel !== 'chromium' && f.channel !== 'chrome') invalid('fetch.channel', 'must be "chromium" or "chrome"');
       c.fetch.channel = f.channel;
     }
     if (f.timeoutMs !== undefined) c.fetch.timeoutMs = integer(f.timeoutMs, 1000, 120000, 'fetch.timeoutMs');
@@ -94,8 +95,18 @@ export function loadConfig(path = CONFIG_PATH): Config {
   try { value = JSON.parse(text); } catch { throw new Error('CONFIG_INVALID: invalid JSON (values omitted for security)'); }
   return parseConfig(value);
 }
-export function resolveKey(c: Credential, env: NodeJS.ProcessEnv = process.env): string {
+/** Agent-facing: names no configuration keys, environment variables or paths. */
+function authMessage(provider?: string): string {
+  const name = provider ?? 'the selected search provider';
+  return `AUTH_REQUIRED: No API key available for ${name}; ask the user to set a valid ${provider ? `${provider} ` : ''}search service API key in the web tools configuration, then run /reload.`;
+}
+/** Agent-facing wording for a configuration failure: keeps the error code and a generic cause, never setting names or values. */
+export function agentConfigError(message: string): string {
+  const generic = /^CONFIG_INVALID: (invalid JSON|cannot read configuration file)/.exec(message);
+  return generic ? `CONFIG_INVALID: ${generic[1]}` : 'CONFIG_INVALID: a value in the web tools configuration is invalid';
+}
+export function resolveKey(c: Credential, env: NodeJS.ProcessEnv = process.env, provider?: string): string {
   const value = c.apiKey ?? (c.apiKeyEnv ? env[c.apiKeyEnv] : undefined);
-  if (!value?.trim()) throw new Error('AUTH_REQUIRED: configure apiKey or apiKeyEnv for the selected search provider');
+  if (!value?.trim()) throw new Error(authMessage(provider));
   return value.trim();
 }

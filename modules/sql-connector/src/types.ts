@@ -48,6 +48,8 @@ export class SqlConnectorError extends Error {
       | "SQL_CONSTRAINT"
       | "DRIVER_INTERNAL",
     message: string,
+    /** Detailed wording for the human user only (UI notices): may name settings fields, files and variables. Never agent-facing. */
+    public readonly humanMessage?: string,
   ) {
     super(message);
     this.name = "SqlConnectorError";

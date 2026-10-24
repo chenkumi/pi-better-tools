@@ -69,7 +69,7 @@ describe("deadline UI", () => {
     view.handleInput("t");
     expect(storage.updateJob).not.toHaveBeenCalled();
     expect(scheduler.updateJob).not.toHaveBeenCalled();
-    expect(view.render(120).join("\n")).toContain("extend or clear");
+    expect(view.render(120).join("\n")).toContain("set a later endAt");
     expect(render).toHaveBeenCalled();
   });
   it("foreign jobs remain read-only even with an expired deadline", () => {

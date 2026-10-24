@@ -19,9 +19,9 @@ test("names compare case-insensitively only on Windows", () => {
 	assert.deepEqual(filterEnv({ Path: "x" }, { allow: ["PATH"] }, "linux"), {});
 });
 test("invalid policy fails closed with a clear error", () => {
-	assert.throws(() => parseEnvPolicy({ env: { allow: "PATH" } }), /pi-pty-terminal\.env\.allow/);
-	assert.throws(() => parseEnvPolicy({ env: { deny: ["A=B"] } }), /pi-pty-terminal\.env\.deny/);
-	assert.throws(() => parseEnvPolicy({ env: { permit: [] } }), /Unsupported/);
-	assert.throws(() => parseEnvPolicy({ env: [] }), /Invalid pi-pty-terminal\.env/);
+	assert.throws(() => parseEnvPolicy({ env: { allow: "PATH" } }), /allowed-variables list/);
+	assert.throws(() => parseEnvPolicy({ env: { deny: ["A=B"] } }), /denied-variables list/);
+	assert.throws(() => parseEnvPolicy({ env: { permit: [] } }), /unsupported entry/);
+	assert.throws(() => parseEnvPolicy({ env: [] }), /environment policy is invalid/);
 	assert.deepEqual(parseEnvPolicy({ env: { allow: ["PATH"], deny: ["X*"] } }), { allow: ["PATH"], deny: ["X*"] });
 });

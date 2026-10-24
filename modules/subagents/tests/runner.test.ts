@@ -789,7 +789,7 @@ for (const mixedModes of [false, true]) {
 					cwd: root, hasUI: true, isProjectTrusted: () => false, ui: { confirm },
 					sessionManager: { getSessionId: () => "test-session" },
 				} as unknown as ExtensionContext);
-				assert.match(result.content[0].text, mixedModes ? /Provide exactly one dispatch mode/ : /Too many parallel tasks \(33\). Max is 32/);
+				assert.match(result.content[0].text, mixedModes ? /Provide exactly one of: single mode \(agent \+ task\), parallel mode \(tasks\[\]\), chain mode \(chain\[\]\)/ : /Too many parallel tasks \(33\). Max is 32/);
 				if (!mixedModes) assert.match(result.content[0].text, /submitted \d+\/32, active \d+\/8.*split into batches.*subagent_status.*subagent_cancel/);
 				if (!mixedModes) assert.equal(result.isError, true);
 				assert.deepEqual(result.details.results, []);

@@ -73,7 +73,16 @@ export function toZodSchema(root) {
   return walk(withoutSchemaDefaults(root));
 }
 
-/** The first five zod issues as one short human-readable reason. */
+const MAX_REPORTED_ISSUES = 5;
+
+/** The first five zod issues as one short human-readable reason, plus a count of the dropped ones. */
 export function formatIssues(issues) {
-  return issues.slice(0, 5).map(issue => `${issue.path.length ? issue.path.join('.') : '(root)'}: ${issue.message}`).join('; ');
+  const shown = issues.slice(0, MAX_REPORTED_ISSUES).map(issue => `${issue.path.length ? issue.path.join('.') : '(root)'}: ${issue.message}`).join('; ');
+  const dropped = issues.length - MAX_REPORTED_ISSUES;
+  return dropped > 0 ? `${shown}; ${dropped} more issue(s) not shown` : shown;
+}
+
+/** True when a validate() reason describes a validator fault (timeout, worker crash, capacity, cancel), not an argument mismatch. */
+export function isValidationFault(reason) {
+  return /^Validation (cancelled|capacity exhausted|exceeded|worker|failed)/.test(reason);
 }

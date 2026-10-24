@@ -1,6 +1,9 @@
 import { Type, type TSchema } from 'typebox';
 import { MAX_SEARCH_RESULTS, REST_PROVIDERS } from './search.ts';
 
+/** web_fetch waitForSelector bound: the schema and the runtime check in fetch/service.ts must agree. */
+export const MAX_SELECTOR_CHARS = 500;
+
 export function outputSchema(data: TSchema) {
   return Type.Object({
     text: Type.String(),

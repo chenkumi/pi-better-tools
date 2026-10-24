@@ -273,9 +273,20 @@ export class BackgroundJobs {
 		for (const [index, task] of view.tasks.entries()) if (isPlainRecord(job.tasks[index].result) && isPlainRecord(task.result)) copyResultSummary(job.tasks[index].result, task.result);
 		return view;
 	}
+	/** Names the jobId parameter and, when the value is a task/session ID of one of this owner's jobs, says so. */
+	private jobNotFound(id: string, owner: string, cwd: string): string {
+		const shown = JSON.stringify(id.length > 80 ? `${id.slice(0, 80)}...` : id);
+		let hint = "";
+		for (const job of this.jobs.values()) {
+			if (job.owner !== owner || job.cwd !== cwd || job.generation !== this.generation) continue;
+			const task = job.tasks.find(entry => entry.taskId === id || entry.subagentSessionId === id);
+			if (task) { hint = ` The value is a ${task.taskId === id ? "taskId" : "subagentSessionId"}, not a jobId; the jobId of that task is "${job.jobId}".`; break; }
+		}
+		return `BACKGROUND_JOB_NOT_FOUND: jobId ${shown} was not found among the retained jobs of this session/cwd (jobs are lost after reload or exit, or when evicted beyond 64 retained).${hint} Call subagent_status without jobId to list valid jobIds.`;
+	}
 	get(id: string, owner: string, cwd: string) {
 		const job = this.jobs.get(id);
-		if (!job || job.owner !== owner || job.cwd !== cwd || job.generation !== this.generation || this.closed) throw new Error("BACKGROUND_JOB_NOT_FOUND: job belongs to a different owner/runtime or is no longer retained");
+		if (!job || job.owner !== owner || job.cwd !== cwd || job.generation !== this.generation || this.closed) throw new Error(this.jobNotFound(id, owner, cwd));
 		return this.view(job);
 	}
 	cancel(id: string, owner: string, cwd: string) {
@@ -352,10 +363,10 @@ export class BackgroundJobs {
 		const job = this.jobs.get(id)!;
 		const index = job.tasks.findIndex(task => task.taskId === taskId);
 		const handle = job.interactive.get(index);
-		if (index < 0 || job.cancelRequested || job.tasks[index].status !== "running" || !handle?.isRunning) throw new Error("TASK_NOT_RUNNING: exact running taskId with canMessage:true required; no broadcast or queued-step messaging");
+		if (index < 0 || job.cancelRequested || job.tasks[index].status !== "running" || !handle?.isRunning) throw new Error("TASK_NOT_RUNNING: the target subagentSessionId is not an interactive child that is running now (it may be queued, finished, canceled, or a foreground child with canMessage:false). Check subagent_status({ jobId }); messages are never broadcast or queued");
 		if (mode === "query") {
 			const queries = job.tasks.flatMap((task, taskIndex) => job.interactive.get(taskIndex)?.snapshot().queries ?? task.queries ?? []);
-			if (queries.filter(query => query.status === "accepted" || query.cleanupPending === true).length >= 2 || queries.length >= 32) throw new Error("QUERY_CAPACITY: Request not accepted: capacity limit reached. at most two concurrent and 32 retained queries per job");
+			if (queries.filter(query => query.status === "accepted" || query.cleanupPending === true).length >= 2 || queries.length >= 32) throw new Error("QUERY_CAPACITY: Request not accepted: capacity limit reached. at most two concurrent and 32 retained queries per job. Wait for an outstanding query_result, then ask again, or use mode control");
 		}
 		return mode === "control" ? handle.control(text) : handle.query(text);
 	}

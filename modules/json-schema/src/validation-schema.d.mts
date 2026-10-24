@@ -5,3 +5,4 @@ export function childSchemas(node: Record<string, unknown>, maps?: ReadonlySet<s
 export function withoutSchemaDefaults(node: unknown): unknown;
 export function toZodSchema(node: unknown): any;
 export function formatIssues(issues: ReadonlyArray<{ path: ReadonlyArray<PropertyKey>; message: string }>): string;
+export function isValidationFault(reason: string): boolean;

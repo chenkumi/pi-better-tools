@@ -76,6 +76,7 @@
 - `allow`：存在時只傳入符合的變數（空陣列＝一個都不繼承）；`deny`：移除符合的變數，在 `allow` 之後套用。名稱為英數／底線，可用結尾 `*` 表示前綴（不支援其他萬用字元）；Windows 比對不分大小寫。無效設定（型別錯誤、未知鍵）會使 `pty_spawn` 失敗，不會退回不過濾。
 - 設定來源為 `pi.getSettings()` 的有效、trust-aware 結果，與 `targets` 相同：未信任專案的專案層 `.pi/settings.json` 由宿主排除，不會生效；每次 spawn 重新讀取，手動修改後 `/reload`。
 - 只過濾**繼承**的本機環境（含 WSL／SSH client 程序，故 Windows 上請保留 `SystemRoot`、`PATH` 等 client 需要的變數）；`pty_spawn` 明確指定的 `env` 一律傳入，遠端 env 仍僅傳明確值。這是降低意外洩漏的衛生措施，不是 sandbox。
+- 設定錯誤（target 或環境策略）回給 agent 的訊息只用中性說法（例如「使用者設定中的具名終端目標」）並要求詢問使用者修正，不點名設定鍵、欄位或環境變數；`target`、`cwd`、`env` 等工具參數仍可在訊息中點名。
 
 ## 安裝及驗證
 
@@ -96,3 +97,11 @@ Repository 從根目錄執行 `npm ci --ignore-scripts`，再明確執行 `npm r
 `session_shutdown`（含 reload）中止讀取並等待比對 worker 終止，沿用 `pty_kill` 的確認與升級路徑；僅確認 transport exit 才釋放 ownership，不虛構 exitCode。kill 失敗／未確認退出會保留 registry 並回報 shutdown 錯誤（可重試 kill），shutdown 開始後不再接受 spawn。關閉 transport 不保證遠端 descendants/背景程序停止；不呼叫 `wsl --shutdown`。建立 session 不等於 SSH/WSL 握手或命令成功，必須 read 輸出及 wait_exit。操作取消不自動關閉持續 session；需要時明確 kill。每個 session 輸出為 ring buffer（2 Mi 字元），超過時丟棄最舊內容（為避免每個 chunk 複製整個 buffer，超過上限時一次修剪到上限的 15/16，保留量永不超過 2 Mi 字元），下次 `pty_read` 開頭會標示被丟棄的字元數；同時最多 16 個 session（超過 spawn 失敗；只有輸出與 drop 通知皆已讀完的 exited session 才會因滿載而讓位；未讀 exited session 保留，須先用 pty_read drain 或明確 pty_kill release，不能以新增 session 靜默丟棄），cols 最大 500、rows 最大 200；已 exited 且未釋放的 session 於結束 10 分鐘後，下一次 spawn／list 操作時回收（不是背景定時回收）。
 
 Shutdown 失敗的 recovery：shutdown 時 transport 退出未確認的 session 不會隨舊 manager 消失，而是停放在行程內的 orphan registry（`Symbol.for("pi-better-tools.pty-terminal.orphans")`，只在同一 Pi 行程內，不持久化）。reload 後新 instance 於 `session_start` 只 re-adopt canonical owner cwd（realpath）相同的 session；其他 owner 的項目不動。`pty_list` 以 `recovered:true` 與註記明示 unknown（local transport 退出未確認、遠端樹未知），可用 `pty_kill` 重試；只有確認 transport exit 才釋放，shutdown 仍回報 incomplete。不跨行程重啟恢復，也不等同遠端 process tree 已停止。比對 worker 同理：`terminate()` reject 時名額保持持有、不覆蓋原比對結果，僅在 worker `exit` 事件確認後歸還一次。
+
+## Error messages
+
+Failure responses name the offending parameter or target, the violated rule and the fix (2026-10-24 guidance pass; see plan/error-message-handoff.md).
+- `pty_wait_exit` timeout: `timedOut`/`exitCode` are unchanged (`exitCode: -1` is not a real exit code); the result adds a `note` saying the session is still running and to call `pty_wait_exit` again, `pty_read`, or `pty_kill`.
+- `pty_kill` that did not release the session returns an extra `hint` (the session is retained; call `pty_kill` again, optionally with SIGKILL on POSIX, or check `pty_list`).
+- Spawn failures keep the original error as `cause`; env policy and target settings errors describe the problem in neutral terms ("the user's PTY environment policy", "the named terminal target in the user's settings") without naming settings keys; only the tool's own arguments (for example `target`) are named.
+- Messages never contain passwords or resolved secrets.

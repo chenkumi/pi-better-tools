@@ -50,18 +50,18 @@ const PROMPT_ONLY = ["model", "notify", "extensions", "skills"] as const;
 export function jobKindError(job: Partial<CronJob>): string | undefined {
   const hasPrompt = job.prompt !== undefined;
   const hasCommand = job.command !== undefined;
-  if (hasPrompt === hasCommand) return "Provide exactly one of 'prompt' or 'command'";
+  if (hasPrompt === hasCommand) return hasPrompt ? "Provide exactly one of 'prompt' or 'command'; both were given, pass only one." : "Provide exactly one of 'prompt' (text for the model) or 'command' (a shell command); neither was given.";
   if (hasPrompt) {
     const stray = COMMAND_ONLY.filter((key) => job[key] !== undefined);
-    return stray.length > 0 ? `${stray.map((k) => `'${k}'`).join(", ")} only apply to command jobs` : undefined;
+    return stray.length > 0 ? `${stray.map((k) => `'${k}'`).join(", ")} only apply to command jobs; pass 'command' instead of 'prompt', or drop them` : undefined;
   }
-  if (typeof job.command !== "string" || job.command.trim().length === 0) return "'command' must be a non-empty string";
-  if (job.command.length > MAX_COMMAND_LENGTH) return `'command' is longer than ${MAX_COMMAND_LENGTH} characters`;
+  if (typeof job.command !== "string" || job.command.trim().length === 0) return "'command' must be a non-empty string with the shell command to run";
+  if (job.command.length > MAX_COMMAND_LENGTH) return `'command' is longer than ${MAX_COMMAND_LENGTH} characters (got ${job.command.length}); put the logic in a script file and schedule a short command that runs it`;
   const stray = PROMPT_ONLY.filter((key) => job[key] !== undefined);
-  if (stray.length > 0) return `${stray.map((k) => `'${k}'`).join(", ")} only apply to prompt jobs; command jobs never start a model or wake the parent`;
-  if (job.shell !== undefined && !isCommandShell(job.shell)) return "'shell' must be 'bash' or 'powershell'";
-  if (job.cwd !== undefined && (typeof job.cwd !== "string" || job.cwd.length === 0)) return "'cwd' must be a non-empty string";
-  if (job.timeoutMs !== undefined && !isValidCommandTimeout(job.timeoutMs)) return `'timeoutMs' must be an integer from 1 to ${MAX_TIMEOUT_MS}`;
+  if (stray.length > 0) return `${stray.map((k) => `'${k}'`).join(", ")} only apply to prompt jobs; command jobs never start a model or wake the parent. Drop them, or pass 'prompt' instead of 'command'`;
+  if (job.shell !== undefined && !isCommandShell(job.shell)) return `'shell' must be 'bash' or 'powershell', got ${JSON.stringify(String(job.shell).slice(0, 40))}; omit it to use the platform default (${defaultCommandShell()})`;
+  if (job.cwd !== undefined && (typeof job.cwd !== "string" || job.cwd.length === 0)) return "'cwd' must be a non-empty path string (relative to the project directory or absolute); omit it to use the project directory";
+  if (job.timeoutMs !== undefined && !isValidCommandTimeout(job.timeoutMs)) return `'timeoutMs' must be an integer number of milliseconds from 1 to ${MAX_TIMEOUT_MS}, got ${String(job.timeoutMs)}. It is a stall limit (the run is stopped after this long without output), not a total time limit`;
   return undefined;
 }
 
@@ -113,10 +113,10 @@ export function resolveCommandCwd(projectCwd: string, requested?: string): Resol
   try {
     real = fs.realpathSync(requested === undefined ? root : path.resolve(root, requested));
   } catch {
-    return { ok: false, error: `Working directory does not exist: ${requested ?? projectCwd}` };
+    return { ok: false, error: `Working directory does not exist: ${requested ?? projectCwd} (resolved against project directory ${root}). Create it, or pass an existing directory in 'cwd'; a directory outside the project also needs the user's approval in this session.` };
   }
   try {
-    if (!fs.statSync(real).isDirectory()) return { ok: false, error: `Working directory is not a directory: ${real}` };
+    if (!fs.statSync(real).isDirectory()) return { ok: false, error: `Working directory is not a directory: ${real}; pass a directory in 'cwd'` };
   } catch (error) {
     return { ok: false, error: `Working directory is not accessible: ${error instanceof Error ? error.message : String(error)}` };
   }

@@ -347,3 +347,25 @@ test("disabled cache lifetime registers no command, shows no footer item and nev
 	await h.command("normal");
 	assert.equal(h.emit("before_provider_request", { payload: { stream: true } }), undefined, "Normal leaves the request alone");
 });
+
+test("speed commands warn about ignored arguments and invalid stored values", async t => {
+	const h = await harness(t);
+	await h.save(h.globalPath, { "pi-gpt-speed": { mode: "turbo" } });
+	await h.emit("session_start");
+	const invalid = h.notices.find(notice => notice.text.includes("turbo"));
+	assert.ok(invalid, "an invalid stored mode is reported");
+	assert.equal(invalid.type, "warning");
+	assert.match(invalid.text, /pi-gpt-speed\.mode "turbo" is ignored; use normal, fast or ultrafast/);
+	assert.match(invalid.text, /settings\.json/);
+	assert.equal(h.statuses.get("gpt-speed"), "Speed: Normal");
+	h.notices.length = 0;
+	await h.command("fast", "foo bar");
+	const ignored = h.notices.find(notice => notice.text.includes("takes no arguments"));
+	assert.ok(ignored, "extra arguments are reported");
+	assert.equal(ignored.type, "warning");
+	assert.match(ignored.text, /\/fast takes no arguments; ignored "foo bar"/);
+	assert.equal(h.statuses.get("gpt-speed"), "Speed: Fast", "the command still applies");
+	h.notices.length = 0;
+	await h.command("normal", "");
+	assert.equal(h.notices.some(notice => notice.text.includes("takes no arguments")), false);
+});

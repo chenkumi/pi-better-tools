@@ -58,3 +58,9 @@
 `npm run test:module -- fork`：strict typecheck、單元（角色矩陣、快照、參數建構、child 狀態機、guard、manager 生命週期、transcript 轉換／寫入／失敗隔離）與真實 Pi 1.1.0 離線整合（快照／獨立 child／回報／A→new→A 只回報來源／quit 取消與 child close／巢狀 background shell 完成前不發布／cold `/resume` 仍拒絕 Fork）。使用隔離 HOME／agentDir／workspace 與本地假 provider，不使用真實 credentials。人工 TUI、真實 provider 與其他 OS 未由這些測試證明。
 
 `blocked` 的回歸矩陣由模擬 provider 提供（模型呼叫在串流中途中斷，不依賴真實額度用盡）：(A) 中途中斷且無巢狀工作 → 仍應快速 `failed`／`CHILD_MODEL_ERROR`；(B) 同 A 加載 pi-runtime → 同結果；(C) 中途中斷加上未完成的長時巢狀 job → 應在模型失敗後立即轉為 `blocked` 並帶 `pending` 計數，**不得**停在無訊息的 `running`；(D) 同 C 但 job 稍後結束 → 應還原並正常以 `failed`／`CHILD_MODEL_ERROR` 收尾，且 `blocked` 不得殘留。A–D 已於專案外隔離 harness 實測通過；repo 內正式測試見 `tests/blocked-report.*`。
+
+## Error messages
+
+Failure responses name the parameter, the rule and the fix (2026-10-24 guidance pass; see plan/error-message-handoff.md). Agent-visible messages name only the tool's own arguments, tool names, error codes and slash commands; startup flags and settings are not named. The Fork store location and transcript path in receipts are data locations the agent needs, not settings.
+- `fork_cancel` on a Fork that already finished answers "already <status>; nothing to cancel" instead of "Cancel requested".
+- Unknown `jobId` messages echo the value and point to `fork_status`.

@@ -16,7 +16,7 @@ export interface MatcherOptions {
  * receipt does not release capacity until the owned worker has terminated. */
 export async function matchPattern(pattern: RegExp, input: string, signal?: AbortSignal, budgetMs = MATCH_BUDGET_MS, options: MatcherOptions = {}): Promise<boolean> {
   if (signal?.aborted) throw signal.reason ?? new Error("PTY wait aborted");
-  if (active >= MAX_MATCH_WORKERS) throw new Error("PTY regex worker capacity exhausted; retry after active reads finish");
+  if (active >= MAX_MATCH_WORKERS) throw new Error("PTY regex worker capacity exhausted; retry after active reads finish, or omit waitFor and use settleMs");
   active++;
   const timers = options.timers ?? { set: (callback: () => void, ms: number) => setTimeout(callback, ms), clear: (handle: unknown) => clearTimeout(handle as NodeJS.Timeout) };
   let worker: Worker | undefined;
@@ -35,7 +35,7 @@ export async function matchPattern(pattern: RegExp, input: string, signal?: Abor
       const budget = Math.min(MATCH_BUDGET_MS, Math.max(1, budgetMs));
       // `online` precedes module loading. Only the worker's ready receipt starts the compute budget.
       // A separate allowance still bounds startup/import/workerData deserialization.
-      let timer = timers.set(() => finish(new Error(`PTY regex worker did not start within ${WORKER_STARTUP_MS}ms. Session and output retained.`)), WORKER_STARTUP_MS);
+      let timer = timers.set(() => finish(new Error(`PTY regex worker did not start within ${WORKER_STARTUP_MS}ms. Session and output retained; retry, and if it repeats read without waitFor.`)), WORKER_STARTUP_MS);
       let ready = false;
       const startBudget = () => {
         if (done || ready) return;
@@ -52,7 +52,7 @@ export async function matchPattern(pattern: RegExp, input: string, signal?: Abor
           else finish(message.error ? new Error(message.error) : undefined, message.matched === true);
         });
         worker.once("error", error => finish(error));
-        worker.once("exit", () => finish(new Error("PTY regex worker exited without a result")));
+        worker.once("exit", () => finish(new Error("PTY regex worker exited without a result; session and output retained. Retry, and if it repeats read without waitFor.")));
       } catch (error) { finish(error instanceof Error ? error : new Error(String(error))); }
       if (signal?.aborted) abort();
     });

@@ -35,6 +35,7 @@ function codeOnly(sql: string, engine: Engine): string {
   let state: "code" | "single" | "double" | "backtick" | "bracket" | "dollar" | "line-comment" | "block-comment" = "code";
   let commentDepth = 0;
   let tag = "";
+  let openedAt = 0;
   const hide = (text: string) => text.replace(/[^\n]/g, " ");
 
   while (index < sql.length) {
@@ -42,6 +43,7 @@ function codeOnly(sql: string, engine: Engine): string {
     const next = sql[index + 1] ?? "";
 
     if (state === "code") {
+      openedAt = index;
       if (char === "'") {
         state = "single";
         result += " ";
@@ -136,7 +138,10 @@ function codeOnly(sql: string, engine: Engine): string {
   }
 
   if (state !== "code" && state !== "line-comment") {
-    denied("SQL contains an unterminated string, quoted identifier or comment.");
+    const before = sql.slice(0, openedAt);
+    const line = before.split(/\n/).length;
+    const column = openedAt - (before.lastIndexOf(String.fromCharCode(10)) + 1) + 1;
+    denied(`SQL contains an unterminated string, quoted identifier or comment starting at position ${openedAt + 1} (line ${line}, column ${column}); close it with the matching quote or */.`);
   }
   return result;
 }
@@ -152,7 +157,7 @@ function validateSingleStatement(sql: string, engine: Engine): string {
 
   const firstSemicolon = code.indexOf(";");
   if (firstSemicolon >= 0 && code.slice(firstSemicolon + 1).trim() !== "") {
-    denied("Only one SQL statement is allowed.");
+    denied("Only one SQL statement is allowed; remove everything after the first ';' and send each statement in its own call.");
   }
   if (/^\s*go\s*$/m.test(code)) {
     denied("SQL Server batch separators are not allowed.");
@@ -203,13 +208,26 @@ function hasStackedMssqlSelect(code: string, kind?: string): boolean {
   return selects > allowedByOperators;
 }
 
-function hasForbiddenReadConstruct(engine: Engine, code: string): boolean {
-  return (
-    /\b(insert|update|delete|merge|truncate|create|alter|drop|grant|revoke|execute|exec|call)\b/.test(code) ||
-    /\bselect\b[\s\S]*\binto\b/.test(code) ||
-    /\bfor\s+(update|share)\b|\block\s+in\s+share\s+mode\b/.test(code) ||
-    (engine === "mssql" && (MSSQL_STATEMENT_KEYWORDS.test(code) || hasStackedMssqlSelect(code)))
-  );
+/** Describes the first construct that makes a read statement unsafe, or undefined when none applies. */
+function forbiddenReadConstruct(engine: Engine, code: string): string | undefined {
+  // Most specific first: FOR UPDATE and SELECT ... INTO also contain the generic keywords below.
+  const locking = /\bfor\s+(update|share)\b/.exec(code)?.[0] ?? /\block\s+in\s+share\s+mode\b/.exec(code)?.[0];
+  if (locking) return `locking clause "${locking.replace(/\s+/g, " ").toUpperCase()}"`;
+  if (/\bselect\b[\s\S]*\binto\b/.test(code)) return 'construct "SELECT ... INTO"';
+  const keyword = /\b(insert|update|delete|merge|truncate|create|alter|drop|grant|revoke|execute|exec|call)\b/.exec(code)?.[1];
+  if (keyword) return `keyword "${keyword}"`;
+  if (engine === "mssql") {
+    const statementWord = MSSQL_STATEMENT_KEYWORDS.exec(code)?.[1];
+    if (statementWord) return `keyword "${statementWord}"`;
+    if (hasStackedMssqlSelect(code)) return "a second SELECT statement in the same batch";
+  }
+  return undefined;
+}
+
+/** How to keep a column or table name that collides with a blocked keyword from being treated as that keyword. */
+function quotingHint(engine: Engine): string {
+  const quote = engine === "mssql" ? "[name]" : engine === "mysql" ? "backticks (`name`)" : 'double quotes ("name")';
+  return `If it is a column, table or alias name, quote it with ${quote}.`;
 }
 
 function assertReadLimit(engine: Engine, code: string): void {
@@ -227,29 +245,31 @@ function assertReadLimit(engine: Engine, code: string): void {
       const top = /\bselect\s+(?:distinct\s+)?top\s+(\d+)\b/.exec(branch);
       const amount = Number(top?.[1]);
       if (!top || !Number.isInteger(amount) || amount < 1 || amount > MAX_READ_ROWS) {
-        denied("MSSQL reads must use TOP n with n from 1 to 200 in every SELECT of a UNION/INTERSECT/EXCEPT.");
+        denied(`MSSQL reads must use TOP n with n from 1 to 200 in every SELECT of a UNION/INTERSECT/EXCEPT; ${top ? `received TOP ${top[1]}` : "a SELECT has no TOP n"}. Use a literal, e.g. SELECT TOP 100 ...`);
       }
       total += amount;
     }
-    if (total > MAX_READ_ROWS) denied("MSSQL reads must return at most 200 rows; the TOP values of a set operation add up.");
+    if (total > MAX_READ_ROWS) denied(`MSSQL reads must return at most 200 rows; the TOP values of a set operation add up (received a total of ${total}). Lower the TOP values.`);
     return;
   }
 
   const limit = /\blimit\s+(\d+)\b/.exec(topLevel);
   const amount = Number(limit?.[1]);
   if (!limit || !Number.isInteger(amount) || amount < 1 || amount > MAX_READ_ROWS) {
-    denied(`${engine} reads must use LIMIT n with n from 1 to 200.`);
+    denied(`${engine} reads must use a top-level LIMIT n with n from 1 to 200; ${limit ? `received LIMIT ${limit[1]}` : "no top-level LIMIT found (a LIMIT inside a subquery does not count)"}. Add a literal LIMIT such as LIMIT 100 at the end.`);
   }
 }
 
 export function assertReadOnlySql(engine: Engine, sql: string): void {
   const code = validateSingleStatement(sql, engine);
   const isReadStatement = /^(select|show|describe|desc|explain)\b/.test(code) || /^with\b/.test(code);
-  if (!isReadStatement) denied("Only a single read-only SQL statement is allowed.");
-  if (hasForbiddenReadConstruct(engine, code)) {
-    denied(engine === "mssql"
-      ? "Only a single read-only SQL statement is allowed. Quote identifiers that are SQL keywords as [name]."
-      : "Only a single read-only SQL statement is allowed.");
+  if (!isReadStatement) {
+    const kind = /^[a-z_]+/.exec(code)?.[0]?.toUpperCase() ?? code.slice(0, 20);
+    denied(`Only a single read-only SQL statement is allowed in ${engine}_query (SELECT, WITH, SHOW, DESCRIBE, EXPLAIN); got ${kind}. Use ${engine}_update for INSERT, UPDATE or DELETE; DDL is never allowed.`);
+  }
+  const construct = forbiddenReadConstruct(engine, code);
+  if (construct) {
+    denied(`Only a single read-only SQL statement is allowed in ${engine}_query (SELECT, WITH, SHOW, DESCRIBE, EXPLAIN); found ${construct}. Writes and locking reads belong in ${engine}_update (INSERT, UPDATE, DELETE only). ${quotingHint(engine)}`);
   }
   assertReadLimit(engine, code);
 }
@@ -268,12 +288,19 @@ export function assertUpdateSql(engine: Engine, sql: string): void {
   const code = validateSingleStatement(sql, engine);
   const kind = /^(insert|update|delete)\b/.exec(code)?.[1];
   if (!kind) {
-    denied("Only INSERT, UPDATE, or DELETE statements are allowed.");
+    denied(`Only INSERT, UPDATE, or DELETE statements are allowed in ${engine}_update; got ${(/^[a-z_]+/.exec(code)?.[0] ?? code.slice(0, 20)).toUpperCase()}. DDL (CREATE/ALTER/DROP/TRUNCATE) and other statements are never allowed through this tool; use ${engine}_query for reads.`);
   }
   if ((kind === "update" || kind === "delete") && !/\bwhere\b/.test(topLevelCode(code))) {
     denied("UPDATE and DELETE statements must include a top-level WHERE clause.");
   }
-  if (engine === "mssql" && (MSSQL_UPDATE_FORBIDDEN.test(code) || hasAppendedMssqlStatement(code, kind) || hasStackedMssqlSelect(code, kind))) {
-    denied("Only one INSERT, UPDATE, or DELETE statement is allowed. Quote identifiers that are SQL keywords as [name].");
+  if (engine === "mssql") {
+    const forbidden = MSSQL_UPDATE_FORBIDDEN.exec(code)?.[1];
+    const found = forbidden
+      ? `keyword "${forbidden}"`
+      : hasAppendedMssqlStatement(code, kind) ? "a second INSERT/UPDATE/DELETE or an INTO clause"
+        : hasStackedMssqlSelect(code, kind) ? "an extra top-level SELECT" : undefined;
+    if (found) {
+      denied(`Only one INSERT, UPDATE, or DELETE statement is allowed in mssql_update; found ${found}. ${quotingHint(engine)}`);
+    }
   }
 }

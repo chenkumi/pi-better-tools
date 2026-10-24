@@ -6,7 +6,7 @@ test('Blackhole handoff uses real producer details and actual Pi persisted custo
   for (const [name, entries] of Object.entries(fixtures)) {
     assert.ok(entries.length, name);
     for (const entry of entries as any[]) {
-      assert.equal(entry.type, 'custom_message'); assert.equal(entry.customType, 'monitor_event'); assert.equal(entry.display, true); assert.ok(entry.id);
+      assert.equal(entry.type, 'custom_message'); assert.equal(entry.customType, 'monitor_event'); assert.equal(entry.display, false, 'wakeAgent:false fixtures are persisted unrendered'); assert.ok(entry.id);
       assert.equal(entry.details.schemaVersion, 1); assert.equal(entry.details.submission.hostAcknowledgment, 'unknown'); assert.ok(entry.details.events.length <= 32);
       for (const event of entry.details.events) { assert.match(event.monitorId, /^[0-9A-HJKMNP-TV-Z]{26}$/); assert.ok(event.sequence > 0); }
     }

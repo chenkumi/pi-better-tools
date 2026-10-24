@@ -136,8 +136,17 @@
 
 File Tools 在 manifest 中先於 pi-fff 載入，但不再佔用 `grep`／`find`。Manifest 以薄包裝 `src/fff-override.mjs` 載入 FFF：`--fff-mode`、`PI_FFF_MODE`、全域 `<agentDir>/pi-fff.json` 都未指定 mode 時預設 `override`（明確指定其他 mode 不被改動），兩個搜尋工具由 FFF 提供；不修改第三方實作、版本或其他使用者設定。`/fff-mode override` 可切換目前 session 的模式，需 `/reload`，且不改全域檔案；已保存的 session mode 可優先於全域設定。若 resume 後仍非 override，先執行該命令再 reload，或建立新 session。FFF 預設的 tools-and-ui／tools-only 仍可用；不將所有使用者自動改為 override。
 
+薄包裝同時經 `src/fff-guard.mjs` 只包裝 FFF `grep`／`find`／`multi_grep` 的 `execute`（不改 schema、名稱、renderer 或 node_modules）：(1) 從 FFF 結果的 `cursor="..."` 記錄已發出的 cursor（grep 與 multi_grep 共用、find 獨立），未發出或已失效的 cursor 回傳明確錯誤（省略 cursor 即從第 1 頁重搜），取代上游的靜默重啟；wrapper 載入前發出的 cursor（如 reload 後帳本重置）也會被拒，錯誤訊息已指示省略 cursor；(2) `FFF picker factory／auxiliary finder pool is not initialized` 改寫為含原因與處置（重試、改用 read／ls、檢查 fff-mode）；(3) 工作區相對 `path` 約束與空 `patterns` 錯誤補上參數與修正方式。原生搜尋錯誤文字、`context`／`limit` 夾限不另加通知。測試：`tests/fff-guard.test.mjs`。
+
 `tests/fff-override-conflict.integration.test.mjs` 已從 TODO 升為正式回歸：真實 Pi／manifest順序／原生 FFF，確認 startup 及 reload 的 provider、active/callable、別名停用與實際搜尋結果，無 fake finder。
 
 pi-fff 0.11.0 上游缺陷以 `known-upstream` `todo` 測試保留（`tests/fff-aux-capacity.integration.test.mjs`：aux finder 並發超過 MAX_AUX；`tests/fff-shutdown-fence.integration.test.mjs`：shutdown 後才 resolve 的 finder 仍被發布且未 destroy）。這些測試使用 SDK 邊界的 fake finder，不載入原生 DLL。FFF 測試因 file-tools 模組 `test:integration` 為固定清單而不會被自動探索，需直接以 `node --import tsx --test modules/file-tools/tests/fff-*.integration.test.mjs` 執行。
 
 在 Pi-Bolt（預設 JIT 關閉）上，`@ff-labs/fff-bun` 被宿主的 `JIT_ONLY_PACKAGES` 擋板擋下，後端退回 `@ff-labs/fff-node`；Pi-Bolt 的 FFF 偵測只看載入路徑，辨識不到本薄包裝，仍會把自己的 `grep`／`find` 留在預設工具清單（override 模式由同名 extension tool 覆蓋）。不要與 `opensec-pi-fff` 並存（同一組 flag／command／`@`-mention provider 與 native 資料庫），要改用它需先過濾掉本入口。細節與未驗證項目見 `docs/compatibility.md`。
+
+## Error messages
+
+Failure responses name the parameter, the violated rule, a bounded received value and the fix (2026-10-24 guidance pass; see plan/error-message-handoff.md). Agent-visible messages name only the tool's own arguments, tool names, error codes and slash commands; settings keys, environment variables and settings file paths are not named (for example the FFF index-unavailable message only points to `/fff-mode` and `/fff-health`).
+- `edit` `TEXT_NOT_FOUND` quotes the first 80 characters that were searched for and reminds that tabs, trailing spaces and CRLF/LF must match the file exactly.
+- FFF wrapper layer: `src/fff-guard.mjs` (used by `src/fff-override.mjs`) turns unclear grep/find argument failures into actionable messages. It does not modify `node_modules`, and unknown cursors are only rejected where the wrapper can tell reliably.
+- Host TypeBox validation text ("Received arguments" echo) is produced by Pi and is not rewritten here.

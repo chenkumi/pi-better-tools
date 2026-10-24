@@ -334,3 +334,10 @@ writer.acquire/       # 短期跨 process acquisition/recovery election fence
 ## 預設啟用
 
 `subagent`、`subagent_message`、`subagent_status`、`subagent_cancel` 均明確 `defaultActive: true`（原本省略，行為相同）：載入即預設啟用，不需 `defaultTools`；宿主 `--tools` allowlist、`--exclude-tools`、`--no-tools` 與手動停用仍優先。Subagent child 一律 `--exclude-tools subagent`，不受影響。
+
+## Error messages
+
+Failure responses name the parameter, the rule and the fix (2026-10-24 guidance pass; see plan/error-message-handoff.md). Agent-visible messages name only the tool's own arguments, tool names, error codes and slash commands; settings keys, environment variables, flags and settings directories are not named.
+- `subagent_message` limits are UTF-8 bytes, and the message says so; rejected receipts carry a concrete `nextAction` per error code and `errorCode` is only the leading UPPER_SNAKE code (otherwise `MESSAGE_REJECTED`).
+- Ignored `model`/`thinkingLevel` overrides are reported in a separate `Note:` text block after a successful result; the receipt JSON is unchanged.
+- Unknown job/session ids point to `subagent_status` without `jobId`. The 32 submitted / 8 active limits and `--exclude-tools subagent` are unchanged.

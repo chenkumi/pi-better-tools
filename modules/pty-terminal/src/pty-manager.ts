@@ -1,4 +1,4 @@
-import { realpathSync } from "node:fs";
+import { realpathSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import type { IPty, spawn } from "node-pty";
@@ -126,7 +126,15 @@ export function errorText(error: unknown): string {
 
 function checkSize(value: number | undefined, max: number, label: string): void {
 	if (value === undefined) return;
-	if (!Number.isInteger(value) || value < 1 || value > max) throw new Error(`${label} must be an integer between 1 and ${max}`);
+	if (!Number.isInteger(value) || value < 1 || value > max) throw new Error(`${label} must be an integer between 1 and ${max} (got ${typeof value === "number" ? String(value) : typeof value}); pass a value in that range or omit it for the default.`);
+}
+
+/** Local spawn cwd must be an existing directory; node-pty reports a missing one as an opaque native error. */
+function assertDirectory(cwd: string, target: string): void {
+	let info;
+	try { info = statSync(cwd); }
+	catch { throw new Error(`Invalid cwd "${cwd}" (target "${target}"): the directory does not exist. Pass cwd as an existing directory, or omit it to use the workspace.`); }
+	if (!info.isDirectory()) throw new Error(`Invalid cwd "${cwd}" (target "${target}"): the path is not a directory. Pass an existing directory, or omit cwd to use the workspace.`);
 }
 
 export type SessionState = "running" | "exited";
@@ -258,22 +266,30 @@ export class PtySessionManager {
 	}
 
 	spawn(command: string, args: string[], options: SpawnOptions, defaultCwd: string): { sessionId: string; pid: number; target: string; transport: Transport } {
-		if (this.closing) throw new Error("PTY manager is shutting down; new sessions are not admitted");
+		if (this.closing) throw new Error("PTY manager is shutting down; new sessions are not admitted. Retry after the reload/shutdown completes.");
 		checkSize(options.cols, MAX_COLS, "cols");
 		checkSize(options.rows, MAX_ROWS, "rows");
 		this.reclaim(true);
 		if (this.sessions.size >= this.maxSessions) throw new Error(`PTY session limit reached (${this.maxSessions}); unread exited output is retained. Use pty_read to drain an exited session or pty_kill to explicitly release an existing session first`);
-		const pty = this.spawnPty(command, args, {
-			name: "xterm-256color",
-			cols: options.cols ?? DEFAULT_COLS,
-			rows: options.rows ?? DEFAULT_ROWS,
-			cwd: options.cwd ?? defaultCwd,
-			env: {
-				...filterEnv(process.env, options.envPolicy),
-				TERM: "xterm-256color",
-				...(options.env ?? {}),
-			},
-		});
+		const spawnCwd = options.cwd ?? defaultCwd;
+		const targetName = options.target ?? "local";
+		assertDirectory(spawnCwd, targetName);
+		let pty: IPty;
+		try {
+			pty = this.spawnPty(command, args, {
+				name: "xterm-256color",
+				cols: options.cols ?? DEFAULT_COLS,
+				rows: options.rows ?? DEFAULT_ROWS,
+				cwd: spawnCwd,
+				env: {
+					...filterEnv(process.env, options.envPolicy),
+					TERM: "xterm-256color",
+					...(options.env ?? {}),
+				},
+			});
+		} catch (error) {
+			throw new Error(`Failed to start "${command}" (target "${targetName}", cwd "${spawnCwd}"): ${errorText(error)}. Check that the command exists on the executable search path (on Windows pass an .exe path; shell builtins and .cmd/.bat files need an interpreter such as "cmd.exe" with args ["/c", ...]) and that cwd is an existing directory.`, { cause: error });
+		}
 
 		let id = `pty-${process.pid}-${++this.nextId}`;
 		while (this.sessions.has(id) || this.orphans?.has(id)) id = `pty-${process.pid}-${++this.nextId}`; // recovered sessions keep their ids
@@ -455,7 +471,10 @@ export class PtySessionManager {
 	resize(sessionId: string, cols: number, rows: number): void {
 		checkSize(cols, MAX_COLS, "cols");
 		checkSize(rows, MAX_ROWS, "rows");
-		this.requireSession(sessionId).pty.resize(cols, rows);
+		const session = this.requireSession(sessionId);
+		if (session.state === "exited") throw new Error(`PTY session ${sessionId} has exited${session.exitInfo ? ` (exitCode ${session.exitInfo.exitCode})` : ""}; resize was not applied. Use pty_read to drain remaining output, pty_kill to release it, or pty_spawn a new session.`);
+		try { session.pty.resize(cols, rows); }
+		catch (error) { throw new Error(`PTY resize to ${cols}x${rows} failed for session ${sessionId}: ${errorText(error)}; resize not applied. Use pty_list to check whether the session is still running.`); }
 	}
 
 	async waitForExit(sessionId: string, timeoutMs: number, signal?: AbortSignal): Promise<ExitInfo> {
@@ -466,7 +485,7 @@ export class PtySessionManager {
 		if (session.exitInfo) return annotate(session.exitInfo);
 
 		const exited = await this.waitForExitOrTimeout(session, Math.min(timeoutMs, MAX_WAIT_MS), signal);
-		return exited ? annotate(session.exitInfo ?? { exitCode: -1 }) : { exitCode: -1, timedOut: true };
+		return exited ? annotate(session.exitInfo ?? { exitCode: -1 }) : { exitCode: -1, timedOut: true, note: `Session ${sessionId} is still running after ${timeoutMs} ms (exitCode -1 is not a real exit code). Call pty_wait_exit again, drain output with pty_read, or stop it with pty_kill.` };
 	}
 
 	/**
@@ -560,7 +579,10 @@ export class PtySessionManager {
 
 	private requireSession(sessionId: string): PtySession {
 		const session = this.sessions.get(sessionId);
-		if (!session) throw new Error(`Unknown PTY session: ${sessionId}`);
+		if (!session) {
+			const ids = [...this.sessions.keys()];
+			throw new Error(`Unknown PTY session "${sessionId}". ${ids.length ? `Active sessions: ${ids.slice(0, 20).join(", ")}${ids.length > 20 ? ", ..." : ""}` : "No sessions are active"}; use pty_list to see ids. It may already have been released by pty_kill, evicted after exit, or lost to a reload.`);
+		}
 		return session;
 	}
 

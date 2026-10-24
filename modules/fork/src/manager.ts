@@ -86,19 +86,25 @@ export interface ForkReceipt { jobId: string; forkSessionId: string; status: For
 
 /** Also protects direct calls that bypass host schema validation. */
 function validateForkParams(params: { task: unknown; title?: unknown }): asserts params is { task: string; title?: string } {
-	if (typeof params?.task !== "string" || !params.task.trim() || /[\uD800-\uDFFF]/u.test(params.task)) throw new Error("FORK_INVALID_ARGUMENTS: task must be a non-empty, well-formed string.");
-	if (Buffer.byteLength(params.task, "utf8") > MAX_TASK_BYTES) throw new Error(`FORK_TASK_TOO_LARGE: task exceeds ${MAX_TASK_BYTES} bytes.`);
-	if (params.title !== undefined && (typeof params.title !== "string" || params.title.length > 120)) throw new Error("FORK_INVALID_ARGUMENTS: title must be a string of at most 120 characters.");
+	const task = params?.task;
+	if (typeof task !== "string") throw new Error(`FORK_INVALID_ARGUMENTS: task is required and must be a string; received ${task === undefined ? "nothing" : typeof task}. Describe what the Fork must do.`);
+	if (!task.trim()) throw new Error("FORK_INVALID_ARGUMENTS: task is empty or whitespace-only; describe what the Fork must do.");
+	const surrogate = task.search(/[\uD800-\uDFFF]/u);
+	if (surrogate >= 0) throw new Error(`FORK_INVALID_ARGUMENTS: task contains an unpaired UTF-16 surrogate at index ${surrogate}; remove or replace that character.`);
+	const taskBytes = Buffer.byteLength(task, "utf8");
+	if (taskBytes > MAX_TASK_BYTES) throw new Error(`FORK_TASK_TOO_LARGE: task is ${taskBytes} bytes (UTF-8), over the ${MAX_TASK_BYTES}-byte limit; shorten it, or write the details to a file in the workspace and reference its path in task.`);
+	if (params.title !== undefined && typeof params.title !== "string") throw new Error(`FORK_INVALID_ARGUMENTS: title must be a string; received ${typeof params.title}. Pass a short label or omit title.`);
+	if (typeof params.title === "string" && params.title.length > 120) throw new Error(`FORK_INVALID_ARGUMENTS: title is ${params.title.length} characters (max 120); shorten it or omit title (it is derived from task).`);
 }
 
 /** Process-wide admission: shutdown/reload, active permits, and the bounded record window. */
 function assertCapacity(s: ForkState): void {
-	if (!s.admission) throw new Error("FORK_NOT_ACCEPTING: this Pi process is shutting down or reloading.");
-	if (activeCount(s) >= MAX_ACTIVE_FORKS) throw new Error(`FORK_CAPACITY: Request not accepted: capacity limit reached. At most ${MAX_ACTIVE_FORKS} unfinished Forks per Pi process.`);
+	if (!s.admission) throw new Error("FORK_NOT_ACCEPTING: this Pi process is shutting down or reloading. Nothing was started; retry after the reload completes.");
+	if (activeCount(s) >= MAX_ACTIVE_FORKS) throw new Error(`FORK_CAPACITY: Request not accepted: capacity limit reached (${activeCount(s)} of ${MAX_ACTIVE_FORKS} unfinished Forks per Pi process). Wait for one to finish, or call fork_status to list them and fork_cancel to cancel one, then retry.`);
 	if (s.jobs.size >= MAX_TRACKED_FORKS) {
 		evict(s);
 		// Undelivered (pending) results are never evicted, so the window must refuse instead of growing without bound.
-		if (s.jobs.size >= MAX_TRACKED_FORKS) throw new Error(`FORK_CAPACITY: Request not accepted: ${MAX_TRACKED_FORKS} Fork records are retained with undelivered results.`);
+		if (s.jobs.size >= MAX_TRACKED_FORKS) throw new Error(`FORK_CAPACITY: Request not accepted: ${MAX_TRACKED_FORKS} Fork records are retained with undelivered results. Results are delivered to this conversation as each Fork ends; wait for pending Fork result notices, then retry.`);
 	}
 }
 
@@ -107,7 +113,7 @@ function inheritedTools(pi: ExtensionAPI): string[] {
 	const tools = pi.getActiveTools().filter(name => !isForkTool(name));
 	const info = new Map(pi.getAllTools().map(tool => [tool.name, tool] as const));
 	const inline = tools.filter(name => String((info.get(name) as { sourceInfo?: { path?: string } } | undefined)?.sourceInfo?.path ?? "").startsWith("<"));
-	if (inline.length) throw new Error(`FORK_CAPABILITY_UNAVAILABLE: tools provided by inline SDK factories cannot be rebuilt in a separate process: ${inline.slice(0, 8).join(", ")}.`);
+	if (inline.length) throw new Error(`FORK_CAPABILITY_UNAVAILABLE: tools provided by inline SDK factories cannot be rebuilt in a separate process: ${inline.slice(0, 8).join(", ")}. Deactivate those tools for this session, or do the work in this conversation.`);
 	return tools;
 }
 
@@ -124,8 +130,8 @@ export function acceptFork(pi: ExtensionAPI, ctx: ExtensionContext, params: { ta
 	validateForkParams(params);
 	assertCapacity(s);
 	const sm = ctx.sessionManager, file = sm.getSessionFile(), sessionDir = sm.getSessionDir();
-	if (!file || !sessionDir) throw new Error("FORK_REQUIRES_PERSISTED_SESSION: the current conversation has no native session file (--no-session or in-memory).");
-	if (!ctx.model) throw new Error("FORK_CAPABILITY_UNAVAILABLE: no model is selected; a Fork must inherit the parent's model.");
+	if (!file || !sessionDir) throw new Error("FORK_REQUIRES_PERSISTED_SESSION: the current conversation has no native session file (it is an in-memory conversation). Ask the user to continue in a saved conversation, or use the subagent tool for this session.");
+	if (!ctx.model) throw new Error("FORK_CAPABILITY_UNAVAILABLE: no model is selected; a Fork must inherit the parent's model. Select a model (/model), then call fork again.");
 	const tools = inheritedTools(pi);
 	const cwd = canonical(ctx.cwd), jobId = ulid().toUpperCase(), forkSessionId = ulid().toUpperCase();
 	const title = (typeof params.title === "string" && params.title.trim() ? params.title.trim() : params.task.trim().split(/\r?\n/)[0]!).slice(0, 80);
@@ -137,7 +143,7 @@ export function acceptFork(pi: ExtensionAPI, ctx: ExtensionContext, params: { ta
 	try {
 		saveRecord(cwd, record); // The workspace store must work before we accept anything.
 		Object.assign(forwarded, forwardParentArgs(deps.argv(), deps.launchCwd(), jobId, cwd));
-	} catch (error) { removeTemporary(forwarded.temporaryFiles); throw new Error(`FORK_STORE_UNAVAILABLE: ${errorText(error, 200)}`); }
+	} catch (error) { removeTemporary(forwarded.temporaryFiles); throw new Error(`FORK_STORE_UNAVAILABLE: cannot write the Fork store under ${cwd}/.pi/forks (check permissions and disk space); nothing was started. Cause: ${errorText(error, 200)}`); }
 	pruneRecords(cwd); // Old finished records beyond the bounded scan would otherwise accumulate in the workspace forever.
 	s.jobs.set(jobId, { record, released: false, acceptLeafId: sm.getLeafId(), sessionDir, tools, prompt: forkPrompt(params.task), forwarded });
 	refreshUi();
@@ -369,22 +375,33 @@ function markApplied(job: Job, message: unknown): void {
 	}
 }
 
+const shownId = (value: unknown) => { const text = typeof value === "string" ? value : String(value); return JSON.stringify(text.length > 64 ? `${text.slice(0, 64)}…` : text); };
+/** Shared by fork_status, fork_cancel and fork_message: names the parameter, echoes the id and says how to list valid ones. */
+export const notFoundText = (jobId: unknown) => `jobId ${shownId(jobId)} is not a Fork of this conversation (Forks belong to the session and cwd that created them, and records are lost after eviction or restart). Call fork_status without jobId to list valid jobIds.`;
+const RESTART = "It cannot be messaged: start a new fork, or /resume its native session.";
+const NOT_MESSAGEABLE_HINT: Record<string, string> = {
+	awaiting_snapshot: "It has not started yet: retry after fork_status shows running.",
+	starting: "It has not started yet: retry after fork_status shows running.",
+	cancelling: "It is ending: do not retry.",
+	finalizing: "It is ending: do not retry.",
+	completed: RESTART, failed: RESTART, cancelled: RESTART, interrupted: RESTART,
+};
 const refusal = (code: string, message: string) => Object.assign(new Error(`${code}: ${message}`), { code });
 
 /** Sends one message to a live Fork. Accepted is not applied: only the child's own user message is.
  *  No queue, retry or replay, and never a cancellation; a non-live Fork is refused instead of buffered. */
 export async function messageFork(ctx: ExtensionContext, jobId: unknown, message: unknown, mode: unknown = "follow_up"): Promise<ForkMessageReceipt> {
-	if (typeof jobId !== "string" || !jobId) throw refusal("FORK_INVALID_ARGUMENTS", "jobId must be a complete Fork job ID");
-	if (mode !== "follow_up" && mode !== "steer") throw refusal("FORK_INVALID_ARGUMENTS", "mode must be follow_up or steer");
+	if (typeof jobId !== "string" || !jobId) throw refusal("FORK_INVALID_ARGUMENTS", `jobId must be a non-empty string, the complete job ID returned by fork (not a prefix); received ${shownId(jobId)}. List valid ids with fork_status.`);
+	if (mode !== "follow_up" && mode !== "steer") throw refusal("FORK_INVALID_ARGUMENTS", `mode ${shownId(mode)} is invalid: use "follow_up" (default; delivered after the current turn) or "steer" (interrupts the current turn).`);
 	try { validateInteraction(message); } catch (error) { throw refusal("FORK_INVALID_ARGUMENTS", errorText(error, 200)); }
 	const job = findOwnedJob(ctx, jobId);
-	if (!job) throw refusal("FORK_NOT_FOUND", "no such Fork in this conversation");
+	if (!job) throw refusal("FORK_NOT_FOUND", notFoundText(jobId));
 	const status = job.record.status;
-	if (status !== "running" && status !== "blocked") throw refusal(isTerminal(status) ? "FORK_NOT_RUNNING" : "FORK_BUSY", `Fork is ${status}; a message is only accepted while it is running or blocked`);
+	if (status !== "running" && status !== "blocked") throw refusal(isTerminal(status) ? "FORK_NOT_RUNNING" : "FORK_BUSY", `Fork is ${status}; a message is only accepted while it is running or blocked (nothing was queued). ${NOT_MESSAGEABLE_HINT[status] ?? "Check fork_status."}`);
 	const handle = job.handle;
-	if (!handle) throw refusal("FORK_NOT_RUNNING", "the Fork has no live child handle");
+	if (!handle) throw refusal("FORK_NOT_RUNNING", "the Fork has no live child handle (its child process is not attached to this Pi process, e.g. a record recovered after a restart); it cannot be messaged, start a new fork if the work is still needed");
 	const interactions = job.interactions ??= [];
-	if (interactions.length >= MAX_MESSAGES) throw refusal("FORK_MESSAGE_CAPACITY", `at most ${MAX_MESSAGES} messages per Fork`);
+	if (interactions.length >= MAX_MESSAGES) throw refusal("FORK_MESSAGE_CAPACITY", `this Fork already received the maximum of ${MAX_MESSAGES} messages; nothing was sent. Cancel it with fork_cancel and start a new fork, or wait for it to finish`);
 	const messageId = ulid().toUpperCase(), text = controlText(messageId, message as string);
 	const interaction: ForkInteraction = { messageId, mode, status: "accepted", sentAt: new Date().toISOString(), text };
 	interactions.push(interaction);
@@ -403,7 +420,7 @@ export async function messageFork(ctx: ExtensionContext, jobId: unknown, message
 		// Refused before anything was sent: no receipt is kept and no capacity is consumed.
 		if ((error as { code?: string })?.code === "CHILD_NOT_READY") {
 			interactions.splice(interactions.indexOf(interaction), 1);
-			throw refusal("CHILD_NOT_READY", "the Fork child has not started its task yet; nothing was sent");
+			throw refusal("CHILD_NOT_READY", "the Fork child has not started its task yet; nothing was sent. Retry in a few seconds");
 		}
 		settle("delivery_unknown", errorText(error, 200));
 	}

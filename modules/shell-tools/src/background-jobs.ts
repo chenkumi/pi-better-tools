@@ -32,7 +32,6 @@ const LIST_ERROR_CHARS = 200;
 const NOTIFICATION_OUTPUT_CHARS = 2000;
 /** Output tail bytes in the readonly Monitor projection. */
 const MONITOR_TAIL_BYTES = 2048;
-const MAX_LOG_ERROR_CHARS = 2000;
 const MAX_EVICTED_IDS = 256;
 /** Appended to timeout errors; the job classifier tolerates it after the marker. */
 export const TIMEOUT_HINT = " If the command legitimately needs more time, increase or omit timeoutMs. Use background:true separately if you want asynchronous execution.";
@@ -152,6 +151,16 @@ async function waitAtMost(work: Promise<unknown>, ms: number) {
 
 const exitCodeOf = (job: Job) => (job.result?.structuredContent as { exit_code?: number } | undefined)?.exit_code;
 
+/** Short, errno-free reason for a failed acceptance step: journal errors are ours and already worded; others are reduced to a code. */
+function errorCode(error: unknown): string {
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === "string" && /^[A-Z0-9_]{2,32}$/.test(code) ? code : "unexpected error";
+}
+function acceptanceReason(error: unknown): string {
+  const text = error instanceof Error ? error.message : "";
+  return text.startsWith("BACKGROUND_JOURNAL_FAILED") ? text : `acceptance failed (${errorCode(error)})`;
+}
+
 function boundedError(message: string): string {
   const marker = "\n[... error output omitted ...]\n";
   if (message.length <= MAX_CAPTURE_BYTES) return message;
@@ -250,17 +259,17 @@ export class ShellJobs {
   }
 
   private assertOwner(ctx: ExtensionContext) {
-    if (this.stopped) throw new Error("Shell background runtime is shutting down");
+    if (this.stopped) throw new Error("Shell background runtime is shutting down (the session is ending or reloading); do not retry in this session.");
     if (this.owner === undefined) this.start(ctx);
     let validOwner = false;
     try { validOwner = this.currentSession?.() === this.owner; }
     catch { /* A disposed SDK context must fail closed, not escape callbacks. */ }
     if (!validOwner) {
       this.invalidateOwner();
-      throw new Error("Shell background owner session is disposed or replaced");
+      throw new Error("Shell background owner session is disposed or replaced; its jobs are no longer available. Retry in the current session, or run the command in the foreground (without background).");
     }
     // A foreign caller must not be able to cancel the actual owner's jobs.
-    if (ctx.sessionManager.getSessionId() !== this.owner) throw new Error("Shell job belongs to a different owner session");
+    if (ctx.sessionManager.getSessionId() !== this.owner) throw new Error("Shell job belongs to a different owner session and cannot be inspected or cancelled from this one. Call shell_job_status with no arguments to list the jobs of the current session.");
   }
 
   submit(ctx: ExtensionContext, tool: string, toolCallId: string, signal: AbortSignal | undefined,
@@ -269,7 +278,7 @@ export class ShellJobs {
      *  foreground process must be cancellable even if that boundary never runs (owner replaced first). */
     onAccepted?: (signal: AbortSignal) => void) {
     this.assertOwner(ctx);
-    if (signal?.aborted) throw new Error("Command aborted before background acceptance");
+    if (signal?.aborted) throw new Error("Command aborted before background acceptance; nothing was run. Re-issue the command if it is still needed.");
     const active = [...this.jobs.values()].filter(j => isActiveJobStatus(j.status));
     if (active.length >= MAX_ACTIVE_JOBS) throw new Error(`Request not accepted: capacity limit reached. Shell background active limit (${MAX_ACTIVE_JOBS}) reached. Wait for one of these to finish (completion is announced automatically) or cancel one with shell_job_cancel if selected: ${this.describe(active)}`);
     this.evictForAdmission();
@@ -290,7 +299,8 @@ export class ShellJobs {
     } catch (error) {
       this.closeLog(job);
       housekeep(() => removeJobDirectory(directory));
-      throw error; // No runner has been scheduled and no command was executed.
+      // No runner has been scheduled and no command was executed. Journal errors already carry a BACKGROUND_JOURNAL_FAILED reason.
+      throw new Error(`Background job could not be started: ${acceptanceReason(error)}. The command was not run; retry, or run it in the foreground (omit background).`, { cause: error });
     }
     try { job.monitorCwd = canonicalMonitorCwd(ctx.cwd); } catch { /* Monitor must refuse unavailable cwd evidence; Shell behavior is unchanged. */ }
     this.jobs.set(job.jobId, job);
@@ -303,7 +313,7 @@ export class ShellJobs {
       // accepted-but-never-started entry for the next load to report as an orphan.
       job.recovery?.update({ jobId: job.jobId, toolCallId: job.toolCallId, state: "failed", started: false, cancelRequested: false, terminal: true });
       housekeep(() => removeJobDirectory(directory));
-      throw error;
+      throw new Error(`Background job could not be started: the foreground handoff could not be linked (${errorCode(error)}). The command was not run by a background job; retry, or run it in the foreground (omit background).`, { cause: error });
     }
     // A later event-loop boundary ensures even immediate completion cannot precede the receipt.
     job.done = new Promise<void>(resolve => setImmediate(resolve)).then(() => this.runJob(job, run))
@@ -382,7 +392,7 @@ export class ShellJobs {
         }
         job.logBytes += written;
       } catch (error) {
-        job.logError = `Shell live log write failed: ${String(error).slice(0, MAX_LOG_ERROR_CHARS)}`;
+        job.logError = `Shell output log could not be written (${errorCode(error)}); the job was aborted and its output may be incomplete. Log path: ${job.liveLogPath}`;
         job.controller.abort();
         return; // Never throw from a process stdout/stderr EventEmitter callback.
       }
@@ -421,7 +431,7 @@ export class ShellJobs {
   private closeLog(job: Job) {
     if (job.fd === undefined) return;
     try { closeSync(job.fd); }
-    catch (error) { job.error = `Shell live log close failed: ${String(error).slice(0, MAX_LOG_ERROR_CHARS)}`; job.status = "failed"; }
+    catch (error) { job.error = job.logError ?? `Shell output log could not be closed cleanly (${errorCode(error)}); the logged output may be incomplete. Log path: ${job.liveLogPath}`; job.status = "failed"; }
     finally { job.fd = undefined; }
   }
 
@@ -517,11 +527,11 @@ export class ShellJobs {
     this.assertOwner(ctx);
     const job = this.jobs.get(jobId);
     if (!job || job.owner !== this.owner || job.generation !== this.generation) {
-      const running = [...this.jobs.values()].filter(j => isActiveJobStatus(j.status));
-      const suffix = ` Running jobs: ${this.describe(running)}`;
+      const known = [...this.jobs.values()].filter(j => j.owner === this.owner && j.generation === this.generation);
+      const suffix = ` Call shell_job_status with no arguments to list retained jobs (job records do not survive a session reload). Known jobs: ${this.describe(known)}`;
       throw new Error(this.evicted.has(jobId)
         ? `Shell job ${jobId} was evicted from retained history (at most ${MAX_RETAINED_JOBS} jobs are retained). Its result is no longer queryable; log cleanup was attempted.${suffix}`
-        : `No retained job record was found in this session/runtime for Shell job ${jobId}. Check the job ID and owning session.${suffix}`);
+        : `No retained job record was found in this session/runtime for Shell job ${ellipsize(String(jobId), 64)}. Check the job ID and owning session.${suffix}`);
     }
     return job;
   }

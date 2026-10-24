@@ -42,7 +42,7 @@ test('subagent_job closes on aborted without scheduling another sample', async (
 test('fork_job accepts the bounded source shape and refuses an unbounded interval', () => {
   assert.equal(validateStart({ source: { kind: 'fork_job', jobId: 'JOB' } }).source.kind, 'fork_job');
   assert.equal((validateStart({ source: { kind: 'fork_job', jobId: 'JOB', intervalMs: 30000 } }).source as any).intervalMs, 30000);
-  assert.throws(() => validateStart({ source: { kind: 'fork_job' } }), /bounded text/);
+  assert.throws(() => validateStart({ source: { kind: 'fork_job' } }), /fork_job source "jobId" must be a non-empty string/);
   assert.throws(() => validateStart({ source: { kind: 'fork_job', jobId: 'JOB', intervalMs: 1000 } }), /integer 30000/);
   assert.throws(() => validateStart({ source: { kind: 'fork_job', jobId: '' } }));
   assert.throws(() => validateStart({ source: { kind: 'fork_job', jobId: 'JOB', cancel: true } }), /Unknown Monitor parameter/);

@@ -1,5 +1,6 @@
 /** Anthropic's server-side web_search tool for Pi's `anthropic-messages` adapter. */
 import { isRecord as record } from './record.ts';
+import { unexpectedPayload } from './native-errors.ts';
 
 export interface AnthropicIdentity { api: string; provider: string }
 /** Fixed conservative cap, matching the tool definition used by other hosted-search clients. */
@@ -15,7 +16,7 @@ export function supportsAnthropicNativeSearch(model: AnthropicIdentity | undefin
 /** Adds the native tool. Pi 1.4.0 drops the returned server blocks, which the API accepts (verified). */
 export function injectAnthropicSearch(payload: unknown): unknown {
   if (!record(payload)) return payload;
-  if (payload.tools !== undefined && !Array.isArray(payload.tools)) throw new Error('PROVIDER_UNSUPPORTED: unexpected Anthropic tools payload');
+  if (payload.tools !== undefined && !Array.isArray(payload.tools)) throw unexpectedPayload('Anthropic', 'tools', payload.tools);
   const tools = [...(payload.tools as unknown[] | undefined ?? [])];
   const conflict = tools.some(tool => record(tool) && !isNativeWebSearch(tool) && tool.name === 'web_search');
   if (conflict) throw new Error('TOOL_CONFLICT: another extension provides web_search; disable it before enabling native Anthropic search');

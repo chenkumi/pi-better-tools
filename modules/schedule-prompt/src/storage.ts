@@ -119,10 +119,17 @@ function isJobShape(value: unknown): value is CronJob {
 /**
  * Handles persistence of scheduled prompts to .pi/schedule-prompts.json
  */
+function causeText(error: unknown): string {
+  const text = error instanceof Error ? error.message : String(error);
+  // Agent-facing: OS errors quote the store/lock file path; name the store neutrally instead.
+  return text.replace(/(['"])[^'"]*schedule-prompts[^'"]*\1|\S*schedule-prompts\S*/g, "the scheduled prompts store");
+}
+
 export class CronStorage {
   private readonly storePath: string;
   private readonly piDir: string;
   private readonly lockPath: string;
+
   private holdingLock = false;
   /** Upper bound (ms) on waiting for a contended lock; `PI_SCHEDULE_PROMPT_LOCK_WAIT_MS` overrides (tests use 0). */
   static lockWaitMs = envLockWaitMs();
@@ -157,7 +164,7 @@ export class CronStorage {
         const code = (error as NodeJS.ErrnoException).code;
         // Windows reports EPERM/EACCES/EBUSY while a just-released lock directory is still being deleted.
         if (code !== "EEXIST" && code !== "EPERM" && code !== "EACCES" && code !== "EBUSY") {
-          throw new LockUnavailableError(`Cannot acquire scheduled prompts lock; refusing mutation or corruption recovery (${this.lockPath})`, { cause: error });
+          throw new LockUnavailableError(`Cannot acquire scheduled prompts lock; refusing mutation or corruption recovery: ${causeText(error)}`, { cause: error });
         }
         failure = error;
       }
@@ -173,7 +180,7 @@ export class CronStorage {
     } catch (error) {
       // mkdir succeeded and no callback ran; nobody can acquire this directory.
       try { fs.rmSync(this.lockPath, { recursive: true, force: true }); } catch { /* fail closed */ }
-      throw new Error("Cannot initialize scheduled prompts lock", { cause: error });
+      throw new Error(`Cannot initialize scheduled prompts lock: ${causeText(error)}. Ask the user to check write permission on the project's Pi data directory, then retry.`, { cause: error });
     }
     this.holdingLock = true;
     try {
@@ -195,14 +202,14 @@ export class CronStorage {
   /** Human-readable reason the lock is held plus repair guidance (never removes anything). */
   private describeLockHolder(): string {
     const owner = this.readOwner();
-    const repair = `If no pi process is using this project, remove ${this.lockPath} manually.`;
-    if (!owner) return `Lock ${this.lockPath} has no readable owner record. ${repair}`;
+    const repair = "If no pi process is using this project, ask the user to remove the stale scheduled prompts lock manually.";
+    if (!owner) return `The lock has no readable owner record. ${repair}`;
     if (!owner.legacy && owner.pid !== undefined) {
       const where = owner.host === os.hostname() ? "this host" : `host ${owner.host ?? "unknown"}`;
-      if (ownerProvablyDead(owner)) return `Lock ${this.lockPath} is stale but could not be taken over yet (owner pid ${owner.pid} on ${where}); retry.`;
-      return `Lock ${this.lockPath} is held by pid ${owner.pid} on ${where}${owner.host === os.hostname() ? "" : " (cannot verify liveness across hosts)"}. ${owner.host === os.hostname() ? "Retry shortly." : repair}`;
+      if (ownerProvablyDead(owner)) return `The lock is stale but could not be taken over yet (owner pid ${owner.pid} on ${where}); retry.`;
+      return `The lock is held by pid ${owner.pid} on ${where}${owner.host === os.hostname() ? "" : " (cannot verify liveness across hosts)"}. ${owner.host === os.hostname() ? "Retry shortly." : repair}`;
     }
-    return `Lock ${this.lockPath} has a legacy owner record without process identity; its liveness cannot be proven. ${repair}`;
+    return `The lock has a legacy owner record without process identity; its liveness cannot be proven. ${repair}`;
   }
 
   /**
@@ -292,7 +299,7 @@ export class CronStorage {
       data = fs.readFileSync(this.storePath, "utf-8");
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return { jobs: [], version: 1 };
-      throw new Error("Cannot read scheduled prompts; refusing to replace existing data", { cause: error });
+      throw new Error(`Cannot read scheduled prompts: ${causeText(error)}; refusing to replace existing data. Ask the user to check the permissions of the scheduled prompts store, or to repair or remove it, then reload.`, { cause: error });
     }
     let store: CronStore;
     try {
@@ -333,7 +340,7 @@ export class CronStorage {
     try { raw = fs.readFileSync(this.storePath, "utf-8"); }
     catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
-      throw new Error("Cannot read scheduled prompts; refusing to replace existing data", { cause: error });
+      throw new Error(`Cannot read scheduled prompts: ${causeText(error)}; refusing to replace existing data. Ask the user to check the permissions of the scheduled prompts store, or to repair or remove it, then reload.`, { cause: error });
     }
     let parsed: { jobs?: unknown };
     try { parsed = JSON.parse(raw); } catch { return; } // an unreadable file is quarantined by load()
@@ -346,7 +353,7 @@ export class CronStorage {
       console.error(`Kept ${unloadable.length} unusable scheduled prompt entr${unloadable.length === 1 ? "y" : "ies"} in ${backup} before rewriting ${this.storePath}`);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "EEXIST") return; // the same content was already kept
-      throw new Error("Cannot preserve unusable scheduled prompt entries; refusing to replace existing data", { cause: error });
+      throw new Error(`Cannot preserve unusable scheduled prompt entries: ${causeText(error)}; refusing to replace existing data. Ask the user to repair or move the file aside, then reload.`, { cause: error });
     }
   }
 
@@ -370,7 +377,7 @@ export class CronStorage {
       }
       console.error(`Scheduled prompts file was unreadable (${reason}); moved to ${backup}`);
     } catch (error) {
-      throw new Error("Cannot preserve corrupt scheduled prompts; refusing to replace existing data", { cause: error });
+      throw new Error(`Cannot preserve corrupt scheduled prompts: ${causeText(error)}; refusing to replace existing data. Ask the user to repair or move the file aside, then reload.`, { cause: error });
     }
   }
 

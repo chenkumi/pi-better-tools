@@ -1,5 +1,6 @@
 /** Gemini's server-side Google Search grounding for Pi's `google-generative-ai` adapter. */
 import { isRecord as record } from './record.ts';
+import { unexpectedPayload } from './native-errors.ts';
 
 export interface GeminiIdentity { api: string; provider: string; id?: string }
 /** Combining built-in tools with function declarations is documented for Gemini 3 and newer only. */
@@ -18,16 +19,16 @@ export function supportsGeminiNativeSearch(model: GeminiIdentity | undefined): b
  */
 export function injectGeminiSearch(payload: unknown): unknown {
   if (!record(payload)) return payload;
-  if (payload.config !== undefined && !record(payload.config)) throw new Error('PROVIDER_UNSUPPORTED: unexpected Google config payload');
+  if (payload.config !== undefined && !record(payload.config)) throw unexpectedPayload('Google', 'config', payload.config, 'an object');
   const config = { ...(payload.config as Record<string, unknown> | undefined ?? {}) };
-  if (config.tools !== undefined && !Array.isArray(config.tools)) throw new Error('PROVIDER_UNSUPPORTED: unexpected Google tools payload');
+  if (config.tools !== undefined && !Array.isArray(config.tools)) throw unexpectedPayload('Google', 'tools', config.tools);
   const tools = [...(config.tools as unknown[] | undefined ?? [])];
   const declaresSearch = (tool: unknown) => record(tool) && tool.googleSearch !== undefined;
   const conflict = tools.some(tool => record(tool) && Array.isArray(tool.functionDeclarations) &&
     tool.functionDeclarations.some(declaration => record(declaration) && declaration.name === 'web_search'));
   if (conflict) throw new Error('TOOL_CONFLICT: another extension provides web_search; disable it before enabling native Gemini search');
   if (!tools.some(declaresSearch)) tools.push({ googleSearch: {} });
-  if (config.toolConfig !== undefined && !record(config.toolConfig)) throw new Error('PROVIDER_UNSUPPORTED: unexpected Google toolConfig payload');
+  if (config.toolConfig !== undefined && !record(config.toolConfig)) throw unexpectedPayload('Google', 'toolConfig', config.toolConfig, 'an object');
   const toolConfig = { ...(config.toolConfig as Record<string, unknown> | undefined ?? {}), includeServerSideToolInvocations: true };
   return { ...payload, config: { ...config, tools, toolConfig } };
 }

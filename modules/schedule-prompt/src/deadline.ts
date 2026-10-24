@@ -5,7 +5,7 @@ export function normalizeEndAt(value: unknown): string {
   const match = typeof value === "string"
     ? /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?(Z|[+-]\d{2}:\d{2})$/.exec(value)
     : null;
-  if (!match) throw new Error("endAt must be an ISO timestamp with seconds and an explicit timezone (Z or ±HH:mm)");
+  if (!match) throw new Error(`endAt must be an ISO timestamp with seconds and an explicit timezone (Z or ±HH:mm), e.g. "2026-12-31T23:59:59Z"; got ${JSON.stringify(typeof value === "string" ? value.slice(0, 80) : value)}.`);
   const [, y, mo, d, h, mi, s, , zone] = match;
   const year = Number(y), month = Number(mo), day = Number(d);
   const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
@@ -13,7 +13,7 @@ export function normalizeEndAt(value: unknown): string {
   if (month < 1 || month > 12 || day < 1 || day > days[month - 1] ||
       Number(h) > 23 || Number(mi) > 59 || Number(s) > 59 ||
       (zone !== "Z" && (Number(zone.slice(1, 3)) > 23 || Number(zone.slice(4)) > 59))) {
-    throw new Error("endAt contains an invalid calendar date, time or timezone offset");
+    throw new Error(`endAt contains an invalid calendar date, time or timezone offset: got "${String(value).slice(0, 80)}". Check month 1-12, a real day of that month, hour 0-23, minute/second 0-59, offset up to +-23:59.`);
   }
   const timestamp = Date.parse(value as string);
   if (!Number.isFinite(timestamp)) throw new Error("Invalid endAt timestamp");
@@ -42,10 +42,10 @@ export function validateJobDeadline(
   if (job.endAt === undefined) return;
   const end = Date.parse(normalizeEndAt(job.endAt));
   if (requireFuture && now >= end) {
-    throw new Error("endAt has expired; extend or clear the deadline before enabling the job");
+    throw new Error(`endAt ${job.endAt} has expired; set a later endAt (update with endAt) or clear it (endAt:null) before enabling the job`);
   }
   if (job.type === "once" && !(Date.parse(job.schedule) < end)) {
-    throw new Error("A once job's schedule must be strictly before endAt");
+    throw new Error(`A once job's schedule (${job.schedule}) must be strictly before endAt (${new Date(end).toISOString()}); pick an earlier schedule or a later endAt.`);
   }
 }
 

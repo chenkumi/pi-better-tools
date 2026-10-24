@@ -54,3 +54,24 @@ export function selectDispatchDefaults(
 		thinkingLevelWasExplicit: thinkingLevel !== undefined,
 	};
 }
+
+const KNOWN_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
+
+/** Notes for explicit overrides that selectDispatchDefaults silently ignores; selection behavior itself is unchanged. */
+export function describeIgnoredOverrides(
+	ctx: SelectionContext,
+	requested: { provider?: string; model?: string; thinkingLevel?: string },
+	agentModel?: string,
+): string[] {
+	const notes: string[] = [];
+	const shown = (value: string) => JSON.stringify(value.length > 80 ? `${value.slice(0, 80)}...` : value);
+	if (requested.model?.trim() && !resolveRegisteredModel(requested.model, ctx, requested.provider)) {
+		notes.push(`model ${shown(requested.model)} was ignored: it is not a registered model ID, or a bare ID matches several providers. Use an exact provider/model ID (or provider + bare model); the agent's own or the default model was used instead.`);
+	}
+	if (requested.thinkingLevel !== undefined) {
+		const level = requested.thinkingLevel;
+		if (!KNOWN_THINKING_LEVELS.includes(level)) notes.push(`thinkingLevel ${shown(level)} was ignored: valid levels are ${KNOWN_THINKING_LEVELS.join(", ")}; the default thinking level was used instead.`);
+		else if (selectDispatchDefaults(ctx, requested, agentModel).thinkingLevel !== level) notes.push(`thinkingLevel ${shown(level)} was ignored: the selected model does not support it; the default thinking level was used instead.`);
+	}
+	return notes;
+}

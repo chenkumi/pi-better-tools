@@ -13,6 +13,8 @@ export interface FormattedRows {
   };
 }
 
+const TRUNCATION_HINT = `Result cut at ${MAX_ROWS} rows or ${MAX_BYTES / 1024} KiB; more rows may exist. Narrow it: add WHERE conditions, select fewer or shorter columns, or lower the LIMIT/TOP and page with OFFSET.`;
+
 function normaliseValue(value: unknown): unknown {
   if (value === null || typeof value === "boolean" || typeof value === "number" || typeof value === "string") {
     return typeof value === "string" && value.length > MAX_STRING_CHARS ? `${value.slice(0, MAX_STRING_CHARS)}…` : value;
@@ -65,6 +67,7 @@ export function formatRows(rows: Array<Record<string, unknown>>, totalRows: numb
     returnedRows: safeRows.length,
     totalRows,
     truncated,
+    ...(truncated ? { hint: TRUNCATION_HINT } : {}),
   };
   return {
     text: JSON.stringify(payload, null, 2),

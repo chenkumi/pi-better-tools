@@ -127,7 +127,12 @@ try {
     assert.equal(await readFile(targetPath, 'utf8'), beforeBytes, 'Refused/cancelled/failed Delete preserves exact bytes');
     assert.equal(refreshes.length, 0, 'Failed Delete must not refresh or clear actual dirty edits');
     assert.equal(deleteCalls, ['cancel', 'write-fault'].includes(action) ? 0 : 1);
-    if (action === 'refusal' || action === 'unlink-fault') { assert.equal(result, 'error'); assert.equal(dismisses, 0); rawDismiss(); }
+    // A confirmed Delete whose handler throws dismisses the already-resolved confirm (otherwise it swallows every key)
+    // and still reports the failure, so the edit view stays usable instead of stranding the modal.
+    if (action === 'refusal' || action === 'unlink-fault') {
+      assert.equal(result, 'dismiss'); assert.equal(dismisses, 1);
+      assert.ok(notifications.some(n => n.level === 'error' && /DELETE_CALLBACK_REFUSED|DELETE_UNLINK_EROFS|Failed to delete/.test(n.text)), 'Failed Delete reports an error notification');
+    }
     assert.equal(render(), frameBefore, 'Actual display and dirty values remain unchanged after unsuccessful Delete');
     assertRows(afterEdited, true); expected = afterEdited;
     assert.deepEqual(cm.layerValues(scope, cwd), initial); assert.deepEqual(cm.inspect(cwd).layers[scope], targetValues);

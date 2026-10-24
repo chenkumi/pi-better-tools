@@ -1,5 +1,6 @@
 import type { Config } from './config.ts';
 import { resolveKey } from './config.ts';
+import { describeNetworkFailure } from './fetch/failure.ts';
 import { isRecord as record } from './record.ts';
 
 export interface SearchResult { title: string; url: string; snippet?: string; publishedAt?: string }
@@ -18,6 +19,12 @@ export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 /** Reads a credential from Pi's stored provider login; only DeepSeek has one of the search providers. */
 export type PiCredentialResolver = (provider: 'deepseek') => Promise<string | undefined>;
 class SearchError extends Error {}
+/** Provider returned something unusable: say so, and what the agent can do instead. Never includes payload content. */
+const malformed = (what: string) => new SearchError(`UPSTREAM_ERROR: ${what}. The provider returned malformed data; retry once later, or use web_fetch on a known URL instead.`);
+const KEY_SOURCE: Record<RestProvider, string> = {
+  brave: 'ask the user to check the brave search service API key in the web tools configuration', exa: 'ask the user to check the exa search service API key in the web tools configuration',
+  deepseek: 'ask the user to run /login for DeepSeek or check the deepseek search service API key in the web tools configuration',
+};
 /** Linear tag removal, bounded retained output. Unclosed '<' stays literal,
  * matching the old replacement semantics without retrying every '<' suffix. */
 export function cleanSearchField(value: unknown, max: number): string | undefined {
@@ -39,7 +46,7 @@ export function cleanSearchField(value: unknown, max: number): string | undefine
 }
 const clean = cleanSearchField;
 async function readJson(response: Response): Promise<unknown> {
-  if (!response.body) throw new SearchError('UPSTREAM_ERROR: empty search response');
+  if (!response.body) throw malformed('empty search response');
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let bytes = 0;
@@ -48,23 +55,23 @@ async function readJson(response: Response): Promise<unknown> {
       const { done, value } = await reader.read();
       if (done) break;
       bytes += value.byteLength;
-      if (bytes > MAX_SEARCH_RESPONSE_BYTES) throw new SearchError('UPSTREAM_ERROR: search response too large');
+      if (bytes > MAX_SEARCH_RESPONSE_BYTES) throw malformed('search response too large');
       chunks.push(value);
     }
     try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); }
-    catch { throw new SearchError('UPSTREAM_ERROR: invalid search JSON'); }
+    catch { throw malformed('invalid search JSON'); }
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
 }
 const SEARCH_ENDPOINTS = { brave: 'https://api.search.brave.com/res/v1/web/search', exa: 'https://api.exa.ai/search', deepseek: 'https://api.deepseek.com/v1/tools/search' } as const;
 /** An explicit config credential wins; DeepSeek otherwise reuses Pi's provider login. */
 async function resolveSearchKey(config: Config, provider: RestProvider, piCredential?: PiCredentialResolver): Promise<string> {
   const credential = config.providers[provider];
-  if (credential.apiKey || credential.apiKeyEnv) return resolveKey(credential);
+  if (credential.apiKey || credential.apiKeyEnv) return resolveKey(credential, process.env, provider);
   const fromPi = provider === 'deepseek' ? await piCredential?.('deepseek') : undefined;
   if (fromPi?.trim()) return fromPi.trim();
   // Brave/Exa have no Pi login provider, so resolveKey reports their existing AUTH_REQUIRED message.
-  if (provider === 'deepseek') throw new Error('AUTH_REQUIRED: no DeepSeek credential; run /login for DeepSeek or set providers.deepseek.apiKeyEnv');
-  return resolveKey(credential);
+  if (provider === 'deepseek') throw new Error('AUTH_REQUIRED: no DeepSeek credential; ask the user to run /login for DeepSeek or set a DeepSeek search service API key in the web tools configuration, then run /reload.');
+  return resolveKey(credential, process.env, provider);
 }
 function sendSearchRequest(provider: RestProvider, query: string, limit: number, key: string, signal: AbortSignal, http: FetchLike): Promise<Response> {
   if (provider === 'brave') {
@@ -85,23 +92,26 @@ function sendSearchRequest(provider: RestProvider, query: string, limit: number,
   });
 }
 function assertSearchStatus(provider: RestProvider, response: Response): void {
-  if (response.status === 401 || response.status === 403) throw new SearchError(`AUTH_REQUIRED: ${provider} rejected the credential or its permissions`);
+  if (response.status === 401 || response.status === 403) throw new SearchError(`AUTH_REQUIRED: ${provider} rejected the credential or its permissions (HTTP ${response.status}); ${KEY_SOURCE[provider]} and the account plan/permissions, then /reload.`);
   if (response.status === 429) {
     const retry = response.headers.get('retry-after');
-    const safeRetry = retry && /^\d{1,6}$/.test(retry) ? `; retry after ${retry} seconds` : '';
-    throw new SearchError(`RATE_LIMITED: ${provider}${safeRetry}`);
+    const wait = retry && /^\d{1,6}$/.test(retry) ? `${retry} seconds` : 'about 60 seconds';
+    throw new SearchError(`RATE_LIMITED: ${provider} rate limit or quota reached; wait ${wait} before retrying, and reduce the number of searches.`);
   }
-  if (!response.ok) throw new SearchError(`UPSTREAM_ERROR: ${provider} HTTP ${response.status}`);
+  if (!response.ok) {
+    const advice = response.status >= 500 ? 'a provider-side failure; retry later' : 'the request was rejected; try a shorter or simpler query, or check the provider plan/quota';
+    throw new SearchError(`UPSTREAM_ERROR: ${provider} HTTP ${response.status}: ${advice}.`);
+  }
 }
 /** The provider-specific result array, after validating the payload shape. */
 function rawSearchItems(provider: RestProvider, payload: unknown): unknown[] {
-  if (!record(payload)) throw new SearchError('UPSTREAM_ERROR: invalid search response shape');
-  if (provider === 'brave' && payload.web !== undefined && !record(payload.web)) throw new SearchError('UPSTREAM_ERROR: invalid Brave web section');
+  if (!record(payload)) throw malformed('invalid search response shape');
+  if (provider === 'brave' && payload.web !== undefined && !record(payload.web)) throw malformed('invalid Brave web section');
   const raw = provider === 'brave' ? (record(payload.web) ? payload.web.results : undefined) : payload.results;
   // Brave may omit the web section for a legitimate empty result set.
-  if (raw !== undefined && !Array.isArray(raw)) throw new SearchError('UPSTREAM_ERROR: invalid results shape');
-  if (provider === 'exa' && !Array.isArray(raw)) throw new SearchError('UPSTREAM_ERROR: missing Exa results');
-  if (provider === 'deepseek' && !Array.isArray(raw)) throw new SearchError('UPSTREAM_ERROR: missing DeepSeek results');
+  if (raw !== undefined && !Array.isArray(raw)) throw malformed('invalid results shape');
+  if (provider === 'exa' && !Array.isArray(raw)) throw malformed('missing Exa results');
+  if (provider === 'deepseek' && !Array.isArray(raw)) throw malformed('missing DeepSeek results');
   return (raw ?? []) as unknown[];
 }
 /** Keeps up to `limit` unique public HTTP(S) results; counts entries that are not usable sources. */
@@ -130,13 +140,16 @@ export async function search(
   config: Config, input: { query: string; numResults?: number },
   signal?: AbortSignal, http: FetchLike = fetch, piCredential?: PiCredentialResolver,
 ): Promise<SearchResponse> {
-  if (!config.enabled) throw new Error('CONFIG_INVALID: search is disabled');
+  if (!config.enabled) throw new Error('CONFIG_INVALID: search is disabled in the web tools configuration; ask the user to enable it and run /reload.');
   // The configured provider is authoritative; the model cannot choose one.
   const provider = config.provider;
-  if (!isRestProvider(provider)) throw new Error('PROVIDER_UNSUPPORTED: native hosted search is selected, not this tool');
-  if (typeof input.query !== 'string' || !input.query.trim() || input.query.length > MAX_QUERY_CHARS) throw new Error('CONFIG_INVALID: query must contain 1–2000 characters');
+  if (!isRestProvider(provider)) throw new Error(`PROVIDER_UNSUPPORTED: provider "${provider}" uses the model's native hosted search, not this tool; to use web_search, ask the user to switch the web search service to brave, exa or deepseek in the web tools configuration and run /reload.`);
+  if (typeof input.query !== 'string' || !input.query.trim() || input.query.length > MAX_QUERY_CHARS) {
+    const received = typeof input.query === 'string' ? `${input.query.length} characters${input.query.trim() ? '' : ', blank'}` : typeof input.query;
+    throw new Error(`INVALID_INPUT: parameter \`query\` must be 1 to ${MAX_QUERY_CHARS} non-blank characters (received ${received}). Provide concise search keywords.`);
+  }
   const limit = input.numResults ?? config.numResults;
-  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_SEARCH_RESULTS) throw new Error('CONFIG_INVALID: numResults must be 1–10');
+  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_SEARCH_RESULTS) throw new Error(`INVALID_INPUT: parameter \`numResults\` must be an integer from 1 to ${MAX_SEARCH_RESULTS} (received ${typeof limit === 'number' ? limit : typeof limit}). Omit it to use the configured default.`);
   const key = await resolveSearchKey(config, provider, piCredential);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.searchTimeoutMs);
@@ -154,10 +167,10 @@ export async function search(
     return { provider, query, results, warnings: invalid ? [`Discarded ${invalid} invalid source entries.`] : [] };
   } catch (e) {
     if (signal?.aborted) throw new Error('CANCELLED: search cancelled');
-    if (controller.signal.aborted) throw new Error('TIMEOUT: search deadline exceeded');
+    if (controller.signal.aborted) throw new Error(`TIMEOUT: ${provider} search exceeded the ${config.searchTimeoutMs} ms deadline (searchTimeoutMs); retry, or simplify the query.`);
     // Only our fixed error messages escape. Never serialize upstream error bodies, headers or request objects.
     if (e instanceof SearchError && !(key && e.message.includes(key))) throw e;
-    throw new Error(`UPSTREAM_ERROR: ${provider} request failed`);
+    throw new Error(`UPSTREAM_ERROR: ${provider} request failed: ${describeNetworkFailure(e)}. Retry later; if it persists, check connectivity or use web_fetch on a known URL.`);
   } finally {
     clearTimeout(timer);
     await response?.body?.cancel().catch(() => {});

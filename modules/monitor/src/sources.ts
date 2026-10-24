@@ -25,26 +25,28 @@ export function commandLaunch(pi: ExtensionAPI, ctx: ExtensionContext, source: {
 export function websocketLaunch(source: Endpoint | NetworkSource, clock: Clock = realClock): Launch {
   return async (sink, signal, deadline) => {
     let endpoint: Endpoint;
-    let timer: unknown;
+    let timer: unknown, startupError = 'startup failed';
+    // Bounded, single-line reason recorded in the close evidence: the tool call already succeeded, so this is how the agent learns why.
+    const reason = (error: unknown) => String((error as Error)?.message ?? error).replace(/[\x00-\x1f\x7f-\x9f]/g, ' ').slice(0, 300);
     try {
       if ('addresses' in source) endpoint = source;
       else endpoint = await new Promise<Endpoint>((resolve, reject) => {
         let settled = false;
-        const finish = (value?: Endpoint) => { if (settled) return; settled = true; if (timer !== undefined) clock.clear(timer); signal.removeEventListener('abort', abort); value ? resolve(value) : reject(new Error('startup failed')); };
+        const finish = (value?: Endpoint, error?: unknown) => { if (settled) return; settled = true; if (timer !== undefined) clock.clear(timer); signal.removeEventListener('abort', abort); if (value) resolve(value); else { startupError = error ? reason(error) : 'NETWORK_TIMEOUT: endpoint preparation did not finish before the 15 s startup limit or the monitor deadline; check the host, or raise durationMs'; reject(new Error(startupError)); } };
         const abort = () => finish();
         signal.addEventListener('abort', abort, { once: true }); timer = clock.set(() => finish(), Math.max(1, Math.min(15000, deadline - clock.now())));
-        if (signal.aborted) finish(); else prepareEndpoint(source).then(value => finish(value), () => finish());
+        if (signal.aborted) finish(); else prepareEndpoint(source).then(value => finish(value), error => finish(undefined, error));
       });
       if (signal.aborted || clock.now() >= deadline) { sink.closed({ sourceClosed: true, startupCanceled: true }); return; }
     } catch {
       // An abort (monitor_stop, shutdown) while the endpoint was being prepared is a cancellation, not a broken endpoint.
       if (signal.aborted) { sink.closed({ sourceClosed: true, startupCanceled: true }); return; }
-      sink.fault('source_error'); sink.closed({ sourceClosed: true, startupFailed: true }, true); return;
+      sink.fault('source_error'); sink.closed({ sourceClosed: true, startupFailed: true, startupError }, true); return;
     }
     await new Promise<void>(resolve => {
       let ws: WebSocket;
       try { ws = new WebSocket(endpoint.url, pinnedOptions(endpoint, deadline - clock.now())); }
-      catch { sink.fault('source_error'); sink.closed({ sourceClosed: true, startupFailed: true }, true); resolve(); return; }
+      catch (error) { sink.fault('source_error'); sink.closed({ sourceClosed: true, startupFailed: true, startupError: `WEBSOCKET_CONSTRUCT_FAILED: ${reason(error)}` }, true); resolve(); return; }
       let fault = false;
       const abort = () => ws.terminate();
       signal.addEventListener('abort', abort, { once: true });
@@ -138,12 +140,14 @@ function canonicalParent(absolute: string): string {
 export function resolveFilePath(root: string, input: string): FileTarget {
   const lexical = resolve(root, input);
   const absolute = isAbsolute(input) && !inside(root, lexical) ? canonicalParent(lexical) : lexical, rel = relative(root, absolute);
-  if (rel === '') throw new Error('Path must name a file inside the workspace');
-  if (!inside(root, absolute)) throw new Error('Path is outside the workspace');
+  const name = `file source "path" ${JSON.stringify(input.length > 200 ? `${input.slice(0, 200)}…` : input)}`;
+  const outside = `${name} resolves outside the canonical workspace; symlinks are followed. Use a path under the project directory`;
+  if (rel === '') throw new Error(`${name} is the workspace root itself; name a file inside it`);
+  if (!inside(root, absolute)) throw new Error(outside);
   try { locate(root, absolute); }
   catch (error) {
-    const reason = (error as Error).message;
-    throw new Error(reason === 'path_outside_workspace' ? 'Path is outside the workspace' : reason === 'not_a_file' ? 'Path is not a regular file' : 'File path cannot be inspected');
+    const reason = (error as Error).message, code = (error as NodeJS.ErrnoException).code;
+    throw new Error(reason === 'path_outside_workspace' ? outside : reason === 'not_a_file' ? `${name} is not a regular file; directories and special files are not supported, name a file` : `${name} cannot be inspected (${code ?? 'unknown error'}): check that the file and its directories are readable (and not a symlink loop), or choose another file`);
   }
   return { absolute, relative: rel };
 }
@@ -153,10 +157,11 @@ function fileChange(previous: FileSignature, next: FileSignature): 'created' | '
   return previous.sizeBytes !== next.sizeBytes || previous.mtimeMs !== next.mtimeMs || previous.ino !== next.ino ? 'modified' : undefined;
 }
 export function fileLaunch(root: string, target: FileTarget, intervalMs: number, clock: Clock = realClock): Launch {
-  return pollingLaunch(intervalMs, clock, {}, (sink, poll) => {
+  const evidence: Record<string, unknown> = {};
+  return pollingLaunch(intervalMs, clock, evidence, (sink, poll) => {
     const sign = (): FileSignature | undefined => {
       try { return locate(root, target.absolute); }
-      catch (error) { sink.fault((error as Error).message === 'path_outside_workspace' ? 'path_outside_workspace' : 'source_error'); poll.close(); return undefined; }
+      catch (error) { evidence.faultCode = (error as NodeJS.ErrnoException).code ?? (error as Error).message; sink.fault((error as Error).message === 'path_outside_workspace' ? 'path_outside_workspace' : 'source_error'); poll.close(); return undefined; }
     };
     const baseline = sign(); if (!baseline) return;
     let previous: FileSignature = baseline;

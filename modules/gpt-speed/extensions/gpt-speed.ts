@@ -84,6 +84,14 @@ function storedValues(settings: Record<string, unknown>): SettingsPatch {
 	};
 }
 
+/** Warning text for a stored `mode` that is present but not one of the allowed values (undefined when absent or valid). */
+function invalidModeWarning(settings: Record<string, unknown>, path: string): string | undefined {
+	const value = asObject(settings[SETTINGS_KEY])?.mode;
+	if (value === undefined || SPEED_MODES.some(allowed => allowed === value)) return undefined;
+	const shown = typeof value === "string" ? JSON.stringify(value.length > 40 ? `${value.slice(0, 40)}...` : value) : JSON.stringify(value) ?? String(value);
+	return `pi-gpt-speed: ${SETTINGS_KEY}.mode ${shown} is ignored; use ${SPEED_MODES.slice(0, -1).join(", ")} or ${SPEED_MODES[SPEED_MODES.length - 1]} (in ${path}).`;
+}
+
 const RETRY_ATTEMPTS = 10;
 const RETRY_DELAY_MS = 20;
 const sleepSync = (ms: number) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
@@ -205,9 +213,11 @@ export default function gptSpeedExtension(pi: ExtensionAPI): void {
 	for (const selected of ["fast", "ultrafast", "normal"] as const) {
 		pi.registerCommand(selected, {
 			description: `Set GPT speed to ${LABELS[selected]}`,
-			handler: async (_args, ctx) => {
+			handler: async (args, ctx) => {
 				mode = selected;
 				updateStatus(ctx);
+				const extra = typeof args === "string" ? args.trim() : "";
+				if (extra) report(ctx, `pi-gpt-speed: /${selected} takes no arguments; ignored ${JSON.stringify(extra.length > 40 ? `${extra.slice(0, 40)}...` : extra)}.`);
 				if (ctx.hasUI) ctx.ui.notify(statusLabel(ctx.model), "info");
 				try { persistSettings(globalPath(), { mode: selected }); }
 				catch (error) { warn(ctx, "save speed settings (current mode remains active)", error); }
@@ -239,13 +249,19 @@ export default function gptSpeedExtension(pi: ExtensionAPI): void {
 		cache = "short";
 		projectOverrideNoticed.clear();
 		try {
-			const stored = storedValues(readSettings(globalPath()));
+			const settings = readSettings(globalPath());
+			const invalid = invalidModeWarning(settings, globalPath());
+			if (invalid) report(ctx, invalid);
+			const stored = storedValues(settings);
 			mode = stored.mode ?? mode;
 			cache = stored.cache ?? cache;
 		} catch (error) { warn(ctx, "load global speed settings", error); }
 		if (ctx.isProjectTrusted()) {
 			try {
-				const stored = storedValues(readSettings(projectPath(ctx)));
+				const settings = readSettings(projectPath(ctx));
+				const invalid = invalidModeWarning(settings, projectPath(ctx));
+				if (invalid) report(ctx, invalid);
+				const stored = storedValues(settings);
 				mode = stored.mode ?? mode;
 				cache = stored.cache ?? cache;
 			} catch (error) { warn(ctx, "load project speed settings", error); }

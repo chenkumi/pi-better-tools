@@ -66,15 +66,20 @@ describe("loadSqlConnectorConfig", () => {
     });
   });
 
-  it("does not expose the environment variable name for a missing password", async () => {
+  it("does not expose the password environment variable name in the agent-facing message", async () => {
     const cwd = await writeConfig({
-      mysql: { host: "localhost", username: "root", password: "${DO_NOT_LEAK}", database: "app" },
+      mysql: { host: "localhost", username: "root", password: "${NAMED_PASSWORD_VAR}", database: "app" },
     });
 
-    await expect(loadSqlConnectorConfig(cwd, {})).rejects.toMatchObject({
+    const error = await loadSqlConnectorConfig(cwd, {}).catch((e) => e);
+    expect(error).toMatchObject({
       code: "SECRET_MISSING",
-      message: "A database password environment variable is not set.",
+      message: expect.stringMatching(/user password[\s\S]*not set in the environment[\s\S]*Ask the user/),
     });
+    expect(error.message).not.toContain("NAMED_PASSWORD_VAR");
+    expect(error.message).not.toMatch(/\$\{|\.json|password field/i);
+    // Only the human-facing detail names the variable.
+    expect(error.humanMessage).toContain("NAMED_PASSWORD_VAR");
   });
 
   it("returns undefined when configuration is absent", async () => {

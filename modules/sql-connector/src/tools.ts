@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { describeUnexpectedError } from "./driver-errors.js";
 import { formatRows } from "./output.js";
 import { assertReadOnlySql, assertUpdateSql } from "./security/sql-policy.js";
 import { SqlConnectorRuntime } from "./runtime.js";
@@ -33,7 +34,7 @@ function engineLabel(engine: Engine): string {
 
 function throwSafe(error: unknown): never {
   if (error instanceof SqlConnectorError) throw error;
-  throw new SqlConnectorError("DRIVER_INTERNAL", "SQL connector request failed.");
+  throw describeUnexpectedError(error);
 }
 
 function checkAborted(signal: AbortSignal | undefined): void {
@@ -48,7 +49,7 @@ async function confirmUpdate(
   ctx: ExtensionContext,
 ): Promise<void> {
   if (!ctx.hasUI) {
-    throw new SqlConnectorError("POLICY_DENIED", "Database updates require an interactive confirmation.");
+    throw new SqlConnectorError("POLICY_DENIED", "Database updates require an interactive confirmation, and this session has no interactive UI, so the update cannot run here. Do not retry; ask the user to run it in an interactive Pi session or to execute the statement themselves.");
   }
   const parameterNames = Array.isArray(params)
     ? params.map((_value, index) => `$${index + 1}`).join(", ") || "none"
@@ -59,7 +60,7 @@ async function confirmUpdate(
     { signal: ctx.signal },
   );
   if (!confirmed) {
-    throw new SqlConnectorError("CONFIRMATION_DENIED", "Database update was not confirmed.");
+    throw new SqlConnectorError("CONFIRMATION_DENIED", "Database update was not confirmed by the user, so nothing was changed. Do not retry the same statement unless the user asks; ask what to change.");
   }
 }
 
@@ -105,7 +106,7 @@ export function registerEngineTools(pi: ExtensionAPI, runtime: SqlConnectorRunti
     namespace,
     name: `${prefix}_query`,
     label: `${engineLabel(engine)} Query`,
-    description: `Run one read-only SQL statement against the configured ${engineLabel(engine)} database. Use ${placeholder} placeholders and an ${paramsDescription} for params. SELECT queries must include ${readLimit}. Results are limited to 200 rows or 48 KiB.`,
+    description: `Run one read-only SQL statement against the configured ${engineLabel(engine)} database. Use ${placeholder} placeholders and an ${paramsDescription} for params. SELECT queries must include ${readLimit}. Results are limited to 200 rows or 48 KiB; columns named like password/secret/token are returned as [REDACTED] and strings over 4,000 characters are cut with an ellipsis.`,
     promptSnippet: `Run read-only ${engineLabel(engine)} SQL with ${placeholder} placeholders and ${readLimit}`,
     parameters: querySchema,
     async execute(_toolCallId, params, signal) {
@@ -130,7 +131,7 @@ export function registerEngineTools(pi: ExtensionAPI, runtime: SqlConnectorRunti
     namespace,
     name: `${prefix}_update`,
     label: `${engineLabel(engine)} Update`,
-    description: `Run one INSERT, UPDATE, or DELETE statement against the configured ${engineLabel(engine)} database after explicit user confirmation. Use ${placeholder} placeholders and an ${paramsDescription} for params.`,
+    description: `Run one INSERT, UPDATE, or DELETE statement against the configured ${engineLabel(engine)} database after explicit user confirmation (the reason is shown to the user in the confirmation dialog; non-interactive sessions cannot run updates). Use ${placeholder} placeholders and an ${paramsDescription} for params.`,
     promptSnippet: `Run a confirmed ${engineLabel(engine)} INSERT, UPDATE, or DELETE`,
     executionMode: "sequential",
     parameters: updateSchema,

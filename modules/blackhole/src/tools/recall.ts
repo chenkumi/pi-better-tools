@@ -101,6 +101,8 @@ export async function vccRecall(
   return { ...result, content: [{ type: "text" as const, text }], details: { ...result.details, historyInspection: { incomplete: true, reasons: [...reasons] } } };
 }
 
+const NO_SESSION_FILE_MESSAGE = "No session file available: recall is unavailable because this session is not persisted. Continue without recall, or start a persisted session.";
+
 async function vccRecallInspected(
   params: {
     query?: string;
@@ -116,7 +118,7 @@ async function vccRecallInspected(
   const sessionFile = ctx.sessionManager.getSessionFile();
   if (!sessionFile) {
     return {
-      content: [{ type: "text" as const, text: "No session file available." }],
+      content: [{ type: "text" as const, text: NO_SESSION_FILE_MESSAGE }],
       details: undefined,
     };
   }
@@ -146,7 +148,7 @@ async function vccRecallInspected(
   if (evidenceRef) {
     const found = evidence.find(e => e.id === evidenceRef[1]);
     if (!found) {
-      const diagnostic = "No matches for notification evidence in selected session scope (missing, excluded, ambiguous or uninspected)." + evidenceNote;
+      const diagnostic = "No matches for notification evidence in selected session scope (missing, excluded, ambiguous or uninspected). Check the e:<entry-id> value or try scope:'all'." + evidenceNote;
       const brief = "No matches; outcome unknown.";
       const text = maxChars === 0 || diagnostic.length <= maxChars ? diagnostic : brief.length <= maxChars ? brief : "!";
       return { content: [{ type: "text" as const, text }], isError: true,
@@ -164,13 +166,13 @@ async function vccRecallInspected(
     const overhead = header(Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER).length + footer(Number.MAX_SAFE_INTEGER).length;
     const size = maxChars > 0 ? maxChars - overhead : found.summary.length;
     if (size < 1) {
-      const diagnostic = "Budget insufficient; no evidence delivered. Increase recallResponseMaxChars.";
+      const diagnostic = "Budget insufficient; no evidence delivered. Ask the user to raise the recall response size limit.";
       const text = maxChars >= diagnostic.length ? diagnostic : maxChars >= 19 ? "Budget insufficient" : "!";
       return { content: [{ type: "text" as const, text }], isError: true,
         details: { notificationEvidence: { reason: "budget_insufficient", minimumBudget: overhead + 1, deliveredChars: 0 } } };
     }
     const pages = Math.ceil(found.summary.length / size);
-    if (page > pages) return { content: [{ type: "text" as const, text: "Page outside available range." }], isError: true, details: { notificationEvidence: { reason: "page_out_of_range", deliveredChars: 0 } } };
+    if (page > pages) return { content: [{ type: "text" as const, text: `Parameter "page" ${page} is outside 1..${pages} for ${found.ref}; pass a page between 1 and ${pages}.` }], isError: true, details: { notificationEvidence: { reason: "page_out_of_range", deliveredChars: 0 } } };
     const offset = (page - 1) * size;
     const body = found.summary.slice(offset, offset + size);
     const nextPage = page < pages ? page + 1 : undefined;
@@ -193,7 +195,7 @@ async function vccRecallInspected(
         content: [
           {
             type: "text" as const,
-            text: `Cannot expand indices outside ${scope === "all" ? "session history" : "active lineage"}: ${invalid.join(", ")}`,
+            text: `Cannot expand indices outside ${scope === "all" ? "session history" : "active lineage"}: ${invalid.join(", ")}. Parameter "expand" must list entry indices shown by recall results${scope === "all" ? "" : "; pass scope:'all' to reach other branches"}.`,
           },
         ],
         details: undefined,
@@ -305,7 +307,7 @@ async function vccRecallInspected(
         content: [
           {
             type: "text" as const,
-            text: `No matches for "${params.query}" in session history.${evidenceNote}`,
+            text: `No matches for "${params.query}" in session history.${evidenceNote} Try fewer or different terms, or scope:'all'.`,
           },
         ],
         details: undefined,
@@ -447,7 +449,7 @@ async function omRecall(memoryId: string, ctx: any, maxChars = DEFAULT_RECALL_RE
   if (entryBlocks.length === 0 && !sourcesBlock && header.length === 0) {
     return {
       content: [
-        { type: "text" as const, text: `Memory ${memoryId} found, but no evidence rendered.` },
+        { type: "text" as const, text: `Memory ${memoryId} found, but no evidence could be rendered (its source entries may be outside the current branch or were compacted away). Search with a keyword query or use expand:[N] on a visible entry instead.` },
       ],
       details: undefined,
     };
@@ -525,7 +527,14 @@ export function registerRecallTool(
       const sessionFile = ctx.sessionManager.getSessionFile();
       if (!sessionFile) {
         return {
-          content: [{ type: "text" as const, text: "No session file available." }],
+          content: [{ type: "text" as const, text: NO_SESSION_FILE_MESSAGE }],
+          details: undefined,
+        };
+      }
+      if (params.page !== undefined && (!Number.isInteger(params.page) || params.page < 1)) {
+        return {
+          content: [{ type: "text" as const, text: `Parameter "page" must be a positive integer (>= 1); received ${String(params.page).slice(0, 40)}. Omit it for page 1.` }],
+          isError: true,
           details: undefined,
         };
       }
@@ -590,7 +599,14 @@ export function registerRecallTool(
         return omRecall(q, ctx, maxChars);
       }
       // Default: pi-vcc search
-      return vccRecall(params, ctx, maxChars);
+      const searched = await vccRecall(params, ctx, maxChars);
+      if (params.page !== undefined && !q && !(params.expand?.length) && params.mode !== "touched") {
+        const first = searched.content[0];
+        if (first && first.type === "text") {
+          return { ...searched, content: [{ ...first, text: first.text + '\nNote: parameter "page" was ignored because it only applies together with a "query" (or mode:"touched"); add a query to page through matches.' }, ...searched.content.slice(1)] };
+        }
+      }
+      return searched;
     },
   });
 }

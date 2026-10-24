@@ -65,12 +65,15 @@ function fail(code: string, message: string): never { throw new SessionError(cod
 const record = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
 const validHash = (v: unknown) => typeof v === "string" && /^[a-f0-9]{64}$/.test(v);
 const integer = (v: unknown) => Number.isSafeInteger(v) && (v as number) >= 0;
-export async function canonicalCwd(cwd: string): Promise<string> {
+/** `what` names the value being checked so the error points at the right parameter. */
+export async function canonicalCwd(cwd: string, what = "cwd"): Promise<string> {
+	const shown = JSON.stringify(cwd.length > 200 ? `${cwd.slice(0, 200)}...` : cwd);
+	const fix = what === "cwd" ? "Pass an existing directory in cwd (tasks[i].cwd / chain[i].cwd for items), or omit cwd to use the session working directory." : "Restore the directory or restart Pi from an existing project directory.";
 	try {
 		const real = await fs.promises.realpath(cwd);
-		if (!(await fs.promises.stat(real)).isDirectory()) fail("CWD_UNAVAILABLE", cwd);
+		if (!(await fs.promises.stat(real)).isDirectory()) fail("CWD_UNAVAILABLE", `${what} ${shown} is not a directory (resolved: ${real}). ${fix}`);
 		return real;
-	} catch (e) { if (e instanceof SessionError) throw e; return fail("CWD_UNAVAILABLE", cwd); }
+	} catch (e) { if (e instanceof SessionError) throw e; return fail("CWD_UNAVAILABLE", `${what} ${shown} does not exist or cannot be resolved (resolved: ${path.resolve(cwd)}). Use an existing directory. ${fix}`); }
 }
 export function agentFingerprint(agent: AgentConfig): string { return sha256(JSON.stringify(agent)); }
 export async function snapshotConfig(agent: AgentConfig, agentScope: AgentScope, cwd: string, model: string | undefined, thinkingLevel: string | undefined, projectTrusted: boolean): Promise<SavedConfig> {
@@ -80,11 +83,11 @@ export async function snapshotConfig(agent: AgentConfig, agentScope: AgentScope,
 		projectTrusted, toolPolicy: agent.tools?.length ? "allowlist" : "child-defaults" };
 }
 export async function validateConfig(config: SavedConfig, agent: AgentConfig | undefined, projectTrusted: boolean): Promise<void> {
-	if (!agent || agentFingerprint(agent) !== config.agentFingerprint) fail("CONFIG_CHANGED", "Agent definition changed or disappeared");
+	if (!agent || agentFingerprint(agent) !== config.agentFingerprint) fail("CONFIG_CHANGED", "Agent definition changed or disappeared since this session was created; start a new subagent");
 	let source: string;
 	try { source = await readBounded(agent.filePath); } catch { return fail("CONFIG_CHANGED", "Agent source unavailable"); }
 	if (sha256(source) !== config.sourceSha256) fail("CONFIG_CHANGED", "Agent source bytes changed");
-	if (await canonicalCwd(config.cwd) !== config.cwd) fail("CWD_UNAVAILABLE", "Child cwd identity changed");
+	if (await canonicalCwd(config.cwd) !== config.cwd) fail("CWD_UNAVAILABLE", "Child cwd identity changed since the session was created (the directory was moved, replaced or relinked); start a new subagent in the intended directory");
 	if (config.projectTrusted !== projectTrusted || (agent.source === "project" && !projectTrusted)) fail("TRUST_REQUIRED", "Current project trust does not match saved configuration");
 }
 async function readBounded(file: string): Promise<string> {
@@ -314,14 +317,15 @@ export class ManagedSession {
 		return new ManagedSession(root, directory, manifest);
 	}
 	static async resolve(root: string, id: string, owner: SessionOwner): Promise<ManagedSession> {
-		if (!SESSION_ID.test(id)) fail("INVALID_DISPATCH", "resume requires a complete session ID (uppercase ULID or legacy lowercase ULID/UUID), not a path or partial ID");
-		try { root = await fs.promises.realpath(root); } catch { return fail("SESSION_NOT_FOUND", id); }
+		if (!SESSION_ID.test(id)) fail("INVALID_DISPATCH", `subagentSessionId ${JSON.stringify(id.length > 80 ? `${id.slice(0, 80)}...` : id)} is not a complete session ID (uppercase ULID, or legacy lowercase ULID/UUID; not a path, jobId, taskId or partial ID). Copy the full ID from the subagent result or subagent_status({ jobId }).`);
+		const notFound = () => fail("SESSION_NOT_FOUND", `No managed session with subagentSessionId "${id}" exists for this parent session and cwd. Call subagent_status (no jobId) to list jobs, then subagent_status({ jobId }) to read each task's subagentSessionId; only IDs created by this session/cwd can be messaged.`);
+		try { root = await fs.promises.realpath(root); } catch { return notFound(); }
 		const directory = path.join(root, id);
 		let m: unknown;
 		try { await contained(root, path.join(directory, "manifest.json")); m = await readJson(path.join(directory, "manifest.json")); }
-		catch (e) { if (e instanceof SessionError) throw e; if ((e as any).code === "ENOENT") return fail("SESSION_NOT_FOUND", id); return fail("METADATA_UNSUPPORTED", "Cannot read manifest"); }
+		catch (e) { if (e instanceof SessionError) throw e; if ((e as any).code === "ENOENT") return notFound(); return fail("METADATA_UNSUPPORTED", "Cannot read manifest"); }
 		validateManifest(m, id);
-		if (m.owner.parentSessionId !== owner.parentSessionId || m.owner.parentCwd !== owner.parentCwd) fail("OWNER_MISMATCH", "Continuation belongs to a different parent session/cwd");
+		if (m.owner.parentSessionId !== owner.parentSessionId || m.owner.parentCwd !== owner.parentCwd) fail("OWNER_MISMATCH", "This subagentSessionId was created by a different parent session or cwd; only IDs from the current session/cwd can be messaged. Start a new subagent if you need this work here");
 		return new ManagedSession(root, directory, m);
 	}
 	/** A lock is stale only when its recorded owner pid is provably gone, or it is ours (same pid) but no live in-process owner registered its nonce. */
@@ -396,7 +400,7 @@ export class ManagedSession {
 		await this.assertLock();
 		await this.validateCheckpoint();
 		const limit = 8 * 1024 * 1024, cp = this.manifest.checkpoint!;
-		if (cp.nativeBytes > limit) fail("SNAPSHOT_CAPACITY", "Query checkpoint exceeds 8 MiB");
+		if (cp.nativeBytes > limit) fail("SNAPSHOT_CAPACITY", "Query checkpoint exceeds 8 MiB; use mode control or start a new subagent");
 		const file = path.join(this.directory, this.manifest.nativeFile!);
 		await contained(this.root, file);
 		const handle = await fs.promises.open(file, "r");

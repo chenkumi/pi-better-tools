@@ -5,6 +5,7 @@
 // Plain .mjs on purpose: the typechecker must not follow deep imports into the third-party TS sources.
 import fffExtension from "@ff-labs/pi-fff/src/index.ts";
 import { loadConfig } from "@ff-labs/pi-fff/src/config.ts";
+import { guardFffTool } from "./fff-guard.mjs";
 
 function fileMode() {
   try {
@@ -24,5 +25,7 @@ export default function fffOverrideDefault(pi) {
     const value = pi.getFlag(name);
     return value === undefined && name === "fff-mode" && defaultsToOverride() ? "override" : value;
   };
+  // Wrap only `execute` of the grep/find/multi_grep tools (see fff-guard.mjs); schemas, names and renderers are untouched.
+  view.registerTool = (tool) => pi.registerTool(guardFffTool(tool));
   return fffExtension(view);
 }
