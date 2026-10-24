@@ -1,4 +1,5 @@
 import type { NormalizedBlock } from "../types";
+import { pairToolBlocks } from "../core/file-results.js";
 
 interface CommitInfo {
   hash?: string;
@@ -322,6 +323,9 @@ export const extractCommits = (blocks: NormalizedBlock[]): CommitInfo[] => {
     }
   };
 
+  // Parallel tool calls arrive as call1, call2, result1, result2: pair by toolCallId (exact, unique, chronological).
+  const pairs = pairToolBlocks(blocks);
+
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i];
 
@@ -330,10 +334,20 @@ export const extractCommits = (blocks: NormalizedBlock[]): CommitInfo[] => {
       const cmd = b.args && typeof b.args.command === "string" ? b.args.command : "";
       if (!isGitCommitCommand(cmd)) continue;
 
-      // Pair the command with its own result. Normalized results carry the
-      // tool name, so a sibling tool's result — or its error — must not be
-      // consumed here: an interleaved foreign error previously killed the
-      // commit, and a foreign success line could misattribute hash/message.
+      // With a call id the command is paired with exactly its own result; an unpaired call records nothing rather
+      // than borrowing a sibling's result (the position window cannot tell parallel bash calls apart).
+      if (b.toolCallId) {
+        const pair = pairs.get(b.toolCallId);
+        const r = pair && pair.call === b ? pair.result : undefined;
+        if (r && !r.isError) {
+          const commit = tryExtract(cmd, r.text);
+          if (commit) addCommit(commit.hash, commit.message, b.sourceIndex);
+        }
+        continue;
+      }
+
+      // Older sessions have no call id: pair with the next same-tool result in position order. Normalized results
+      // carry the tool name, so a sibling tool's result — or its error — must not be consumed here.
       for (let j = i + 1; j < Math.min(blocks.length, i + 3); j++) {
         const r = blocks[j];
         if (r.kind !== "tool_result") continue;

@@ -15,10 +15,13 @@ export const MAX_NOTE_BYTES = 8 * 1024 * 1024;
 const noteTypes = ["plan", "design", "issue", "research", "report", "task"] as const;
 const noteDirectories = { plan: "plans", design: "designs", issue: "issues", research: "research", report: "reports", task: "tasks" } as const satisfies Record<(typeof noteTypes)[number], string>;
 
-/** Compare whole path segments: a directory literally named "..archive" is inside the workspace, "../x" is not. */
+/**
+ * Compare whole path segments: a directory literally named "..archive" is inside the workspace, "../x" is not.
+ * The workspace root itself is inside (a note folder may be a link back to it); only leaving the workspace is an escape.
+ */
 function isOutsideWorkspace(cwd: string, directory: string): boolean {
   const inside = relative(cwd, directory);
-  return inside === "" || inside === ".." || inside.startsWith(".." + sep) || isAbsolute(inside);
+  return inside === ".." || inside.startsWith(".." + sep) || isAbsolute(inside);
 }
 
 type NoteType = (typeof noteTypes)[number];

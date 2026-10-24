@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (Pi Better Tools local adaptation, 2026-10-24; scan finding WB2-002)
+- Entries that `load()` ignores (hand-edit typos, a newer schema) are no longer lost when the next write rewrites `.pi/schedule-prompts.json`: `save()` first keeps the original file as `.pi/schedule-prompts.json.malformed-<hash>` (named by content, so repeated saves do not pile up copies). If the copy cannot be written the save is refused.
+
 ### Fixed (Pi Better Tools local adaptation, 2026-10-24; scan finding WB2-001)
 - A scheduled turn may only read the schedule: `update`, `remove`, `enable`, `disable`, `cleanup` and `add` now all return an `isError` result inside a scheduled execution (previously only `add` was guarded, and by throwing), so an injected scheduled run cannot rewrite, disable or delete other jobs.
 

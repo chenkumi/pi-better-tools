@@ -167,7 +167,7 @@ DeepSeek 憑證解析順序：設定裡的 `providers.deepseek.apiKey`／`apiKey
 - 工具 content 上限 24 KiB／1000 行（含截斷提示）；頁面抽取內容超過 1 MiB 時截斷並加上警告（不再失敗），格式化結果 2 MiB，原始／渲染 HTML 5 MiB；瀏覽器路徑的每個代理回應（含子資源）在讀取時以有界串流限制 10 MiB（主文件 5 MiB），wire（壓縮後）與解壓後大小各自限制，超過即中止讀取並阻擋；每次 fetch 的子資源另有上限 200 個請求、累計解壓後 32 MiB（含進行中的位元組），超過的子資源被阻擋並加警告；media／font／image／stylesheet 子資源不抓取（直接 abort；抽取不渲染也不套用 CSS）。瀏覽器路徑不再使用 Playwright `route.fetch`（它會無上限緩衝並解壓整個 body；約 0.4 MiB 的 gzip 可使宿主 RSS 增加約 900 MiB），改由 `src/fetch/bounded.ts` 的 Node http(s) 有界串流取得，再以 `route.fulfill` 交給瀏覽器；解壓後 body 會移除 content-encoding／content-length。支援 gzip／deflate／br，其他 content-encoding 回報 `UNSUPPORTED_CONTENT`。
 - 超長結果存於 OS temp 的 `pi-web-tools-*` 目錄並回傳絕對路徑，可用 `read` 分頁讀取；POSIX 檔案為 `0600`，Windows 依賴使用者 profile／temp 的 ACL。暫存檔不會在 shutdown 時刪除，亦可能被 OS 清理。
 - 兩個工具宣告 `outputSchema`：`{ text, data?, dataOmitted, truncated, fullOutputPath? }`；structuredContent 超過 64 KiB 時省略 `data` 並設 `dataOmitted`。`web_search` 的 `data.provider` 由 REST provider 清單產生（`brave`／`exa`／`deepseek`），2026-10-23 修正前 schema 漏列 `deepseek`。
-- 位元組上限在讀取／解壓過程中強制執行，單一回應的緩衝峰值約為上限加一個 chunk；同一次 fetch 的子資源以累計預算限制總緩衝。這仍不是總流量上限（同時進行中的請求、被中止前已收到的 wire 位元組不計入保證），也不是 OS 層資源隔離。
+- 位元組上限在讀取／解壓過程中強制執行，單一回應的緩衝峰值約為上限加一個 chunk；同一次 fetch 的子資源以累計預算限制總緩衝；每個子資源請求（含其 redirect 鏈的每一跳）都計入同一個 200 請求上限。這仍不是總流量上限（同時進行中的請求、被中止前已收到的 wire 位元組不計入保證），也不是 OS 層資源隔離。
 - HTTP 相容路徑分別在 wire／解壓後串流限制 5 MiB，decoded HTML 亦限制 5 MiB；支援 gzip／deflate／br。超限或取消會銷毀串流並等待本機 request close，不表示遠端處理已停止。
 
 ## 安全行為與限制

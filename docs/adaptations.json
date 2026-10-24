@@ -4,6 +4,10 @@
     "scope": "2026-10-24 fixes for the verified findings of reports/REPORT-20261024T045912330Z.md, third-party modules included at the user's request: H1 Blackhole cleanup session directories, H2 Blackhole settings modal, H3/WB2 Schedule Prompt scheduled-turn guard, H4 sql-connector stacked SELECT, DB-003 unknown engine keys, DB-005 sqlite single statement, SH-001/SH-002/SH-004 Shell timeout sentinel, retried handoff and invalid handshake, MON-1/MON-2 Monitor retired generations and websocket startup cancel, SA-002 process-wide admission, FT-003/FT-004 file-tools agent dir and file URL. Not changed on purpose: SA-001 (slot held until real child close is the documented conservative design), sqlite_query read-only (INSERT ... RETURNING would have no tool), web-tools Azure native search (unknown provider combinations are deliberately not injected).",
     "verification": "Each fix has a regression test that was red first; unit, typecheck, lint, module groups and sources:verify are listed in the delivery note. Real Pi TUI, real databases and the heavy groups were not run."
   },
+  "scanFixes20261024b": {
+    "scope": "2026-10-24 second round of fixes for the verified findings of reports/REPORT-20261024T061016782Z.md: the four Medium findings BH4-001 (commit pairing by toolCallId), BH1-002 (Outstanding Context by toolCallId), BH3-002 (untrusted project scope not offered or written), WB2-002 (unusable schedule entries kept in a side file), and the user-module findings DB-007 (bounded, rotating output sweep), SH-003 (note folder linked to the workspace root) and WB1-006 (redirect hops count against the request budget). The remaining verified Low findings of that report are not changed.",
+    "verification": "Each fix has a regression test that was red first; unit, typecheck, lint, module groups and sources:verify are listed in the delivery note. Real Pi TUI, real Chromium, real databases and the heavy groups were not run."
+  },
   "batchTaskView20261024": {
     "scope": "2026-10-24 user-requested Jobs overlay change plus a delivery-mode cleanup. (1) A concurrent Subagent batch (two or more tasks) now opens a task list first (state, activity, live marker) and one task at a time shows its own conversation or, when it has no live copy, its own metadata; Esc steps back one level (task -> list -> close). PanelJob gains an optional tasks list; single-task jobs, Fork and Shell are unchanged. (2) Subagent messages that do not trigger a turn (log_ready, job_result with no unannounced task) are now tagged deliverAs \"steer\" like every other background notification; Pi ignores deliverAs when triggerTurn is false, so behavior is unchanged.",
     "files": [
@@ -1682,7 +1686,9 @@
       "scanFix20261017Adaptation": "2026-10-17 24h sweep of saved truncated outputs; manual/tool text describes read bounds, creation message and unchanged journal mode.",
       "cleanCodeModules20261023PreviousSha256": "aec2c082539bc2b420cdc88f13383ac925695d9afa8df10ea12be6141b9b59d0",
       "cleanCodeModules20261023Adaptation": "2026-10-23 clean code: statementSchema factory for the identical query/execute schemas; shared errorMessage and StatementInput.",
-      "sha256": "8e96dc29e6045deca6f6d181b9225196a28bd2bd908db150aec62a676d193d16",
+      "scanFixes20261024bPreviousSha256": "8e96dc29e6045deca6f6d181b9225196a28bd2bd908db150aec62a676d193d16",
+      "scanFixes20261024bAdaptation": "2026-10-24: sweepOldOutputs stats up to 2048 matching candidates per call with a rotating start instead of the first 256 directory entries (scan DB-007).",
+      "sha256": "1c5d50fe7f97660bab079169671e1adb3db6eb3d083abda51786ecfc971b21bd",
       "reason": "Deferred exposure and sqlite namespace/short discovery description on all eight tools; no local activation or prompt hook."
     },
     {
@@ -1748,7 +1754,9 @@
       "scanFix20261017Adaptation": "2026-10-17 document streamed 10,000-row/8 MiB read bound, BLOB prefix, unchanged journal mode, creation message and 24h saved-output retention.",
       "scanFixes20261024PreviousSha256": "5f5f3993c26147ef21095b5dd901e4fbb5fbe48a33071a804b3411025b2e96cc",
       "scanFixes20261024Adaptation": "2026-10-24: documents the single-statement rule and that sqlite_query is not read-only (scan DB-005/DB-006).",
-      "sha256": "b5ddc394164bb224c792179fc2760d908ab5eaac1ec839ae6b2b7ec658ac51c2",
+      "scanFixes20261024bPreviousSha256": "b5ddc394164bb224c792179fc2760d908ab5eaac1ec839ae6b2b7ec658ac51c2",
+      "scanFixes20261024bAdaptation": "2026-10-24: documents the bounded, rotating output sweep.",
+      "sha256": "4b42497fc3129688ddcde3a582455b55e2e1a904b373e1ea162e4ea0a8373116",
       "reason": "Integrated usage, shared deferred hint, root baseline and preserved lifecycle/settings/safety."
     },
     {
@@ -1816,7 +1824,9 @@
       "defectRepairPreviousSha256": "eb1a055be0406f2a5ade38c9ed84bb24cb48dedd0f621b31ccd13070be87420e",
       "scanFixes20261024PreviousSha256": "a54654c0180ecb68939caa50766ecf49f3870f69705a3893aa3fbdebd60b7638",
       "scanFixes20261024Adaptation": "2026-10-24: records the scheduled-turn mutation guard (scan WB2-001).",
-      "sha256": "b1dabe05ebf7bef3781a719a4ab534c59b0c4354ae1108bc551a4918748a6165",
+      "scanFixes20261024bPreviousSha256": "b1dabe05ebf7bef3781a719a4ab534c59b0c4354ae1108bc551a4918748a6165",
+      "scanFixes20261024bAdaptation": "2026-10-24: records the malformed-entry side file (scan WB2-002).",
+      "sha256": "2d7d820c9930d0e114fd688ab6d6d07933e990f100fd5a5e3881235570f8cf2f",
       "reason": "2026-10-07 explicitly local deadline feature, not an upstream release."
     },
     {
@@ -2279,7 +2289,9 @@
       "geminiLiveVerification20261017Adaptation": "Record the funded Gemini live result: googleSearch plus function declarations accepted on gemini-3.8-flash and gemini-4-argon; groundingMetadata is visible through provider_stream_event; the model decides whether to search, and a grounded answer cites a vertexaisearch redirect URL.",
       "defectFix20261023PreviousSha256": "73006e888b3765a3abee4d881c4406ea3f0f2f3afdf2712352e2a4e3c568798e",
       "defectFix20261023Adaptation": "2026-10-23 documents that web_search data.provider covers brave/exa/deepseek.",
-      "sha256": "23950ef083e6f409efd1061b185b7b08e6b310ad94bf201e6356335e4a287762",
+      "scanFixes20261024bPreviousSha256": "23950ef083e6f409efd1061b185b7b08e6b310ad94bf201e6356335e4a287762",
+      "scanFixes20261024bAdaptation": "2026-10-24: documents that redirect hops count against the request budget.",
+      "sha256": "4a67c3a1c6b767bd0b7360b5d4d72ccb2cc76ed4cff29ea8a312f20b941f02e2",
       "geminiGroundingCapture20261017PreviousSha256": "1ea872f9e8b7c0a819ed27263f74d6421504c9ccb5d31a6497a5ed53b473928f",
       "geminiGroundingCapture20261017Adaptation": "Document providers.google.captureSources, what grounding capture stores and omits, the redirect-URL limitation, and the updated status output.",
       "preChangeSha256": "5f5f1d8c15836abe56ea10966bf83517d9e780adb620765c4bc5c53aa758fdc8",
@@ -2679,7 +2691,9 @@
       "webSetupPreviousSha256": "da88b24921396bb6856db9ea9e174348bd449d5b20eb061894257d67257a7f09",
       "cleanCodeModules20261023PreviousSha256": "1f8146da58f7ad3981ff7bfa3f469a03346e9c91ea466262388beca36e9a06c8",
       "cleanCodeModules20261023Adaptation": "2026-10-23 clean code: abortReason shared; named messages; fetch() steps validateFetchInput, readRouteBody, fetchStaticFallback, settleWithin extracted at the same points.",
-      "sha256": "17317731863ac089e23dd6ab94cb3bc48e349561d77de96e7aa48bb475d27d42",
+      "scanFixes20261024bPreviousSha256": "17317731863ac089e23dd6ab94cb3bc48e349561d77de96e7aa48bb475d27d42",
+      "scanFixes20261024bAdaptation": "2026-10-24: each followed subresource redirect hop is admitted against the 200-request budget (scan WB1-006).",
+      "sha256": "2659d274b13fcdc1b9561dfd65d105704920539eec0a28d94a64ede39bf88d92",
       "reason": "2026-10-04 code-review stability fixes: 10 MiB cap on proxied responses, media/font subresources aborted, closeContext bounded by a 5s timeout; DNS-rebinding window documented, not fixed. 2026-10-06 local adaptation (web-tools): actionable next-step error hints, web_search provider field removed (prepareArguments drops legacy argument), dynamic description/guidelines, text slimming. Assertions kept or tightened; not a source-identical copy. 2026-10-08 current local snapshot review: H2/M12-M13/L10-L13: current peer-address post-response mitigation (not IP pinning), bounded terminable extraction worker ownership, unnecessary-resource blocking and per-fetch DNS memo reviewed; documented fail-closed/retention/context-close policies retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "checklistReviewPreviousSha256": "870d52968b31d9b9c079d7c8e59a19e24b4e2b8d4862f45a6c798990463a2104",
       "checklistReviewBaselineSha256": "600205c419c31dd29538d20ece88b1fb41b80246ba16b50e57240687b2b89301",
@@ -2824,7 +2838,9 @@
       "reviewReproductionPreviousSha256": "f24af3bfc82e2b43f4c98663d68628d5b9437db8f1677302056b97047e7a126c",
       "scanFix20261017PreviousSha256": "1154638194536ccd6025e7c31fcda0a921da3bad92566cf2721f62de10f13462",
       "scanFix20261017Adaptation": "2026-10-17 retry transient EBUSY/EPERM/EACCES/ENOTEMPTY lock release with the existing rename backoff; report a release that still fails. No lock stealing.",
-      "sha256": "4783613708d7c27991fd000caabb56c3a1bfab6b60e34888a9da5706758b6508",
+      "scanFixes20261024bPreviousSha256": "4783613708d7c27991fd000caabb56c3a1bfab6b60e34888a9da5706758b6508",
+      "scanFixes20261024bAdaptation": "2026-10-24: save() keeps the original file as a content-hashed .malformed side file before rewriting it when load() ignored entries (scan WB2-002).",
+      "sha256": "19397c2444ab2b89cbb18285eb59066d64be56909a0d7b2ab6ee9151c36bbe3e",
       "reason": "2026-10-06 stability review: read-modify-write guarded by a bounded, stale-stealing directory lock for multiple pi processes in one cwd; per-process temp file names with EPERM/EBUSY rename retry and temp cleanup; unreadable or shape-invalid stores are moved to schedule-prompts.json.corrupt-<ts> instead of being silently overwritten. File format and path unchanged. Source tests pass unmodified. 2026-10-07 local endAt: conditional expiration re-reads under an acquired lock, never falls through to unlocked cutoff mutation, preserves latest deadline/scope/stats and clears nextRun; wait budget uses monotonic performance.now and checks even vanished-lock retries. 2026-10-08 current local snapshot review: M5-M7/L14-L19: user-authorized local third-party adaptation for terminal skipped-once error, widget snapshot/coalescing, owner-token fail-closed locking/corruption reread, job shape validation, locked fresh counters and session recovery boundary; v1 paths/schema/identity/license retained, not upstream-identical. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification. 2026-10-11 R12/R13/R14: conditional no-write settlement, lock-held session-aware batch removal and strict persisted interval-cache consistency.",
       "checklistReviewPreviousSha256": "8420c8cbbb9f7e5fb3ece4f32d94920340d927e9675901e716218580bbc92366",
       "checklistReviewBaselineSha256": "77d795b905852f93a4c130d1d2e36adb89f9991438a4900c6280ab2199c3a567",
@@ -2963,7 +2979,9 @@
       "liveJobView20261023Adaptation": "2026-10-23: documents the new [Active Monitors] compaction block (source, coarse target, state, remaining lifetime, id, label, caps, partial, no carry-forward).",
       "scanFixes20261024PreviousSha256": "a233fed28c7823a49a4126261f803bc0711b8a3e4270b887c43202db1ed4bf57",
       "scanFixes20261024Adaptation": "2026-10-24: documents the session directories searched by /blackhole cleanup (scan H1).",
-      "sha256": "75528effa9e02a04e3f94cf1a0c60b1b8ceb66ddd26f37a5a49500bee4f4be6e",
+      "scanFixes20261024bPreviousSha256": "75528effa9e02a04e3f94cf1a0c60b1b8ceb66ddd26f37a5a49500bee4f4be6e",
+      "scanFixes20261024bAdaptation": "2026-10-24: documents toolCallId pairing and the untrusted project-scope write refusal.",
+      "sha256": "3d79b30ca64e5d399c3fa18e24078e253e1e6167fae40cd08d59d175063cf362",
       "validationRepairAdaptation": "2026-10-10 unit/native grouping and process budgets documentation only.",
       "previousTestHarnessRepairSha256": "91ae8a69279d7ac7c8c8bcc5326b159fee8687881cf3a839e6eeeaaf30887f0c",
       "previousNotificationEvidenceReason": "Add local installation, behavior, regression and verification boundary above unchanged upstream documentation. Normalize source CRLF working-tree bytes to repository-required LF; semantic content unchanged by this normalization. Subsequent 2026-10-09 semantic adaptation: document isolated unit passive allowlist, relative-only import alias, portable fixtures, EROFS injection and worker invocation barriers.",
@@ -3169,7 +3187,9 @@
       "path": "modules/blackhole/src/core/build-sections.ts",
       "originalSha256": "608ed599b753dd3ecd66fc0394fa9ec6171b5d8510e0b5a4bf1bb3dd7346a261",
       "cumulativeB1PreviousSha256": "72c122c55995c65c0acc0fc3a506a69343fa1f8300ba724a79bf469a974f9252",
-      "sha256": "d71aeeff6d67f3c0b578403bfc2ca1fef68a416767a712157acf9dd6a1123a51",
+      "scanFixes20261024bPreviousSha256": "d71aeeff6d67f3c0b578403bfc2ca1fef68a416767a712157acf9dd6a1123a51",
+      "scanFixes20261024bAdaptation": "2026-10-24: the command behind a bash result is looked up by toolCallId so parallel calls no longer inherit the last call's command (scan BH1-002).",
+      "sha256": "b7cd5043b59d0ee688438a25d426e71466a4c74fbba93f95052ea15a808a6f60",
       "cumulativeB1PreviousReason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change.",
       "reason": "B1 local consumer semantic adaptation / fixture contract migration, not LF-only normalization: per-file authority/Note-content/diagnostics/search/drilldown/native-seed/correlation assertions reviewed in REPORT-20261009T131232388Z sections92-113. New twelve-file static acceptance and current full raw-byte SHA256 equality; retain originals/prior hashes/reasons, do not restore historical full-hash acceptance or certify timing/alias/coexistence/new test runs."
     },
@@ -3360,7 +3380,9 @@
     {
       "path": "modules/blackhole/src/extract/commits.ts",
       "originalSha256": "f691a8b262c10e8b396adc9e346c4fc02182c4e515e5042315fa99cefc82a7bd",
-      "sha256": "5e33ffc4685b1cafaf7d57ca539bc8792844529fe618a0430f7f92e2702f1e3b",
+      "scanFixes20261024bPreviousSha256": "5e33ffc4685b1cafaf7d57ca539bc8792844529fe618a0430f7f92e2702f1e3b",
+      "scanFixes20261024bAdaptation": "2026-10-24: commits are paired with their own result by toolCallId (pairToolBlocks); an unpaired call records nothing; results without an id keep the position window (scan BH4-001).",
+      "sha256": "e08cc0c99dc148579d7d46ed93ad6eccf8515932961877ad1f2080d7687468cb",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -3711,7 +3733,9 @@
       "piOwnedSummaryMigrationPreviousSha256": "fd3f3fc05d372f8fe592c68791a2e7f6553d8066a6d2a6585003461f5c1fc0f1",
       "piOwnedSummaryMigrationAdaptation": "Canonical seven-key writes preserving unknown/model extras; actual saved-record ancestry and append-only empty reset/delete, genuine pending retention, public hasUI delivery-based dedup/navigation reprojection. Supported-chain postconditions, not arbitrary-writer atomicity.",
       "defectRepairPreviousSha256": "d2fca612b3fcccfd0ce06b2cfc84f1f182ae5a77eabfec5b8faf420824152be0",
-      "sha256": "86cb18e5093bad2da912589e336b64779b1f3759704c9e53fdcb7e73da2e727a",
+      "scanFixes20261024bPreviousSha256": "86cb18e5093bad2da912589e336b64779b1f3759704c9e53fdcb7e73da2e727a",
+      "scanFixes20261024bAdaptation": "2026-10-24: save/patchScope refuse an untrusted project layer and the settings menu does not offer it (scan BH3-002).",
+      "sha256": "9ea673148957b946b882e1c8d70e704c5850a28d711e9151691376401925955a",
       "reason": "2026-10-09 import normalization: source working-tree CRLF -> repository .gitattributes LF; content identical after newline normalization, no runtime/test logic change."
     },
     {
@@ -6889,6 +6913,31 @@
       "path": "modules/subagents/tests/admission-shared-across-reload.test.ts",
       "sha256": "e4983852b0b2b36c96747a08049fc1bca43ee6015da178e430e51c73a73c2354",
       "reason": "2026-10-24 scan SA-002 regression: admission budget and child semaphore survive a module re-evaluation."
+    },
+    {
+      "path": "modules/blackhole/tests/parallel-tool-call-pairing.test.ts",
+      "sha256": "6b88651e8d9fd03f9d989f5ddaa20919867083a55475b5686212f565b1ef1e58",
+      "reason": "2026-10-24 scan BH4-001/BH1-002 regression: parallel bash calls keep their own commit hashes and failures."
+    },
+    {
+      "path": "modules/blackhole/tests/project-scope-untrusted.test.ts",
+      "sha256": "82e5022478706721d5925b59c80eb56caa8b8b867d946b90f22ce25d34ffd551",
+      "reason": "2026-10-24 scan BH3-002 regression: an untrusted project layer is neither offered nor written."
+    },
+    {
+      "path": "modules/schedule-prompt/test/malformed-entry-backup.test.ts",
+      "sha256": "436feed1779273fa3dde9548389f2cc482ff738e70e6cd30f83f546acd019f14",
+      "reason": "2026-10-24 scan WB2-002 regression: unusable entries are kept in a side file before a save rewrites the store."
+    },
+    {
+      "path": "modules/sqlite-tools/tests/output-sweep-large-directory.test.ts",
+      "sha256": "15cbca17eed9238d0d75d1c8c8d1c88941e5786d4d5cdb9aca011b00428df704",
+      "reason": "2026-10-24 scan DB-007 regression: an expired output listed after hundreds of fresh ones is removed; the work per call is bounded and rotates."
+    },
+    {
+      "path": "modules/web-tools/tests/unit/fetch-redirect-budget.test.ts",
+      "sha256": "0805625772ef4f654b170dff3f434169155589e7a09ca1f96930f982e058c957",
+      "reason": "2026-10-24 scan WB1-006 regression (fake Chromium, local redirect server): redirect hops count against the request budget."
     }
   ],
   "blackholePiOwnedSummaryMigrationReview": {

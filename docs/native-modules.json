@@ -754,7 +754,9 @@
           "streamingByteCountPreviousSha256": "8a2dd29f149f3b4a728dd8630a9ea1a4143292ac63ae53e2c4cabec0c6e98b69",
           "driftReconcile20261021PreviousSha256": "0553a85f0196dfe0bb36fd8cabc736cecc5bb6613e2bf9392e76878f1247ce89",
           "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
-          "sha256": "620a59bf2e05e0bb0b26f15e999681b9c644cd1c806dcd998b4ace85c9e0b071",
+          "scanFixes20261024bPreviousSha256": "620a59bf2e05e0bb0b26f15e999681b9c644cd1c806dcd998b4ace85c9e0b071",
+          "scanFixes20261024bAdaptation": "2026-10-24: the workspace root itself is inside the workspace, so a note folder linked back to it works; links leaving the workspace are still refused (scan SH-003).",
+          "sha256": "8c924dd39c6098becf41e47f74b91ad6e339c8d16a3a3d00356d1f317df60bec",
           "preChangeSha256": "b224c95b00c707d879e886507aa21d9be8258a6a4693b2523e12d7708175f2a4",
           "previousRecordedSha256": "b753ab14a2ffe217509ed09555fb73553f8da694f70acf928785e57492562ea3",
           "historicalDeltaAudit": "unavailable",
@@ -797,7 +799,9 @@
           "streamingByteCountPreviousSha256": "52a070681b9f8eaafac30f3c7b961af57874ff9c412df85c0eacacd7d5d68d88",
           "driftReconcile20261021PreviousSha256": "a2d845592d23c1886fe512c3d4ffdbd1068f0a89197963a0eccfc767563e96fe",
           "driftReconcile20261021": "2026-10-21 drift reconciliation (Pi-Bolt compatibility task): the file changed after its last recorded hash and before this record; mtimes are unusable (project copied 2026-10-21 08:13) and no earlier content or VCS is available, so the delta is not diffed. This is a current-state record only, not historical-diff certification; the covering module tests passed with this content where run.",
-          "sha256": "b595fc4cde3d0e7cf76d401f669784e9f53fe5f54cccb4eaa786f7fa14105b4e",
+          "scanFixes20261024bPreviousSha256": "b595fc4cde3d0e7cf76d401f669784e9f53fe5f54cccb4eaa786f7fa14105b4e",
+          "scanFixes20261024bAdaptation": "2026-10-24: documents the self-link rule.",
+          "sha256": "ffe255430c05e737eba389d49f8b232d07387ff42cbb5a523be6acf4620a25f0",
           "preChangeSha256": "d48131a0ac81493e67c45b929ec37227d720ce122566362a40ab850638154171",
           "previousRecordedSha256": "ab18ee3335437ce91af7fcdd1e8dbdc6198ab2c9989c0de37adf967b41e92bb9",
           "historicalDeltaAudit": "unavailable",
@@ -807,6 +811,11 @@
           "checklistReviewBaselineSha256": "5877c7e4703653967a4ef5611c749c507af2d4ceda59817fa0da49fbb27f07b6",
           "noteEscapeFix20261023PreviousSha256": "644b5e91f23ad875c8fe652a994d0f94681a9c7ebacc0122e1b3ca4900107a7d",
           "noteEscapeFix20261023Adaptation": "2026-10-23 documents that an unverifiable post-create location is reported as NOTE_DIRECTORY_ESCAPE and that escapes are recognized by error class, not message text."
+        },
+        {
+          "path": "modules/note-tools/tests/note-self-link.test.ts",
+          "sha256": "15215e464e3262afd91ab031be626550c55e34ad3042f05c045465441e6314c2",
+          "reason": "scan SH-003 regression: a self-linked note folder works, an outside link is refused."
         }
       ]
     },

@@ -331,6 +331,10 @@ export class FetchService {
             if (hop >= 19) throw new Error('NETWORK_ERROR: Too many redirects.');
             const destination = new URL(location, target).href;
             await abortable(validate(destination), localSignal);
+            // Each followed hop is another network request: it counts against the same per-fetch budget, otherwise a
+            // page could multiply the 200-request allowance by the 20-request redirect chain. Main navigations restart
+            // through a fresh goto below and are not subresources.
+            if (!mainNavigation) budget.admit();
             // Best effort: keep cookies set on redirect hops, as the context jar did before.
             const redirectCookies = response.setCookies.map((value) => parseSetCookie(value, target)).filter((cookie) => cookie !== undefined);
             if (redirectCookies.length) await activeContext.addCookies(redirectCookies).catch(() => {});

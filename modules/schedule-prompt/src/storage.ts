@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -313,11 +314,40 @@ export class CronStorage {
       job.intervalMs = parseInterval(job.schedule)!;
       return true;
     });
+    // `valid` is what this process works with; the entries dropped here stay in the file until the next save()
+    // rewrites it, and save() keeps a copy first (preserveUnloadableEntries).
     if (valid.length !== store.jobs.length) {
       console.error(`Ignoring ${store.jobs.length - valid.length} malformed scheduled prompt entr${store.jobs.length - valid.length === 1 ? "y" : "ies"} in ${this.storePath}`);
       store.jobs = valid;
     }
     return store;
+  }
+
+  /**
+   * load() ignores entries it cannot use (hand-edit typos, a newer schema), but save() rewrites the whole file.
+   * Keep the original as a side file, named by its content so repeated saves do not pile up copies, before
+   * that rewrite; if it cannot be kept, refuse to replace the data.
+   */
+  private preserveUnloadableEntries(): void {
+    let raw: string;
+    try { raw = fs.readFileSync(this.storePath, "utf-8"); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw new Error("Cannot read scheduled prompts; refusing to replace existing data", { cause: error });
+    }
+    let parsed: { jobs?: unknown };
+    try { parsed = JSON.parse(raw); } catch { return; } // an unreadable file is quarantined by load()
+    if (!parsed || !Array.isArray(parsed.jobs)) return;
+    const unloadable = parsed.jobs.filter(job => !isJobShape(job) || (job.type === "interval" && intervalError(job.schedule, job.intervalMs!) !== undefined));
+    if (unloadable.length === 0) return;
+    const backup = `${this.storePath}.malformed-${createHash("sha256").update(raw).digest("hex").slice(0, 12)}`;
+    try {
+      fs.writeFileSync(backup, raw, { encoding: "utf-8", flag: "wx" });
+      console.error(`Kept ${unloadable.length} unusable scheduled prompt entr${unloadable.length === 1 ? "y" : "ies"} in ${backup} before rewriting ${this.storePath}`);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EEXIST") return; // the same content was already kept
+      throw new Error("Cannot preserve unusable scheduled prompt entries; refusing to replace existing data", { cause: error });
+    }
   }
 
   /** Keep an unreadable store as a side file so the next save cannot silently destroy it. */
@@ -349,6 +379,7 @@ export class CronStorage {
    */
   save(store: CronStore): void {
     if (!this.holdingLock) return this.withLock(() => this.save(store));
+    this.preserveUnloadableEntries();
     try {
       // Ensure .pi directory exists
       if (!fs.existsSync(this.piDir)) {

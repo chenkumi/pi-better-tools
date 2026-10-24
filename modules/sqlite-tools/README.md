@@ -41,6 +41,8 @@
 
 **`sqlite_query` 不是唯讀（未修，刻意保留）：** 它的契約是「回傳資料列」。`INSERT … RETURNING`、`PRAGMA journal_mode=WAL` 這類回傳資料列的語句會真的寫入（後者永久改變資料庫），因為若強制 `query_only`，`INSERT … RETURNING` 將沒有任何工具可執行（`sqlite_execute` 拒絕回傳資料列的語句）。破壞性操作仍應先 `sqlite_status` 確認資料庫。
 
+**暫存輸出清理：** 超過 24 小時的完整輸出檔在每次產生新輸出時清除；每次最多 `stat` 2,048 個符合檔名規則的候選（非本模組檔名不計），超過時起點輪轉，因此排在目錄後段的過期檔會被之後的呼叫處理到，不會永遠留下。
+
 **已知限制（未修）：** 查詢仍在 Pi 主執行緒同步執行，`node:sqlite` 沒有 interrupt／progress handler，因此無終止條件的查詢（例如無 `WHERE` 上限的 recursive CTE）無法逾時或取消，會凍結 Pi。列數／位元組上限只約束已回傳的資料列，不約束運算時間。請自行在 SQL 中加 `LIMIT`／終止條件。
 
 此模組可依目前使用者權限讀寫資料庫，不是唯讀工具集或 OS sandbox。啟用整合版前，請手動停用獨立 `pi-sqlite-tools`，避免同名工具重複註冊。

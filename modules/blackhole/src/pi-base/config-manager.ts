@@ -694,6 +694,16 @@ export class ConfigManager<T extends object> {
    * derived from the merged effective config, so defaults/project/env values never leak into the target
    * file. Throws when the write fails.
    */
+  /**
+   * Reads of the project layer follow the host's trust decision, so a write into an untrusted project would be
+   * reported as saved and then never take effect. Refuse it instead of pretending.
+   */
+  private assertProjectLayerWritable(cwd: string): void {
+    if (!isProjectLayerAdmitted(cwd)) {
+      throw new Error("This project is not trusted, so its project-level settings are ignored and were not saved. Trust the project first, or use global settings.");
+    }
+  }
+
   patchScope(
     patch: Partial<T>,
     scope: "global" | "project",
@@ -701,6 +711,7 @@ export class ConfigManager<T extends object> {
     configDir?: string,
   ): { path: string; changed: boolean } {
     if (scope === "project" && !cwd) throw new Error("cwd is required for project-scoped config patch");
+    if (scope === "project") this.assertProjectLayerWritable(cwd as string);
     const dir = scope === "project" ? join(cwd as string, ".pi") : (configDir ?? this._defaultConfigDir ?? getExtensionsDir());
     const targetPath = join(dir, this._filename);
     const existing = readConfig<Record<string, unknown>>(this._filename, dir) ?? {};
@@ -958,6 +969,7 @@ export class ConfigManager<T extends object> {
     if (scope === "project" && !cwd) {
       throw new Error("cwd is required for project-scoped config save");
     }
+    if (scope === "project") this.assertProjectLayerWritable(cwd as string);
 
     const dir =
       scope === "project" && cwd
@@ -1078,7 +1090,8 @@ export class ConfigManager<T extends object> {
   ): Promise<void> {
     configDir = configDir ?? this._defaultConfigDir;
     this.warnOnMalformedConfig(ctx, cwd, configDir);
-    const scopes = this.getScopes();
+    // An untrusted project's settings file is never read, so the menu must not offer to write one.
+    const scopes = { ...this.getScopes(), project: this.getScopes().project && isProjectLayerAdmitted(cwd) };
     const sessionInitialized = this._ensureSession(ctx, cwd);
     if (ctx.hasUI === true && typeof ctx.ui?.notify === "function") this.notifyWarnings(this.loadWithWarnings(cwd, configDir), message => ctx.ui.notify(message, "warning"));
     const sources = this.scopeSources(cwd, configDir);

@@ -124,11 +124,16 @@ const extractOutstandingContext = (blocks: NormalizedBlock[], cwd?: string): str
   }
   const errors: ErrorEntry[] = [];
   const successes: { name: string; index: number; command?: string; paths: Set<string>; fileKey?: string }[] = [];
+  // The command behind a result is looked up by toolCallId: parallel bash calls would otherwise all inherit the last
+  // call's command and let an unrelated success clear a real failure. Without an id (older sessions) the last bash
+  // command is the best available guess.
   const lastCallCommand = new Map<string, string>();
+  const commandByCallId = new Map<string, string>();
   blocks.forEach((b, index) => {
     if (b.kind === "tool_call") {
       if (b.name === "bash" && typeof b.args.command === "string") {
         lastCallCommand.set(b.name, b.args.command);
+        if (b.toolCallId) commandByCallId.set(b.toolCallId, b.args.command);
       }
       return;
     }
@@ -137,7 +142,7 @@ const extractOutstandingContext = (blocks: NormalizedBlock[], cwd?: string): str
       errors.push({
         name: b.name,
         index,
-        command: lastCallCommand.get(b.name),
+        command: b.toolCallId ? commandByCallId.get(b.toolCallId) : lastCallCommand.get(b.name),
         paths: pathTokens(b.text),
         text: b.text,
         fileKey: FILE_TOOL_NAMES.has(b.name) ? fileKeys.get(index) ?? `unpaired:${index}` : undefined,
@@ -146,7 +151,7 @@ const extractOutstandingContext = (blocks: NormalizedBlock[], cwd?: string): str
       successes.push({
         name: b.name,
         index,
-        command: lastCallCommand.get(b.name),
+        command: b.toolCallId ? commandByCallId.get(b.toolCallId) : lastCallCommand.get(b.name),
         paths: pathTokens(b.text),
         fileKey: FILE_TOOL_NAMES.has(b.name) ? fileKeys.get(index) ?? `unpaired:${index}` : undefined,
       });

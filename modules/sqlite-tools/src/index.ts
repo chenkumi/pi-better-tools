@@ -122,15 +122,21 @@ function json(value: unknown): string {
 const OUTPUT_DIRECTORY = "pi-sqlite-tools";
 /** Saved full outputs are for follow-up reads in the same work session, not long-term storage. */
 export const OUTPUT_RETENTION_MS = 24 * 60 * 60 * 1000;
-const MAX_SWEEP_ENTRIES = 256;
+/** Upper bound of stat calls per sweep; foreign names are skipped without a stat and do not count. */
+const MAX_SWEEP_STATS = 2048;
+const OUTPUT_NAME = /^[0-9a-f-]{36}\.json$/;
 
-/** Best effort: removes saved outputs older than the retention period; never blocks a result. */
-export async function sweepOldOutputs(directory: string, now = Date.now()): Promise<void> {
+/**
+ * Best effort: removes saved outputs older than the retention period; never blocks a result.
+ * The work per call is bounded. Directory order is arbitrary, so beyond the bound the start rotates (`startAt`, 0..1)
+ * and an expired file listed late is reached by a later call instead of being skipped forever.
+ */
+export async function sweepOldOutputs(directory: string, now = Date.now(), startAt = Math.random()): Promise<void> {
   try {
-    let scanned = 0;
-    for (const entry of await readdir(directory, { withFileTypes: true })) {
-      if (++scanned > MAX_SWEEP_ENTRIES) break;
-      if (!entry.isFile() || !/^[0-9a-f-]{36}\.json$/.test(entry.name)) continue;
+    const candidates = (await readdir(directory, { withFileTypes: true })).filter((entry) => entry.isFile() && OUTPUT_NAME.test(entry.name));
+    const first = candidates.length <= MAX_SWEEP_STATS ? 0 : Math.floor(Math.min(Math.max(startAt, 0), 0.999999) * candidates.length);
+    const picked = [...candidates.slice(first), ...candidates.slice(0, first)].slice(0, MAX_SWEEP_STATS);
+    for (const entry of picked) {
       const path = join(directory, entry.name);
       try {
         if (now - (await stat(path)).mtimeMs > OUTPUT_RETENTION_MS) await rm(path, { force: true });

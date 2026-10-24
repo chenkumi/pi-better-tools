@@ -98,7 +98,7 @@ pi uninstall npm / git:https://github.com/sting8k/pi-vcc
 pi uninstall npm / git:https://github.com/elpapi42/pi-observational-memory
 ```
 
-Then `/reload` or restart Pi. The config file at `~/.pi/agent/pi-blackhole/pi-blackhole-config.json` is created with sensible defaults — no setup required for the default behavior. Config merges global → project → env → session (session is ephemeral). The project layer (`<cwd>/.pi/pi-blackhole-config.json` and legacy `<cwd>/.pi/settings.json`) is read only when the host reports the project trusted (`ctx.isProjectTrusted() === true`); untrusted or unknown trust ignores it for runtime, ConfigManager and the settings UI. See **[`docs/CONFIG.md`](docs/CONFIG.md)** for tuning or run `/blackhole settings` to open the interactive overlay.
+Then `/reload` or restart Pi. The config file at `~/.pi/agent/pi-blackhole/pi-blackhole-config.json` is created with sensible defaults — no setup required for the default behavior. Config merges global → project → env → session (session is ephemeral). The project layer (`<cwd>/.pi/pi-blackhole-config.json` and legacy `<cwd>/.pi/settings.json`) is read only when the host reports the project trusted (`ctx.isProjectTrusted() === true`); untrusted or unknown trust ignores it for runtime, ConfigManager and the settings UI, and saving to the project layer of such a project is refused (the menu lists it as disabled) instead of reporting a write that never takes effect. See **[`docs/CONFIG.md`](docs/CONFIG.md)** for tuning or run `/blackhole settings` to open the interactive overlay.
 
 > **Want a guided setup?** Pass [`llms.txt`](llms.txt) to your agent — it will walk you through the interview, including picking cheap fallback models for your providers.
 
@@ -208,7 +208,7 @@ With the default `compactionEngine: "blackhole"`, blackhole's `session_before_co
 
 When `/blackhole` fires (manually or via the auto-trigger), two things happen in one shot:
 
-1. **The vcc pipeline** analyzes the transcript tail and produces a structured summary: session goal, file changes, commits, outstanding blockers, user preferences, and a rolling brief transcript. Deterministic — same input always produces the same output.
+1. **The vcc pipeline** (tool calls are paired with their results by `toolCallId`, so parallel bash calls keep their own commits and failures) analyzes the transcript tail and produces a structured summary: session goal, file changes, commits, outstanding blockers, user preferences, and a rolling brief transcript. Deterministic — same input always produces the same output.
 2. **Observational memory injection** renders accumulated observations and reflections from the session ledger and appends them below the summary.
 
 The agent receives a deterministic recap of recent work _plus_ durable facts from the full session history — in a single replacement block. No LLM was called for the compaction itself.
