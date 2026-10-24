@@ -103,6 +103,11 @@ function valueBytes(value: unknown): number {
   return 16;
 }
 
+export interface ExecuteResult {
+  changes: number | bigint;
+  lastInsertRowid: number | bigint;
+}
+
 export interface SqliteStatus {
   isOpen: boolean;
   filePath: string | null;
@@ -203,7 +208,7 @@ export class SqliteManager {
     return { columns, rows, rowCount: rows.length, ...(truncated ? { truncated: true as const } : {}) };
   }
 
-  execute(sql: string, params?: SqlParams): { changes: number | bigint; lastInsertRowid: number | bigint } {
+  execute(sql: string, params?: SqlParams): ExecuteResult {
     assertNotTransactionControl(sql);
     assertSingleStatement(sql);
     return this.guardTransaction(() => this.runExecute(sql, params));
@@ -221,7 +226,7 @@ export class SqliteManager {
     return result;
   }
 
-  private runExecute(sql: string, params?: SqlParams): { changes: number | bigint; lastInsertRowid: number | bigint } {
+  private runExecute(sql: string, params?: SqlParams): ExecuteResult {
     const statement = this.getDatabase().prepare(sql);
     if (isReader(statement)) {
       throw new Error("sqlite_execute does not accept statements that return rows. Use sqlite_query instead.");

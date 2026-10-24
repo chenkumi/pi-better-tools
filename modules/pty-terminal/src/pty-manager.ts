@@ -20,6 +20,9 @@ const lazySpawn: typeof spawn = (...args) => {
 
 /** Output buffer cap per session (UTF-16 code units, ~2 MiB of ASCII). Oldest output is dropped first. */
 export const MAX_BUFFER_CHARS = 2 * 1024 * 1024;
+/** Buffers at least this large trim in batches of 1/TRIM_SLACK_DIVISOR of their size; smaller ones trim exactly. */
+const TRIM_SLACK_MIN_BUFFER_CHARS = 64 * 1024;
+const TRIM_SLACK_DIVISOR = 16;
 export const MAX_SESSIONS = 16;
 export const MAX_COLS = 500;
 export const MAX_ROWS = 200;
@@ -115,6 +118,10 @@ export interface ReadSnapshot {
 export function droppedNotice(range: DroppedRange): string {
 	return `[pty-terminal: ${range.to - range.from} earlier characters were dropped (cursor ${range.from}-${range.to}); output exceeded the buffer]
 `;
+}
+
+export function errorText(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
 }
 
 function checkSize(value: number | undefined, max: number, label: string): void {
@@ -314,7 +321,7 @@ export class PtySessionManager {
 		if (session.buffer.length > this.maxBufferChars) {
 			// Trim in batches: cut down to (max - slack) so a full buffer is copied once per `slack` characters instead of per chunk.
 			// The retained size never exceeds the maximum; small test-sized buffers use no slack and stay exact.
-			const slack = this.maxBufferChars >= 64 * 1024 ? Math.floor(this.maxBufferChars / 16) : 0;
+			const slack = this.maxBufferChars >= TRIM_SLACK_MIN_BUFFER_CHARS ? Math.floor(this.maxBufferChars / TRIM_SLACK_DIVISOR) : 0;
 			let overflow = session.buffer.length - (this.maxBufferChars - slack);
 			if ((session.buffer.charCodeAt(overflow) & 0xfc00) === 0xdc00) overflow++; // do not start on a lone low surrogate
 			session.buffer = session.buffer.slice(overflow);
@@ -479,7 +486,7 @@ export class PtySessionManager {
 			try {
 				session.pty.kill(windows ? undefined : signal);
 			} catch (error) {
-				if (session.state === "running") throw new Error(`PTY kill failed; session ${sessionId} retained: ${error instanceof Error ? error.message : String(error)}`);
+				if (session.state === "running") throw new Error(`PTY kill failed; session ${sessionId} retained: ${errorText(error)}`);
 			}
 			await this.waitForExitOrTimeout(session, this.killWaitMs);
 			if (session.state === "running" && !windows && signal !== "SIGKILL") {
@@ -538,7 +545,7 @@ export class PtySessionManager {
 				try {
 					const result = await this.kill(id);
 					if (!result.released) errors.push(`PTY ${id} termination unconfirmed; ownership retained`);
-				} catch (error) { errors.push(error instanceof Error ? error.message : String(error)); }
+				} catch (error) { errors.push(errorText(error)); }
 			}));
 			// No fabricated exit event or registry.clear(): only confirmed exits release ownership. With a recovery registry
 			// the surviving sessions are parked (not dropped) so the next instance for the same owner can retry kill.

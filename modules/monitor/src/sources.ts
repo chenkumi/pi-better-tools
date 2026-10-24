@@ -6,7 +6,7 @@ import { execMonitorCommand } from '../../shell-tools/src/monitor-exec.js';
 import type { ReadonlyJobLease } from '../../shell-tools/src/monitor-capability.js';
 import { LineParser, preview } from './lines.js';
 import { prepareEndpoint, pinnedOptions, type Endpoint, type NetworkSource } from './network.js';
-import { realClock, type Clock, type Launch, type SourceSink } from './core.js';
+import { LIMITS, realClock, type Clock, type Launch, type SourceSink } from './core.js';
 /** Bounded settle for commands whose shell exits while a descendant keeps the pipes open (same values as Schedule Prompt).
  * exitIdleMs: shell exited and stdout/stderr stayed silent this long => report source closed (descendants may still run).
  * abortGraceMs: an abort before any output waits at most this long before the host kills the tree. */
@@ -54,7 +54,7 @@ export function websocketLaunch(source: Endpoint | NetworkSource, clock: Clock =
         if (binary) { fault = true; sink.fault('unsupported_payload'); return; }
         const bytes = Buffer.isBuffer(raw) ? raw : Array.isArray(raw) ? Buffer.concat(raw) : Buffer.from(raw as ArrayBuffer);
         // ws already enforced aggregate maxPayload before allocating/reassembling payload.
-        if (bytes.length > 16384) { fault = true; sink.fault('payload_limit'); return; }
+        if (bytes.length > LIMITS.eventBytes) { fault = true; sink.fault('payload_limit'); return; }
         sink.data(bytes.toString('utf8'));
       });
       ws.on('error', error => {

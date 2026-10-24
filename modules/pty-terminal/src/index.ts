@@ -4,7 +4,7 @@ import { decodeControlEscapes } from "./escape.ts";
 import { parseEnvPolicy } from "./env.ts";
 import { KEY_NAMES, resolveKeys } from "./keys.ts";
 import { truncatePtyOutput, type OutputFormat } from "./output.ts";
-import { DEFAULT_COLS, DEFAULT_ROWS, droppedNotice, KILL_SIGNALS, MAX_COLS, MAX_ROWS, MAX_WAIT_MS, PtySessionManager, sharedOrphanRegistry, type ReadSnapshot } from "./pty-manager.ts";
+import { DEFAULT_COLS, DEFAULT_ROWS, droppedNotice, errorText, KILL_SIGNALS, MAX_COLS, MAX_ROWS, MAX_WAIT_MS, PtySessionManager, sharedOrphanRegistry, type ReadSnapshot } from "./pty-manager.ts";
 import { compileWaitFor, MAX_WAIT_FOR_LENGTH } from "./wait-for.ts";
 import { resolveTarget } from "./targets.ts";
 import { ptyRenderers } from "./renderers.ts";
@@ -111,7 +111,7 @@ export default function (pi: ExtensionAPI) {
 			try {
 				await sessions.pause(params.sessionId, params.readAfterMs, signal);
 			} catch (error) {
-				throw new Error(`${error instanceof Error ? error.message : String(error)} (input was already written; the session is retained, use pty_read to collect output)`);
+				throw new Error(`${errorText(error)} (input was already written; the session is retained, use pty_read to collect output)`);
 			}
 			const result = deliver(params.sessionId, await sessions.readEx(params.sessionId, { timeoutMs: 0 }), params.format ?? "raw", true);
 			if (!result.content[0].text) result.content[0].text = "ok";

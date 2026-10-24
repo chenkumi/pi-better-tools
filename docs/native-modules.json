@@ -82,7 +82,7 @@
         },
         {
           "path": "modules/file-audit/src/activity-window.ts",
-          "sha256": "5f48e1c80543ad8e5c944c379d621ffdeb9d43909cf52902b686d941e9f44a48",
+          "sha256": "c37c51e6e9681c23d724de232c68b8016eabdb0adcdea71be8be06d77f4c3eb3",
           "cleanCode20261023PreviousSha256": "7b1d1078747989f1e08b62e22c03030d9eb23f662749ae38701cc2bcfe76a31c",
           "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: increment() for the three saturating counters."
         },
@@ -110,7 +110,7 @@
         },
         {
           "path": "modules/file-audit/src/presentation.ts",
-          "sha256": "d2c76f0abd116a9b84672a362acadff64d88389ba227bd43ba5a7f454a8dd2f5"
+          "sha256": "cd96c9ca228eeb99a3940f218d5e1567aca06000a5c4f41ff677dd022e9f8685"
         },
         {
           "path": "modules/file-audit/src/provenance.ts",
@@ -541,7 +541,7 @@
           "steerDelivery20261024Adaptation": "2026-10-24: submit with deliverAs \"steer\" (type narrowed); setBusy remains only as an optional embedder hold.",
           "scanFixes20261024PreviousSha256": "cdc6c1e92b5e1e045b69be736d16ef9275b10c99638dbcede4edd91d7cdad984",
           "scanFixes20261024Adaptation": "2026-10-24: bind() no longer fails on an unsettled previous generation: it is retired (tracked, counted against capacity, at most four) (scan MON-1).",
-          "sha256": "de23b9c5345c07fd55e06564e4554f18541fbd4ce128dab9faa2ecc7774b9078",
+          "sha256": "1204f1533ecd75fa7b4f15c11208a88c962390db5331100ef542d37eaa9e94f8",
           "reason": "Owner-generation bounded lifecycle/events/submission/cleanup evidence.",
           "cleanCode20261023PreviousSha256": "d4529a8d905da2f00898bc3673e1e3449b1e89dc8232966811dfb2016fb89c61",
           "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: Export sameOwner() (was private same())."
@@ -603,7 +603,7 @@
           "fileMonitorSource20261022Adaptation": "2026-10-22: add resolveFilePath/fileLaunch (realpath containment on every sample, metadata-only polling).",
           "scanFixes20261024PreviousSha256": "742ea2e4f2d5222b39b389af58e8ee1cbd75f382b85fd173ee321a64571935e5",
           "scanFixes20261024Adaptation": "2026-10-24: websocket abort during endpoint preparation closes as startupCanceled (scan MON-2).",
-          "sha256": "c0a812042c885a6132b380aecec2b34633213ed742cc0653c9862e5741b42fdd",
+          "sha256": "db575f4d035056b09698b02a8adf2064af38d54ca503bf43a93789dc6aff7fb5",
           "reason": "Four source adapters, actual close and readonly job timer ownership.",
           "cleanCodeRound2_20261023PreviousSha256": "9d1ef6ffca6b91ace1786752fd1adeb2b257e7de28cf95df5eac48d258c24831",
           "cleanCodeRound2_20261023Adaptation": "2026-10-23 behavior-preserving clean-code round 2 (single-responsibility splits): pollingLaunch() owns the shared timer/abort/close lifecycle of jobLaunch and fileLaunch; fileChange() names the change classification. Review fix: later() is a no-op after close, run()/later() own the stop/abort guard, and a synchronous throw from begin or a sample faults and closes (removes the abort listener, reports closed).",
@@ -1133,7 +1133,7 @@
           "path": "modules/pi-runtime/src/index.ts",
           "runtimeSafetyPreviousSha256": "2668bcdb0b7a9a7a88ec4b3f3290d6fbb44817f5d6c60a7be9538894ac301f48",
           "promptSectionsPreviousSha256": "b156df9b4109929587b49931b8a37897b28a20ef565a7666b56d32e8a4414205",
-          "sha256": "09cbcfab510321121565f3d23965750a11f22e216bd767977fad9544dbb849ba",
+          "sha256": "47a89668f6c60d1f26ba075e3925d32d08c375368b7c2e50ef461f4afb92d232",
           "deferredSharedPreviousSha256": "517e8e20f389d6362ec1587b1d90addd14f6376d319793de699e88247302376c",
           "cleanCode20261023PreviousSha256": "8849f5e4c2c423b9abc488cbe337191ee5a7985e2855d3517a55f06e288371b3",
           "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: disable() for the four fail-closed restore paths; ERROR_KINDS/MANUAL_RECOVERY_KINDS/isFingerprint replace repeated literals.",
@@ -1367,7 +1367,7 @@
           "liveJobView20261023Adaptation": "2026-10-23: job.live LiveTranscript fed by child events and released by complete()/finishWithoutChild(); separate from the persisted auxiliary transcript and from delivery.",
           "steerDelivery20261024PreviousSha256": "7f889d4b80a2f465beb8708ff2223f1822fbecadff3db7acf262b5a9d366190b",
           "steerDelivery20261024Adaptation": "2026-10-24: fork-result sendMessage uses deliverAs \"steer\" instead of \"followUp\".",
-          "sha256": "03db123479ffdff6e03c46bdf14f6690b93381ee50763bbd97f75c128565bbe2",
+          "sha256": "f28bdd32410c031003ee0101eec600e4730b38ebf49bc3d00fe4ea2a10246667",
           "forkReview20261022Adaptation": "2026-10-22 review fixes: applied is matched by the control message id (not exact text) and unconfirmed control text is released when the Fork is terminal.",
           "forkMessage20261021PreviousSha256": "af22a81f5d663abaa1c590b031c3251728b28daeffcc9a949916f423b41d791b",
           "forkMessage20261021Adaptation": "2026-10-22: messageFork (running|blocked only, 32 per Fork, receipts in memory, no status/blocked change on acceptance), applied upgrade from the child's own matching user message, and fork_status projects the newest three receipts.",

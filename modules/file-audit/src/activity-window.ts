@@ -16,9 +16,11 @@ export function boundedString(value: unknown, maxBytes = MAX_PATH_BYTES): value 
   return typeof value === "string" && value.length > 0 && value.length <= maxBytes &&
     !value.includes("\0") && !/[\uD800-\uDFFF]/u.test(value) && Buffer.byteLength(value, "utf8") <= maxBytes;
 }
+const MAX_WINDOW_RUNS = 30;
+const MAX_FILES_LIMIT = 500;
 export function validateLimits(limits: Limits): void {
-  if (!Number.isSafeInteger(limits.windowRuns) || limits.windowRuns < 1 || limits.windowRuns > 30 ||
-      !Number.isSafeInteger(limits.maxFiles) || limits.maxFiles < 1 || limits.maxFiles > 500) {
+  if (!Number.isSafeInteger(limits.windowRuns) || limits.windowRuns < 1 || limits.windowRuns > MAX_WINDOW_RUNS ||
+      !Number.isSafeInteger(limits.maxFiles) || limits.maxFiles < 1 || limits.maxFiles > MAX_FILES_LIMIT) {
     throw new Error("Limits require window 1–30 and max-files 1–500 (integers).");
   }
 }

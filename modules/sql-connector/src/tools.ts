@@ -6,22 +6,24 @@ import { SqlConnectorRuntime } from "./runtime.js";
 import { SqlConnectorError, type Engine, type SqlScalar } from "./types.js";
 
 const scalarSchema = Type.Union([Type.Null(), Type.Boolean(), Type.Number(), Type.String()]);
+const positionalParamsSchema = () => Type.Optional(Type.Array(scalarSchema));
+const namedParamsSchema = () => Type.Optional(Type.Record(Type.String(), scalarSchema));
 const mysqlOrPgsqlQuerySchema = Type.Object({
   sql: Type.String({ minLength: 1 }),
-  params: Type.Optional(Type.Array(scalarSchema)),
+  params: positionalParamsSchema(),
 });
 const mssqlQuerySchema = Type.Object({
   sql: Type.String({ minLength: 1 }),
-  params: Type.Optional(Type.Record(Type.String(), scalarSchema)),
+  params: namedParamsSchema(),
 });
 const mysqlOrPgsqlUpdateSchema = Type.Object({
   sql: Type.String({ minLength: 1 }),
-  params: Type.Optional(Type.Array(scalarSchema)),
+  params: positionalParamsSchema(),
   reason: Type.String({ minLength: 1 }),
 });
 const mssqlUpdateSchema = Type.Object({
   sql: Type.String({ minLength: 1 }),
-  params: Type.Optional(Type.Record(Type.String(), scalarSchema)),
+  params: namedParamsSchema(),
   reason: Type.String({ minLength: 1 }),
 });
 

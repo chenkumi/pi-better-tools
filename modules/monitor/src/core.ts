@@ -6,6 +6,8 @@ export const LIMITS = Object.freeze({ active: 4, retained: 32, rollingEvents: 60
 /** `now` is wall-clock (display/records, may step); optional `mono` is monotonic (throttle/elapsed), falling back to `now`. */
 export interface Clock { now(): number; mono?(): number; set(fn: () => void, ms: number): unknown; clear(handle: unknown): void }
 export const realClock: Clock = { now: Date.now, mono: () => performance.now(), set: (fn, ms) => setTimeout(fn, ms), clear: handle => clearTimeout(handle as ReturnType<typeof setTimeout>) };
+/** A batch whose synchronous `send` keeps throwing is retried this many times, then its notification is marked `submission_failed`. */
+const MAX_SUBMIT_ATTEMPTS = 3;
 export interface Owner { sessionId: string; cwd: string }
 export interface SourceSink {
   started(): void;
@@ -132,7 +134,7 @@ export class MonitorRuntime {
   setBusy(busy: boolean) { if (!this.valid()) return; this.busy = busy; if (!busy) this.schedule(); }
   opportunity() { if (this.valid()) this.schedule(); }
   private schedule() {
-    if (this.disposed || this.busy || this.scheduled !== undefined || this.flushing || ![...this.monitors.values()].some(m => m.events.length && m.attempts < 3)) return;
+    if (this.disposed || this.busy || this.scheduled !== undefined || this.flushing || ![...this.monitors.values()].some(m => m.events.length && m.attempts < MAX_SUBMIT_ATTEMPTS)) return;
     const generation = this.generation;
     this.scheduled = this.clock.set(() => { this.scheduled = undefined; if (generation === this.generation) this.flush(); }, Math.max(0, this.lastSubmit + LIMITS.progressMs - this.mono()));
   }
@@ -143,7 +145,7 @@ export class MonitorRuntime {
     const all = [...this.monitors.values()];
     const previous = all.findIndex(m => m.id === this.resumeAfterId);
     const rotated = previous < 0 ? all : [...all.slice(previous + 1), ...all.slice(0, previous + 1)];
-    const rows = rotated.filter(m => this.check(m) && m.attempts < 3 && m.events.length);
+    const rows = rotated.filter(m => this.check(m) && m.attempts < MAX_SUBMIT_ATTEMPTS && m.events.length);
     const offsets = new Map<Monitor, number>(), blocked = new Set<Monitor>();
     const projectDetails = (items: Selection[]) => ({
       schemaVersion: 1, batchSequence: this.batchSequence + 1, events: items.map(s => s.projected),
@@ -194,7 +196,7 @@ export class MonitorRuntime {
       }
       for (const m of monitors) { m.attempts = 0; m.notification = { state: 'submitted', hostAcknowledgment: 'unknown', attempts: 0, lastSubmittedAt: this.lastSubmit }; }
     } catch {
-      for (const m of monitors) { m.attempts++; m.notification = { state: m.attempts >= 3 ? 'submission_failed' : 'pending', hostAcknowledgment: 'unknown', attempts: m.attempts }; }
+      for (const m of monitors) { m.attempts++; m.notification = { state: m.attempts >= MAX_SUBMIT_ATTEMPTS ? 'submission_failed' : 'pending', hostAcknowledgment: 'unknown', attempts: m.attempts }; }
       // Reservations and charged queue bytes survive synchronous failure. No cursor
       // commit or acknowledgment; only another legal opportunity retries these IDs.
       return;

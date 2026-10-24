@@ -11,6 +11,8 @@ export const MAX_QUERY_CHARS = 2000;
 export const MAX_SEARCH_RESULTS = 10;
 const MAX_SEARCH_RESPONSE_BYTES = 2 * 1024 * 1024;
 const MAX_SNIPPET_CHARS = 1500;
+const MAX_TITLE_CHARS = 300;
+const MAX_PUBLISHED_CHARS = 100;
 export interface SearchResponse { provider: RestProvider; query: string; results: SearchResult[]; warnings: string[] }
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 /** Reads a credential from Pi's stored provider login; only DeepSeek has one of the search providers. */
@@ -118,8 +120,8 @@ function collectResults(provider: RestProvider, items: unknown[], limit: number)
       clean(Array.isArray(item.highlights) ? item.highlights.filter(v => typeof v === 'string').join('\n') : undefined, MAX_SNIPPET_CHARS) :
       clean(item.snippet, MAX_SNIPPET_CHARS) ?? clean(item.summary, MAX_SNIPPET_CHARS);
     const published = provider === 'deepseek' ? item.date : item.publishedDate;
-    results.push({ title: clean(item.title, 300) || url.hostname, url: url.href, ...(snippet ? { snippet } : {}),
-      ...(typeof published === 'string' ? { publishedAt: clean(published, 100) } : {}) });
+    results.push({ title: clean(item.title, MAX_TITLE_CHARS) || url.hostname, url: url.href, ...(snippet ? { snippet } : {}),
+      ...(typeof published === 'string' ? { publishedAt: clean(published, MAX_PUBLISHED_CHARS) } : {}) });
     if (results.length === limit) break;
   }
   return { results, invalid };

@@ -16,6 +16,8 @@ import { errorText, utf8Prefix } from "./text.ts";
 
 export const MAX_ACTIVE_FORKS = 4;
 export const MAX_RETAINED_FORKS = 32;
+/** Admission window for in-memory records: evict above this, refuse when undelivered results still fill it. */
+const MAX_TRACKED_FORKS = MAX_RETAINED_FORKS * 2;
 export const MAX_TASK_BYTES = 100 * 1024;
 /** Messages a parent may send to one live Fork; receipts are memory-only and shown newest 3 by fork_status. */
 export const MAX_MESSAGES = 32;
@@ -93,10 +95,10 @@ function validateForkParams(params: { task: unknown; title?: unknown }): asserts
 function assertCapacity(s: ForkState): void {
 	if (!s.admission) throw new Error("FORK_NOT_ACCEPTING: this Pi process is shutting down or reloading.");
 	if (activeCount(s) >= MAX_ACTIVE_FORKS) throw new Error(`FORK_CAPACITY: Request not accepted: capacity limit reached. At most ${MAX_ACTIVE_FORKS} unfinished Forks per Pi process.`);
-	if (s.jobs.size >= MAX_RETAINED_FORKS * 2) {
+	if (s.jobs.size >= MAX_TRACKED_FORKS) {
 		evict(s);
 		// Undelivered (pending) results are never evicted, so the window must refuse instead of growing without bound.
-		if (s.jobs.size >= MAX_RETAINED_FORKS * 2) throw new Error(`FORK_CAPACITY: Request not accepted: ${MAX_RETAINED_FORKS * 2} Fork records are retained with undelivered results.`);
+		if (s.jobs.size >= MAX_TRACKED_FORKS) throw new Error(`FORK_CAPACITY: Request not accepted: ${MAX_TRACKED_FORKS} Fork records are retained with undelivered results.`);
 	}
 }
 

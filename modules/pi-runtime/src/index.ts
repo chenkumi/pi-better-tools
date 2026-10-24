@@ -13,19 +13,23 @@ interface State {
   fingerprints: string[];
   pending: Diagnostic | null;
 }
+/** Upper bound for persisted task and session-entry IDs. */
+const MAX_ID_CHARS = 128;
+/** Session entry count beyond which the reservation history is not scanned at all. */
+const MAX_INSPECTED_ENTRIES = 100000;
 const bounded = (value: unknown, max: number): value is string => typeof value === 'string' && value.length > 0 && value.length <= max;
 const isFingerprint = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 function validDiagnostic(value: unknown): value is Diagnostic {
   if (!value || typeof value !== 'object') return false;
   const d = value as Diagnostic;
-  return bounded(d.entryId, 128) && ERROR_KINDS.includes(d.kind) &&
+  return bounded(d.entryId, MAX_ID_CHARS) && ERROR_KINDS.includes(d.kind) &&
     bounded(d.message, 2048) && bounded(d.provider, 256) && bounded(d.model, 256) && isFingerprint(d.fingerprint);
 }
 function validState(value: unknown): value is State {
   if (!value || typeof value !== 'object') return false;
   const s = value as State;
-  return s.version === 1 && bounded(s.taskId, 128) && Number.isInteger(s.used) && s.used >= 0 && s.used <= LIMIT &&
-    typeof s.enabled === 'boolean' && Array.isArray(s.handled) && s.handled.length === s.used && new Set(s.handled).size === s.used && s.handled.every(x => bounded(x, 128)) &&
+  return s.version === 1 && bounded(s.taskId, MAX_ID_CHARS) && Number.isInteger(s.used) && s.used >= 0 && s.used <= LIMIT &&
+    typeof s.enabled === 'boolean' && Array.isArray(s.handled) && s.handled.length === s.used && new Set(s.handled).size === s.used && s.handled.every(x => bounded(x, MAX_ID_CHARS)) &&
     Array.isArray(s.fingerprints) && s.fingerprints.length === s.used && s.fingerprints.every(isFingerprint) &&
     (s.pending === null || validDiagnostic(s.pending));
 }
@@ -34,7 +38,7 @@ type SessionEntries = ReturnType<ExtensionContext['sessionManager']['getEntries'
 /** A task's spend is session-wide, not rolled back with the visible branch: every reservation of `taskId` in the whole
  * session, keyed by handled entry ID with its fingerprint. Any invalid, conflicting or over-budget history is an error. */
 function taskSpend(entries: SessionEntries, taskId: string): { handled: Map<string, string> } | { error: string } {
-  if (entries.length > 100000) return { error: 'Recovery history exceeds the inspection bound; recovery disabled.' };
+  if (entries.length > MAX_INSPECTED_ENTRIES) return { error: 'Recovery history exceeds the inspection bound; recovery disabled.' };
   const handled = new Map<string, string>();
   for (const entry of entries) {
     if (entry.type !== 'custom' || entry.customType !== STATE_TYPE) continue;

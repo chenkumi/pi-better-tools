@@ -24,6 +24,10 @@ export const MAX_RAW_CAPTURE_BYTES = Math.floor((MAX_CAPTURE_BYTES - TAIL_BYTES)
 const MAX_CAPTURE_LINES = 1000;
 const COMMAND_PREVIEW_CHARS = 200;
 const DESCRIBE_COMMAND_CHARS = 60;
+/** Command characters handed to the live widget / job view. */
+const WIDGET_COMMAND_CHARS = 8192;
+/** Error characters kept per job in `list` summaries. */
+const LIST_ERROR_CHARS = 200;
 /** Output/tail/error characters per job in the model-facing completion notification. */
 const NOTIFICATION_OUTPUT_CHARS = 2000;
 /** Output tail bytes in the readonly Monitor projection. */
@@ -240,7 +244,7 @@ export class ShellJobs {
     this.currentSession = () => ctx.sessionManager.getSessionId();
     this.recovery.bind(ctx);
     this.widget.bind(ctx, () => [...this.jobs.values()].filter(job => !this.stopped && job.owner === this.owner && job.generation === this.generation)
-      .map(job => ({ jobId: job.jobId, tool: job.tool, status: job.status, command: job.command.slice(0, 8192), startedAt: job.startedAt, endedAt: job.endedAt,
+      .map(job => ({ jobId: job.jobId, tool: job.tool, status: job.status, command: job.command.slice(0, WIDGET_COMMAND_CHARS), startedAt: job.startedAt, endedAt: job.endedAt,
         totalBytes: job.totalBytes, logBytes: job.logBytes, cancelRequested: job.cancelRequested, liveLogPath: job.liveLogPath,
         exitCode: exitCodeOf(job), live: job.live })));
   }
@@ -544,7 +548,7 @@ export class ShellJobs {
     const rank = (j: Job) => (isActiveJobStatus(j.status) ? 0 : 1);
     return [...this.jobs.values()].filter(j => j.owner === this.owner && j.generation === this.generation)
       .sort((a, b) => rank(a) - rank(b) || b.startedAt - a.startedAt)
-      .map(job => { const { output, outputTail, error, ...summary } = this.snapshot(job); return { ...summary, ...(error !== undefined ? { error: error.slice(0, 200) } : {}) }; });
+      .map(job => { const { output, outputTail, error, ...summary } = this.snapshot(job); return { ...summary, ...(error !== undefined ? { error: error.slice(0, LIST_ERROR_CHARS) } : {}) }; });
   }
 
   cancel(ctx: ExtensionContext, jobId: string) {
