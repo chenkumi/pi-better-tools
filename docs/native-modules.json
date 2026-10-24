@@ -397,7 +397,9 @@
           "configRoutingPreviousSha256": "e3bc504f3b44e53e72a851ab70fb761e09c4b10fee9e70cbdb002522eb226849",
           "fileAuditPreviousSha256": "ffaec803485b2f74022a29aed6b4c83ec4f693f467c5e441039c22f235ac8551",
           "webSetupPreviousSha256": "7391acb72d943002f73a308e9add2352c8ea2e55c1c486aab63bdd656c55a75f",
-          "sha256": "25c276b1a1a5bed1238d3e004656bc8137bf37bd581a82675ee82b1fd73e3144",
+          "reviewDiffSkill20261024PreviousSha256": "25c276b1a1a5bed1238d3e004656bc8137bf37bd581a82675ee82b1fd73e3144",
+          "reviewDiffSkill20261024Adaptation": "2026-10-24 documents the bundled review-diff skill and its /skill:review-diff usage.",
+          "sha256": "44118727ab501afec3c0b011ed2feebe7a1f306a257db7bddd995d1dc992e276",
           "pi130UpgradeReconcile20261017PreviousSha256": "4b1fc6f455922fe287879895a8ad487e85faf03b77d7090dd6ae934364d41aa8",
           "reason": "Usage, extension-filter boundary, migration/rollback and validation instructions. 2026-10-17 recorded hash reconciled to the committed text from commit a22fe48, which documented the added expert-lens and verify-findings skills.",
           "cleanCodeSkill20261023PreviousSha256": "0b2a2f64a20fab4ef9879a29d6edba0a71e8f2d268690256f1fe95af0a834d15",
@@ -472,6 +474,16 @@
           "path": "modules/skill-tools/skills/clean-code-refactor/references/report.md",
           "sha256": "fd13e3e9e39ecf8184b2bff1594b8d8ae7890253d5838718b200d71a42d712f5",
           "reason": "Native skill reference added 2026-10-23: delivery report format."
+        },
+        {
+          "path": "modules/skill-tools/skills/review-diff/SKILL.md",
+          "sha256": "9331c8021da92e98b301f2ace711571316df7243edbf3c1932322f78ac18b6b9",
+          "reason": "Native skill added 2026-10-24: scoped diff review delegated to the reviewer subagent; main agent resolves read-only baselines and verifies the note report path."
+        },
+        {
+          "path": "modules/skill-tools/skills/review-diff/references/rubric.md",
+          "sha256": "69b09c196cc632693746ca26baf0cae63c38222bbda285f06cb4e915794f938f",
+          "reason": "Native skill reference added 2026-10-24: finding criteria, priorities and report format for the reviewer subagent."
         }
       ]
     },
