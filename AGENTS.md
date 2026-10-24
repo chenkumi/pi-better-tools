@@ -20,6 +20,7 @@
 
 ## 行為與安全不變量
 
+- 背景服務通知（Shell／Subagent／Fork／Monitor 的完成與觀察通知）的 `sendMessage` 投遞預設 `deliverAs:"steer"`（可在主 Agent 忙碌時由 Pi steering 佇列於安全回合邊界插入，不自行等 `agent_settled`）；只有 steer 不可行或有已記錄的穩定疑慮時才改用 `followUp`，且須在該模組 README 寫明原因。`triggerTurn:false` 時 Pi 不使用 `deliverAs`（串流中延到回合結束附加），該值只是慣例，不改變行為。
 - 保留現有工具名稱、schema、設定鍵、儲存目錄與授權／trust 語意。不能以整合為由啟用未選的 tools；使用者明確要求的 `defaultActive:true`（Monitor、Fork、主代理 Shell／Shell job、Subagent）為已記錄例外，仍受宿主 allowlist／exclusions 控制。
 - Skill Tools 透過 `resources_discover` 提供 `modules/skill-tools/skills/`，不在 runtime 複製至 home；停用必須排除 extension（`skills: []`／`--no-skills` 不抑制動態資源）。修改前讀 `modules/skill-tools/README.md`。`pi-tools-config` 及其 references 必須可整個目錄獨立搬移，只連結技能目錄內資源，不依賴 repository／模組 README 或 home 副本。
 - 修改 File Audit 前讀 `modules/file-audit/README.md`：成功 read/write/edit/note 共用 run 窗口與記錄容量，note 路徑取成功結構化結果；手動增量檢查不取代全量 `sources:verify`，不自動刷新 provenance、不以缺紀錄／超限當通過，不讀完整歷史或注入模型 context。

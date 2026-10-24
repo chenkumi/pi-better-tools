@@ -54,7 +54,7 @@ test('SDK Container routes fullscreen More click; passive updates never claim ed
 });
 test('More ignores clipped label, row contents, modifiers, drag/press/wheel, double click and stale resize/dispose', () => {
   const { ui } = setup(); const c = ui.component(), lines = c.render(80); const y = lines.length - 1;
-  for (const options of [{ y: 1 }, { button: 'right' }, { shift: true }, { alt: true }, { ctrl: true }, { type: 'wheel' }, { type: 'drag' }, { type: 'press' }, { clickCount: 2 }]) assert.equal(mouse(c, 2, y, 80, options), undefined);
+  for (const options of [{ y: 0 }, { button: 'right' }, { shift: true }, { alt: true }, { ctrl: true }, { type: 'wheel' }, { type: 'drag' }, { type: 'press' }, { clickCount: 2 }]) assert.equal(mouse(c, 2, y, 80, options), undefined);
   assert.equal(mouse(c, 25, y), undefined); assert.equal(mouse(c, 2, y, 24), undefined);
   c.invalidate(); assert.equal(mouse(c, 2, y), undefined); c.render(7); assert.equal(mouse(c, 2, y, 7), undefined);
   c.dispose(); assert.equal(mouse(c, 2, y), undefined); assert.equal(ui.customCalls(), 0);
@@ -169,4 +169,21 @@ test('W1: long detail height budgets preserve footer on resize including tiny te
     for (const line of lines) assert.ok(visibleWidth(line) <= width);
     if (width >= 40 && height >= 6) assert.match(plain(lines.at(-2)!), /Esc Back/);
   }
+});
+
+test('clicking a job row (heading or activity) opens the overlay directly on that job; title, modifiers and clipped rows do nothing', async () => {
+  const { ui } = setup(); const c = ui.component(), lines = c.render(80);
+  assert.match(plain(lines.join('\n')), /click a job to open/);
+  for (const options of [{ button: 'right' }, { shift: true }, { alt: true }, { ctrl: true }, { type: 'wheel' }, { type: 'drag' }, { clickCount: 2 }]) assert.equal(mouse(c, 5, 1, 80, options), undefined);
+  assert.equal(mouse(c, 5, 0), undefined, 'title row is not a target'); assert.equal(ui.customCalls(), 0);
+  const result = mouse(c, 5, 1); assert.equal(result?.handled, true); assert.notEqual(result?.focus, true);
+  assert.equal(ui.customCalls(), 1);
+  let text = plain(ui.overlay().render(72).join('\n'));
+  assert.match(text, /Job details/); assert.match(text, /Detail 1/); assert.doesNotMatch(text, /Detail 2/);
+  ui.overlay().handleInput('\x1b'); text = plain(ui.overlay().render(72).join('\n'));
+  assert.match(text, /Active \/ Recent finished/, 'Esc returns to the list');
+  ui.overlay().handleInput('\x1b'); await Promise.resolve(); assert.equal(ui.overlay(), undefined);
+  assert.equal(mouse(c, 5, 4)?.handled, true, 'second job activity row');
+  assert.match(plain(ui.overlay().render(72).join('\n')), /Detail 2/);
+  ui.overlay().handleInput('\x1b'); ui.overlay().handleInput('\x1b'); await Promise.resolve();
 });

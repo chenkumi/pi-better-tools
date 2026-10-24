@@ -3,7 +3,8 @@ import test from 'node:test';
 import { stripVTControlCharacters as plain } from 'node:util';
 import { visibleWidth } from '@earendil-works/pi-tui';
 import { ShellJobs } from '../src/background-jobs.js';
-import { SHELL_WIDGET_KEY, ShellJobsWidget, renderShellWidget } from '../src/live-widget.js';
+import { SHELL_WIDGET_KEY, ShellJobsWidget, renderShellWidget, shellPanelJobs } from '../src/live-widget.js';
+import { OutputTranscript } from '../src/live-transcript.js';
 const theme: any = { fg: (_: string, s: string) => `\x1b[32m${s}\x1b[0m`, getBgAnsi: () => '\x1b[48;5;58m', bg: (_: string, s: string) => '\x1b[48;5;58m' + s + '\x1b[49m' };
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(r => resolve = r); return { promise, resolve }; }
 function ui(mode = 'tui') {
@@ -62,4 +63,35 @@ test('bounded Unicode layout, controls, background continuity, resize and dynami
   assert.equal(component.render(80).length, 12); assert.match(plain(component.render(80).join('\n')), /More… \(\+15 active\)/); assert.equal(JSON.stringify(rows), before);
   let ansi = '\x1b[48;5;58m'; const dynamic = { ...theme, getBgAnsi: () => ansi, bg: (_: string, s: string) => ansi + s + '\x1b[49m' };
   const changing = renderShellWidget(rows, dynamic); changing.render(80); ansi = '\x1b[48;5;22m'; changing.invalidate(); assert.ok(changing.render(24).every(line => line.startsWith(ansi)));
+});
+test('a shell row exposes its live output copy only while the job still runs', () => {
+  const live = new OutputTranscript(); live.append(Buffer.from('partial output\n'));
+  const row = { jobId: 'SH1', tool: 'bash', status: 'running', command: 'make', live };
+  assert.deepEqual(shellPanelJobs([row])[0]!.transcripts?.map(t => t.label), ['output']);
+  live.release();
+  assert.equal(shellPanelJobs([row])[0]!.transcripts, undefined, 'a released copy is not projected');
+});
+test('a running job feeds a bounded output copy and releases it when it ends', async () => {
+  const view = ui(), entered = deferred(), finishRun = deferred(), notified = deferred();
+  const appended: number[] = []; let released = 0;
+  const append = OutputTranscript.prototype.append, release = OutputTranscript.prototype.release;
+  OutputTranscript.prototype.append = function (chunk: Buffer) { appended.push(chunk.length); return append.call(this, chunk); };
+  OutputTranscript.prototype.release = function () { released++; return release.call(this); };
+  const jobs = new ShellJobs({ ...view.api, sendMessage: () => notified.resolve() } as any);
+  jobs.start(view.ctx);
+  try {
+    jobs.submit(view.ctx, 'bash', 'live', undefined, async (_signal, wrap) => {
+      const wrapped = wrap({ exec: async (_command: string, _cwd: string, options: any) => { options.onData(Buffer.from('line one\n')); return result; } } as any);
+      await wrapped.exec('make', process.cwd(), { onData: () => {} } as any);
+      entered.resolve(); await finishRun.promise;
+      return result;
+    }, 'live output');
+    await entered.promise;
+    assert.deepEqual(appended, [9], 'the job output reaches the memory copy');
+    assert.equal(released, 0, 'a running job keeps its copy');
+  } finally {
+    finishRun.resolve(); await notified.promise; await jobs.shutdown();
+    OutputTranscript.prototype.append = append; OutputTranscript.prototype.release = release;
+  }
+  assert.ok(released >= 1, 'the terminal state releases the copy');
 });

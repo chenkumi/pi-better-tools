@@ -7,6 +7,7 @@ import { RpcPipe } from "../../subagents/extensions/subagent/rpc.ts";
 import { CHANNEL } from "./child-guard.ts";
 import { FORK_GUARD_ENV, FORK_TOOLS, isForkTool, type ForkChildGuard } from "./identity.ts";
 
+const LIVE_EVENT = /"type":"(?:message_start|message_update|message_end|tool_execution_start|tool_execution_update|tool_execution_end)"/;
 /** Longest accepted stdout line, in UTF-16 code units of the decoded text (not UTF-8 bytes). */
 export const MAX_LINE_CODE_UNITS = 4 * 1024 * 1024;
 export const STDERR_TAIL_BYTES = 8 * 1024;
@@ -30,6 +31,8 @@ export interface ForkChildSpec {
 	prompt: string;
 	/** Receives every finished message (user/assistant/toolResult) the child emits after the task was sent; never inherited history. Must not throw into the stream. */
 	onMessage?: (message: unknown) => void;
+	/** Every conversation event after the prompt was sent; feeds the in-memory live viewer only. */
+	onEvent?: (event: unknown) => void;
 	invocation?: typeof getPiInvocation;
 	spawnImpl?: typeof spawn;
 	/** Test seams for the termination ladder; production uses the constants above. */
@@ -144,8 +147,10 @@ export function startForkChild(spec: ForkChildSpec, onProgress: (progress: ForkP
 		const response = line.includes('"type":"response"');
 		// Non-assistant messages only matter to the auxiliary transcript, so skip their parse unless it is listening.
 		const messageEnd = line.includes('"type":"message_end"') && (line.includes('"role":"assistant"') || (promptSent && !!spec.onMessage));
-		if (!response && !messageEnd) return;
+		const live = !!spec.onEvent && promptSent && LIVE_EVENT.test(line);
+		if (!response && !messageEnd && !live) return;
 		let event: any; try { event = JSON.parse(line); } catch { return; }
+		if (live) { try { spec.onEvent!(event); } catch { /* the live viewer never controls the Fork */ } }
 		if (event.type === "response") { try { pipe.accept(event); } catch { /* uncorrelated response is ignored */ } }
 		else if (event.type === "message_end") {
 			if (event.message?.role === "assistant") lastAssistant = { stopReason: event.message.stopReason, errorMessage: typeof event.message.errorMessage === "string" ? event.message.errorMessage.slice(0, 500) : undefined };

@@ -95,3 +95,43 @@ test('parser chunk UTF8 CRLF EOF/blank/invalid and pre-decode byte bound', () =>
   const q = new LineParser((text, partial) => events.push({ text, partial }), reason => faults.push(reason)); q.push(Buffer.from([0xff, 10])); assert.equal(events.at(-1).partial, true);
   q.push(Buffer.alloc(16385, 65)); assert.deepEqual(faults, ['payload_limit']); assert.ok(q.bufferedBytes <= 16384);
 });
+test('briefs lists live monitors with a coarse target, label and remaining lifetime only', async () => {
+  const f = fixture();
+  const command = f.start({ label: 'watch build', source: { kind: 'command', tool: 'bash', command: 'echo SECRET_COMMAND_TEXT' } }) as any;
+  const file = f.runtime.start(validateStart({ source: { kind: 'file', path: 'src/app.ts' } }), f.launch) as any;
+  const ws = f.runtime.start(validateStart({ source: { kind: 'websocket', url: 'wss://example.org/path?token=SECRET' } }), f.launch) as any;
+  await turn();
+  const briefs = f.runtime.briefs();
+  assert.deepEqual(briefs, [
+    { monitorId: command.monitorId, source: 'command', state: 'running', target: '[command withheld]', label: 'watch build', remainingMs: 300000 },
+    { monitorId: file.monitorId, source: 'file', state: 'running', target: 'src/app.ts', remainingMs: 300000 },
+    { monitorId: ws.monitorId, source: 'websocket', state: 'running', target: 'wss://example.org/[path withheld]', remainingMs: 300000 },
+  ]);
+  const text = JSON.stringify(briefs);
+  assert.equal(text.includes('SECRET_COMMAND_TEXT'), false);
+  assert.equal(text.includes('token=SECRET'), false);
+  f.clock.advance(1000);
+  assert.equal(f.runtime.briefs()[0].remainingMs, 299000);
+  f.finish(); await turn();
+  assert.deepEqual(f.runtime.briefs().map((brief: any) => brief.monitorId), [command.monitorId, file.monitorId]);
+});
+
+test('briefs of a disposed owner are empty instead of throwing (no live monitors is not "unreadable")', async () => {
+  const f = fixture();
+  f.start({ source: { kind: 'command', tool: 'bash', command: 'echo x' } });
+  await turn();
+  assert.equal(f.runtime.briefs().length, 1);
+  f.lose();
+  assert.deepEqual(f.runtime.briefs(), []);
+  assert.equal(f.aborted(), true, 'monitors of the lost owner were cancelled, not just hidden');
+});
+
+test('notifications are submitted as steer (wake flag follows wakeAgent) without waiting for the parent turn to settle', async () => {
+  const wake: any[] = [], quiet: any[] = [];
+  const a = fixture((_m, o) => wake.push(o)); const w = a.start(); await turn(); a.sink().data('x'); a.clock.advance(0);
+  assert.deepEqual(wake, [{ triggerTurn: true, deliverAs: 'steer' }], 'no agent_settled needed: nothing holds the submission back');
+  a.finish(); await turn(); await a.runtime.shutdown();
+  const b = fixture((_m, o) => quiet.push(o)); b.start({ wakeAgent: false }); await turn(); b.sink().data('y'); b.clock.advance(0);
+  assert.deepEqual(quiet, [{ triggerTurn: false, deliverAs: 'steer' }]);
+  b.finish(); await turn(); await b.runtime.shutdown(); void w;
+});

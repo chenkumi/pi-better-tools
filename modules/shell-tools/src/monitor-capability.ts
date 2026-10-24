@@ -51,6 +51,31 @@ export function activeJobCounts(scope: MonitorScope): { shell: number; subagents
   }
   return counts;
 }
+/** Source kind, state, coarse target, optional user label and remaining lifetime only: no command text, URL path, output or event data. */
+export interface ActiveMonitorBrief { monitorId: string; source: string; state: string; target: string; label?: string; remainingMs: number }
+export const MAX_ACTIVE_MONITOR_BRIEFS = 16;
+// Monitor publishes its own live receipts here; readers get a plain list, never the runtime or a stop/start handle.
+const activeMonitorKey = Symbol.for('pi-better-tools.monitor.active-monitors.v1');
+const activeMonitorRoot = globalThis as unknown as Record<symbol, Map<string, () => ActiveMonitorBrief[]>>;
+const activeMonitorReaders = () => activeMonitorRoot[activeMonitorKey] ??= new Map();
+const monitorIdentity = (scope: MonitorScope) => JSON.stringify([scope.sessionId, scope.cwd]);
+export function publishActiveMonitorBriefs(scope: MonitorScope, read: () => ActiveMonitorBrief[]): () => void {
+  const id = monitorIdentity(scope), readers = activeMonitorReaders();
+  readers.set(id, read);
+  return () => { if (readers.get(id) === read) readers.delete(id); };
+}
+/** Readonly live-monitor list for a model-facing reminder. Never throws; malformed rows or a failing reader only mark the result partial. */
+export function activeMonitorBriefs(scope: MonitorScope): { briefs: ActiveMonitorBrief[]; partial: boolean } {
+  const read = activeMonitorReaders().get(monitorIdentity(scope));
+  if (!read) return { briefs: [], partial: false };
+  try {
+    const rows = read();
+    if (!Array.isArray(rows)) return { briefs: [], partial: true };
+    // Every field is re-checked here: the reader is owner code, but the summary text is model-facing.
+    const briefs = rows.filter(row => row && typeof row.monitorId === 'string' && typeof row.source === 'string' && typeof row.state === 'string' && typeof row.target === 'string' && Number.isFinite(row.remainingMs));
+    return { briefs: briefs.slice(0, MAX_ACTIVE_MONITOR_BRIEFS), partial: briefs.length !== rows.length || rows.length > MAX_ACTIVE_MONITOR_BRIEFS };
+  } catch { return { briefs: [], partial: true }; }
+}
 const MAX_BRIEFS_PER_KIND = 16;
 /** Readonly list of this owner's unfinished jobs for a model-facing reminder. Never throws; a failing provider only marks the result partial. */
 export function activeJobBriefs(scope: MonitorScope): { briefs: ActiveJobBrief[]; partial: boolean } {

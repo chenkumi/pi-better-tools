@@ -75,6 +75,30 @@ test('activeJobBriefs lists only owner-matching, valid providers as bounded id/s
   assert.deepEqual(activeJobBriefs(scope).briefs, []);
   revoke(); revokeShell();
 });
+test('activeMonitorBriefs reads only the owner-matching reader and marks malformed rows partial', async () => {
+  const { activeMonitorBriefs, publishActiveMonitorBriefs } = await import('../src/monitor-capability.js');
+  const scope = { sessionId: 'monitor-brief-owner', cwd: canonicalMonitorCwd(process.cwd()) };
+  const brief = { monitorId: 'MON1', source: 'file', state: 'running', target: 'src/app.ts', label: 'schema', remainingMs: 60000 };
+  assert.deepEqual(activeMonitorBriefs(scope), { briefs: [], partial: false }, 'no Monitor means no section');
+  const revoke = publishActiveMonitorBriefs(scope, () => [brief]);
+  assert.deepEqual(activeMonitorBriefs(scope), { briefs: [brief], partial: false });
+  assert.deepEqual(activeMonitorBriefs({ ...scope, sessionId: 'other' }), { briefs: [], partial: false }, 'a foreign owner is not served');
+  const revokeBad = publishActiveMonitorBriefs(scope, () => [brief, { monitorId: 'MON2', source: 'command' } as any]);
+  assert.deepEqual(activeMonitorBriefs(scope), { briefs: [brief], partial: true }, 'a malformed row is dropped, not rendered');
+  revokeBad();
+  assert.deepEqual(activeMonitorBriefs(scope), { briefs: [], partial: false }, 'revoking the current reader publishes nothing');
+  const revokeNew = publishActiveMonitorBriefs(scope, () => [brief]);
+  revoke();
+  assert.deepEqual(activeMonitorBriefs(scope).briefs, [brief], 'a stale revoke does not delete the newer reader');
+  const revokeThrow = publishActiveMonitorBriefs({ ...scope, sessionId: 'monitor-brief-throw' }, () => { throw new Error('boom'); });
+  assert.deepEqual(activeMonitorBriefs({ ...scope, sessionId: 'monitor-brief-throw' }), { briefs: [], partial: true });
+  const many = Array.from({ length: 20 }, (_, i) => ({ ...brief, monitorId: `MON${i}` }));
+  const revokeMany = publishActiveMonitorBriefs({ ...scope, sessionId: 'monitor-brief-many' }, () => many);
+  const capped = activeMonitorBriefs({ ...scope, sessionId: 'monitor-brief-many' });
+  assert.equal(capped.briefs.length, 16); assert.equal(capped.partial, true);
+  revokeNew(); revokeThrow(); revokeMany();
+  assert.deepEqual(activeMonitorBriefs(scope), { briefs: [], partial: false }, 'revoked reader publishes nothing');
+});
 test('active Shell briefs carry only the job id and status, never the command', async () => {
   const { activeJobBriefs } = await import('../src/monitor-capability.js');
   const root = mkdtempSync(join(tmpdir(), 'monitor-shell-brief-'));

@@ -3,6 +3,7 @@ import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { ulid } from "ulid";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { LiveTranscript } from "../../shell-tools/src/live-transcript.ts";
 import { ForkJobsWidget } from "./live-widget.ts";
 import { forwardParentArgs, removeTemporary } from "./args.ts";
 import { startForkChild, type ForkChildHandle, type ForkChildOutcome, type ForkChildSpec, type ForkMessageMode } from "./child.ts";
@@ -38,6 +39,8 @@ export interface Job {
 	persistError?: string;
 	/** Live only in the owning process; the persisted view is `record.transcript`. */
 	transcript?: ForkTranscript;
+	/** In-memory copy of the Fork's conversation for the live viewer; released as soon as the run ends. */
+	live?: LiveTranscript;
 	/** Settles once the transcript file is finalized (never rejects). Delivery and quit/reload wait for it. */
 	transcriptDone?: Promise<void>;
 	/** Memory-only receipts for fork_message; never persisted, never replayed after reload. */
@@ -174,6 +177,8 @@ function launch(job: Job, sessionPath: string) {
 	const transcript = new ForkTranscript(transcriptDir(record.origin.cwd, record.jobId), record.jobId, record.origin.cwd, () => syncTranscript(job));
 	job.transcript = transcript;
 	spec.onMessage = message => { markApplied(job, message); transcript.appendMessage(message); };
+	const live = job.live = new LiveTranscript();
+	spec.onEvent = event => live.ingest(event);
 	transcript.start();
 	let handle: ForkChildHandle;
 	try { handle = deps.startChild(spec, (progress, detail) => {
@@ -192,6 +197,7 @@ function launch(job: Job, sessionPath: string) {
 
 function complete(job: Job, outcome: ForkChildOutcome) {
 	const record = job.record;
+	releaseLive(job);
 	const out = outcome.output === undefined ? undefined : bounded(outcome.output);
 	record.result = { resultId: ulid().toUpperCase(), ...(out ? { output: out.text, outputTruncated: out.truncated } : {}), ...(outcome.errorCode ? { errorCode: outcome.errorCode } : {}),
 		...(outcome.error ? { error: outcome.error } : {}), ...(outcome.usage ? { usage: outcome.usage } : {}), ...(outcome.usageUnknown ? { usageUnknown: true } : {}) };
@@ -228,7 +234,10 @@ function lateClose(job: Job, exitCode: number | null) {
 	refreshUi();
 }
 
+function releaseLive(job: Job) { job.live?.release(); job.live = undefined; }
+
 function finishWithoutChild(job: Job, status: "failed" | "cancelled", code: string, message: string) {
+	releaseLive(job);
 	job.record.result = { resultId: ulid().toUpperCase(), errorCode: code, error: message, usageUnknown: true };
 	job.record.cleanup = { childClosed: true };
 	job.released = true;
@@ -260,7 +269,7 @@ export function deliver(job: Job, binding = state().binding): void {
 		record.delivery = "submitted"; persist(job); // Submission is not a host acknowledgement; unknown is never blindly replayed.
 		binding.pi.sendMessage({ customType: RESULT_TYPE, content: resultText(record), display: true,
 			details: { schemaVersion: 1, resultId: record.result.resultId, jobId: record.jobId, forkSessionId: record.forkSessionId, status: record.status, sessionPath: record.sessionPath, transcriptPath: record.transcript?.state === "final" ? record.transcript.path : undefined, usage: record.result.usage, usageUnknown: record.result.usageUnknown } },
-			{ triggerTurn: true, deliverAs: "followUp" });
+			{ triggerTurn: true, deliverAs: "steer" });
 		setImmediate(() => {
 			try {
 				if (resultObserved(binding, record.result!.resultId) && record.delivery === "submitted") { record.delivery = "observed"; persist(job); }

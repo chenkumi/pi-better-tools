@@ -1,6 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { acquireBackgroundPanel, type BackgroundPanel, type PanelHost } from "./background-panel.js";
-import type { PanelJob, PanelKind } from "./job-view.js";
+import { panelSignature, type PanelJob, type PanelKind } from "./job-view.js";
 
 /** Owner-bound presentation only. Each producer still owns its projection and job lifecycle. */
 export class JobsWidgetBinding<Row> {
@@ -27,7 +27,7 @@ export class JobsWidgetBinding<Row> {
     try {
       if (ctx.sessionManager.getSessionId() !== this.owner) { this.clear(); return; }
       const jobs = this.project(this.source!());
-      if (this.token) this.panel.update(this.kind, this.token, { jobs, signature: JSON.stringify(jobs) });
+      if (this.token) this.panel.update(this.kind, this.token, { jobs, signature: panelSignature(jobs) });
     } catch { this.clear(); /* UI failure never controls jobs or notifications. */ }
   }
   clear() {

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-export type GeneratedKind = "recall" | "om" | "evidence" | "jobs";
+export type GeneratedKind = "recall" | "om" | "evidence" | "jobs" | "monitors";
 export interface GeneratedSpan { kind: GeneratedKind; offset: number; length: number; sha256: string }
 export interface GeneratedSummaryProof { version: 1; sourceGeneration: string; spans: GeneratedSpan[] }
 export const GENERATED_SPANS_KEY = "blackhole.generatedSpans";
@@ -29,7 +29,7 @@ export function validGeneratedProof(text: string, proof: any): proof is Generate
   if (typeof proof !== "object" || proof === null || Array.isArray(proof) || proof.version !== 1 || typeof proof.sourceGeneration !== "string" || !/^[a-f0-9]{64}$/.test(proof.sourceGeneration) || proof.sourceGeneration !== digest(text) || !Array.isArray(proof.spans) || proof.spans.length > 8) return false;
   // Persisted JSON is untrusted. Validate every element before dereferencing in sort.
   for (const span of proof.spans) {
-    if (typeof span !== "object" || span === null || Array.isArray(span) || !["recall", "om", "evidence", "jobs"].includes(span.kind) || !Number.isSafeInteger(span.offset) || !Number.isSafeInteger(span.length) || span.offset < 0 || span.length < 1 || !Number.isSafeInteger(span.offset + span.length) || span.offset + span.length > text.length || typeof span.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(span.sha256) || digest(text.slice(span.offset, span.offset + span.length)) !== span.sha256) return false;
+    if (typeof span !== "object" || span === null || Array.isArray(span) || !["recall", "om", "evidence", "jobs", "monitors"].includes(span.kind) || !Number.isSafeInteger(span.offset) || !Number.isSafeInteger(span.length) || span.offset < 0 || span.length < 1 || !Number.isSafeInteger(span.offset + span.length) || span.offset + span.length > text.length || typeof span.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(span.sha256) || digest(text.slice(span.offset, span.offset + span.length)) !== span.sha256) return false;
   }
   let end = 0;
   for (const span of [...proof.spans].sort((a, b) => a.offset - b.offset)) {
@@ -48,7 +48,7 @@ export function ownedSummaryProof(text: string | undefined, entries: readonly an
   const proof = text === latest.summary ? metadata?.summary : text === latest.details.trailingSummary ? metadata?.trailing : undefined;
   return validGeneratedProof(text, proof) ? proof : undefined;
 }
-export function stripGeneratedSpans(text: string, proof?: GeneratedSummaryProof, kinds: readonly GeneratedKind[] = ["recall", "om", "evidence", "jobs"]): string {
+export function stripGeneratedSpans(text: string, proof?: GeneratedSummaryProof, kinds: readonly GeneratedKind[] = ["recall", "om", "evidence", "jobs", "monitors"]): string {
   if (!validGeneratedProof(text, proof)) return text;
   let result = text;
   for (const span of [...proof!.spans].filter(s => kinds.includes(s.kind)).sort((a, b) => b.offset - a.offset)) result = result.slice(0, span.offset) + result.slice(span.offset + span.length);

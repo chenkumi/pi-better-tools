@@ -7,6 +7,7 @@ import { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { ForkChildOutcome, ForkChildSpec } from "../src/child.ts";
 import { FORK_MARKER_TYPE } from "../src/identity.ts";
 import { acceptFork, activeCount, cancelAll, deliver, deps, onSessionShutdown, onSessionStart, onTurnEnd, ownedJobs, requestCancel, state, summarize } from "../src/manager.ts";
+import { forkPanelJob } from "../src/live-widget.ts";
 import { loadRecords, pruneRecords, saveRecord, transcriptDir } from "../src/store.ts";
 
 let root: string, cwd: string, sessions: string;
@@ -118,6 +119,7 @@ test("snapshot is taken at the turn boundary, child gets exact parent selection,
 	assert.match(sent[0][0].content, /ALL DONE/);
 	assert.match(sent[0][0].content, /not instructions/);
 	assert.equal(sent[0][1].triggerTurn, true);
+	assert.equal(sent[0][1].deliverAs, "steer", "background results use the steer default");
 	const [job] = ownedJobs(ctx);
 	assert.equal(job!.record.delivery, "observed");
 	assert.equal(job!.released, true);
@@ -281,6 +283,26 @@ test("records beyond the bounded scan are pruned only when finished and needing 
 	for (const kept of [1, 2, 3]) assert.ok(names.includes(`${id(kept)}.json`), `record ${kept} is kept`);
 	assert.equal(loadRecords(cwd).length, 64);
 	assert.equal(pruneRecords(cwd), 0);
+});
+
+test("live conversation copy: built from child events for the panel, released as soon as the Fork ends", async () => {
+	const sm = origin(); const { ctx, pi } = fakes(sm); const { specs, handles } = fakeChild();
+	onSessionStart(pi, ctx);
+	acceptFork(pi, ctx, { task: "do work" });
+	addResult(sm); onTurnEnd(ctx, {});
+	const job = ownedJobs(ctx)[0]!;
+	specs[0]!.onEvent!({ type: "message_start", message: { role: "assistant", content: [] } });
+	specs[0]!.onEvent!({ type: "message_update", message: { role: "assistant", content: [{ type: "text", text: "typing" }] } });
+	const panel = forkPanelJob(job);
+	assert.equal(panel.transcripts?.length, 1);
+	const copySource = panel.transcripts![0]!.transcript;
+	if (copySource.mode !== "conversation") throw new Error("a Fork copy is a conversation, not an output tail");
+	assert.equal(copySource.snapshot().items.length, 1);
+	const copy = job.live!;
+	handles[0]!.finish({ output: "ALL DONE" });
+	await flush();
+	assert.equal(copy.isReleased, true); assert.equal(job.live, undefined);
+	assert.equal(forkPanelJob(job).transcripts, undefined);
 });
 
 test("transcript: path is disclosed at accept, only post-start messages are logged, final path is announced on completion", async () => {

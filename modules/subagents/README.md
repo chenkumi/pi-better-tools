@@ -147,6 +147,8 @@ startup/resume/reload 時 bounded 核對同 owner/cwd 的 session-wide inventory
 
 背景工作自動在輸入欄上方 `aboveEditor` 顯示 Jobs 面板，與 Shell **合計最多五個 job，每個兩行**，最多12行（header＋10工作行＋More／註記）。Parallel／chain 以一個 job 聚合，顯示 running／queued／finished task 數量，不把 task 數當 job 數或 OS process 數；More 詳細列 task／session ID。狀態來自相同 owner／canonical cwd／runtime epoch 的 registry；cancel requested 只表示要求，finalizing 仍等待 runner／commit／rollback／release，不偽稱 completed。生命週期與最近觀察到的活動分開：Generating reply、thinking observed、Preparing tool request、Tool running、Retrying API request；不展示 thinking／prompt／工具參數內容。
 
+詳細頁（Enter）對 running 的 job 顯示每個 task 的即時對話副本：`RunnerRuntime.onEvent` 收到已驗証的 child 事件後寫入該 task 的 `LiveTranscript`（streaming assistant 就地取代，工具卡依 toolCall 對上 partial／result），`Ctrl+O` 展開工具結果、`m` 切回 metadata、`End` 跟隨尾端。副本是顯示層：不寫 log、不進 receipt／模型 context、不影響終態或 usage；task finish、整個 run 結束或 runner 失敗即 `release()`，之後的 late event 不會重建，task 數與串流背壓限制不變。
+
 Subagent `reported … tok*` 為本次 invocation **已回報累計 usage**，不是逐 token 精確計數。詳細 metadata 有 input／output／cache read/write／total／cost，未報為 pending，終結仍無資料為 unknown；部分 tasks 未報時標 usage partial。已確認終結 result 優先於早期 snapshot；live query 用量不加入主 task，ready query 以自己的 job 顯示，query 的模型回覆不冒充 worker／lease settlement。背景用量不加到 host totals，不改任何 result/schema/accounting。
 
 `/background-jobs` 或 `more`／`all` 開啟有界浮層；`subagents`／`shell` 篩選清單，`collapse` 明確隱藏常駐面板，之後 more／all 可恢復。↑↓ 選取、Enter 詳細、Tab 最近完成／全部、Esc 返回清單／關閉回 editor；只有主動開啟才取焦點，背景更新不重開或改草稿。Fullscreen 可點完整 More 標籤；一般模式不接管 terminal mouse。終結 jobs 移出常駐面板，More 可查看當前 retained metadata，不復原已淘汰或跨 reload job。無 active job 不占面板空間。標題／agent 顯示先有界清理 ANSI／控制碼／bidi，按 Unicode 欄寬截短不折行；窄／矮終端減少細節／行數。

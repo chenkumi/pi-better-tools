@@ -164,6 +164,22 @@ test("onMessage receives user/assistant/toolResult messages only after the task 
 	assert.equal(seen[0].content, "PROMPT");
 });
 
+test("onEvent receives streaming and tool events only after the task was sent; a throwing sink never breaks the stream", async () => {
+	const seen: string[] = [], script = happyScript({ n: 0 });
+	const { proc } = fakeProc({ onRequest(cmd, reply) {
+		script.onRequest(cmd, reply);
+		if (cmd.type === "prompt") for (const event of [{ type: "message_start", message: { role: "assistant", content: [] } }, { type: "message_update", message: { role: "assistant", content: [] } }, { type: "tool_execution_start", toolCallId: "c" }, { type: "tool_execution_end", toolCallId: "c", isError: false }, { type: "agent_end" }])
+			proc.stdout.write(JSON.stringify(event) + "\n");
+	} });
+	const handle = startForkChild(spec(proc, { onEvent: (event: any) => { seen.push(event.type); throw new Error("sink failure is isolated"); } }));
+	proc.stdout.write(JSON.stringify({ type: "message_update", message: { role: "user", content: "inherited" } }) + "\n");
+	ipc(proc, { type: "verified", tools: ["read"] });
+	await new Promise(r => setImmediate(r)); await new Promise(r => setImmediate(r));
+	ipc(proc, { type: "settled", quiet: true }); setImmediate(() => proc.exit(0));
+	assert.equal((await handle.done).status, "completed");
+	assert.deepEqual(seen, ["message_start", "message_update", "tool_execution_start", "tool_execution_end"]);
+});
+
 test("fork_message: follow_up and steer reuse the existing RPC pipe and return the child disposition", async () => {
 	const seen: Array<[string, string]> = [], state = { n: 0 }, script = happyScript(state);
 	const { proc } = fakeProc({ onRequest(cmd, reply) {
