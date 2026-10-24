@@ -23,11 +23,15 @@
 `monitor_start` 的 `source.kind:"command"` 由 Monitor 自行啟動 backend，不經巢狀 `bash` 的 `tool_call` hooks；因此只拒絕 `bash` 的 policy **不會**阻止 Monitor command source，policy 必須針對 `monitor_start`（可檢查 `input.source.command`）。這是目前明訂的授權範圍，不是已證實的權限漏洞，也不會偷偷啟用 `bash`；若產品要求兩者同範圍，需另行決定（例如 `ctx.executeTool`）。`tests/command-authorization.integration.test.mjs` 鎖定：直接 bash 被拒、可針對 `monitor_start` 攔截；「bash-deny 也涵蓋 Monitor」以 `todo` 記錄。
 共通 `durationMs` 預設300000、1000–1800000整數，包含 startup；不是 Shell idle `timeoutMs`。`wakeAgent` 預設true；false 的 display custom message 不要求模型回合。`stopAfterEvents` 可選1–600，計採納資料事件；`label` 可選80字、清控制碼。Start 立即回 pending receipt；acceptance 後 runtime 接管，不跟著原工具 call 的晚到 abort 停止。Status `{monitorId?}` 唯讀，省略列最多32；Stop `{monitorId}` 冪等、可能先回 stopping/cleanupPending。
 
+### 活躍 monitor 清單（Blackhole 壓縮提醒）
+
+Monitor 在 `session_start` 另經 `monitor-capability.ts` 發布 `publishActiveMonitorBriefs`（scope 同 owner session ＋ canonical cwd），`session_shutdown` 先 revoke。`activeMonitorBriefs(scope)` 回傳**未終結** monitor 的窄投影：`monitorId`、`source`（kind）、`state`（starting／running／stopping）、`target`（file 為 `source.path`、websocket 只留 origin、command 為 `[command withheld]`、job 為 jobId）、可選 `label`、`remainingMs`；上限16筆，reader 例外或 malformed row 只標 `partial`。投影不含命令文字、URL path／query、事件、output 或任何控制把手，不能 stop／cancel／查模型，也不代表已交付。Blackhole 的 `[Active Monitors]` 區塊即讀此清單，只代表壓縮當下。
+
 ## TUI 與 Agent 投遞
 
 `monitor_event` 已註冊原生訊息 renderer，與 Shell／Fork 通知使用相同主題背景面板與內距，依狀態用 success／error／pending；收合顯示來源狀態、短 ID 與末三筆事件，原生展開看完整 IDs、最多32筆事件及具名 job snapshot 欄位。顯示清理 ANSI／控制碼／bidi、依終端欄寬截短／換行、最多300行；renderer 不執行工具、不修改模型正文或 details，不將來源輸出當作終結／清理證據。舊的 prose＋JSON body 可有界解析；缺欄位安全顯示 unknown，不重寫已存訊息。
 
-- `wakeAgent:true`（預設）：`pi.sendMessage` 的 `triggerTurn:true, deliverAs:"followUp"`，要求 Agent 回合；主 Agent 忙碌時由目前 busy gate 等 `agent_settled` 後再提交，並保留每owner30秒節流。
+- `wakeAgent:true`（預設）：`pi.sendMessage` 的 `triggerTurn:true, deliverAs:"steer"`，要求 Agent 回合；與 Shell／Subagent 完成通知一致：主 Agent 忙碌時也直接提交，由 Pi 的 steering 佇列在安全的回合邊界插入，不等 `agent_settled`；保留每 owner 30 秒節流。核心的 `setBusy` 只是 embedder 的選用保留閥，Pi extension 不呼叫。
 - `wakeAgent:false`：custom message 仍保存並加入模型上下文，只是不主動要求新模型回合；下次正常請求可讀到，不是只有使用者看得到。Shell 自動 Monitor 固定此模式，避免每次採樣額外呼叫模型；原 Shell job 完成通知另行喚醒。
 - 面板分別顯示 `Agent turn requested`／`Display only · no Agent turn requested`；batch 中任一選中來源為true即要求turn。舊訊息缺少欄位顯示 unavailable，receipt 與新批次 metadata 都提供每來源 `wakeAgent`。這是請求模式而非 host acknowledgment，不保證 Agent 一定產生文字回覆。
 
@@ -49,7 +53,7 @@ URL origin-only preview、generic network failure等 **Monitor自產metadata** �
 
 ## `monitor_event` producer v1／Blackhole 窄交接
 
-Pi custom message：`customType:"monitor_event"`、`display:true`，固定 untrusted-data 說明＋JSON，details 權威（正文非指令）。`wakeAgent:true` 用 `triggerTurn:true,deliverAs:"followUp"`；false 不要求turn。Details：
+Pi custom message：`customType:"monitor_event"`、`display:true`，固定 untrusted-data 說明＋JSON，details 權威（正文非指令）。`wakeAgent:true` 用 `triggerTurn:true,deliverAs:"steer"`；false 為 `triggerTurn:false`（Pi 在此情況不使用 `deliverAs`，串流中由 Pi 延到回合結束附加）。Details：
 
 - `schemaVersion:1`、`batchSequence`（owner runtime 遞增）。
 - `events[]`：`eventId`／`monitorId`（uppercase ULID）、`sequence`（per-monitor）、`observedAt`、`category:"data"|"system"`、`kind`、可選 `text`／`snapshot`、`partial`、`originalBytes`。

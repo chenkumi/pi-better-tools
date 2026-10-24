@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { MouseRegion, visibleWidth, type Component } from "@earendil-works/pi-tui";
-import { JobsOverlay, renderJobs, safeJobText, type PanelJob, type PanelKind } from "./job-view.js";
+import { JobsOverlay, displayedJobs, jobKey, renderJobs, safeJobText, type PanelJob, type PanelKind } from "./job-view.js";
 
 export { type PanelKind } from "./job-view.js";
 export const BACKGROUND_WIDGET_KEY = "pi-better-tools-background-jobs";
@@ -87,15 +87,18 @@ export class BackgroundPanel {
       // The above-editor panel owns its summary, not the host footer or other status keys.
       ctx.ui.setStatus(BACKGROUND_STATUS_KEY, undefined);
       ctx.ui.setWidget(BACKGROUND_WIDGET_KEY, (tui, theme) => {
-        let disposed = false, renderedWidth = -1, moreRow = -1, moreEnd = -1;
+        let disposed = false, renderedWidth = -1, moreRow = -1, moreEnd = -1, jobRows: string[] = [];
         const child: Component = {
-          invalidate() { renderedWidth = -1; moreRow = -1; },
+          invalidate() { renderedWidth = -1; moreRow = -1; jobRows = []; },
           render: width => {
-            renderedWidth = width; moreRow = -1;
+            renderedWidth = width; moreRow = -1; jobRows = [];
             if (disposed || revision !== this.revision || this.collapsed) return [];
             const jobs = this.jobs();
             const lines = renderJobs(jobs, theme, width, tui.terminal?.rows ?? 40);
             moreRow = lines.length - 1;
+            // Each displayed job owns two rows (heading, activity); anything that does not line up is simply not clickable.
+            const shown = displayedJobs(jobs, tui.terminal?.rows ?? 40);
+            if (lines.length === shown.length * 2 + 2) jobRows = shown.flatMap(job => [jobKey(job), jobKey(job)]);
             moreEnd = width >= 3 ? 1 + visibleWidth("More…") : -1;
             // Only the complete More label is a mouse target, not clipped text or row contents.
             if (moreEnd > width - (width >= 3 ? 1 : 0) || !safeJobText(lines[moreRow] ?? "").startsWith(" More…")) moreRow = -1;
@@ -103,12 +106,16 @@ export class BackgroundPanel {
           },
         };
         const mouse = new MouseRegion(child, event => {
-          if (disposed || revision !== this.revision || event.width !== renderedWidth || event.y !== moreRow || moreRow < 0 || event.x < 1 || event.x >= moreEnd || event.button !== "left" || event.shift || event.alt || event.ctrl || event.type !== "click" || (event.clickCount ?? 1) !== 1) return;
+          if (disposed || revision !== this.revision || event.width !== renderedWidth || event.button !== "left" || event.shift || event.alt || event.ctrl || event.type !== "click" || (event.clickCount ?? 1) !== 1) return;
           if (!this.jobs().some(j => j.active)) return;
-          void this.openMore(ctx).catch(() => undefined);
+          // Only the complete More label is a mouse target for the list; a job's two rows open that job directly.
+          const more = moreRow >= 0 && event.y === moreRow && event.x >= 1 && event.x < moreEnd;
+          const key = more ? undefined : jobRows[event.y - 1];
+          if (!more && !key) return;
+          void this.openMore(ctx, undefined, key).catch(() => undefined);
           return { handled: true, render: true };
         });
-        return Object.assign(mouse, { dispose() { disposed = true; moreRow = -1; } });
+        return Object.assign(mouse, { dispose() { disposed = true; moreRow = -1; jobRows = []; } });
       }, { placement: "aboveEditor" });
       this.ui = ctx; this.last = signature;
     } catch { this.hide(); }
@@ -121,7 +128,7 @@ export class BackgroundPanel {
     this.collapsed = kind === "collapse";
     this.last = undefined; this.redraw(); return true;
   }
-  async openMore(ctx: ExtensionContext, kind?: PanelKind): Promise<boolean> {
+  async openMore(ctx: ExtensionContext, kind?: PanelKind, detailKey?: string): Promise<boolean> {
     if (ctx.mode !== "tui" || !ctx.hasUI || !this.isOwner(ctx) || !this.jobs(kind).length || this.overlay) return false;
     const lease = { ctx, owner: this.owner!, cancelled: false } as NonNullable<BackgroundPanel["overlay"]>;
     this.overlay = lease;
@@ -136,7 +143,7 @@ export class BackgroundPanel {
           if (lease.cancelled) return [];
           if (!this.isOwner(ctx, lease.owner)) { this.closeOverlay(); this.validEntries(); return []; }
           return this.jobs(kind);
-        }, theme, () => tui.requestRender(), lease.close, () => tui.terminal?.rows ?? 24);
+        }, theme, () => tui.requestRender(), lease.close, () => tui.terminal?.rows ?? 24, tui, ctx.cwd, detailKey);
         return lease.component;
       }, { overlay: true, overlayOptions: { anchor: "center", width: "90%", maxHeight: 20, margin: 1 } });
       return true;

@@ -44,7 +44,8 @@ export function forkPanelJob(job: Job): PanelJob {
 		...(job.persistError ? [`Persist error: ${job.persistError}`] : []),
 	];
 	return { kind: "fork", jobId: r.jobId, label: "fork", title: safeJobText(r.title, 256), state: r.status, active: !isTerminal(r.status) || !job.released,
-		activity: activity(job), usageState: usage ? "reported" : r.result?.usageUnknown ? "unknown" : "pending", ...(usage ? { usage } : {}), startedAt: iso(r.createdAt), details: details.map(line => safeJobText(line, 512)) };
+		activity: activity(job), usageState: usage ? "reported" : r.result?.usageUnknown ? "unknown" : "pending", ...(usage ? { usage } : {}), startedAt: iso(r.createdAt), details: details.map(line => safeJobText(line, 512)),
+		...(job.live && !job.live.isReleased ? { transcripts: [{ label: "fork", transcript: job.live }] } : {}) };
 }
 
 /** Binding-scoped, event-driven view of one origin session's Forks. Presentation only: no polling, no model work. */

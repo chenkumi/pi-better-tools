@@ -246,7 +246,7 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 
 `monitor_event` 使用與 Shell／Fork 通知一致的主題背景面板，不再直接顯示 raw JSON；收合顯示來源狀態與末三筆事件，展開顯示完整 IDs 與此通知保留的資料，控制碼只在顯示層清理，最多300行。
 
-`wakeAgent` 預設true，使用 `triggerTurn:true, deliverAs:"followUp"`；false仍提交模型可見的display custom `monitor_event`，但不主動要求turn（下次合法模型請求可見，不是永遠只給使用者）。Shell 自動建立的 Monitor 固定為false，原 Shell job 完成通知另會喚醒 Agent。面板標示 Agent turn requested／Display only，舊資料沒有 wakeAgent 欄位時顯示 unknown；不以顯示成功冒稱模型送達確認。Busy由agent_start/agent_settled維持，ordered data／bounded batches，submitted不代表host ack／persisted；cancel/exit不代表source close／descendants cleanup，reload不恢復或重播。完整schema／limits／Blackhole producer交接與驗證邊界見 [Monitor README](modules/monitor/README.md)。Blackhole allowlist接線另由父agent協調，未因此宣稱壓縮共存已通過。
+`wakeAgent` 預設true，使用 `triggerTurn:true, deliverAs:"steer"`；false仍提交模型可見的display custom `monitor_event`，但不主動要求turn（下次合法模型請求可見，不是永遠只給使用者）。Shell 自動建立的 Monitor 固定為false，原 Shell job 完成通知另會喚醒 Agent。面板標示 Agent turn requested／Display only，舊資料沒有 wakeAgent 欄位時顯示 unknown；不以顯示成功冒稱模型送達確認。Busy由agent_start/agent_settled維持，ordered data／bounded batches，submitted不代表host ack／persisted；cancel/exit不代表source close／descendants cleanup，reload不恢復或重播。完整schema／limits／Blackhole producer交接與驗證邊界見 [Monitor README](modules/monitor/README.md)。Blackhole allowlist接線另由父agent協調，未因此宣稱壓縮共存已通過。
 
 ### Extension 提供的 skills
 

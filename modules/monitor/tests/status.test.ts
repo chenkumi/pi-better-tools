@@ -24,3 +24,9 @@ test('review S3: saved status definition rejects non-record direct execution bef
   assert.deepEqual((await tools.get('monitor_status').execute('direct', {}, undefined, undefined, ctx)).structuredContent, { monitors: [] }); assert.equal(lists, 1);
   await handlers.get('session_shutdown')({}, ctx);
 });
+
+test('Monitor does not gate delivery on the parent run: no agent_start/agent_settled subscription', () => {
+  const events: string[] = [];
+  monitorExtension({ registerMessageRenderer() {}, registerTool() {}, on: (name: string) => { events.push(name); }, sendMessage() {} } as any, { clock: { now: () => 0, set() { return 0; }, clear() {} } } as any);
+  assert.equal(events.includes('agent_start'), false); assert.equal(events.includes('agent_settled'), false);
+});

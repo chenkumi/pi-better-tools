@@ -3,11 +3,14 @@ import type { Component } from "@earendil-works/pi-tui";
 import { BACKGROUND_WIDGET_KEY, type PanelHost } from "./background-panel.js";
 import { JobsWidgetBinding } from "./widget-binding.js";
 import { renderJobs, safeJobText, type PanelJob } from "./job-view.js";
+import type { OutputTranscript } from "./live-transcript.js";
 export const SHELL_WIDGET_KEY = BACKGROUND_WIDGET_KEY;
 export interface ShellWidgetRow {
   jobId: string; tool: string; status: string; command: string;
   startedAt?: number; endedAt?: number; totalBytes?: number; logBytes?: number;
   exitCode?: number; cancelRequested?: boolean; liveLogPath?: string;
+  /** Bounded live output copy of a running job; the owner releases it at the terminal state. */
+  live?: OutputTranscript;
 }
 export function shellPanelJobs(rows: readonly ShellWidgetRow[]): PanelJob[] {
   return rows.slice(0, 32).map(row => {
@@ -22,7 +25,8 @@ export function shellPanelJobs(rows: readonly ShellWidgetRow[]): PanelJob[] {
         `Exit code: ${row.exitCode ?? "not provided"} · Cancel requested: ${row.cancelRequested === true}`,
         ...(row.liveLogPath ? [`Log: ${safeJobText(row.liveLogPath)}`] : []),
         "Tokens N/A: Shell has no model usage ledger.",
-      ] };
+      ],
+      ...(row.live && !row.live.isReleased ? { transcripts: [{ label: "output", transcript: row.live }] } : {}) };
   });
 }
 export function renderShellWidget(rows: readonly ShellWidgetRow[], theme: Theme): Component {

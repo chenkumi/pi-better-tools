@@ -1,6 +1,7 @@
 import { ulid } from "ulid";
 import { canonicalMonitorCwd } from "./monitor-capability.js";
 import { ShellJobsWidget } from "./live-widget.js";
+import { OutputTranscript } from "./live-transcript.js";
 import { BackgroundRecovery, type RecoveryWriter } from "./recovery.js";
 import { closeSync, mkdtempSync, openSync, promises as asyncFs, writeFileSync, writeSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,6 +11,8 @@ import type { BashOperations, ExtensionAPI, ExtensionContext } from "@earendil-w
 export const MAX_ACTIVE_JOBS = 8;
 export const MAX_RETAINED_JOBS = 32;
 export const MAX_LOG_BYTES = 1024 * 1024;
+/** A finished or evicted job never keeps its memory copy: the persisted log stays the only retained output. */
+function releaseLive(job: Job) { job.live?.release(); job.live = undefined; }
 const MAX_CAPTURE_BYTES = 32 * 1024;
 /** Last bytes of output kept in memory so status can show the end of a long run. */
 export const TAIL_BYTES = 8 * 1024;
@@ -187,6 +190,8 @@ type Job = {
   result?: ShellResult; error?: string; done: Promise<void>;
   command: string; startedAt: number; endedAt?: number; cancelRequested: boolean;
   totalBytes: number; tail: Buffer;
+  /** Bounded in-memory output copy for the live detail view; released at the terminal state. */
+  live?: OutputTranscript;
   recovery?: RecoveryWriter; started?: boolean;
 };
 
@@ -237,7 +242,7 @@ export class ShellJobs {
     this.widget.bind(ctx, () => [...this.jobs.values()].filter(job => !this.stopped && job.owner === this.owner && job.generation === this.generation)
       .map(job => ({ jobId: job.jobId, tool: job.tool, status: job.status, command: job.command.slice(0, 8192), startedAt: job.startedAt, endedAt: job.endedAt,
         totalBytes: job.totalBytes, logBytes: job.logBytes, cancelRequested: job.cancelRequested, liveLogPath: job.liveLogPath,
-        exitCode: exitCodeOf(job) })));
+        exitCode: exitCodeOf(job), live: job.live })));
   }
 
   private assertOwner(ctx: ExtensionContext) {
@@ -274,7 +279,7 @@ export class ShellJobs {
       jobId: ulid().toUpperCase(), status: "running", tool, toolCallId, owner: this.owner!, generation: this.generation,
       controller: new AbortController(), directory, liveLogPath, fd, logBytes: 0, capturedBytes: 0,
       outputTruncated: false, capturedLines: 0, captureStopped: false, done: Promise.resolve(),
-      command, startedAt: Date.now(), cancelRequested: false, totalBytes: 0, tail: Buffer.alloc(0),
+      command, startedAt: Date.now(), cancelRequested: false, totalBytes: 0, tail: Buffer.alloc(0), live: new OutputTranscript(),
     };
     try {
       job.recovery = this.recovery.accept({ jobId: job.jobId, toolCallId, state: "accepted", started: false });
@@ -313,6 +318,7 @@ export class ShellJobs {
       }
       // EBUSY/EPERM on Windows (a straggler child still holds the directory) must not wedge every later submit.
       housekeep(() => removeJobDirectory(oldest.directory)); // Failed/capped cleanup remains orphaned; admission is not blocked.
+      releaseLive(oldest);
       this.jobs.delete(oldest.jobId);
       this.evicted.add(oldest.jobId);
       if (this.evicted.size > MAX_EVICTED_IDS) this.evicted.delete(this.evicted.values().next().value!);
@@ -344,6 +350,7 @@ export class ShellJobs {
       job.status = job.logError ? "failed" : job.controller.signal.aborted ? "cancelled" : timedOut ? "timed_out" : "failed";
     } finally {
       job.endedAt = Date.now();
+      releaseLive(job);
       this.closeLog(job);
       this.record(job, true); // Save true outcome before attempting notification, including orderly shutdown.
     }
@@ -359,6 +366,7 @@ export class ShellJobs {
     if (!this.isCurrent(job) || job.fd === undefined) return;
     job.totalBytes += data.length;
     job.tail = appendTail(job.tail, data);
+    job.live?.append(data);
     const logged = data.subarray(0, Math.max(0, MAX_LOG_BYTES - job.logBytes));
     if (logged.length) {
       try {
@@ -398,6 +406,7 @@ export class ShellJobs {
     // work into the process-wide unhandledRejection handler.
     try { job.controller.abort(); } catch { /* containment must not reject */ }
     try { this.closeLog(job); } catch { /* containment must not reject */ }
+    releaseLive(job);
     job.status = "failed";
     job.endedAt ??= Date.now();
     job.error = "Unexpected shell background runner failure";
@@ -571,6 +580,7 @@ export class ShellJobs {
         return removeJobDirectory(job.directory).catch(() => undefined);
       });
       await waitAtMost(Promise.all(removals), removalMs);
+      for (const job of jobs) releaseLive(job);
       this.jobs.clear();
       this.evicted.clear();
       this.owner = undefined;

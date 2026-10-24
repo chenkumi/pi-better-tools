@@ -442,6 +442,8 @@ export interface RunnerRuntime {
 	onInteraction?: (notice: InteractionNotice) => void;
 	/** Private payload-free UI observer, never tool output or usage accounting. */
 	onPresentation?: (progress: TaskPresentation) => void;
+	/** Raw validated child event, for the in-memory live conversation view only. */
+	onEvent?: (event: Record<string, unknown>) => void;
 	/** Internal payload-free notification diagnostics; never host delivery acknowledgment. */
 	onNotificationObservation?: (event: NotificationObservation) => void;
 	agentScope?: AgentScope;
@@ -850,6 +852,7 @@ async function runSingleAgentUnlimited(
 				if (rpc) { lastStdoutAt = performance.now(); activity(); }
 				validateKnownEvent(event);
 				if (runtime.onPresentation) observePresentation(event);
+				if (runtime.onEvent) { try { runtime.onEvent(event); } catch { /* UI failures never alter child execution or diagnostics. */ } }
 				// Retry START, queued work and tool continuations invalidate a prior conclusion.
 				// Pi 1.0.0 emits successful auto_retry_end AFTER the recovered message_end;
 				// it finishes recovery, so it must not erase that new terminal conclusion.
@@ -1429,9 +1432,9 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 			const details = (results: SingleResult[], progress?: LiveProgress[]): SubagentDetails => ({ mode: "single", agentScope, projectAgentsDir: discoverAgents(dispatchCwd, agentScope).projectAgentsDir, ...(params.title ? { title: params.title.trim() } : {}), results, ...(progress ? { progress } : {}) });
 			const debugLog = runtime.debugLog ?? await preflight.run(() => readGlobalDebugLogSetting(runtime.settingsAgentDir ?? getAgentDir()), "read debug configuration");
 			if (signal?.aborted || preflight.stopped) throw new Error("Message submission aborted before acceptance");
-			const receipt = await jobs.submitManaged(owner.parentSessionId, owner.parentCwd, epoch, [config.agent.name], async () => [session.id], async (jobSignal, ids, live, finish, attach, interaction, presentation) => {
+			const receipt = await jobs.submitManaged(owner.parentSessionId, owner.parentCwd, epoch, [config.agent.name], async () => [session.id], async (jobSignal, ids, live, finish, attach, interaction, presentation, events) => {
 				try {
-					const result = await runSingleAgent(dispatchCwd, { modelWasExplicit: true, thinkingLevelWasExplicit: true }, [], config.agent.name, params.message, config.cwd, undefined, jobSignal, undefined, details, owner.parentSessionId, toolCallId, { ...runtime, transport: "rpc", debugLog, agentScope, projectTrusted, resumeSession: session, validateResumeConfig: validate, taskId: ids[0], onLiveLog: (id, path) => live(0, id, path), onInteractive: handle => attach(0, handle), onInteraction: notice => interaction(0, notice), onPresentation: data => presentation(0, data) }, params.title);
+					const result = await runSingleAgent(dispatchCwd, { modelWasExplicit: true, thinkingLevelWasExplicit: true }, [], config.agent.name, params.message, config.cwd, undefined, jobSignal, undefined, details, owner.parentSessionId, toolCallId, { ...runtime, transport: "rpc", debugLog, agentScope, projectTrusted, resumeSession: session, validateResumeConfig: validate, taskId: ids[0], onLiveLog: (id, path) => live(0, id, path), onInteractive: handle => attach(0, handle), onInteraction: notice => interaction(0, notice), onPresentation: data => presentation(0, data), onEvent: event => events(0, event) }, params.title);
 					finish(0, backgroundResult(result), getResultStatus(result));
 				} finally { release?.(); }
 			}, [params.title], () => {
@@ -1659,13 +1662,13 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 						}
 						if (signal?.aborted) throw new Error("Background submission aborted before acceptance");
 						return sessions.map(session => session.id);
-					}, async (jobSignal, ids, live, finish, attach, interaction, presentation) => {
+					}, async (jobSignal, ids, live, finish, attach, interaction, presentation, events) => {
 						const siblings = new AbortController();
 						const combined = AbortSignal.any([jobSignal, siblings.signal]);
 						const run = async (index: number, previous = "") => {
 							const item = items[index];
 							try {
-								const result = await runSingleAgent(dispatchCwd, item.defaults, agents, item.agent, hasChain ? expandChainTask(item.task, previous) : item.task, item.cwd, hasChain ? index + 1 : undefined, combined, undefined, makeDetails(dispatchMode), parentSessionId, toolCallId, { ...taskRuntime, allocatedSession: sessions[index], taskId: ids[index], onLiveLog: (id, path) => live(index, id, path), onInteractive: handle => attach(index, handle), onInteraction: notice => interaction(index, notice), onPresentation: data => presentation(index, data) }, item.title ?? params.title);
+								const result = await runSingleAgent(dispatchCwd, item.defaults, agents, item.agent, hasChain ? expandChainTask(item.task, previous) : item.task, item.cwd, hasChain ? index + 1 : undefined, combined, undefined, makeDetails(dispatchMode), parentSessionId, toolCallId, { ...taskRuntime, allocatedSession: sessions[index], taskId: ids[index], onLiveLog: (id, path) => live(index, id, path), onInteractive: handle => attach(index, handle), onInteraction: notice => interaction(index, notice), onPresentation: data => presentation(index, data), onEvent: event => events(index, event) }, item.title ?? params.title);
 								finish(index, backgroundResult(result), getResultStatus(result));
 								return result;
 							} catch (error) { siblings.abort(); throw error; }

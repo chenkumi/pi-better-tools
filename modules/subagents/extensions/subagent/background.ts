@@ -1,5 +1,6 @@
 import { ulid } from "ulid";
 import { panelUsage, safeJobText, usageDetails, type PanelJob, type PanelUsage } from "../../../shell-tools/src/job-view.js";
+import { LiveTranscript } from "../../../shell-tools/src/live-transcript.js";
 export interface TaskPresentation { activity: string; usage?: PanelUsage; usageReported: boolean }
 import type { RecoverySnapshot, RecoveryWriter } from "../../../shell-tools/src/recovery.js";
 import { copyResultSummary, resultSummary } from "./result.ts";
@@ -41,6 +42,8 @@ interface Job extends BackgroundReceipt {
 	/** UI-only titles: deliberately absent from receipts/model/structured content. */
 	widgetTitles: string[];
 	widgetProgress: Array<TaskPresentation | undefined>;
+	/** In-memory conversation copies; released when the task (or the whole run) reaches a terminal state. */
+	transcripts: Array<LiveTranscript | undefined>;
 	widgetStartedAt: number;
 	recovery?: RecoveryWriter;
 	/** Ready-session query has its own job but never claims a main-task result. */
@@ -206,7 +209,8 @@ export class BackgroundJobs {
 			details.unshift(`Reported task usage: ${reported}/${job.tasks.length} · ${usageDetails(reported ? usage : undefined)}`);
 			return { kind: "subagents", jobId: job.jobId, label: job.tasks.length > 1 ? `batch (${job.tasks.length} tasks)` : `${safeJobText(job.tasks[0].agent, 64)}${job.readonlyQueryId ? " (query)" : ""}`,
 				title: safeJobText(job.widgetTitles[0] ?? "", 256), state, active, activity, startedAt: job.widgetStartedAt,
-				usage: reported ? usage : undefined, usageState: reported ? "reported" : active ? "pending" : "unknown", details };
+				usage: reported ? usage : undefined, usageState: reported ? "reported" : active ? "pending" : "unknown", details,
+				...(active && job.transcripts.some(Boolean) ? { transcripts: job.tasks.flatMap((task, i) => job.transcripts[i] ? [{ label: `${safeJobText(task.agent, 64)} #${i + 1}`, transcript: job.transcripts[i]! }] : []) } : {}) };
 		});
 	}
 	/** Current admission load, for actionable capacity diagnostics. */
@@ -345,7 +349,7 @@ export class BackgroundJobs {
 		}
 		return mode === "control" ? handle.control(text) : handle.query(text);
 	}
-	submit(owner: string, cwd: string, epoch: number, agents: string[], run: (signal: AbortSignal, taskIds: string[], live: (index: number, sessionId: string, path: string) => void, finish: (index: number, result: unknown, status: BackgroundTask["status"]) => void, attach: (index: number, handle: RpcInteraction) => void, interaction: (index: number, notice: InteractionNotice) => void, progress: (index: number, data: TaskPresentation) => void) => Promise<void>, widgetTitles: readonly (string | undefined)[] = [], admission?: Promise<void>, readonlyQueryId?: string, options: BackgroundSubmitOptions = {}) {
+	submit(owner: string, cwd: string, epoch: number, agents: string[], run: (signal: AbortSignal, taskIds: string[], live: (index: number, sessionId: string, path: string) => void, finish: (index: number, result: unknown, status: BackgroundTask["status"]) => void, attach: (index: number, handle: RpcInteraction) => void, interaction: (index: number, notice: InteractionNotice) => void, progress: (index: number, data: TaskPresentation) => void, events: (index: number, event: unknown) => void) => Promise<void>, widgetTitles: readonly (string | undefined)[] = [], admission?: Promise<void>, readonlyQueryId?: string, options: BackgroundSubmitOptions = {}) {
 		if (this.closed || epoch !== this.generation) throw new Error("BACKGROUND_RUNTIME_CLOSED: owner session changed during preflight");
 		if (options.taskIds && options.taskIds.length !== agents.length) throw new Error("INVALID_DISPATCH: taskIds must match agents");
 		if (!agents.length || agents.length > MAX_SUBMITTED || submittedTasks + agents.length > MAX_SUBMITTED) throw new Error(`BACKGROUND_CAPACITY: Request not accepted: capacity limit reached. at most ${MAX_SUBMITTED} submitted background tasks process-wide (now ${this.load()}; this request adds ${agents.length}). Next: call subagent_status (no jobId lists your jobs) to see what is still running, subagent_cancel jobs you no longer need, or split the work into smaller batches and submit the rest after task_result completion notifications arrive.`);
@@ -355,7 +359,7 @@ export class BackgroundJobs {
 		}
 		if (this.jobs.size >= MAX_RETAINED_JOBS) throw new Error(`BACKGROUND_CAPACITY: Request not accepted: capacity limit reached. retained job limit (${MAX_RETAINED_JOBS}) reached with unfinished jobs (now ${this.load()}). Next: call subagent_status to list jobs and subagent_cancel ones you no longer need, then retry.`);
 		const job: Job = { jobId: ulid().toUpperCase(), owner, cwd, generation: this.generation, status: "queued", cancelRequested: false,
-			tasks: agents.map((agent, index) => ({ taskId: options.taskIds?.[index] ?? ulid().toUpperCase(), agent, status: "queued", logPending: true })), controller: new AbortController(), done: Promise.resolve(), interactive: new Map(), readonlyQueryId, widgetTitles: agents.map((_agent, index) => widgetTitles[index]?.slice(0, 256) ?? ""), widgetProgress: [], widgetStartedAt: Date.now(), notifiedTasks: new Set(), perTaskNotify: options.perTaskNotify === true && !readonlyQueryId && agents.length > 1 };
+			tasks: agents.map((agent, index) => ({ taskId: options.taskIds?.[index] ?? ulid().toUpperCase(), agent, status: "queued", logPending: true })), controller: new AbortController(), done: Promise.resolve(), interactive: new Map(), readonlyQueryId, widgetTitles: agents.map((_agent, index) => widgetTitles[index]?.slice(0, 256) ?? ""), widgetProgress: [], transcripts: [], widgetStartedAt: Date.now(), notifiedTasks: new Set(), perTaskNotify: options.perTaskNotify === true && !readonlyQueryId && agents.length > 1 };
 		if (!admission) job.recovery = this.persist?.(owner, cwd, this.snapshot(job));
 		if (readonlyQueryId) Object.assign(job.tasks[0], { queries: [{ queryId: readonlyQueryId, status: "accepted" }], readOnlyQuery: true, logPending: false, canMessage: false });
 		this.jobs.set(job.jobId, job);
@@ -381,6 +385,7 @@ export class BackgroundJobs {
 					const handle = job.interactive.get(index);
 					if (handle) { Object.assign(task, handle.snapshot(), { canMessage: false }); job.interactive.delete(index); }
 					task.result = result; task.status = status;
+					job.transcripts[index]?.release(); job.transcripts[index] = undefined;
 					if (result && typeof result === "object" && "logPath" in result && result.logPath) { delete task.liveLogPath; delete task.finalLogPath; }
 					if (result && typeof result === "object" && "subagentSessionId" in result && typeof result.subagentSessionId === "string") task.subagentSessionId = result.subagentSessionId;
 					this.record(job); this.changed(job);
@@ -411,10 +416,23 @@ export class BackgroundJobs {
 					if (this.closed || job.generation !== this.generation || this.jobs.get(job.jobId) !== job || !["queued", "running"].includes(job.status) || !["queued", "running"].includes(job.tasks[index]?.status)) return;
 					job.widgetProgress[index] = { activity: safeJobText(data.activity, 256), usageReported: data.usageReported, usage: data.usageReported ? panelUsage(data.usage) : undefined };
 					this.changed(job);
+				}, (index, event) => {
+					// Memory copy for the live viewer only; a late event after a terminal state never revives it.
+					if (this.closed || job.generation !== this.generation || this.jobs.get(job.jobId) !== job || !["queued", "running"].includes(job.tasks[index]?.status)) return;
+					try {
+						const created = !job.transcripts[index];
+						(job.transcripts[index] ??= new LiveTranscript()).ingest(event);
+						// The panel snapshot only carries a copy that exists; tell it once, at creation (later events notify the view directly).
+						if (created) this.changed(job);
+					} catch { /* presentation never alters the run */ }
 				});
+				for (const t of job.transcripts) t?.release();
+				job.transcripts = [];
 				for (const task of job.tasks) if (task.status === "queued") task.status = job.controller.signal.aborted ? "aborted" : "skipped";
 				job.status = job.controller.signal.aborted ? "aborted" : job.tasks.some(task => task.status !== "completed") ? "failed" : "completed";
 			} catch (error) {
+				for (const t of job.transcripts) t?.release();
+				job.transcripts = [];
 				if (job.readonlyQueryId) job.readonlyQueryRunnerError = error instanceof Error ? error.message : String(error);
 				job.status = job.controller.signal.aborted ? "aborted" : "failed";
 				for (const task of job.tasks) if (job.readonlyQueryId || ["queued", "running"].includes(task.status)) {
@@ -455,7 +473,13 @@ export class BackgroundJobs {
 		this.generation++;
 		this.changed();
 		const jobs = [...this.jobs.values()];
-		for (const job of jobs) { if (["queued", "running"].includes(job.status)) { job.cancelRequested = true; this.record(job); } job.controller.abort(); }
+		for (const job of jobs) {
+			if (["queued", "running"].includes(job.status)) { job.cancelRequested = true; this.record(job); }
+			job.controller.abort();
+			// The viewer's memory copy must not outlive the owner, even if the runner never settles.
+			for (const t of job.transcripts) t?.release();
+			job.transcripts = [];
+		}
 		let timer: ReturnType<typeof setTimeout> | undefined;
 		try {
 			await Promise.race([Promise.allSettled(jobs.map(job => job.done)), new Promise<void>(resolve => { timer = setTimeout(resolve, waitMs); })]);
