@@ -314,6 +314,8 @@ function registerTimeoutMsOverride(
           } catch {
             // No capacity (or owner unavailable): stay a normal foreground command, still linked to the turn's abort.
             unlinkJob?.(); unlinkJob = undefined;
+            // The "moving" notice only says the handoff was requested; say when it was not accepted.
+            if (outcome === "manual") try { ctx.ui.notify("Could not move the command to a background job; it is still running in the foreground. Retry Alt+J or a steer message, or wait for it to finish.", "warning"); } catch { /* UI notice is best effort */ }
             // A rejection is not final: offer the handoff again (shortcut, steer) and retry the safety net shortly, so the
             // command that was meant to be released is adopted as soon as room appears instead of holding the turn.
             if (waitMs === 0 && !ctx.hasUI) { try { return await running; } finally { unlink(); } }

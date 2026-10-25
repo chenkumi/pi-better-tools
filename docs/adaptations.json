@@ -1698,7 +1698,7 @@
       "cleanCodeModules20261023Adaptation": "2026-10-23 clean code: statementSchema factory for the identical query/execute schemas; shared errorMessage and StatementInput.",
       "scanFixes20261024bPreviousSha256": "8e96dc29e6045deca6f6d181b9225196a28bd2bd908db150aec62a676d193d16",
       "scanFixes20261024bAdaptation": "2026-10-24: sweepOldOutputs stats up to 2048 matching candidates per call with a rotating start instead of the first 256 directory entries (scan DB-007).",
-      "sha256": "c6542402c14341c8fa7f5d6f973b0ac7e06b611059bbf37a2145c59f4281a0ab",
+      "sha256": "b1ccb27d54b3da522754b9cd0d55ec3a580ce4e0550e49ff8f090589a98411d9",
       "reason": "Deferred exposure and sqlite namespace/short discovery description on all eight tools; no local activation or prompt hook. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged."
     },
     {
@@ -1710,7 +1710,7 @@
       "cleanCodeModules20261023Adaptation": "2026-10-23 clean code: MAX_READ_ROWS replaces four literal 200 comparisons; denial messages unchanged.",
       "scanFixes20261024PreviousSha256": "b963696a0c709e68d9142edc5b6bec01653105cb6d488ec62049c1667289c4f7",
       "scanFixes20261024Adaptation": "2026-10-24: hasStackedMssqlSelect: SELECT count outside parentheses must not exceed 1 + set operators; updates may not carry a top-level SELECT (scan H4).",
-      "sha256": "91decce55dda2cebde312b26d7dc38c5db71ff24eb1ea0ef744ae2de2da4ff4a",
+      "sha256": "706b5f52577a6984bf0345dfa77b44b8a18a958842788920722150b869addf06",
       "reason": "2026-10-17 scan fix (BUG-001): engine-aware lexical split (PG dollar quotes and nested comments, MSSQL ]] escapes and nested comments, MySQL backticks/#/-- rule), backslashes in MySQL/PG literals denied, MSSQL statement-start keywords denied in reads and updates, NUL and unterminated identifiers denied. Existing allowlist, LIMIT/TOP and WHERE rules unchanged. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged."
     },
     {
@@ -1730,13 +1730,13 @@
       "cleanCodeModules20261023Adaptation": "2026-10-23 clean code: USER_TABLES SQL fragment (identical SQL), forgetConnection, exported errorMessage.",
       "scanFixes20261024PreviousSha256": "9ac8d2755a1f08a3f5efcd2fb00831857a7eb6f6e3de755f6a0ae2afee540f7e",
       "scanFixes20261024Adaptation": "2026-10-24: assertSingleStatement refuses a trailing second statement instead of letting node:sqlite drop it silently (scan DB-005).",
-      "sha256": "72cf4e9769976c321ee6d9a539f474eabd4d81de4a8bdc21fd82851c7a9dd30d",
-      "reason": "2026-10-17 scan fix (BUG-003/004): no PRAGMA journal_mode=WAL on open; creation of a missing path reported; query streams rows with 10,000-row/8 MiB bound and 1 KiB BLOB prefix (truncated flag). 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged."
+      "sha256": "4bc7b75d6178fb56c0173fb76b8d34d1a69a280da56d352a436eb146eda79c6b",
+      "reason": "2026-10-17 scan fix (BUG-003/004): no PRAGMA journal_mode=WAL on open; creation of a missing path reported; query streams rows with 10,000-row/8 MiB bound and 1 KiB BLOB prefix (truncated flag). 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged. 2026-10-25: reduced to a re-export of sqlite-core.mjs (the implementation moved to plain JavaScript for the SQLite child process)."
     },
     {
       "path": "modules/sqlite-tools/tests/extension.test.ts",
       "originalSha256": "20c5068b96ca12470127b4f81e930610645dddd151da80977dcd7c228fc3124b",
-      "sha256": "f2cb0acd9b5e4c12b1ee5282c0289f1bd8383defbd8fc45f76fea0b82219e2b1",
+      "sha256": "60e42a5b35c71efdf00cf61e5eab1fa4c5e7566a82413f3261a1f8a1ed00086d",
       "reason": "Relocate imports, Pi 1.2.0 tool context and deferred metadata assertions; original lifecycle/trust/error assertions retained. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged."
     },
     {
@@ -1766,7 +1766,7 @@
       "scanFixes20261024Adaptation": "2026-10-24: documents the single-statement rule and that sqlite_query is not read-only (scan DB-005/DB-006).",
       "scanFixes20261024bPreviousSha256": "b5ddc394164bb224c792179fc2760d908ab5eaac1ec839ae6b2b7ec658ac51c2",
       "scanFixes20261024bAdaptation": "2026-10-24: documents the bounded, rotating output sweep.",
-      "sha256": "ea48f618c81c3375afb0aaabe11bbde4def04745d629e7adb03967cc2ebffbdb",
+      "sha256": "59086c896a9d6f3f0f2121911da47452f8b2350280c14e68753c899b833eec03",
       "reason": "Integrated usage, shared deferred hint, root baseline and preserved lifecycle/settings/safety. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged."
     },
     {
@@ -2037,7 +2037,7 @@
       "cleanCodeModules20261023Adaptation": "2026-10-23 clean code: withTimeoutHint replaces two identical timeout rewrites; parseShellInput keeps the original validation order; receiptResult hoisted; ALREADY_FINISHED_NOTICE named; isActiveJobStatus.",
       "scanFixes20261024PreviousSha256": "5a1a9f2e07c3d1b6bec1ad8db45914336c11eebc734d7129d059c0ac45ed8892",
       "scanFixes20261024Adaptation": "2026-10-24: the 2147483647 sentinel counts as no timeout for the 180 s safety net and the auto Monitor; a rejected automatic handoff is retried and the call stays detachable (scan SH-001/SH-002).",
-      "sha256": "ad58cec884b1ce58569c0e1f5f284f5bf6c295c8aca3f7aef6ccffb9b6990dd9",
+      "sha256": "1050bf0ed4fd5bc708febe370910ee824d757309e9de38dc0488d480b2d3e4c0",
       "detachHint20261021PreviousSha256": "a8911b6042ecea42eada709896be8b2c83b3ac79b7e741248ba20ad78480995e",
       "detachHint20261021Adaptation": "2026-10-21 move the Alt+J hint out of the status bar into the tool call's own render: the call preview carries the muted last line until a partial result exists, then the result region does; tracking is keyed by toolCallId and each render remembers its invalidate so start/end redraw immediately. Timeout, handoff, receipt and abort semantics unchanged.",
       "tokenTrimPreviousSha256": "f7df7eb75c014ac5ca2c46ba4c244fd856af630e3d8ca1e884c7692b20b15565",
@@ -5078,7 +5078,7 @@
     },
     {
       "path": "modules/shell-tools/src/manual-detach.ts",
-      "sha256": "022cadd2eaae63f2fc43a7936a821ac9956a186fe5d45c9c34970e7920099408",
+      "sha256": "cf37834d8097a5fc4f4702ae9a18d3094c688c274471f05b94da155b6941a86a",
       "reason": "First inventoried 2026-10-23 (created earlier with no provenance record): the shared Shell/Subagents foreground-detach registry and Alt+J shortcut; adds the steer input handler honouring pi-shell-tools.detachOnSteer (default on, explicit false disables)."
     },
     {
@@ -6364,7 +6364,7 @@
     },
     {
       "path": "modules/sql-connector/test/policy-bypass.test.ts",
-      "sha256": "259d422665f7dee331c4756ed05470107ddf161a8cdfa6c5d5b4e21b37423a81",
+      "sha256": "3d19346f3b9094ccb7f266bd39e4c2a770e8cd58343225a3356ace9e17b7bb8c",
       "reason": "2026-10-17 scan fix regressions: read-only policy bypasses (BUG-001) per engine plus allowed legitimate forms."
     },
     {
@@ -7055,6 +7055,31 @@
       "path": "modules/blackhole/tests/error-message-guidance.test.ts",
       "sha256": "a9ebbb78c4a4923f415e3869ebb9cbf0230e94865ecbe3f59a80d4de6ccbe679",
       "reason": "Error-message guidance pass (2026-10-24): red-then-green regression tests for recall page validation, drill-down and observer/reflector receipt rejection messages. 2026-10-24 error-message guidance pass: failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); schemas, tool names, error codes and config keys unchanged."
+    },
+    {
+      "path": "modules/sqlite-tools/src/sqlite-client.ts",
+      "sha256": "5e3f8bebef3e089fed2c7e91628934b7d0102f51989680b0fcccc1655841fe33",
+      "reason": "2026-10-25: SqliteClient runs the node:sqlite connection in a child process (sqlite-process.mjs imports the unchanged SqliteManager), serializes calls, cancels a running call with SIGKILL and waits for the exit before any replacement starts, reopens the same file on the next call, and refuses queued calls after dispose."
+    },
+    {
+      "path": "modules/sqlite-tools/src/sqlite-process.mjs",
+      "sha256": "a0772f02f84b6e98726fa27a062ee54a19877d343b20c1c0258e5f540452714d",
+      "reason": "2026-10-25: child-process entry that hosts SqliteManager off the Pi process thread and answers client requests over IPC; killed on cancel."
+    },
+    {
+      "path": "modules/sqlite-tools/src/sqlite-core.mjs",
+      "sha256": "2025f517e3d53357774eb406eb7906abb19f1c0021ca4d1b6c02e6a3ecb41aa9",
+      "reason": "2026-10-25: the SqliteManager implementation as plain JavaScript (sqlite-manager.ts types stripped, behavior unchanged) so the SQLite child process can load it from node_modules, where Node refuses TypeScript."
+    },
+    {
+      "path": "modules/sqlite-tools/src/sqlite-core.d.mts",
+      "sha256": "4b84858a05fcb6be20a47866c96a1dbc0924efa8fab2578615ca2cefe0399a44",
+      "reason": "2026-10-25: hand-written type declarations for sqlite-core.mjs."
+    },
+    {
+      "path": "modules/sqlite-tools/tests/installed-layout.test.ts",
+      "sha256": "3a4df4d72be0e547add271c4973c19d3ad56c16c4f6563fd32005e19e7d29e57",
+      "reason": "2026-10-25: starts the SQLite child from a node_modules layout and requires the ready message."
     }
   ],
   "blackholePiOwnedSummaryMigrationReview": {

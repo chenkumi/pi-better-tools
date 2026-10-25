@@ -418,3 +418,70 @@ test("a failed manual open names the path and how to fix it", async (t) => {
   assert.ok(result.message.includes(join(f.directory, "missing-dir", "x.sqlite")));
   assert.match(result.message, /file_path/);
 });
+
+test("sqlite_query and sqlite_execute reject an already aborted call without running it", async (t) => {
+  const f = fixture(t);
+  f.config(JSON.stringify({ databasePath: "./abort.sqlite" }));
+  await f.start();
+  const controller = new AbortController();
+  controller.abort();
+  for (const name of ["sqlite_query", "sqlite_execute"]) {
+    await assert.rejects(f.tools.get(name)!.execute("test", { sql: "SELECT 99" }, controller.signal, undefined, f.ctx));
+  }
+});
+
+const LONG_QUERY = "WITH RECURSIVE counter(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM counter WHERE x<2000000000) SELECT sum(x) AS total FROM counter";
+
+test("a long query runs outside the Pi process thread and cancelling it stops it while the connection survives", async (t) => {
+  const f = fixture(t);
+  f.config(JSON.stringify({ databasePath: "./long.sqlite" }));
+  await f.start();
+  await f.call("sqlite_execute", { sql: "CREATE TABLE kept (id INTEGER)" });
+  await f.call("sqlite_execute", { sql: "INSERT INTO kept VALUES (1)" });
+
+  const controller = new AbortController();
+  let ticked = false;
+  const running = f.tools.get("sqlite_query")!.execute("test", { sql: LONG_QUERY }, controller.signal, undefined, f.ctx);
+  const outcome = running.then(() => "finished", (error: Error) => error.message);
+  await new Promise<void>((resolve) => setImmediate(() => { ticked = true; resolve(); }));
+  assert.equal(ticked, true, "the event loop keeps turning while SQLite computes");
+  const abortedAt = Date.now();
+  controller.abort();
+  assert.match(await outcome, /cancelled and its process was terminated[\s\S]*not confirmed/);
+  assert.ok(Date.now() - abortedAt < 10_000, "cancel returns only after the process is gone, and killing it is prompt");
+
+  assert.deepEqual(await f.json("sqlite_query", { sql: "SELECT id FROM kept" }), { columns: ["id"], rows: [[1]], rowCount: 1 });
+});
+
+test("shutdown refuses operations still queued behind a running call and leaves no connection", async (t) => {
+  const f = fixture(t);
+  await f.start();
+  await f.call("sqlite_open", { file_path: join(f.directory, "queued.sqlite") });
+  const later = join(f.directory, "later.sqlite");
+  const running = f.tools.get("sqlite_query")!.execute("test", { sql: LONG_QUERY }, undefined, undefined, f.ctx).catch((error: Error) => error);
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  const queued = f.tools.get("sqlite_open")!.execute("test", { file_path: later }, undefined, undefined, f.ctx).catch((error: Error) => error);
+  await f.shutdown();
+  assert.ok(await running instanceof Error);
+  assert.ok(await queued instanceof Error);
+  assert.equal(existsSync(later), false, "a queued open must not create a database after shutdown");
+});
+
+test("a sqlite_open cancelled while queued behind a running call returns at once and never opens its database", async (t) => {
+  const f = fixture(t);
+  await f.start();
+  const first = join(f.directory, "first.sqlite");
+  const later = join(f.directory, "later.sqlite");
+  await f.call("sqlite_open", { file_path: first });
+  const running = f.tools.get("sqlite_query")!.execute("test", { sql: LONG_QUERY }, undefined, undefined, f.ctx).catch((error: Error) => error);
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  const controller = new AbortController();
+  const queued = f.tools.get("sqlite_open")!.execute("test", { file_path: later }, controller.signal, undefined, f.ctx);
+  controller.abort();
+  await assert.rejects(queued, /cancelled/);
+  // The long query is still computing; the cancelled open returned without waiting for it.
+  assert.equal(await Promise.race([running.then(() => "query ended"), Promise.resolve("query running")]), "query running");
+  await f.shutdown();
+  assert.ok(await running instanceof Error);
+  assert.equal(existsSync(later), false, "a cancelled open must not create a database");
+});

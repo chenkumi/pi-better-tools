@@ -253,10 +253,12 @@ function assertReadLimit(engine: Engine, code: string): void {
     return;
   }
 
-  const limit = /\blimit\s+(\d+)\b/.exec(topLevel);
-  const amount = Number(limit?.[1]);
+  // MySQL's `LIMIT offset, count` puts the row count second; the count is the last number either way.
+  const limit = /\blimit\s+(?:(\d+)\s*,\s*)?(\d+)\b/.exec(topLevel);
+  const countText = limit?.[2];
+  const amount = Number(countText);
   if (!limit || !Number.isInteger(amount) || amount < 1 || amount > MAX_READ_ROWS) {
-    denied(`${engine} reads must use a top-level LIMIT n with n from 1 to 200; ${limit ? `received LIMIT ${limit[1]}` : "no top-level LIMIT found (a LIMIT inside a subquery does not count)"}. Add a literal LIMIT such as LIMIT 100 at the end.`);
+    denied(`${engine} reads must use a top-level LIMIT n with n from 1 to 200; ${limit ? `received LIMIT ${countText}` : "no top-level LIMIT found (a LIMIT inside a subquery does not count)"}. Add a literal LIMIT such as LIMIT 100 at the end.`);
   }
 }
 

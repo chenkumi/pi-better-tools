@@ -80,7 +80,7 @@ export function ensureDetachShortcut(pi: ExtensionAPI): void {
   pi.on?.("input", (event, ctx) => {
     if (!shouldDetachOnInput(event, pi.getSettings?.()) || !hasForegroundWork()) return { action: "continue" as const };
     const count = detachAllForeground();
-    if (count > 0) ctx.ui.notify(`Steer message sent: moving ${count} running foreground task(s) to background`, "info");
+    if (count > 0) ctx.ui.notify(`Steer message sent: asking to move ${count} running foreground task(s) to background`, "info");
     return { action: "continue" as const };
   });
   pi.on?.("session_shutdown", () => { if (root[ownerKey] === pi) delete root[ownerKey]; });

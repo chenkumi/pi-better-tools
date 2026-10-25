@@ -12,7 +12,8 @@ import {
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
-import { SqliteManager, errorMessage, type SqlParams } from "./sqlite-manager.js";
+import { SqliteClient } from "./sqlite-client.js";
+import { errorMessage, type SqlParams } from "./sqlite-manager.js";
 
 const sqliteNamespace = {
   name: "sqlite",
@@ -179,7 +180,7 @@ async function formatResult(value: unknown) {
 }
 
 export default function sqliteExtension(pi: ExtensionAPI) {
-  const manager = new SqliteManager();
+  const manager = new SqliteClient();
   let startupError: string | undefined = "SQLite tools are not initialized. Wait for session_start.";
   let startup: Promise<void> | undefined;
   let stopped = false;
@@ -214,10 +215,10 @@ export default function sqliteExtension(pi: ExtensionAPI) {
       parameters: Type.Object({
         file_path: Type.String({ minLength: 1, description: "Absolute or project-relative SQLite database path" }),
       }),
-      async execute(_id, params, _signal, _onUpdate, ctx) {
+      async execute(_id, params, signal, _onUpdate, ctx) {
         ensureReady();
         const filePath = normalizePath(params.file_path, ctx.cwd);
-        return result(manager.open(filePath));
+        return result(await manager.open(filePath, signal));
       },
     });
 
@@ -228,9 +229,9 @@ export default function sqliteExtension(pi: ExtensionAPI) {
       label: "Close SQLite Database",
       description: "Close the currently open SQLite database connection.",
       parameters: Type.Object({}),
-      async execute() {
+      async execute(_id, _params, signal) {
         ensureReady();
-        return result(manager.close());
+        return result(await manager.close(signal));
       },
     });
   }
@@ -243,8 +244,8 @@ export default function sqliteExtension(pi: ExtensionAPI) {
     description: "Report whether a database is open, its resolved path, and its user-table count.",
     promptSnippet: "Check the active SQLite connection and database summary",
     parameters: Type.Object({}),
-    async execute() {
-      const status = manager.status();
+    async execute(_id, _params, signal) {
+      const status = await manager.status(signal);
       if (status.isOpen) return result(status);
       return result({
         ...status,
@@ -263,9 +264,10 @@ export default function sqliteExtension(pi: ExtensionAPI) {
     promptSnippet: "Read rows from the active SQLite database",
     promptGuidelines: ["Use sqlite_query only for SQL that returns rows; use sqlite_execute for mutations."],
     parameters: querySchema,
-    async execute(_id, params) {
+    async execute(_id, params, signal) {
+      signal?.throwIfAborted();
       ensureReady();
-      return result(manager.query(params.sql, getBindings(params)));
+      return result(await manager.query(params.sql, getBindings(params), signal));
     },
   });
 
@@ -278,9 +280,10 @@ export default function sqliteExtension(pi: ExtensionAPI) {
     promptSnippet: "Modify data or schema in the active SQLite database",
     promptGuidelines: ["Use sqlite_execute only after confirming the active database with sqlite_status when the operation changes data or schema."],
     parameters: executeSchema,
-    async execute(_id, params) {
+    async execute(_id, params, signal) {
+      signal?.throwIfAborted();
       ensureReady();
-      return result(manager.execute(params.sql, getBindings(params)));
+      return result(await manager.execute(params.sql, getBindings(params), signal));
     },
   });
 
@@ -291,9 +294,9 @@ export default function sqliteExtension(pi: ExtensionAPI) {
     label: "List SQLite Tables",
     description: "List non-system tables in the active SQLite database.",
     parameters: Type.Object({}),
-    async execute() {
+    async execute(_id, _params, signal) {
       ensureReady();
-      return result(manager.listTables());
+      return result(await manager.listTables(signal));
     },
   });
 
@@ -306,9 +309,9 @@ export default function sqliteExtension(pi: ExtensionAPI) {
     parameters: Type.Object({
       table_name: Type.String({ minLength: 1, description: "Exact table name to inspect" }),
     }),
-    async execute(_id, params) {
+    async execute(_id, params, signal) {
       ensureReady();
-      return result(manager.describeTable(params.table_name));
+      return result(await manager.describeTable(params.table_name, signal));
     },
   });
 
@@ -329,7 +332,7 @@ export default function sqliteExtension(pi: ExtensionAPI) {
       const fixedDatabase = await resolveFixedDatabase(ctx);
       if (stopped) return;
       if (fixedDatabase) {
-        const opened = manager.open(fixedDatabase.filePath);
+        const opened = await manager.open(fixedDatabase.filePath);
         if (!opened.success) {
           throw new SetupError(
             `Could not open the SQLite database the user configured (${fixedDatabase.filePath}): ${opened.message}`,
@@ -360,6 +363,6 @@ export default function sqliteExtension(pi: ExtensionAPI) {
     stopped = true;
     startupError = "SQLite session has shut down; the session has ended and this tool can no longer be used. Start a new session.";
     startupHint = "The session has ended; start a new session to use SQLite tools.";
-    manager.close();
+    return manager.dispose();
   });
 }

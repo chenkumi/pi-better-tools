@@ -102,3 +102,16 @@ describe("MSSQL TOP must bound every returned row", () => {
     allowed("mssql", "select top 50 a from t union select top 50 b from u order by 1");
   });
 });
+
+describe("MySQL comma LIMIT checks the row count, which is the second number", () => {
+  it("denies a count above 200 whatever the offset", () => {
+    denied("mysql", "SELECT id FROM t LIMIT 1,201");
+    denied("mysql", "SELECT id FROM t LIMIT 200, 201");
+    denied("mysql", "SELECT id FROM t LIMIT 0,0");
+  });
+  it("allows a count within 200", () => {
+    allowed("mysql", "SELECT id FROM t LIMIT 1,200");
+    allowed("mysql", "SELECT id FROM t LIMIT 500, 10");
+    allowed("mysql", "SELECT id FROM t LIMIT 200");
+  });
+});
