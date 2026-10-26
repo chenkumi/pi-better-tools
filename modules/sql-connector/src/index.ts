@@ -70,8 +70,9 @@ export default function sqlConnectorExtension(pi: ExtensionAPI): void {
   });
 
   pi.on("session_shutdown", async (_event, ctx) => {
-    await runtime?.close();
+    const unconfirmed = await runtime?.close() ?? 0;
     runtime = undefined;
+    if (unconfirmed > 0 && ctx.hasUI) ctx.ui.notify(`SQL connector: ${unconfirmed} database pool(s) did not confirm closing within the deadline; their connections may still be open.`, "warning");
     ctx.ui.setStatus("sql-connector", undefined);
   });
 

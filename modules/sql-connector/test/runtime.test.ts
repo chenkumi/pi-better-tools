@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const pg = vi.hoisted(() => ({ calls: [] as unknown[], fail: undefined as string | undefined, released: [] as unknown[] }));
-const mysql = vi.hoisted(() => ({ calls: [] as unknown[], fail: false, failCreate: false, destroyed: 0, releasedCount: 0, poolOptions: undefined as unknown }));
+const mysql = vi.hoisted(() => ({ calls: [] as unknown[], fail: false, failCreate: false, hangEnd: false, destroyed: 0, releasedCount: 0, poolOptions: undefined as unknown }));
 
 vi.mock("pg", async (importOriginal) => {
   const actual = await importOriginal<typeof import("pg")>();
@@ -38,7 +38,7 @@ vi.mock("mysql2/promise", () => {
         release: () => { mysql.releasedCount++; },
         destroy: () => { mysql.destroyed++; },
       }),
-      end: async () => {},
+      end: async () => { if (mysql.hangEnd) await new Promise(() => undefined); },
     };
   };
   return { default: { createPool }, createPool };
@@ -52,7 +52,7 @@ const base = { host: "127.0.0.1", username: "u", password: "p", database: "d", s
 
 beforeEach(() => {
   pg.calls = []; pg.fail = undefined; pg.released = [];
-  mysql.calls = []; mysql.fail = false; mysql.failCreate = false; mysql.destroyed = 0; mysql.releasedCount = 0;
+  mysql.calls = []; mysql.fail = false; mysql.failCreate = false; mysql.hangEnd = false; mysql.destroyed = 0; mysql.releasedCount = 0;
 });
 
 describe("PostgreSQL runtime", () => {
@@ -96,6 +96,24 @@ describe("MySQL runtime", () => {
     mysql.failCreate = false;
     await expect(runtime.state("mysql")).resolves.toMatchObject({ engine: "mysql" });
     await runtime.close();
+  });
+
+  it("stops waiting for a pool whose close hangs behind a stuck statement", async () => {
+    vi.useFakeTimers();
+    try {
+      const runtime = new SqlConnectorRuntime({ mysql: { ...base, port: 3306 } });
+      await runtime.state("mysql");
+      mysql.hangEnd = true;
+      let closed = false;
+      const closing = runtime.close().then((unconfirmed) => { closed = true; return unconfirmed; });
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(closed).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await closing).toBe(1);
+      expect(closed).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("bounds the connection queue", async () => {

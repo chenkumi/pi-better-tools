@@ -13,6 +13,8 @@ const CONNECT_TIMEOUT_MS = 10_000;
 const POOL_IDLE_TIMEOUT_MS = 30_000;
 /** Bounded waiting for a pooled connection; a full queue fails instead of growing without limit. */
 const MYSQL_QUEUE_LIMIT = 32;
+/** Shutdown and reload wait this long for the pools to close; a driver stuck behind a hung statement must not hold them up. */
+const CLOSE_DEADLINE_MS = 5_000;
 const require = createRequire(import.meta.url);
 type QueryParams = SqlScalar[] | Record<string, SqlScalar> | undefined;
 
@@ -52,6 +54,20 @@ function assertPositionalParams(params: QueryParams, tool: string): asserts para
 /** Server-reported database and version, falling back to the configured database name. */
 function stateFrom(engine: Engine, row: Record<string, unknown> | undefined, databaseColumn: string, configuredDatabase: string | undefined): StateExecution {
   return { engine, database: row?.[databaseColumn] ? String(row[databaseColumn]) : (configuredDatabase ?? null), version: row?.version ? String(row.version) : null };
+}
+
+/** Resolves when the adapter has closed or the deadline passes; connections still open then are left to the process exit. */
+/** Resolves true only when the adapter confirmed it closed; a failure or the deadline leaves it unconfirmed. */
+async function closeWithin(adapter: Adapter, deadlineMs: number): Promise<boolean> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      adapter.close().then(() => true, () => false),
+      new Promise<boolean>((resolve) => { timer = setTimeout(() => resolve(false), deadlineMs); timer.unref(); }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 const shuttingDown = () => new SqlConnectorError("CONNECTIVITY", "The SQL connector is shutting down (the session ended or is reloading). Do not retry in this session; wait for the reload to finish or start a new session.");
@@ -373,16 +389,23 @@ export class SqlConnectorRuntime {
     return (await this.adapter(engine)).update(sql, params, signal);
   }
 
-  async close(): Promise<void> {
+  /** Resolves with the number of pools that did not confirm closing; those are not forgotten as cleaned up. */
+  async close(): Promise<number> {
     this.closing = true;
     const adapters = new Set(this.adapters.values());
     const pending = await Promise.allSettled([...this.creating.values()]);
     for (const result of pending) {
       if (result.status === "fulfilled") adapters.add(result.value);
     }
-    await Promise.allSettled([...adapters].map((adapter) => adapter.close()));
-    this.adapters.clear();
+    const closed = await Promise.all([...adapters].map(async (adapter) => [adapter, await closeWithin(adapter, CLOSE_DEADLINE_MS)] as const));
     this.creating.clear();
+    let unconfirmed = 0;
+    for (const [adapter, confirmed] of closed) {
+      if (confirmed) {
+        for (const [engine, held] of this.adapters) if (held === adapter) this.adapters.delete(engine);
+      } else unconfirmed++;
+    }
+    return unconfirmed;
   }
 
   private async adapter(engine: Engine): Promise<Adapter> {

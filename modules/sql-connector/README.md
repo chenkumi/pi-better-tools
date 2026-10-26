@@ -1,6 +1,6 @@
 # SQL Connector（整合版）
 
-來源為使用者擁有的 `D:/projects/pi-sql-connector` 0.1.0，已納入本模組，不依賴來源路徑。入口為 `modules/sql-connector/src/index.ts`；根 package／lockfile 是唯一安裝單元，支援基準為 Pi 1.4.0。來源快照與適配記錄見 `docs/sources.json`、`docs/adaptations.json`。原來源宣告 MIT，整合專案採根 MIT LICENSE。
+來源為使用者擁有的 `D:/projects/pi-sql-connector` 0.1.0，已納入本模組，不依賴來源路徑。入口為 `modules/sql-connector/src/index.ts`；根 package／lockfile 是唯一安裝單元，支援基準為 Pi 1.4.0。來源快照與授權說明見本模組 README／LICENSE；原來源宣告 MIT，整合專案採根 MIT LICENSE。
 
 ## 支援的資料庫與 deferred tools
 
@@ -38,7 +38,7 @@
 - MSSQL named instance 使用 `instanceName`，該情況不要指定 port。Windows Authentication 預設 `odbcDriver: "ODBC Driver 18 for SQL Server"`。
 - `ssl`／`trustServerCertificate` 保留來源行為；`trustServerCertificate: true` 只應用於明確信任的本機／自簽開發伺服器，不為了連線成功自動降低 TLS 驗證。
 
-修改設定後使用 `/reload` 或 `/sql-connector-reload`。連線池在首次實際操作時建立；shutdown／reload 關閉池，不跨行程恢復連線。
+修改設定後使用 `/reload` 或 `/sql-connector-reload`。連線池在首次實際操作時建立；shutdown／reload 關閉池，不跨行程恢復連線；每個池最多等待 5 秒，之後不再等待（驅動若卡在執行中的語句後面，連線留待行程結束），避免 MySQL 卡住的 UPDATE 讓 shutdown 永久等待。逾時（或關閉失敗）的池不視為已清理：shutdown 以互動 UI 警告未確認關閉的池數量，連線可能仍開著。
 
 ## 安裝與原生 driver
 
