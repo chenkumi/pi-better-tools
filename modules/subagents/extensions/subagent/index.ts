@@ -69,6 +69,7 @@ import {
 import { consumeStdoutChunkAsync, isTerminalAssistantStopReason } from "./protocol.ts";
 import { IoGate } from "./io-gate.ts";
 import { createPromptFiles, removePromptFiles, type PromptFiles } from "./prompt-files.ts";
+import { sweepStaleTempDirectoriesOnce } from "./temp-sweep.ts";
 import { ToolResultSpool, toolResultKey, type ToolSpoolRecord } from "./tool-result-spool.ts";
 import { readGlobalDebugLogSetting, writeSubagentDebugFailure } from "./debug-log.ts";
 import {
@@ -1420,6 +1421,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 	pi.on("session_start", async (_event, ctx) => {
 		revokeMonitor?.(); revokeMonitor = undefined;
 		widget.clear(); await jobs.shutdown(); jobs.start(); recovery.bind(ctx);
+		if (!isManagedForegroundChild()) sweepStaleTempDirectoriesOnce();
 		if (!isManagedForegroundChild()) {
 			try { revokeMonitor = publishSubagentMonitor(jobs, ctx); } catch { /* Optional readonly adapter unavailable; dispatch remains unchanged. */ }
 		}

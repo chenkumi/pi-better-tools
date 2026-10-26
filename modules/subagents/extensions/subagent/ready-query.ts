@@ -8,6 +8,7 @@ import { StringDecoder } from "node:string_decoder";
 import { buildManagedChildEnvironment, buildSubagentPiArgs } from "./child-args.ts";
 import { RpcInteraction, type InteractionNotice, type QueryReceipt } from "./rpc.ts";
 import { IoGate } from "./io-gate.ts";
+import { queryDirectoryPrefix, REMOVE_OPTIONS } from "./temp-sweep.ts";
 import { killProcessTree } from "./concurrency.ts";
 import { ManagedSession } from "./session-store.ts";
 
@@ -75,7 +76,7 @@ export async function runReadyQuery(options: ReadyQueryOptions): Promise<QueryRe
     if (signal.aborted) throw new Error("QUERY_ABORTED: cancelled before query startup");
     released = await options.acquireChild(signal);
     await gate.run(options.validate, "validate ready query configuration");
-    await gate.run(async () => { temporary = await fs.mkdtemp(join(tmpdir(), "pi-subagent-query-")); }, "create query copy directory");
+    await gate.run(async () => { temporary = await fs.mkdtemp(join(tmpdir(), queryDirectoryPrefix())); }, "create query copy directory");
     const clone = join(temporary!, "working.jsonl"), frozen = join(temporary!, "checkpoint.jsonl");
     const startupPath = join(temporary!, "startup.json"), promptPath = join(temporary!, "agent.txt");
     await gate.run(async () => {
@@ -187,7 +188,7 @@ export async function runReadyQuery(options: ReadyQueryOptions): Promise<QueryRe
     try {
       if (temporary) await cleanup.run(async () => {
         if (options.removeTemporary) await options.removeTemporary(temporary!);
-        else await fs.rm(temporary!, { recursive: true, force: true });
+        else await fs.rm(temporary!, REMOVE_OPTIONS);
         temporaryRemoved = true;
       }, "remove private query copies");
     } catch (error) {

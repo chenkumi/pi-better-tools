@@ -67,7 +67,7 @@ Catalog 不強制替換完整 system prompt，與 Web／共享背景指引各自
 }
 ```
 
-Task 先寫入權限受限的 UTF-8 暫存檔，不放入 command line。同步模式使用 Pi `@file` 參數；背景模式將檔案內容送入 RPC prompt。兩者 task 內的 `@path` 都不會遞迴展開。暫存目錄建立、prompt/task 寫入及 runner 清理均受 IoGate 取消／期限約束，取消後不再啟動 child；已開始的 OS I/O 不保證能中斷，晚到操作自行在寫入結束後清理其專屬目錄，不提前刪除進行中的寫入。清理故障明確保留 diagnostics。等待 mutation queue 後在實際寫入前再檢查取消。暫存 gate 與 native/transcript gate 分離：pending temp write 不阻止已安全結束的 native writer lock 清理；真正 pending native I/O 仍保留鎖。進入清理時 request 已取消亦啟動 owned deletion，但立即退出等待，晚到刪除由原 owner 收尾。
+Task 先寫入權限受限的 UTF-8 暫存檔，不放入 command line。同步模式使用 Pi `@file` 參數；背景模式將檔案內容送入 RPC prompt。兩者 task 內的 `@path` 都不會遞迴展開。暫存目錄建立、prompt/task 寫入及 runner 清理均受 IoGate 取消／期限約束，取消後不再啟動 child；已開始的 OS I/O 不保證能中斷，晚到操作自行在寫入結束後清理其專屬目錄，不提前刪除進行中的寫入。刪除會重試（`maxRetries` 5）；行程被強制結束而殘留的 `pi-subagent-*` 暫存目錄（含 query 工作副本）由首個 session 啟動時每行程一次的 best-effort 掃除移除：只刪 24 小時未修改的一般目錄，只處理本模組產生的名稱（`pi-subagent-<pid>-<6 碼>`、`pi-subagent-query-<pid>-<6 碼>`，及舊版無 pid 者），其他前綴相同的目錄不動，不限檢查筆數但每次最多移除 512 筆；名稱含擁有者 pid，該行程仍存活者不刪（pid 被重用時舊目錄會被保留，只漏清不誤刪），受管子行程不掃，不跟隨連結，不阻擋也不使 run 失敗。清理故障明確保留 diagnostics。等待 mutation queue 後在實際寫入前再檢查取消。暫存 gate 與 native/transcript gate 分離：pending temp write 不阻止已安全結束的 native writer lock 清理；真正 pending native I/O 仍保留鎖。進入清理時 request 已取消亦啟動 owned deletion，但立即退出等待，晚到刪除由原 owner 收尾。
 
 ### 背景工作
 

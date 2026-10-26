@@ -3,6 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { withFileMutationQueue } from '@earendil-works/pi-coding-agent';
 import { IoGate } from './io-gate.ts';
+import { promptDirectoryPrefix, REMOVE_OPTIONS } from './temp-sweep.ts';
 export interface PromptFiles { dir: string; filePath: string; taskPath: string }
 
 /** One owned operation: cancellation stops waiting, never deletes an in-flight
@@ -12,7 +13,7 @@ export function createPromptFiles(agentName: string, prompt: string, task: strin
   return gate.run(async () => {
     let files: PromptFiles | undefined;
     try {
-      const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pi-subagent-'));
+      const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), promptDirectoryPrefix()));
       files = { dir, filePath: path.join(dir, `prompt-${agentName.replace(/[^\w.-]+/g, '_')}.md`), taskPath: path.join(dir, 'task.txt') };
       if (gate.stopped) throw new Error('Prompt creation cancelled before write');
       await withFileMutationQueue(files.filePath, () => {
@@ -38,5 +39,5 @@ export function createPromptFiles(agentName: string, prompt: string, task: strin
   }, 'prepare prompt/task files');
 }
 export function removePromptFiles(files: PromptFiles): Promise<void> {
-  return withFileMutationQueue(files.filePath, () => withFileMutationQueue(files.taskPath, () => fs.promises.rm(files.dir, { recursive: true, force: true })));
+  return withFileMutationQueue(files.filePath, () => withFileMutationQueue(files.taskPath, () => fs.promises.rm(files.dir, REMOVE_OPTIONS)));
 }
