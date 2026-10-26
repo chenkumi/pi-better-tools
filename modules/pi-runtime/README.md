@@ -47,7 +47,7 @@ TUI dialog 的拒絕／Escape 取消不提交；確認期間若 session／tree�
 
 ## 跨模組工具規則
 
-`cross-tool-guidance.ts` 注入 system prompt section `pi_better_tools_cross_tool_rules`（約 320 tokens）。只放跨模組規則：檔案修改走 `edit`／`write`，不經 shell 重導向、`sed` 或一次性腳本（`node -e`、`perl -i`）——從 shell 改檔會繞過 edit/write 的 version token 保護，並明文標示為規則違規（file-tools 與 shell）；`subagent`／`fork` 的分工與委派原則；完成前先驗證；失敗處理與破壞性動作先確認。
+`cross-tool-guidance.ts` 注入 system prompt section `pi_better_tools_cross_tool_rules`（約 650 tokens）。「Working rules」區塊（與工具無關）濃縮使用者的工作規則：沿用既有術語、目標不明先問、最少程式碼、最小變更、只測修改範圍且未經允許不跑全量、UI 不加標題副文字、為極罕見競態／安全邊角增加複雜度前須說明並取得同意。只放跨模組規則：檔案修改走 `edit`／`write`，不經 shell 重導向、`sed` 或一次性腳本（`node -e`、`perl -i`）——從 shell 改檔會繞過 edit/write 的 version token 保護，並明文標示為規則違規（file-tools 與 shell）；`subagent`／`fork` 的分工與委派原則；完成前先驗證；「Check against the task」區塊（與工具無關）要求收工前逐項列出任務點名的需求、限制與資料欄位並核對輸出，規則取自任務與環境提供的規格／指南而非來源資料值並說明依據，修規則而非修所見實例並以自造新輸入重測（對應 benchmark 弱點報告 WP-B01～B07 的共同缺口，僅為 prompt 緩解，不保證模型遵守）；失敗處理與破壞性動作先確認。
 
 - 各區塊只在其提到的工具已啟用時出現（例如沒有 `subagent`／`fork` 就沒有委派區塊，只有 `fork` 時不提 `subagent`）。
 - 單一模組的工具用法（`note`、web、SQLite、`monitor`、`recall` 等）由該模組自己注入，不放這裡；Pi 內建 prompt 已有或工具描述已涵蓋的內容也不重複。
