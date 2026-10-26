@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (Pi Better Tools local adaptation, 2026-10-26; user-requested)
+- `schedule_prompt` is declared directly again (no `exposure: "deferred"`, no `schedule` namespace), so it is active without a `tool_search` step and its definition is sent with every request. Tool name, parameters, `.pi/schedule-prompts*.json` storage and trust semantics are unchanged.
+
 ### Fixed (Pi Better Tools local adaptation, 2026-10-24; scan finding WB2-002)
 - Entries that `load()` ignores (hand-edit typos, a newer schema) are no longer lost when the next write rewrites `.pi/schedule-prompts.json`: `save()` first keeps the original file as `.pi/schedule-prompts.json.malformed-<hash>` (named by content, so repeated saves do not pile up copies). If the copy cannot be written the save is refused.
 

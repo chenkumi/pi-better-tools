@@ -47,8 +47,8 @@ export async function installGlobalExtensions(sb, paths) {
  * Start the real Pi CLI. mode 'rpc' keeps stdin open; mode 'json'/'text' runs -p with the given prompt.
  * Returns an object with send, events, stdout, stderr, badLines, waitFor, finish and file paths.
  */
-// schedule_prompt is deferred (Pi Runtime activates tool_search for real sessions). Scripted sessions call it directly, so they select it
-// explicitly, which also keeps the default tool set they had before the tool was deferred.
+// Scripted sessions call schedule_prompt directly, so they select an explicit allowlist that includes it; this keeps the
+// tool set of these probes stable regardless of what else the host activates by default.
 const toolArgs = (extensions, extraArgs) => extensions.includes(scheduleEntry) && !extraArgs.includes('--tools') ? ['--tools', 'read,bash,edit,write,schedule_prompt'] : [];
 
 export function startPi(sb, { script = [], extensions = [], mode = 'rpc', approve = false, prompt = 'Do the task.', env = {}, extraArgs = [], label = 'pi' }) {

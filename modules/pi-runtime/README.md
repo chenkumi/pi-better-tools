@@ -37,7 +37,7 @@ TUI dialog 的拒絕／Escape 取消不提交；確認期間若 session／tree�
 
 ## Deferred 工具（本專案各模組共用）
 
-本專案的模組要延遲載入工具時，只需在 `registerTool` 加 `exposure: "deferred"` 與 `namespace: { name, description }`，不必自帶任何啟用或提示程式；目前使用者為 `pty-terminal`（`pty`）、`schedule-prompt`（`schedule`）、`sqlite-tools`（`sqlite`，讀取資料庫前以 `tool_search` 尋找 SQLite tools）與 `sql-connector`（已配置的 `mysql`／`mssql`／`pgsql`）。Pi Runtime 的 `deferred-tools.ts` 統一處理：
+本專案的模組要延遲載入工具時，只需在 `registerTool` 加 `exposure: "deferred"` 與 `namespace: { name, description }`，不必自帶任何啟用或提示程式；目前使用者為 `pty-terminal`（`pty`）、`sqlite-tools`（`sqlite`，讀取資料庫前以 `tool_search` 尋找 SQLite tools）與 `sql-connector`（已配置的 `mysql`／`mssql`／`pgsql`）。`schedule-prompt` 依使用者要求改為直接宣告，不再有 deferred namespace。Pi Runtime 的 `deferred-tools.ts` 統一處理：
 
 - **全新 session（`startup`／`new`）**：若已登記但未啟用 `tool_search`，以 `setActiveTools` 加入它，因此不需要 `defaultTools: "+tool_search"`。`resume`／`fork` 還原已記錄的工具集，`reload` 保留當前工具集，皆不變更。
 - **沒有登記的 `tool_search`**（例如 `--tools` allowlist 排除）：直接宣告本專案的 deferred 工具，與未延遲前相同；被 allowlist 排除的工具本來就不會註冊。

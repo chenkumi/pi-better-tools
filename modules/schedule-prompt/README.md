@@ -116,9 +116,9 @@ A job can run a shell **command** instead of a prompt: `schedule_prompt add` wit
 - **Output**: only the last ~500 characters appear in a display-only chat marker (`command_start`/`command_done`/`command_error`); model-visible content is empty, so output is never sent to the model.
 - **Not a sandbox**: the command has your permissions. Stored jobs run without a fresh approval inside the trusted project, exactly like prompt jobs.
 
-### Deferred loading (local adaptation)
+### Default loading (local adaptation)
 
-`schedule_prompt` is registered as a deferred tool (namespace `schedule`) so its large definition is not sent until needed. This module only declares `exposure` and `namespace`; activating `tool_search`, the fallback without it and the prompt hint are handled once for every module by Pi Runtime (`modules/pi-runtime/README.md`, "Deferred 工具"), with no `defaultTools` setting needed. Tool name, parameters, `.pi/schedule-prompts*.json` storage and trust semantics are unchanged; a tool excluded by `--tools`/`--exclude-tools` is neither declared nor loadable.
+`schedule_prompt` is declared directly (no `exposure`/`namespace`), so its definition is sent with every request and it needs no `tool_search` step; deferred groups (`pty`, `sqlite`, SQL engines) are unchanged. Tool name, parameters, `.pi/schedule-prompts*.json` storage and trust semantics are unchanged; a tool excluded by `--tools`/`--exclude-tools` is not registered.
 
 ### Manual commands
 

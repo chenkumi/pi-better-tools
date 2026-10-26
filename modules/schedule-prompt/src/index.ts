@@ -21,13 +21,6 @@ import { CronWidget } from "./ui/cron-widget.js";
 import { JobsView } from "./ui/jobs-view.js";
 import { runJobsMenu } from "./ui/jobs-menu.js";
 
-// Local adaptation: schedule_prompt is deferred so its large definition is not sent until tool_search loads it. Activation of
-// tool_search, the fallback without it and the discovery hint are handled once for all modules by pi-runtime.
-const EXPOSURE = {
-  exposure: "deferred",
-  namespace: { name: "schedule", description: "Schedule prompts or shell commands to run later or on a recurring schedule in this session." },
-} as const;
-
 export default async function (pi: ExtensionAPI) {
   let storage: CronStorage;
   let scheduler: CronScheduler;
@@ -53,7 +46,9 @@ export default async function (pi: ExtensionAPI) {
     () => { requireAdmitted(); return scheduler; },
     () => settings.defaultJobScope ?? "session",
   );
-  pi.registerTool({ ...tool, ...EXPOSURE } as typeof tool);
+  // Local adaptation: schedule_prompt is declared directly (user-requested default loading, no `exposure`/`namespace`),
+  // so its definition is sent with every request; `--tools`/`--exclude-tools` still govern activation.
+  pi.registerTool(tool);
 
   // --- Session initialization ---
 

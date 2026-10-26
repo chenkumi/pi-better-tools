@@ -24,28 +24,24 @@ async function host(prefix, { withToolSearch }) {
   return { created, names, section, all };
 }
 
-test('default settings: tool_search is activated, deferred tools stay unloaded, one hint lists the groups, searches load them', { timeout: 120000 }, async () => {
+test('default settings: tool_search is activated, deferred tools stay unloaded, the hint lists them, searches load them', { timeout: 120000 }, async () => {
   const stop = heartbeat('deferred-tools');
   const { created, names, section, all } = await host('deferred', { withToolSearch: true });
   try {
     assert.ok(names().includes('tool_search'), 'tool_search is activated without defaultTools');
-    assert.ok(!names().includes('pty_spawn') && !names().includes('schedule_prompt'));
+    // schedule_prompt is declared directly (not deferred), so it is active without tool_search and is never listed in the hint.
+    assert.ok(names().includes('schedule_prompt'), 'a directly declared module tool is active from the start');
+    assert.ok(!names().includes('pty_spawn'));
     const rules = (await all()).pi_better_tools_cross_tool_rules;
     assert.match(rules, /^### Cross-tool rules/); assert.doesNotMatch(rules, /Delegate/, 'only blocks for active tools');
     const hint = await section();
-    assert.match(hint, /- pty: .*\(query "pty"\)/); assert.match(hint, /- schedule: .*\(query "schedule"\)/);
+    assert.match(hint, /- pty: .*\(query "pty"\)/); assert.doesNotMatch(hint, /- schedule:/, 'a directly declared tool has no deferred group');
     const [pty] = await created.callTools({ name: 'tool_search', arguments: { query: 'pty' } });
     assert.ok(!pty.isError, text(pty));
     assert.deepEqual(PTY.filter(n => names().includes(n)), PTY);
-    assert.ok(!names().includes('schedule_prompt'));
-    const afterPty = await section();
-    assert.ok(!/- pty:/.test(afterPty) && /- schedule:/.test(afterPty), 'only the unloaded group remains listed');
-    const [schedule] = await created.callTools({ name: 'tool_search', arguments: { query: 'schedule' } });
-    assert.ok(!schedule.isError, text(schedule));
-    assert.ok(names().includes('schedule_prompt'));
-    assert.equal(await section(), undefined, 'hint disappears once everything is loaded');
+    assert.equal(await section(), undefined, 'hint disappears once every deferred group is loaded');
     await created.session.reload();
-    assert.ok(names().includes('schedule_prompt') && names().includes('pty_spawn'), 'loaded tools survive /reload');
+    assert.ok(names().includes('schedule_prompt') && names().includes('pty_spawn'), 'active tools survive /reload');
   } finally { stop(); await created.close(); }
 });
 
