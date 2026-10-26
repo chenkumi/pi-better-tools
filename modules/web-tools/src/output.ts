@@ -1,10 +1,34 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { lstat, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 export const MAX_INLINE_BYTES = 24 * 1024;
 export const MAX_INLINE_LINES = 1000;
 export const MAX_STRUCTURED_BYTES = 64 * 1024;
+const OUTPUT_PREFIX = 'pi-web-tools-';
+/** Saved full outputs are for follow-up reads in the same work session, not long-term storage. */
+export const OUTPUT_RETENTION_MS = 24 * 60 * 60 * 1000;
+/** Upper bound of lstat calls per sweep; foreign names are skipped without a stat and do not count. */
+const MAX_SWEEP_STATS = 512;
+const SWEEP_INTERVAL_MS = 10 * 60 * 1000;
+let lastSweep = -Infinity;
+
+/**
+ * Best effort: removes output directories older than the retention period; never blocks or fails a result.
+ * Work per call is bounded, and at most one sweep runs per interval per process.
+ */
+export async function sweepOldOutputs(root = tmpdir(), now = Date.now()): Promise<void> {
+  try {
+    const names = (await readdir(root)).filter(name => name.startsWith(OUTPUT_PREFIX)).slice(0, MAX_SWEEP_STATS);
+    for (const name of names) {
+      const path = join(root, name);
+      try {
+        const info = await lstat(path);
+        if (info.isDirectory() && now - info.mtimeMs > OUTPUT_RETENTION_MS) await rm(path, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+      } catch { /* another process may have removed it */ }
+    }
+  } catch { /* housekeeping only */ }
+}
 export function sanitizeText(text: string): string {
   return text.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g, '');
 }
@@ -25,9 +49,11 @@ export async function toolOutput<T extends object>(text: string, metadata: Recor
   let content = text;
   let fullOutputPath: string | undefined;
   if (truncated) {
-    const dir = await mkdtemp(join(tmpdir(), 'pi-web-tools-'));
+    if (Date.now() - lastSweep >= SWEEP_INTERVAL_MS) { lastSweep = Date.now(); await sweepOldOutputs(); }
+    const dir = await mkdtemp(join(tmpdir(), OUTPUT_PREFIX));
     fullOutputPath = join(dir, 'content.txt');
-    await writeFile(fullOutputPath, text, { mode: 0o600, flag: 'wx' });
+    try { await writeFile(fullOutputPath, text, { mode: 0o600, flag: 'wx' }); }
+    catch (error) { await rm(dir, { recursive: true, force: true }).catch(() => {}); throw error; }
     const notice = `\n\n[Output truncated. Full cleaned content: ${fullOutputPath}\nUse read with offset/limit. Temporary file; may not survive OS cleanup.]`;
     content = clip(text, MAX_INLINE_BYTES - Buffer.byteLength(notice), MAX_INLINE_LINES - 4) + notice;
   }

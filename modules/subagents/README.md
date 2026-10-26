@@ -311,7 +311,7 @@ writer.acquire/       # 短期跨 process acquisition/recovery election fence
 | --- | --- | --- |
 | `pi-subagents.debugLog` | `false` | 僅布林 `true` 啟用；缺少、`false`、字串、格式錯誤皆視為關閉。每次工具呼叫重新讀取 |
 
-啟用後，每個 `failed` task 寫入一份 JSON 到 `~/.pi/logs/pi-subagents/`（內容含 system prompt、task、final／partial response、錯誤與 sub-session 路徑，可能含敏感資訊）。診斷為 best-effort，寫入失敗不影響派遣結果；無自動清理。
+啟用後，每個 `failed` task 寫入一份 JSON 到 `~/.pi/logs/pi-subagents/`（內容含 system prompt、task、final／partial response、錯誤與 sub-session 路徑，可能含敏感資訊）。診斷為 best-effort，寫入失敗不影響派遣結果；每次寫入後只保留最新 100 份。
 
 ## 安全邊界
 

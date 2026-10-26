@@ -150,3 +150,13 @@ test("serialization and host console failures still cannot escape the debug logg
   assert.equal(await writeFailureDebugLog(record({ input }), { homeDir: f.homeDir }), undefined);
   assert.equal(fs.existsSync(f.logsDir), false);
 });
+
+test("pruneOldLogs keeps only the newest failure logs and ignores foreign files", async (t) => {
+  const { pruneOldLogs } = await import("../src/debug-log.mjs");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-shell-prune-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  for (let day = 1; day <= 5; day++) fs.writeFileSync(path.join(dir, `2026-01-0${day}T00-00-00-000Z-X.json`), "{}");
+  fs.writeFileSync(path.join(dir, "notes.txt"), "keep");
+  await pruneOldLogs(dir, 2);
+  assert.deepEqual(fs.readdirSync(dir).sort(), ["2026-01-04T00-00-00-000Z-X.json", "2026-01-05T00-00-00-000Z-X.json", "notes.txt"]);
+});

@@ -1,5 +1,5 @@
-import { appendFile, mkdir } from "node:fs/promises";
-import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFile, mkdir, readdir, stat, unlink } from "node:fs/promises";
+import { appendFileSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -110,6 +110,12 @@ function failureLogEntry(logDirectory: string, tool: string, toolCallId: string,
   return { file: join(logDirectory, `${record.timestamp.slice(0, 10)}.jsonl`), line: `${JSON.stringify(record)}\n` };
 }
 
+/** Per-day size cap and number of day files kept (UTC-dated names sort chronologically). */
+export const MAX_LOG_DAY_BYTES = 2 * 1024 * 1024;
+export const MAX_LOG_DAYS = 7;
+const DAY_FILE = /^\d{4}-\d{2}-\d{2}\.jsonl$/;
+const expired = (names: string[]) => names.filter((name) => DAY_FILE.test(name)).sort().reverse().slice(MAX_LOG_DAYS);
+
 const LOG_DIRECTORY_OPTIONS = { recursive: true, mode: 0o700 } as const;
 const LOG_FILE_OPTIONS = { encoding: "utf8", mode: 0o600 } as const;
 
@@ -122,7 +128,11 @@ function appendFailureLogSync(
 ): void {
   const entry = failureLogEntry(logDirectory, tool, toolCallId, request, error);
   mkdirSync(logDirectory, LOG_DIRECTORY_OPTIONS);
+  let size = 0;
+  try { size = statSync(entry.file).size; } catch { /* first entry of the day */ }
+  if (size + Buffer.byteLength(entry.line) > MAX_LOG_DAY_BYTES) return;
   appendFileSync(entry.file, entry.line, LOG_FILE_OPTIONS);
+  try { for (const name of expired(readdirSync(logDirectory))) unlinkSync(join(logDirectory, name)); } catch { /* housekeeping only */ }
 }
 
 export async function writeFileToolFailureLog(
@@ -134,7 +144,11 @@ export async function writeFileToolFailureLog(
 ): Promise<void> {
   const entry = failureLogEntry(logDirectory, tool, toolCallId, request, error);
   await mkdir(logDirectory, LOG_DIRECTORY_OPTIONS);
+  let size = 0;
+  try { size = (await stat(entry.file)).size; } catch { /* first entry of the day */ }
+  if (size + Buffer.byteLength(entry.line) > MAX_LOG_DAY_BYTES) return;
   await appendFile(entry.file, entry.line, LOG_FILE_OPTIONS);
+  try { for (const name of expired(await readdir(logDirectory))) await unlink(join(logDirectory, name)).catch(() => undefined); } catch { /* housekeeping only */ }
 }
 
 export function prepareWithFailureLogging<T>(

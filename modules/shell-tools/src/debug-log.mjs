@@ -1,5 +1,5 @@
 import { ulid } from "ulid";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -7,6 +7,16 @@ import { join } from "node:path";
 export const PROJECT_NAME = "pi-shell-tools";
 export const MAX_LOG_TEXT_CHARS = 65_536;
 export const MAX_LOG_WAIT_MS = 2000;
+/** Newest failure logs kept in the log directory; older ones are removed after each write. */
+export const MAX_LOG_FILES = 100;
+
+/** File names start with an ISO timestamp, so name order is age order. Best effort; never fails a write. */
+export async function pruneOldLogs(directory, keep = MAX_LOG_FILES) {
+  try {
+    const names = (await readdir(directory)).filter((name) => /^\d{4}-\d{2}-\d{2}T.*\.json$/.test(name)).sort().reverse();
+    for (const name of names.slice(keep)) await unlink(join(directory, name)).catch(() => undefined);
+  } catch { /* housekeeping only */ }
+}
 
 function diagnosticReplacer() {
   const seen = new WeakSet();
@@ -91,6 +101,7 @@ export async function writeFailureDebugLog(record, options = {}) {
       // across concurrent tools, sessions, and processes. No input forms a path.
       const logPath = join(directory, `${timestamp.replace(/[:.]/g, "-")}-${ulid().toUpperCase()}.json`);
       await writeFile(logPath, payload, { encoding: "utf8", flag: "wx", mode: 0o600, signal });
+      await pruneOldLogs(directory);
       return logPath;
     } catch (error) {
       // Missing/unreadable/invalid settings mean opt-in could not be confirmed.

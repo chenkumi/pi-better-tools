@@ -68,3 +68,19 @@ test('oversized structured data is omitted rather than bypassing output bounds, 
     assert.equal(result.structuredContent.text, result.content[0]!.text);
   } finally { if (result.details.fullOutputPath) await rm(dirname(result.details.fullOutputPath), { recursive: true }); }
 });
+
+test('sweepOldOutputs removes only expired pi-web-tools directories', async () => {
+  const { sweepOldOutputs, OUTPUT_RETENTION_MS } = await import('../../src/output.ts');
+  const { mkdtemp, mkdir, writeFile, readdir } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const root = await mkdtemp(join(tmpdir(), 'pi-web-sweep-root-'));
+  try {
+    for (const name of ['pi-web-tools-old', 'pi-web-tools-new', 'foreign-dir']) { await mkdir(join(root, name)); await writeFile(join(root, name, 'content.txt'), 'x'); }
+    await sweepOldOutputs(root, Date.now() + OUTPUT_RETENTION_MS + 60_000);
+    assert.deepEqual(await readdir(root), ['foreign-dir']);
+    await mkdir(join(root, 'pi-web-tools-fresh'));
+    await sweepOldOutputs(root, Date.now());
+    assert.deepEqual((await readdir(root)).sort(), ['foreign-dir', 'pi-web-tools-fresh']);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

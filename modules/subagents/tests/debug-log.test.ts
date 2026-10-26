@@ -84,3 +84,14 @@ test("debug failure log records input, final response, JSONL path and its own fi
 		await rm(root, { recursive: true, force: true });
 	}
 });
+
+test("pruneSubagentDebugLogs keeps only the newest failure logs and ignores foreign files", async () => {
+	const { pruneSubagentDebugLogs } = await import("../extensions/subagent/debug-log.ts");
+	const dir = await mkdtemp(join(tmpdir(), "pi-subagent-prune-"));
+	try {
+		for (let day = 1; day <= 5; day++) await writeFile(join(dir, `2026-01-0${day}T00-00-00-000Z-T-X.json`), "{}");
+		await writeFile(join(dir, "notes.txt"), "keep");
+		await pruneSubagentDebugLogs(dir, 2);
+		assert.deepEqual((await fs.readdir(dir)).sort(), ["2026-01-04T00-00-00-000Z-T-X.json", "2026-01-05T00-00-00-000Z-T-X.json", "notes.txt"]);
+	} finally { await rm(dir, { recursive: true, force: true }); }
+});

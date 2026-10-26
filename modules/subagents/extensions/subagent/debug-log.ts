@@ -10,6 +10,17 @@ export function getSubagentDebugLogDir(homeDir = os.homedir()): string {
 	return path.join(homeDir, ".pi", "logs", SUBAGENTS_PROJECT_NAME);
 }
 
+/** Newest failure logs kept in the log directory; older ones are removed after each write. */
+export const MAX_SUBAGENT_DEBUG_LOGS = 100;
+
+/** File names start with an ISO timestamp, so name order is age order. Best effort; never fails a write. */
+export async function pruneSubagentDebugLogs(logsDir: string, keep = MAX_SUBAGENT_DEBUG_LOGS): Promise<void> {
+	try {
+		const names = (await fs.readdir(logsDir)).filter(name => /^\d{4}-\d{2}-\d{2}T.*\.json$/u.test(name)).sort().reverse();
+		for (const name of names.slice(keep)) await fs.unlink(path.join(logsDir, name)).catch(() => undefined);
+	} catch { /* housekeeping only */ }
+}
+
 export interface SubagentDebugInput {
 	agent: string;
 	task: string;
@@ -61,5 +72,6 @@ export async function writeSubagentDebugFailure(
 	};
 	await fs.writeFile(filePath, `${JSON.stringify(record, null, 2)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
 	await fs.chmod(filePath, 0o600);
+	await pruneSubagentDebugLogs(logsDir);
 	return filePath;
 }

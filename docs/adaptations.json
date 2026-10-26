@@ -2261,7 +2261,7 @@
       "scanFixes20261024Adaptation": "2026-10-24: documents that the settings path follows the host getAgentDir (scan FT-003).",
       "fffAgentErrorGuard20261024PreviousSha256": "9307b8531ed45884062d47a6c2b79a896f7dfefdead62854d55c67ec4703ceda",
       "fffAgentErrorGuard20261024Adaptation": "2026-10-24: documents fff-guard.mjs cursor/error guard around pi-fff tools.",
-      "sha256": "eb38e40427cf3c99814c1d62353005616039a4573f7c0f9f20504698e00341f1",
+      "sha256": "4ac3c0dde049a5d47d9d3e6e8fe89ddea9c602cbd70af7439b362d6c20e59a4f",
       "piBoltFffCompat20261021PreviousSha256": "3378ae0c332d60cca97339eeb317271baef9947149945c6e56478a62d5056127",
       "piBoltFffCompat20261021Adaptation": "2026-10-21 document FFF behaviour measured on Pi-Bolt 0.9.6 (JIT off): @ff-labs/fff-bun blocked by the host's JIT_ONLY_PACKAGES so the SDK falls back to @ff-labs/fff-node, override mode and real find/grep results, Pi-Bolt's path-based FFF detection missing this thin wrapper, do-not-coexist with opensec-pi-fff and the packages-filter route to it. Documentation only; wrapper code unchanged.",
       "pi130UpgradeReconcile20261017PreviousSha256": "b8451d226b5b4df06c150620a5466a2c721642479eb62b513a2cd6afc29f9e61",
@@ -2303,7 +2303,7 @@
       "defectFix20261023Adaptation": "2026-10-23 documents that web_search data.provider covers brave/exa/deepseek.",
       "scanFixes20261024bPreviousSha256": "23950ef083e6f409efd1061b185b7b08e6b310ad94bf201e6356335e4a287762",
       "scanFixes20261024bAdaptation": "2026-10-24: documents that redirect hops count against the request budget.",
-      "sha256": "1072b57258c15e0e8d852d26ab9059e714b6476fc5ff23ef9679f658b193ebd7",
+      "sha256": "c4f76f712fb667e9f3039de2728accde2d0d10ac5272c8fa8a2a58093ef73917",
       "geminiGroundingCapture20261017PreviousSha256": "1ea872f9e8b7c0a819ed27263f74d6421504c9ccb5d31a6497a5ed53b473928f",
       "geminiGroundingCapture20261017Adaptation": "Document providers.google.captureSources, what grounding capture stores and omits, the redirect-URL limitation, and the updated status output.",
       "preChangeSha256": "5f5f1d8c15836abe56ea10966bf83517d9e780adb620765c4bc5c53aa758fdc8",
@@ -2483,7 +2483,7 @@
       "liveJobView20261023Adaptation": "2026-10-23: documents the per-task live conversation copy fed by onEvent and its release rules.",
       "scanFixes20261024PreviousSha256": "0bb2a9255d4518ec5edde9cc33a8f517c7b868cb9769a6cd56c18879122cca12",
       "scanFixes20261024Adaptation": "2026-10-24: documents the process-wide admission budget across /reload.",
-      "sha256": "4027b81a5604c756a7304951ac47c4524532aa207a298a445c989ae5910a9035",
+      "sha256": "1015ffcef666e11364323cbc094aab83ec1bca8671b1a145e9c13eb52c27f757",
       "detachHint20261021PreviousSha256": "a2e39ae9637169bb9b55df280d1a0e614bce965974c7d8cadb0ad4b93d94b82d",
       "detachHint20261021Adaptation": "2026-10-21 document the hint on the subagent tool call's own last rendered line instead of the status bar.",
       "previousRejectedTuiSha256": "bdd1c25ab276cb1150338f9638020e3d05813e32070c8276c225ca5b1641c7c1",
@@ -2546,20 +2546,20 @@
     {
       "path": "modules/shell-tools/src/debug-log.mjs",
       "originalSha256": "8134dcfb92f3fd61561b95c1b11a40e5f54e799615fc871799b8fceb201e4f43",
-      "sha256": "3ebc4a25bea001b2a64779f737e0736d85983b7541fbb80dc470057af2b7ecf4",
-      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change."
+      "sha256": "d5cd6d9601f1b527fa4801d2744a493c93b990074a1da3a8d0f1577bdb7088eb",
+      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change.; 2026-10-26: REL-26-01/03 retention (plan/stability-20261026/report.md)"
     },
     {
       "path": "modules/shell-tools/tests/debug-log.test.mjs",
       "originalSha256": "a4f8feb542aad709839d11ae953a7496df643709eb5702b7725df231ecbea1bb",
-      "sha256": "9f2d1ec38e5cb681fc4c130ff7909044721fd357b2e74f11b32d854fc30fb656",
+      "sha256": "62a9a618542736f45391a9ef8e342644c1ee826036c297254e43a61b086f54b4",
       "reason": "User-requested UUID→ULID: test fixtures/assertions generate and match ULIDs; legacy UUID acceptance unchanged."
     },
     {
       "path": "modules/subagents/extensions/subagent/debug-log.ts",
       "originalSha256": "8049dfe98c80e2e3785d406bc2f4573b0b08d0b796d803d0b911141926cef421",
-      "sha256": "ad49a42b8a4532dbc01cb883ec2e8cb02bb258c61b0811f1eb743069bdb0ed81",
-      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change."
+      "sha256": "4beadc33fceca00770d789c86861b098f953156ea0522f2e51c7728a85ac174e",
+      "reason": "User-requested UUID→ULID: replace node:crypto randomUUID with the ulid package (lowercase); persisted/validated IDs accept both ULID and legacy UUID; no schema, key, or directory change.; 2026-10-26: REL-26-01/03 retention (plan/stability-20261026/report.md)"
     },
     {
       "path": "modules/subagents/extensions/subagent/session-store.ts",
@@ -2622,7 +2622,7 @@
       "liveJobView20261023Adaptation": "2026-10-23: documents the live detail view (in-memory copy, Ctrl+O expansion, m metadata, follow-at-end, release at the terminal state, version-based panel signature).",
       "scanFixes20261024PreviousSha256": "dfd4eb5b56d30ac4c1ec635cf7875242c70bbc4ac8d911575ba1e76c3b5faeb6",
       "scanFixes20261024Adaptation": "2026-10-24: documents the sentinel and the retried handoff.",
-      "sha256": "055a81deb2e6f298d68be9710f11bf83b478b943840b376b53bd0acc7fb2dfd6",
+      "sha256": "1589d0b87dec9827a27b934ac89b0cbcc3cb1e628a6e7bbe9d5b184a51a4a1e5",
       "detachHint20261021PreviousSha256": "6890a5499d54528ee019c406ac7fbf2571ecf481ca393047d4e246c29183427e",
       "detachHint20261021Adaptation": "2026-10-21 document the hint as the tool call's last rendered line (muted, same shape as Pi's expand hint), the call/result placement rule, and that it is never written to the status bar.",
       "notificationBatchingPreviousSha256": "496539ba1fb125f18cb6fa1e517345023195e4a8e73665cb8d037b82d8911cf7",
@@ -2639,7 +2639,7 @@
     {
       "path": "modules/subagents/tests/debug-log.test.ts",
       "originalSha256": "a37d52baf52ca262ca82f3decb3c81b9cc36c63817fbeaf566c072262b6997bf",
-      "sha256": "5b78a83063072272b4e55d544358944e230cc3fdd7e99861463b39da1b8e85d7",
+      "sha256": "bea69d955590da50269fb80eed5b84783c4933454aa6b7ac7c640f29930c2c6d",
       "reason": "Modules no longer carry a manifest: drop the read of modules/subagents/package.json; the persisted settings namespace is asserted as the literal \"pi-subagents\" (SUBAGENTS_PROJECT_NAME, log dir and legacy-key rejection assertions unchanged)."
     },
     {
@@ -2867,12 +2867,12 @@
       "checklistReviewBaselineSha256": "c49d6dd22ab69aba20d14719e3daa8803d65e9b352640b51792efdec4da67db3",
       "localSnapshotReview": "2026-10-08 current local snapshot review: MH1/M10-M11/L5-L9: current short temp names/bounded Windows retries, full-hash plus final stat stale fences, request-local regex reuse, diagnostic payload redaction and settings fallback reviewed; @ convention/diff fail-closed and metadata/TOCTOU limitations retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
       "historicalDeltaAudit": "unavailable",
-      "reason": "2026-10-08 current local snapshot review: MH1/M10-M11/L5-L9: current short temp names/bounded Windows retries, full-hash plus final stat stale fences, request-local regex reuse, diagnostic payload redaction and settings fallback reviewed; @ convention/diff fail-closed and metadata/TOCTOU limitations retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.",
+      "reason": "2026-10-08 current local snapshot review: MH1/M10-M11/L5-L9: current short temp names/bounded Windows retries, full-hash plus final stat stale fences, request-local regex reuse, diagnostic payload redaction and settings fallback reviewed; @ convention/diff fail-closed and metadata/TOCTOU limitations retained. The mismatch existed before this task; earlier recorded contents were unavailable, so this is current integrity review, not historical-diff certification.; 2026-10-26: REL-26-01/03 retention (plan/stability-20261026/report.md)",
       "cleanCodeModules20261023PreviousSha256": "a7be684621a955e7ab332c9078a66052c0c52fbf5a999eff75b1910a17268d8f",
       "cleanCodeModules20261023Adaptation": "2026-10-23 clean code: shared default log directory, entry serialization and option constants for the sync/async writers; errnoCode for ENOENT.",
       "scanFixes20261024PreviousSha256": "bdf0c3f7ecf71c7a87c1f22146eeb5665abdbc7c4ead2b9dc19869893e386abd",
       "scanFixes20261024Adaptation": "2026-10-24: the settings path defaults to the host getAgentDir(), which expands ~ (scan FT-003).",
-      "sha256": "ef2cc3f645af65c6dfd94a08c124f9dc7b3c67ea16dc6f5519023e22f25ae7f3"
+      "sha256": "1b6acbaed9c195df9f6e8577365c99de26b1d2788682ee39b6ee7e1fe2198d08"
     },
     {
       "path": "modules/file-tools/tests/debug-logging.test.ts",
@@ -2947,7 +2947,7 @@
       "reason": "2026-10-08 current local snapshot review: H2/M12-M13/L10-L13: current peer-address post-response mitigation (not IP pinning), bounded terminable extraction worker ownership, unnecessary-resource blocking and per-fetch DNS memo reviewed; documented fail-closed/retention/context-close policies retained.",
       "defectFix20261023PreviousSha256": "49173690221b93e7fefcfd188f25695f939058dd66122303d1835dcf521450c1",
       "defectFix20261023Adaptation": "2026-10-23 regression test: every REST provider result matches searchOutputSchema (red before the repair).",
-      "sha256": "06e8465b7019280bf0914aa3a54fe3ad6531b044bee18b2e5ce1b84cc9b02f5e"
+      "sha256": "3febb0a4ccf9eee90a7168e409d3e76807a099842e652f9fc9b58da85bca33b7"
     },
     {
       "path": "modules/subagents/tests/subsession-log.test.ts",
@@ -4974,8 +4974,8 @@
     {
       "path": "modules/web-tools/src/output.ts",
       "originalSha256": "6aaac4bb47827f9d597ec398876a8573325fcbfa436866d18d5f95f02f0ac03b",
-      "sha256": "6ee595d6957d1dcd8fda2a902055b854c820324d0188379cdbf90de9af98e7b7",
-      "reason": "Error-message guidance pass (2026-10-24): failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); behavior, schemas, tool names and error codes unchanged."
+      "sha256": "56fbaddf75c158159d77b56b000892c874ee5446da18bb0cd96a8f31c4ae7c16",
+      "reason": "Error-message guidance pass (2026-10-24): failure responses name the parameter, the violated rule, a bounded received value and the fix (plan/error-message-handoff.md); behavior, schemas, tool names and error codes unchanged.; 2026-10-26: REL-26-01/03 retention (plan/stability-20261026/report.md)"
     },
     {
       "path": "modules/sql-connector/src/types.ts",
@@ -7080,6 +7080,11 @@
       "path": "modules/sqlite-tools/tests/installed-layout.test.ts",
       "sha256": "3a4df4d72be0e547add271c4973c19d3ad56c16c4f6563fd32005e19e7d29e57",
       "reason": "2026-10-25: starts the SQLite child from a node_modules layout and requires the ready message."
+    },
+    {
+      "path": "modules/file-tools/tests/debug-logging-retention.test.ts",
+      "sha256": "abc152ebb5f5e87286a9bb4b28795f74a62deea532134653ef190e070dd43598",
+      "reason": "2026-10-26: failure log keeps at most 7 day files and stops appending at the 2 MiB daily cap (REL-26-03)."
     }
   ],
   "blackholePiOwnedSummaryMigrationReview": {

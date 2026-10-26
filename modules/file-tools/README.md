@@ -130,7 +130,7 @@
 }
 ```
 
-啟用後，失敗的 `read`／`write`／`edit`（含參數驗證失敗）會以 JSON Lines 附加到 `~/.pi/logs/pi-file-tools/YYYY-MM-DD.jsonl`，每筆含時間、工具、toolCallId、請求與結構化錯誤。請求中的 `content`、`oldText`、`newText`、`regex`、字串形式的 `edits` 及錯誤中的 `rangePreview`、`INVALID_REGEX` 診斷訊息（可能回顯 regex）只記錄長度與 SHA-256（`{ redacted, length, sha256 }`），不保留全文；超深無效請求的子樹會遮罩，不直接寫出未檢查的內容。路徑與其他欄位原樣保留，日誌無保留期限，請妥善保管。寫入日誌失敗不會遮蔽原始錯誤。
+啟用後，失敗的 `read`／`write`／`edit`（含參數驗證失敗）會以 JSON Lines 附加到 `~/.pi/logs/pi-file-tools/YYYY-MM-DD.jsonl`，每筆含時間、工具、toolCallId、請求與結構化錯誤。請求中的 `content`、`oldText`、`newText`、`regex`、字串形式的 `edits` 及錯誤中的 `rangePreview`、`INVALID_REGEX` 診斷訊息（可能回顯 regex）只記錄長度與 SHA-256（`{ redacted, length, sha256 }`），不保留全文；超深無效請求的子樹會遮罩，不直接寫出未檢查的內容。路徑與其他欄位原樣保留，每日檔上限 2 MiB（超過後當日不再追加）、只保留最新 7 個日期檔；仍請妥善保管。寫入日誌失敗不會遮蔽原始錯誤。
 
 ## 與 @ff-labs/pi-fff 的共存
 

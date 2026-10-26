@@ -142,7 +142,7 @@ text(receipt);
 - SDK 嵌入式宿主必須 **`await runtime.dispose()`**，讓宿主發送 `session_shutdown` 並等待 extension cleanup。單獨呼叫同步 `session.dispose()` 不保證發送此事件，**不能當作背景退出清理 API**。若執行／輸出／通知時觀察到 owner getter 已失效，會 fail closed、取消並清理已觀察到的工作、抑制通知；不使用輪詢 timer，因此安靜且沒有後續 callback 的工作不保證立即偵測，仍需正確 runtime dispose。
 - 長例外訊息在判定原始 timeout 尾部後才縮減，保留頭尾與省略標記；超長輸出不會吞掉 timeout 狀態或尾部診斷。
 - owner 綁 session，不綁目前 branch；來源 toolCallId 隨通知提供，切換 branch 不會撤銷背景副作用。所有工作與主 agent 共用 workspace，避免並行修改同一檔案；必要時自行使用獨立 worktree。
-- 背景失敗仍沿用下面的選用 failure debug log（其既有不自動輪替政策不變）。query／control 不適用 shell。
+- 背景失敗仍沿用下面的選用 failure debug log（每次寫入後只保留最新 100 份，見下方）。query／control 不適用 shell。
 
 ## Session 載入核對（不是工作恢復）
 
@@ -197,6 +197,7 @@ status／cancel 的 TUI 使用 `Job status`、`Reason`、`Next` 及展開的 `Jo
 ```
 
 - 內容（`schemaVersion: 1`）包含：時間戳、process id、工具名稱、toolCallId、cwd、sessionId、耗時毫秒、原始輸入（含 `timeoutMs`），以及例外（name／message／stack／cause）或失敗結果。字串超過 65,536 字元時保留前後各 32,768 字元並加上省略標記，原始輸入／結果不受影響。
+- 每次寫入後只保留檔名時間戳最新的 100 份，較舊者 best-effort 刪除。
 - 成功呼叫不產生日誌。診斷 I/O 的等待上限為 2 秒，寫入屬 best-effort，失敗最多警告，不改變原本的工具結果或例外。
 - 日誌可能包含指令與含機密的輸出；不會自動輪替或清理，請自行刪除。POSIX 上新檔／目錄要求 `0600`／`0700`，Windows 依檔案系統 ACL。本模組不會自動修改你的設定來啟用日誌。
 
