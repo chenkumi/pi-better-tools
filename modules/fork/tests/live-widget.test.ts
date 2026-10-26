@@ -50,7 +50,7 @@ test("lifecycle shows title and real states, never the task/result body, and no 
 	const sm = origin(), A = fakes(sm), handles = fakeChild();
 	onSessionStart(A.pi, A.ctx);
 	acceptFork(A.pi, A.ctx, { task: "PRIVATE_TASK_BODY", title: "Audit modules" });
-	assert.match(A.text(), /FK fork · Audit modules/); assert.match(A.text(), /awaiting_snapshot/); assert.match(A.text(), /usage pending/);
+	assert.match(A.text(), /FK fork · Audit modules/); assert.match(A.text(), /awaiting_snapshot \| pending/);
 	addResult(sm); onTurnEnd(A.ctx, {}); handles[0]!.phase("running"); assert.match(A.text(), /running/);
 	handles[0]!.finish({ usage: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0, total: 3, cost: 0 } }); await flush();
 	assert.equal(A.widgets.has(BACKGROUND_WIDGET_KEY), false, "confirmed cleanup leaves the resident panel");
@@ -62,10 +62,10 @@ test("cancelling and terminal-but-unconfirmed cleanup stay visible with honest t
 	const sm = origin(), A = fakes(sm), handles = fakeChild();
 	onSessionStart(A.pi, A.ctx);
 	const receipt = acceptFork(A.pi, A.ctx, { task: "x", title: "Slow close" }); addResult(sm); onTurnEnd(A.ctx, {}); handles[0]!.phase("running");
-	await requestCancel(state().jobs.get(receipt.jobId)!); assert.match(A.text(), /cancelling · cancel requested, awaiting child close/);
+	await requestCancel(state().jobs.get(receipt.jobId)!); assert.match(A.text(), /cancelling \| awaiting child close/);
 	handles[0]!.finish({ status: "cancelled", output: undefined, childClosed: false }); await flush();
 	assert.equal(state().jobs.get(receipt.jobId)!.released, false);
-	assert.match(A.text(), /cancelled · cleanup unconfirmed/); assert.match(A.text(), /Fork 1/); assert.doesNotMatch(A.text(), /running/);
+	assert.match(A.text(), /cancelled \| cleanup unconfirmed/); assert.match(A.text(), /Fork 1/); assert.doesNotMatch(A.text(), /running/);
 });
 
 test("session A to B to A: B never shows A's Fork, returning to A rebuilds latest state, old lease cannot update", async () => {

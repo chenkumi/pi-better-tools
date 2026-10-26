@@ -10,8 +10,9 @@ import { BackgroundJobs } from '../../subagents/extensions/subagent/background.t
 const theme: any = { fg: (_: string, s: string) => `\x1b[32m${s}\x1b[0m`, getBgAnsi: () => '\x1b[48;5;58m', bg: (_: string, s: string) => '\x1b[48;5;58m' + s + '\x1b[49m' };
 function view() {
   let owner = 'owner', renders = 0, customCalls = 0, overlay: any, draft = '保留輸入中的文字', rows = 40;
+  const listeners = new Set<(data: string) => unknown>();
   const widgets = new Map<string, any>(), statuses = new Map<string, string>(), calls: any[] = [];
-  const tui = { terminal: { get rows() { return rows; } }, requestRender: () => renders++ };
+  const tui = { terminal: { get rows() { return rows; } }, requestRender: () => renders++, addInputListener: (listener: (data: string) => unknown) => { listeners.add(listener); return () => { listeners.delete(listener); }; } };
   const ctx: any = { cwd: '/cwd', mode: 'tui', hasUI: true, sessionManager: { getSessionId: () => owner }, ui: {
     setStatus(key: string, value: string | undefined) { if (value) statuses.set(key, value); else statuses.delete(key); },
     setWidget(key: string, value: any, options: any) { calls.push({ key, value, options }); if (value) widgets.set(key, value); else widgets.delete(key); }, notify() {},
@@ -22,8 +23,8 @@ function view() {
     }); },
   } };
   return { ctx, widgets, statuses, calls, owner: (id: string) => owner = id, rows: (n: number) => rows = n,
-    factory: () => widgets.get(BACKGROUND_WIDGET_KEY), component: () => widgets.get(BACKGROUND_WIDGET_KEY)(tui, theme),
-    renders: () => renders, overlay: () => overlay, customCalls: () => customCalls, draft: () => draft };
+    factory: () => widgets.get(BACKGROUND_WIDGET_KEY), component: (t: any = theme) => widgets.get(BACKGROUND_WIDGET_KEY)(tui, t),
+    input: (data: string) => [...listeners].map(listener => listener(data)), listeners: () => listeners.size, renders: () => renders, overlay: () => overlay, customCalls: () => customCalls, draft: () => draft };
 }
 const job = (id: string, kind: PanelKind = 'shell', state = 'running', active = true): PanelJob => ({ jobId: id, kind, label: kind === 'shell' ? 'bash' : 'scout', title: `${kind} work ${id}`, state, active, activity: state === 'finalizing' ? 'Finalizing · finishing cleanup' : state, usageState: kind === 'shell' ? 'na' : 'pending', startedAt: Number(id.replace(/\D/g, '')) || 0, details: [`Detail ${id}`] });
 const snapshot = (jobs: PanelJob[]) => ({ jobs, signature: JSON.stringify(jobs) });
@@ -34,11 +35,11 @@ function hostPair() {
   const create = () => ({ events: { emit(channel: string, data: unknown) { for (const handler of handlers.get(channel) ?? []) handler(data); }, on(channel: string, handler: Function) { if (!handlers.has(channel)) handlers.set(channel, new Set()); handlers.get(channel)!.add(handler); return () => handlers.get(channel)!.delete(handler); } }, registerCommand(name: string, definition: any) { registrations.push(name); commands.set(name, definition); } });
   return { create, commands, registrations, clear: () => handlers.clear() };
 }
-test('automatic above-editor panel: five JOBS total, two rows each, no duplicate footer; unrelated widgets/statuses preserved', () => {
+test('automatic above-editor panel: five JOBS total, one row each, no duplicate footer; unrelated widgets/statuses preserved', () => {
   const { ui, panel, shell, sub } = setup(); ui.widgets.set('schedule', ['preserved']); ui.statuses.set('gpt-speed', 'Fast');
   const text = plain(ui.component().render(100).join('\n'));
   assert.match(text, /6 active · Subagents 4 \/ Shell 2/); assert.match(text, /More… \(\+1 active\)/);
-  assert.equal(text.split('\n').length, 12); assert.equal((text.match(/[●◷◐] (?:SA|SH)/g) ?? []).length, 5);
+  assert.equal(text.split('\n').length, 7); assert.equal((text.match(/[●◷◐] (?:SA|SH)/g) ?? []).length, 5);
   assert.equal(ui.calls.at(-1).options.placement, 'aboveEditor'); assert.equal(ui.statuses.has(BACKGROUND_WIDGET_KEY), false);
   panel.toggle('collapse', ui.ctx); assert.equal(ui.widgets.has(BACKGROUND_WIDGET_KEY), false);
   panel.toggle('all', ui.ctx); assert.equal(ui.widgets.has(BACKGROUND_WIDGET_KEY), true);
@@ -69,7 +70,7 @@ test('replacement owner/leases fence old widgets and overlays; detach preserves 
 });
 test('finalizing stays visible as a job, not a running child; completion leaves only retained More history', async () => {
   const { ui, panel, shell, sub } = setup(); panel.update('shell', shell, snapshot([])); panel.update('subagents', sub, snapshot([job('3', 'subagents', 'finalizing')]));
-  assert.match(plain(ui.component().render(100).join('\n')), /Finalizing/);
+  assert.match(plain(ui.component().render(100).join('\n')), /◐ SA scout · subagents work 3 +finalizing \| pending/);
   const finished = job('3', 'subagents', 'completed', false); panel.update('subagents', sub, snapshot([finished])); assert.equal(ui.widgets.has(BACKGROUND_WIDGET_KEY), false);
   const opening = panel.openMore(ui.ctx); const overlay = ui.overlay(); assert.match(plain(overlay.render(72).join('\n')), /subagents work 3/); overlay.handleInput('\r');
   assert.match(plain(overlay.render(72).join('\n')), /State: completed/); overlay.handleInput('\x1b'); overlay.render(72); overlay.handleInput('\x1b'); await opening;
@@ -105,7 +106,7 @@ test('both real adapters use one key, aggregate batch tasks into one job; all di
     await entered;
     shell.bind(ui.ctx, () => [{ jobId: 'shell', tool: 'powershell', status: 'running', command: 'test command' }]);
     sub.bind(ui.ctx, () => jobs.panelJobs('owner', '/cwd'));
-    const text = plain(ui.component().render(120).join('\n')); assert.match(text, /2 active/); assert.match(text, /test command/); assert.match(text, /1 running \/ 1 queued/);
+    const text = plain(ui.component().render(120).join('\n')); assert.match(text, /2 active/); assert.match(text, /test command/); assert.match(text, /SA batch \(2 tasks\) · Build component/);
     shell.clear(); assert.match(plain(ui.component().render(80).join('\n')), /Build component/); sub.clear(); assert.equal(ui.widgets.size, 0);
   } finally { release(); shell.clear(); sub.clear(); await jobs.shutdown(); }
 });
@@ -113,7 +114,7 @@ test('width/height/Unicode/control caps and theme background continuity; resize 
   const { ui, panel, shell, sub } = setup(); const malicious = job('1'); malicious.title = '\x1b]0;x\x07\x1b[2J\u202e界😀\n\t' + 'long'.repeat(500);
   panel.update('shell', shell, snapshot([malicious])); panel.update('subagents', sub, snapshot([])); const c = ui.component();
   for (const width of [0, 1, 2, 3, 6, 12, 24, 80]) for (const line of c.render(width)) { assert.equal(visibleWidth(line), width); assert.doesNotMatch(plain(line), /[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/); }
-  ui.rows(12); assert.equal(c.render(80).length, 4); ui.rows(10); assert.equal(c.render(80).length, 2); assert.match(plain(c.render(80).at(-1)!), /\+1 active/);
+  ui.rows(12); assert.equal(c.render(80).length, 3); ui.rows(10); assert.equal(c.render(80).length, 2); assert.match(plain(c.render(80).at(-1)!), /\+1 active/);
   let ansi = theme.getBgAnsi(); const dynamic = { ...theme, getBgAnsi: () => ansi, bg: (_: string, s: string) => ansi + s + '\x1b[49m' };
   const changing = ui.factory()({ terminal: { rows: 40 }, requestRender() {} }, dynamic); changing.render(80); ansi = '\x1b[48;5;22m'; changing.invalidate(); assert.ok(changing.render(80).every((s: string) => s.startsWith(ansi)));
 });
@@ -171,7 +172,7 @@ test('W1: long detail height budgets preserve footer on resize including tiny te
   }
 });
 
-test('clicking a job row (heading or activity) opens the overlay directly on that job; title, modifiers and clipped rows do nothing', async () => {
+test('clicking a job row opens the overlay directly on that job; title, modifiers and clipped rows do nothing', async () => {
   const { ui } = setup(); const c = ui.component(), lines = c.render(80);
   assert.match(plain(lines.join('\n')), /click a job to open/);
   for (const options of [{ button: 'right' }, { shift: true }, { alt: true }, { ctrl: true }, { type: 'wheel' }, { type: 'drag' }, { clickCount: 2 }]) assert.equal(mouse(c, 5, 1, 80, options), undefined);
@@ -183,7 +184,51 @@ test('clicking a job row (heading or activity) opens the overlay directly on tha
   ui.overlay().handleInput('\x1b'); text = plain(ui.overlay().render(72).join('\n'));
   assert.match(text, /Active \/ Recent finished/, 'Esc returns to the list');
   ui.overlay().handleInput('\x1b'); await Promise.resolve(); assert.equal(ui.overlay(), undefined);
-  assert.equal(mouse(c, 5, 4)?.handled, true, 'second job activity row');
+  assert.equal(mouse(c, 5, 2)?.handled, true, 'second job row');
   assert.match(plain(ui.overlay().render(72).join('\n')), /Detail 2/);
   ui.overlay().handleInput('\x1b'); ui.overlay().handleInput('\x1b'); await Promise.resolve();
+});
+
+const hoverTheme: any = { fg: (_: string, s: string) => s, getBgAnsi: (name: string) => name === 'selectedBg' ? '\x1b[48;5;99m' : '\x1b[48;5;58m', bg: (name: string, s: string) => (name === 'selectedBg' ? '\x1b[48;5;99m' : '\x1b[48;5;58m') + s + '\x1b[49m' };
+const lit = (line: string) => line.includes('\x1b[48;5;99m');
+const move = (component: any, x: number, y: number) => mouse(component, x, y, 80, { type: 'move', button: 'none' });
+test('hover highlights the job row or the More label under the pointer, clears elsewhere, and never changes the layout', () => {
+  const { ui } = setup(); const c = ui.component(hoverTheme), base = c.render(80), last = base.length - 1;
+  assert.equal(base.some(lit), false);
+  assert.deepEqual(move(c, 5, 1), { handled: true, render: true });
+  let lines = c.render(80); assert.deepEqual(lines.map(lit), base.map((_: string, i: number) => i === 1));
+  assert.equal(plain(lines.join('\n')), plain(base.join('\n')), 'highlight only recolours'); assert.deepEqual(lines.map(visibleWidth), base.map(visibleWidth));
+  assert.equal(move(c, 9, 1), undefined, 'same row again needs no render');
+  assert.deepEqual(move(c, 5, 2), { handled: true, render: true }); assert.deepEqual(c.render(80).map(lit), base.map((_: string, i: number) => i === 2));
+  assert.deepEqual(move(c, 5, 0), { handled: true, render: true }, 'title row is not a target: hover clears'); assert.equal(c.render(80).some(lit), false);
+  assert.equal(move(c, 5, 0), undefined);
+  assert.deepEqual(move(c, 2, last), { handled: true, render: true }); lines = c.render(80);
+  assert.deepEqual(lines.map(lit), base.map((_: string, i: number) => i === last)); assert.equal(plain(lines.join('\n')), plain(base.join('\n')));
+  assert.deepEqual(move(c, 25, last), { handled: true, render: true }, 'outside the label is not a target'); assert.equal(c.render(80).some(lit), false);
+  move(c, 5, 1); assert.equal(c.render(80).some(lit), true); c.invalidate(); assert.equal(move(c, 5, 1), undefined, 'stale width after invalidate'); c.dispose();
+  assert.equal(move(c, 5, 1), undefined); assert.equal(ui.customCalls(), 0, 'hover never opens anything');
+});
+test('hover is cleared when the pointer leaves the panel or the terminal loses focus; the listener never consumes input', () => {
+  const { ui } = setup(); const c = ui.component(hoverTheme); c.render(80); assert.equal(ui.listeners(), 1);
+  move(c, 5, 1); const before = ui.renders();
+  assert.deepEqual(ui.input('\x1b[<35;6;3M'), [undefined], 'inside the panel'); assert.equal(ui.renders(), before); assert.equal(c.render(80).some(lit), true);
+  assert.deepEqual(ui.input('a'), [undefined]); assert.equal(c.render(80).some(lit), true);
+  assert.deepEqual(ui.input('\x1b[<35;6;40M'), [undefined], 'pointer left'); assert.equal(ui.renders(), before + 1); assert.equal(c.render(80).some(lit), false);
+  assert.deepEqual(ui.input('\x1b[<35;6;40M'), [undefined]); assert.equal(ui.renders(), before + 1, 'nothing to clear');
+  move(c, 5, 1); assert.deepEqual(ui.input('\x1b[O'), [undefined]); assert.equal(c.render(80).some(lit), false);
+  move(c, 5, 1); c.dispose(); assert.equal(ui.listeners(), 0); assert.equal(c.render(80).length, 0);
+});
+test('one row per job: heading left, state | usage right, Monitor counted in the heading, narrow widths drop the summary', () => {
+  const reported = { ...job('2', 'subagents'), usageState: 'reported' as const, usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 12400, cost: 0 } };
+  const monitor: PanelJob = { ...job('7', 'monitor'), label: 'command', title: 'tail -f logs/app.log', usageState: 'na', summary: 'wake off | 剩 24m' };
+  const jobs = [job('1'), reported, monitor, { ...job('8', 'monitor'), label: 'websocket', title: 'wss://api.example.com', usageState: 'na' as const, summary: 'wake on | 剩 1h 12m' }];
+  const lines = renderJobs(jobs, theme, 80).map(plain);
+  assert.equal(lines.length, 6); assert.match(lines[0], /4 active · Subagents 1 \/ Shell 1 \/ Monitor 2/);
+  const text = lines.join('\n');
+  assert.match(text, /● SH bash · shell work 1 +N\/A \n/); assert.doesNotMatch(text, /running \| N\/A/);
+  assert.match(text, /● SA scout · subagents work 2 +running \| 12\.4k\* /);
+  assert.match(text, /● MN command · tail -f logs\/app\.log +wake off \| 剩 24m /); assert.match(text, /● MN websocket · wss:\/\/api\.example\.com +wake on \| 剩 1h 12m /);
+  for (const line of lines) assert.equal(visibleWidth(line), 80);
+  const narrow = renderJobs(jobs, theme, 30).map(plain); assert.equal(narrow.length, 6); assert.doesNotMatch(narrow.join('\n'), /wake|N\/A|running \|/);
+  assert.doesNotMatch(plain(renderJobs([job('1')], theme, 80).join('\n')), /Monitor/, 'Fork and Monitor counts appear only when present');
 });

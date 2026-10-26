@@ -87,14 +87,14 @@ test('real local shells return readable receipts, allow foreground work, detach 
       assert.ok(accepted.content[0].text.startsWith(notice));
       assert.ok(accepted.content[0].text.slice(notice.length).length < 260, 'the existing receipt payload remains slim');
       const receipt = accepted.structuredContent;
-      assert.equal(host.widgets.has(SHELL_WIDGET_KEY), true, 'background work appears automatically above the editor'); assert.match(host.panel(), /Shell 1/); assert.equal(host.panel().split('\n').length, 4); assert.match(host.panel(), /tokens N\/A/); assert.equal(host.statuses.has(SHELL_WIDGET_KEY), false);
+      assert.equal(host.widgets.has(SHELL_WIDGET_KEY), true, 'background work appears automatically above the editor'); assert.match(host.panel(), /Shell 1/); assert.equal(host.panel().split('\n').length, 3, 'title, one row, More'); assert.match(host.panel(), /N\/A\s*$/m); assert.equal(host.statuses.has(SHELL_WIDGET_KEY), false);
       assert.match(host.panel(), /1 active/); assert.match(host.panel(), new RegExp(name)); assert.match(host.panel(), /gate.cjs/);
       host.setSettings({ shellCommandPrefix: 'export BG_PREFIX=changed-after-receipt' });
       assert.equal(receipt.status, 'running');
       assert.ok(!('exit_code' in receipt));
       assert.equal(fs.existsSync(receipt.liveLogPath), true);
       await readyEvent;
-      assert.match(host.panel(), /output received/);
+      assert.match(host.panel(), /gate\.cjs/); // the one-row panel no longer carries the "output received" activity; it is in the More detail
       turn.abort();
       const running = (await host.execute('shell_job_status', { jobId: receipt.jobId })).structuredContent;
       assert.equal(running.status, 'running');

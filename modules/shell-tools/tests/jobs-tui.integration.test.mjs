@@ -50,7 +50,7 @@ for (const mode of ['regular', 'fullscreen']) {
       const initial = await snapshot(); assert.equal(initial.mode, mode); assert.equal(initial.overlay, false);
       const moreIndex = initial.lines.findIndex(s => s.includes('More…')), jobsIndex = initial.lines.findIndex(s => s.includes('Jobs · 6 active'));
       assert.ok(jobsIndex >= 0 && moreIndex > jobsIndex, JSON.stringify(initial));
-      const widget = (await read()).filter(r => r.event === 'widget').at(-1); assert.equal(widget.placement, 'aboveEditor'); assert.equal(widget.lines.length, 12); assert.equal(widget.lines.filter(s => /[●◷◐] (?:SA|SH)/.test(s)).length, 5);
+      const widget = (await read()).filter(r => r.event === 'widget').at(-1); assert.equal(widget.placement, 'aboveEditor'); assert.equal(widget.lines.length, 7); assert.equal(widget.lines.filter(s => /[●◷◐] (?:SA|SH)/.test(s)).length, 5);
       terminal.write('draft_keep'); const typed = await snapshot(); assert.equal(typed.draft, 'draft_keep');
       assert.ok(typed.lines.findIndex(s => s.includes('draft_keep')) > moreIndex, 'actual host mounts panel above the editor');
       if (mode === 'fullscreen') {
@@ -71,7 +71,7 @@ for (const mode of ['regular', 'fullscreen']) {
       terminal.write('\x1b[27u'); const back = await snapshot(); assert.equal(back.overlay, true); assert.match(back.overlayLines.join('\n'), /Active \/ Recent finished/);
       terminal.write('\x1b[27u'); await until(r => r.event === 'closed', 'Esc closes More'); terminal.write('_after'); const restored = await snapshot(); assert.equal(restored.overlay, false); assert.equal(restored.draft, 'draft_keep_after'); assert.equal(restored.focus, typed.focus);
       await resize(40, 12); const narrow = await snapshot(); assert.equal(narrow.columns, 40); assert.equal(narrow.rows, 12);
-      const narrowWidget = (await read()).filter(r => r.event === 'widget' && r.width === 40 && r.rows === 12).at(-1); assert.ok(narrowWidget); assert.equal(narrowWidget.lines.length, 4); assert.match(narrowWidget.lines.at(-1), /\+5 active/);
+      const narrowWidget = (await read()).filter(r => r.event === 'widget' && r.width === 40 && r.rows === 12).at(-1); assert.ok(narrowWidget); assert.equal(narrowWidget.lines.length, 4); assert.match(narrowWidget.lines.at(-1), /\+4 active/);
       await resize(120, 40); const wide = await snapshot(); assert.equal(wide.columns, 120); assert.equal(wide.draft, 'draft_keep_after');
       assert.ok(output.includes('Jobs'), 'real PTY receives rendered TUI output'); assert.equal((await read()).filter(r => r.event.startsWith('forbidden-')).length, 0);
       const reopenIndex = (await read()).length; terminal.write('\x14'); await until((r, index) => r.event === 'opening' && index >= reopenIndex, 'reopen for owner-dispose');

@@ -5,7 +5,7 @@
 - `monitor_start { source, durationMs?, wakeAgent?, stopAfterEvents?, label? }`。
 - `monitor_status { monitorId? }` 唯讀查看；省略列出保留項目。
 - `monitor_stop { monitorId }` 要求停止來源；不等於已觀察到 close 或子程序樹清理。
-- 沒有專屬 slash config 命令。三工具預設啟用，仍受 Pi allowlist／exclude／no-tools 控制；explicit managed Subagent child 不提供。
+- 沒有專屬 slash config 命令；`/background-jobs monitor` 在 TUI 看 command／websocket／file 監看（job 來源不重複列出）。三工具預設啟用，仍受 Pi allowlist／exclude／no-tools 控制；explicit managed Subagent child 不提供。
 
 ## Config 與作用範圍
 

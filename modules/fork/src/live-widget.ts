@@ -43,9 +43,16 @@ export function forkPanelJob(job: Job): PanelJob {
 		usageDetails(usage), "Usage is the Fork's own incremental usage, not inherited history.",
 		...(job.persistError ? [`Persist error: ${job.persistError}`] : []),
 	];
-	return { kind: "fork", jobId: r.jobId, label: "fork", title: safeJobText(r.title, 256), state: r.status, active: !isTerminal(r.status) || !job.released,
+	const panel: PanelJob = { kind: "fork", jobId: r.jobId, label: "fork", title: safeJobText(r.title, 256), state: r.status, active: !isTerminal(r.status) || !job.released,
 		activity: activity(job), usageState: usage ? "reported" : r.result?.usageUnknown ? "unknown" : "pending", ...(usage ? { usage } : {}), startedAt: iso(r.createdAt), details: details.map(line => safeJobText(line, 512)),
 		...(job.live && !job.live.isReleased ? { transcripts: [{ label: "fork", transcript: job.live }] } : {}) };
+	// The one-row panel has no activity line: states that must not look healthy say so in the summary column.
+	const pending = r.blocked ? r.blocked.pending.shell + r.blocked.pending.subagents : 0;
+	const summary = panel.active && isTerminal(r.status) ? `${r.status} | cleanup unconfirmed`
+		: r.status === "cancelling" ? "cancelling | awaiting child close"
+			: r.status === "blocked" ? `blocked | ${r.blocked?.reason ?? "MODEL_ERROR"}${pending ? ` · ${pending} nested job(s)` : ""}`
+				: undefined;
+	return summary ? { ...panel, summary: safeJobText(summary, 128) } : panel;
 }
 
 /** Binding-scoped, event-driven view of one origin session's Forks. Presentation only: no polling, no model work. */

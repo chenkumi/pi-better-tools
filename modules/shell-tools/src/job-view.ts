@@ -3,7 +3,9 @@ import { Box, SelectList, matchesKey, truncateToWidth, visibleWidth, wrapTextWit
 import { TranscriptView, type TranscriptSource } from "./live-transcript.js";
 import { stripVTControlCharacters } from "node:util";
 
-export type PanelKind = "subagents" | "shell" | "fork";
+export type PanelKind = "subagents" | "shell" | "fork" | "monitor";
+/** Hover target of the "More…" label; job rows use their {@link jobKey}. */
+export const MORE_HOVER = "more";
 export type UsageState = "pending" | "reported" | "unknown" | "na";
 export interface PanelUsage { input: number; output: number; cacheRead: number; cacheWrite: number; totalTokens: number; cost: number }
 /** One task of a concurrent batch. `transcript` exists only while that task runs. */
@@ -21,6 +23,8 @@ export interface PanelJob {
   usage?: PanelUsage;
   startedAt?: number;
   details: string[];
+  /** Right-hand column of the one-row panel entry; defaults to `state | usage`. */
+  summary?: string;
   /** Live in-memory copies of running jobs (one per child task or one output tail); dropped by the owner at the terminal state. */
   transcripts?: readonly { label: string; transcript: TranscriptSource }[];
   /** Present for concurrent batches (two or more tasks): the viewer lists them and opens one at a time. */
@@ -58,32 +62,48 @@ export function orderedJobs(jobs: readonly PanelJob[]): PanelJob[] {
 }
 export function jobHeading(job: PanelJob): string {
   const icon = job.state === "queued" ? "◷" : job.state === "finalizing" || job.state === "cancelling" ? "◐" : job.active ? "●" : job.state === "completed" ? "✓" : "○";
-  return `${icon} ${job.kind === "shell" ? "SH" : job.kind === "fork" ? "FK" : "SA"} ${safeJobText(job.label, 64)}${job.title ? ` · ${safeJobText(job.title, 256)}` : ""}`;
+  return `${icon} ${job.kind === "shell" ? "SH" : job.kind === "fork" ? "FK" : job.kind === "monitor" ? "MN" : "SA"} ${safeJobText(job.label, 64)}${job.title ? ` · ${safeJobText(job.title, 256)}` : ""}`;
 }
-const panelJobLimit = (terminalRows: number) => Math.min(5, Math.max(0, Math.floor((terminalRows - 10) / 2)));
-/** The jobs renderJobs draws, in row order: job i owns physical rows 1 + 2i (heading) and 2 + 2i (activity). */
+const rowUsage = (job: PanelJob) => job.usageState === "na" ? "N/A"
+  : job.usage && job.usageState === "reported" ? `${formatJobTokens(job.usage.totalTokens)}${job.active ? "*" : ""}`
+    : job.usageState === "unknown" ? "unknown" : "pending";
+/** Right-hand column of a panel row. A running Shell job only has "N/A" to say, so its state is left out. */
+export function jobSummary(job: PanelJob): string {
+  if (job.summary !== undefined) return safeJobText(job.summary, 128);
+  const usage = rowUsage(job);
+  return job.kind === "shell" && job.state === "running" ? usage : `${safeJobText(job.state, 32)} | ${usage}`;
+}
+/** One row per job, so the budget is rows left after editor/footer/chat, capped at five jobs. */
+const panelJobLimit = (terminalRows: number) => Math.min(5, Math.max(0, Math.floor(terminalRows - 10)));
+/** The jobs renderJobs draws, in row order: job i owns physical row 1 + i, between the heading row and the More row. */
 export function displayedJobs(jobs: readonly PanelJob[], terminalRows = 40): PanelJob[] {
   return orderedJobs(jobs.filter(j => j.active)).slice(0, panelJobLimit(terminalRows));
 }
-/** Five JOBS total, two physical rows each. Small terminals reserve space for editor/footer/chat. */
-export function renderJobs(jobs: readonly PanelJob[], theme: Theme, width: number, terminalRows = 40): string[] {
+/** Five JOBS total, one physical row each. `hover` is a {@link jobKey} or {@link MORE_HOVER}; it only recolours, never changes the row layout. */
+export function renderJobs(jobs: readonly PanelJob[], theme: Theme, width: number, terminalRows = 40, hover?: string): string[] {
   width = Number.isFinite(width) ? Math.max(0, Math.floor(width)) : 0;
   const active = orderedJobs(jobs.filter(j => j.active));
   if (!active.length) return [];
   const limit = panelJobLimit(terminalRows);
   const padding = width >= 3 ? 1 : 0, inner = width - padding * 2;
-  const sub = active.filter(j => j.kind === "subagents").length, fork = active.filter(j => j.kind === "fork").length;
-  const lines = [theme.fg("accent", truncateToWidth(`Jobs · ${active.length} active · Subagents ${sub} / Shell ${active.length - sub - fork}${fork ? ` / Fork ${fork}` : ""}`, inner))];
+  const count = (kind: PanelKind) => active.filter(j => j.kind === kind).length, fork = count("fork"), monitor = count("monitor");
+  // The highlight ends in the default background, so the panel background is restored for the cells after it.
+  const highlight = (line: string) => {
+    const bg = theme.getBgAnsi("selectedBg");
+    return theme.bg("selectedBg", line.replace(/\x1b\[(?:0)?m/g, reset => reset + bg)) + theme.getBgAnsi("toolPendingBg");
+  };
+  const lines = [theme.fg("accent", truncateToWidth(`Jobs · ${active.length} active · Subagents ${count("subagents")} / Shell ${count("shell")}${fork ? ` / Fork ${fork}` : ""}${monitor ? ` / Monitor ${monitor}` : ""}`, inner))];
   for (const job of active.slice(0, limit)) {
-    const suffix = width >= 40 ? `  …${safeJobText(job.jobId, 256).slice(-6)}` : "";
-    const heading = truncateToWidth(jobHeading(job), Math.max(0, inner - visibleWidth(suffix)));
-    lines.push(theme.fg("accent", heading + " ".repeat(Math.max(0, inner - visibleWidth(heading) - visibleWidth(suffix)))) + theme.fg("dim", suffix));
-    const usage = usageLabel(job, width < 80), activity = safeJobText(job.activity, 256);
-    const text = inner >= 28 ? `${truncateToWidth(activity, Math.max(0, inner - visibleWidth(usage) - 5))} · ${usage}` : `${activity} · ${usage}`;
-    lines.push(theme.fg(job.state === "cancelling" ? "warning" : "dim", truncateToWidth(`  ${text}`, inner)));
+    const summary = inner >= 40 ? truncateToWidth(jobSummary(job), Math.floor(inner / 2)) : "";
+    const gap = summary ? 2 : 0;
+    const heading = truncateToWidth(jobHeading(job), Math.max(0, inner - visibleWidth(summary) - gap));
+    const row = theme.fg(job.state === "cancelling" ? "warning" : "accent", heading + " ".repeat(Math.max(0, inner - visibleWidth(heading) - visibleWidth(summary)))) + theme.fg("dim", summary);
+    lines.push(hover === jobKey(job) ? highlight(row) : row);
   }
   const omitted = Math.max(0, active.length - limit);
-  lines.push(theme.fg("dim", truncateToWidth(`More…${omitted ? ` (+${omitted} active)` : ""} · click a job to open · /background-jobs more · * reported usage`, inner)));
+  const more = truncateToWidth(`More…${omitted ? ` (+${omitted} active)` : ""} · click a job to open · /background-jobs more · * reported usage`, inner);
+  // Only the "More…" label is a click target, so only it lights up.
+  lines.push(hover === MORE_HOVER && more.startsWith("More…") ? highlight(theme.fg("accent", "More…")) + theme.fg("dim", more.slice("More…".length)) : theme.fg("dim", more));
   const bg = theme.getBgAnsi("toolPendingBg");
   const box = new Box(padding, 0, text => theme.bg("toolPendingBg", text.replace(/\x1b\[(?:0)?m/g, reset => reset + bg)));
   box.addChild({ render: () => lines, invalidate() {} });

@@ -67,8 +67,8 @@ for (const mode of ["single", "parallel", "chain", "resume"] as const) {
 			for (const task of receipt.tasks) await stat(join(root, "managed", task.subagentSessionId, "manifest.json"));
 			assert.equal(accepted.usage, undefined); turn.abort(); // accepted jobs no longer belong to this tool turn
 			const result = await completion; await Promise.all(liveChecks);
-			assert.equal(widgets.has(SUBAGENT_WIDGET_KEY), false); assert.equal(statuses.has(SUBAGENT_WIDGET_KEY), false); assert.match(panelHistory.join("\n"), mode === "parallel" || mode === "chain" ? /[12] running \/ [01] queued/ : /Generating reply/);
-			assert.match(panelHistory.join("\n"), /reported (?:12|24) tok\*/);
+			assert.equal(widgets.has(SUBAGENT_WIDGET_KEY), false); assert.equal(statuses.has(SUBAGENT_WIDGET_KEY), false); assert.match(panelHistory.join("\n"), /running \| /); // one row per job: the activity text lives in the More detail, the row shows state | usage
+			assert.match(panelHistory.join("\n"), /running \| (?:12|24)\*/); // active reported usage: "<tokens>*" in the state | usage column
 			assert.doesNotMatch(JSON.stringify(result), /widgetProgress|widgetStartedAt|Generating reply/);
 			assert.ok(!("widgetTitles" in receipt)); assert.ok(receipt.tasks.every((task: any) => !("title" in task)));
 			assert.equal(result.status, "completed", JSON.stringify(result)); assert.equal(result.tasks.length, mode === "parallel" || mode === "chain" ? 2 : 1);

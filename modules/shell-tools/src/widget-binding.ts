@@ -9,6 +9,8 @@ export class JobsWidgetBinding<Row> {
   private source?: () => readonly Row[];
   private token?: object;
   private panel: BackgroundPanel;
+  /** Last projection, for owners that keep a display-only timer alive while something is active. */
+  protected lastJobs: readonly PanelJob[] = [];
   constructor(private kind: PanelKind, private project: (rows: readonly Row[]) => readonly PanelJob[], api?: PanelHost) {
     this.panel = acquireBackgroundPanel(api);
   }
@@ -27,12 +29,13 @@ export class JobsWidgetBinding<Row> {
     try {
       if (ctx.sessionManager.getSessionId() !== this.owner) { this.clear(); return; }
       const jobs = this.project(this.source!());
+      this.lastJobs = jobs;
       if (this.token) this.panel.update(this.kind, this.token, { jobs, signature: panelSignature(jobs) });
     } catch { this.clear(); /* UI failure never controls jobs or notifications. */ }
   }
   clear() {
     const token = this.token;
-    this.ctx = undefined; this.owner = undefined; this.source = undefined; this.token = undefined;
+    this.ctx = undefined; this.owner = undefined; this.source = undefined; this.token = undefined; this.lastJobs = [];
     try { if (token) this.panel.detach(this.kind, token); } catch { /* disposed UI */ }
   }
 }

@@ -3,6 +3,7 @@ import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-a
 import { isManagedForegroundChild } from '../../shell-tools/src/managed-child.js';
 import { AUTO_MONITOR_INTERVAL_MS, acquireCapability, canonicalMonitorCwd, publishActiveMonitorBriefs, publishAutoMonitor } from '../../shell-tools/src/monitor-capability.js';
 import { MonitorRuntime, realClock, sameOwner, type Clock, type Owner } from './core.js';
+import { MonitorJobsWidget } from './live-widget.js';
 import { monitorRenderers, renderMonitorEvent } from './renderers.js';
 import { FILE_INTERVAL, JOB_INTERVAL, startSchema, validateMonitorId, validateStart } from './schema.js';
 import { commandLaunch, fileLaunch, jobLaunch, resolveFilePath, websocketLaunch } from './sources.js';
@@ -19,6 +20,8 @@ export default function monitorExtension(pi: ExtensionAPI, seam: { clock?: Clock
   const clock = seam.clock ?? realClock;
   const runtime = new MonitorRuntime((message, options) => pi.sendMessage(message, options), clock);
   seam.onRuntime?.(runtime); // Internal offline test seam; no tool/configuration surface.
+  const widget = new MonitorJobsWidget(clock, pi);
+  runtime.onChange = () => widget.refresh();
   let bound: Owner | undefined, revokeAuto: (() => void) | undefined, revokeBriefs: (() => void) | undefined;
   /** Every Monitor tool re-checks these at execution: a managed child never runs Monitor, and registration is not selection. */
   const assertExecutable = (tool: string) => {
@@ -37,8 +40,8 @@ export default function monitorExtension(pi: ExtensionAPI, seam: { clock?: Clock
       return (runtime.start(input, jobLaunch(lease, jobId, AUTO_MONITOR_INTERVAL_MS, clock)) as { monitorId?: string }).monitorId;
     } catch { return undefined; }
   };
-  pi.on('session_start', async (_event, ctx) => { revokeAuto?.(); revokeBriefs?.(); await runtime.shutdown(); bound = scope(ctx); runtime.bind(bound, () => scope(ctx)); revokeAuto = publishAutoMonitor(bound, autoMonitor(ctx)); revokeBriefs = publishActiveMonitorBriefs(bound, () => runtime.briefs()); });
-  pi.on('session_shutdown', async () => { revokeAuto?.(); revokeAuto = undefined; revokeBriefs?.(); revokeBriefs = undefined; bound = undefined; await runtime.shutdown(); });
+  pi.on('session_start', async (_event, ctx) => { revokeAuto?.(); revokeBriefs?.(); widget.clear(); await runtime.shutdown(); bound = scope(ctx); runtime.bind(bound, () => scope(ctx)); widget.bind(ctx, () => runtime.panelRows()); revokeAuto = publishAutoMonitor(bound, autoMonitor(ctx)); revokeBriefs = publishActiveMonitorBriefs(bound, () => runtime.briefs()); });
+  pi.on('session_shutdown', async () => { revokeAuto?.(); revokeAuto = undefined; revokeBriefs?.(); revokeBriefs = undefined; bound = undefined; widget.clear(); await runtime.shutdown(); });
   const eventOwner = (ctx: ExtensionContext) => { try { return sameOwner(bound, scope(ctx)); } catch { return false; } };
   pi.on('session_compact', (_event, ctx) => { if (eventOwner(ctx)) runtime.opportunity(); });
   pi.on('session_compact_failed', (_event, ctx) => { if (eventOwner(ctx)) runtime.opportunity(); });

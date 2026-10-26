@@ -1,7 +1,7 @@
 import { ulid } from 'ulid';
 import type { Start } from './schema.js';
 import { preview } from './lines.js';
-import { plainText } from './schema.js';
+import { FILE_INTERVAL, plainText } from './schema.js';
 export const LIMITS = Object.freeze({ active: 4, retained: 32, rollingEvents: 60, rollingMs: 60000, totalEvents: 600, eventBytes: 16384, pendingEvents: 128, pendingBytes: 262144, ownerPendingBytes: 524288, stderrBytes: 8192, previewBytes: 2048, batchEvents: 32, batchBytes: 32768, progressMs: 30000 });
 /** `now` is wall-clock (display/records, may step); optional `mono` is monotonic (throttle/elapsed), falling back to `now`. */
 export interface Clock { now(): number; mono?(): number; set(fn: () => void, ms: number): unknown; clear(handle: unknown): void }
@@ -18,7 +18,14 @@ export interface SourceSink {
 }
 export type Launch = (sink: SourceSink, signal: AbortSignal, deadline: number) => Promise<void>;
 export interface MonitorEvent { eventId: string; monitorId: string; sequence: number; observedAt: number; category: 'data' | 'system'; kind: string; text?: string; snapshot?: Record<string, unknown>; partial: boolean; originalBytes: number }
-type State = 'starting' | 'running' | 'stopping' | 'completed' | 'failed' | 'stopped' | 'expired' | 'limited';
+export type State = 'starting' | 'running' | 'stopping' | 'completed' | 'failed' | 'stopped' | 'expired' | 'limited';
+/** Display projection for the TUI jobs panel: no event text, stderr or URL path/query; a command is shown to its own user only. */
+export interface MonitorPanelRow {
+  id: string; source: 'command' | 'websocket' | 'file'; label?: string; target: string; state: State; active: boolean; wakeAgent: boolean;
+  createdAt: number; startedAt?: number; endedAt?: number; deadline: number; stopReason?: string; intervalMs?: number; lastEventAt?: number;
+  counts: { adopted: number; submitted: number; omitted: number; rejected: number }; buffered: number;
+  notification: { state: string; attempts: number; lastSubmittedAt?: number }; cleanup: { pending: boolean; sourceClosed: boolean; exitCode?: number; signal?: string };
+}
 interface Monitor {
   id: string; generation: number; input: Start; state: State; createdAt: number; createdMono: number; endedMono?: number; startedAt?: number; endedAt?: number; deadline: number;
   controller: AbortController; done: Promise<void>; timer?: unknown; sequence: number; events: MonitorEvent[]; reservedEvents: Set<MonitorEvent>; bytes: number; timestamps: number[];
@@ -35,8 +42,16 @@ export class MonitorRuntime {
   private retired = new Set<Monitor>();
   private owner?: Owner; private current?: () => Owner | undefined;
   private generation = 0; private disposed = true; private busy = false; private flushing = false; private scheduled?: unknown; private lastSubmit = -Infinity; private batchSequence = 0; private resumeAfterId?: string;
+  /** Presentation hook (jobs panel). Runs synchronously after state changes; a throwing or re-entrant listener never affects a monitor. */
+  onChange?: () => void;
+  private notifying = false;
   constructor(private send: (message: any, options: { triggerTurn: boolean; deliverAs: 'steer' }) => void, private clock: Clock = realClock) {}
   private mono() { return this.clock.mono ? this.clock.mono() : this.clock.now(); }
+  private changed() {
+    if (this.notifying || !this.onChange) return;
+    this.notifying = true;
+    try { this.onChange(); } catch { /* display only */ } finally { this.notifying = false; }
+  }
   bind(owner: Owner, current: () => Owner | undefined) {
     if (!this.disposed) throw new Error('Monitor previous generation cleanup is not settled: the previous session still has monitors awaiting cleanup; reload or restart Pi if this persists');
     // A source whose close is unknown keeps its ownership (and its capacity) but must not disable Monitor for the whole
@@ -45,6 +60,7 @@ export class MonitorRuntime {
     for (const m of [...this.retired]) if (!m.cleanupPending) this.retired.delete(m);
     if (this.retired.size >= LIMITS.active) throw new Error('Monitor previous generation cleanup is not settled: too many monitors from earlier sessions are awaiting cleanup; reload or restart Pi if this persists');
     this.generation++; this.owner = { ...owner }; this.current = current; this.disposed = false; this.busy = false; this.monitors.clear(); this.lastSubmit = -Infinity; this.resumeAfterId = undefined;
+    this.changed();
   }
   private valid() { try { return !this.disposed && sameOwner(this.owner, this.current?.()); } catch { return false; } }
   private owned(owner?: Owner) { if (!this.valid()) { this.ownerLost(); throw new Error('Monitor owner is disposed/replaced: the session was replaced or reloaded; call monitor_start again from the current session'); } if (owner && !sameOwner(owner, this.owner)) throw new Error('Monitor belongs to a different owner/cwd: it was started by another session or working directory; ids are only valid in the session that created them'); }
@@ -66,13 +82,13 @@ export class MonitorRuntime {
     const now = this.clock.now();
     const m: Monitor = { id: ulid().toUpperCase(), generation: this.generation, input, state: 'starting', createdAt: now, createdMono: this.mono(), deadline: now + input.durationMs,
       controller: new AbortController(), done: Promise.resolve(), sequence: 0, events: [], reservedEvents: new Set(), bytes: 0, timestamps: [], counts: { adopted: 0, submitted: 0, omitted: 0, rejected: 0 }, cleanupPending: true, cleanupEvidence: { sourceClosed: false, processTreeState: 'unknown' }, sourceClosed: false, stderr: Buffer.alloc(0), stderrInputBytes: 0, attempts: 0, notification: { state: 'pending', hostAcknowledgment: 'unknown', attempts: 0 } };
-    this.monitors.set(m.id, m);
-    m.timer = this.clock.set(() => { if (this.check(m)) this.requestStop(m, 'duration_exceeded', 'expired'); }, input.durationMs);
+    this.monitors.set(m.id, m); this.changed();
+    m.timer =this.clock.set(() => { if (this.check(m)) this.requestStop(m, 'duration_exceeded', 'expired'); }, input.durationMs);
     // Receipt acceptance detaches from turn cancellation. No unowned source exists before acceptance.
     m.done = Promise.resolve().then(async () => {
       if (!this.check(m) || m.controller.signal.aborted) { m.sourceClosed = true; return; }
       const sink: SourceSink = {
-        started: () => { if (this.check(m) && m.state === 'starting') { m.state = 'running'; m.startedAt = this.clock.now(); this.system(m, 'started'); } },
+        started: () => { if (this.check(m) && m.state === 'starting') { m.state = 'running'; m.startedAt = this.clock.now(); this.system(m, 'started'); this.changed(); } },
         data: (text, partial = false, snapshot) => { if (this.check(m)) this.data(m, text, partial, snapshot); },
         stderr: chunk => { if (!this.check(m)) return; m.stderrInputBytes += chunk.length; m.stderr = chunk.length >= LIMITS.stderrBytes ? Buffer.from(chunk.subarray(-LIMITS.stderrBytes)) : Buffer.concat([m.stderr, chunk]).subarray(-LIMITS.stderrBytes); },
         fault: reason => { if (this.check(m)) this.requestStop(m, reason, reason.endsWith('_limit') ? 'limited' : 'failed'); },
@@ -91,12 +107,13 @@ export class MonitorRuntime {
         if (m.sourceClosed && m.stopReason !== 'source_closed') this.system(m, 'source_closed');
         else if (!m.sourceClosed) this.system(m, 'terminal');
       }
-    }).catch(() => { m.state = 'failed'; m.cleanupPending = true; });
+      this.changed();
+    }).catch(() => { m.state = 'failed'; m.cleanupPending = true; this.changed(); });
     return this.receipt(m);
   }
   private requestStop(m: Monitor, reason: string, state: State) {
     if (terminal(m.state) || m.state === 'stopping') return;
-    m.stopReason = reason; m.terminal = state; m.state = 'stopping'; this.system(m, reason); m.controller.abort();
+    m.stopReason = reason; m.terminal = state; m.state = 'stopping'; this.system(m, reason); m.controller.abort(); this.changed();
   }
   private system(m: Monitor, kind: string) {
     // Lifecycle vocabulary is fixed and small. Duplicate terminal/stop events are represented once.
@@ -128,7 +145,7 @@ export class MonitorRuntime {
     m.events.push({ eventId: ulid().toUpperCase(), monitorId: m.id, sequence: ++m.sequence, observedAt: wall, category: 'data', kind: m.input.source.kind, ...(text !== undefined ? { text } : {}), ...(snapshot ? { snapshot } : {}), partial, originalBytes: size });
     if (m.counts.adopted >= LIMITS.totalEvents) this.requestStop(m, 'total_limit', 'limited');
     else if (m.input.stopAfterEvents !== undefined && m.counts.adopted >= m.input.stopAfterEvents) this.requestStop(m, 'stop_after_events', 'limited');
-    this.schedule();
+    this.schedule(); this.changed();
   }
   /** Optional embedder hold. The Pi extension does not call it: notifications are submitted as `steer` even while the parent runs. */
   setBusy(busy: boolean) { if (!this.valid()) return; this.busy = busy; if (!busy) this.schedule(); }
@@ -204,7 +221,7 @@ export class MonitorRuntime {
       // commit or acknowledgment; only another legal opportunity retries these IDs.
       return;
     } finally { this.flushing = false; }
-    this.schedule();
+    this.schedule(); this.changed();
   }
   private find(id: string, owner?: Owner) { this.owned(owner); const m = this.monitors.get(id); if (!m || m.generation !== this.generation) throw new Error(`Unknown Monitor ${JSON.stringify(id.slice(0, 128))} in this owner/cwd/generation; ids do not survive reload or a session change, call monitor_status without monitorId to list current monitors`); return m; }
   status(id: string, owner?: Owner) { return this.receipt(this.find(id, owner)); }
@@ -219,6 +236,27 @@ export class MonitorRuntime {
       .filter(m => m.generation === this.generation && !terminal(m.state))
       .slice(0, 16)
       .map(m => ({ monitorId: m.id, source: m.input.source.kind, state: m.state, target: briefTarget(m.input.source), ...(m.input.label ? { label: m.input.label } : {}), remainingMs: Math.max(0, m.deadline - now) }));
+  }
+  /**
+   * Rows for the jobs panel: command / websocket / file monitors of the current generation. Job-source monitors are left out
+   * because the observed Shell, Subagent or Fork job already has its own panel row. Readonly: no timers, no ownerLost side effect.
+   */
+  panelRows(): MonitorPanelRow[] {
+    if (!this.valid()) return [];
+    return [...this.monitors.values()].filter(m => m.generation === this.generation).flatMap((m): MonitorPanelRow[] => {
+      const source = m.input.source;
+      if (source.kind !== 'command' && source.kind !== 'websocket' && source.kind !== 'file') return [];
+      const evidence = m.cleanupEvidence;
+      return [{
+        id: m.id, source: source.kind, ...(m.input.label ? { label: plainText(m.input.label) } : {}),
+        target: source.kind === 'command' ? plainText(source.command) : source.kind === 'websocket' ? originOnly(source.url) : plainText(source.path),
+        state: m.state, active: !terminal(m.state) || m.cleanupPending, wakeAgent: m.input.wakeAgent, createdAt: m.createdAt, ...(m.startedAt !== undefined ? { startedAt: m.startedAt } : {}), ...(m.endedAt !== undefined ? { endedAt: m.endedAt } : {}),
+        deadline: m.deadline, ...(m.stopReason ? { stopReason: m.stopReason } : {}), ...(source.kind === 'file' ? { intervalMs: source.intervalMs ?? FILE_INTERVAL.default } : {}), ...(m.lastEventAt !== undefined ? { lastEventAt: m.lastEventAt } : {}),
+        counts: { ...m.counts }, buffered: m.events.filter(e => e.category === 'data').length,
+        notification: { state: m.notification.state, attempts: m.notification.attempts, ...(m.notification.lastSubmittedAt !== undefined ? { lastSubmittedAt: m.notification.lastSubmittedAt } : {}) },
+        cleanup: { pending: m.cleanupPending, sourceClosed: m.sourceClosed, ...(typeof evidence.exitCode === 'number' ? { exitCode: evidence.exitCode } : {}), ...(typeof evidence.signal === 'string' ? { signal: plainText(evidence.signal).slice(0, 32) } : {}) },
+      }];
+    });
   }
   stop(id: string, owner?: Owner) { const m = this.find(id, owner); this.requestStop(m, 'stop_requested', 'stopped'); return this.receipt(m); }
   private receipt(m: Monitor) {
@@ -244,4 +282,6 @@ function briefTarget(source: Start['source']) {
     default: return source.jobId;
   }
 }
+/** Scheme and host only: path, query, fragment and userinfo never reach the display. */
+function originOnly(value: string) { try { const u = new URL(value); return `${u.protocol}//${u.host}`; } catch { return '[invalid endpoint]'; } }
 function safeUrl(value: string) { try { const u = new URL(value); return `${u.protocol}//${u.host}/[path withheld]`; } catch { return '[invalid endpoint]'; } }

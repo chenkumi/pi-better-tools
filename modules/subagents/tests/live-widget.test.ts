@@ -22,12 +22,12 @@ test('registry events show queue, admitted tasks, cancellation and finalizing, t
       finish(0, { output: 'SENSITIVE OUTPUT' }, 'completed'); finish(1, {}, 'skipped'); await last.promise;
     }, ['Build component', 'Review output']);
     const original = JSON.stringify(receipt);
-    assert.match(ui.text(), /Jobs · 1 active.*Subagents 1/); assert.equal(ui.text().split('\n').length, 4); assert.match(ui.text(), /Build component/);
-    assert.match(ui.text(), /2 queued/); assert.match(ui.text(), /batch \(2 tasks\)/); assert.match(JSON.stringify(jobs.panelJobs('owner', '/cwd')), /Review output/);
+    assert.match(ui.text(), /Jobs · 1 active.*Subagents 1/); assert.equal(ui.text().split('\n').length, 3, 'title, one row, More'); assert.match(ui.text(), /Build component/);
+    assert.match(ui.text(), /batch \(2 tasks\)/); assert.match(JSON.stringify(jobs.panelJobs('owner', '/cwd')), /Review output/);
     assert.doesNotMatch(JSON.stringify(receipt), /widgetTitles|Build component|Review output/); assert.doesNotMatch(JSON.stringify(slimReceipt(receipt)), /Build component/);
     assert.deepEqual(jobs.panelJobs('other', '/cwd'), []); assert.deepEqual(jobs.panelJobs('owner', '/other'), []);
-    await entered.promise; assert.match(ui.text(), /1 running \/ 1 queued/); jobs.cancel(receipt.jobId, 'owner', '/cwd'); assert.match(ui.text(), /Cancel requested/);
-    first.resolve(); await Promise.resolve(); await Promise.resolve(); assert.match(ui.text(), /finalizing/); assert.doesNotMatch(ui.text(), /SENSITIVE OUTPUT/);
+    await entered.promise; assert.match(ui.text(), /running \| pending/); jobs.cancel(receipt.jobId, 'owner', '/cwd'); assert.match(ui.text(), /cancelling \| pending/);
+    first.resolve(); await Promise.resolve(); await Promise.resolve(); assert.match(ui.text(), /cancelling \| finalizing/); assert.doesNotMatch(ui.text(), /SENSITIVE OUTPUT/);
     assert.equal(JSON.stringify(receipt), original, 'returned receipt remains detached');
     last.resolve(); await done.promise; assert.equal(ui.widgets.has(SUBAGENT_WIDGET_KEY), false);
   } finally { first.resolve(); last.resolve(); widget.clear(); await jobs.shutdown(); }
@@ -70,5 +70,5 @@ test('running tasks have display priority; bounded, safe, full-width layout neve
     for (const reset of line.matchAll(/\x1b\[(?:0)?m/g)) assert.ok(line.startsWith(theme.getBgAnsi(), reset.index! + reset[0].length));
   }
   const text = plain(component.render(80).join('\n')); assert.match(text, /32 active/); assert.match(text, /More… \(\+27 active\)/); assert.match(text, /active-agent/); assert.doesNotMatch(text, /queued-agent/);
-  assert.equal(component.render(80).length, 12); assert.equal(JSON.stringify(rows), before);
+  assert.equal(component.render(80).length, 7); assert.equal(JSON.stringify(rows), before);
 });

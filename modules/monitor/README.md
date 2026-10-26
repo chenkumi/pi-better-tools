@@ -29,6 +29,15 @@
 
 Monitor 在 `session_start` 另經 `monitor-capability.ts` 發布 `publishActiveMonitorBriefs`（scope 同 owner session ＋ canonical cwd），`session_shutdown` 先 revoke。`activeMonitorBriefs(scope)` 回傳**未終結** monitor 的窄投影：`monitorId`、`source`（kind）、`state`（starting／running／stopping）、`target`（file 為 `source.path`、websocket 只留 origin、command 為 `[command withheld]`、job 為 jobId）、可選 `label`、`remainingMs`；上限16筆，reader 例外或 malformed row 只標 `partial`。投影不含命令文字、URL path／query、事件、output 或任何控制把手，不能 stop／cancel／查模型，也不代表已交付。Blackhole 的 `[Active Monitors]` 區塊即讀此清單，只代表壓縮當下。
 
+## TUI 工作面板
+
+進行中的 `command`／`websocket`／`file` 監看顯示在 Shell／Subagents／Fork 共用的輸入欄上方 Jobs 面板（`modules/shell-tools/src/background-panel.ts` 的 `monitor` 種類，`/background-jobs monitor` 篩選）。每個監看一行：`● MN command · tail -f logs/app.log      wake off | 剩 24m`；狀態欄在 `running` 時為 `wake on|off | 剩 <時間>`，`starting`／`stopping` 為 `狀態 | wake …`，來源已結束但 close 未確認（仍占 active 名額）為 `<終態> | cleanup pending`。標題優先用 `label`，沒有則用目標。點 job 列在 More 浮層看唯讀詳細（ID、來源、期限、wake、事件計數、通知狀態、cleanup 證據）；停止仍只能用 `monitor_stop`，面板沒有取消操作。
+
+- `shell_job`／`subagent_job`／`fork_job` 不進面板：被觀察的 job 已有自己的 SH／SA／FK 列。
+- 投影由 `MonitorRuntime.panelRows()` 產生，是顯示專用的唯讀快照，不開 timer、不觸發 `ownerLost`；不含事件文字、stderr、URL path／query／fragment（websocket 只留 `scheme://host`）。`command` 的指令文字會顯示在使用者自己的終端面板上（與 Shell 面板相同），**不**進模型可見的 receipt／brief／Blackhole 提醒，那些仍是 `[command withheld]`；不要把含憑證的指令貼進螢幕共享。
+- 更新由 runtime 的 `onChange`（start／started／stop／data／submit／close）事件驅動；剩餘時間靠 30 秒一次的顯示用 timer 重畫，只在有進行中的監看時存在，`session_shutdown`／`clear()` 或全部結束即取消。例外與重入都被隔離，不影響監看、通知或 cleanup 證據。
+- 僅 TUI＋hasUI；explicit managed child 不載入 Monitor，自然沒有面板。回歸測試：`tests/live-widget.test.ts`。
+
 ## TUI 與 Agent 投遞
 
 `monitor_event` 已註冊原生訊息 renderer，與 Shell／Fork 通知使用相同主題背景面板與內距，依狀態用 success／error／pending；收合顯示來源狀態、短 ID 與末三筆事件，原生展開看完整 IDs、最多32筆事件及具名 job snapshot 欄位。顯示清理 ANSI／控制碼／bidi、依終端欄寬截短／換行、最多300行；renderer 不執行工具、不修改模型正文或 details，不將來源輸出當作終結／清理證據。舊的 prose＋JSON body 可有界解析；缺欄位安全顯示 unknown，不重寫已存訊息。

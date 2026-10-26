@@ -216,6 +216,8 @@ export class BackgroundJobs {
 			details.unshift(`Reported task usage: ${reported}/${job.tasks.length} · ${usageDetails(reported ? usage : undefined)}`);
 			return { kind: "subagents", jobId: job.jobId, label: job.tasks.length > 1 ? `batch (${job.tasks.length} tasks)` : `${safeJobText(job.tasks[0].agent, 64)}${job.readonlyQueryId ? " (query)" : ""}`,
 				title: safeJobText(job.widgetTitles[0] ?? "", 256), state, active, activity, startedAt: job.widgetStartedAt,
+					// The one-row panel has no activity line: a cancel that is still finalizing must not read as plain cancelling.
+					...(state === "cancelling" && finalizing ? { summary: "cancelling | finalizing" } : {}),
 				usage: reported ? usage : undefined, usageState: reported ? "reported" : active ? "pending" : "unknown", details,
 				// A concurrent batch lists every task so the viewer can open one at a time; single-task jobs stay flat.
 				...(job.tasks.length > 1 ? { tasks: job.tasks.map((task, i) => ({ id: task.taskId, label: `${safeJobText(task.agent, 64)} #${i + 1}`, state: task.status,
