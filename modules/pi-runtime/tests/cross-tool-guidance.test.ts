@@ -13,20 +13,6 @@ test('the general rules always appear; blocks follow the active tools', () => {
   assert.doesNotMatch(rules('bash'), /Files and shell/, 'needs edit or write');
 });
 
-test('the task-check block is tool-independent and generic', () => {
-  for (const active of [rules('read'), rules('bash', 'edit', 'subagent', 'fork')]) {
-    assert.match(active, /Check against the task/); assert.match(active, /Fix the rule, not the instance/);
-    assert.match(active, /which record or clause each decision rests on/);
-  }
-});
-
-test('the working rules appear whatever tools are active', () => {
-  for (const active of [rules('read'), rules('bash', 'edit', 'subagent', 'fork')]) {
-    assert.match(active, /Working rules/); assert.match(active, /never invent names/);
-    assert.match(active, /do not run the full suite without permission/); assert.match(active, /get their agreement/);
-  }
-});
-
 test('editing a file from the shell is stated as a rule violation, not just discouraged', () => {
   for (const shell of [rules('bash', 'write'), rules('powershell', 'edit', 'subagent', 'fork')]) {
     assert.match(shell, /never through shell redirection, `sed`, or one-off scripts \(`node -e`, `perl -i`\)/);
@@ -43,7 +29,7 @@ test('delegation text names only the active delegation tools', () => {
 
 test('the section stays within the token budget and avoids single-module tool names', () => {
   const all = rules('bash', 'edit', 'subagent', 'fork');
-  assert.ok(all.length / 4 < 700, `~${Math.round(all.length / 4)} tokens`);
+  assert.ok(all.length / 4 < 400, `~${Math.round(all.length / 4)} tokens`);
   for (const name of ['note', 'web_', 'sqlite', 'monitor_', 'schedule_prompt', 'recall', 'pty_']) assert.ok(!all.includes(name), name);
 });
 

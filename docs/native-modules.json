@@ -1207,8 +1207,7 @@
           "sqliteIntegrationPreviousSha256": "b7e8e1bf1211e64b7a670718482342594be68a29a42cfec23a4a3de51650c876",
           "sqlConnectorPreviousSha256": "14ff096a082c9739c2b7397b1befee97229c7aeec6ddeff7af099a36ac507cb5",
           "refactorPreviousSha256": "4d4712998d32838268d05b3ab922ad4755d30eeae694094eb8743e19d3bfbd2d",
-          "taskCheckPreviousSha256": "240d12f1ba1df26c7eb1cf179978c95d55a92b3d1397662e11643d36db3f7848",
-          "sha256": "aa442a210a0202c8c3b73d56e65ff0649a2b5599115feecb34b796651e4c16ee",
+          "sha256": "240d12f1ba1df26c7eb1cf179978c95d55a92b3d1397662e11643d36db3f7848",
           "deferredSharedPreviousSha256": "ad117a0d5dc3bd01c0d47a1614e35d57fcd87b4c2ac44f0ab8ed4e1900be3591",
           "shellEditViolation20261021": "2026-10-21: cross-tool rules section documents one-off scripts and the rule-violation wording; measured size is now about 320 tokens."
         },
@@ -1260,9 +1259,7 @@
           "path": "modules/pi-runtime/src/cross-tool-guidance.ts",
           "shellEditViolation20261021PreviousSha256": "dba4ccab24a0dc5fd0a57200a33ed5511a57fa931119bf75c35833630afdff22",
           "shellEditViolation20261021Adaptation": "2026-10-21 user request: the Files and shell rule now also names one-off scripts (node -e, perl -i) and states that editing a file from the shell bypasses the edit/write version-token guard and is a rule violation.",
-          "taskCheckPreviousSha256": "bdd1d1babc51d7aca3be0d614769626f85207c24d9b6769cc2d8b0cd37c37b5c",
-          "taskCheckAdaptation": "2026-10-26 user request after benchmark WEAK_POINTS review: tool-independent 'Check against the task' block (requirements checklist, rules from task/provided specs, fix the rule not the instance); prompt mitigation only. 2026-10-26 user request: tool-independent 'Working rules' block condensing the user's working rules (terminology, minimal change, limited testing, no UI subtext, overdesign consent); token budget raised to 700.",
-          "sha256": "b7ef47f79a7c7f857968eecaa69efb84b2f9c42bf5d741c6e9d343064ef8cab4",
+          "sha256": "bdd1d1babc51d7aca3be0d614769626f85207c24d9b6769cc2d8b0cd37c37b5c",
           "reason": "2026-10-15 user-authorized: cross-module tool rules section injected by Pi Runtime (cross-tool-guidance.ts).",
           "cleanCode20261023PreviousSha256": "a2ea78ac76f7cd789ca8aa3d2bdbe71eeabcffe60aabe4dc829591fa28dd7d87",
           "cleanCode20261023Adaptation": "2026-10-23 behavior-preserving clean-code refactor: Forced-prompt handling delegated to forced-prompt.ts; delegate block built from one list (identical text)."
@@ -1271,8 +1268,7 @@
           "path": "modules/pi-runtime/tests/cross-tool-guidance.test.ts",
           "shellEditViolation20261021PreviousSha256": "e907764035a0d69bbd337b3ea3745df098e5d831101ce6bb3fd9785981a4a5f5",
           "shellEditViolation20261021Adaptation": "2026-10-21: new assertion locks the shell-edit violation wording for both shell tools; other structural assertions unchanged.",
-          "taskCheckPreviousSha256": "c788e03b2e1f8121c3fb821085174f3732a0f99dffa6fc92f65ad441cb72baca",
-          "sha256": "a8945454a5ea3d6d5fbf861642033edc3577f4644b7f9560c6b0bddb1ab16e4b",
+          "sha256": "c788e03b2e1f8121c3fb821085174f3732a0f99dffa6fc92f65ad441cb72baca",
           "reason": "2026-10-15 user-authorized: cross-module tool rules section injected by Pi Runtime (cross-tool-guidance.ts)."
         },
         {
