@@ -1,6 +1,6 @@
 # SQLite Tools（整合版）
 
-來源為使用者擁有的 `D:/projects/pi-sqlite-tools` 0.1.0；程式碼已納入本模組，不依賴來源路徑。入口為 `modules/sqlite-tools/src/index.ts`，使用 Node 內建 `node:sqlite`，無新增 runtime dependencies。安裝、Pi 1.2.0／Node 基準及唯一 lockfile 以根專案為準。來源雜湊與本地適配見 `docs/sources.json`、`docs/adaptations.json`；保留原來源 LICENSE。
+來源為使用者擁有的 `D:/projects/pi-sqlite-tools` 0.1.0；程式碼已納入本模組，不依賴來源路徑。入口為 `modules/sqlite-tools/src/index.ts`，使用 Node 內建 `node:sqlite`，無新增 runtime dependencies。安裝、Pi 1.2.0／Node 基準及唯一 lockfile 以根專案為準；保留原來源 LICENSE。
 
 ## Deferred tools 與短提示
 

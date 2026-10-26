@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
 import { promisify } from 'node:util';
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -11,7 +11,6 @@ import { isolatedEnv } from '../../../../tests/helpers/environment.mjs';
 import { startArm, requestText } from './tui-ab.mjs';
 
 const observer = fileURLToPath(new URL('./workflow-observer.ts', import.meta.url));
-const verifier = fileURLToPath(new URL('../../../../scripts/verify-sources.mjs', import.meta.url));
 const config = 'modules/workflow/config.mjs', feature = 'modules/workflow/feature.mjs';
 const originalConfig = 'export const enabled = true;\n', overwrittenConfig = 'export const enabled = false;\n';
 const featureSource = answer => `import { enabled } from './config.mjs';\nexport const answer = ${answer};\nexport const rollout = enabled;\n`;
@@ -22,9 +21,6 @@ const targetTest = "import assert from 'node:assert/strict';\nimport { answer } 
 
 async function prepare(cwd) {
   await mkdir(join(cwd, 'modules/workflow'), { recursive: true });
-  await mkdir(join(cwd, 'scripts'), { recursive: true });
-  await copyFile(verifier, join(cwd, 'scripts/verify-sources.mjs'));
-  assert.equal(hash(await readFile(join(cwd, 'scripts/verify-sources.mjs'))), hash(await readFile(verifier)));
   const files = [];
   for (let i = 0; i < 64; i++) {
     const path = `modules/workflow/unrelated-${String(i).padStart(2, '0')}.mjs`;
@@ -35,13 +31,13 @@ async function prepare(cwd) {
   for (const [path, content] of [[feature, originalFeature], [config, originalConfig]]) {
     await writeFile(join(cwd, path), content); files.push({ path, sha256: hash(content) });
   }
-  // Config is deliberately LAST: the fail-fast real verifier must read all 66
-  // inventoried content files before reporting this injected problem.
+  // Config is deliberately LAST: an incremental check must read every inventoried
+  // content file before reporting this injected problem.
   const native = { modules: [{ module: 'workflow', origin: 'Isolated workflow experiment', license: 'MIT', entry: config, files }] };
   const packages = ['pi-open-tui', '@ff-labs/pi-fff'].map(name => ({ name, version: '1.0.0', integrity: 'fixture-integrity',
     resolved: `https://unused.invalid/${name}`, entry: './index.ts', license: 'MIT' }));
   const manifest = { dependencies: {}, pi: { extensions: [] } }, lock = { packages: {} };
-  // These are inert identity fixtures required by the existing verifier, NOT
+  // These are inert identity fixtures in the synthetic provenance store, NOT
   // installed packages; the isolated Pi loads only explicit real extensions.
   for (const dep of packages) {
     manifest.dependencies[dep.name] = dep.version;
@@ -128,18 +124,11 @@ export async function runWorkflow(scenario, order, evidenceDir, tokenizer) {
         // identically in every arm. NEVER update config's expected hash.
         await fixture.approveFeatureOnly(); event('approved-feature-metadata-only');
         const before = await arm.snapshot('before-gate');
-        let gate = 'proceed', diagnosticFound = false, status, check, full;
+        let gate = 'proceed', diagnosticFound = false, status, check;
         const incremental = async () => {
           const statusRow = await arm.command('status', /Candidates:/);
           const checkRow = await arm.command('check', /Selected:/);
           return { status: statusRow.message, check: checkRow.message };
-        };
-        const fullCheck = async () => {
-          await arm.command('', /Full provenance: (?:PASSED|FAILED)/, 'workflow-full');
-          const record = (await arm.records()).filter(row => row.event === 'full-verification').at(-1);
-          assert.equal(record.io.contentFiles, 66, 'count real successful content reads, not inventory guesses');
-          assert.equal(record.io.reads.filter(row => row.path === config).length, 1);
-          return record;
         };
         if (label === 'B') {
           ({ status, check } = await incremental());
@@ -149,19 +138,14 @@ export async function runWorkflow(scenario, order, evidenceDir, tokenizer) {
           assert.match(frame.screenLines.join('\n'), /Selected:/);
           if (diagnosticFound) assert.match(frame.screenLines.join('\n'), /mismatch: modules[\\/]workflow[\\/]config\.mjs/);
           if (scenario === 'evicted') { assert.match(status, /capacity=[1-9]/); assert.doesNotMatch(status.replaceAll('\\', '/'), /: modules\/workflow\/config\.mjs/); }
-        } else if (label === 'C') {
-          full = await fullCheck(); gate = full.exitCode === 0 ? 'proceed' : 'blocked';
-          diagnosticFound = full.exitCode !== 0 && full.stderr.includes(`native module changed without updated provenance: ${config}`);
-          const frame = await arm.snapshot('initial-gate');
-          assert.match(frame.screenLines.join('\n'), /Full provenance: (?:PASSED|FAILED)/);
         }
         const after = await arm.snapshot('after-gate');
         assert.equal(after.requests, before.requests, 'neither closing command should call a model');
         event('initial-gate', { decision: gate, diagnosticFound });
         const initialOracle = await oracle(arm.cwd);
         assert.equal(initialOracle.correct, scenario === 'clean');
-        assert.equal(gate, scenario === 'clean' || label === 'A' ? 'proceed' : label === 'B' && scenario === 'evicted' ? 'review-incomplete' : 'blocked');
-        assert.equal(diagnosticFound, scenario !== 'clean' && (label === 'C' || label === 'B' && scenario !== 'evicted'));
+        assert.equal(gate, label === 'A' || scenario === 'clean' ? 'proceed' : scenario === 'evicted' ? 'review-incomplete' : 'blocked');
+        assert.equal(diagnosticFound, label === 'B' && scenario !== 'clean' && scenario !== 'evicted');
         let repaired = false, repairCheck;
         if (diagnosticFound) {
           // Simulated operator repair, grounded in a visible filename diagnostic.
@@ -173,7 +157,7 @@ export async function runWorkflow(scenario, order, evidenceDir, tokenizer) {
           if (label === 'B') {
             const repeat = await incremental(); repairCheck = repeat.check;
             assert.equal(incrementalDecision(repeat.status, repeat.check), 'proceed');
-          } else { repairCheck = await fullCheck(); assert.equal(repairCheck.exitCode, 0); }
+          }
           assert.equal((await oracle(arm.cwd)).correct, true); repaired = true;
           event('repair-recheck-passed');
         }
@@ -183,18 +167,16 @@ export async function runWorkflow(scenario, order, evidenceDir, tokenizer) {
         assert.equal(saved.records.filter(row => row.event === 'network-attempt').length, 0);
         assert.ok(saved.records.some(row => row.event === 'shutdown'));
         const cost = label === 'B' ? { contentFiles: Number(check.match(/checked: (\d+)/)[1]), contentBytes: Number(check.match(/content bytes: (\d+)/)[1]),
-          metadataBytes: Number(check.match(/metadata bytes: (\d+)/)[1]), elapsedMs: Number(check.match(/elapsed: (\d+)ms/)[1]) }
-          : label === 'C' ? { contentFiles: full.io.contentFiles, contentBytes: full.io.contentBytes, metadataBytes: full.io.metadataBytes,
-            totalBytes: full.io.totalBytes, elapsedMs: full.elapsedMs } : null;
+          metadataBytes: Number(check.match(/metadata bytes: (\d+)/)[1]), elapsedMs: Number(check.match(/elapsed: (\d+)ms/)[1]) } : null;
         arms[label] = { label, home: saved.home, initialGate: gate, diagnosticFound, initialOracle, falseDelivery: gate === 'proceed' && !initialOracle.correct,
-          targetExitCode: target.exitCode, status, check, full, cost, repaired, repairCheck, finalOracle: await oracle(arm.cwd), requests,
+          targetExitCode: target.exitCode, status, check, cost, repaired, repairCheck, finalOracle: await oracle(arm.cwd), requests,
           records: saved.records, output: saved.output, exitCode: final.exitCode };
         console.log(`[workflow] ${scenario}/${label}: gate=${gate}, diagnostic=${diagnosticFound}, falseDelivery=${arms[label].falseDelivery}, repaired=${repaired}, CLI exit=0`);
       } finally { try { await arm.close(); } finally { await arm.save(); } }
     }
     const perRequest = arms.A.requests.map((request, i) => {
-      const payloads = ['A', 'B', 'C'].map(label => requestText(arms[label].requests[i], arms[label].home, true));
-      assert.equal(payloads[1], payloads[0]); assert.equal(payloads[2], payloads[0]);
+      const payloads = ['A', 'B'].map(label => requestText(arms[label].requests[i], arms[label].home, true));
+      assert.equal(payloads[1], payloads[0]);
       assert.doesNotMatch(payloads[0], /Full provenance:|File Audit|mismatch: modules/);
       return { nth: i + 1, normalizedSha256: hash(payloads[0]), normalizedBytes: Buffer.byteLength(payloads[0]),
         estimatedNormalizedTokens: tokenizer ? tokenizer.encode(payloads[0]).length : null };
@@ -202,12 +184,12 @@ export async function runWorkflow(scenario, order, evidenceDir, tokenizer) {
     const result = { scenario, order, externalCalls: 0, normalizedPayloadsEqual: true,
       tokenMethod: tokenizer ? 'js-tiktoken@1.0.21 o200k_base; semantic serialization estimate, not billed usage' : null,
       estimatedNormalizedTokensPerArm: tokenizer ? perRequest.reduce((sum, row) => sum + row.estimatedNormalizedTokens, 0) : null,
-      perRequest, timeline, arms: Object.fromEntries(['A', 'B', 'C'].map(label => {
+      perRequest, timeline, arms: Object.fromEntries(['A', 'B'].map(label => {
         const { home: _home, requests: _requests, records: _records, output: _output, ...summary } = arms[label]; return [label, summary];
       })) };
     if (evidenceDir) {
       await mkdir(evidenceDir, { recursive: true });
-      for (const label of ['A', 'B', 'C']) {
+      for (const label of ['A', 'B']) {
         await writeFile(join(evidenceDir, `${scenario}-${label}.journal.jsonl`), arms[label].records.map(row => JSON.stringify(row)).join('\n') + '\n');
         await writeFile(join(evidenceDir, `${scenario}-${label}.terminal.raw.txt`), arms[label].output);
       }
@@ -216,7 +198,7 @@ export async function runWorkflow(scenario, order, evidenceDir, tokenizer) {
     success = true; return result;
   } finally {
     clearInterval(beat);
-    if (success) { await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); console.log(`[workflow] ${scenario}: all 3 CLI exits confirmed; successful workspaces removed`); }
+    if (success) { await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); console.log(`[workflow] ${scenario}: all 2 CLI exits confirmed; successful workspaces removed`); }
     else console.error(`[workflow] Failure evidence retained at ${directory}`);
   }
 }

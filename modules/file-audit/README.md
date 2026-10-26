@@ -1,6 +1,6 @@
 # File Audit
 
-原生 Pi 1.4.0 extension。追蹤本 session 成功的 `read`／`write`／`edit`／`note`，提供有界限、唯讀的近期 provenance 增量檢查，不取代 `npm run sources:verify`。
+原生 Pi 1.4.0 extension。追蹤本 session 成功的 `read`／`write`／`edit`／`note`，提供有界限、唯讀的近期 provenance 增量檢查；它不是全量驗證，本專案也沒有另外的全量驗證器。
 
 ## 載入與拆裝
 
@@ -35,7 +35,7 @@ pi --no-extensions -e ./modules/file-audit/src/index.ts
 
 ## 增量檢查
 
-只讀使用者目前 cwd 下三份檔案：`docs/sources.json`、`docs/adaptations.json`、`docs/native-modules.json`，不猜祖先根、不掃目錄、不讀原來源 sourcePath、不檢查 node_modules，也不呼叫全量驗證器。
+只讀使用者目前 cwd 下三份 optional 檔案：`docs/sources.json`、`docs/adaptations.json`、`docs/native-modules.json`，不猜祖先根、不掃目錄、不讀原來源 sourcePath、不檢查 node_modules；缺檔一律 unavailable，不算通過；本 repository 已移除這三份檔案（無雜湊基準），因此在此執行必為 unavailable，功能仍保留給提供這些檔案的專案。
 
 有效 imports/adaptations、addedFiles、removedFiles、native files、final rootFiles 參與比較，歷史說明中的 hashes 不作現值。來源覆寫須與 originalSha256 相符且有理由；historical delta unavailable 保留審查限制。衝突／非法／缺失 metadata 均不假裝已驗證。
 
@@ -87,11 +87,10 @@ tokenizer 會驗證套件版本並使用 `o200k_base`，分列原始／正規化
 node --test modules/file-audit/tests/tui-workflow.integration.test.mjs
 ```
 
-真正 fullscreen PTY 分三情境（clean、late-overwrite、evicted）跑 A/B/C 共9個隔離 CLI。父測試程序在成功 read config 後、下一個 prompt 前覆寫檔案，保存父／Pi PID、hash、metadata未變與事件時間線。feature 由真實工具修改並在 Node 子行程跑只斷言 answer=2 的測試；獨立 oracle 另以新 Node 程序驗證產物 answer=2 且 rollout=true，故可確認外部 config=false 形成真實需求失敗，不只是 hash 不符。
+真正 fullscreen PTY 分三情境（clean、late-overwrite、evicted）跑 A/B 共 6 個隔離 CLI。父測試程序在成功 read config 後、下一個 prompt 前覆寫檔案，保存父／Pi PID、hash、metadata 未變與事件時間線。feature 由真實工具修改並在 Node 子行程跑只斷言 answer=2 的測試；獨立 oracle 另以新 Node 程序驗證產物 answer=2 且 rollout=true，故可確認外部 config=false 形成真實需求失敗，不只是 hash 不符。
 
-- A 不掛載，只依定向測試作交付決策；B 掛載，操作者手動執行 status/check；C 不掛載，在相同合成 workspace 透過測試專用命令執行**未修改的** `scripts/verify-sources.mjs`。
-- C 使用完整有效的最小 provenance／離線套件身份 fixture，沒有安裝假套件或呼叫 registry。內容 inventory 是 config、feature 與64個16KiB無關檔；preload只計數真實 readFile，不改資料、hash或驗證斷言。config刻意放最後，fail-fast能觀察到66檔讀取；這不是正式 repository 的完整驗證或通用效能比較。
-- 正常案例三組可完成；讀後覆寫時 A 的定向測試仍通過但產物錯誤，B/C能提供 config 診斷；模擬操作者依可見診斷修復config後，重查與獨立runtime oracle均須通過。已核准feature的正常provenance收尾三組一致，從不把config異常補簽成通過。
-- evicted 把B容量設1，config被後續feature活動淘汰；check只能得到feature matched，**不能發現已淘汰檔案的異常**。實驗的操作者政策因缺少必查config而標成 review-incomplete，C仍能找到問題。
+- A 不掛載，只依定向測試作交付決策；B 掛載，操作者手動執行 status/check。
+- 正常案例兩組可完成；讀後覆寫時 A 的定向測試仍通過但產物錯誤，B 能提供 config 診斷；模擬操作者依可見診斷修復 config 後，重查與獨立 runtime oracle 均須通過。已核准 feature 的正常 provenance 收尾兩組一致，從不把 config 異常補簽成通過。
+- evicted 把 B 容量設 1，config 被後續 feature 活動淘汰；check 只能得到 feature matched，**不能發現已淘汰檔案的異常**。實驗的操作者政策因缺少必查 config 而標成 review-incomplete。
 
-`blocked`／`review-incomplete` 是測試明示的**操作者政策**，不是extension自動阻擋；外部修復也不是產品或模型自動修復。provider固定相同操作，不能用此實驗推論真實模型自主能力、真人錯誤率或節省時間。各arm7次合成請求，手動關卡不加請求，後續payload不得含報告；可沿用上述tokenizer/evidence環境變數。證據存 `plan/evidence/<scope>/workflow/`，含真正PTY輸出、完整隔離transcript、初次及修復後結果、獨立oracle、實測I/O與時間線。
+`blocked`／`review-incomplete` 是測試明示的**操作者政策**，不是 extension 自動阻擋；外部修復也不是產品或模型自動修復。provider 固定相同操作，不能用此實驗推論真實模型自主能力、真人錯誤率或節省時間。各 arm 7 次合成請求，手動關卡不加請求，後續 payload 不得含報告；可沿用上述 tokenizer/evidence 環境變數。證據存 `plan/evidence/<scope>/workflow/`，含真正 PTY 輸出、完整隔離 transcript、初次及修復後結果、獨立 oracle、實測 I/O 與時間線。

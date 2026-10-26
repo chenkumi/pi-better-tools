@@ -1,7 +1,8 @@
 ## [Unreleased]
 
 ### Removed
-- The recorded 2026-10-16 cleanup is now applied to the tree: `src/om/compaction-trigger.ts`, `src/om/inline-compaction.ts` and the self-nooped 0.5.2 migration notice were already unreachable from `index.ts` (Pi owns compaction and no private adapter is installed), so the three modules and their four dedicated suites are actually removed, and `docs/sources.json` no longer lists them as carried files (they stay recorded in `docs/adaptations.json` `removedFiles`).
+- Hash provenance verification is gone (user request, 2026-10-26): `docs/sources.json`, `docs/adaptations.json`, `docs/native-modules.json`, `npm run sources:verify` and its test/fixture comparator were removed, so changing a file no longer requires updating a recorded hash. Module licenses and `THIRD_PARTY_NOTICES.md` keep the import identity.
+- The recorded 2026-10-16 cleanup is now applied to the tree: `src/om/compaction-trigger.ts`, `src/om/inline-compaction.ts` and the self-nooped 0.5.2 migration notice were already unreachable from `index.ts` (Pi owns compaction and no private adapter is installed), so the three modules and their four dedicated suites are actually removed.
 
 ### Fixed
 - Notification evidence now retains parallel Subagent per-task `task_result` notices (single task, `scope.taskId`, job still running) and the closing `job_result`.

@@ -13,7 +13,7 @@ run 指 before_agent_start（user/custom 均計入），不是每次工具呼叫
 
 ## 檢查來源與限制
 
-check 只讀 cwd 下 `docs/sources.json`、`docs/adaptations.json`、`docs/native-modules.json`，不向祖先找根、不掃目錄或來源 sourcePath。缺 metadata 時 unavailable；新 note 無紀錄時 untracked，都不是通過。此命令是近期增量檢查，不等同專案全量驗證，也不判定哪個 session 修改了檔案。
+check 只讀 cwd 下 optional 的 `docs/sources.json`、`docs/adaptations.json`、`docs/native-modules.json`，不向祖先找根、不掃目錄或來源 sourcePath。缺 metadata 時 unavailable；新 note 無紀錄時 untracked，都不是通過。此命令是近期增量檢查，不等同專案全量驗證，也不判定哪個 session 修改了檔案。
 
 三份 metadata 合計 8 MiB／50000 inventory 項目；候選單檔 8 MiB、合計 32 MiB；只允許一個 check。範圍外、非一般檔案、已知 credentials/state 路徑不讀內容。顯示最多 10 筆／8 KiB，超限與未檢查會明示。容量與窗口外活動可能未驗證就淘汰，不保存完整遺漏清單。
 

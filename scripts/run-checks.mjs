@@ -65,7 +65,6 @@ const groups = {
     directTests('blackhole:integration', 'modules/blackhole/tests', isIntegration),
     directTests('shell-tools:test:integration', 'modules/shell-tools/tests', isIntegration), moduleTask('file-tools', 'test:integration'),
     directTests('subagents:test:integration', 'modules/subagents/tests', isIntegration, { concurrency: 3 }),
-    { label: 'all-modules:provenance', args: ['--test', 'tests/integration/provenance.test.mjs'] },
     { label: 'all-modules:integration', args: ['--import', import.meta.resolve('tsx'), '--test', '--test-concurrency=1', 'tests/integration/package.test.mjs'] }],
   browser: [{ label: 'all-modules:web-read', args: ['--import', import.meta.resolve('tsx'), '--test', 'tests/integration/browser.test.mjs'] }],
 };

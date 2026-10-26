@@ -112,7 +112,6 @@
         "browser:install": "node setup/cli.mjs browser install",
         "browser:install-deps": "node setup/cli.mjs browser install-deps",
         "setup:browser": "node setup/cli.mjs browser setup",
-        "sources:verify": "node scripts/verify-sources.mjs",
         "prepack": "npm run build"
     },
     "allowScripts": {

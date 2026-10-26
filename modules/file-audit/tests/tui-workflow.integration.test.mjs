@@ -11,8 +11,8 @@ if (scope && !/^[\w-]+$/.test(scope)) throw new Error('Invalid workflow evidence
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const evidence = scope ? join(root, 'plan/evidence', scope, 'workflow') : null;
 const tokenizer = await loadTokenizer();
-for (const [scenario, order] of [['clean', ['A', 'B', 'C']], ['late-overwrite', ['C', 'A', 'B']], ['evicted', ['B', 'C', 'A']]]) {
-  test(`Pi 1.4.0 workflow ${scenario}: external writer, real target test and A/B/C delivery gates`, { timeout: 180000 }, async () => {
+for (const [scenario, order] of [['clean', ['A', 'B']], ['late-overwrite', ['B', 'A']], ['evicted', ['B', 'A']]]) {
+  test(`Pi 1.4.0 workflow ${scenario}: external writer, real target test and A/B delivery gates`, { timeout: 180000 }, async () => {
     assert.equal(VERSION, '1.4.0');
     const result = await runWorkflow(scenario, order, evidence, tokenizer);
     assert.equal(result.externalCalls, 0); assert.equal(result.normalizedPayloadsEqual, true);

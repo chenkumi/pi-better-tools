@@ -1,6 +1,6 @@
 # PTY Terminal（整合版）
 
-來源：使用者擁有的 `pi-pty-terminal` 0.1.0（MIT）；來源 README 說明其工具移植自 `opencode-pty-mcp`。此為來源快照加上本地 target 適配，不依賴原專案路徑。根 package/lockfile/Pi manifest 為唯一安裝單元；公開入口 `modules/pty-terminal/src/index.ts`。原始雜湊見 `docs/sources.json`，差異見 `docs/adaptations.json`。
+來源：使用者擁有的 `pi-pty-terminal` 0.1.0（MIT）；來源 README 說明其工具移植自 `opencode-pty-mcp`。此為來源快照加上本地 target 適配，不依賴原專案路徑。根 package/lockfile/Pi manifest 為唯一安裝單元；公開入口 `modules/pty-terminal/src/index.ts`。本專案不維護檔案雜湊紀錄，授權見本模組 LICENSE。
 
 ## 工具
 

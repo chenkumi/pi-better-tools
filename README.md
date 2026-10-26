@@ -6,7 +6,7 @@
 
 ## 重構整理（2026-10-16）
 
-移除未接入的 Blackhole 舊壓縮 trigger／private inline adapter、過期版本通知與 Runtime 孤立日誌 helper；ConfigManager 測試 helper 不再隨產品打包。Blackhole 共用 env 解析及非搜尋選單，Shell／Subagents／Fork 共用純 UI binding，Subagents 面板只保留現行 `PanelJob[]` 投影。工具、設定、持久化格式、原生壓縮與各自執行／取消／通知契約不變；來源身份與歷史雜湊保留，細節見 [架構](docs/architecture.md)。
+移除未接入的 Blackhole 舊壓縮 trigger／private inline adapter、過期版本通知與 Runtime 孤立日誌 helper；ConfigManager 測試 helper 不再隨產品打包。Blackhole 共用 env 解析及非搜尋選單，Shell／Subagents／Fork 共用純 UI binding，Subagents 面板只保留現行 `PanelJob[]` 投影。工具、設定、持久化格式、原生壓縮與各自執行／取消／通知契約不變；來源身份與授權說明保留，細節見 [架構](docs/architecture.md)。
 
 ## 本機安裝
 
@@ -383,7 +383,6 @@ npm run test:browser      # 真實 Chromium；Linux 首次可用 setup:browser �
 npm run test:heavy:blackhole  # Blackhole 重型測試獨立一組（2 個整合檔 + 上游 Vitest 整合套件，約 10 分鐘以上）；同樣需使用者指定才執行
 npm run test:heavy        # 重型／高延遲測試（單檔 ≥30 秒，共 12 檔）；需使用者指定或全量驗證才執行，可加模組名縮小，如 -- fork
 npm run test:package      # 真實 tarball + 乾淨 production install；需要 npm registry
-npm run sources:verify    # 匯入來源／本地適配雜湊
 npm pack                 # prepack 會執行 build（目前為 no-op）
 ```
 
@@ -391,7 +390,7 @@ npm pack                 # prepack 會執行 build（目前為 no-op）
 
 Blackhole 保留 Vitest runner，但 `npm test` 只跑 unit；`tests/integration/**` 的 native probes 由 `test:integration`／`test:module -- blackhole` 的 `blackhole:native-vitest` 階段序列執行。Unit 仍為 10 秒，`pi-owned` 每案另有 30 秒子行程預算與 45 秒外層收尾預算；不修改產品 timeout 或測試斷言。手動篩選可用 `node scripts/blackhole-tests.mjs --suite=unit <filter>`／`--suite=integration <filter>`；未指定 suite 仍執行全部案例。
 
-Subagents `runner-io` 使用 test-only phase clock：真實 managed 準備與非目標 I/O 保留產品 300 秒預算，只在指定 mock 進入受阻 barrier 後將原 deadline callback 重排到 300ms（slow write 2000ms）；不繞過真實 gate／locks／actual close，也不改 inactivity 或產品期限。Blackhole status-bar source／test 的舊 expected 內容未能取回，現碼經獨立審查後作明示的新本地基準，provenance 保留舊 hash 並標 historical delta unavailable；`sources:verify` 的當前完整性通過不等於歷史差異等價。詳見 [來源界限](docs/source-references.md) 與兩模組 README。
+Subagents `runner-io` 使用 test-only phase clock：真實 managed 準備與非目標 I/O 保留產品 300 秒預算，只在指定 mock 進入受阻 barrier 後將原 deadline callback 重排到 300ms（slow write 2000ms）；不繞過真實 gate／locks／actual close，也不改 inactivity 或產品期限。Blackhole status-bar source／test 的舊 expected 內容未能取回，現碼經獨立審查後作明示的新本地基準；專案不再維護檔案雜湊基準。詳見 [來源界限](docs/source-references.md) 與兩模組 README。
 
 Cross／production smoke 的 grep 前置需求是可執行的 ripgrep：在 PATH 安裝 `rg`，或明確設定測試用環境變數 `PI_BETTER_TOOLS_TEST_RG` 指向 binary。測試驗證版本後只複製 binary 到各自隔離的 `agentDir/bin`，記錄版本／來源／SHA-256；不下載、不修改個人設定，缺少時明確失敗，不 skip 或移除 grep 斷言。此變數只由測試 helper 讀取，不是 Pi runtime 設定。
 
