@@ -10,7 +10,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { convertToLlm } from "@earendil-works/pi-coding-agent";
 import { nativeCompactionInput, nativeEvidenceEntries } from "../core/native-compaction-input.js";
-import { writeFileSync } from "fs";
+import { writeDebugSnapshot } from "./debug-snapshot.js";
 import {
   compile,
   compileSegment,
@@ -96,9 +96,7 @@ export const formatCompactionStats = (stats: CompactionStats): string => {
 
 const dbg = (debug: boolean, data: Record<string, unknown>) => {
   if (!debug) return;
-  try {
-    writeFileSync("/tmp/pi-blackhole-debug.json", JSON.stringify(data, null, 2));
-  } catch {}
+  writeDebugSnapshot(data);
 };
 
 const previewContent = (content: unknown): string => {

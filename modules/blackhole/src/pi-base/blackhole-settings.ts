@@ -414,7 +414,7 @@ export const config = new ConfigManager<UnifiedConfig>({
       key: "debug",
       type: "boolean",
       label: "Debug snapshots",
-      description: "Write detailed debug snapshots to /tmp/pi-blackhole-debug.json",
+      description: "Write detailed debug snapshots to pi-blackhole-debug.json in the system temp directory",
       value: cfg.debug,
     },
     {

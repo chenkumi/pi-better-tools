@@ -85,7 +85,7 @@ export interface PresetAnchorDef {
 export interface UnifiedConfig {
   /** @deprecated Use compactionEngine instead. */
   overrideDefaultCompaction?: boolean;
-  /** Write debug snapshots to /tmp/pi-blackhole-debug.json. */
+  /** Write debug snapshots to pi-blackhole-debug.json under the OS temp directory. */
   debug: boolean;
 
   // ── New config surface — compaction, engine, tail behavior ──

@@ -395,7 +395,7 @@ Warnings and errors are unaffected: model fallback/unavailability, context-windo
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `debug` | boolean | false | Writes detailed debug snapshots to `/tmp/pi-blackhole-debug.json` |
+| `debug` | boolean | false | Writes detailed debug snapshots to `<系統暫存目錄>/pi-blackhole-<使用者>/pi-blackhole-debug.json`（Windows、macOS、Linux 皆用 OS 暫存目錄；POSIX 權限 0700／0600） |
 | `debugLog` | boolean | false | Writes structured JSONL debug logs to the agent directory |
 
 ## Deprecated Keys

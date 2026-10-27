@@ -210,7 +210,7 @@ Can also be set via environment variables: `PI_BLACKHOLE_PASSIVE=true` (also acc
 
 **Default:** `false`
 
-When `true`, writes a pre-compaction debug snapshot to `/tmp/pi-blackhole-debug.json` every time compaction runs. This captures the full state just before the algorithmic summary is built — useful for troubleshooting what the compactor sees.
+When `true`, writes a pre-compaction debug snapshot to `<系統暫存目錄>/pi-blackhole-<使用者>/pi-blackhole-debug.json`（Windows、macOS、Linux 皆用 OS 暫存目錄；POSIX 權限 0700／0600） every time compaction runs. This captures the full state just before the algorithmic summary is built — useful for troubleshooting what the compactor sees.
 
 ### `debugLog`
 
