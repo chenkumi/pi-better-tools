@@ -9,14 +9,15 @@ export interface RuntimeLogging {
   write(record: Record<string, unknown>): void;
 }
 
+const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value);
+
 /** Global-only, opt-in, reread at capture/failure; never modifies personal settings. */
 export function runtimeDebugEnabled(options: RuntimeLogOptions = {}): boolean {
   try {
     const path = join(options.agentDir ?? process.env.PI_CODING_AGENT_DIR ?? join(homedir(), '.pi', 'agent'), 'settings.json');
     const settings = JSON.parse(readFileSync(path, 'utf8').replace(/^\uFEFF/, ''));
-    return !!settings && !Array.isArray(settings) && typeof settings === 'object' &&
-      !!settings['pi-runtime'] && !Array.isArray(settings['pi-runtime']) &&
-      typeof settings['pi-runtime'] === 'object' && settings['pi-runtime'].debugLog === true;
+    return isPlainRecord(settings) && isPlainRecord(settings['pi-runtime']) && settings['pi-runtime'].debugLog === true;
   } catch { return false; }
 }
 

@@ -13,6 +13,8 @@ export function remainingLabel(ms: number): string {
   return hours ? `剩 ${hours}h${minutes % 60 ? ` ${minutes % 60}m` : ''}` : `剩 ${minutes}m`;
 }
 
+const TARGET_LABELS: Partial<Record<string, string>> = { command: 'Command', websocket: 'Endpoint (origin only)' };
+
 const time = (value?: number) => value === undefined ? 'n/a' : new Date(value).toISOString();
 
 /** Plain projection of a retained Monitor. Never reads event text or stderr, and never owns the runtime. */
@@ -26,7 +28,7 @@ export function monitorPanelJob(row: MonitorPanelRow, now: number): PanelJob {
     `Status: ${row.state}${row.stopReason ? ` (${row.stopReason})` : ''}`,
     `Monitor ID: ${row.id}`,
     `Source: ${row.source}`,
-    `${row.source === 'command' ? 'Command' : row.source === 'websocket' ? 'Endpoint (origin only)' : 'File'}: ${row.target}`,
+    `${TARGET_LABELS[row.source] ?? 'File'}: ${row.target}`,
     ...(row.label ? [`Label: ${row.label}`] : []),
     ...(row.intervalMs !== undefined ? [`Sampling interval: ${row.intervalMs} ms`] : []),
     `Created: ${time(row.createdAt)}${row.startedAt !== undefined ? ` · Started: ${time(row.startedAt)}` : ''}${row.endedAt !== undefined ? ` · Ended: ${time(row.endedAt)}` : ''}`,

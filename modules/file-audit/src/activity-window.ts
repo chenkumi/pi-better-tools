@@ -18,14 +18,11 @@ export function boundedString(value: unknown, maxBytes = MAX_PATH_BYTES): value 
 }
 const MAX_WINDOW_RUNS = 30;
 const MAX_FILES_LIMIT = 500;
+const outOfRange = (value: number, max: number) => !Number.isSafeInteger(value) || value < 1 || value > max;
 export function validateLimits(limits: Limits): void {
   const problems: string[] = [];
-  if (!Number.isSafeInteger(limits.windowRuns) || limits.windowRuns < 1 || limits.windowRuns > MAX_WINDOW_RUNS) {
-    problems.push(`window must be an integer 1–${MAX_WINDOW_RUNS} (received ${limits.windowRuns})`);
-  }
-  if (!Number.isSafeInteger(limits.maxFiles) || limits.maxFiles < 1 || limits.maxFiles > MAX_FILES_LIMIT) {
-    problems.push(`max-files must be an integer 1–${MAX_FILES_LIMIT} (received ${limits.maxFiles})`);
-  }
+  if (outOfRange(limits.windowRuns, MAX_WINDOW_RUNS)) problems.push(`window must be an integer 1–${MAX_WINDOW_RUNS} (received ${limits.windowRuns})`);
+  if (outOfRange(limits.maxFiles, MAX_FILES_LIMIT)) problems.push(`max-files must be an integer 1–${MAX_FILES_LIMIT} (received ${limits.maxFiles})`);
   if (problems.length) throw new Error(`Invalid limits: ${problems.join("; ")}. Example: /file-audit limits --window 4 --max-files 50`);
 }
 /** Counters saturate instead of losing integer precision in a very long session. */
