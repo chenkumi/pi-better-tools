@@ -12,9 +12,9 @@ test("the SQLite child process starts from an installed node_modules layout", as
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const installed = join(root, "node_modules", "pi-better-tools", "modules", "sqlite-tools", "src");
   mkdirSync(installed, { recursive: true });
-  for (const name of ["sqlite-process.mjs", "sqlite-core.mjs"]) copyFileSync(new URL(`../src/${name}`, import.meta.url), join(installed, name));
+  for (const name of ["sqlite-process.mjs", "sqlite-core.mjs", "ipc-codec.mjs"]) copyFileSync(new URL(`../src/${name}`, import.meta.url), join(installed, name));
 
-  const child = fork(join(installed, "sqlite-process.mjs"), [], { execArgv: [], serialization: "advanced", stdio: ["ignore", "ignore", "pipe", "ipc"] });
+  const child = fork(join(installed, "sqlite-process.mjs"), [], { execArgv: [], serialization: "json", stdio: ["ignore", "ignore", "pipe", "ipc"] });
   let stderr = "";
   child.stderr!.on("data", (chunk) => { stderr += chunk; });
   const outcome = await new Promise<string>((resolve) => {

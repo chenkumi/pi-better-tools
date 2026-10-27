@@ -12,6 +12,7 @@ import {
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
+import { SqliteStartupError } from "./node-runtime.js";
 import { SqliteClient } from "./sqlite-client.js";
 import { errorMessage, type SqlParams } from "./sqlite-manager.js";
 
@@ -346,6 +347,13 @@ export default function sqliteExtension(pi: ExtensionAPI) {
       startupHint = undefined;
     } catch (error) {
       if (stopped) return;
+      if (error instanceof SqliteStartupError) {
+        // The helper process could not start: an environment problem, not a database setting.
+        startupHint = "The SQLite helper process could not be started. This is a problem with the user's Node.js environment that the agent cannot fix: ask the user to resolve it and run /reload. Do not fall back to another database.";
+        startupError = `${error.message} Ask the user to fix the Node.js environment, then run /reload (the agent cannot reload).`;
+        if (ctx.hasUI) ctx.ui.notify(`${error.humanMessage} Fix the environment, then run /reload (the agent cannot reload).`, "error");
+        return;
+      }
       startupHint = "The SQLite database could not be set up. This is a problem with the user's database settings that the agent cannot fix: ask the user to correct them and run /reload. Do not fall back to another database.";
       startupError = `${errorMessage(error)} Ask the user to fix the SQLite database settings, then run /reload (the agent cannot reload).`;
       // Human-only UI notice: keeps the exact settings file path and variable name.

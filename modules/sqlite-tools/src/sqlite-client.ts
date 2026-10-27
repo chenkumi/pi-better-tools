@@ -1,4 +1,7 @@
-import { fork, type ChildProcess } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { decode, encode } from "./ipc-codec.mjs";
+import { resolveNodeExecutable, SqliteStartupError } from "./node-runtime.js";
 import type { ExecuteResult, QueryResult, SqlParams, SqliteManager, SqliteStatus } from "./sqlite-manager.js";
 
 type Reply = { ready: true } | { id: number; ok: true; value: unknown } | { id: number; ok: false; message: string };
@@ -8,6 +11,8 @@ type OpenResult = { success: boolean; message: string };
 type Host = { child: ChildProcess; ready: Promise<void>; exited: Promise<void>; reopened: boolean };
 
 const CHILD_HEAP_MB = 256;
+/** Only the end of the child's stderr is kept, to explain a failed startup. */
+const STDERR_TAIL_BYTES = 4096;
 const NOT_OPEN = "No database is currently open. Use sqlite_open to open a database first.";
 const DISPOSED_MESSAGE = "SQLite session has shut down; the session has ended and this tool can no longer be used. Start a new session.";
 export const CANCELLED_MESSAGE = "The SQLite call was cancelled and its process was terminated. Whether a write completed is not confirmed; check the data before retrying.";
@@ -37,7 +42,7 @@ export class SqliteClient {
       this.openPath = undefined;
       await this.stop();
       if (signal?.aborted) throw new Error(CANCELLED_MESSAGE);
-      const result = await this.send<OpenResult>("open", [filePath]);
+      const result = await this.send<OpenResult>("open", [filePath], signal);
       if (result.success) {
         this.openPath = filePath;
         this.host!.reopened = true;
@@ -95,24 +100,29 @@ export class SqliteClient {
 
   /**
    * Runs `run` after every earlier call. A call cancelled while it still waits settles at once and is skipped on its turn;
-   * once it runs, its own signal handling (killing the process) decides when it settles.
+   * once it runs, its own signal handling (killing the process) decides when it settles. The caller may be released early,
+   * but the queue only advances when the call's turn is really over, so a later call never overtakes a running one.
    */
   private enqueue<T>(run: () => Promise<T>, signal?: AbortSignal, allowDisposed = false): Promise<T> {
     let started = false;
     let onAbort: (() => void) | undefined;
+    let endTurn!: () => void;
+    const turn = new Promise<void>(resolve => { endTurn = resolve; });
+    const previous = this.queue;
+    this.queue = turn;
     const task = new Promise<T>((resolve, reject) => {
       onAbort = () => { if (!started) reject(new Error(CANCELLED_MESSAGE)); };
       if (signal?.aborted) onAbort(); else signal?.addEventListener("abort", onAbort, { once: true });
-      this.queue.then(async () => {
-        if (signal?.aborted) { reject(new Error(CANCELLED_MESSAGE)); return; }
-        if (this.disposed && !allowDisposed) { reject(new Error(DISPOSED_MESSAGE)); return; }
-        started = true;
-        try { resolve(await run()); } catch (error) { reject(error); }
+      previous.then(async () => {
+        try {
+          if (signal?.aborted) { reject(new Error(CANCELLED_MESSAGE)); return; }
+          if (this.disposed && !allowDisposed) { reject(new Error(DISPOSED_MESSAGE)); return; }
+          started = true;
+          try { resolve(await run()); } catch (error) { reject(error); }
+        } finally { endTurn(); }
       });
     });
-    const settled = task.then(() => undefined, () => undefined);
-    this.queue = settled;
-    void settled.then(() => { if (onAbort) signal?.removeEventListener("abort", onAbort); });
+    void turn.then(() => { if (onAbort) signal?.removeEventListener("abort", onAbort); });
     return task;
   }
 
@@ -132,7 +142,7 @@ export class SqliteClient {
         reject: error => { cleanup(); reject(error); },
       });
       signal?.addEventListener("abort", onAbort, { once: true });
-      host.child.send({ id, method, args });
+      host.child.send({ id, method, args: encode(args) });
     });
   }
 
@@ -140,7 +150,12 @@ export class SqliteClient {
   private async start(): Promise<Host> {
     if (this.exiting) await this.exiting;
     if (this.disposed) throw new Error(DISPOSED_MESSAGE);
-    const host = this.host ?? this.spawn();
+    let node: string | undefined;
+    if (!this.host) {
+      node = await resolveNodeExecutable();
+      if (this.disposed) throw new Error(DISPOSED_MESSAGE);
+    }
+    const host = this.host ?? this.spawn(node!);
     await host.ready;
     if (this.host !== host) throw new Error("The SQLite process was stopped.");
     if (this.openPath && !host.reopened) {
@@ -156,20 +171,30 @@ export class SqliteClient {
     return host;
   }
 
-  private spawn(): Host {
-    const child = fork(new URL("./sqlite-process.mjs", import.meta.url), [], {
-      execArgv: [`--max-old-space-size=${CHILD_HEAP_MB}`], serialization: "advanced", stdio: ["ignore", "ignore", "ignore", "ipc"],
+  /**
+   * Runs the worker under an explicit Node.js (the host may be another runtime such as Bun). IPC uses JSON, which
+   * every host understands; ipc-codec.mjs carries the values JSON cannot.
+   */
+  private spawn(node: string): Host {
+    const child = spawn(node, [`--max-old-space-size=${CHILD_HEAP_MB}`, fileURLToPath(new URL("./sqlite-process.mjs", import.meta.url))], {
+      serialization: "json", stdio: ["ignore", "ignore", "pipe", "ipc"], windowsHide: true,
     });
+    let stderrTail = "";
+    child.stderr?.on("data", (chunk: Buffer) => { stderrTail = (stderrTail + chunk.toString("utf8")).slice(-STDERR_TAIL_BYTES); });
     const exited = new Promise<void>(resolve => child.once("close", () => { this.lost(host); resolve(); }));
     const ready = new Promise<void>((resolve, reject) => {
       child.on("message", (message: Reply) => {
         if ("ready" in message) { resolve(); return; }
         const entry = this.pending.get(message.id);
         this.pending.delete(message.id);
-        if (message.ok) entry?.resolve(message.value); else entry?.reject(new Error(message.message));
+        if (message.ok) entry?.resolve(decode(message.value)); else entry?.reject(new Error(message.message));
       });
-      child.once("error", error => reject(new Error(`The SQLite process failed: ${error.message}`)));
-      void exited.then(() => reject(new Error("The SQLite process stopped before it was ready.")));
+      child.once("error", error => reject(new SqliteStartupError(`The SQLite process failed to start: ${error.message}`)));
+      void exited.then(() => {
+        const how = child.exitCode !== null ? `exit code ${child.exitCode}` : `signal ${child.signalCode}`;
+        const output = stderrTail.trim();
+        reject(new SqliteStartupError(`The SQLite process stopped before it was ready (${how})${output ? `: ${output}` : "."}`));
+      });
     });
     ready.catch(() => undefined);
     const host: Host = { child, ready, exited, reopened: false };
@@ -181,7 +206,7 @@ export class SqliteClient {
     const id = this.nextId++;
     return new Promise<T>((resolve, reject) => {
       this.pending.set(id, { resolve: resolve as (value: unknown) => void, reject });
-      host.child.send({ id, method, args });
+      host.child.send({ id, method, args: encode(args) });
     });
   }
 
