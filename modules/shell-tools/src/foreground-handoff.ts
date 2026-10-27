@@ -2,7 +2,7 @@ import type { BashOperations } from "@earendil-works/pi-coding-agent";
 import { MAX_LOG_BYTES, appendTail } from "./background-jobs.js";
 
 /** Safety net: a foreground command without timeoutMs moves to a background job after this long. */
-export const DEFAULT_AUTO_BACKGROUND_MS = 180_000;
+export const DEFAULT_AUTO_BACKGROUND_MS = 300_000;
 const MAX_SETTING_MS = 2_147_483_647;
 
 /** `pi-shell-tools.autoBackgroundMs`: positive integer ms, `0` disables; anything else keeps the default. */

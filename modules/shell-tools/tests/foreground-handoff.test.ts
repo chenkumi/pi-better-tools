@@ -5,12 +5,12 @@ import { DEFAULT_AUTO_BACKGROUND_MS, createForegroundHandoff, resolveAutoBackgro
 import { MAX_LOG_BYTES, TAIL_BYTES } from "../src/background-jobs.js";
 
 test("auto background threshold defaults to 180s and accepts only a positive integer or 0", () => {
-  assert.equal(DEFAULT_AUTO_BACKGROUND_MS, 180_000);
-  assert.equal(resolveAutoBackgroundMs(undefined), 180_000);
-  assert.equal(resolveAutoBackgroundMs({}), 180_000);
+  assert.equal(DEFAULT_AUTO_BACKGROUND_MS, 300_000);
+  assert.equal(resolveAutoBackgroundMs(undefined), 300_000);
+  assert.equal(resolveAutoBackgroundMs({}), 300_000);
   assert.equal(resolveAutoBackgroundMs({ "pi-shell-tools": { autoBackgroundMs: 60_000 } }), 60_000);
   assert.equal(resolveAutoBackgroundMs({ "pi-shell-tools": { autoBackgroundMs: 0 } }), 0, "0 disables the safety net");
-  for (const bad of [-1, 1.5, "60000", null, Number.NaN, 2_147_483_648]) assert.equal(resolveAutoBackgroundMs({ "pi-shell-tools": { autoBackgroundMs: bad } }), 180_000, String(bad));
+  for (const bad of [-1, 1.5, "60000", null, Number.NaN, 2_147_483_648]) assert.equal(resolveAutoBackgroundMs({ "pi-shell-tools": { autoBackgroundMs: bad } }), 300_000, String(bad));
 });
 
 function harness() {
