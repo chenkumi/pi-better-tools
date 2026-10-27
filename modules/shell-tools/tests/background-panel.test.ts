@@ -232,3 +232,10 @@ test('one row per job: heading left, state | usage right, Monitor counted in the
   const narrow = renderJobs(jobs, theme, 30).map(plain); assert.equal(narrow.length, 6); assert.doesNotMatch(narrow.join('\n'), /wake|N\/A|running \|/);
   assert.doesNotMatch(plain(renderJobs([job('1')], theme, 80).join('\n')), /Monitor/, 'Fork and Monitor counts appear only when present');
 });
+test('row colors follow the Shell completion card: accent mark, plain label, muted summary; cancelling stays warning', () => {
+  const tagged: any = { fg: (role: string, s: string) => `<${role}>${s}</${role}>`, getBgAnsi: () => '', bg: (_: string, s: string) => s };
+  const rows = renderJobs([job('a'), job('b', 'subagents', 'cancelling')], tagged, 100).map(line => line.trim());
+  const shell = rows.find(line => line.includes('shell work a'))!, cancelling = rows.find(line => line.includes('subagents work b'))!;
+  assert.match(shell, /^<accent>●<\/accent><text> SH bash · shell work a\s*<\/text><muted>[^<]+<\/muted>$/);
+  assert.match(cancelling, /^<warning>◐ SA scout · subagents work b\s+[^<]*<\/warning>$/);
+});

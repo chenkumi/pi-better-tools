@@ -96,8 +96,16 @@ export function renderJobs(jobs: readonly PanelJob[], theme: Theme, width: numbe
   for (const job of active.slice(0, limit)) {
     const summary = inner >= 40 ? truncateToWidth(jobSummary(job), Math.floor(inner / 2)) : "";
     const gap = summary ? 2 : 0;
-    const heading = truncateToWidth(jobHeading(job), Math.max(0, inner - visibleWidth(summary) - gap));
-    const row = theme.fg(job.state === "cancelling" ? "warning" : "accent", heading + " ".repeat(Math.max(0, inner - visibleWidth(heading) - visibleWidth(summary)))) + theme.fg("dim", summary);
+    const budget = Math.max(0, inner - visibleWidth(summary) - gap);
+    const full = jobHeading(job), mark = budget >= 1 ? full.slice(0, 1) : "";
+    const label = budget > 1 ? truncateToWidth(full.slice(1), budget - 1) : "";
+    const pad = " ".repeat(Math.max(0, inner - visibleWidth(mark) - visibleWidth(label) - visibleWidth(summary)));
+    // Same reading order as the Shell completion card: plain text for the label, a colored status mark, a quieter right column.
+    // A cancelling job stays warning-colored end to end so it still stands out.
+    const part = (color: Parameters<Theme["fg"]>[0], text: string) => text ? theme.fg(color, text) : "";
+    const row = job.state === "cancelling"
+      ? part("warning", mark + label + pad + summary)
+      : part("accent", mark) + part("text", label + pad) + part("muted", summary);
     lines.push(hover === jobKey(job) ? highlight(row) : row);
   }
   const omitted = Math.max(0, active.length - limit);
