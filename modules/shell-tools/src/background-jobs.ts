@@ -119,16 +119,17 @@ function createJobDirectory() {
   return { directory, liveLogPath, fd };
 }
 
+/** Index of the first byte at or after `start` that is not a UTF-8 continuation byte. */
+function skipContinuationBytes(buffer: Buffer, start: number): number {
+  while (start < buffer.length && (buffer[start]! & 0xc0) === 0x80) start++;
+  return start;
+}
+
 function utf8Tail(buffer: Buffer, limit: number): string {
-  let start = Math.max(0, buffer.length - limit);
-  while (start < buffer.length && (buffer[start]! & 0xc0) === 0x80) start++; // drop a split multibyte head
+  const start = skipContinuationBytes(buffer, Math.max(0, buffer.length - limit)); // drop a split multibyte head
   let text = buffer.subarray(start).toString("utf8");
   const encoded = Buffer.from(text, "utf8"); // invalid bytes became 3-byte U+FFFD; re-bound the decoded size
-  if (encoded.length > limit) {
-    let from = encoded.length - limit;
-    while (from < encoded.length && (encoded[from]! & 0xc0) === 0x80) from++;
-    text = encoded.subarray(from).toString("utf8");
-  }
+  if (encoded.length > limit) text = encoded.subarray(skipContinuationBytes(encoded, encoded.length - limit)).toString("utf8");
   return text;
 }
 
@@ -523,11 +524,14 @@ export class ShellJobs {
     };
   }
 
+  /** Belongs to the current owner session and runtime generation (a reload starts a new generation). */
+  private isRetainedHere(job: Job) { return job.owner === this.owner && job.generation === this.generation; }
+
   private find(ctx: ExtensionContext, jobId: string) {
     this.assertOwner(ctx);
     const job = this.jobs.get(jobId);
-    if (!job || job.owner !== this.owner || job.generation !== this.generation) {
-      const known = [...this.jobs.values()].filter(j => j.owner === this.owner && j.generation === this.generation);
+    if (!job || !this.isRetainedHere(job)) {
+      const known = [...this.jobs.values()].filter(j => this.isRetainedHere(j));
       const suffix = ` Call shell_job_status with no arguments to list retained jobs (job records do not survive a session reload). Known jobs: ${this.describe(known)}`;
       throw new Error(this.evicted.has(jobId)
         ? `Shell job ${jobId} was evicted from retained history (at most ${MAX_RETAINED_JOBS} jobs are retained). Its result is no longer queryable; log cleanup was attempted.${suffix}`
@@ -556,7 +560,7 @@ export class ShellJobs {
   list(ctx: ExtensionContext) {
     this.assertOwner(ctx);
     const rank = (j: Job) => (isActiveJobStatus(j.status) ? 0 : 1);
-    return [...this.jobs.values()].filter(j => j.owner === this.owner && j.generation === this.generation)
+    return [...this.jobs.values()].filter(j => this.isRetainedHere(j))
       .sort((a, b) => rank(a) - rank(b) || b.startedAt - a.startedAt)
       .map(job => { const { output, outputTail, error, ...summary } = this.snapshot(job); return { ...summary, ...(error !== undefined ? { error: error.slice(0, LIST_ERROR_CHARS) } : {}) }; });
   }
