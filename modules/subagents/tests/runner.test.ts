@@ -675,9 +675,10 @@ test("single, parallel, and chain aggregate live progress without leaking it int
 		};
 		const progressLines = (expanded: boolean) => (tool as any)
 			.renderResult(synthetic, { expanded, isPartial: true }, theme, {})
-			.render(42)
+			.render(43) // 42-column budget plus the one-column progress mark
 			.map((line: string) => line.replace(/\x1b\[[0-9;]*m/g, "").trimEnd())
-			.filter((line: string) => /^Tool (request|completed|failed):/.test(line));
+			.filter((line: string) => line.startsWith('▌'))
+			.map((line: string) => line.slice(1));
 		for (const expanded of [false, true]) {
 			const lines = progressLines(expanded);
 			assert.equal(lines.length, 3);

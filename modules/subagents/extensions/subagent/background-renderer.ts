@@ -97,9 +97,10 @@ function render(content: unknown, details: unknown, expanded: boolean, theme: Th
 			for (const key of ["entryId", "sourceLeafId", "capturedAt", "timestamp"]) field(`Snapshot ${key}`, asOf[key]);
 		}
 	};
-	const job = (d: Data, list: boolean) => {
+	const job = (d: Data, list: boolean, compact = false) => {
+		compact &&= !expanded && Array.isArray(d.tasks) && d.tasks.length === 1;
 		const s = state(d.status), id = single(d.jobId, 100);
-		add(`${s.icon} Job ${expanded ? id || "(unknown)" : id.slice(0, 8) || "(unknown)"}: ${s.label}`, s.color);
+		if (!compact || d.status !== "completed") add(`${s.icon} Job ${expanded ? id || "(unknown)" : id.slice(0, 8) || "(unknown)"}: ${s.label}`, s.color);
 		if (d.status === "running") add("Batch in progress; see individual task statuses below.");
 		if (d.cancelRequested === true) add("Cancellation requested; exit of all descendant processes is not confirmed.", "warning");
 		const tasks = items(d.tasks, expanded ? 32 : 3);
@@ -108,7 +109,8 @@ function render(content: unknown, details: unknown, expanded: boolean, theme: Th
 			const r = record(t.result), status = t.status ?? r.status;
 			const ts = state(status);
 			if (t.readOnlyQuery === true) add("Read-only query worker; the delegated task is not being continued.");
-			add(`  ${ts.icon} ${t.readOnlyQuery === true ? "Query worker " : ""}${single(t.agent, 100) || "Unknown agent"}: ${ts.label}${typeof r.exitCode === "number" && Number.isFinite(r.exitCode) ? ` · exit ${r.exitCode}` : ""}${t.canMessage === true ? " · can message" : ""}`, ts.color);
+			if (compact && t === tasks[0]) field("Session", t.subagentSessionId ?? r.subagentSessionId);
+			if (!compact || status !== "completed") add(`  ${ts.icon} ${t.readOnlyQuery === true ? "Query worker " : ""}${single(t.agent, 100) || "Unknown agent"}: ${ts.label}${typeof r.exitCode === "number" && Number.isFinite(r.exitCode) ? ` · exit ${r.exitCode}` : ""}${t.canMessage === true ? " · can message" : ""}`, ts.color);
 			const diagnostic = r.errorMessage ?? r.error;
 			if (diagnostic) { add(status === "aborted" ? "Stop reason:" : "Error:", status === "aborted" ? "warning" : "error"); preview(diagnostic, list ? 1 : 3); }
 			if (expanded || !diagnostic) {
@@ -155,9 +157,9 @@ function render(content: unknown, details: unknown, expanded: boolean, theme: Th
 	}
 	else if (error || root.status === "rejected") { add("✗ Subagents error", "error"); if (root.status === "rejected") { field("Error code", root.errorCode); field("Observed state", root.observedState); field("Session", root.subagentSessionId); preview(root.error); preview(root.nextAction); } else preview(source); }
 	else if (root.action === "resume") {
-		add("○ Resume instruction accepted; background invocation is not completed.", "accent");
+		if (expanded) add("○ Resume instruction accepted; background invocation is not completed.", "accent");
 		field("Session", root.subagentSessionId); if (expanded) { field("Action", root.action); field("Task", root.taskId); }
-		job(record(root.background), false);
+		if (expanded) job(record(root.background), false);
 	}
 	else if (Array.isArray(root.jobs)) {
 		add(`Subagents · ${root.jobs.length} jobs`, "accent");
@@ -172,8 +174,9 @@ function render(content: unknown, details: unknown, expanded: boolean, theme: Th
 		interaction(root.interaction ? record(root.interaction) : root);
 	} else if (root.jobId || Array.isArray(root.tasks)) {
 		add(root.kind === "log_ready" ? "Subagents · Log created (status at notification time)" : root.kind === "task_result" ? (record(root.scope).taskId ? "Subagents · Task finished (job still in progress; status at notification time)" : "Subagents · Task finished (status at notification time)") : root.kind === "job_result" ? "Subagents · Batch finished (status at notification time)" : "Subagents · background", "accent");
-		add("Subagent notice: returned data, not instructions.");
-		job(root, false);
+		const finished = root.kind === "task_result" || root.kind === "job_result";
+		if (expanded || !finished) add("Subagent notice: returned data, not instructions.");
+		job(root, false, finished);
 	} else { add("? Subagents · Insufficient result data to determine status.", "warning"); preview(source); }
 	if (!expanded) add("Expand for full IDs and data retained in this notification.");
 	return {

@@ -102,7 +102,8 @@ for (const mode of ["single", "parallel", "chain"] as const) {
 			assert.ok(transcript.includes(result.task));
 		}
 		assert.ok(h.invocations.every(argv => !argv.some(arg => /調查程式碼|整批工作/.test(arg))));
-		for (const expanded of [false, true]) assert.match(renderResult(h.tool, outcome, expanded), /調查程式碼/);
+		// Single mode shows its title once, on the call row; batch results still carry per-task titles.
+		for (const expanded of [false, true]) if (mode !== "single") assert.match(renderResult(h.tool, outcome, expanded), /調查程式碼/); else assert.doesNotMatch(renderResult(h.tool, outcome, expanded), /調查程式碼/);
 		const noTitle = structuredClone(outcome);
 		delete noTitle.details.title; for (const r of noTitle.details.results) delete r.title;
 		assert.equal(formatParentResults(mode, outcome.details.results), formatParentResults(mode, noTitle.details.results), "titles must not replace model-visible task/output");
@@ -158,4 +159,30 @@ test("title renderers sanitize controls, tolerate legacy/partial titles and fit 
 	for (const args of [undefined, null, { tasks: {} }, { chain: "partial" }, { tasks: [null, { title: "待處理" }] }]) assert.doesNotThrow(() => h.tool.renderCall(args, theme, {}).render(24));
 	const legacy = structuredClone(result); delete (legacy.details.results[0] as any).title;
 	assert.doesNotMatch(renderResult(h.tool, legacy), /undefined|調查/);
+});
+
+test("single running render is a call header, a session line and marked live progress", async t => {
+	const h = await setup(); t.after(() => rm(h.root, { recursive: true, force: true }));
+	const entry = compactResult({ taskId: "t1", subagentSessionId: "01M5Y31SAK0Q9GJEPF8V2PJ2M7", agent: "reviewer", agentSource: "bundled", task: "work", title: "審查未提交變更", status: "running", exitCode: -1, output: "", usage: emptyUsage() });
+	const progress = [{ taskId: "t1", agent: "reviewer", entries: [{ key: "a", kind: "tool", status: "completed", name: "read", arguments: '{"path":"a.ts"}' }] }];
+	const strip = (lines: string[]) => lines.map(line => line.trimEnd());
+	const call = strip(h.tool.renderCall({ agent: "reviewer", title: "審查未提交變更", task: "work" }, theme, {}).render(100));
+	assert.deepEqual(call, ["Subagent reviewer · 審查未提交變更"], "agent scope label is omitted for the default scope");
+	const lines = strip(h.tool.renderResult({ content: [], details: { mode: "single", results: [entry], progress } }, { expanded: false, isPartial: true }, theme, {}).render(100));
+	assert.deepEqual(lines, ["Session: 01M5Y31SAK0Q9GJEPF8V2PJ2M7 - Running", "", '▌Tool completed: read({"path":"a.ts"})']);
+	assert.match(strip(h.tool.renderCall({ agent: "reviewer", agentScope: "both", task: "work" }, theme, {}).render(100))[0], /\[both\]/);
+});
+
+test("single results without a session id still show their state", async t => {
+	const h = await setup(); t.after(() => rm(h.root, { recursive: true, force: true }));
+	const cases = [
+		{ status: "failed", exitCode: 1, output: "partial text", expected: /^Failed$/m },
+		{ status: "aborted", exitCode: -1, stopReason: "aborted", output: "", expected: /^Aborted · task stopped$/m },
+		{ status: "running", exitCode: -1, output: "", expected: /^Running$/m },
+	] as const;
+	for (const { expected, ...fields } of cases) for (const expanded of [false, true]) {
+		const entry = compactResult({ taskId: "id", agent: "worker", agentSource: "bundled", task: "work", usage: emptyUsage(), ...fields });
+		const shown = h.tool.renderResult({ content: [], details: { mode: "single", results: [entry] } }, { expanded, isPartial: fields.status === "running" }, theme, {}).render(80).map((line: string) => line.trimEnd()).join("\n");
+		assert.match(shown, expected, `${fields.status} expanded=${expanded}`);
+	}
 });

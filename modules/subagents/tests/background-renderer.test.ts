@@ -61,10 +61,18 @@ test('log_ready is a historical snapshot with live and future paths, not a resul
 });
 test('task_result uses authoritative outcome, not Error words in successful output', () => {
   const d: any = { ...receipt(), kind: 'task_result' }; d.tasks[0].result.output = 'Error: expected defensive test';
-  assert.match(show(d, false, '', true), /✓ reviewer: completed/);
+  assert.match(show(d, false, '', true), /Session: .*\n.*Error: expected defensive test/); assert.doesNotMatch(show(d, false, '', true), /✓|Job /);
+  assert.match(show(d, true, '', true), /✓ reviewer: completed/);
   d.status = 'failed'; d.tasks[0].status = 'failed'; d.tasks[0].result = { exitCode: 2, errorMessage: 'first\nsecond\nthird\nfourth', output: 'partial answer' };
   assert.match(show(d), /✗ reviewer: failed.*exit 2/); assert.doesNotMatch(show(d), /fourth|partial answer/);
   assert.match(show(d, true), /fourth/); assert.match(show(d, true), /partial answer/);
+});
+test('collapsed multi-task batch keeps each task agent, status and session', () => {
+  const d: any = { ...receipt(), kind: 'job_result' };
+  d.tasks.push({ taskId: 'task-two', agent: 'scout', status: 'completed', subagentSessionId: 'session-two', result: { exitCode: 0, output: 'Second answer' } });
+  const shown = show(d, false, '', true);
+  assert.match(shown, /✓ reviewer: completed/); assert.match(shown, /✓ scout: completed/);
+  assert.match(shown, /Job /);
 });
 test('aborted tasks preserve the authoritative state despite signal exit codes', () => {
   const d: any = receipt('aborted'); d.tasks[0].result.exitCode = -1;
@@ -198,15 +206,14 @@ test('foreground running/aborted results have accurate English session and log l
   const tools = new Map<string, any>();
   registerSubagent({ registerTool(t: any) { tools.set(t.name, t); }, registerMessageRenderer() {}, on() {} } as any);
   const palette = { ...theme, bold: (s: string) => s };
-  assert.match(stripAnsi(tools.get('subagent').renderCall({ agent: 'reviewer' }, palette, {}).render(300).join('\n')), /\[agent scope: user\]/);
+  assert.match(stripAnsi(tools.get('subagent').renderCall({ agent: 'reviewer' }, palette, {}).render(300).join('\n')).trimEnd(), /^Subagent reviewer$/);
   assert.match(tools.get('subagent_message').description, /applied confirms.*not that the requested work finished/);
   for (const expanded of [false, true]) for (const status of ['running', 'aborted', 'completed']) {
     const result = { content: [], details: { mode: 'single', results: [{ taskId: 't', agent: 'worker', task: '', status, exitCode: status === 'aborted' ? -1 : 0, output: '', errorMessage: status === 'aborted' ? 'Cancelled by user' : undefined, subagentSessionId: 's', canResume: status === 'completed', usage: {} }] } };
     const shown = stripAnsi(tools.get('subagent').renderResult(result, { expanded, isPartial: status === 'running' }, palette, {}).render(300).join('\n'));
     assert.doesNotMatch(shown, /\(blocked\)|Subsession log pending|\(no (?:assistant )?output\)/);
-    if (status === 'running') { assert.match(shown, /Running; resume is unavailable/); assert.match(shown, /Subsession log is being created/); }
+    if (status === 'running') assert.doesNotMatch(shown, /resume is unavailable|Subsession log is being created|No subsession log/);
     else assert.match(shown, /No subsession log path was provided/);
-    if (status === 'completed') assert.match(shown, /verified conversation checkpoint is ready/);
     if (status === 'aborted' && expanded) { assert.match(shown, /Stop reason: Cancelled by user/); assert.doesNotMatch(shown, /Error:/); }
   }
 });

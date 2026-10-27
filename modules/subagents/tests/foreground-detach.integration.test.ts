@@ -14,7 +14,7 @@ const cli = process.env.PI_SUBAGENTS_TEST_CLI;
 const provider = fileURLToPath(new URL("./fixtures/pi-provider.ts", import.meta.url));
 const launcher = fileURLToPath(new URL("./fixtures/background-child.mjs", import.meta.url));
 
-async function rig(root: string) {
+async function rig(root: string, settings: unknown = {}) {
 	const tools = new Map<string, ToolDefinition>(), handlers = new Map<string, Function[]>(), notices: any[] = [], statuses: Array<string | undefined> = [], toasts: string[] = [];
 	let shortcut: ((ctx: any) => unknown) | undefined;
 	const waiters: Array<() => void> = [];
@@ -24,7 +24,7 @@ async function rig(root: string) {
 		sessionManager: { getSessionId: () => "detach-owner" },
 		modelRegistry: { find: (p: string, id: string) => p === "subagent-test" && id === "fixture" ? { provider: p, id, reasoning: false } : undefined, getAll: () => [{ provider: "subagent-test", id: "fixture", reasoning: false }] } } as unknown as ExtensionContext;
 	registerSubagent({
-		registerCommand() {}, registerMessageRenderer() {}, registerTool(tool) { tools.set(tool.name, tool); }, on(name, handler) { handlers.set(name, [...(handlers.get(name) ?? []), handler]); },
+		registerCommand() {}, registerMessageRenderer() {}, getSettings: () => settings, registerTool(tool) { tools.set(tool.name, tool); }, on(name, handler) { handlers.set(name, [...(handlers.get(name) ?? []), handler]); },
 		registerShortcut(_key: string, options: { handler: (ctx: any) => unknown }) { shortcut = options.handler; },
 		sendMessage(message) { notices.push((message as any).details); for (const wake of waiters.splice(0)) wake(); },
 	} as unknown as ExtensionAPI, { debugLog: false, sessionRootDir: join(root, "managed"), invocation: args => ({ command: process.execPath, args: [launcher, root, resolve(cli!), ...args] }) });
@@ -132,6 +132,22 @@ test("detached chain keeps running its remaining steps and reports one final res
 			assert.equal(final.status, "completed", JSON.stringify(final));
 			assert.deepEqual(final.tasks.map((t: any) => t.taskId), receipt.tasks.map((t: any) => t.taskId));
 			assert.ok(final.tasks.every((t: any) => t.status === "completed" && t.result.output === "done"));
+		} finally { await host.shutdown(); }
+	});
+});
+
+test("a foreground dispatch still running after autoBackgroundMs is moved to a background job automatically", { skip, timeout: 90000 }, async () => {
+	await withRoot(async root => {
+		const host = await rig(root, { "pi-shell-tools": { autoBackgroundMs: 50 } });
+		try {
+			const detached = await host.execute("subagent", task);
+			assert.equal(detached.isError, undefined, JSON.stringify(detached.content));
+			assert.match((detached.content[0] as any).text, /still running after 0\.05s.*moved to a background job automatically/);
+			const receipt = (detached.details as any).background;
+			await writeFile(join(root, "hold-release"), "");
+			const done = await host.notice(notice => notice.jobId === receipt.jobId && notice.kind === "task_result");
+			assert.equal(done.status, "completed", JSON.stringify(done));
+			assert.equal(readFileSync(join(root, "hold-started"), "utf8").length, 1, "the child was started exactly once");
 		} finally { await host.shutdown(); }
 	});
 });

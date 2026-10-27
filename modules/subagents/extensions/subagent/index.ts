@@ -39,6 +39,7 @@ import { isManagedForegroundChild } from "../../../shell-tools/src/managed-child
 import { BackgroundRecovery } from "../../../shell-tools/src/recovery.js";
 import { registerBackgroundLifecycleGuidance } from "../../../shell-tools/src/background-guidance.js";
 import { ensureDetachShortcut, trackForeground } from "../../../shell-tools/src/manual-detach.js";
+import { resolveAutoBackgroundMs } from "../../../shell-tools/src/foreground-handoff.js";
 import { addDetachHint } from "../../../shell-tools/src/detach-hint.js";
 import { panelUsage, safeJobText } from "../../../shell-tools/src/job-view.js";
 import { Semaphore, killProcessTree } from "./concurrency.ts";
@@ -69,6 +70,7 @@ import {
 import { consumeStdoutChunkAsync, isTerminalAssistantStopReason } from "./protocol.ts";
 import { IoGate } from "./io-gate.ts";
 import { createPromptFiles, removePromptFiles, type PromptFiles } from "./prompt-files.ts";
+import { resolveSkillBlock, taskPromptText, MAX_SKILLS_PER_TASK } from "./skills.ts";
 import { sweepStaleTempDirectoriesOnce } from "./temp-sweep.ts";
 import { ToolResultSpool, toolResultKey, type ToolSpoolRecord } from "./tool-result-spool.ts";
 import { readGlobalDebugLogSetting, writeSubagentDebugFailure } from "./debug-log.ts";
@@ -277,12 +279,12 @@ function getFailureDiagnostic(result: SingleResult): string {
 	return `${appendBoundedText("", diagnostic, diagnosticBytes)}${suffix}`;
 }
 
+/** One `Session: <id> - <state>` line (just `<state>` before a session exists); a running task shows no log line until there is a path or an error. */
 function addSessionMetadata(container: Container, entry: SingleResult, theme: Theme): void {
-	if (entry.subagentSessionId) {
-		container.addChild(new Text(theme.fg("muted", `Subagent session: ${entry.subagentSessionId}`), 0, 0));
-		container.addChild(new Text(theme.fg("muted", resumeAvailabilityText(entry)), 0, 0));
-	}
-	container.addChild(new Text(theme.fg(entry.logError ? "error" : "muted", logStatusText(entry)), 0, 0));
+	const { statusColor, statusLabel } = resultStatusStyle(entry);
+	const state = `${statusLabel[0].toUpperCase()}${statusLabel.slice(1)}${entry.subagentSessionId && entry.status !== "running" && entry.canResume ? " · resumable" : ""}`;
+	container.addChild(new Text(`${entry.subagentSessionId ? theme.fg("muted", `Session: ${entry.subagentSessionId} - `) : ""}${theme.fg(statusColor, state)}`, 0, 0));
+	if (entry.status !== "running" || entry.logPath || entry.logError) container.addChild(new Text(theme.fg(entry.logError ? "error" : "muted", logStatusText(entry)), 0, 0));
 }
 
 function resultStatusStyle(entry: SingleResult) {
@@ -309,6 +311,8 @@ function liveEntryText(entry: LiveProgressEntry, width: number): string {
 	return `${prefix}${argumentsText}${suffix}`;
 }
 
+const LIVE_PROGRESS_MARK = "▌";
+
 class LiveProgressLine implements Component {
 	private readonly entry: LiveProgressEntry;
 	private readonly style: (text: string) => string;
@@ -319,14 +323,16 @@ class LiveProgressLine implements Component {
 	}
 
 	render(width: number): string[] {
-		return [this.style(liveEntryText(this.entry, width))];
+		return [this.style(`${LIVE_PROGRESS_MARK}${liveEntryText(this.entry, width - visibleWidth(LIVE_PROGRESS_MARK))}`)];
 	}
 
 	invalidate(): void {}
 }
 
 function addLiveProgress(container: Container, progress: LiveProgress | undefined, style: (text: string) => string): void {
-	for (const entry of progress?.entries ?? []) container.addChild(new LiveProgressLine(entry, style));
+	if (!progress?.entries?.length) return;
+	container.addChild(new Spacer(1));
+	for (const entry of progress.entries) container.addChild(new LiveProgressLine(entry, style));
 }
 
 function formatAgentCatalog(agents: AgentConfig[]): string {
@@ -473,6 +479,8 @@ export interface RunnerRuntime {
 	agentScope?: AgentScope;
 	projectTrusted?: boolean;
 	validateResumeConfig?: () => Promise<void>;
+	/** Pre-rendered skill bodies sent ahead of the task; the recorded task stays the caller's original text. */
+	skillBlock?: string;
 }
 
 export function expandChainTask(task: string, previousOutput: string): string {
@@ -502,7 +510,7 @@ async function runSingleAgentUnlimited(
 	const agent = runtime.resumeSession?.manifest.config.agent ?? agents.find((candidate) => candidate.name === agentName);
 	const model = runtime.resumeSession?.manifest.config.model ?? dispatchModel(agent, dispatchDefaults);
 	const taskId = runtime.taskId ?? ulid().toUpperCase();
-	const debugInput = { agent: agentName, task, taskPrompt: `Task: ${task}`, systemPrompt: agent?.systemPrompt };
+	const debugInput = { agent: agentName, task, taskPrompt: taskPromptText(task, runtime.skillBlock), systemPrompt: agent?.systemPrompt };
 	const currentResult = compactResult({ taskId, agent: agentName, agentSource: agent?.source ?? "unknown",
 		task, ...(title ? { title: title.trim() } : {}), status: "running", exitCode: -1, output: "", usage: emptyUsage(), model, step });
 	const io = new IoGate(runtime.ioTimeoutMs);
@@ -698,7 +706,7 @@ async function runSingleAgentUnlimited(
 	try {
 		if (signal?.aborted) { wasAborted = true; throw new Error(PARENT_ABORTED_DISPATCH); }
 		if (!agent) throw new Error(unknownAgentMessage(agentName, agents, runtime.agentScope ?? "user"));
-		const oversized = taskEnvelopeError(task);
+		const oversized = taskEnvelopeError(task, runtime.skillBlock);
 		if (oversized) throw new SessionError("INVALID_DISPATCH", oversized);
 		if (!managed) {
 			const owner = { parentSessionId, parentCwd: await io.run(() => canonicalCwd(defaultCwd, "session working directory"), "canonical parent cwd") };
@@ -734,7 +742,7 @@ async function runSingleAgentUnlimited(
 		const tmp = await createPromptFiles(agent.name, agent.systemPrompt, task, promptIo, error => {
 			recordInternalError(`Late prompt cleanup failed: ${errorToString(error)}`);
 			console.error(`Subagent late prompt cleanup failed: ${errorToString(error)}`);
-		}, settlement => { promptSettlement = settlement; });
+		}, settlement => { promptSettlement = settlement; }, runtime.skillBlock);
 		promptFiles = tmp;
 		const taskPath = tmp.taskPath;
 		if (signal?.aborted) { wasAborted = true; throw new Error("Subagent was aborted before spawn"); }
@@ -1043,7 +1051,7 @@ async function runSingleAgentUnlimited(
 				await rpc.pipe.request("set_steering_mode", { mode: "one-at-a-time" });
 				startupDiagnostics?.checkpoint("steering_mode_acknowledged");
 				startupDiagnostics?.enter("submitting_initial_prompt");
-				const accepted = await rpc.pipe.request("prompt", { message: `Task: ${task}` });
+				const accepted = await rpc.pipe.request("prompt", { message: taskPromptText(task, runtime.skillBlock) });
 				if (accepted?.disposition !== "started") throw new Error("RPC initial task was handled/queued instead of started");
 				startupDiagnostics?.ready();
 				if (!stdoutState.finished && !cause) { rpc.start(); runtime.onInteractive?.(rpc); }
@@ -1261,12 +1269,14 @@ const TaskItem = Type.Object({
 	task: Type.String({ description: "Task to delegate to the agent" }),
 	title: Type.Optional(TitleSchema),
 	cwd: Type.Optional(Type.String({ description: "Working directory for the agent process" })),
+	skills: Type.Optional(Type.Array(Type.String(), { maxItems: MAX_SKILLS_PER_TASK, description: "Skill names whose SKILL.md body is embedded ahead of the task so the agent follows them" })),
 });
 const ChainItem = Type.Object({
 	agent: Type.String({ description: "Name of the agent to invoke" }),
 	task: Type.String({ description: "Task with optional {previous} placeholder for prior output" }),
 	title: Type.Optional(TitleSchema),
 	cwd: Type.Optional(Type.String({ description: "Working directory for the agent process" })),
+	skills: Type.Optional(Type.Array(Type.String(), { maxItems: MAX_SKILLS_PER_TASK, description: "Skill names whose SKILL.md body is embedded ahead of the task so the agent follows them" })),
 });
 const AgentScopeSchema = StringEnum(["user", "project", "both"] as const, {
 	description: 'Which agent directories to use. Default: "user".',
@@ -1288,9 +1298,10 @@ const SubagentParams = Type.Object({
 	thinkingLevel: Type.Optional(ThinkingLevelSchema),
 	agentScope: Type.Optional(AgentScopeSchema),
 	cwd: Type.Optional(Type.String({ description: "Working directory for the agent process (single mode)" })),
+	skills: Type.Optional(Type.Array(Type.String(), { maxItems: MAX_SKILLS_PER_TASK, description: "Single mode only (tasks/chain items carry their own skills): skill names whose SKILL.md body is embedded ahead of the task so the agent follows them" })),
 });
 
-const DISPATCH_ITEM_KEYS = ["agent", "task", "title", "cwd"];
+const DISPATCH_ITEM_KEYS = ["agent", "task", "title", "cwd", "skills"];
 const receivedType = (value: unknown) => value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
 const receivedValue = (value: unknown) => typeof value === "string" ? `${receivedType(value)} ${JSON.stringify(value.length > 40 ? `${value.slice(0, 40)}...` : value)}` : receivedType(value);
 
@@ -1310,8 +1321,8 @@ export function unknownAgentMessage(name: string, agents: readonly { name: strin
 }
 
 /** The task rides in one bounded CLI user record; returns a message when it cannot fit. */
-export function taskEnvelopeError(task: string): string | undefined {
-	const bytes = Buffer.byteLength(JSON.stringify(`Task: ${task}`)), limit = SUBAGENT_MAX_STDOUT_RECORD_BYTES - 64 * 1024;
+export function taskEnvelopeError(task: string, skillBlock?: string): string | undefined {
+	const bytes = Buffer.byteLength(JSON.stringify(taskPromptText(task, skillBlock))), limit = SUBAGENT_MAX_STDOUT_RECORD_BYTES - 64 * 1024;
 	if (bytes <= limit) return undefined;
 	return `task is ${bytes} bytes after JSON encoding but the limit is ${limit} bytes (bounded CLI user envelope). Put the bulk of the details in a file and give the subagent its path in a shorter task.`;
 }
@@ -1330,7 +1341,14 @@ export function normalizeDispatch(params: Record<string, any>): "single" | "para
 	if (!present("agent") && present("task")) throw new SessionError("INVALID_DISPATCH", "task was given without agent. Add agent for single mode, or put task inside a tasks[]/chain[] item; to continue an existing session use subagent_message.");
 	const given = ["agent", "tasks", "chain"].filter(present);
 	if (given.length !== 1) throw new SessionError("INVALID_DISPATCH", `Provide exactly one of: single mode (agent + task), parallel mode (tasks[]), chain mode (chain[]); received ${given.length ? given.join(", ") : "none"}.`);
+	const skillsProblem = (value: unknown, label: string) => {
+		if (value === undefined) return;
+		if (!Array.isArray(value) || value.some(name => !nonblank(name))) throw new SessionError("INVALID_DISPATCH", `${label} must be an array of non-blank strings (skill names); received ${receivedValue(value)}.`);
+		if (value.length > MAX_SKILLS_PER_TASK) throw new SessionError("INVALID_DISPATCH", `${label} accepts at most ${MAX_SKILLS_PER_TASK} names; received ${value.length}.`);
+	};
+	if (!present("agent") && present("skills")) throw new SessionError("INVALID_DISPATCH", "top-level skills applies to single mode only; put skills inside each tasks[]/chain[] item.");
 	if (present("agent")) {
+		skillsProblem(params.skills, "skills");
 		if (!nonblank(params.agent)) throw new SessionError("INVALID_DISPATCH", `Single mode: agent is blank or not a string (received ${receivedValue(params.agent)}); pass an agent name.`);
 		if (!present("task")) throw new SessionError("INVALID_DISPATCH", "Single mode: task is missing; pass the instruction for the agent in task.");
 		if (!nonblank(params.task)) throw new SessionError("INVALID_DISPATCH", `Single mode: task is blank or not a string (received ${receivedValue(params.task)}); pass the instruction for the agent.`);
@@ -1341,9 +1359,10 @@ export function normalizeDispatch(params: Record<string, any>): "single" | "para
 	if (!items.length) throw new SessionError("INVALID_DISPATCH", `${name} must contain at least 1 item; received 0.`);
 	items.forEach((item, index) => {
 		const at = `${name}[${index}]`;
-		if (!isRecord(item)) throw new SessionError("INVALID_DISPATCH", `${at} must be an object { agent, task, title?, cwd? }; received ${receivedType(item)}.`);
+		if (!isRecord(item)) throw new SessionError("INVALID_DISPATCH", `${at} must be an object { agent, task, title?, cwd?, skills? }; received ${receivedType(item)}.`);
 		const extra = Object.keys(item).find(key => !DISPATCH_ITEM_KEYS.includes(key));
 		if (extra !== undefined) throw new SessionError("INVALID_DISPATCH", `${at}: unsupported key "${extra.slice(0, 40)}" (allowed: ${DISPATCH_ITEM_KEYS.join(", ")}).${extra === "resume" || extra === "resumable" ? " Nested resume is unsupported; use subagent_message to continue a session." : " provider, model, thinkingLevel, agentScope and background are top-level parameters shared by all items."}`);
+		skillsProblem(item.skills, `${at}.skills`);
 		for (const key of ["agent", "task"] as const) if (!nonblank(item[key])) throw new SessionError("INVALID_DISPATCH", `${at}.${key} is blank, missing or not a string (received ${item[key] === undefined ? "nothing" : receivedValue(item[key])}); every item needs agent and task.`);
 	});
 	for (const [index, item] of items.entries()) validateTitle(item.title, `${name}[${index}].title`);
@@ -1561,7 +1580,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 	pi.registerTool({
 		name: "subagent_message", label: "Message Subagent", defaultActive: true,
 		renderCall(args, theme) {
-			return new Text(theme.fg("toolTitle", `Message Subagent ${displayTitle(args?.mode) || "control"} ${displayTitle(args?.subagentSessionId ?? (args as any)?.taskId) || "…"}${displayTitle(args?.title) ? ` · ${displayTitle(args.title)}` : ""}`), 0, 0);
+			return new Text(theme.fg("toolTitle", `Subagent Message ${displayTitle(args?.mode) || "control"}${displayTitle(args?.title) ? ` · ${displayTitle(args.title)}` : ""}`), 0, 0);
 		},
 		renderResult: managementRenderer,
 		description: "Send instructions to an existing subagentSessionId owned by this parent/canonical cwd. mode defaults to control: literal control to a running interactive child, or asynchronous background resume of a ready session after strict validation; queued/startup/finalizing/canceling/busy are rejected, with no queue, retries or replay. mode query is a disposable read-only question to a live child or a completed ready session; it never resumes or changes the original conversation. Accepted is not completed: task_result follows up for resume, query_result (with independent usage/asOf) for query. applied confirms conversation insertion, not that the requested work finished. Optional title is display-only for the new invocation. Busy/capacity/cancelled rejections are expected refusals, not runtime faults: never retry automatically or select a route using stale canMessage/canResume knowledge.",
@@ -1683,6 +1702,14 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 				return { content: [{ type: "text", text: `Request not accepted: capacity limit reached. Too many chain steps (${params.chain.length}). Max is ${MAX_CHAIN_STEPS}. Next: split the work into stages of at most ${MAX_CHAIN_STEPS} steps and pass the earlier stage output in the next call's first task.` }], details: makeDetails("chain")([]), isError: true };
 			}
 
+			// Skills come from the host's already-loaded (trust-filtered) skill list, resolved once per item before anything starts.
+			const skillItems: Array<{ skills?: string[] }> = params.chain ?? params.tasks ?? [params];
+			let skillBlocks: Array<string | undefined>;
+			try {
+				const commands = skillItems.some(item => item.skills?.length) ? pi.getCommands() : [];
+				skillBlocks = await Promise.all(skillItems.map(item => resolveSkillBlock(item.skills, commands)));
+			} catch (error) { return { content: [{ type: "text", text: errorToString(error) }], details: { ...makeDetails(dispatchMode)([]), errorCode: "INVALID_DISPATCH" }, isError: true }; }
+
 			// Fail closed: untrusted project agents always need approval; the removed legacy confirmProjectAgents parameter, if still sent, is ignored.
 			if ((agentScope === "project" || agentScope === "both") && !ctx.isProjectTrusted()) {
 				const requestedNames = new Set<string>();
@@ -1736,7 +1763,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 						const run = async (index: number, previous = "") => {
 							const item = items[index];
 							try {
-								const result = await runSingleAgent(dispatchCwd, item.defaults, agents, item.agent, hasChain ? expandChainTask(item.task, previous) : item.task, item.cwd, hasChain ? index + 1 : undefined, combined, undefined, makeDetails(dispatchMode), parentSessionId, toolCallId, { ...taskRuntime, allocatedSession: sessions[index], taskId: ids[index], onLiveLog: (id, path) => live(index, id, path), onInteractive: handle => attach(index, handle), onInteraction: notice => interaction(index, notice), onPresentation: data => presentation(index, data), onEvent: event => events(index, event) }, item.title ?? params.title);
+								const result = await runSingleAgent(dispatchCwd, item.defaults, agents, item.agent, hasChain ? expandChainTask(item.task, previous) : item.task, item.cwd, hasChain ? index + 1 : undefined, combined, undefined, makeDetails(dispatchMode), parentSessionId, toolCallId, { ...taskRuntime, skillBlock: skillBlocks[index], allocatedSession: sessions[index], taskId: ids[index], onLiveLog: (id, path) => live(index, id, path), onInteractive: handle => attach(index, handle), onInteraction: notice => interaction(index, notice), onPresentation: data => presentation(index, data), onEvent: event => events(index, event) }, item.title ?? params.title);
 								finish(index, backgroundResult(result), getResultStatus(result));
 								return result;
 							} catch (error) { siblings.abort(); throw error; }
@@ -1761,7 +1788,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 			// task identities are issued up front and live-log/settlement events are recorded until adoption.
 			const foregroundAgents = hasChain ? params.chain!.map(step => step.agent) : hasTasks ? params.tasks!.map(task => task.agent) : params.agent ? [params.agent] : [];
 			const handoff = ctx.hasUI && foregroundAgents.length > 0 ? createForegroundHandoff(foregroundAgents.length) : undefined;
-			const taskRuntimeAt = (index: number): RunnerRuntime => handoff ? { ...taskRuntime, taskId: handoff.taskIds[index], onLiveLog: (id, path) => handoff.onLive(index, id, path) } : taskRuntime;
+			const taskRuntimeAt = (index: number): RunnerRuntime => handoff ? { ...taskRuntime, skillBlock: skillBlocks[index], taskId: handoff.taskIds[index], onLiveLog: (id, path) => handoff.onLive(index, id, path) } : { ...taskRuntime, skillBlock: skillBlocks[index] };
 			const settle = (index: number, result: SingleResult) => handoff?.onSettled(index, backgroundResult(result), getResultStatus(result));
 			const outerUpdate = onUpdate;
 			const runForeground = async (signal: AbortSignal | undefined, onUpdate: typeof outerUpdate): Promise<AgentToolResult<SubagentDetails> & Record<string, unknown>> => {
@@ -1846,7 +1873,12 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 			const manual = new Promise<"manual">(resolve => { detachNow = () => resolve("manual"); });
 			const untrack = trackForeground(toolCallId, detachNow);
 			const running = runForeground(foreground.signal, onUpdate && (update => { if (!detached) onUpdate(update); }));
-			const outcome = await Promise.race([running.then(value => ({ value }), error => ({ error })).finally(() => { finished = true; }), manual]);
+			// Safety net shared with Shell (`pi-shell-tools.autoBackgroundMs`): a dispatch still running after the threshold is adopted like the manual shortcut.
+			const autoMs = resolveAutoBackgroundMs(pi.getSettings?.());
+			let autoTimer: ReturnType<typeof setTimeout> | undefined;
+			const auto = autoMs > 0 ? new Promise<"auto">(resolve => { autoTimer = setTimeout(() => resolve("auto"), autoMs); }) : undefined;
+			const outcome = await Promise.race([running.then(value => ({ value }), error => ({ error })).finally(() => { finished = true; }), manual, ...(auto ? [auto] : [])]);
+			if (autoTimer !== undefined) clearTimeout(autoTimer);
 			untrack();
 			if (typeof outcome !== "string") { unlink(); if ("error" in outcome) throw outcome.error; return outcome.value; }
 			if (finished || signal?.aborted) { unlink(); return await running; }
@@ -1866,7 +1898,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 				try { return await running; } finally { unlink(); }
 			}
 			detached = true; unlink();
-			return { content: [{ type: "text", text: `Moved to a background job at the user's request. The same children keep running (not restarted; Esc no longer stops them, use subagent_cancel). Do not poll; results arrive as task_result notifications.
+			return { content: [{ type: "text", text: `${outcome === "auto" ? `Subagent still running after ${autoMs / 1000}s; moved to a background job automatically` : "Moved to a background job at the user's request"}. The same children keep running (not restarted; Esc no longer stops them, use subagent_cancel). Do not poll; results arrive as task_result notifications.
 ${JSON.stringify(slimReceipt(receipt))}` }], details: { ...makeDetails(dispatchMode)([]), background: receipt }, structuredContent: jsonReceipt(receipt) };
 			};
 			const result = await dispatch();
@@ -1884,8 +1916,8 @@ ${JSON.stringify(slimReceipt(receipt))}` }], details: { ...makeDetails(dispatchM
 			const scope: AgentScope = args.agentScope ?? "user";
 			const title = displayTitle(args.title);
 			const suffix = title ? theme.fg("accent", ` · ${title}`) : "";
-			const header = (args as any).resume ? `${theme.fg("toolTitle", theme.bold("subagent resume "))}${theme.fg("accent", (args as any).resume)}`
-				: `${theme.fg("toolTitle", theme.bold("subagent "))}${theme.fg("accent", args.chain?.length ? `chain (${args.chain.length} steps)` : args.tasks?.length ? `parallel (${args.tasks.length} tasks)` : args.agent || "...")}${theme.fg("muted", ` [agent scope: ${scope}]`)}`;
+			const header = (args as any).resume ? `${theme.fg("toolTitle", theme.bold("Subagent resume "))}${theme.fg("accent", (args as any).resume)}`
+				: `${theme.fg("toolTitle", theme.bold("Subagent "))}${theme.fg("accent", args.chain?.length ? `chain (${args.chain.length} steps)` : args.tasks?.length ? `parallel (${args.tasks.length} tasks)` : args.agent || "...")}${scope === "user" ? "" : theme.fg("muted", ` [${scope}]`)}`;
 			const container = new Container();
 			container.addChild(new Text(header + suffix, 0, 0));
 			const items = Array.isArray(args.chain) ? args.chain : Array.isArray(args.tasks) ? args.tasks : [];
@@ -1907,27 +1939,36 @@ ${JSON.stringify(slimReceipt(receipt))}` }], details: { ...makeDetails(dispatchM
 			const completed = details.results.filter((entry) => entry.status !== "running").length;
 			const label = displayTitle(details.mode === "single" ? details.results[0].title : details.title);
 			const title = (details.mode === "single" ? details.results[0].agent : `${details.mode} ${completed}/${details.results.length}`) + (label ? ` · ${label}` : "");
+			// Single mode: the call row already names agent and title, so the result starts at the session line.
+			const single = details.mode === "single";
 			if (!expanded) {
 				const container = new Container();
-				container.addChild(new Text(theme.fg("toolTitle", theme.bold(title)), 0, 0));
+				if (!single) container.addChild(new Text(theme.fg("toolTitle", theme.bold(title)), 0, 0));
 				for (const entry of details.results) {
 					const { statusColor, statusLabel } = resultStatusStyle(entry);
-					container.addChild(new Spacer(1));
-					container.addChild(new Text(`${theme.fg(statusColor, `${statusLabel}: `)}${theme.fg("accent", entry.agent)}${displayTitle(entry.title) ? theme.fg("accent", ` · ${displayTitle(entry.title)}`) : ""}`, 0, 0));
+					if (!single) {
+						container.addChild(new Spacer(1));
+						container.addChild(new Text(`${theme.fg(statusColor, `${statusLabel}: `)}${theme.fg("accent", entry.agent)}${displayTitle(entry.title) ? theme.fg("accent", ` · ${displayTitle(entry.title)}`) : ""}`, 0, 0));
+					}
+					addSessionMetadata(container, entry, theme);
 					const live = details.progress?.find((progress) => progress.taskId === entry.taskId);
 					addLiveProgress(container, live, (text) => theme.fg("dim", text));
-					if (entry.status !== "running") container.addChild(new Text(theme.fg("toolOutput", hasResultSummary(entry) ? resultSummary(entry, 512) : getResultOutput(entry)), 0, 0));
-					addSessionMetadata(container, entry, theme);
+					if (entry.status !== "running") {
+						container.addChild(new Spacer(1));
+						container.addChild(new Text(theme.fg("toolOutput", hasResultSummary(entry) ? resultSummary(entry, 512) : getResultOutput(entry)), 0, 0));
+					}
 				}
 				return hint(container);
 			}
 			const container = new Container();
-			container.addChild(new Text(theme.fg("toolTitle", theme.bold(title)), 0, 0));
+			if (!single) container.addChild(new Text(theme.fg("toolTitle", theme.bold(title)), 0, 0));
 			for (const entry of details.results) {
 				const { statusColor, statusLabel } = resultStatusStyle(entry);
-				container.addChild(new Spacer(1));
-				container.addChild(new Text(`${theme.fg(statusColor, statusLabel)} ${theme.fg("accent", entry.agent)}${displayTitle(entry.title) ? theme.fg("accent", ` · ${displayTitle(entry.title)}`) : ""}`, 0, 0));
-				container.addChild(new Text(theme.fg("muted", `Task: ${entry.task}`), 0, 0));
+				if (!single) {
+					container.addChild(new Spacer(1));
+					container.addChild(new Text(`${theme.fg(statusColor, statusLabel)} ${theme.fg("accent", entry.agent)}${displayTitle(entry.title) ? theme.fg("accent", ` · ${displayTitle(entry.title)}`) : ""}`, 0, 0));
+				}
+				{ const taskLine = `Task: ${singleLine(entry.task)}`; container.addChild({ invalidate() {}, render: (width: number) => [theme.fg("muted", truncateToWidth(taskLine, Math.max(1, width), "…"))] }); }
 				const live = details.progress?.find((progress) => progress.taskId === entry.taskId);
 				addLiveProgress(container, live, (text) => theme.fg("dim", text));
 				if (isFailedResult(entry)) container.addChild(new Text(theme.fg(entry.status === "aborted" ? "warning" : "error", `${entry.status === "aborted" ? "Stop reason" : "Error"}: ${getFailureDiagnostic(entry)}`), 0, 0));

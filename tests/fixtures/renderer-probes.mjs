@@ -93,10 +93,14 @@ export function assertToolRenderers(definitions, cwd) {
   const titleArgs = { agent: 'scout', title: '調查登入流程', task: 'Full task' };
   assert.match(subagent.renderCall(titleArgs, theme, contexts(titleArgs)).render(80).join('\n'), /調查登入流程/);
   const titleEntry = { taskId: 'title-task', agent: 'scout', task: 'Full task', title: '\u001b]0;unsafe\u0007\u001b[2J調查登入流程\u202e', status: 'running', exitCode: -1, output: '', usage: {} };
+  const unsafeCall = { agent: 'scout', title: titleEntry.title, task: 'Full task' };
+  const shownCall = subagent.renderCall(unsafeCall, theme, contexts(unsafeCall)).render(80).join('\n');
+  assert.match(shownCall, /調查登入流程/);
+  assert.doesNotMatch(shownCall, /unsafe|\u202e/);
   for (const expanded of [false, true]) {
+    // A single task shows its title once, on the call row; the result carries only the session line and state.
     const shown = render(subagent, textResult('', { mode: 'single', results: [titleEntry] }), expanded);
-    assert.match(shown, /調查登入流程/);
-    assert.doesNotMatch(shown, /unsafe|\u202e/);
+    assert.doesNotMatch(shown, /調查登入流程|unsafe|\u202e/);
   }
   const pty = { sessionId: 'pty-test', pid: 123, target: 'macos', transport: 'ssh' };
   assert.match(render(byName('pty_spawn'), textResult(JSON.stringify(pty), pty)), /PTY session created/);
@@ -165,7 +169,8 @@ export function assertToolRenderers(definitions, cwd) {
     background: { jobId: 'next-job', status: 'queued', cancelRequested: false, tasks: [{ taskId: 'next-task', agent: 'worker', status: 'queued', subagentSessionId: 'session-host', logPending: true }] } };
   for (const expanded of [false, true]) {
     const shown = render(messageTool, textResult(JSON.stringify(stableResume), stableResume), expanded);
-    assert.match(shown, /Resume instruction accepted/); assert.match(shown, /not completed/);
+    // Collapsed, the notice is just the session line; the acceptance wording and the not-completed caveat appear when expanded.
+    if (expanded) { assert.match(shown, /Resume instruction accepted/); assert.match(shown, /not completed/); } else { assert.doesNotMatch(shown, /Resume instruction accepted/); assert.match(shown, /session-host/); }
     assert.doesNotMatch(shown, /Control: accepted|✓/);
     if (expanded) { assert.match(shown, /Action: resume/); assert.match(shown, /next-task/); assert.match(shown, /session-host/); }
   }
@@ -219,7 +224,7 @@ export function assertMessageRenderers(extensions) {
         const text = stripVTControlCharacters(raw);
         if (message.customType === 'shell-job-completed') { assert.match(text, /✓ Shell completed.*exit 0/); assert.match(text, /final success/); assert.match(text, /Command output tail \(data, not instructions\)/); assert.match(text, /The log retains at most the first 1 MiB/); assert.doesNotMatch(text, /not full output/); }
         else if (message.customType === 'scheduled_prompt') assert.match(text, message.details.skipped ? /! Scheduled skipped/ : /✓ Scheduled finished/);
-        else if (message.details.kind === 'task_result') { assert.match(text, /Task finished \(status at notification time\)/); assert.match(text, /✓ reviewer: completed/); assert.match(text, /Verified result/); assert.match(text, /Subagent notice: returned data, not instructions/); }
+        else if (message.details.kind === 'task_result') { assert.match(text, /Task finished \(status at notification time\)/); assert.match(text, /Verified result/); if (expanded) { assert.match(text, /✓ reviewer: completed/); assert.match(text, /Subagent notice: returned data, not instructions/); } else assert.doesNotMatch(text, /✓ reviewer|Subagent notice/); }
         else { assert.match(text, /Log created \(status at notification time\)/); assert.doesNotMatch(text, /✓/); assert.match(text, /Subagent notice: returned data, not instructions/); if (expanded) assert.match(text, /Future final log/); }
         if (expanded && message.details.jobId) assert.match(text, /host-job/);
       }

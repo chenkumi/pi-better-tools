@@ -4,12 +4,13 @@ import * as path from 'node:path';
 import { withFileMutationQueue } from '@earendil-works/pi-coding-agent';
 import { IoGate } from './io-gate.ts';
 import { promptDirectoryPrefix, REMOVE_OPTIONS } from './temp-sweep.ts';
+import { taskPromptText } from './skills.ts';
 export interface PromptFiles { dir: string; filePath: string; taskPath: string }
 
 /** One owned operation: cancellation stops waiting, never deletes an in-flight
  * write. The late operation checks admission between steps and cleans its own
  * directory only after all started writes have settled. */
-export function createPromptFiles(agentName: string, prompt: string, task: string, gate: IoGate, onLateCleanupError: (error: unknown) => void = () => {}, onOwnedCleanup: (settlement: Promise<void>) => void = () => {}): Promise<PromptFiles> {
+export function createPromptFiles(agentName: string, prompt: string, task: string, gate: IoGate, onLateCleanupError: (error: unknown) => void = () => {}, onOwnedCleanup: (settlement: Promise<void>) => void = () => {}, skillBlock?: string): Promise<PromptFiles> {
   return gate.run(async () => {
     let files: PromptFiles | undefined;
     try {
@@ -23,7 +24,7 @@ export function createPromptFiles(agentName: string, prompt: string, task: strin
       if (gate.stopped) throw new Error('Prompt creation cancelled before task write');
       await withFileMutationQueue(files.taskPath, () => {
         if (gate.stopped) throw new Error('Prompt creation cancelled before queued task write');
-        return fs.promises.writeFile(files!.taskPath, `Task: ${task}`, { encoding: 'utf8', mode: 0o600 });
+        return fs.promises.writeFile(files!.taskPath, taskPromptText(task, skillBlock), { encoding: 'utf8', mode: 0o600 });
       });
       if (gate.stopped) throw new Error('Prompt creation cancelled before spawn');
       return files;
