@@ -23,7 +23,7 @@ Create trusted session-cwd `.pi/agent/sql-connector.json` with only needed `mysq
 
 ## Local Blackhole and external npm Pi extensions
 
-The suite loads seventeen local TS entries and two npm extension entries (pi-open-tui 0.3.11 and @ff-labs/pi-fff 0.11.0). Blackhole 0.5.12 is a reviewed source snapshot at `modules/blackhole/`, loaded through `modules/blackhole/src/index.ts`; root manifest/lock no longer depend on npm pi-blackhole. Root npm ci remains required for runtime dependencies, with no automatic personal settings edits.
+The suite loads eighteen local TS entries and two npm extension entries (pi-open-tui 0.3.11 and @ff-labs/pi-fff 0.11.0). Blackhole 0.5.12 is a reviewed source snapshot at `modules/blackhole/`, loaded through `modules/blackhole/src/index.ts`; root manifest/lock no longer depend on npm pi-blackhole. Root npm ci remains required for runtime dependencies, with no automatic personal settings edits.
 
 Personal settings remain independent: open-tui uses `~/.pi/agent/open-tui.json`; Blackhole retains `~/.pi/agent/pi-blackhole/pi-blackhole-config.json`, project overrides and existing memory/state paths; FFF retains its own configuration/environment/native data. Credentials and old sessions are not copied, overwritten, migrated or backfilled. Review filters to disable standalone copies and avoid duplicate hooks.
 

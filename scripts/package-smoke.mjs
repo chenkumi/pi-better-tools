@@ -40,7 +40,7 @@ async function record(label, action) {
 }
 const required = [
   'setup/cli.mjs', 'setup/commands.mjs', 'setup/commands.d.mts', 'setup/core.mjs',
-  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'note-tools', 'gpt-speed', 'json-schema', 'pty-terminal', 'schedule-prompt', 'blackhole', 'pi-runtime', 'monitor', 'skill-tools', 'fork', 'sqlite-tools', 'sql-connector', 'file-audit'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
+  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'note-tools', 'gpt-speed', 'json-schema', 'pty-terminal', 'schedule-prompt', 'blackhole', 'pi-runtime', 'monitor', 'skill-tools', 'theme-tools', 'fork', 'sqlite-tools', 'sql-connector', 'file-audit'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
   ...['activity-window', 'events', 'paths', 'provenance', 'commands', 'presentation'].map(name => `modules/file-audit/src/${name}.ts`),
   'modules/sqlite-tools/src/sqlite-manager.ts',
   ...['config', 'runtime', 'tools', 'prompt', 'types', 'output', 'security/sql-policy'].map(name => `modules/sql-connector/src/${name}.ts`),

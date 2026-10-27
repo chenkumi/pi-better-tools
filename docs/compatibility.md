@@ -15,7 +15,7 @@
 
 | 項目 | 結果 |
 |---|---|
-| 十九個 `pi.extensions` 入口載入 | 全部載入（`pi-bolt doctor` 無載入失敗） |
+| 二十個 `pi.extensions` 入口載入 | 全部載入（`pi-bolt doctor` 無載入失敗） |
 | 本專案使用的 hook 事件 | 事件名稱與分派方法都存在於 Pi-Bolt 的 extension runner |
 | Pi 套件 import | 本專案只 import `pi-coding-agent`、`pi-tui`、`pi-ai`（含 `/compat`）、`pi-agent-core`，皆在 Pi-Bolt 的虛擬模組清單內 |
 | `node:sqlite`（建表、寫入、查詢） | 可用 |

@@ -1,8 +1,8 @@
 # Architecture
 
-## One deployment unit, seventeen local modules
+## One deployment unit, eighteen local modules
 
-The root `package.json` declares seventeen local TypeScript `pi.extensions` entries at `./modules/<name>/src/index.ts`, plus two explicit npm dependency entries (nineteen total): nine current source snapshots (including SQL Connector, SQLite Tools, PTY Terminal, the third-party Schedule Prompt and Blackhole) and eight native modules (Note Tools, File Audit, GPT Speed, the rewritten JSON Schema, Pi Runtime, Monitor, Skill Tools and Fork). Thin default-export entries forward to existing implementations without moving guards, agents, prompts or workers. Web already uses this layout. There is no aggregator factory or plugin-manager abstraction. Pi controls discovery, ordering, resource filters, tool selection and lifecycle dispatch.
+The root `package.json` declares eighteen local TypeScript `pi.extensions` entries at `./modules/<name>/src/index.ts`, plus two explicit npm dependency entries (nineteen total): nine current source snapshots (including SQL Connector, SQLite Tools, PTY Terminal, the third-party Schedule Prompt and Blackhole) and eight native modules (Note Tools, File Audit, GPT Speed, the rewritten JSON Schema, Pi Runtime, Monitor, Skill Tools and Fork). Thin default-export entries forward to existing implementations without moving guards, agents, prompts or workers. Web already uses this layout. There is no aggregator factory or plugin-manager abstraction. Pi controls discovery, ordering, resource filters, tool selection and lifecycle dispatch.
 
 - `modules/subagents/extensions/subagent/` retains the `../../agents` relationship and `child-guard.ts`; bundled agents/prompts ship with the package.
 - `modules/shell-tools/extensions/timeout-ms.ts` imports its adjacent MJS adapters and preserves host shell definitions.

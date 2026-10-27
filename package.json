@@ -37,6 +37,8 @@
         "modules/pi-runtime/src",
         "modules/skill-tools/src",
         "modules/skill-tools/skills",
+        "modules/theme-tools/src",
+        "modules/theme-tools/themes",
         "modules/monitor/src",
         "modules/monitor/package.json",
         "modules/fork/src",
@@ -81,6 +83,7 @@
             "./modules/sql-connector/src/index.ts",
             "./modules/pi-runtime/src/index.ts",
             "./modules/skill-tools/src/index.ts",
+            "./modules/theme-tools/src/index.ts",
             "./modules/monitor/src/index.ts",
             "./modules/fork/src/index.ts",
             "./modules/gpt-speed/src/index.ts",
@@ -90,6 +93,9 @@
             "./node_modules/pi-open-tui/extensions/open-tui/index.ts",
             "./modules/blackhole/src/index.ts",
             "./modules/file-tools/src/fff-override.mjs"
+        ],
+        "themes": [
+            "./modules/theme-tools/themes"
         ],
         "prompts": [
             "./modules/subagents/prompts"
