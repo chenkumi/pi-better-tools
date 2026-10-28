@@ -8,11 +8,15 @@ import { DEFAULT_COLS, DEFAULT_ROWS, droppedNotice, errorText, KILL_SIGNALS, MAX
 import { compileWaitFor, MAX_WAIT_FOR_LENGTH } from "./wait-for.ts";
 import { resolveTarget } from "./targets.ts";
 import { ptyRenderers } from "./renderers.ts";
+import { SecretInput } from "./secret-input.ts";
 
 /** pty_read wait when nothing is pending, and the longer default when waitFor or settleMs asks for a condition. */
 const DEFAULT_READ_TIMEOUT_MS = 1_000;
 const CONDITIONAL_READ_TIMEOUT_MS = 5_000;
 const DEFAULT_EXIT_WAIT_MS = 5_000;
+/** How long pty_keyin waits for the user before giving up. */
+const KEYIN_TIMEOUT_MS = 10 * 60_000;
+const oneLineText = (value: string) => value.replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]+/g, " ").trim();
 
 const positiveInteger = (description: string, maximum?: number) => Type.Integer({ minimum: 1, ...(maximum ? { maximum } : {}), description });
 
@@ -29,7 +33,7 @@ const spawnParameters = Type.Object({
 });
 
 /** Every PTY tool; kept in step with the registrations below by extension.test.ts. */
-export const PTY_TOOL_NAMES = ["pty_spawn", "pty_write", "pty_read", "pty_resize", "pty_wait_exit", "pty_kill", "pty_list"] as const;
+export const PTY_TOOL_NAMES = ["pty_spawn", "pty_write", "pty_keyin", "pty_read", "pty_resize", "pty_wait_exit", "pty_kill", "pty_list"] as const;
 // Deferred: not declared to the model until tool_search loads them (one search loads the whole namespace). Activation of
 // tool_search, the fallback without it and the discovery hint are handled once for all modules by pi-runtime.
 const PTY_EXPOSURE = {
@@ -116,6 +120,73 @@ export default function (pi: ExtensionAPI) {
 			const result = deliver(params.sessionId, await sessions.readEx(params.sessionId, { timeoutMs: 0 }), params.format ?? "raw", true);
 			if (!result.content[0].text) result.content[0].text = "ok";
 			return result;
+		},
+	});
+
+	let keyinActive = false;
+	pi.registerTool({
+		name: "pty_keyin",
+		...PTY_EXPOSURE,
+		...ptyRenderers("keyin"),
+		label: "PTY key-in",
+		description: "Ask the user to type a secret (for example a password at a prompt that does not echo) into a PTY session. The user sees a masked input dialog; what they type goes straight to the session with Enter appended and is never returned to you, logged or stored. You only learn whether it was sent. Use after pty_read shows the prompt; then pty_read again for the program's response. Never ask the user to put the secret in the chat.",
+		promptSnippet: "pty_keyin: let the user type a password directly into a PTY session without it reaching the conversation",
+		promptGuidelines: ["When a PTY program asks for a password or other secret, call pty_keyin instead of asking the user to type it in chat; do not retry it in a loop if the user cancels."],
+		parameters: Type.Object({
+			sessionId: Type.String({ description: "PTY session id waiting for the secret." }),
+			prompt: Type.Optional(Type.String({ maxLength: 200, description: "Short text telling the user what is being asked for (shown as coming from the agent)." })),
+		}),
+		executionMode: "sequential",
+		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+			if (!ctx.hasUI) throw new Error("pty_keyin needs an interactive Pi UI, which this session does not have. Ask the user to run the program that needs the secret themselves; do not ask for the secret in chat.");
+			if (keyinActive) throw new Error("Another pty_keyin dialog is already open; wait for the user to finish it.");
+			if (signal?.aborted) throw new Error("pty_keyin aborted");
+			sessions.assertWritable(params.sessionId);
+			const info = sessions.list().find((entry) => entry.sessionId === params.sessionId);
+			const header = [params.prompt?.trim()
+				? oneLineText(params.prompt)
+				: `Secret input for PTY session ${params.sessionId} (target ${info?.target ?? "unknown"}, ${info?.transport ?? "unknown"} transport)`];
+			keyinActive = true;
+			const stop = new AbortController();
+			let secret: string | undefined;
+			let reason: "cancelled" | "timeout" | "aborted" | "exited" | undefined;
+			try {
+				const input = await new Promise<string | undefined>((resolve) => {
+					let finish: (value: string | undefined) => void = resolve;
+					const timer = setTimeout(() => { reason = "timeout"; finish(undefined); }, KEYIN_TIMEOUT_MS);
+					timer.unref?.();
+					const onAbort = () => { reason = "aborted"; finish(undefined); };
+					signal?.addEventListener("abort", onAbort, { once: true });
+					void (async () => { // The program may exit while the dialog is open; typing then would go nowhere.
+						while (!stop.signal.aborted) {
+							const exit = await sessions.waitForExit(params.sessionId, MAX_WAIT_MS, stop.signal).catch(() => undefined);
+							if (exit && !exit.timedOut) { reason = "exited"; finish(undefined); return; }
+							if (!exit) return;
+						}
+					})();
+					void ctx.ui.custom<string | undefined>((tui, _theme, _keybindings, done) => {
+						finish = (value) => { clearTimeout(timer); signal?.removeEventListener("abort", onAbort); resolve(value); done(value); };
+						return new SecretInput({ header, requestRender: () => tui.requestRender(), onSubmit: (value) => finish(value), onCancel: () => { reason = "cancelled"; finish(undefined); } });
+					}).then((value) => { if (value === undefined && !reason) reason = "cancelled"; clearTimeout(timer); signal?.removeEventListener("abort", onAbort); resolve(value); }, () => { reason = "cancelled"; clearTimeout(timer); signal?.removeEventListener("abort", onAbort); resolve(undefined); });
+				});
+				secret = input;
+			} finally {
+				stop.abort();
+				keyinActive = false;
+			}
+			if (secret === undefined) {
+				const why = { cancelled: "the user cancelled", timeout: "the user did not answer in time", aborted: "the tool call was aborted", exited: "the PTY session exited while waiting" }[reason ?? "cancelled"];
+				return { content: [{ type: "text", text: `Nothing was sent: ${why}. Do not ask the user for the secret in chat.` }], details: { sessionId: params.sessionId, delivered: false, reason: reason ?? "cancelled" } };
+			}
+			try {
+				sessions.write(params.sessionId, `${secret}\r`);
+			} catch (error) {
+				const message = errorText(error);
+				throw new Error(secret ? message.split(secret).join("") : message);
+			} finally {
+				secret = undefined;
+			}
+			return { content: [{ type: "text", text: "The user entered the secret and it was sent to the session (content not visible to you). Use pty_read to see the program's response." }], details: { sessionId: params.sessionId, delivered: true } };
 		},
 	});
 

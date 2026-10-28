@@ -2,7 +2,9 @@
 
 ## 指令與工具
 
-`pty_spawn`、`pty_write`、`pty_read`、`pty_resize`、`pty_wait_exit`、`pty_kill`、`pty_list` 全為 deferred，先以 `tool_search` 搜尋 `pty`。沒有專屬 slash 設定命令。Spawn 選 target，後續只用 sessionId；一次性指令用 shell、持續輸入的互動程式／TUI 才用 PTY。
+`pty_spawn`、`pty_write`、`pty_keyin`、`pty_read`、`pty_resize`、`pty_wait_exit`、`pty_kill`、`pty_list` 全為 deferred，先以 `tool_search` 搜尋 `pty`。沒有專屬 slash 設定命令。Spawn 選 target，後續只用 sessionId；一次性指令用 shell、持續輸入的互動程式／TUI 才用 PTY。
+
+程式要求密碼等機密時用 `pty_keyin`：使用者在遮罩輸入框直接輸入；畫面會顯示 Unicode code point 數，機密內容與長度不回給 agent，內容只寫入該 PTY、不進對話或紀錄；僅在目標程式本身不回顯時有此保證（回顯的程式仍會出現在 `pty_read`）。無互動 UI 時不可用。
 
 ## Config 與作用範圍
 

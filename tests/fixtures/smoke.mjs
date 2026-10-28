@@ -54,7 +54,7 @@ try {
   const sdk = await import(host ? pathToFileURL(join(host, 'dist/index.js')).href : '@earendil-works/pi-coding-agent');
   sdk.initTheme('dark', false);
   const readOnly = mode === 'read-only', noTools = mode === 'no-tools';
-  const ptyNames = ['pty_spawn', 'pty_read', 'pty_write', 'pty_resize', 'pty_wait_exit', 'pty_kill', 'pty_list'];
+  const ptyNames = ['pty_spawn', 'pty_read', 'pty_write', 'pty_keyin', 'pty_resize', 'pty_wait_exit', 'pty_kill', 'pty_list'];
   const sqliteNames = ['sqlite_open', 'sqlite_close', 'sqlite_status', 'sqlite_query', 'sqlite_execute', 'sqlite_list_tables', 'sqlite_describe_table', 'sqlite_manual'];
   const monitorNames = ['monitor_start', 'monitor_status', 'monitor_stop'];
   const backgroundNames = ['subagent_status', 'subagent_cancel', 'subagent_message', 'shell_job_status', 'shell_job_cancel'];

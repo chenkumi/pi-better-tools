@@ -322,12 +322,17 @@ export class PtySessionManager {
 		return { sessionId: id, pid: pty.pid, target: session.target, transport: session.transport };
 	}
 
-	write(sessionId: string, data: string): void {
+	/** Throws the same errors as write() for an unknown or exited session, without writing. */
+	assertWritable(sessionId: string): void {
 		const session = this.requireSession(sessionId);
 		if (session.state === "exited") {
 			throw new Error(`PTY session ${sessionId} has exited${session.exitInfo ? ` (exitCode ${session.exitInfo.exitCode})` : ""}; input was not sent. Use pty_read to drain remaining output, pty_kill to release it, or pty_spawn a new session.`);
 		}
-		session.pty.write(data);
+	}
+
+	write(sessionId: string, data: string): void {
+		this.assertWritable(sessionId);
+		this.requireSession(sessionId).pty.write(data);
 	}
 
 	/** Appends output, advances the cursor and enforces the ring buffer (oldest output dropped first). */

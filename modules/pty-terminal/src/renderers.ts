@@ -6,7 +6,7 @@ const record = (value: unknown): Record<string, unknown> => value && typeof valu
 const clean = (value: unknown, max = 1000) => typeof value === "string" || typeof value === "number"
   ? stripVTControlCharacters(String(value).slice(0, max * 4)).replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, "").slice(0, max) : "";
 const oneLine = (value: unknown, max = 300) => clean(value, max).replace(/\s+/g, " ");
-type Action = "spawn" | "write" | "read" | "resize" | "wait_exit" | "kill" | "list";
+type Action = "spawn" | "write" | "keyin" | "read" | "resize" | "wait_exit" | "kill" | "list";
 /** Display-only bounds (characters, collapsed preview lines); tool output has its own caps in output.ts. */
 const MAX_DISPLAY_CHARS = 50 * 1024;
 const COLLAPSED_OUTPUT_LINES = 12;
@@ -62,6 +62,8 @@ export function ptyRenderers(action: Action): Pick<ToolDefinition, "renderCall" 
       } else if (action === "kill") {
         if (typeof data.released !== "boolean") lines.push(`${name}: result details unavailable`);
         else lines.push(data.released === false ? `PTY session retained (transport still running) · ${session}` : `PTY session released · ${session}`, "Local transport only; remote process-tree termination not confirmed.");
+      } else if (action === "keyin") {
+        lines.push(data.delivered === true ? `PTY secret sent by the user · ${session}` : `PTY secret not sent · ${session}`);
       } else if (text.trim() !== "ok") {
         lines.push(`${name}: result details unavailable`);
         if (expanded) lines.push(clean(text, 2000));

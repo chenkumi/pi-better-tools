@@ -18,7 +18,7 @@ test("registers every PTY tool and a session shutdown handler", () => {
 
 	assert.deepEqual(
 		tools.map((tool) => tool.name),
-		["pty_spawn", "pty_write", "pty_read", "pty_resize", "pty_wait_exit", "pty_kill", "pty_list"],
+		["pty_spawn", "pty_write", "pty_keyin", "pty_read", "pty_resize", "pty_wait_exit", "pty_kill", "pty_list"],
 	);
 	assert.ok(shutdownHandler);
 	shutdownHandler();

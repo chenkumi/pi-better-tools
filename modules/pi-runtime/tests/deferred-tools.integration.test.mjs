@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createHost, entry, heartbeat, isolate, text } from '../../../tests/helpers/regression/host.mjs';
 
-const PTY = ['pty_spawn', 'pty_write', 'pty_read', 'pty_resize', 'pty_wait_exit', 'pty_kill', 'pty_list'];
+const PTY = ['pty_spawn', 'pty_write', 'pty_keyin', 'pty_read', 'pty_resize', 'pty_wait_exit', 'pty_kill', 'pty_list'];
 const HINT = '### Deferred tools';
 
 async function host(prefix, { withToolSearch }) {

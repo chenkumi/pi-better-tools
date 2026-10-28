@@ -6,6 +6,7 @@
 
 - `pty_spawn`：`{ command, args?, target?, cwd?, env?, cols?, rows? }`；`target` 預設 `local`，回傳 sessionId、本機 transport pid、target、transport。
 - `pty_write`：`{ sessionId, data?, keys?, readAfterMs?, format? }`。`data` 支援 `\\x03`、`\\r`、`\\t` 等控制字元，字面反斜線寫成 `\\\\` 或 `\\x5c`（例如 `C:\\\\new`；單趟解碼，不會二次解碼）；對已結束的 session 寫入會明確報錯且不送出；`keys` 為具名按鍵陣列（Enter、Tab、Shift-Tab、Esc、Space、Backspace、Delete、Insert、Up/Down/Left/Right、Home、End、PageUp、PageDown、F1–F12、Ctrl-A..Ctrl-Z；不分大小寫，亦接受 `Ctrl+C`、`C-c`、Return、Escape 等別名），於 `data` 之後依序送出，兩者至少需一個；未知按鍵名回錯並列出支援清單，且在寫入任何內容前驗證。`readAfterMs`（0–60000）寫入後等待該毫秒（transport exit 時提早返回，已退出時不另等）再 drain 並一起回傳輸出（同 `pty_read` 格式；無輸出回 `ok`）；等待被取消時輸入已送出，session 保留。
+- `pty_keyin`：`{ sessionId, prompt? }`。讓使用者把密碼等機密直接輸入 PTY（目標程式已自行關閉回顯的提示，如 sudo／ssh）。互動 TUI 會顯示遮罩輸入框及字元數（以 Unicode code point 計算；遮罩隨字數增加，空間不足時截短），框內由系統填入 session、target、transport，模型提供的 `prompt`（上限 200 字元）只作標示為「Agent says」的輔助說明。Enter 送出時，輸入**逐字**（不經 `pty_write` 的跳脫解碼，反斜線照送）加固定 `` 寫入該 session；Esc／Ctrl-C 取消則不寫入任何內容。工具結果只說明「已送出」或「未送出（cancelled／timeout／aborted／exited）」，不含輸入內容、長度或預覽；輸入值不進工具參數、結果、`details`、renderer、錯誤訊息（寫入失敗時會剔除輸入值）、session 紀錄或 log。無 UI（`hasUI` 為 false）、未知／已結束 session、已有另一個 keyin 對話框時拒絕且不顯示對話框；等待上限 10 分鐘，工具呼叫被中止或 PTY 在等待中結束時關閉對話框、不寫入。RPC（含 Subagent／Fork 子行程）的 `ui.custom()` 不受支援，等同取消、不寫入。
 - `pty_read`：`{ sessionId, timeoutMs?, waitFor?, settleMs?, format?, since? }`。預設 drain pending output 並等待 1000ms（上限 60000ms，`pty_wait_exit` 同）；每次輸出最多 2000 行／50KiB，超量部分留在 buffer，下次可繼續讀取，內容末尾提示剩餘字元數。
   - `waitFor`：JavaScript RegExp 原始碼（不含斜線／flags，multiline，最長 200 字元，拒絕 `(a+)+` 類巢狀量詞），對**已剝除 ANSI** 的未讀輸出比對，出現即返回；`settleMs` 為「安靜多久視為完成」（兩者併用時先匹配再等安靜）。皆受總逾時 `timeoutMs` 限制（設定 `waitFor`／`settleMs` 且未給 `timeoutMs` 時預設 5000）；逾時會在輸出後標示 `waitFor not matched before timeout`，輸出仍保留未讀。無效 regex 回可操作錯誤。比對在可終止 worker 執行（最多 16 個，單次最多 1000ms，預算從 worker 完成模組載入並回報 ready 後才開始計算（不是 thread online），另有 5 秒啟動上限，故小 `timeoutMs` 不會因啟動時間誤報逾時，整體讀取可能略超出 `timeoutMs` 一個 worker 啟動時間；比對失敗後的重試至少間隔 50ms 合併輸出（亦涵蓋失敗完成後才到達的輸出），且至少為該次嘗試耗時（主執行緒剝除 ANSI、worker 啟動與複製）的兩倍、最多 1000ms，避免大量 buffer 持續輸出時連續佔用 CPU，正值讀取期限可進一步縮短，期限耗盡不再啟動新的 worker；transport exit 可提早喚醒以檢查最後輸出；`timeoutMs: 0` 仍允許一次有界比對）。比對容量／計算期限失敗明確報錯；讀取期限耗盡回 timeout，取消／shutdown 會終止 worker，名額在終止確認後才歸還。取消只中止等待，session 與輸出保留。
   - `format`：`raw`（預設，保留控制碼）或 `text`（剝除 CSI／OSC／DCS 等 ANSI 控制碼；不做螢幕快照或游標還原）。截斷點不會落在 escape 序列中間；`text` 只計可見位元組，結尾尚未完整的序列會留待下次讀取（session 結束後才丟棄）。緩衝中只剩未完整序列時，預設讀取會繼續等到 `timeoutMs`，不會立即回傳空內容（設定 `waitFor`／`settleMs` 時依其條件返回，可能回空內容並保留該片段）；`raw` 不受影響。單一完整 escape 序列若本身超過 50KiB 回傳上限，會明示丟棄並推進 cursor，避免每次讀取零進度；其他可回傳內容仍保留。
@@ -20,15 +21,15 @@
 
 ## 動態載入（tool_search）
 
-七個 PTY 工具以 `exposure: "deferred"` 註冊並歸入同一個 `pty` namespace，不隨每次請求送給模型（約 1,400 tokens）。本模組只宣告 exposure 與 namespace；啟用 `tool_search`、無 `tool_search` 時的直接宣告、以及系統提示的載入提示，全部由 **Pi Runtime** 統一處理（見 `modules/pi-runtime/README.md`「Deferred 工具」），不需要任何 `defaultTools` 設定。
+八個 PTY 工具以 `exposure: "deferred"` 註冊並歸入同一個 `pty` namespace，不隨每次請求送給模型（約 1,400 tokens）。本模組只宣告 exposure 與 namespace；啟用 `tool_search`、無 `tool_search` 時的直接宣告、以及系統提示的載入提示，全部由 **Pi Runtime** 統一處理（見 `modules/pi-runtime/README.md`「Deferred 工具」），不需要任何 `defaultTools` 設定。
 
-- 模型查 `pty` 一次載入全部七個；`/reload` 保留已載入的工具。
+- 模型查 `pty` 一次載入全部八個；`/reload` 保留已載入的工具。
 - `--tools` allowlist 或 `--exclude-tools` 排除的 PTY 工具不會註冊，因此既不宣告、也不能被 `tool_search` 載入。
 - 載入工具會改變工具清單；對無法表達此變更的 provider，Pi 會送完整 transcript checkpoint，可能使該次 prompt cache 失效。PTY 屬低頻工具，影響有限。
 
 ## TUI 顯示
 
-七個工具都有 call/result renderer，顯示 session、target、local transport PID、輸出與 transport exit／逾時狀態；list 收合列出前三筆，展開最多五十筆。read 以清理 ANSI／控制字元的文字預覽顯示，收合最多十二行，展開看已回傳內容；不是 terminal emulator，完整畫面控制碼仍保留於模型可見 output。write 不預覽輸入，spawn 不預覽 args/env；這不是全面敏感資料遮蔽。kill 明示 session 已釋放／termination requested，不冒稱遠端程序樹停止。Renderer 只改 UI，不修改工具結果、activation、target resolution 或 PTY lifecycle，也不執行／drain PTY。
+八個工具都有 call/result renderer，顯示 session、target、local transport PID、輸出與 transport exit／逾時狀態；list 收合列出前三筆，展開最多五十筆。read 以清理 ANSI／控制字元的文字預覽顯示，收合最多十二行，展開看已回傳內容；不是 terminal emulator，完整畫面控制碼仍保留於模型可見 output。write 不預覽輸入，keyin 只顯示已送出／未送出，spawn 不預覽 args/env；這不是全面敏感資料遮蔽。kill 明示 session 已釋放／termination requested，不冒稱遠端程序樹停止。Renderer 只改 UI，不修改工具結果、activation、target resolution 或 PTY lifecycle，也不執行／drain PTY。
 
 ## 設定
 
@@ -88,7 +89,7 @@ Repository 從根目錄執行 `npm ci --ignore-scripts`，再明確執行 `npm r
 
 根 `npm run typecheck`／`npm test` 包含此模組；loader 與真實 production tarball 使用真正本機 PTY。WSL/SSH argv/settings 單元測試不等於真實遠端連線驗證。原來源 POSIX shell 測試改用平台原生 Node fixtures，保留互動、drain、exit 及 kill 斷言。
 
-啟用前停用獨立 `pi-pty-terminal`，避免工具重複註冊；不自動修改全域設定。原七個工具 activation 交由 Pi；explicit allowlist 需加入工具名稱，no-tools/exclusions 不繞過。
+啟用前停用獨立 `pi-pty-terminal`，避免工具重複註冊；不自動修改全域設定。原七個工具與 `pty_keyin` activation 交由 Pi；explicit allowlist 需加入工具名稱，no-tools/exclusions 不繞過。
 
 ## 安全與 lifecycle
 
@@ -105,3 +106,12 @@ Failure responses name the offending parameter or target, the violated rule and 
 - `pty_kill` that did not release the session returns an extra `hint` (the session is retained; call `pty_kill` again, optionally with SIGKILL on POSIX, or check `pty_list`).
 - Spawn failures keep the original error as `cause`; env policy and target settings errors describe the problem in neutral terms ("the user's PTY environment policy", "the named terminal target in the user's settings") without naming settings keys; only the tool's own arguments (for example `target`) are named.
 - Messages never contain passwords or resolved secrets.
+
+## `pty_keyin` 的保證與界線
+
+保證（僅在目標程式本身已屏蔽回顯時）：本模組的流程不會讓輸入內容進入對話、工具結果、`details`、renderer、錯誤訊息或任何由本模組寫出的紀錄；輸入元件不保留 undo／kill ring，完成或取消即清空內部值。
+
+不保證、也不處理：
+- 目標程式沒有關閉回顯：輸入會出現在 PTY 輸出，`pty_read` 之後會回給模型。刻意不做回顯遮蔽——畫面捲動或重繪後遮蔽即失效，只會給出錯誤的安全感。
+- 宿主邊界：Pi 的 `ui.onTerminalInput` 監聽器（其他已載入的 extension）在焦點元件之前收到原始按鍵，本模組無法阻擋；JS 字串無法保證記憶體清除；SSH／WSL／終端機本身的紀錄不在本模組控制內。
+- 長度：輸入框會向可看到終端畫面的人揭露 Unicode code point 數（組合字元可能各自計數）；工具結果不含長度。目標程式自己的行為也可能洩漏長度，例如逐字回顯星號。
