@@ -200,3 +200,38 @@ test("L25: small chunks use overflow slack rather than moving the retained start
 	const unread = await manager.readEx(id, { timeoutMs: 0 });
 	assert.deepEqual([unread.start, unread.text, unread.dropped], [max, "B" + "C".repeat(64), undefined]);
 });
+
+test("a read whose only unread output may be the start of a secret keeps waiting instead of returning empty", async () => {
+	const { manager, clock, handles, open } = harness();
+	const id = open();
+	manager.addSecret(id, "hunter2");
+	handles[0].emit("login: hun");
+	const first = await manager.readEx(id, { timeoutMs: 0 });
+	assert.equal(first.text, "login: ");
+	manager.consume(id, first.end);
+	let settled = false;
+	const pending = manager.readEx(id, { timeoutMs: 1_000 }).then(snapshot => { settled = true; return snapshot; });
+	await flush(); clock.advance(10); await flush();
+	assert.equal(settled, false, "only a possible secret prefix is unread, so there is nothing to deliver yet");
+	handles[0].emit("ter2 ok");
+	const snapshot = await pending;
+	assert.equal(snapshot.text, "******** ok");
+	assert.equal(snapshot.masked, 1);
+	assert.equal(snapshot.end, "login: hunter2 ok".length);
+});
+
+test("a read cursor or waitFor start inside a registered secret never shows the rest of that secret", async () => {
+	const { manager, handles, open } = harness();
+	const id = open();
+	manager.addSecret(id, "hunter2pw");
+	handles[0].emit("$ echo hunter2pw\r\nok\r\n");
+	const inside = "$ echo hunter2".length - 4; // inside the echoed secret
+	for (let since = inside; since < "$ echo hunter2pw".length; since++) {
+		const snapshot = await manager.readEx(id, { timeoutMs: 0, since });
+		assert.equal(snapshot.text.includes("pw"), false, `since=${since} leaked: ${JSON.stringify(snapshot.text)}`);
+		assert.equal(snapshot.text, "\r\nok\r\n");
+		assert.equal(snapshot.start, "$ echo hunter2pw".length);
+	}
+	const waited = await manager.readEx(id, { timeoutMs: 0, since: inside, waitFor: /ter2pw|er2pw|2pw/ });
+	assert.equal(waited.wait, "timeout", "a pattern cannot match the tail of a masked secret");
+});

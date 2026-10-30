@@ -3,7 +3,7 @@ import { Box, SelectList, matchesKey, truncateToWidth, visibleWidth, wrapTextWit
 import { TranscriptView, type TranscriptSource } from "./live-transcript.js";
 import { stripVTControlCharacters } from "node:util";
 
-export type PanelKind = "subagents" | "shell" | "fork" | "monitor";
+export type PanelKind = "subagents" | "shell" | "fork" | "monitor" | "pty";
 /** Hover target of the "More…" label; job rows use their {@link jobKey}. */
 export const MORE_HOVER = "more";
 export type UsageState = "pending" | "reported" | "unknown" | "na";
@@ -60,9 +60,10 @@ export function orderedJobs(jobs: readonly PanelJob[]): PanelJob[] {
   const rank = (j: PanelJob) => !j.active ? 4 : j.state === "cancelling" ? 0 : j.state === "running" ? 1 : j.state === "finalizing" ? 2 : 3;
   return [...jobs].sort((a, b) => rank(a) - rank(b) || (a.active ? (a.startedAt ?? 0) - (b.startedAt ?? 0) : (b.startedAt ?? 0) - (a.startedAt ?? 0)) || jobKey(a).localeCompare(jobKey(b)));
 }
+const HEADING_TAG: Record<PanelKind, string> = { subagents: "SA", shell: "SH", fork: "FK", monitor: "MN", pty: "PT" };
 export function jobHeading(job: PanelJob): string {
   const icon = job.state === "queued" ? "◷" : job.state === "finalizing" || job.state === "cancelling" ? "◐" : job.active ? "●" : job.state === "completed" ? "✓" : "○";
-  return `${icon} ${job.kind === "shell" ? "SH" : job.kind === "fork" ? "FK" : job.kind === "monitor" ? "MN" : "SA"} ${safeJobText(job.label, 64)}${job.title ? ` · ${safeJobText(job.title, 256)}` : ""}`;
+  return `${icon} ${HEADING_TAG[job.kind]} ${safeJobText(job.label, 64)}${job.title ? ` · ${safeJobText(job.title, 256)}` : ""}`;
 }
 const rowUsage = (job: PanelJob) => job.usageState === "na" ? "N/A"
   : job.usage && job.usageState === "reported" ? `${formatJobTokens(job.usage.totalTokens)}${job.active ? "*" : ""}`
@@ -86,13 +87,13 @@ export function renderJobs(jobs: readonly PanelJob[], theme: Theme, width: numbe
   if (!active.length) return [];
   const limit = panelJobLimit(terminalRows);
   const padding = width >= 3 ? 1 : 0, inner = width - padding * 2;
-  const count = (kind: PanelKind) => active.filter(j => j.kind === kind).length, fork = count("fork"), monitor = count("monitor");
+  const count = (kind: PanelKind) => active.filter(j => j.kind === kind).length, fork = count("fork"), monitor = count("monitor"), pty = count("pty");
   // The highlight ends in the default background, so the panel background is restored for the cells after it.
   const highlight = (line: string) => {
     const bg = theme.getBgAnsi("selectedBg");
     return theme.bg("selectedBg", line.replace(/\x1b\[(?:0)?m/g, reset => reset + bg)) + theme.getBgAnsi("toolPendingBg");
   };
-  const lines = [theme.fg("accent", truncateToWidth(`Jobs · ${active.length} active · Subagents ${count("subagents")} / Shell ${count("shell")}${fork ? ` / Fork ${fork}` : ""}${monitor ? ` / Monitor ${monitor}` : ""}`, inner))];
+  const lines = [theme.fg("accent", truncateToWidth(`Jobs · ${active.length} active · Subagents ${count("subagents")} / Shell ${count("shell")}${fork ? ` / Fork ${fork}` : ""}${monitor ? ` / Monitor ${monitor}` : ""}${pty ? ` / PTY ${pty}` : ""}`, inner))];
   for (const job of active.slice(0, limit)) {
     const summary = inner >= 40 ? truncateToWidth(jobSummary(job), Math.floor(inner / 2)) : "";
     const gap = summary ? 2 : 0;

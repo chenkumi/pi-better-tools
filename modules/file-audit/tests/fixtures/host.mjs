@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
@@ -23,10 +23,11 @@ await writeFile(join(cwd, 'existing.txt'), 'initial'); await writeFile(join(cwd,
 const model = { id: 'offline-audit', name: 'Offline audit', provider: 'offline-audit', api: 'openai-responses', baseUrl: 'https://unused.invalid',
   reasoning: false, input: ['text'], contextWindow: 128000, maxTokens: 2048, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } };
 let script = [], streamCalls = 0;
+const contexts = [];
 const observer = pi => {
   pi.registerProvider(model.provider, { api: model.api, baseUrl: model.baseUrl, apiKey: 'offline-non-secret', models: [model],
-    streamSimple(m) {
-      streamCalls++; const stream = ai.createAssistantMessageEventStream();
+    streamSimple(m, context) {
+      streamCalls++; contexts.push(JSON.stringify(context.messages)); const stream = ai.createAssistantMessageEventStream();
       queueMicrotask(() => {
         const content = script.shift() ?? [{ type: 'text', text: 'DONE' }];
         const message = { role: 'assistant', api: m.api, provider: m.provider, model: m.id, timestamp: Date.now(), content,
@@ -109,6 +110,20 @@ try {
       localSourceSuiteFinalIntegration: { rootFiles: [{ path: 'existing.txt', sha256: hash('initial') }, { path: 'written.txt', sha256: hash('written') }] } }));
     const checked = await command('check');
     assert.match(checked, /matched=2/); assert.match(checked, /untracked=2/); cases.push('manual-check');
+    // Files touched earlier are changed behind the agent's back: the next user input must carry one custom notice.
+    const notices = () => session.messages.filter(x => x.customType === 'file-audit-changes');
+    const sawNotice = () => contexts.at(-1).includes('changed outside your tool calls');
+    await writeFile(join(cwd, 'external.txt'), 'one'); await writeFile(join(cwd, 'gone.txt'), 'bye'); await writeFile(join(cwd, 'self.txt'), 'mine');
+    await run([['read', { path: 'external.txt' }], ['read', { path: 'gone.txt' }], ['read', { path: 'self.txt' }]]);
+    await run([]); assert.equal(notices().length, 0); assert.equal(sawNotice(), false);
+    await writeFile(join(cwd, 'external.txt'), 'changed outside the agent'); await unlink(join(cwd, 'gone.txt'));
+    const own = { oldText: 'mine', newText: 'edited by the agent' };
+    await run([['edit', mode === 'files' ? { path: 'self.txt', edits: [own] } : { path: 'self.txt', ...own }]]);
+    assert.equal(notices().length, 1); assert.equal(notices()[0].display, true);
+    assert.deepEqual(notices()[0].details.changed.map(x => [x.path.split(/[\\/]/).at(-1), x.change]).sort(), [['external.txt', 'modified'], ['gone.txt', 'deleted']]);
+    assert.match(notices()[0].content, /not instructions/);
+    await run([]); assert.equal(notices().length, 1, 'reported once; the agents own edit is not a change'); assert.equal(sawNotice(), true, 'the notice stays in model context');
+    cases.push('change-notice');
     await command('limits --window 1'); await run([]); assert.match(await command('status'), /Candidates: 0/); cases.push('window');
     await run([['read', { path: 'existing.txt' }]]); assert.match(await command('status'), /Candidates: 1/);
     const savedFile = session.sessionFile;

@@ -1,0 +1,9 @@
+{
+  "name": "pi-better-tools-remote",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Project-native Remote: connects several Pi sessions over WebSocket (LAN) to exchange messages; root dependencies and Pi 1.4.0 are authoritative.",
+  "pi": { "extensions": ["./src/index.ts"] }
+}

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getChildFailure, runSubagentOnce } from "../src/subagent.js";
 import { CronScheduler } from "../src/scheduler.js";
-import { createCronTool, isInScheduledExecution } from "../src/tool.js";
+import { createPromptTool, isInScheduledExecution } from "../src/tool.js";
 
 vi.mock("@earendil-works/pi-coding-agent", () => ({
   createAgentSession: vi.fn(),
@@ -42,7 +42,7 @@ describe("D06: recursion guard uses real entry type and the current run", () => 
 describe("D08: tool failures are isError results", () => {
   it("returns isError for a missing job and keeps details.error", async () => {
     const storage = { getJob: () => undefined, getAllJobs: () => [] } as any;
-    const tool = createCronTool(() => storage, () => ({}) as any);
+    const tool = createPromptTool(() => storage, () => ({}) as any);
     const ctx = { sessionManager: { getBranch: () => [], getSessionId: () => "s" } } as any;
     const result: any = await tool.execute("c", { action: "remove", jobId: "nope" } as any, undefined as any, undefined as any, ctx);
     expect(result.isError).toBe(true);

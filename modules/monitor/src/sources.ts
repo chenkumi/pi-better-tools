@@ -1,5 +1,6 @@
 import { realpathSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import os from 'node:os';
 import WebSocket from 'ws';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { execMonitorCommand } from '../../shell-tools/src/monitor-exec.js';
@@ -170,6 +171,40 @@ export function fileLaunch(root: string, target: FileTarget, intervalMs: number,
       const change = fileChange(previous, next);
       previous = next;
       if (change) sink.data(undefined, false, { path: target.relative, change, exists: next.exists, ...(next.exists ? { sizeBytes: next.sizeBytes, mtimeMs: next.mtimeMs } : {}) });
+      poll.later(sample);
+    };
+    sink.started(); poll.later(sample);
+  });
+}
+/** Whole-host utilisation in percent, or `undefined` when there is no baseline yet (the first CPU sample only primes the delta). */
+export type SystemSampler = () => number | undefined;
+export function hostSampler(metric: 'cpu' | 'ram', host: Pick<typeof os, 'cpus' | 'totalmem' | 'freemem'> = os): SystemSampler {
+  if (metric === 'ram') return () => { const total = host.totalmem(); return total > 0 ? ((total - host.freemem()) / total) * 100 : undefined; };
+  const read = () => { let busy = 0, total = 0; for (const { times } of host.cpus()) { const all = times.user + times.nice + times.sys + times.idle + times.irq; total += all; busy += all - times.idle; } return { busy, total }; };
+  let previous: { busy: number; total: number } | undefined = read(); // Baseline at creation so the first interval already yields a value.
+  return () => {
+    const { busy, total } = read(), before = previous; previous = { busy, total };
+    return before && total > before.total ? ((busy - before.busy) / (total - before.total)) * 100 : undefined;
+  };
+}
+/** Host CPU/RAM threshold source. Reports one aggregate-only event per excursion: utilisation must stay at or above the threshold for
+ * `sustainMs` of consecutive samples; any sample below resets the run, and a new event needs the level to fall below and sustain again.
+ * No process names, command lines or per-process figures are read. Whole-host numbers, not a measure of one process or job. */
+export function systemLaunch(source: { metric: 'cpu' | 'ram'; thresholdPercent: number; sustainMs: number }, intervalMs: number, clock: Clock = realClock, sampler: SystemSampler = hostSampler(source.metric)): Launch {
+  const now = () => clock.mono ? clock.mono() : clock.now();
+  return pollingLaunch(intervalMs, clock, {}, (sink, poll) => {
+    let since: number | undefined, peak = 0, reported = false;
+    const sample = () => {
+      const usage = sampler();
+      if (usage === undefined || !Number.isFinite(usage)) { poll.later(sample); return; }
+      if (usage >= source.thresholdPercent) {
+        const at = now();
+        since ??= at; peak = Math.max(peak, usage);
+        if (!reported && at - since >= source.sustainMs) {
+          reported = true;
+          sink.data(undefined, false, { metric: source.metric, thresholdPercent: source.thresholdPercent, usagePercent: Math.round(usage * 10) / 10, peakPercent: Math.round(peak * 10) / 10, sustainedMs: Math.round(at - since), sustainMs: source.sustainMs, intervalMs, scope: 'whole host', ...(source.metric === 'ram' ? { basis: 'os.freemem (OS-reported free memory)' } : {}) });
+        }
+      } else { since = undefined; peak = 0; reported = false; }
       poll.later(sample);
     };
     sink.started(); poll.later(sample);

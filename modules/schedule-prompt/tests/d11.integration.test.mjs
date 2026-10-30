@@ -3,7 +3,7 @@
 //   a. trusted project: a once command job runs in its directory, records success and persists a command_done marker;
 //   b. untrusted project: the same job file must not run anything;
 //   c. output-stall timeout: a silent command is stopped for real, the error says so, and the process is gone;
-//   d. the schedule_prompt tool creates a command job only after an explicit UI confirmation (declined: nothing saved).
+//   d. the schedule_shell tool creates a command job only after an explicit UI confirmation (declined: nothing saved).
 import assert from 'node:assert/strict';
 import { mkdir, readFile } from 'node:fs/promises';
 import { realpathSync, statSync } from 'node:fs';
@@ -94,13 +94,13 @@ test('D11c: a silent command is stopped at the output-stall deadline and its pro
   } finally { await sb.cleanup(); }
 });
 
-test('D11d: the schedule_prompt tool saves a command job only after explicit UI confirmation', { timeout: 150000 }, async () => {
+test('D11d: the schedule_shell tool saves a command job only after explicit UI confirmation', { timeout: 150000 }, async () => {
   for (const approve of [false, true]) {
     const sb = await makeSandbox(`sp-d11d-${approve ? 'yes' : 'no'}`);
     try {
       const add = { action: 'add', name: 'from-model', type: 'interval', schedule: '1h', command: 'echo from-model', timeoutMs: 5000 };
       const pi = startPi(sb, { label: `D11d-${approve}`, approve: true, extensions: [scheduleEntry], script: [
-        { content: [toolCall('schedule_prompt', add, 'add-cmd')] },
+        { content: [toolCall('schedule_shell', add, 'add-cmd')] },
         { content: [{ type: 'text', text: 'done' }] },
       ] });
       await pi.send({ id: 'state', type: 'get_state' });
@@ -112,10 +112,10 @@ test('D11d: the schedule_prompt tool saves a command job only after explicit UI 
       assert.match(request.message, /Runs unattended/);
       assert.deepEqual((await readStore(sb)).jobs, [], 'nothing may be stored before the answer');
       await pi.send({ type: 'extension_ui_response', id: request.id, confirmed: approve });
-      const result = await pi.waitFor(e => e.type === 'message_end' && e.message?.role === 'toolResult' && e.message.toolName === 'schedule_prompt', 60000, 'tool result');
+      const result = await pi.waitFor(e => e.type === 'message_end' && e.message?.role === 'toolResult' && e.message.toolName === 'schedule_shell', 60000, 'tool result');
       assert.ok(result, 'tool result expected');
       await pi.finish();
-      const [r] = toolResults(pi, 'schedule_prompt');
+      const [r] = toolResults(pi, 'schedule_shell');
       const stored = (await readStore(sb)).jobs;
       log(`approve=${approve} isError=${r.isError} text=${JSON.stringify(textOf(r))} stored=${stored.map(j => j.name)}`);
       if (approve) {

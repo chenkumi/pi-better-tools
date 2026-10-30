@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createCronTool } from "../src/tool.js";
+import { createShellTool } from "../src/tool.js";
 import { defaultCommandShell } from "../src/command.js";
 import type { CronJob } from "../src/types.js";
 
@@ -35,7 +35,7 @@ function makeCtx(overrides: Record<string, unknown> = {}) {
   } as any;
 }
 const run = (params: Record<string, unknown>, ctx = makeCtx()) =>
-  createCronTool(() => storage, () => scheduler).execute("id", params as any, undefined as any, undefined as any, ctx);
+  createShellTool(() => storage, () => scheduler).execute("id", params as any, undefined as any, undefined as any, ctx);
 const text = (result: any) => result.content[0].text as string;
 const commandJob = (overrides: Partial<CronJob> = {}): CronJob => ({
   id: "cmdjob0001", name: "cmd", schedule: "5m", intervalMs: 300000, command: "echo hi", enabled: true, type: "interval",
@@ -54,7 +54,7 @@ beforeEach(() => {
 });
 afterEach(() => rmSync(join(project, ".."), { recursive: true, force: true }));
 
-describe("schedule_prompt add with a command", () => {
+describe("schedule_shell add", () => {
   it("creates a command job after the user confirms the exact spec", async () => {
     const result: any = await run({ action: "add", name: "build", schedule: "5m", type: "interval", command: "npm run build", timeoutMs: 60_000 });
     expect(result.isError).toBeUndefined();
@@ -113,12 +113,10 @@ describe("schedule_prompt add with a command", () => {
   });
 
   it.each([
-    ["prompt and command together", { prompt: "p", command: "c" }, /exactly one/],
+    ["a prompt alongside the command", { prompt: "p", command: "c" }, /'prompt' is not accepted by schedule_shell.*schedule_prompt/],
     ["a model with a command", { command: "c", model: "haiku" }, /only apply to prompt jobs/],
     ["notify with a command", { command: "c", notify: true }, /'notify'/],
-    ["shell on a prompt job", { prompt: "p", shell: "bash" }, /only apply to command jobs/],
-    ["cwd on a prompt job", { prompt: "p", cwd: "sub" }, /only apply to command jobs/],
-    ["timeoutMs on a prompt job", { prompt: "p", timeoutMs: 100 }, /only apply to command jobs/],
+    ["a prompt instead of a command", { prompt: "p", shell: "bash" }, /schedule_prompt/],
   ])("rejects %s", async (_label, extra, pattern) => {
     const result: any = await run({ action: "add", name: "x", schedule: "5m", type: "interval", ...extra });
     expect(result.isError).toBe(true);
@@ -127,20 +125,13 @@ describe("schedule_prompt add with a command", () => {
     expect(confirm).not.toHaveBeenCalled();
   });
 
-  it("still requires schedule, and prompt-or-command", async () => {
+  it("still requires schedule and command", async () => {
     expect(text(await run({ action: "add", command: "echo" }))).toMatch(/'schedule'/);
-    expect(text(await run({ action: "add", schedule: "5m" }))).toMatch(/'prompt' or 'command'/);
-  });
-
-  it("does not ask for confirmation for an ordinary prompt job", async () => {
-    const result: any = await run({ action: "add", name: "p", schedule: "5m", type: "interval", prompt: "hello" }, makeCtx({ hasUI: false }));
-    expect(result.isError).toBeUndefined();
-    expect(confirm).not.toHaveBeenCalled();
-    expect(storage.addJob.mock.calls[0][0].command).toBeUndefined();
+    expect(text(await run({ action: "add", schedule: "5m" }))).toMatch(/'command'/);
   });
 });
 
-describe("schedule_prompt update/enable/list for command jobs", () => {
+describe("schedule_shell update/enable/list", () => {
   it("reconfirms and re-approves when the command, shell or directory changes", async () => {
     storage = makeStorage([commandJob()]);
     const result: any = await run({ action: "update", jobId: "cmdjob0001", command: "echo changed", cwd: "sub" });
@@ -166,11 +157,21 @@ describe("schedule_prompt update/enable/list for command jobs", () => {
     expect(confirm).not.toHaveBeenCalled();
   });
 
+  it("only manages shell jobs and points at schedule_prompt for prompt jobs", async () => {
+    storage = makeStorage([commandJob(), { ...commandJob({ id: "promptjob1", name: "pr", enabled: false }), command: undefined, prompt: "p" }]);
+    for (const action of ["remove", "enable", "disable", "update"]) {
+      const result: any = await run({ action, jobId: "promptjob1", description: "x" });
+      expect(result.isError).toBe(true);
+      expect(text(result)).toMatch(/prompt job; manage it with schedule_prompt/);
+    }
+    expect(text(await run({ action: "list" }))).not.toContain("promptjob1");
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
   it("refuses to change a job's kind", async () => {
     storage = makeStorage([commandJob(), { ...commandJob({ id: "promptjob1", name: "pr" }), command: undefined, prompt: "p" }]);
     expect(text(await run({ action: "update", jobId: "cmdjob0001", prompt: "now a prompt" }))).toMatch(/cannot be set on a command job/);
     expect(text(await run({ action: "update", jobId: "cmdjob0001", model: "haiku" }))).toMatch(/cannot be set on a command job/);
-    expect(text(await run({ action: "update", jobId: "promptjob1", command: "echo" }))).toMatch(/cannot be set on a prompt job/);
     expect(storage.updateJob).not.toHaveBeenCalled();
   });
 

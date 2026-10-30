@@ -1,7 +1,7 @@
 import { ulid } from 'ulid';
 import type { Start } from './schema.js';
 import { preview } from './lines.js';
-import { FILE_INTERVAL, plainText } from './schema.js';
+import { FILE_INTERVAL, SYSTEM_INTERVAL, plainText } from './schema.js';
 export const LIMITS = Object.freeze({ active: 4, retained: 32, rollingEvents: 60, rollingMs: 60000, totalEvents: 600, eventBytes: 16384, pendingEvents: 128, pendingBytes: 262144, ownerPendingBytes: 524288, stderrBytes: 8192, previewBytes: 2048, batchEvents: 32, batchBytes: 32768, progressMs: 30000 });
 /** `now` is wall-clock (display/records, may step); optional `mono` is monotonic (throttle/elapsed), falling back to `now`. */
 export interface Clock { now(): number; mono?(): number; set(fn: () => void, ms: number): unknown; clear(handle: unknown): void }
@@ -21,7 +21,7 @@ export interface MonitorEvent { eventId: string; monitorId: string; sequence: nu
 export type State = 'starting' | 'running' | 'stopping' | 'completed' | 'failed' | 'stopped' | 'expired' | 'limited';
 /** Display projection for the TUI jobs panel: no event text, stderr or URL path/query; a command is shown to its own user only. */
 export interface MonitorPanelRow {
-  id: string; source: 'command' | 'websocket' | 'file'; label?: string; target: string; state: State; active: boolean; wakeAgent: boolean;
+  id: string; source: 'command' | 'websocket' | 'file' | 'system'; label?: string; target: string; state: State; active: boolean; wakeAgent: boolean;
   createdAt: number; startedAt?: number; endedAt?: number; deadline: number; stopReason?: string; intervalMs?: number; lastEventAt?: number;
   counts: { adopted: number; submitted: number; omitted: number; rejected: number }; buffered: number;
   notification: { state: string; attempts: number; lastSubmittedAt?: number }; cleanup: { pending: boolean; sourceClosed: boolean; exitCode?: number; signal?: string };
@@ -245,13 +245,13 @@ export class MonitorRuntime {
     if (!this.valid()) return [];
     return [...this.monitors.values()].filter(m => m.generation === this.generation).flatMap((m): MonitorPanelRow[] => {
       const source = m.input.source;
-      if (source.kind !== 'command' && source.kind !== 'websocket' && source.kind !== 'file') return [];
+      if (source.kind !== 'command' && source.kind !== 'websocket' && source.kind !== 'file' && source.kind !== 'system') return [];
       const evidence = m.cleanupEvidence;
       return [{
         id: m.id, source: source.kind, ...(m.input.label ? { label: plainText(m.input.label) } : {}),
-        target: source.kind === 'command' ? plainText(source.command) : source.kind === 'websocket' ? originOnly(source.url) : plainText(source.path),
+        target: source.kind === 'command' ? plainText(source.command) : source.kind === 'websocket' ? originOnly(source.url) : source.kind === 'system' ? systemTarget(source) : plainText(source.path),
         state: m.state, active: !terminal(m.state) || m.cleanupPending, wakeAgent: m.input.wakeAgent, createdAt: m.createdAt, ...(m.startedAt !== undefined ? { startedAt: m.startedAt } : {}), ...(m.endedAt !== undefined ? { endedAt: m.endedAt } : {}),
-        deadline: m.deadline, ...(m.stopReason ? { stopReason: m.stopReason } : {}), ...(source.kind === 'file' ? { intervalMs: source.intervalMs ?? FILE_INTERVAL.default } : {}), ...(m.lastEventAt !== undefined ? { lastEventAt: m.lastEventAt } : {}),
+        deadline: m.deadline, ...(m.stopReason ? { stopReason: m.stopReason } : {}), ...(source.kind === 'file' ? { intervalMs: source.intervalMs ?? FILE_INTERVAL.default } : source.kind === 'system' ? { intervalMs: source.intervalMs ?? SYSTEM_INTERVAL.default } : {}), ...(m.lastEventAt !== undefined ? { lastEventAt: m.lastEventAt } : {}),
         counts: { ...m.counts }, buffered: m.events.filter(e => e.category === 'data').length,
         notification: { state: m.notification.state, attempts: m.notification.attempts, ...(m.notification.lastSubmittedAt !== undefined ? { lastSubmittedAt: m.notification.lastSubmittedAt } : {}) },
         cleanup: { pending: m.cleanupPending, sourceClosed: m.sourceClosed, ...(typeof evidence.exitCode === 'number' ? { exitCode: evidence.exitCode } : {}), ...(typeof evidence.signal === 'string' ? { signal: plainText(evidence.signal).slice(0, 32) } : {}) },
@@ -260,7 +260,7 @@ export class MonitorRuntime {
   }
   stop(id: string, owner?: Owner) { const m = this.find(id, owner); this.requestStop(m, 'stop_requested', 'stopped'); return this.receipt(m); }
   private receipt(m: Monitor) {
-    return { monitorId: m.id, owner: { sessionId: this.owner?.sessionId, generation: m.generation, cwdScope: 'canonical current workspace' }, source: m.input.source.kind, wakeAgent: m.input.wakeAgent, label: m.input.label, sourcePreview: m.input.source.kind === 'websocket' ? safeUrl(m.input.source.url) : m.input.source.kind === 'command' ? '[command withheld; may contain credentials]' : m.input.source.kind === 'file' ? plainText(m.input.source.path) : m.input.source.jobId,
+    return { monitorId: m.id, owner: { sessionId: this.owner?.sessionId, generation: m.generation, cwdScope: 'canonical current workspace' }, source: m.input.source.kind, wakeAgent: m.input.wakeAgent, label: m.input.label, sourcePreview: m.input.source.kind === 'websocket' ? safeUrl(m.input.source.url) : m.input.source.kind === 'command' ? '[command withheld; may contain credentials]' : m.input.source.kind === 'file' ? plainText(m.input.source.path) : m.input.source.kind === 'system' ? systemTarget(m.input.source) : m.input.source.jobId,
       state: m.state, stopReason: m.stopReason, createdAt: m.createdAt, startedAt: m.startedAt, deadline: m.deadline, elapsedMs: (m.endedMono ?? this.mono()) - m.createdMono, counts: { ...m.counts }, buffered: m.events.filter(e => e.category === 'data').length, bufferedBytes: m.bytes, lastEventAt: m.lastEventAt, lastSystemEvent: m.lastSystemEvent ? { ...m.lastSystemEvent } : undefined, cleanupPending: m.cleanupPending, cleanupEvidence: { ...m.cleanupEvidence }, notification: { ...m.notification }, limits: LIMITS,
       diagnostics: { stderrInputBytes: m.stderrInputBytes, stderrTail: preview(m.stderr.toString('utf8'), LIMITS.stderrBytes), stderrTruncated: m.stderrInputBytes > LIMITS.stderrBytes } };
   }
@@ -279,9 +279,12 @@ function briefTarget(source: Start['source']) {
     case 'file': return plainText(source.path).slice(0, 512);
     case 'websocket': return safeUrl(source.url);
     case 'command': return '[command withheld]';
+    case 'system': return systemTarget(source);
     default: return source.jobId;
   }
 }
+/** Metric and threshold only, e.g. "cpu >= 85% for 10000 ms". */
+function systemTarget(source: { metric: string; thresholdPercent: number; sustainMs: number }) { return `${source.metric} >= ${source.thresholdPercent}% for ${source.sustainMs} ms`; }
 /** Scheme and host only: path, query, fragment and userinfo never reach the display. */
 function originOnly(value: string) { try { const u = new URL(value); return `${u.protocol}//${u.host}`; } catch { return '[invalid endpoint]'; } }
 function safeUrl(value: string) { try { const u = new URL(value); return `${u.protocol}//${u.host}/[path withheld]`; } catch { return '[invalid endpoint]'; } }

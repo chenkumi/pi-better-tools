@@ -5,7 +5,6 @@ import { join, resolve } from 'node:path';
 import * as sdk from '@earendil-works/pi-coding-agent';
 import { Agent } from '@earendil-works/pi-agent-core';
 import { createAssistantMessageEventStream } from '@earendil-works/pi-ai';
-import { classifyError } from '../../../pi-runtime/src/policy.ts';
 
 const root = resolve(process.argv[2]);
 const variant = process.argv[3] ?? 'virtual-selected';
@@ -96,7 +95,7 @@ try {
   const compactEnds = events.filter(e => e.type === 'compaction_end');
   console.log(JSON.stringify({ variant, selectedModel: selected.id, guardedPhysical, outerCalls, previousCalls, routes, guardCalls, providerInvocations, trace,
     compactEnds: compactEnds.map(e => ({ reason: e.reason, aborted: e.aborted, willRetry: e.willRetry, errorMessage: e.errorMessage })),
-    runtimeClassification: classifyError(final), nativeCompactions: sm.getBranch().filter(e => e.type === 'compaction').length,
+    nativeCompactions: sm.getBranch().filter(e => e.type === 'compaction').length,
     retryEvents: events.filter(e => e.type.startsWith('auto_retry')).length, errors }));
   assert.equal(outerCalls, 1);
   assert.equal(routes, 1, 'No external routing replacement');
@@ -110,7 +109,7 @@ try {
   assert.equal(compactEnds[0].willRetry, false);
   assert.equal(sm.getBranch().filter(e => e.type === 'compaction').length, 0);
   assert.equal(events.filter(e => e.type.startsWith('auto_retry')).length, 0);
-  assert.equal(classifyError(final), 'policy');
+  assert.equal(final.stopReason, 'error');
   assert.deepEqual(errors, []);
   assert.deepEqual(JSON.parse(await readFile(join(agentDir, 'auth.json'), 'utf8')), {});
   console.log(JSON.stringify({ nativeChainReplayReproduced: true, providerInvocations: 0, privatePatches: 0 }));

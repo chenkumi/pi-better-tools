@@ -158,6 +158,12 @@ DeepSeek 憑證解析順序：設定裡的 `providers.deepseek.apiKey`／`apiKey
 
 無 UI 模式下輸出至 stderr，不污染 JSON stdout。
 
+- `/settings:web-tools`：設定面板（僅互動 TUI）。可選 provider，並只顯示該 provider 需要的欄位（openai／native 的 `captureSources`，brave／exa／deepseek 的金鑰來源 `env`／`key`，deepseek 另有 `pi`＝使用 Pi 登入憑證），也可編輯 Search 與 Fetch 的數值設定。`Ctrl+S` 存檔、`Esc` 關閉（有未存變更時需再按一次）。
+  - 只在存檔時寫入 `CONFIG_PATH`：重讀現有檔案，只套用變更欄位並保留其餘內容，合併結果經 `parseConfig` 驗證後以暫存檔＋rename 原子寫入（非 Windows 權限 `0600`）；驗證失敗不落盤。現有檔案無法解析或不合法時，須先確認「以預設值開始」，存檔會取代該檔。
+  - 金鑰：可選「直接輸入 API key」，以遮罩輸入、**明文寫入 JSON**（`apiKey` 與 `apiKeyEnv` 互斥，切換來源會移除另一個）；面板不載入既有金鑰，只顯示已設定，留空表示保留。建議仍優先使用 `env`。未被選用的 provider 的欄位不會寫入。
+  - 存檔後詢問是否立即 `/reload`；設定仍只在載入時讀取，不熱套用。不註冊無後綴 `/settings`。
+  - 面板分 Search／Fetch 兩頁（`Tab`／`Shift+Tab` 切換）。Fetch 頁的「Chromium download」顯示 Playwright Chromium 是否已安裝（只檢查檔案是否存在，不啟動瀏覽器），按 Enter 後需再按一次 Enter 確認才下載；等同 `pi-better-tools browser install`（只裝瀏覽器，不裝 OS 相依套件；Linux／WSL 的 `install-deps` 仍須自行經同意後在 CLI 執行）。下載在背景進行並顯示進度，`Esc` 取消（終止安裝行程，不保證整棵 process tree 已停止），關閉面板同樣取消；上限 10 分鐘。下載與 Ctrl+S 存檔彼此獨立，按存檔不會觸發下載。
+
 ## TUI 顯示
 
 `web_fetch` 與 REST `web_search` 有專用 call/result renderer：收合顯示網頁／搜尋來源摘要、HTTP／provider 資訊、警告、截斷及全文暫存路徑，展開顯示原有結果文字。來源標為不可信外部資料；URL 標籤移除 userinfo，顯示文字清理控制字元（不代表全面敏感資料遮蔽）。Renderer 不啟動 browser、不發送 provider 請求，亦不改 content／details／structuredContent。OpenAI 原生 `web_search` 不屬於 Pi function tool，由宿主／模型回應呈現。

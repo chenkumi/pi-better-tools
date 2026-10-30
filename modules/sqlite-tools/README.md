@@ -24,6 +24,7 @@
 - Fixed mode：啟動時開啟指定資料庫，完全不註冊 open／close，不能切換資料庫。
 - 專案設定格式：`{ "databasePath": "./data/app.sqlite" }`；相對路徑以 session `ctx.cwd` 為準，而非設定檔目錄。
 - 未信任專案不讀取設定檔；環境變數仍有效。無效設定或開啟失敗不退回 manual mode。修改設定後 `/reload`。
+- `/settings:sqlite-tools`（僅互動 TUI、僅受信任專案）：面板可在 manual／fixed 間切換並編輯 `databasePath`。只在存檔時寫 `<cwd>/.pi/agent/sqlite.json`（保留其他鍵、驗證後原子寫入）；切回 manual 且檔內無其他鍵時刪除該檔（沒有 `databasePath` 的檔案會被本模組視為錯誤設定）。`SQLITE_PATH` 非空時面板顯示它會覆蓋此檔。未信任專案拒絕開啟，不讀不寫。存檔後詢問是否 `/reload`。
 - Agent 可見文字（工具結果、錯誤、`sqlite_manual`、`sqlite_status` 的 hint）只提及工具、工具參數與 slash command，以「the user's database settings」之類中性詞彙描述設定問題，不含設定檔路徑、欄位或環境變數名稱；精確名稱只出現在給人看的 UI 通知。
 
 ## SQL 與安全

@@ -65,7 +65,7 @@ function resolvePassword(engine: Engine, value: unknown, env: NodeJS.ProcessEnv,
   return resolved;
 }
 
-function parseDatabaseConfig(engine: Engine, value: unknown, env: NodeJS.ProcessEnv): DatabaseConfig {
+export function parseDatabaseConfig(engine: Engine, value: unknown, env: NodeJS.ProcessEnv): DatabaseConfig {
   const label = ENGINE_LABEL[engine];
   if (!isRecord(value)) {
     throw invalidSettings(`The connection settings for ${label} must be a JSON object.`, `The \"${engine}\" configuration must be an object.`);

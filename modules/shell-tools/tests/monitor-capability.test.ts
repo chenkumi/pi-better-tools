@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ShellJobs } from '../src/background-jobs.js';
-import { canonicalMonitorCwd, publishCapability, acquireCapability, publishAutoMonitor, requestAutoMonitor } from '../src/monitor-capability.js';
+import { canonicalMonitorCwd, publishCapability, acquireCapability, publishAutoMonitor, requestAutoMonitor, publishJobBriefs, activeJobBriefs } from '../src/monitor-capability.js';
 import { createShellMonitorPublisher } from '../src/monitor-publisher.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -113,4 +113,20 @@ test('active Shell briefs carry only the job id and status, never the command', 
     assert.deepEqual(result, { briefs: [{ kind: 'shell_job', jobId: receipt.jobId, status: 'running' }], partial: false });
     assert.equal(JSON.stringify(result).includes('SECRET_COMMAND_TEXT'), false);
   } finally { publisher.stop(); release?.(); await jobs.shutdown(); rmSync(root, { recursive: true, force: true }); }
+});
+test('PTY briefs are brief-only: scoped, revocable, bounded, and never a Monitor readonly source', () => {
+  const scope = { sessionId: 'pty-owner', cwd: canonicalMonitorCwd(process.cwd()) };
+  assert.deepEqual(activeJobBriefs(scope), { briefs: [], partial: false });
+  let valid = true;
+  const revoke = publishJobBriefs('pty_session', scope, () => [{ jobId: 'pty-1-1', status: 'running' }], () => valid);
+  assert.deepEqual(activeJobBriefs(scope), { briefs: [{ kind: 'pty_session', jobId: 'pty-1-1', status: 'running' }], partial: false });
+  assert.deepEqual(activeJobBriefs({ ...scope, sessionId: 'other' }).briefs, []);
+  assert.throws(() => acquireCapability('shell_job', scope), 'no readonly snapshot exists for PTY');
+  valid = false; assert.deepEqual(activeJobBriefs(scope), { briefs: [], partial: false }); valid = true;
+  const second = publishJobBriefs('pty_session', scope, () => Array.from({ length: 20 }, (_, i) => ({ jobId: `p${i}`, status: 'running' })), () => true);
+  const capped = activeJobBriefs(scope); assert.equal(capped.briefs.length, 16); assert.equal(capped.partial, true);
+  revoke(); assert.equal(activeJobBriefs(scope).briefs.length, 16, 'a stale revoke cannot remove the replacement');
+  second(); assert.deepEqual(activeJobBriefs(scope), { briefs: [], partial: false });
+  const failing = publishJobBriefs('pty_session', scope, () => { throw new Error('boom'); }, () => true);
+  assert.deepEqual(activeJobBriefs(scope), { briefs: [], partial: true }); failing();
 });

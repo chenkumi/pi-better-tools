@@ -6,6 +6,7 @@ import { setupCommand } from "../../../setup/commands.mjs";
 import { filterEnv, type EnvPolicy } from "./env.ts";
 import { matchPattern, MATCH_BUDGET_MS } from "./matcher.ts";
 import { stripEscapes, truncatePtyOutput, type OutputFormat } from "./output.ts";
+import { SecretMasker, type MaskedView } from "./secret-mask.ts";
 import type { Transport } from "./targets.ts";
 
 /** node-pty is a native addon; load it on first spawn so Pi startup does not pay for it. */
@@ -106,8 +107,12 @@ export interface ReadSnapshot {
 	text: string;
 	/** Cursor of text[0]. */
 	start: number;
-	/** Cursor just after the last buffered character. */
+	/** Cursor just after the last character this snapshot accounts for (a possible partial secret at the tail is held back). */
 	end: number;
+	/** Complete pty_keyin secrets replaced by a mask in `text`. */
+	masked: number;
+	/** Maps an offset into `text` (masks change its length) back to raw output characters; identity without masking. */
+	toRaw(index: number): number;
 	/** Output lost to the ring buffer that this read could not return. */
 	dropped?: DroppedRange;
 	/** Present when waitFor was requested. */
@@ -160,6 +165,10 @@ export interface PtySessionSummary {
 	droppedChars: number;
 	/** Monotonic cursor just after the latest output. */
 	cursor: number;
+	/** Epoch ms at which the local transport was started. */
+	startedAt: number;
+	/** Local transport exit code once exited. */
+	exitCode?: number;
 	/** True when this session survived a failed shutdown and was re-adopted; local transport exit is still unconfirmed. */
 	recovered?: true;
 }
@@ -183,10 +192,15 @@ interface PtySession {
 	/** Unread output lost to the ring buffer, not yet reported. */
 	drop?: DroppedRange;
 	lastDataAt: number;
+	startedAt: number;
+	/** Reports a lifecycle change to the manager that currently owns the session; recover() repoints it after a reload. */
+	reportChange: () => void;
 	exitedAt?: number;
 	exitInfo?: ExitInfo;
 	dataWaiters: Set<() => void>;
 	exitWaiters: Set<() => void>;
+	/** Secrets typed through pty_keyin; masked in everything handed out until the session is released. */
+	masker: SecretMasker;
 }
 
 export interface SpawnOptions {
@@ -227,6 +241,8 @@ export class PtySessionManager {
 	private readonly timers: NonNullable<ManagerOptions["timers"]>;
 	private readonly spawnPty: typeof spawn;
 	private readonly orphans?: OrphanRegistry;
+	/** Display-only observer of session lifecycle changes (spawn, exit, release, recovery, shutdown). It must never affect sessions. */
+	onChange?: () => void;
 
 	constructor(options: ManagerOptions = {}) {
 		this.orphans = options.orphans;
@@ -244,9 +260,15 @@ export class PtySessionManager {
 	private dispose(id: string): void {
 		const session = this.sessions.get(id);
 		this.sessions.delete(id);
+		session?.masker.clear();
 		if (process.platform === "win32") {
 			try { session?.pty.kill(); } catch { /* already gone */ }
 		}
+		this.changed();
+	}
+
+	private changed(): void {
+		try { this.onChange?.(); } catch { /* observers are display-only */ }
 	}
 
 	/** Reclamation never sacrifices unread output merely to admit a new session. */
@@ -305,8 +327,11 @@ export class PtySessionManager {
 			bufStart: 0,
 			readPos: 0,
 			lastDataAt: this.now(),
+			startedAt: this.now(),
+			reportChange: () => this.changed(),
 			dataWaiters: new Set(),
 			exitWaiters: new Set(),
+			masker: new SecretMasker(),
 		};
 
 		pty.onData((data) => this.append(session, data));
@@ -316,9 +341,11 @@ export class PtySessionManager {
 			session.exitInfo = { exitCode, signal };
 			this.notify(session.exitWaiters);
 			this.notify(session.dataWaiters);
+			session.reportChange();
 		});
 
 		this.sessions.set(id, session);
+		this.changed();
 		return { sessionId: id, pid: pty.pid, target: session.target, transport: session.transport };
 	}
 
@@ -328,6 +355,18 @@ export class PtySessionManager {
 		if (session.state === "exited") {
 			throw new Error(`PTY session ${sessionId} has exited${session.exitInfo ? ` (exitCode ${session.exitInfo.exitCode})` : ""}; input was not sent. Use pty_read to drain remaining output, pty_kill to release it, or pty_spawn a new session.`);
 		}
+	}
+
+	/** Registers a secret before it is written, so its echo can never beat the registration. Held until the session is released. */
+	addSecret(sessionId: string, secret: string): void {
+		this.requireSession(sessionId).masker.add(secret);
+	}
+
+	/** Last non-empty output line (escapes stripped, secrets masked), for deciding whether the program is waiting for a secret. Does not consume. */
+	lastLine(sessionId: string): string {
+		const session = this.requireSession(sessionId);
+		const tail = session.masker.view(session.buffer.slice(-2048)).text; // not final: a possible start of a secret stays out of the returned line
+		return stripEscapes(tail).split(/\r\n|\r|\n/).map(line => line.replace(/[\u0000-\u001f\u007f]/g, "").trimEnd()).filter(Boolean).pop() ?? "";
 	}
 
 	write(sessionId: string, data: string): void {
@@ -394,20 +433,29 @@ export class PtySessionManager {
 				await this.waitFor(session, remaining, options.signal, session.dataWaiters, session.exitWaiters);
 			}
 		}
-		const begin = Math.max(from, session.bufStart);
+		// Secrets are matched over the whole retained buffer and only then cut at the cursor, so a cursor inside a secret cannot show its tail.
+		const view = this.maskedView(session, from);
 		return {
-			text: session.buffer.slice(begin - session.bufStart),
-			start: begin,
-			end: end(),
+			text: view.text,
+			start: session.bufStart + view.rawStart,
+			end: session.bufStart + view.rawLength,
+			masked: view.count,
+			toRaw: view.toRaw,
 			dropped: options.since !== undefined ? (options.since < session.bufStart ? { from: options.since, to: session.bufStart } : undefined) : session.drop,
 			wait,
 			exited: session.state === "exited",
 		};
 	}
 
+	/** What a reader sees from absolute cursor `from` on: masked over the whole retained buffer, then cut (never cut first). */
+	private maskedView(session: PtySession, from: number): MaskedView {
+		return session.masker.view(session.buffer, session.state === "exited", Math.max(from, session.bufStart) - session.bufStart);
+	}
+
 	/** True when unread output exists that a read in `format` would hand out (not merely an incomplete escape sequence held back). */
 	private deliverable(session: PtySession, from: number, format: OutputFormat | undefined): boolean {
-		const pending = session.buffer.slice(Math.max(from, session.bufStart) - session.bufStart);
+		// What a reader would get: output that is only a possible start of a secret is held back and is not deliverable yet.
+		const pending = this.maskedView(session, from).text;
 		if (!pending) return false;
 		if (format !== "text") return true;
 		const held = truncatePtyOutput(pending, { format, final: false });
@@ -439,10 +487,10 @@ export class PtySessionManager {
 				if (deadline <= this.now()) return false;
 			}
 			const attemptStarted = this.now();
-			const begin = Math.max(from, session.bufStart);
 			// The retained ring already bounds input size; worker capacity/time limits
 			// bound regex cost. Dropping a search-only prefix silently changes matches.
-			const window = session.buffer.slice(begin - session.bufStart);
+			// Match against what a reader would see: a pattern must not become an oracle for a masked secret.
+			const window = this.maskedView(session, from).text;
 			const generation = endCursor(session);
 			const remainingBudget = deadline - this.now();
 			const pending = this.matcher(pattern, stripEscapes(window), signal, remainingBudget > 0 ? remainingBudget : MATCH_BUDGET_MS);
@@ -526,7 +574,13 @@ export class PtySessionManager {
 
 	list(): PtySessionSummary[] {
 		this.reclaim();
-		return [...this.sessions.values()].map((session) => ({
+		return this.snapshot();
+	}
+
+	/** Readonly view for display: unlike list() it never reclaims sessions. Optionally limited to one workspace's sessions. */
+	snapshot(ownerCwd?: string): PtySessionSummary[] {
+		const owner = ownerCwd === undefined ? undefined : canonicalOwner(ownerCwd);
+		return [...this.sessions.values()].filter((session) => owner === undefined || session.owner === owner).map((session) => ({
 			sessionId: session.id,
 			pid: session.pid,
 			target: session.target,
@@ -535,6 +589,8 @@ export class PtySessionManager {
 			bufferedBytes: Buffer.byteLength(session.buffer.slice(session.readPos - session.bufStart)),
 			droppedChars: session.drop ? session.drop.to - session.drop.from : 0,
 			cursor: endCursor(session),
+			startedAt: session.startedAt,
+			...(session.exitInfo ? { exitCode: session.exitInfo.exitCode } : {}),
 			...(session.recovered ? { recovered: true as const } : {}),
 		}));
 	}
@@ -552,9 +608,11 @@ export class PtySessionManager {
 			const session = entry.session as PtySession;
 			this.orphans.delete(id);
 			session.recovered = true;
+			session.reportChange = () => this.changed();
 			this.sessions.set(id, session);
 			adopted.push(id);
 		}
+		if (adopted.length) this.changed();
 		return adopted;
 	}
 
@@ -575,6 +633,7 @@ export class PtySessionManager {
 			// the surviving sessions are parked (not dropped) so the next instance for the same owner can retry kill.
 			const retained = [...this.sessions.keys()];
 			if (this.orphans) for (const [id, session] of [...this.sessions]) { this.orphans.set(id, { owner: session.owner, session }); this.sessions.delete(id); }
+			this.changed();
 			return { retained, errors };
 		})();
 		this.stopping = work;

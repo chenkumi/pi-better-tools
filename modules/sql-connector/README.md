@@ -38,15 +38,17 @@
 - MSSQL named instance 使用 `instanceName`，該情況不要指定 port。Windows Authentication 預設 `odbcDriver: "ODBC Driver 18 for SQL Server"`。
 - `ssl`／`trustServerCertificate` 保留來源行為；`trustServerCertificate: true` 只應用於明確信任的本機／自簽開發伺服器，不為了連線成功自動降低 TLS 驗證。
 
+`/settings:sql-connector`（僅互動 TUI、僅受信任專案）提供設定面板：每種引擎一個「Connect to …」開關，開啟後顯示 host／port／database／username／TLS，MSSQL 另有 Windows 認證、instance、ODBC driver、trust server certificate。密碼來源可選 `env`（寫成 `${VAR}`，建議）或 `key`（遮罩輸入、明文寫入 JSON，既有密碼不載入面板、留空表示保留）。只在存檔時寫 `<cwd>/.pi/agent/sql-connector.json`：只重建被改動的引擎區塊，其他引擎原樣保留；關閉引擎只移除其區塊，最後一個也關閉時刪除檔案；合併結果以本模組自己的驗證規則檢查（驗證不要求 `${VAR}` 已設定），失敗不落盤。面板不降級 TLS／認證，`trustServerCertificate` 預設關閉、需使用者主動開啟。存檔後詢問是否 `/reload`。
+
 修改設定後使用 `/reload` 或 `/sql-connector-reload`。連線池在首次實際操作時建立；shutdown／reload 關閉池，不跨行程恢復連線；每個池最多等待 5 秒，之後不再等待（驅動若卡在執行中的語句後面，連線留待行程結束），避免 MySQL 卡住的 UPDATE 讓 shutdown 永久等待。逾時（或關閉失敗）的池不視為已清理：shutdown 以互動 UI 警告未確認關閉的池數量，連線可能仍開著。
 
 ## 安裝與原生 driver
 
-根 runtime dependencies 固定為 `mysql2@3.24.6`、`mssql@12.7.9`、`pg@8.23.1`，由根 lockfile 管理（2026-10-16 更新；來源快照身份不變）；宿主 Pi peers 不放入 runtime dependencies。從根目錄執行 `npm install --ignore-scripts` 或 `npm ci --ignore-scripts`。
+根 runtime dependencies 固定為 `mysql2@3.24.6`、`mssql@12.7.13`、`pg@8.23.1`，由根 lockfile 管理（2026-10-16 更新；來源快照身份不變）；宿主 Pi peers 不放入 runtime dependencies。從根目錄執行 `npm install --ignore-scripts` 或 `npm ci --ignore-scripts`。
 
-MSSQL Windows Authentication 另需 optional dependency `msnodesqlv8@5.6.0` 的原生 bindings，以及系統 ODBC driver。一般 MySQL／PostgreSQL／MSSQL SQL Authentication 不需要它。整合版只在建立 Windows Authentication adapter 時才 require `mssql/msnodesqlv8`，不因未編譯／未安裝 ODBC binding 阻止整個套件載入。adapter 建立失敗不會被快取：同一 session 補裝 binding 後，下一次操作會重新嘗試建立（2026-10-23 前會一直回傳同一個失敗直到 reload）；不會因此改用其他認證方式。
+MSSQL Windows Authentication 另需 optional dependency `msnodesqlv8@6.2.1` 的原生 bindings，以及系統 ODBC driver。一般 MySQL／PostgreSQL／MSSQL SQL Authentication 不需要它。整合版只在建立 Windows Authentication adapter 時才 require `mssql/msnodesqlv8`，不因未編譯／未安裝 ODBC binding 阻止整個套件載入。adapter 建立失敗不會被快取：同一 session 補裝 binding 後，下一次操作會重新嘗試建立（2026-10-23 前會一直回傳同一個失敗直到 reload）；不會因此改用其他認證方式。
 
-需要 Windows Authentication 時，在根目錄明確執行 `npm rebuild msnodesqlv8 --foreground-scripts`，並自行安裝對應 ODBC driver；無可用 prebuild 時需要該套件要求的 native build 工具。根 allowScripts 僅允許固定的 `msnodesqlv8@5.6.0` 與原有 node-pty，不自動允許其他 dependency scripts。未安裝原生 driver 時不退回另一種認證。此任務不自動安裝系統 ODBC 或連線真實資料庫。
+需要 Windows Authentication 時，在根目錄明確執行 `npm rebuild msnodesqlv8 --foreground-scripts`，並自行安裝對應 ODBC driver；無可用 prebuild 時需要該套件要求的 native build 工具。根 allowScripts 僅允許固定的 `msnodesqlv8@6.2.1` 與原有 node-pty，不自動允許其他 dependency scripts。未安裝原生 driver 時不退回另一種認證。此任務不自動安裝系統 ODBC 或連線真實資料庫。
 
 ## 安全與限制
 

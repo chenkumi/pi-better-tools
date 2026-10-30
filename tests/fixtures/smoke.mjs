@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'u
 const expectedExtensions = manifest.pi.extensions.length;
 assert.ok(manifest.pi.extensions.includes('./modules/note-tools/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/pi-runtime/src/index.ts'));
-assert.equal(expectedExtensions, 20, 'eighteen local entries plus two pinned dependency entries');
+assert.equal(expectedExtensions, 21, 'nineteen local entries plus two pinned dependency entries');
 assert.ok(manifest.pi.extensions.includes('./modules/file-audit/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/sql-connector/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/sqlite-tools/src/index.ts'));
@@ -18,12 +18,12 @@ assert.ok(manifest.pi.extensions.includes('./modules/monitor/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/schedule-prompt/src/index.ts'));
 assert.ok(!manifest.pi.extensions.some(entry => entry.includes('/goal/')));
 const dependencyEntries = {
-  'pi-open-tui': { version: '0.3.11', entry: './extensions/open-tui/index.ts' },
+  'pi-open-tui': { version: '0.3.13', entry: './extensions/open-tui/index.ts' },
   '@ff-labs/pi-fff': { version: '0.11.0', entry: './src/index.ts', manifestEntry: './modules/file-tools/src/fff-override.mjs' },
 };
 const localEntries = manifest.pi.extensions.filter(entry => entry.startsWith('./modules/') && entry !== dependencyEntries['@ff-labs/pi-fff'].manifestEntry);
 for (const entry of localEntries) assert.match(entry, /^\.\/modules\/[^/]+\/src\/index\.ts$/);
-assert.equal(localEntries.length, 18);
+assert.equal(localEntries.length, 19);
 assert.ok(manifest.pi.extensions.includes('./modules/blackhole/src/index.ts'));
 assert.equal(manifest.dependencies['pi-blackhole'], undefined);
 for (const [name, expected] of Object.entries(dependencyEntries)) {
@@ -58,7 +58,7 @@ try {
   const sqliteNames = ['sqlite_open', 'sqlite_close', 'sqlite_status', 'sqlite_query', 'sqlite_execute', 'sqlite_list_tables', 'sqlite_describe_table', 'sqlite_manual'];
   const monitorNames = ['monitor_start', 'monitor_status', 'monitor_stop'];
   const backgroundNames = ['subagent_status', 'subagent_cancel', 'subagent_message', 'shell_job_status', 'shell_job_cancel'];
-  const selection = readOnly ? ['read'] : [...monitorNames, ...backgroundNames, 'read', 'write', 'edit', 'grep', 'find', 'ls', 'bash', ...(process.platform === 'win32' ? ['powershell'] : []), 'subagent', 'note', 'schedule_prompt', ...ptyNames, ...sqliteNames, 'web_fetch', ...(['brave', 'exa'].includes(mode) ? ['web_search'] : [])];
+  const selection = readOnly ? ['read'] : [...monitorNames, ...backgroundNames, 'read', 'write', 'edit', 'grep', 'find', 'ls', 'bash', ...(process.platform === 'win32' ? ['powershell'] : []), 'subagent', 'note', 'schedule_prompt', 'schedule_shell', ...ptyNames, ...sqliteNames, 'web_fetch', ...(['brave', 'exa'].includes(mode) ? ['web_search'] : [])];
   const settings = sdk.SettingsManager.inMemory({ defaultTools: selection, retry: { enabled: false }, compaction: { enabled: false }, cacheWarming: 'off', enableInstallTelemetry: false });
   loader = new sdk.DefaultResourceLoader({ cwd, agentDir, settingsManager: settings,
     additionalExtensionPaths: [packageRoot], noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true });
@@ -90,11 +90,13 @@ try {
   assert.deepEqual(note.parameters.properties.type.enum, ['plan', 'design', 'issue', 'research', 'report', 'task']);
   assert.equal(names.includes('web_search'), ['brave', 'exa'].includes(mode));
   assert.deepEqual(loader.getPrompts().prompts.map(p => p.name).sort(), ['implement', 'implement-and-review', 'scout-and-plan']);
-  assert.deepEqual(names.filter(name => name.startsWith('schedule_')), ['schedule_prompt'], 'only Schedule Prompt registers schedule_* tools; removed Scheduler tools must not');
+  assert.deepEqual(names.filter(name => name.startsWith('schedule_')), ['schedule_prompt', 'schedule_shell'], 'only Schedule Prompt registers schedule_* tools (prompt and shell); removed Scheduler tools must not');
   assert.equal(loaded.extensions.some(e => e.commands.has('schedule')), false, 'removed Scheduler command must not register');
   assert.ok(loaded.extensions.some(e => e.commands.has('schedule-prompt')));
   const schedule = definitions.find(d => d.name === 'schedule_prompt');
   assert.deepEqual(schedule.parameters.properties.action.enum, ['add', 'remove', 'list', 'enable', 'disable', 'update', 'cleanup']);
+  const scheduleShell = definitions.find(d => d.name === 'schedule_shell');
+  assert.ok(scheduleShell.parameters.properties.command && !scheduleShell.parameters.properties.prompt && !schedule.parameters.properties.command, 'prompt and shell tools keep separate parameters');
   assert.ok(loaded.extensions.some(e => e.commands.has('file-audit')), 'bounded file inspection command registered');
   assert.ok(loaded.extensions.some(e => e.commands.has('web-tools')));
   assert.ok(loaded.extensions.some(e => e.commands.has('open-tui')), 'npm TUI dependency registered');
@@ -131,7 +133,7 @@ try {
   const model = { ...modelRuntime.getModels()[0], id: 'offline-fixture', provider: 'offline-fixture', api: 'openai-responses' };
   ({ session } = await sdk.createAgentSession({ cwd, agentDir, settingsManager: settings, resourceLoader: loader, modelRuntime, model,
     sessionManager: sdk.SessionManager.inMemory(cwd), ...(noTools ? { noTools: 'all' } : { tools: selection }),
-    ...(mode === 'exclude' ? { excludeTools: ['subagent', 'bash', 'powershell', 'note', 'schedule_prompt', ...ptyNames, ...sqliteNames, ...backgroundNames, ...monitorNames] } : {}) }));
+    ...(mode === 'exclude' ? { excludeTools: ['subagent', 'bash', 'powershell', 'note', 'schedule_prompt', 'schedule_shell', ...ptyNames, ...sqliteNames, ...backgroundNames, ...monitorNames] } : {}) }));
   await session.bindExtensions({ mode: 'json', onError: e => errors.push(e.error) });
   const checkSkills = () => {
     assert.deepEqual(loader.getSkills().diagnostics, []);
@@ -170,7 +172,7 @@ try {
     assert.ok(active.includes(name), `explicit background activation ${name}`);
     assert.ok(callable.includes(name), `background callable ${name}`);
   }
-  if (mode === 'exclude') for (const name of ['subagent', 'bash', 'powershell', 'note', 'schedule_prompt', ...ptyNames, ...sqliteNames, ...backgroundNames, ...monitorNames]) { assert.ok(!active.includes(name)); assert.ok(!callable.includes(name)); }
+  if (mode === 'exclude') for (const name of ['subagent', 'bash', 'powershell', 'note', 'schedule_prompt', 'schedule_shell', ...ptyNames, ...sqliteNames, ...backgroundNames, ...monitorNames]) { assert.ok(!active.includes(name)); assert.ok(!callable.includes(name)); }
   const text = result => result.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
   const execute = async (name, args, signal) => {
     const tool = session.agent.state.tools.find(t => t.name === name); assert.ok(tool, `active tool ${name}`);

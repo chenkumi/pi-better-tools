@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { CronStorage } from '../src/storage.js';
-import { createCronTool } from '../src/tool.js';
+import { createPromptTool } from '../src/tool.js';
 import { JobsView } from '../src/ui/jobs-view.js';
 import { runJobsMenu } from '../src/ui/jobs-menu.js';
 vi.mock('../src/subagent.js', () => ({ runSubagentOnce: vi.fn() }));
@@ -20,7 +20,7 @@ it.each(['tool', 'menu', 'view'])('R13 manual %s cleanup performs one bounded mu
   if (route === 'tool') {
     // No UI wait: fresh predicate must still preserve already changed jobs.
     rebindPeer();
-    await createCronTool(() => storage, () => scheduler).execute('cleanup', { action: 'cleanup' }, undefined, undefined, { sessionManager: { getSessionId: () => 'owner' } } as any);
+    await createPromptTool(() => storage, () => scheduler).execute('cleanup', { action: 'cleanup' }, undefined, undefined, { sessionManager: { getSessionId: () => 'owner' } } as any);
   } else if (route === 'menu') {
     await runJobsMenu({ ui: { select: async () => ++calls === 1 ? 'Cleanup disabled jobs' : 'Back', confirm: async () => { rebindPeer(); return true; } } } as any, storage, scheduler, {}, 'owner');
   } else {

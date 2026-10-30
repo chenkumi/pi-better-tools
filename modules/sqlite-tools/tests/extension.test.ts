@@ -56,6 +56,7 @@ function fixture(t: TestContext, options: { trusted?: boolean; hasUI?: boolean; 
       tools.set(tool.name, tool);
     },
     on: (event: string, handler: Handler) => handlers.set(event, handler),
+    registerCommand: () => undefined,
   } as unknown as ExtensionAPI;
   sqliteExtension(api);
 

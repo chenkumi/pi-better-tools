@@ -40,12 +40,11 @@ async function record(label, action) {
 }
 const required = [
   'setup/cli.mjs', 'setup/commands.mjs', 'setup/commands.d.mts', 'setup/core.mjs',
-  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'note-tools', 'gpt-speed', 'json-schema', 'pty-terminal', 'schedule-prompt', 'blackhole', 'pi-runtime', 'monitor', 'skill-tools', 'theme-tools', 'fork', 'sqlite-tools', 'sql-connector', 'file-audit'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
+  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'note-tools', 'gpt-speed', 'json-schema', 'pty-terminal', 'schedule-prompt', 'blackhole', 'pi-runtime', 'monitor', 'skill-tools', 'theme-tools', 'fork', 'remote', 'sqlite-tools', 'sql-connector', 'file-audit'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
   ...['activity-window', 'events', 'paths', 'provenance', 'commands', 'presentation'].map(name => `modules/file-audit/src/${name}.ts`),
   'modules/sqlite-tools/src/sqlite-manager.ts',
   ...['config', 'runtime', 'tools', 'prompt', 'types', 'output', 'security/sql-policy'].map(name => `modules/sql-connector/src/${name}.ts`),
   'modules/sql-connector/examples/sql-connector.example.json',
-  'modules/pi-runtime/src/policy.ts',
   'modules/skill-tools/skills/create-plan/SKILL.md',
   'modules/skill-tools/skills/draft-plan/SKILL.md',
   'modules/skill-tools/skills/execute-plan/SKILL.md',
@@ -54,6 +53,7 @@ const required = [
   ...['core', 'schema', 'lines', 'network', 'sources', 'renderers'].map(name => `modules/monitor/src/${name}.ts`),
   'modules/monitor/LICENSE', 'modules/monitor/package.json',
   ...['identity', 'snapshot', 'child', 'child-guard', 'manager', 'store', 'args'].map(name => `modules/fork/src/${name}.ts`), 'modules/fork/LICENSE', 'modules/fork/package.json',
+  ...['config', 'credentials', 'protocol', 'hub', 'client', 'runtime', 'tools', 'view', 'settings'].map(name => `modules/remote/src/${name}.ts`), 'modules/remote/LICENSE', 'modules/remote/package.json',
   'modules/shell-tools/src/monitor-capability.ts', 'modules/shell-tools/src/monitor-exec.ts', 'modules/shell-tools/src/monitor-publisher.ts',
   'modules/subagents/extensions/subagent/monitor-capability.ts',
   'modules/subagents/extensions/subagent/index.ts', 'modules/subagents/extensions/subagent/child-guard.ts',
@@ -164,7 +164,7 @@ try {
         assert.equal(hostManifest.version, version);
         for (const peer of Object.keys(installed.peerDependencies)) assert.equal(installed.dependencies[peer], undefined);
         for (const dev of ['typescript', 'tsx']) for (const base of [temp, packageRoot]) await assert.rejects(stat(join(base, 'node_modules', dev)), { code: 'ENOENT' });
-        for (const [name, expected] of Object.entries({ 'pi-open-tui': '0.3.11', '@ff-labs/pi-fff': '0.11.0' })) {
+        for (const [name, expected] of Object.entries({ 'pi-open-tui': '0.3.13', '@ff-labs/pi-fff': '0.11.0' })) {
           const dependencyRoot = join(packageRoot, 'node_modules', name);
           const dependency = JSON.parse(await readFile(join(dependencyRoot, 'package.json'), 'utf8'));
           assert.equal(dependency.version, expected);
@@ -319,16 +319,6 @@ try {
         const result = JSON.parse(output.trim().split('\n').at(-1));
         assert.equal(result.status, 'passed'); assert.equal(result.host, version); assert.equal(result.providerCalls, 0);
         assert.deepEqual(result.cases, ['startup', 'reload', 'relocated', 'lazy-body', 'skill-command', 'extension-filter', 'no-tools']); return output;
-      });
-      const runtimeFixture = join(temp, 'runtime-host.mjs');
-      await copyFile(join(root, 'modules/pi-runtime/tests/fixtures/runtime-host.mjs'), runtimeFixture);
-      const runtimeHome = join(temp, 'home-runtime'); await mkdir(runtimeHome);
-      await record(`${version}:pi-runtime-recovery`, async () => {
-        const output = await runCommand(`production Pi ${version} runtime recovery`, process.execPath, [runtimeFixture, packageRoot],
-          { cwd: runtimeHome, env: { ...isolatedEnv(runtimeHome), PI_BETTER_TOOLS_HOST: host }, timeoutMs: 180000 });
-        const result = JSON.parse(output.trim().split('\n').at(-1));
-        assert.equal(result.status, 'passed'); assert.equal(result.host, version); assert.equal(result.providerCalls, 0);
-        assert.deepEqual(result.cases.map(c => c.mode), ['success', 'limit', 'repeat', 'transform', 'template', 'policy', 'cancel', 'reload', 'no-session', 'tree', 'handled', 'preflight', 'withdrawn', 'safety']); assert.ok(result.cases.every(c => c.status === 'passed')); return output;
       });
       const blackholeFixture = join(temp, 'blackhole-display.mjs');
       await copyFile(join(root, 'tests/fixtures/blackhole-display.mjs'), blackholeFixture);

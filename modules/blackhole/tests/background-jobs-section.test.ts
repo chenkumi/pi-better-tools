@@ -20,6 +20,16 @@ describe("renderBackgroundJobs", () => {
     expect(text).toContain("- Fork Job: FK1 (blocked)");
     expect(text).toMatch(/do not assume .*still running/i);
   });
+  it("lists PTY sessions and adds the interactive-session hint only when one is shown", () => {
+    const withPty = renderBackgroundJobs([brief("shell_job", "SH1"), brief("pty_session", "pty-12-3")], false);
+    expect(withPty).toContain("- PTY Session: pty-12-3 (running)");
+    expect(withPty).toMatch(/pty_list or pty_read/);
+    const without = renderBackgroundJobs([brief("shell_job", "SH1")], false);
+    expect(without).not.toMatch(/PTY|pty_/);
+    expect(without.endsWith("do not restart work that is already in progress.")).toBe(true);
+    expect(renderBackgroundJobs([brief("pty_session", "bad id")], false)).toMatch(/partial/i);
+    expect(renderBackgroundJobs([brief("pty_session", "bad id")], false)).not.toMatch(/pty_list/);
+  });
   it("drops ids that are not plain identifiers and marks the list partial", () => {
     const text = renderBackgroundJobs([brief("shell_job", "ok-1"), brief("shell_job", "bad\nid; rm -rf"), brief("fork_job", "\u001b[31mred")], false);
     expect(text).toContain("ok-1");

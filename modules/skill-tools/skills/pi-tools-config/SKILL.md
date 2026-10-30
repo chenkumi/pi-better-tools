@@ -60,10 +60,12 @@ description: >-
 | File Audit：近期檔案窗口／容量、手動增量檢查與停用 | [file-audit](references/file-audit.md) |
 | Web：原生搜尋（OpenAI／Gemini／Anthropic）、Brave／Exa／DeepSeek、Chromium 安裝與 HTTP 相容模式 | [web-tools](references/web-tools.md) |
 | Note：分類筆記與自動路徑 | [note-tools](references/note-tools.md) |
-| Pi Runtime：錯誤恢復、deferred discovery、共通提示 | [pi-runtime](references/pi-runtime.md) |
+| Pi Runtime：deferred discovery、共通提示 | [pi-runtime](references/pi-runtime.md) |
 | Skill Tools：技能載入、指令與停用 | [skill-tools](references/skill-tools.md) |
 | Monitor：監看 command／WebSocket／背景工作 | [monitor](references/monitor.md) |
 | Fork：繼承對話的獨立 Pi 工作 | [fork](references/fork.md) |
+| Remote：區網 Pi 互傳訊息、配對碼 | [remote](references/remote.md) |
+| Theme Tools：配色主題與 `/theme:<id>` 切換 | [theme-tools](references/theme-tools.md) |
 | GPT Speed：normal／fast／ultrafast | [gpt-speed](references/gpt-speed.md) |
 | JSON Schema：print 模式的結構化結果 | [json-schema](references/json-schema.md) |
 | PTY：native setup、local／WSL／SSH 與環境過濾 | [pty-terminal](references/pty-terminal.md) |
@@ -72,4 +74,4 @@ description: >-
 | SQLite：manual／fixed 資料庫掛載 | [sqlite-tools](references/sqlite-tools.md) |
 | SQL Connector：MySQL／MSSQL／PostgreSQL | [sql-connector](references/sql-connector.md) |
 
-這些 reference 一一對應 17 個本地模組。整個 `pi-tools-config/` 目錄可獨立搬移；保留 `SKILL.md` 與 `references/` 的相對結構即可，不需原始專案、模組 README 或外部範例檔。本文中的設定／安裝路徑描述實際產品的設定目標，並非本技能的文件依賴。
+這些 reference 一一對應 18 個本地模組。整個 `pi-tools-config/` 目錄可獨立搬移；保留 `SKILL.md` 與 `references/` 的相對結構即可，不需原始專案、模組 README 或外部範例檔。本文中的設定／安裝路徑描述實際產品的設定目標，並非本技能的文件依賴。

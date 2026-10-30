@@ -6,8 +6,10 @@ import { commandLabel, commandSpecLines, defaultCommandShell, isValidCommandTime
 import { deadlineLabel, normalizeEndAt, validateJobDeadline } from "./deadline.js";
 import type { JobScope } from "./settings.js";
 import type { CronStorage } from "./storage.js";
-import type { CommandShell, CronJob, CronJobType, CronToolDetails, } from "./types.js";
-import { CronToolParams } from "./types.js";
+import type { CommandShell, CronJob, CronJobType, CronToolDetails, CronToolParamsType } from "./types.js";
+import { PromptToolParams, ShellToolParams } from "./types.js";
+
+export type ScheduleKind = "prompt" | "shell";
 
 function entryText(entry: any): string {
   const content = entry?.message?.content;
@@ -51,10 +53,6 @@ export function isInScheduledExecution(sessionManager: { getBranch?: () => any[]
   return false;
 }
 
-/**
- * Create the schedule_prompt tool definition.
- * `getDefaultScope` is a getter so live setting toggles affect the next `add`.
- */
 /** "Job not found" with the ids/names this session can see, so the agent can retry without guessing. */
 function jobNotFound(jobId: string, storage: CronStorage, ctx: { sessionManager: { getSessionId(): string } }): string {
   let known = "";
@@ -69,19 +67,39 @@ function jobNotFound(jobId: string, storage: CronStorage, ctx: { sessionManager:
   return `Job not found: "${jobId}". Pass a job id exactly as shown by action:"list" (jobs of other sessions are hidden).${known}`;
 }
 
-export function createCronTool(
+const SCHEDULE_FORMATS = "Schedule formats: 6-field cron (with seconds: '0 * * * * *' = every minute), ISO timestamp, relative time (+10s, +5m, +1h), or interval (5m, 1h). Type defaults to 'cron', use 'once' for relative/ISO times.";
+const DEADLINE_NOTE = "Optional endAt is an exclusive ISO deadline with timezone for new triggers, not a cancellation of running work; update with endAt:null clears it.";
+
+/** The tool that manages jobs of the other kind, named in "wrong tool" errors. */
+const otherTool = (kind: ScheduleKind) => (kind === "prompt" ? "schedule_shell" : "schedule_prompt");
+
+/**
+ * Create the `schedule_prompt` (prompt jobs) or `schedule_shell` (shell command jobs) tool definition.
+ * Both share one job store; each tool lists and changes only jobs of its own kind.
+ * `getDefaultScope` is a getter so live setting toggles affect the next `add`.
+ */
+function createScheduleTool(
+  kind: ScheduleKind,
   getStorage: () => CronStorage,
   getScheduler: () => CronScheduler,
   getDefaultScope: () => JobScope = () => "session",
-): ToolDefinition<typeof CronToolParams, CronToolDetails> {
+): ToolDefinition<any, CronToolDetails> {
+  const isShellTool = kind === "shell";
+  const ownsJob = (job: CronJob) => (job.command !== undefined) === isShellTool;
+  const wrongKindError = (jobId: string) =>
+    `Job "${jobId}" is a ${isShellTool ? "prompt" : "shell command"} job; manage it with ${otherTool(kind)}.`;
+  const noun = isShellTool ? "shell" : "prompt";
   return {
-    name: "schedule_prompt",
-    label: "Schedule Prompt",
-    description:
-      "IMPORTANT: For action='add', you MUST provide 'schedule' AND exactly one of 'prompt' (text delivered to the agent) or 'command' (a shell command run unattended on schedule; optional shell/cwd/timeoutMs; the user must confirm the exact command interactively, its output is shown in chat only and never sent to the model). Schedule prompts at times/intervals. Schedule formats: 6-field cron (with seconds: '0 * * * * *' = every minute), ISO timestamp, relative time (+10s, +5m, +1h), or interval (5m, 1h). Type defaults to 'cron', use 'once' for relative/ISO times. Actions: add (needs schedule+prompt or command), list, remove/enable/disable/update (need jobId), cleanup. Optional endAt is an exclusive ISO deadline with timezone for new triggers, not a cancellation of running work; update with endAt:null clears it.",
-    parameters: CronToolParams,
+    name: isShellTool ? "schedule_shell" : "schedule_prompt",
+    label: isShellTool ? "Schedule Shell" : "Schedule Prompt",
+    description: isShellTool
+      ? `IMPORTANT: For action='add', you MUST provide 'schedule' AND 'command' (a shell command run unattended on schedule; optional shell/cwd/timeoutMs; the user must confirm the exact command interactively, its output is shown in chat only and never sent to the model, no model is started). To send a prompt to the agent use schedule_prompt. ${SCHEDULE_FORMATS} Actions: add (needs schedule+command), list, remove/enable/disable/update (need jobId), cleanup. This tool only manages shell command jobs. ${DEADLINE_NOTE}`
+      : `IMPORTANT: For action='add', you MUST provide 'schedule' AND 'prompt' (text delivered to the agent at that time). Schedule prompts at times/intervals. To run a shell command on a schedule use schedule_shell. ${SCHEDULE_FORMATS} Actions: add (needs schedule+prompt), list, remove/enable/disable/update (need jobId), cleanup. This tool only manages prompt jobs. ${DEADLINE_NOTE}`,
+    parameters: isShellTool ? ShellToolParams : PromptToolParams,
 
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, rawParams, _signal, _onUpdate, ctx) {
+      // Callers can bypass the schema, so the shared implementation reads the union of both parameter shapes.
+      const params = rawParams as CronToolParamsType;
       const storage = getStorage();
       const scheduler = getScheduler();
       
@@ -101,12 +119,17 @@ export function createCronTool(
       try {
         switch (action) {
           case "add": {
-            if (!params.schedule || (!params.prompt && !params.command)) {
+            const wrongField = isShellTool ? params.prompt : params.command;
+            if (wrongField !== undefined) {
+              throw new Error(`'${isShellTool ? "prompt" : "command"}' is not accepted by ${isShellTool ? "schedule_shell" : "schedule_prompt"}; use ${otherTool(kind)} for ${isShellTool ? "prompt" : "shell command"} jobs.`);
+            }
+            const body = isShellTool ? params.command : params.prompt;
+            if (!params.schedule || !body) {
               const missing = [];
               if (!params.schedule) missing.push("'schedule'");
-              if (!params.prompt && !params.command) missing.push("'prompt' or 'command'");
+              if (!body) missing.push(isShellTool ? "'command'" : "'prompt'");
               throw new Error(
-                `Missing required parameters for add action: ${missing.join(" and ")}. Provide 'schedule' matching 'type': type "once" takes '+10s' or an ISO timestamp; type "cron" (default) takes a 6-field expression such as '0 */5 * * * *'; type "interval" takes '5m'. Also provide either 'prompt' (text to run) or 'command' (a shell command).`
+                `Missing required parameters for add action: ${missing.join(" and ")}. Provide 'schedule' matching 'type': type "once" takes '+10s' or an ISO timestamp; type "cron" (default) takes a 6-field expression such as '0 */5 * * * *'; type "interval" takes '5m'. Also provide ${isShellTool ? "'command' (a shell command)" : "'prompt' (text to run)"}.`
               );
             }
             const kindError = jobKindError({
@@ -114,9 +137,9 @@ export function createCronTool(
               model: params.model, notify: params.notify, extensions: params.extensions, skills: params.skills,
             });
             if (kindError) throw new Error(kindError);
-            const isCommand = params.command !== undefined;
+            const isCommand = isShellTool;
             if (isCommand && !(ctx.hasUI === true && typeof ctx.ui?.confirm === "function")) {
-              throw new Error("Scheduling a shell command needs an interactive session so the user can confirm the exact command; nothing was saved. Ask the user to add it from the TUI, or use a 'prompt' job, which needs no confirmation.");
+              throw new Error("Scheduling a shell command needs an interactive session so the user can confirm the exact command; nothing was saved. Ask the user to add it from the TUI, or use schedule_prompt for a prompt job, which needs no confirmation.");
             }
             let commandCwd: string | undefined;
             if (isCommand && params.cwd !== undefined) {
@@ -211,6 +234,8 @@ export function createCronTool(
               throw new Error(jobNotFound(params.jobId, storage, ctx));
             }
 
+            if (!ownsJob(job)) throw new Error(wrongKindError(params.jobId));
+
             const removed = storage.removeJob(params.jobId);
             if (removed) {
               scheduler.removeJob(params.jobId);
@@ -240,6 +265,8 @@ export function createCronTool(
             if (!job) {
               throw new Error(jobNotFound(params.jobId, storage, ctx));
             }
+
+            if (!ownsJob(job)) throw new Error(wrongKindError(params.jobId));
 
             const enabled = action === "enable";
             if (enabled) validateJobDeadline(job);
@@ -288,7 +315,7 @@ export function createCronTool(
             // Only touch jobs this session can see — foreign-session jobs are
             // owned by other pis. Unbound disabled jobs are fair game.
             const mySessionId = ctx.sessionManager.getSessionId();
-            const disabledJobs = storage.removeDisabledJobs(mySessionId);
+            const disabledJobs = storage.removeDisabledJobs(mySessionId, ownsJob);
 
             if (disabledJobs.length === 0) {
               details.jobs = [];
@@ -296,7 +323,7 @@ export function createCronTool(
                 content: [
                   {
                     type: "text",
-                    text: "No disabled jobs to clean up",
+                    text: `No disabled ${noun} jobs to clean up`,
                   },
                 ],
                 details,
@@ -327,6 +354,8 @@ export function createCronTool(
             if (!job) {
               throw new Error(jobNotFound(params.jobId, storage, ctx));
             }
+
+            if (!ownsJob(job)) throw new Error(wrongKindError(params.jobId));
 
             // Reject empty-string model (schema also enforces minLength: 1).
             // To switch a job from subagent → inline mode, remove and re-add
@@ -417,17 +446,17 @@ export function createCronTool(
             const mySessionId = ctx.sessionManager.getSessionId();
             const jobs = storage
               .getAllJobs()
-              .filter((j) => CronScheduler.isLoadedFor(j, mySessionId));
+              .filter((j) => ownsJob(j) && CronScheduler.isLoadedFor(j, mySessionId));
             details.jobs = jobs;
 
             if (jobs.length === 0) {
               return {
-                content: [{ type: "text", text: "No cron jobs configured." }],
+                content: [{ type: "text", text: `No ${noun} jobs configured.` }],
                 details,
               };
             }
 
-            const lines = ["Configured cron jobs:", ""];
+            const lines = [`Configured ${noun} jobs:`, ""];
             for (const job of jobs) {
               const status = job.enabled ? "✓" : "✗";
               const nextRun = scheduler.getNextRun(job.id, job);
@@ -479,7 +508,8 @@ export function createCronTool(
       }
     },
 
-    renderCall(params, theme) {
+    renderCall(args, theme) {
+      const params = args as CronToolParamsType;
       const action = params.action;
       const name = params.name || params.jobId || "";
       const actionText = theme.fg("accent", action);
@@ -563,3 +593,11 @@ export function createCronTool(
     },
   };
 }
+
+/** `schedule_prompt`: scheduled prompts (optionally run by a separate in-process model session). */
+export const createPromptTool = (getStorage: () => CronStorage, getScheduler: () => CronScheduler, getDefaultScope?: () => JobScope) =>
+  createScheduleTool("prompt", getStorage, getScheduler, getDefaultScope);
+
+/** `schedule_shell`: scheduled shell commands (local adaptation; never starts a model). */
+export const createShellTool = (getStorage: () => CronStorage, getScheduler: () => CronScheduler, getDefaultScope?: () => JobScope) =>
+  createScheduleTool("shell", getStorage, getScheduler, getDefaultScope);

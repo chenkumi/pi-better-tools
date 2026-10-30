@@ -23,7 +23,7 @@ Create trusted session-cwd `.pi/agent/sql-connector.json` with only needed `mysq
 
 ## Local Blackhole and external npm Pi extensions
 
-The suite loads eighteen local TS entries and two npm extension entries (pi-open-tui 0.3.11 and @ff-labs/pi-fff 0.11.0). Blackhole 0.5.12 is a reviewed source snapshot at `modules/blackhole/`, loaded through `modules/blackhole/src/index.ts`; root manifest/lock no longer depend on npm pi-blackhole. Root npm ci remains required for runtime dependencies, with no automatic personal settings edits.
+The suite loads eighteen local TS entries and two npm extension entries (pi-open-tui 0.3.13 and @ff-labs/pi-fff 0.11.0). Blackhole 0.5.12 is a reviewed source snapshot at `modules/blackhole/`, loaded through `modules/blackhole/src/index.ts`; root manifest/lock no longer depend on npm pi-blackhole. Root npm ci remains required for runtime dependencies, with no automatic personal settings edits.
 
 Personal settings remain independent: open-tui uses `~/.pi/agent/open-tui.json`; Blackhole retains `~/.pi/agent/pi-blackhole/pi-blackhole-config.json`, project overrides and existing memory/state paths; FFF retains its own configuration/environment/native data. Credentials and old sessions are not copied, overwritten, migrated or backfilled. Review filters to disable standalone copies and avoid duplicate hooks.
 
@@ -62,6 +62,10 @@ Selected payload can be partial even when producer outputTruncated=false; summar
 ## Fork
 
 No new settings/auth namespace. `fork`, `fork_status` and `fork_cancel` are `defaultActive:true`: loading the extension enables them by default without additional config. Host allowlists/exclusions/no-tools and manual deactivation remain authoritative; Subagent/Fork children still do not register these tools. The child is rebuilt from verified parent state (model, thinking, trust, tool selection, forwarded resource flags); nothing is persisted to personal settings. Workspace metadata lives in `<cwd>/.pi/forks/<jobId>.json` (owner-only, bounded result, no credentials); the native conversation is written to the source session's effective session directory so `/resume` finds it. Limits: 4 unfinished Forks per Pi process, 32 retained, 100 KiB task, 32 KiB result.
+
+## Remote
+
+Project file `<cwd>/.pi/agent/remote.json`, read only for trusted projects; missing or `"mode": "off"` disables Remote entirely. Keys: `mode` (`server`/`client`/`off`), `name`, `wake` (`on`/`off`/`allowlist`), `allowFrom`, `insecure`, `server` (`port`, `bind`, `tls.cert`/`tls.key`), `client` (`host`, `port`, `tls`). Unknown keys are rejected. Plain ws beyond loopback needs `"insecure": true`. The pairing code is not in this file: it lives in the user-level `<agentDir>/pi-remote.json` (server `serverCode`, client `clients["host:port"]`). Tools `remote_list`/`remote_send`/`remote_status` are deferred (`tool_search remote`), never defaultActive. `/settings:remote` (trusted projects, interactive TUI) edits the file and the pairing codes; only Save writes, and a pairing-code-only edit leaves `remote.json` untouched. See `modules/remote/README.md`.
 
 ## Monitor v1
 
@@ -118,17 +122,13 @@ Guard reload requires the same consumed handshake object's valid process-local l
 
 Bundled reviewer includes note (not write/edit); bash stays read-only. Complete reports are native note-only, with one verdict and actual auto-generated report path on success; failures remain blocked. User/project reviewer overrides must be synchronized manually under existing agent precedence; no settings/fingerprints are rewritten.
 
-## Pi Runtime recovery
+## Pi Runtime
 
-Native entry `modules/pi-runtime/src/index.ts`; defaults enabled with 2 recovery reservations per recognized user task, shared by automatic and manual feedback. `/runtime-recovery status|on|off` changes only session/branch state, never global settings; off/on does not refill spend. `/runtime-recover <legitimate-purpose and authorized-scope clarification>` requires 8–4096 characters, an idle actual TUI (ctx.mode:tui plus dialog support; RPC/JSON/print refuse even if they expose dialog methods), remaining budget, same model/owner and explicit human confirmation. Confirmation is not proof of authorization or API access and does not override safeguards. JSON/print without dialogs never implies consent.
-
-Explicit invalid arguments/tool JSON may automatically continue once per diagnostic; generic invalid-request, cyber/policy and unknown errors remain paused for review. Host retry/context/auth/quota handling remains separate. Reservation snapshots are session custom entries, not model messages; task spend is reconciled across branches on tree/reload, and corrupt/over-limit inspection disables recovery. A one-use idle non-extension input→successful preflight→agent_start→actual finalized user-object admission establishes a fresh task; transformed/template/image prompts use phase/object identity, not text matching. Handled/queued/preflight-failed input or custom continuation never refills. Public events do not identify every SDK idle abort; this remains a documented limit, not a universal idle-abort guarantee. Nonpersistent sessions do not recover. Model/tree/input/run/replacement changes cancel stale confirmation; withdrawn boundary drafts and uncertain manual submission still spend the reservation. Sanitization is bounded common-secret masking, not DLP; raw host errors remain. No new tool, implicit activation, provider fallback, tool side-effect replay, credentials edit or automatic rephrasing to bypass policy. See `modules/pi-runtime/README.md`.
-
-The current Runtime worker handoff (`report/REPORT-20261009T122847317Z.md`) describes 14 offline host modes in exact order: success, limit, repeat, transform, template, policy, cancel, reload, no-session, tree, handled, preflight, withdrawn, safety. Policy distinguishes idle RPC refusal and genuine host-supported TUI confirmation with the approved path still requiring two model calls; this is root documentation/probe alignment, only six-file limited static acceptance per `report/REPORT-20261009T123602084Z.md` (reviewer did not rerun); not manual fullscreen/provider, retry/Blackhole/overflow coexistence or root release acceptance.
+Native entry `modules/pi-runtime/src/index.ts` has no settings key or command. It provides deferred-tool discovery, the cross-module prompt rules and the shared `/settings:<id>` panel layer. The former error recovery and its `/runtime-recovery`／`/runtime-recover` commands were removed; old `pi-runtime-state` session entries are inert. See `modules/pi-runtime/README.md`.
 
 ## Web search
 
-Default `~/.pi/agent/web-search.json` does not silently follow agentDir. Set an explicit absolute `PI_WEB_TOOLS_CONFIG` when isolation is needed; empty/relative overrides are invalid. Reload after changes.
+Default `~/.pi/agent/web-search.json` does not silently follow agentDir. Set an explicit absolute `PI_WEB_TOOLS_CONFIG` when isolation is needed; empty/relative overrides are invalid. Reload after changes. `/settings:web-tools` edits this file in a TUI panel (provider-specific fields, direct `apiKey` entry allowed); it writes only on Save and offers `/reload`.
 
 ```json
 { "provider": "openai", "enabled": true }

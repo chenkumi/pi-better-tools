@@ -2,7 +2,7 @@ import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createCronTool } from "../src/tool.js";
+import { createPromptTool, createShellTool } from "../src/tool.js";
 import { CronScheduler } from "../src/scheduler.js";
 import { normalizeEndAt, validateJobDeadline } from "../src/deadline.js";
 import { jobKindError, resolveCommandCwd } from "../src/command.js";
@@ -30,7 +30,7 @@ function tool(seed: CronJob[] = []) {
   const scheduler: any = { addJob: vi.fn(), updateJob: vi.fn(), removeJob: vi.fn() };
   const ctx: any = { cwd: root, hasUI: false, sessionManager: { getEntries: () => [], getSessionId: () => "s" } };
   return (params: Record<string, unknown>) =>
-    createCronTool(() => storage, () => scheduler).execute("id", params as any, undefined as any, undefined as any, ctx).then((r: any) => ({ error: r.isError === true, text: r.content[0].text as string }));
+    createPromptTool(() => storage, () => scheduler).execute("id", params as any, undefined as any, undefined as any, ctx).then((r: any) => ({ error: r.isError === true, text: r.content[0].text as string }));
 }
 
 describe("agent-facing error messages", () => {
@@ -60,9 +60,17 @@ describe("agent-facing error messages", () => {
     expect(r.text).toContain("prompt");
   });
 
-  it("non-interactive command add names the alternative", async () => {
+  it("a command on schedule_prompt names schedule_shell", async () => {
     const r = await tool()({ action: "add", schedule: "5m", type: "interval", command: "echo hi" });
-    expect(r.text).toContain("'prompt' job");
+    expect(r.text).toContain("schedule_shell");
+  });
+
+  it("non-interactive shell add names the alternative", async () => {
+    const storage: any = { hasJobWithName: () => false, addJob: vi.fn() };
+    const ctx: any = { cwd: root, hasUI: false, sessionManager: { getEntries: () => [], getSessionId: () => "s" } };
+    const r: any = await createShellTool(() => storage, () => ({}) as any).execute("id", { action: "add", schedule: "5m", type: "interval", command: "echo hi" } as any, undefined as any, undefined as any, ctx);
+    expect(r.content[0].text).toContain("schedule_prompt");
+    expect(storage.addJob).not.toHaveBeenCalled();
   });
 
   it("cron type with a one-time schedule says to set type once", () => {
@@ -118,7 +126,9 @@ describe("agent-facing error messages", () => {
   });
 
   it("tool definition never names settings keys, storage files or environment variables", () => {
-    const definition: any = createCronTool(() => ({}) as any, () => ({}) as any);
-    expect(JSON.stringify({ d: definition.description, g: definition.promptGuidelines, s: definition.promptSnippet, p: definition.parameters })).not.toMatch(FORBIDDEN);
+    for (const create of [createPromptTool, createShellTool]) {
+      const definition: any = create(() => ({}) as any, () => ({}) as any);
+      expect(JSON.stringify({ d: definition.description, g: definition.promptGuidelines, s: definition.promptSnippet, p: definition.parameters })).not.toMatch(FORBIDDEN);
+    }
   });
 });

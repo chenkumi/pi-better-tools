@@ -3,11 +3,14 @@ const object = { additionalProperties: false };
 /** Sampling bounds and defaults (ms); shared by the host-facing schema and direct-call validation. */
 export const JOB_INTERVAL = { minimum: 30000, maximum: 300000, default: 60000 } as const;
 export const FILE_INTERVAL = { minimum: 1000, maximum: 60000, default: 2000 } as const;
+export const SYSTEM_INTERVAL = { minimum: 1000, maximum: 60000, default: 1000 } as const;
+export const SYSTEM_SUSTAIN = { minimum: 1000, maximum: 1800000 } as const;
+const SYSTEM_THRESHOLD = { minimum: 1, maximum: 100 } as const;
 const DURATION = { minimum: 1000, maximum: 1800000, default: 300000 } as const;
 const STOP_AFTER_EVENTS = { minimum: 1, maximum: 600 } as const;
 const range = ({ minimum, maximum }: { minimum: number; maximum: number }, unit = ' ms') => `${minimum}–${maximum}${unit}`;
 /**
- * The host-facing shape is deliberately flat: a TypeBox union of the six sources answers one out-of-range value with
+ * The host-facing shape is deliberately flat: a TypeBox union of the seven sources answers one out-of-range value with
  * six branch failures ("schema is false", "must be equal to constant"), which states neither the cause nor the fix.
  * Per-kind requirements and every bound live in `validateStart`, the single strict layer, whose messages name the
  * parameter, the accepted values and what to change.
@@ -15,13 +18,16 @@ const range = ({ minimum, maximum }: { minimum: number; maximum: number }, unit 
 export const startSchema = Type.Object({
   source: Type.Object({
     // A plain string, not a literal union: validateStart answers an unknown kind with the list of valid kinds instead of six branch failures.
-    kind: Type.String({ description: 'one of: command | websocket | shell_job | subagent_job | fork_job | file' }),
+    kind: Type.String({ description: 'one of: command | websocket | shell_job | subagent_job | fork_job | file | system' }),
     tool: Type.Optional(Type.String({ description: 'command only: "bash" or "powershell"' })),
     command: Type.Optional(Type.String({ description: 'command only: shell command text, at most 64 KiB' })),
     url: Type.Optional(Type.String({ description: 'websocket only: ws:// or wss:// without userinfo, at most 8192 characters' })),
     jobId: Type.Optional(Type.String({ description: 'shell_job | subagent_job | fork_job only: job id returned when that job started' })),
     path: Type.Optional(Type.String({ description: 'file only: file inside the canonical workspace, at most 1024 characters' })),
-    intervalMs: Type.Optional(Type.Integer({ description: `job sources ${range(JOB_INTERVAL)} (default ${JOB_INTERVAL.default}); file ${range(FILE_INTERVAL)} (default ${FILE_INTERVAL.default})` })),
+    metric: Type.Optional(Type.String({ description: 'system only: "cpu" or "ram" (whole-host utilisation, not one process)' })),
+    thresholdPercent: Type.Optional(Type.Integer({ description: `system only: notify when utilisation is at or above this percent, ${range(SYSTEM_THRESHOLD, '')}` })),
+    sustainMs: Type.Optional(Type.Integer({ description: `system only: utilisation must stay at or above the threshold continuously this long, ${range(SYSTEM_SUSTAIN)}, and below durationMs` })),
+    intervalMs: Type.Optional(Type.Integer({ description: `job sources ${range(JOB_INTERVAL)} (default ${JOB_INTERVAL.default}); file ${range(FILE_INTERVAL)} (default ${FILE_INTERVAL.default}); system ${range(SYSTEM_INTERVAL)} (default ${SYSTEM_INTERVAL.default})` })),
     allowPrivateNetwork: Type.Optional(Type.Boolean({ description: 'websocket only: explicit opt-in for private/loopback addresses' })),
     allowInsecure: Type.Optional(Type.Boolean({ description: 'websocket only: required for plain ws:// (not wss://)' })),
   }, object),
@@ -34,7 +40,8 @@ export type MonitorSource =
   | { kind: 'command'; tool: 'bash' | 'powershell'; command: string }
   | { kind: 'websocket'; url: string; allowPrivateNetwork?: boolean; allowInsecure?: boolean }
   | { kind: 'shell_job' | 'subagent_job' | 'fork_job'; jobId: string; intervalMs?: number }
-  | { kind: 'file'; path: string; intervalMs?: number };
+  | { kind: 'file'; path: string; intervalMs?: number }
+  | { kind: 'system'; metric: 'cpu' | 'ram'; thresholdPercent: number; sustainMs: number; intervalMs?: number };
 export type Start = { source: MonitorSource; durationMs: number; wakeAgent: boolean; stopAfterEvents?: number; label?: string };
 /** Direct execution must not depend on host argument validation: monitor_status/monitor_stop take only `monitorId` (1-128 characters). */
 export function validateMonitorId(value: unknown, required: boolean, tool: string): { monitorId?: string } {
@@ -48,7 +55,7 @@ export function validateMonitorId(value: unknown, required: boolean, tool: strin
   return { monitorId: id };
 }
 export function plainText(value: string): string { return value.replace(/[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/g, ''); }
-const SOURCE_KINDS = 'command, websocket, shell_job, subagent_job, fork_job, file';
+const SOURCE_KINDS = 'command, websocket, shell_job, subagent_job, fork_job, file, system';
 const shown = (value: unknown) => { let text: string; try { text = value === undefined ? 'undefined' : JSON.stringify(value) ?? String(value); } catch { text = String(value); } return text.length > 120 ? `${text.slice(0, 120)}…` : text; };
 function record(v: unknown, what: string): asserts v is Record<string, unknown> { if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error(`${what} must be an object; received ${shown(v)}`); }
 function keys(v: Record<string, unknown>, allowed: readonly string[], what: string) {
@@ -93,9 +100,17 @@ export function validateStart(value: unknown): Start {
       if (plainText(s.path as string) !== s.path) throw new Error('file source "path" must not contain control characters; pass the plain filesystem path');
       if (s.intervalMs !== undefined) integer(s.intervalMs, FILE_INTERVAL, 'file source "intervalMs"', `default ${FILE_INTERVAL.default}`);
       break;
+    case 'system':
+      keys(s, ['kind', 'metric', 'thresholdPercent', 'sustainMs', 'intervalMs'], 'a system source');
+      if (s.metric !== 'cpu' && s.metric !== 'ram') throw new Error(`system source "metric" ${shown(s.metric)} is unsupported: set it to "cpu" or "ram" (one metric per monitor; start a second monitor for the other)`);
+      integer(s.thresholdPercent, SYSTEM_THRESHOLD, 'system source "thresholdPercent"', 'notify when whole-host utilisation reaches this percent', '');
+      integer(s.sustainMs, SYSTEM_SUSTAIN, 'system source "sustainMs"', 'utilisation must stay at or above the threshold continuously this long before one notification');
+      if (s.intervalMs !== undefined) integer(s.intervalMs, SYSTEM_INTERVAL, 'system source "intervalMs"', `default ${SYSTEM_INTERVAL.default}`);
+      break;
     default: throw new Error(`source "kind" ${shown(s.kind)} is unsupported: use ${SOURCE_KINDS}`);
   }
   if (value.durationMs !== undefined) integer(value.durationMs, DURATION, '"durationMs"', `default ${DURATION.default}`);
+  if (s.kind === 'system' && (s.sustainMs as number) >= ((value.durationMs as number | undefined) ?? DURATION.default)) throw new Error(`system source "sustainMs" ${s.sustainMs} must be below "durationMs" (${(value.durationMs as number | undefined) ?? DURATION.default}${value.durationMs === undefined ? ', the default' : ''}), otherwise the threshold can never be reported: shorten sustainMs or raise durationMs (maximum ${DURATION.maximum})`);
   if (value.stopAfterEvents !== undefined) integer(value.stopAfterEvents, STOP_AFTER_EVENTS, '"stopAfterEvents"', 'counts adopted data events', '');
   if (value.wakeAgent !== undefined && typeof value.wakeAgent !== 'boolean') throw new Error(`"wakeAgent" must be a boolean: true (default) requests a model turn, false saves the batch for the next turn without rendering it; received ${shown(value.wakeAgent)}`);
   if (value.label !== undefined && typeof value.label !== 'string') throw new Error(`"label" must be a string; received ${shown(value.label)}`);

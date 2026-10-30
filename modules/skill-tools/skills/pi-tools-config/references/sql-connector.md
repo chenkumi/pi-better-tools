@@ -32,6 +32,8 @@ MSSQL SQL Authentication 使用 username/password；Windows Authentication 使�
 
 設定變更後 reload；未信任／缺設定／無效設定不註冊 DB 工具。池在首次實際操作時建立，shutdown 關閉。與 SQLite 的 SQLITE_PATH／manual-open 模式無關。
 
+- `/settings:sql-connector`（僅互動 TUI、僅受信任專案）開面板：每種引擎一個開關與連線欄位；密碼來源 `env`（寫成 `${VAR}`，建議）或 `key`（遮罩輸入、明文存入 JSON，既有密碼不回顯、留空保留）。只在存檔時寫專案 `sql-connector.json`，只重建被改的引擎區塊、其餘原樣保留；關閉最後一個引擎時刪除檔案；不降級 TLS／認證（`trustServerCertificate` 預設關）。存檔後詢問是否 `/reload`。
+
 ## 安裝與驗證
 
 依賴只在 package 根安裝。Windows Authentication 額外需要 optional msnodesqlv8 native bindings 與系統 ODBC driver；使用者明確執行 `npm rebuild msnodesqlv8 --foreground-scripts` 並配置 ODBC。一般 MySQL／PostgreSQL／MSSQL SQL Authentication 不需此 native binding，缺少時不改用另一種認證。

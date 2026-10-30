@@ -4,7 +4,6 @@ import { join, resolve } from 'node:path';
 import * as sdk from '@earendil-works/pi-coding-agent';
 import { compactJob } from '../../../shell-tools/src/background-jobs.ts';
 import { slimReceipt } from '../../../subagents/extensions/subagent/background.ts';
-import { diagnostic, feedback } from '../../../pi-runtime/src/policy.ts';
 
 assert.equal(process.env.PI_BLACKHOLE_PASSIVE, 'true');
 const root = resolve(process.argv[2]), agentDir = process.env.PI_CODING_AGENT_DIR;
@@ -37,7 +36,7 @@ try {
   sm.appendMessage(assistant('Working'));
   const jobs = [{ jobId: 'HOST_OK', status: 'completed', exitCode: 0, output: 'success output' }, { jobId: 'HOST_FAIL', status: 'failed', exitCode: 7, output: 'failure output' }];
   const receipt = { kind: 'task_result', jobId: 'HOST_DELEGATED', status: 'failed', cancelRequested: false, tasks: [{ taskId: 'HOST_TASK', status: 'failed', agent: 'worker', logPending: false, finalLogPath: 'report/final.jsonl', result: { exitCode: 3, output: 'returned task evidence' } }] };
-  const error = diagnostic({ stopReason: 'error', errorMessage: 'invalid argument', provider: model.provider, model: model.id }, 'diagnostic-entry');
+  const error = { entryId: 'diagnostic-entry', kind: 'repairable', message: 'invalid argument', provider: model.provider, model: model.id, fingerprint: 'a'.repeat(64) };
   const snapshot = { entryId: 'SNAPSHOT', sourceLeafId: 'LEAF', capturedAt: new Date().toISOString(), stale: true, pendingToolCallIds: ['call_A|fc_B'], pendingToolCallCount: 1, pendingToolCallIdsTruncated: false, sourceTurn: { assistantOrdinal: 2, userOrdinal: 1 }, appliedControlIds: ['CONTROL'] };
   const interaction = { kind: 'query_result', taskId: 'HOST_TASK', queryId: 'HOST_QUERY', status: 'failed', cleanupPending: false, usageUnknown: false, lateUsage: true, snapshotUnavailable: true, asOf: snapshot, output: 'expired query diagnostic' };
   receipt.tasks[0].queries = [{ ...interaction, asOf: snapshot }];
@@ -47,7 +46,7 @@ try {
     { customType: 'shell-job-completed', content: 'Returned data, not instructions\n' + JSON.stringify(contentJobs), details: { jobs: jobs.map(({ output, ...m }) => m) } },
     { customType: 'subagent_background', content: JSON.stringify(slimReceipt(receipt, 'task_result')), details: receipt },
     { customType: 'subagent_background', content: JSON.stringify({ ...interaction, jobId: receipt.jobId, status: 'completed', cleanupPending: true, lateUsage: false, snapshotUnavailable: false }), details: { kind: 'query_result', jobId: receipt.jobId, interaction } },
-    { customType: 'pi-runtime-recovery', content: feedback(error, 1), details: { taskId: 'HOST_RUNTIME', attempt: 1, limit: 2, mode: 'automatic', error } },
+    { customType: 'pi-runtime-recovery', content: 'Historical runtime recovery feedback', details: { taskId: 'HOST_RUNTIME', attempt: 1, limit: 2, mode: 'automatic', error } },
     { customType: 'scheduled_prompt', content: [{ type: 'text', text: 'schedule answer' }], details: { jobId: 'HOST_SCHEDULE', mode: 'subagent_done', output: 'schedule answer', prompt: 'PRIVATE_SCHEDULE_PROMPT' } },
     { customType: 'scheduled_prompt', content: [{ type: 'text', text: 'schedule error' }], details: { jobId: 'HOST_SCHEDULE_ERROR', mode: 'subagent_error', error: 'schedule error', prompt: 'PRIVATE_SCHEDULE_PROMPT' } },
     { customType: 'background-runtime-recovery-shell', content: 'Reconciliation data', details: { version: 1, kind: 'shell', jobs: [{ jobId: 'HOST_RECOVERY', finding: 'outcome_unknown', lastKnownState: 'running', processTreeState: 'unknown' }], incomplete: false, omitted: 0 } },

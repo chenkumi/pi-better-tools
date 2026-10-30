@@ -5,7 +5,7 @@
 - `monitor_start { source, durationMs?, wakeAgent?, stopAfterEvents?, label? }`。
 - `monitor_status { monitorId? }` 唯讀查看；省略列出保留項目。
 - `monitor_stop { monitorId }` 要求停止來源；不等於已觀察到 close 或子程序樹清理。
-- 沒有專屬 slash config 命令；`/background-jobs monitor` 在 TUI 看 command／websocket／file 監看（job 來源不重複列出）。三工具預設啟用，仍受 Pi allowlist／exclude／no-tools 控制；explicit managed Subagent child 不提供。
+- 沒有專屬 slash config 命令；`/background-jobs monitor` 在 TUI 看 command／websocket／file／system 監看（job 來源不重複列出）。三工具預設啟用，仍受 Pi allowlist／exclude／no-tools 控制；explicit managed Subagent child 不提供。
 
 ## Config 與作用範圍
 
@@ -25,6 +25,7 @@
 - websocket：`{ kind: "websocket", url, allowPrivateNetwork?, allowInsecure? }`。預設公開 wss；私網與不加密 ws 分別須本次明確 opt-in，不自動降低 TLS 驗證。不要放入帳密或敏感 query。
 - shell_job／subagent_job／fork_job：owned jobId 與 intervalMs（30000–300000，預設60000）；唯讀，不 query 模型、不讀 log、不取消 job。fork_job 由 Fork 模組在 session_start publish／session_shutdown revoke，只回有界狀態（status／delivery／elapsedMs／cleanup／transcript state／blocked），不含任務全文或結果；Fork 結果仍只經 fork-result 通知。
 - file：`{ kind: "file", path, intervalMs? }`（1000–60000，預設2000）。只監看目前工作目錄（canonical cwd）內的單一檔案，專案外路徑、離開專案的 symlink／junction 在啟動時拒絕，執行中改指向專案外則以 `path_outside_workspace` 終止。只回報 metadata（`created`／`modified`／`deleted`、`sizeBytes`、`mtimeMs`），絕不讀取或回傳內容；以輪詢偵測，每個 tick 最多一個事件，起始狀態不產生事件。不是即時 fs.watch，粗粒度 mtime 加上相同大小的改寫可能漏報。
+- system：`{ kind: "system", metric: "cpu"|"ram", thresholdPercent, sustainMs, intervalMs? }`（threshold 1–100 整數；sustainMs 1000–1800000 且必須小於 durationMs；intervalMs 1000–60000，預設1000）。效能檢驗用：整機使用率連續達標滿 sustainMs 才發一則只含聚合數值的事件，低於閾值即歸零，回落後重新達標才再發；一個 Monitor 只看一個指標。量到的是整台主機、不是單一 process 或 job，RAM 以作業系統回報的可用記憶體計算。
 
 共通 durationMs 預設300000，範圍1000–1800000，包含啟動；wakeAgent 預設true，false 只顯示資料而不要求模型回合。每 owner 最多4 active。Shell 的無期限背景 job 可能自動占一個名額。
 

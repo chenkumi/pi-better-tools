@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { CronStorage } from '../src/storage.js';
 import { CronScheduler } from '../src/scheduler.js';
-import { createCronTool } from '../src/tool.js';
+import { createPromptTool } from '../src/tool.js';
 vi.mock('../src/subagent.js', () => ({ runSubagentOnce: vi.fn() }));
 
 it.each([10, 100, 500])('list %i active jobs loads the store once and keeps next-run filtering', async count => {
@@ -17,7 +17,7 @@ it.each([10, 100, 500])('list %i active jobs loads the store once and keeps next
     storage.save({ version: 1, jobs: Array.from({ length: count }, (_, i) => ({ id: String(i), name: String(i), enabled: true, type: 'interval', schedule: '1h', intervalMs: 3600000, prompt: 'p', createdAt: '', runCount: 0, session: 'owner' })) });
     scheduler.start();
     const reads = vi.spyOn(storage, 'load');
-    const result = await createCronTool(() => storage, () => scheduler).execute('list', { action: 'list' }, undefined, undefined, ctx);
+    const result = await createPromptTool(() => storage, () => scheduler).execute('list', { action: 'list' }, undefined, undefined, ctx);
     expect(result.details?.error).toBeUndefined();
     expect(result.details?.jobs).toHaveLength(count);
     expect(reads).toHaveBeenCalledTimes(1);

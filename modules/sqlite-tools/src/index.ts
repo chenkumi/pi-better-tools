@@ -14,6 +14,7 @@ import {
 import { Type, type Static } from "typebox";
 import { SqliteStartupError } from "./node-runtime.js";
 import { SqliteClient } from "./sqlite-client.js";
+import { registerSqliteSettings } from "./settings.js";
 import { errorMessage, type SqlParams } from "./sqlite-manager.js";
 
 const sqliteNamespace = {
@@ -181,6 +182,7 @@ async function formatResult(value: unknown) {
 }
 
 export default function sqliteExtension(pi: ExtensionAPI) {
+  registerSqliteSettings(pi);
   const manager = new SqliteClient();
   let startupError: string | undefined = "SQLite tools are not initialized. Wait for session_start.";
   let startup: Promise<void> | undefined;

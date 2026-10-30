@@ -44,7 +44,10 @@ description: Create and organize AGENTS.md/CLAUDE.md and project reference docs.
 
 ## 大小與行為檢查
 
-評估代表性任務所載入的內容、查找成本，以及漏掉必要指引的風險。若要做選用的粗略估算，從本技能套件執行輔助腳本：
+評估代表性任務所載入的內容、查找成本，以及漏掉必要指引的風險。
+修改完成後，使用工具檢查檔案大小，如果預估tokens > 2000，自動分析是否有可以拆分的部份並給予用戶具體拆分建議方案。
+
+若要做選用的粗略估算，從本技能套件執行輔助腳本：
 
 ```bash
 python3 <skill-directory>/scripts/estimate_tokens.py <project>/AGENTS.md
@@ -54,3 +57,4 @@ python3 <skill-directory>/scripts/estimate_tokens.py --sum <files-loaded-togethe
 該腳本以字元數除以 2.2 估算，並回報僅供參考的大小區間。可用 `--help` 查看選項；需要精確計數時，改用適合該模型的 tokenizer。
 
 進行實質修訂時，以代表性任務走查，確認必要的限制與驗證步驟在行動之前就會被遇到。需要行為評估時，在相同的模型、工具與任務下，比較正確性、漏掉的指示、不必要的探索、成本與人工介入。只有實際量測到時才回報效能提升。
+

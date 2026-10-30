@@ -1,5 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { ActivityWindow, boundedString, MAX_ID_BYTES, MAX_PENDING, type FileAction } from "./activity-window.js";
+import { ChangeNotice } from "./change-notice.js";
 import { asRecord, canonicalPath, notePath } from "./paths.js";
 
 /** Activity belongs to one session in one cwd; a change of either starts a new owner. */
@@ -9,6 +10,7 @@ interface Pending { action: FileAction; path?: string; cwd: string; owner: strin
 const ACTIONS = new Set<string>(["read", "write", "edit", "note"]);
 export class AuditTracker {
   readonly window = new ActivityWindow();
+  readonly changes = new ChangeNotice();
   private readonly pending = new Map<string, Pending>();
   generation = 0;
   private owner = "";
@@ -16,7 +18,7 @@ export class AuditTracker {
   get pendingCount(): number { return this.pending.size; }
   reset(owner: string, resetLimits = true, alive = true): void {
     this.generation++; this.owner = owner; this.alive = alive;
-    this.pending.clear(); this.window.clear(resetLimits);
+    this.pending.clear(); this.window.clear(resetLimits); this.changes.clear();
   }
   advance(): void { if (this.alive) this.window.advance(); }
   settled(): void { this.pending.clear(); }
@@ -38,7 +40,9 @@ export class AuditTracker {
     try {
       const resolved = asRecord(asRecord(result).details).path;
       const rawPath = pending.action === "note" ? notePath(result) : boundedString(resolved) ? resolved : pending.path!;
-      this.window.record(canonicalPath(rawPath, pending.cwd), pending.action);
+      const path = canonicalPath(rawPath, pending.cwd);
+      this.window.record(path, pending.action);
+      this.changes.record(path, this.window.limits.maxFiles);
     } catch { this.window.skip(); }
   }
 }

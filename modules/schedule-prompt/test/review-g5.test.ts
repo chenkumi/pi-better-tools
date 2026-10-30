@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createCronTool } from "../src/tool.js";
+import { createShellTool } from "../src/tool.js";
 import { CronStorage } from "../src/storage.js";
 import type { CronJob } from "../src/types.js";
 
@@ -28,7 +28,7 @@ describe("G5-002: enable applies only the command spec the user confirmed", () =
     return { storage, peer, scheduler };
   };
   const enable = (storage: CronStorage, scheduler: unknown, confirm: () => Promise<boolean>) =>
-    createCronTool(() => storage, () => scheduler as never).execute("id", { action: "enable", jobId: "cmdjob0001" } as never, undefined as never, undefined as never,
+    createShellTool(() => storage, () => scheduler as never).execute("id", { action: "enable", jobId: "cmdjob0001" } as never, undefined as never, undefined as never,
       { cwd: project, hasUI: true, ui: { confirm }, sessionManager: { getEntries: () => [], getSessionId: () => "sess" } } as never);
 
   it("refuses to enable when a peer changed the command while the confirmation was pending", async () => {

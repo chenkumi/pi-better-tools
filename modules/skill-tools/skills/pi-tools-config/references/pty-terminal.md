@@ -4,7 +4,7 @@
 
 `pty_spawn`、`pty_write`、`pty_keyin`、`pty_read`、`pty_resize`、`pty_wait_exit`、`pty_kill`、`pty_list` 全為 deferred，先以 `tool_search` 搜尋 `pty`。沒有專屬 slash 設定命令。Spawn 選 target，後續只用 sessionId；一次性指令用 shell、持續輸入的互動程式／TUI 才用 PTY。
 
-程式要求密碼等機密時用 `pty_keyin`：使用者在遮罩輸入框直接輸入；畫面會顯示 Unicode code point 數，機密內容與長度不回給 agent，內容只寫入該 PTY、不進對話或紀錄；僅在目標程式本身不回顯時有此保證（回顯的程式仍會出現在 `pty_read`）。無互動 UI 時不可用。
+程式要求密碼等機密時用 `pty_keyin`：使用者在遮罩輸入框直接輸入；畫面會顯示 Unicode code point 數，機密內容與長度不回給 agent，內容只寫入該 PTY、不進對話或紀錄；呼叫可帶 `confirmPrompt`：送出前會檢查 session 最後一行，像 shell 提示符（程式已逾時／出錯離開密碼提示）就拒絕開啟，或在使用者輸入後、寫入前改為不送（`reason:"prompt_gone"`）；確認程式真的在等機密時才用 `confirmPrompt:true`。送出的機密在該 session 釋放前，會在 `pty_read`／`pty_write(readAfterMs)`／`waitFor` 看到的輸出中被換成 `********` 並附提示（只認原樣字串，轉成 base64 等形式擋不住；遠端 shell history 仍可能留有紀錄，出現遮罩提示時應視為密碼可能暴露並建議更換）。無互動 UI 時不可用。
 
 ## Config 與作用範圍
 
@@ -44,3 +44,5 @@ CLI 要求解析到的 node-pty 所屬最外層 consumer `package.json` 已精�
 SSH 先由使用者驗證 alias／key／known_hosts；不關閉 host-key 檢查或自動 Git 同步。以 `pty_spawn { target: "remote", command: "sh" }` 建立後，read 輸出與 wait_exit 才能確認 transport 狀態；native setup 成功不證明 SSH／WSL 或遠端命令可用。
 
 本機 kill 不保證遠端子程序樹停止；PTY 不提供每個 shell 指令的結構化 exit code。設定 target 不會移動其他 file／shell 工具的 cwd。
+
+TUI 中有 PTY session 時，輸入欄上方的 Jobs 面板會與其他背景工作一起列出 `PT` 列（只顯示本 workspace 執行中的 session，不顯示輸出或指令；`/background-jobs pty` 可開清單）。Blackhole 壓縮摘要的 `[Background Jobs]` 也會列出執行中的 `PTY Session`（只有 ID 與狀態），這些 session 可能在等輸入，請先用 `pty_list`／`pty_read` 核對，不要重複 spawn。這些顯示不是設定項目，也沒有開關。

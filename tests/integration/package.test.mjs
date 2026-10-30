@@ -18,7 +18,7 @@ const dependencyEntries = [
   './modules/file-tools/src/fff-override.mjs',
 ];
 assert.deepEqual([...manifest.pi.extensions].sort(), [...modules.map(name => `./modules/${name}/src/index.ts`), ...dependencyEntries].sort());
-assert.equal(expectedExtensions, 20, 'eighteen local entries plus two pinned dependency entries');
+assert.equal(expectedExtensions, 21, 'nineteen local entries plus two pinned dependency entries');
 assert.ok(manifest.pi.extensions.includes('./modules/file-audit/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/sql-connector/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/sqlite-tools/src/index.ts'));

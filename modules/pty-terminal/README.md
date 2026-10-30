@@ -6,7 +6,7 @@
 
 - `pty_spawn`：`{ command, args?, target?, cwd?, env?, cols?, rows? }`；`target` 預設 `local`，回傳 sessionId、本機 transport pid、target、transport。
 - `pty_write`：`{ sessionId, data?, keys?, readAfterMs?, format? }`。`data` 支援 `\\x03`、`\\r`、`\\t` 等控制字元，字面反斜線寫成 `\\\\` 或 `\\x5c`（例如 `C:\\\\new`；單趟解碼，不會二次解碼）；對已結束的 session 寫入會明確報錯且不送出；`keys` 為具名按鍵陣列（Enter、Tab、Shift-Tab、Esc、Space、Backspace、Delete、Insert、Up/Down/Left/Right、Home、End、PageUp、PageDown、F1–F12、Ctrl-A..Ctrl-Z；不分大小寫，亦接受 `Ctrl+C`、`C-c`、Return、Escape 等別名），於 `data` 之後依序送出，兩者至少需一個；未知按鍵名回錯並列出支援清單，且在寫入任何內容前驗證。`readAfterMs`（0–60000）寫入後等待該毫秒（transport exit 時提早返回，已退出時不另等）再 drain 並一起回傳輸出（同 `pty_read` 格式；無輸出回 `ok`）；等待被取消時輸入已送出，session 保留。
-- `pty_keyin`：`{ sessionId, prompt? }`。讓使用者把密碼等機密直接輸入 PTY（目標程式已自行關閉回顯的提示，如 sudo／ssh）。互動 TUI 會顯示遮罩輸入框及字元數（以 Unicode code point 計算；遮罩隨字數增加，空間不足時截短），框內由系統填入 session、target、transport，模型提供的 `prompt`（上限 200 字元）只作標示為「Agent says」的輔助說明。Enter 送出時，輸入**逐字**（不經 `pty_write` 的跳脫解碼，反斜線照送）加固定 `` 寫入該 session；Esc／Ctrl-C 取消則不寫入任何內容。工具結果只說明「已送出」或「未送出（cancelled／timeout／aborted／exited）」，不含輸入內容、長度或預覽；輸入值不進工具參數、結果、`details`、renderer、錯誤訊息（寫入失敗時會剔除輸入值）、session 紀錄或 log。無 UI（`hasUI` 為 false）、未知／已結束 session、已有另一個 keyin 對話框時拒絕且不顯示對話框；等待上限 10 分鐘，工具呼叫被中止或 PTY 在等待中結束時關閉對話框、不寫入。RPC（含 Subagent／Fork 子行程）的 `ui.custom()` 不受支援，等同取消、不寫入。
+- `pty_keyin`：`{ sessionId, prompt?, confirmPrompt? }`。讓使用者把密碼等機密直接輸入 PTY（目標程式已自行關閉回顯的提示，如 sudo／ssh）。互動 TUI 會顯示遮罩輸入框及字元數（以 Unicode code point 計算；遮罩隨字數增加，空間不足時截短），框內由系統填入 session、target、transport，模型提供的 `prompt`（上限 200 字元）只作標示為「Agent says」的輔助說明。Enter 送出時，輸入**逐字**（不經 `pty_write` 的跳脫解碼，反斜線照送）加固定 `` 寫入該 session；Esc／Ctrl-C 取消則不寫入任何內容。工具結果只說明「已送出」或「未送出（cancelled／timeout／aborted／exited）」，不含輸入內容、長度或預覽；輸入值不進工具參數、結果、`details`、renderer、錯誤訊息（寫入失敗時會剔除輸入值）、session 紀錄或 log。無 UI（`hasUI` 為 false）、未知／已結束 session、已有另一個 keyin 對話框時拒絕且不顯示對話框；等待上限 10 分鐘，工具呼叫被中止或 PTY 在等待中結束時關閉對話框、不寫入。RPC（含 Subagent／Fork 子行程）的 `ui.custom()` 不受支援，等同取消、不寫入。送出前有兩道提示檢查（啟發式，與語系有關）：開啟對話框前，以及使用者按 Enter 後、寫入前，若 session 最後一行以 shell 提示符結尾（`$ # % > » ❯ ➜`）且不含 password／passphrase／密碼／口令／token 等字樣，就不開啟（拒絕）或不寫入（回報 `reason:"prompt_gone"`），因為程式多半已逾時或出錯、離開了密碼提示，輸入會被當成指令。第二道專為「對話框開著時 sudo 逾時」；`confirmPrompt:true` 可跳過兩道檢查（agent 已用 `pty_read` 確認程式確實在等機密時才用）。
 - `pty_read`：`{ sessionId, timeoutMs?, waitFor?, settleMs?, format?, since? }`。預設 drain pending output 並等待 1000ms（上限 60000ms，`pty_wait_exit` 同）；每次輸出最多 2000 行／50KiB，超量部分留在 buffer，下次可繼續讀取，內容末尾提示剩餘字元數。
   - `waitFor`：JavaScript RegExp 原始碼（不含斜線／flags，multiline，最長 200 字元，拒絕 `(a+)+` 類巢狀量詞），對**已剝除 ANSI** 的未讀輸出比對，出現即返回；`settleMs` 為「安靜多久視為完成」（兩者併用時先匹配再等安靜）。皆受總逾時 `timeoutMs` 限制（設定 `waitFor`／`settleMs` 且未給 `timeoutMs` 時預設 5000）；逾時會在輸出後標示 `waitFor not matched before timeout`，輸出仍保留未讀。無效 regex 回可操作錯誤。比對在可終止 worker 執行（最多 16 個，單次最多 1000ms，預算從 worker 完成模組載入並回報 ready 後才開始計算（不是 thread online），另有 5 秒啟動上限，故小 `timeoutMs` 不會因啟動時間誤報逾時，整體讀取可能略超出 `timeoutMs` 一個 worker 啟動時間；比對失敗後的重試至少間隔 50ms 合併輸出（亦涵蓋失敗完成後才到達的輸出），且至少為該次嘗試耗時（主執行緒剝除 ANSI、worker 啟動與複製）的兩倍、最多 1000ms，避免大量 buffer 持續輸出時連續佔用 CPU，正值讀取期限可進一步縮短，期限耗盡不再啟動新的 worker；transport exit 可提早喚醒以檢查最後輸出；`timeoutMs: 0` 仍允許一次有界比對）。比對容量／計算期限失敗明確報錯；讀取期限耗盡回 timeout，取消／shutdown 會終止 worker，名額在終止確認後才歸還。取消只中止等待，session 與輸出保留。
   - `format`：`raw`（預設，保留控制碼）或 `text`（剝除 CSI／OSC／DCS 等 ANSI 控制碼；不做螢幕快照或游標還原）。截斷點不會落在 escape 序列中間；`text` 只計可見位元組，結尾尚未完整的序列會留待下次讀取（session 結束後才丟棄）。緩衝中只剩未完整序列時，預設讀取會繼續等到 `timeoutMs`，不會立即回傳空內容（設定 `waitFor`／`settleMs` 時依其條件返回，可能回空內容並保留該片段）；`raw` 不受影響。單一完整 escape 序列若本身超過 50KiB 回傳上限，會明示丟棄並推進 cursor，避免每次讀取零進度；其他可回傳內容仍保留。
@@ -30,6 +30,18 @@
 ## TUI 顯示
 
 八個工具都有 call/result renderer，顯示 session、target、local transport PID、輸出與 transport exit／逾時狀態；list 收合列出前三筆，展開最多五十筆。read 以清理 ANSI／控制字元的文字預覽顯示，收合最多十二行，展開看已回傳內容；不是 terminal emulator，完整畫面控制碼仍保留於模型可見 output。write 不預覽輸入，keyin 只顯示已送出／未送出，spawn 不預覽 args/env；這不是全面敏感資料遮蔽。kill 明示 session 已釋放／termination requested，不冒稱遠端程序樹停止。Renderer 只改 UI，不修改工具結果、activation、target resolution 或 PTY lifecycle，也不執行／drain PTY。
+
+### 底部 Jobs 面板與壓縮提醒
+
+有 PTY session 時，TUI 輸入欄上方的共用 Jobs 面板（與 Shell／Subagents／Fork／Monitor 同一個）會列出 `● PT pty · <target>`，標題列出現 `PTY n`；`/background-jobs pty` 開啟只含 PTY 的清單。
+
+- 只列本 workspace（canonical cwd）的 session；執行中才算 active 並出現在底部，已 exit 但未釋放的只在清單內以非 active 顯示（含 exit code），不是「仍連線」。
+- 只顯示 session ID、target／transport、本機 PID、起始時間與生命週期，不顯示輸出、指令或 `pty_keyin` 輸入；不含隨輸出變動的位元組計數（面板只在 spawn／exit／釋放／recover／shutdown 時更新，沒有輪詢與計時器）。
+- `recovered` 的 session 明示「exit 未確認」；細節固定註明關閉 local transport 不代表遠端／WSL process tree 已停止。
+- 底部面板與其他背景工作共用「合計五列」，按啟動時間由舊到新排序；長時間閒置的 PTY（REPL、SSH）會佔位，較新的 job 可能被擠到 More，需用 `/background-jobs` 查看。
+- 顯示純為觀察：`PtySessionManager.onChange` 的例外一律吞掉，不影響 session；非 TUI／managed child 不綁定。`snapshot()` 為唯讀（不 reclaim），`list()` 行為不變。
+- Blackhole 壓縮摘要的 `[Background Jobs]` 會多一行 `- PTY Session: <sessionId> (running)`（只有執行中者，只含 ID 與狀態），並附一句提示須用 `pty_list`／`pty_read` 核對、可能在等輸入、不要重複 spawn。資料經 `publishJobBriefs('pty_session', …)`（brief-only，owner sessionId＋canonical cwd 必須相符，shutdown／session 換代即撤銷）；Monitor **沒有** PTY 來源。
+- 程式：`src/live-widget.ts`；測試 `tests/live-widget.test.ts`。
 
 ## 設定
 
@@ -111,7 +123,10 @@ Failure responses name the offending parameter or target, the violated rule and 
 
 保證（僅在目標程式本身已屏蔽回顯時）：本模組的流程不會讓輸入內容進入對話、工具結果、`details`、renderer、錯誤訊息或任何由本模組寫出的紀錄；輸入元件不保留 undo／kill ring，完成或取消即清空內部值。
 
+輸出遮罩（保證層）：送出的輸入在該 session 釋放前都視為「屏蔽字串」（寫入**之前**登記，回顯搶不到先機；多次 keyin 累積，最長者優先）。`pty_read`、`pty_write` 的 `readAfterMs` 與 `waitFor` 比對看到的輸出，都會把屏蔽字串換成固定的 `********`（固定長度，不洩漏長度），並在結果加提示「畫面出現 pty_keyin 輸入的文字，已遮罩」與 `details.masked`。典型情境：密碼提示逾時後密碼被 shell 當成指令回顯（`bash: <密碼>: 找不到指令`）、或重試時游標不在屏蔽欄位而直接顯示。這是依**完全相同字串**比對，不是畫面區域遮蔽：容忍字元之間夾雜的 ANSI／OSC 序列、CR／LF 與退格；橫跨兩次讀取的屏蔽字串，結尾疑似前綴的部分會暫扣到下次（session 結束時釋放）；`waitFor` 在遮罩後的文字上比對，不能當作探測密碼的神諭。cursor 仍以原始輸出計數。
+
 不保證、也不處理：
-- 目標程式沒有關閉回顯：輸入會出現在 PTY 輸出，`pty_read` 之後會回給模型。刻意不做回顯遮蔽——畫面捲動或重繪後遮蔽即失效，只會給出錯誤的安全感。
+- 輸出遮罩只認得**原樣**字串：base64／hex／URL 編碼、被 shell 加引號或跳脫、被程式截斷或改寫後的形式都不會被認出；agent 自己用指令轉換密碼（例如 `echo $PW | base64`）同樣擋不住。1～2 個字元的極短密碼會把輸出中所有相同字元都遮掉（過度遮罩，安全優先）。
+- 遮罩只管 PTY 輸出路徑：密碼若已被 shell 當成指令送出，仍可能留在遠端 `~/.bash_history`、`command-not-found` 的紀錄或系統 log，應視為可能暴露並更換；其他工具（例如讀檔）也不在此保護範圍。原始 buffer 與屏蔽字串在行程記憶體中，直到 session 釋放才清除，這不是 sandbox。
 - 宿主邊界：Pi 的 `ui.onTerminalInput` 監聽器（其他已載入的 extension）在焦點元件之前收到原始按鍵，本模組無法阻擋；JS 字串無法保證記憶體清除；SSH／WSL／終端機本身的紀錄不在本模組控制內。
 - 長度：輸入框會向可看到終端畫面的人揭露 Unicode code point 數（組合字元可能各自計數）；工具結果不含長度。目標程式自己的行為也可能洩漏長度，例如逐字回顯星號。

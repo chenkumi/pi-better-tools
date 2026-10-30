@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { deadlineLabel, deadlineState, normalizeEndAt, validateJobDeadline } from "../src/deadline.js";
 import { CronStorage } from "../src/storage.js";
-import { createCronTool } from "../src/tool.js";
+import { createPromptTool } from "../src/tool.js";
 import type { CronJob } from "../src/types.js";
 
 const NOW = Date.parse("2030-01-01T00:00:00Z");
@@ -105,7 +105,7 @@ describe("schedule_prompt deadline actions", () => {
   const ctx = { sessionManager: { getEntries: () => [], getSessionId: () => "s" } } as any;
   function execute(params: any) {
     const scheduler = { addJob: vi.fn(), updateJob: vi.fn(), removeJob: vi.fn(), getNextRun: () => null } as any;
-    const tool = createCronTool(() => storage, () => scheduler);
+    const tool = createPromptTool(() => storage, () => scheduler);
     return tool.execute("call", params, undefined, undefined, ctx);
   }
   it("creates a normalized deadline and displays it", async () => {

@@ -2,7 +2,7 @@
  * pi-schedule-prompt — A pi extension for scheduling agent prompts
  *
  * Provides:
- * - A `schedule_prompt` tool for managing scheduled prompts
+ * - A `schedule_prompt` tool for scheduled prompts and a `schedule_shell` tool for scheduled shell commands
  * - A widget displaying all scheduled prompts with status
  * - /schedule-prompt command for interactive management
  * - Persistence via .pi/schedule-prompts.json (jobs) and .pi/schedule-prompts-settings.json (settings)
@@ -15,7 +15,7 @@ import { CronScheduler } from "./scheduler.js";
 import { isProjectTrusted } from "./trust.js";
 import { loadSettings, type ScheduleSettings, saveSettings } from "./settings.js";
 import { CronStorage } from "./storage.js";
-import { createCronTool } from "./tool.js";
+import { createPromptTool, createShellTool } from "./tool.js";
 import { runAddFlow } from "./ui/add-flow.js";
 import { CronWidget } from "./ui/cron-widget.js";
 import { JobsView } from "./ui/jobs-view.js";
@@ -40,15 +40,17 @@ export default async function (pi: ExtensionAPI) {
   // Register custom message renderer for scheduled prompts
   pi.registerMessageRenderer("scheduled_prompt", renderScheduledMessage);
 
-  // Register the tool once with getter functions
-  const tool = createCronTool(
+  // Register the tools once with getter functions
+  const toolArgs = [
     () => { requireAdmitted(); return storage; },
     () => { requireAdmitted(); return scheduler; },
     () => settings.defaultJobScope ?? "session",
-  );
-  // Local adaptation: schedule_prompt is declared directly (user-requested default loading, no `exposure`/`namespace`),
-  // so its definition is sent with every request; `--tools`/`--exclude-tools` still govern activation.
-  pi.registerTool(tool);
+  ] as const;
+  // Local adaptation: schedule_prompt and schedule_shell are declared directly (user-requested default loading, no
+  // `exposure`/`namespace`), so their definitions are sent with every request; `--tools`/`--exclude-tools` still govern
+  // activation of each one separately.
+  pi.registerTool(createPromptTool(...toolArgs));
+  pi.registerTool(createShellTool(...toolArgs));
 
   // --- Session initialization ---
 

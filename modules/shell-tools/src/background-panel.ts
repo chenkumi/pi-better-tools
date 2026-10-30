@@ -9,7 +9,7 @@ const RENDEZVOUS = "pi-better-tools:background-panel:v2";
 export type PanelHost = Partial<Pick<ExtensionAPI, "events" | "registerCommand">>;
 export interface PanelSnapshot { jobs: readonly PanelJob[]; signature: string }
 type Entry = { token: object; ctx: ExtensionContext; owner: string; snapshot?: PanelSnapshot };
-const kinds: PanelKind[] = ["subagents", "shell", "fork", "monitor"];
+const kinds: PanelKind[] = ["subagents", "shell", "fork", "monitor", "pty"];
 /** SGR mouse report: motion with no button held is code 35 (32 motion + 3 "none"). */
 const SGR_MOUSE = /^\x1b\[<(\d+);(\d+);(\d+)[Mm]$/;
 const FOCUS_OUT = "\x1b[O";
@@ -201,10 +201,10 @@ export function acquireBackgroundPanel(api?: PanelHost): BackgroundPanel {
       if (request?.protocol === RENDEZVOUS && typeof request.offer === "function") request.offer(shared);
     });
     api?.registerCommand?.("background-jobs", {
-      description: "Background jobs above the editor; More opens a bounded list: more | subagents | shell | fork | monitor | all | collapse (TUI only)",
+      description: "Background jobs above the editor; More opens a bounded list: more | subagents | shell | fork | monitor | pty | all | collapse (TUI only)",
       handler: async (args, ctx) => {
         const target = args.trim() || "more";
-        if (!["more", "subagents", "shell", "fork", "monitor", "all", "collapse"].includes(target)) { ctx.ui.notify("Usage: /background-jobs [more|subagents|shell|fork|monitor|all|collapse]", "warning"); return; }
+        if (![...kinds, "more", "all", "collapse"].includes(target)) { ctx.ui.notify("Usage: /background-jobs [more|subagents|shell|fork|monitor|pty|all|collapse]", "warning"); return; }
         if (target === "collapse") { shared.toggle("collapse", ctx); return; }
         if (ctx.mode !== "tui" || !ctx.hasUI) return;
         shared.toggle(target === "more" ? "all" : target as PanelKind | "all", ctx);

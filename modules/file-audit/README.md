@@ -10,7 +10,7 @@
 pi --no-extensions -e ./modules/file-audit/src/index.ts
 ```
 
-以既有 package extension filters 排除 `modules/file-audit/src/index.ts` 即可停用；工具 allowlist 不會停用 slash commands。本模組不註冊模型工具、不啟用其他工具、不修改其輸入／結果／prompt；無額外 runtime dependency，不 runtime import File Tools 或 Note Tools。沒有額外安裝、全域設定、模型驗證、watcher、背景工作或持久化活動日誌。
+以既有 package extension filters 排除 `modules/file-audit/src/index.ts` 即可停用；工具 allowlist 不會停用 slash commands。本模組不註冊模型工具、不啟用其他工具、不修改其輸入／結果／system prompt（唯一的模型 context 輸出是下述「變更通知」）；無額外 runtime dependency，不 runtime import File Tools 或 Note Tools。沒有額外安裝、全域設定、模型驗證、watcher、背景工作或持久化活動日誌。
 
 ## 指令
 
@@ -21,7 +21,7 @@ pi --no-extensions -e ./modules/file-audit/src/index.ts
 | `/file-audit clear` | 清空紀錄／統計、撤銷舊檢查，保留目前 limits |
 | `/file-audit limits --window 4 --max-files 50` | 只調整本 session 限制；可省略其中一個值，縮限立即淘汰，非法參數不部分套用 |
 
-只在 TUI 執行手動命令；RPC／JSON／print 不掃描、不寫 stdout、不要求對話。事件追蹤不依賴 UI。顯示使用宿主通知，不新增 widget 或模型 context 訊息，不保存報告。路徑清除終端控制字元與 bidi 控制碼，最多 10 筆明細、每條路徑 200 字元、總輸出 8 KiB，未顯示數明列。
+只在 TUI 執行手動命令；RPC／JSON／print 不掃描、不寫 stdout、不要求對話。事件追蹤不依賴 UI。手動命令的顯示使用宿主通知，不新增 widget，不保存報告；模型 context 只有「變更通知」。路徑清除終端控制字元與 bidi 控制碼，最多 10 筆明細、每條路徑 200 字元、總輸出 8 KiB，未顯示數明列。
 
 ## 窗口及成功證據
 
@@ -32,6 +32,16 @@ pi --no-extensions -e ./modules/file-audit/src/index.ts
 - 相對／絕對、`~`、file URL、`@` literal 優先與 Windows shell drive 路徑遵循 File Tools 的既有語意；已存在檔案用 realpath 去重，不一律 lowercase。
 - session start（含 reload/new/resume/fork）、tree navigation、shutdown 清空觀察並撤銷舊結果；start 恢復預設 limits，tree 保留目前 limits。不讀完整歷史、不跨 session 恢復。觀察起點始終顯示。
 - Shell／grep/find／其他 session／其他工具不納入。部分 read 不是完整審閱；成功 edit/write 不保證 bytes 必然改變。淘汰／略過計數是事件次數，不是精確的歷史不同檔案數。
+
+## 變更通知
+
+收到 user input（`before_agent_start` 的 `messageType: "user"`；extension／custom 觸發的 run 不檢查）時，比對窗口內檔案與上一次成功 read／write／edit／note 結束當下的狀態。有差異就回傳一則 custom message（`customType: "file-audit-changes"`、`display: true`），不是 system prompt、不破壞 prompt cache；內容固定英文前言（標明是資料、不是指令，編輯前先重讀）加單行 JSON：`{"changed":[{"path","change":"modified"|"deleted"}],"omitted":N}`，最多 10 筆，路徑為相對 cwd、清除控制與 bidi 字元、每條 200 字元。
+
+- 基準只存 size／mtime 與 SHA-256（≤ 8 MiB 才雜湊，背景計算且寫入時重驗 stat），不存內容；基準數量不超過 `maxFiles`。`.env`／`.env.*`、`auth.json`、`.git`、`.pi` 路徑不觀察。
+- size／mtime 相同視為未變；不同時若有基準雜湊則比對內容，僅 mtime 改變（內容相同）不通知；沒有基準雜湊（過大、尚未算完、雜湊失敗）時以 metadata 差異為準，可能誤報。單次最多讀取 32 MiB 做比對，超過的檔案只用 metadata。
+- 通知後基準即更新，同一變更只報一次；檔案刪除後移除基準。自己的 edit／write 在結束時已更新基準，不會誤報。Shell 或外部程式的改動會被報告。
+- 只在同一 session 內有效：session start、tree、shutdown、`/file-audit clear` 清空基準，不跨 resume，不持久化。
+- 偵測失敗、取消或擁有者換代時不發通知、也不阻擋 prompt。這只是「觀察到差異」，不推論作者或時間；到下一次 user input 才檢查，同一 run 內的外部修改仍由 `edit` 的 `expectedHash` 擋下（`STALE_FILE`）。
 
 ## 增量檢查
 
@@ -59,7 +69,7 @@ pi --no-extensions -e ./modules/file-audit/src/index.ts
 npm run test:module -- file-audit
 ```
 
-包括 strict typecheck、容量／窗口／排序、note 結構化路徑、成功事件、掃描 bytes 與錯誤、命令／輸出邊界，以及隔離 home/agentDir/cwd 的真實 Pi 1.4.0 native/File Tools/Note/nested/reload/tree/new/resume／獨立載入／不載入 probes。SDK fixture 的 TUI 通知 callback 由測試擷取；另有下述真正 PTY TUI A/B，兩者不是同一項驗證。只使用離線合成 provider，`providerCalls` 指實際外部 fetch 次數，`streamCalls` 另記合成模型串流次數。根 cross／production smoke 另驗證 manifest 共存與乾淨 tarball 載入。
+包括 strict typecheck、容量／窗口／排序、note 結構化路徑、成功事件、掃描 bytes 與錯誤、命令／輸出邊界，以及隔離 home/agentDir/cwd 的真實 Pi 1.4.0 native/File Tools/Note/nested/變更通知（外部修改與刪除只通知一次、自己的 edit 不誤報、通知留在送給模型的 context）/reload/tree/new/resume／獨立載入／不載入 probes。SDK fixture 的 TUI 通知 callback 由測試擷取；另有下述真正 PTY TUI A/B，兩者不是同一項驗證。只使用離線合成 provider，`providerCalls` 指實際外部 fetch 次數，`streamCalls` 另記合成模型串流次數。根 cross／production smoke 另驗證 manifest 共存與乾淨 tarball 載入。
 
 ### 真實 TUI A/B 與 token overhead
 

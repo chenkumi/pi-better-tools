@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (Pi Better Tools local adaptation, 2026-10-30; user-requested)
+- Split the tool by job kind: `schedule_prompt` now manages prompt jobs only (`prompt`/`model`/`notify`/`extensions`/`skills`), and the new `schedule_shell` manages shell command jobs only (`command`/`shell`/`cwd`/`timeoutMs`, interactive confirmation unchanged). `command`/`shell`/`cwd`/`timeoutMs` are no longer accepted by `schedule_prompt`; use `schedule_shell`. Each tool lists, updates, enables, removes and cleans up only its own kind and names the other tool when given a job of the other kind. Storage format, job ids, `/schedule-prompt` and trust semantics are unchanged.
+
 ### Changed (Pi Better Tools local adaptation, 2026-10-26; user-requested)
 - `schedule_prompt` is declared directly again (no `exposure: "deferred"`, no `schedule` namespace), so it is active without a `tool_search` step and its definition is sent with every request. Tool name, parameters, `.pi/schedule-prompts*.json` storage and trust semantics are unchanged.
 

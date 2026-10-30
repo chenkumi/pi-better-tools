@@ -93,12 +93,13 @@ export interface CronToolDetails {
 }
 
 /**
- * Tool parameter schema
+ * Tool parameter schemas. `schedule_prompt` (prompt jobs) and `schedule_shell` (shell command jobs) share the
+ * scheduling fields and differ only in what a job runs.
  */
-export const CronToolParams = Type.Object({
-  action: StringEnum(["add", "remove", "list", "enable", "disable", "update", "cleanup"], {
-    description: "Action to perform",
-  }),
+const actionParam = StringEnum(["add", "remove", "list", "enable", "disable", "update", "cleanup"], {
+  description: "Action to perform",
+});
+const commonParams = {
   name: Type.Optional(
     Type.String({
       description: "Job name, auto-generated if omitted",
@@ -115,36 +116,6 @@ export const CronToolParams = Type.Object({
       description: "Exclusive deadline for new triggers: ISO timestamp with seconds and timezone (Z or ±HH:mm). Omit for no deadline on add; null clears it on update only. Does not cancel already-started work.",
     })
   ),
-  prompt: Type.Optional(
-    Type.String({
-      description: "The prompt text to execute. For add, provide exactly one of 'prompt' or 'command'",
-    })
-  ),
-  command: Type.Optional(
-    Type.String({
-      minLength: 1,
-      maxLength: 8000,
-      description:
-        "Shell command to run on schedule instead of a prompt (exactly one of 'prompt' or 'command'). Runs unattended in-process, never starts a model and never wakes the parent; the user must confirm the exact command in an interactive session. Output is shown only in the chat display, never sent to the model.",
-    })
-  ),
-  shell: Type.Optional(
-    StringEnum(["bash", "powershell"], {
-      description: "Command jobs only. Shell used to run the command. Default: powershell on Windows, bash elsewhere.",
-    })
-  ),
-  cwd: Type.Optional(
-    Type.String({
-      minLength: 1,
-      description: "Command jobs only. Working directory, relative to the project. Default: the project directory. A directory outside the project needs explicit user approval.",
-    })
-  ),
-  timeoutMs: Type.Optional(
-    Type.Integer({
-      minimum: 1,
-      description: "Command jobs only. Output-stall deadline in ms: the command is stopped when it prints nothing for this long (not a total limit). Default 300000.",
-    })
-  ),
   jobId: Type.Optional(
     Type.String({
       description: "Job ID for remove, enable, disable, or update actions",
@@ -158,6 +129,16 @@ export const CronToolParams = Type.Object({
   description: Type.Optional(
     Type.String({
       description: "Optional job description",
+    })
+  ),
+};
+
+export const PromptToolParams = Type.Object({
+  action: actionParam,
+  ...commonParams,
+  prompt: Type.Optional(
+    Type.String({
+      description: "The prompt text to execute. Required for add",
     })
   ),
   model: Type.Optional(
@@ -195,7 +176,38 @@ export const CronToolParams = Type.Object({
   ),
 });
 
-export type CronToolParamsType = Static<typeof CronToolParams>;
+export const ShellToolParams = Type.Object({
+  action: actionParam,
+  ...commonParams,
+  command: Type.Optional(
+    Type.String({
+      minLength: 1,
+      maxLength: 8000,
+      description:
+        "Shell command to run on schedule. Required for add. Runs unattended in-process, never starts a model and never wakes the parent; the user must confirm the exact command in an interactive session. Output is shown only in the chat display, never sent to the model.",
+    })
+  ),
+  shell: Type.Optional(
+    StringEnum(["bash", "powershell"], {
+      description: "Shell used to run the command. Default: powershell on Windows, bash elsewhere.",
+    })
+  ),
+  cwd: Type.Optional(
+    Type.String({
+      minLength: 1,
+      description: "Working directory, relative to the project. Default: the project directory. A directory outside the project needs explicit user approval.",
+    })
+  ),
+  timeoutMs: Type.Optional(
+    Type.Integer({
+      minimum: 1,
+      description: "Output-stall deadline in ms: the command is stopped when it prints nothing for this long (not a total limit). Default 300000.",
+    })
+  ),
+});
+
+/** Union of every parameter either tool accepts; the shared implementation reads both shapes. */
+export type CronToolParamsType = Static<typeof PromptToolParams> & Static<typeof ShellToolParams>;
 
 /**
  * Event emitted when a job is added, removed, or updated

@@ -107,7 +107,7 @@ The widget displays below your editor (only when jobs exist):
 
 ### Shell command jobs (local adaptation)
 
-A job can run a shell **command** instead of a prompt: `schedule_prompt add` with exactly one of `prompt` or `command` (plus optional `shell` = `bash`|`powershell`, `cwd`, `timeoutMs`), the `/schedule-prompt` Jobs overlay (`m`) or the dialog menu (`Add shell command job`).
+A job can run a shell **command** instead of a prompt. That is a separate tool, `schedule_shell`: `add` with `schedule` and `command` (plus optional `shell` = `bash`|`powershell`, `cwd`, `timeoutMs`), the `/schedule-prompt` Jobs overlay (`m`) or the dialog menu (`Add shell command job`). `schedule_prompt` accepts only prompt jobs and `schedule_shell` only command jobs; both share one job store, but each lists, updates, enables, removes and cleans up only jobs of its own kind (a job of the other kind returns an error naming the right tool). Parameters other than `prompt`/`model`/`notify`/`extensions`/`skills` (prompt) and `command`/`shell`/`cwd`/`timeoutMs` (shell) are shared.
 
 - **Confirmation**: the exact command, shell, directory and stall timeout are shown and must be confirmed in an interactive session (a tool call without a UI is refused). Changing the command, shell or directory, or enabling a command job, asks again; a peer edit made while a dialog was open is refused rather than silently enabled.
 - **Execution**: runs in this Pi process through the same Shell backend helper as Monitor (Pi's shell resolution, environment and process-tree cancellation), never starts a model and never wakes the parent. Overlapping runs of one job are skipped; at most 4 command runs are active at once.
@@ -118,7 +118,7 @@ A job can run a shell **command** instead of a prompt: `schedule_prompt add` wit
 
 ### Default loading (local adaptation)
 
-`schedule_prompt` is declared directly (no `exposure`/`namespace`), so its definition is sent with every request and it needs no `tool_search` step; deferred groups (`pty`, `sqlite`, SQL engines) are unchanged. Tool name, parameters, `.pi/schedule-prompts*.json` storage and trust semantics are unchanged; a tool excluded by `--tools`/`--exclude-tools` is not registered.
+`schedule_prompt` and `schedule_shell` are declared directly (no `exposure`/`namespace`), so their definitions are sent with every request and need no `tool_search` step; deferred groups (`pty`, `sqlite`, SQL engines) are unchanged. `.pi/schedule-prompts*.json` storage and trust semantics are unchanged (the two tools share them); each tool is activated or excluded by `--tools`/`--exclude-tools` on its own, a tool excluded by `--tools`/`--exclude-tools` is not registered.
 
 ### Manual commands
 
@@ -127,7 +127,7 @@ A job can run a shell **command** instead of a prompt: `schedule_prompt add` wit
 - **Jobs** — full-screen overlay listing every scheduled prompt in this cwd. Your session's jobs are at the top; jobs bound to other sessions render read-only below. Hotkeys: `↑`/`↓` select, `a` add (opens the input series — name/type/schedule/deadline/prompt/scope/confirm), `t` toggle enabled, `s` toggle scope (session-bound ↔ shared with all pi sessions in this cwd), `x` remove (with `y/n` confirm), `c` cleanup all disabled jobs, `q`/`esc` close.
 - **Settings** — widget visibility and the default scope for new jobs (`Bind new jobs to session: yes/no`). Persists across sessions.
 
-### Tool Parameters (`schedule_prompt`)
+### Tool Parameters (`schedule_prompt`; `schedule_shell` takes the shared rows plus `command`, `shell`, `cwd`, `timeoutMs` instead of the prompt rows)
 
 | Param | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -325,7 +325,7 @@ src/
   settings.ts       # Settings persistence (global + project, project overrides)
   scheduler.ts      # Core scheduling engine with croner
   subagent.ts       # Lightweight in-process agent runner (per-task model)
-  tool.ts           # schedule_prompt tool definition
+  tool.ts           # schedule_prompt and schedule_shell tool definitions (one shared implementation)
   ui/
     cron-widget.ts  # Live status widget below editor
   index.ts          # Extension entry point

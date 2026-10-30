@@ -509,12 +509,12 @@ export class CronStorage {
   }
 
   /** One locked snapshot/mutation; a peer's enabled or foreign jobs are never swept. */
-  removeDisabledJobs(sessionId: string | undefined): CronJob[] {
+  removeDisabledJobs(sessionId: string | undefined, include: (job: CronJob) => boolean = () => true): CronJob[] {
     return this.withLock(() => {
       const store = this.load();
       const removed: CronJob[] = [];
       store.jobs = store.jobs.filter(job => {
-        if (job.enabled || (job.session && job.session !== sessionId)) return true;
+        if (job.enabled || (job.session && job.session !== sessionId) || !include(job)) return true;
         removed.push(job);
         return false;
       });

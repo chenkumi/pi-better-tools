@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createCronTool } from "../src/tool.js";
+import { createPromptTool } from "../src/tool.js";
 import type { CronJob } from "../src/types.js";
 
 // Minimal in-memory CronStorage stand-in: implements just the surface the tool calls.
@@ -56,7 +56,7 @@ function buildTool(
 ) {
   const storage = makeStorage(seedJobs);
   const scheduler = makeScheduler();
-  const tool = createCronTool(
+  const tool = createPromptTool(
     () => storage,
     () => scheduler,
     getDefaultScope,

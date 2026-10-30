@@ -2,7 +2,7 @@
 
 ## 指令與工具
 
-- `schedule_prompt` 預設載入（直接宣告，不需 `tool_search`）。Action：add／list／update／enable／disable／remove／cleanup。
+- `schedule_prompt`（排程 prompt）與 `schedule_shell`（排程 shell command，需互動確認）預設載入（直接宣告，不需 `tool_search`）；兩者各自只管理自己種類的 job，共用同一儲存。Action：add／list／update／enable／disable／remove／cleanup。
 - `/schedule-prompt` 開啟 Jobs／Settings；Jobs 可新增、切換啟用與 scope、刪除／cleanup。Shell command job 另有互動新增流程。
 - 這是 session 內排程，不是 OS scheduler；Pi 關閉時不觸發、不補跑。請勿使用已移除的 `/schedule` 或 schedule_* 舊工具。
 

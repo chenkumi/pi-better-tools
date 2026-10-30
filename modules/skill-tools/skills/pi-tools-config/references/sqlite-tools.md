@@ -22,6 +22,7 @@
 - 模式於啟動時固定；fixed 的資料庫路徑也固定。要改變模式或 fixed 路徑，需調整上述設定來源後 `/reload` 或重啟；重載前提醒目前背景工作可能受影響。
 - Manual 要先 `sqlite_open`，可用 `sqlite_close` 關閉，或再次 `sqlite_open` 切換檔案；切換時會先關閉原連線，再嘗試開啟新檔案，失敗不會保留原連線。每 instance 同時只有一個連線，shutdown 關閉。
 - 不讀取 home 的同名 sqlite.json，也沒有全域 `pi-sqlite-tools` config namespace。
+- `/settings:sqlite-tools`（僅互動 TUI、僅受信任專案）開面板切換 manual／fixed 並編輯 `databasePath`；只在存檔時寫專案 `sqlite.json`，保留其他鍵；切回 manual 且檔內無其他鍵時刪除該檔；`SQLITE_PATH` 非空時面板提示它會覆蓋此檔；存檔後詢問是否 `/reload`。
 
 ## 使用與驗證
 

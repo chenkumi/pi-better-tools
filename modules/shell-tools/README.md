@@ -109,9 +109,9 @@ Windows 上可用 `tools.powershell({ command, timeoutMs })`。該 shell 必須�
 
 ### 即時 TUI 面板
 
-Shell／Subagents／Fork 的 owner-bound `bind`／`refresh`／`clear` 共用 `src/widget-binding.ts`；只共用 UI context、producer token 與顯示更新，各自的資料投影、執行 registry、取消、通知及生命週期仍獨立。
+Shell／Subagents／Fork／Monitor／PTY 的 owner-bound `bind`／`refresh`／`clear` 共用 `src/widget-binding.ts`；只共用 UI context、producer token 與顯示更新，各自的資料投影、執行 registry、取消、通知及生命週期仍獨立。
 
-Jobs 面板自動掛在輸入欄上方 `aboveEditor`，Shell／Subagents／Fork／Monitor **合計最多五個 job，每個一行**，最多7行（標題＋5 job＋More）：左側 `● SH|SA|FK|MN 標籤 · 標題`，右側狀態欄 `狀態 | 用量`（Shell 執行中只顯示 `N/A`；Monitor 為 `wake on|off | 剩 24m`；取消中仍在 finalize、Fork 清理未確認、blocked 這類不能看起來健康的狀態直接寫在狀態欄）；標題列依實際數量顯示 `Subagents n / Shell n`，Fork／Monitor 只在大於 0 時出現。短 ID 與活動摘要（Running／output received 或 no output observed 等）移到 More 詳細；寬度不足 40 欄時省略狀態欄；窄欄截短不折行，高度不足減少列數，More 顯示省略數。只列目前 owner/runtime 的背景 Bash／PowerShell，running／cancelling 直到 registry settlement；取消要求不冒充程序樹已停止。Shell 顯示 Running／output received 或 no output observed，沒有輸出不自行推斷卡住；工具本身沒有模型用量帳本，固定顯示 `tokens N/A`，不推算命令內呼叫 AI 的 token。
+Jobs 面板自動掛在輸入欄上方 `aboveEditor`，Shell／Subagents／Fork／Monitor／PTY **合計最多五個 job，每個一行**，最多7行（標題＋5 job＋More）：左側 `● SH|SA|FK|MN|PT 標籤 · 標題`，右側狀態欄 `狀態 | 用量`（Shell 執行中只顯示 `N/A`；Monitor 為 `wake on|off | 剩 24m`；取消中仍在 finalize、Fork 清理未確認、blocked 這類不能看起來健康的狀態直接寫在狀態欄）；標題列依實際數量顯示 `Subagents n / Shell n`，Fork／Monitor／PTY 只在大於 0 時出現。短 ID 與活動摘要（Running／output received 或 no output observed 等）移到 More 詳細；寬度不足 40 欄時省略狀態欄；窄欄截短不折行，高度不足減少列數，More 顯示省略數。只列目前 owner/runtime 的背景 Bash／PowerShell，running／cancelling 直到 registry settlement；取消要求不冒充程序樹已停止。Shell 顯示 Running／output received 或 no output observed，沒有輸出不自行推斷卡住；工具本身沒有模型用量帳本，固定顯示 `tokens N/A`，不推算命令內呼叫 AI 的 token。
 
 `/background-jobs`／`more`／`all` 開有界浮層；`shell`／`subagents`／`fork`／`monitor` 篩選，`collapse` 明確隱藏常駐面板，more／all 恢復。↑↓ 選取、Enter 詳細、Tab 最近完成／全部、Esc 返回／關閉回 editor，保持輸入草稿；只有主動開啟才取焦點，背景事件不重開浮層。Fullscreen 可左鍵點 job 列直接開該 job 詳細，或點完整 More 標籤；滑鼠停在這些可點擊項目上會高亮（hover，只改底色、不改版面、不開任何東西）。Hover 依賴終端回報無按鍵移動（any-motion）：tmux／zellij／screen 內 Pi 只啟用按鍵移動追蹤，因此沒有 hover，點擊不受影響；TUI 沒有「滑鼠離開」事件，面板以輸入監聽器偵測指標移出面板範圍或終端失焦並清除高亮，監聽器從不消耗輸入。一般模式保留 terminal mouse。完成逐項移出常駐面板，但 More 可查看目前 retained registry 的完整ID、命令預覽、開始／結束時間、exit、取消要求與既有 log 路徑／輸出 byte 統計；不讀 log／输出、不恢復跨 reload 或已淘汰工作。命令／ID 只做顯示層 ANSI／控制碼／bidi 清理，Unicode 按欄寬截短，不重寫原參數。
 

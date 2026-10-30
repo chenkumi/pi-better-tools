@@ -19,7 +19,7 @@ for (const mode of ['native', 'files', 'standalone', 'excluded']) {
       const result = JSON.parse(output.trim().split('\n').at(-1));
       assert.equal(result.status, 'passed'); assert.equal(result.host, '1.4.0'); assert.equal(result.networkCalls, 0);
       if (['files', 'native'].includes(mode)) assert.deepEqual(result.cases, ['success-and-final-errors', 'note-read-edit-dedup',
-        'nested-note-and-read', 'manual-check', 'window', 'reload', 'tree', 'new-and-resume']);
+        'nested-note-and-read', 'manual-check', 'change-notice', 'window', 'reload', 'tree', 'new-and-resume']);
     } finally { await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
   });
 }

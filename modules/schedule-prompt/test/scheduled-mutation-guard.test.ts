@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createCronTool } from "../src/tool.js";
+import { createPromptTool } from "../src/tool.js";
 
 // A turn started by a scheduled run: the notify marker of a finished child after the latest user message.
 const user = (text: string) => ({ type: "message", message: { role: "user", content: text } });
@@ -17,7 +17,7 @@ function harness(entries: any[]) {
     },
   });
   const scheduler = new Proxy({} as Record<string, unknown>, { get: (_t, prop: string) => { touched.push(`scheduler.${prop}`); return () => undefined; } });
-  const tool = createCronTool(() => storage as any, () => scheduler as any);
+  const tool = createPromptTool(() => storage as any, () => scheduler as any);
   const ctx = { sessionManager: { getBranch: () => entries, getSessionId: () => "s" } } as any;
   const run = (params: Record<string, unknown>) => tool.execute("c", params as any, undefined as any, undefined as any, ctx) as Promise<any>;
   return { run, touched };

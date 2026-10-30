@@ -1,6 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { StringEnum } from '@earendil-works/pi-ai';
 import { Type } from 'typebox';
+import { registerWebToolsSettings } from './settings.ts';
 import { CONFIG_PATH, agentConfigError, defaults, loadConfig, resolveKey, type Credential } from './config.ts';
 import type { ModelIdentity } from './native-openai.ts';
 import { NATIVE_GUIDANCE_BY_ADAPTER, NATIVE_GUIDANCES, injectNative, isNativeProvider, nativeInactiveReason, selectNative } from './native.ts';
@@ -212,6 +213,7 @@ export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig
   pi.on('session_shutdown', async () => {
     stopped = true; pending.clear(); shutdown.abort(); await fetchService?.close();
   });
+  registerWebToolsSettings(pi);
   pi.registerCommand('web-tools', {
     description: 'Show web tool availability or latest branch sources (usage: /web-tools status|sources)',
     handler: async (args, ctx) => {

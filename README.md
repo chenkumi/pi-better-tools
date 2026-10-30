@@ -52,7 +52,7 @@ pi-better-tools pty setup
 
 ### 本地 Blackhole 與兩個 npm Pi packages（原始碼掛載）
 
-根 `dependencies` 固定包含 `pi-open-tui@0.3.11`、`@ff-labs/pi-fff@0.11.0`。Blackhole 0.5.12 原始碼已納入 `modules/blackhole/`，Pi 改載入 `./modules/blackhole/src/index.ts`，不再依賴 npm 的 `pi-blackhole`。`npm ci --ignore-scripts` 會安裝兩個 npm packages；manifest 為十七個本地入口加兩個 npm 入口，共十九個。仍維持 `private: true`，不需要 npm 發布、bundledDependencies 或 postinstall 呼叫 pi install。
+根 `dependencies` 固定包含 `pi-open-tui@0.3.13`、`@ff-labs/pi-fff@0.11.0`。Blackhole 0.5.12 原始碼已納入 `modules/blackhole/`，Pi 改載入 `./modules/blackhole/src/index.ts`，不再依賴 npm 的 `pi-blackhole`。`npm ci --ignore-scripts` 會安裝兩個 npm packages；manifest 為十七個本地入口加兩個 npm 入口，共十九個。仍維持 `private: true`，不需要 npm 發布、bundledDependencies 或 postinstall 呼叫 pi install。
 
 換機請下載／複製本專案原始碼及 lockfile，在新機重新執行上述安裝步驟，然後只掛載本專案目錄；不要跨 OS／CPU 複製 node_modules。**本機掛載不會自動執行 npm install**。Repository `.npmrc` 設 `legacy-peer-deps=true`，避免依賴 peers 自動安裝另一份 Pi SDK；Blackhole 快照的上游開發版本／peer 範圍只作歷史 metadata，整合基準為 Pi 1.4.0，不以此設定宣稱相容。
 
@@ -123,18 +123,19 @@ Shell 與 Subagents 會在 `startup`／`resume`／`reload` 載入 session 時，
 | SQL Connector | `mysql_state/query/update`、`mssql_state/query/update`、`pgsql_state/query/update`；`/sql-connector-reload` | trusted 專案 `.pi/agent/sql-connector.json` 掛載；僅配置的引擎註冊 deferred 工具，以 `tool_search` 搜尋對應引擎。每次寫入需 UI 確認；Windows Authentication 另需原生 driver／ODBC。詳見 `modules/sql-connector/README.md` |
 | SQLite Tools | `sqlite_open/close/status/query/execute/list_tables/describe_table/manual` | deferred `sqlite` namespace；讀取資料庫前以 `tool_search` 搜尋 `sqlite`。保留 manual／fixed mode、專案 trust 與 shutdown 關閉連線；詳見 `modules/sqlite-tools/README.md` |
 | PTY Terminal | `pty_spawn/write/read/resize/wait_exit/kill/list` | `target` 預設 local；named WSL／SSH targets；session 綁定 target，關閉 transport 不保證遠端背景程序停止 |
-| Schedule Prompt | `schedule_prompt`；`/schedule-prompt` | 排程週期／一次性 prompt（cron、ISO、`+10s`、`5m`）；可指定 `model` 以 in-process 背景 session 執行。資料存於 `<cwd>/.pi/schedule-prompts.json`，設定於 `<cwd>/.pi/schedule-prompts-settings.json`（全域 `<agentDir>/schedule-prompts-settings.json` 為手動預設）；預設綁定建立它的 session。僅 session 存活期間觸發，不是 OS 排程或 daemon |
+| Schedule Prompt | `schedule_prompt`（prompt job）、`schedule_shell`（shell command job）；`/schedule-prompt` | 排程週期／一次性 prompt（cron、ISO、`+10s`、`5m`）；可指定 `model` 以 in-process 背景 session 執行。資料存於 `<cwd>/.pi/schedule-prompts.json`，設定於 `<cwd>/.pi/schedule-prompts-settings.json`（全域 `<agentDir>/schedule-prompts-settings.json` 為手動預設）；預設綁定建立它的 session。僅 session 存活期間觸發，不是 OS 排程或 daemon |
 | Shell Tools | 覆寫 `bash`、`powershell`；`shell_job_status/cancel` | 同步預設；`background:true` 立即回 jobId／liveLogPath；`timeoutMs` 為自啟動起算的總時限（前景／背景相同）；背景 job 未設 `timeoutMs` 時自動啟動 180 秒 display-only Monitor；前景無 `timeoutMs` 指令滿 300 秒自動轉背景（同一 process，兜底防無限迴圈，可由 `pi-shell-tools.autoBackgroundMs` 調整或設 0 停用）；管理工具需額外選取；PowerShell 僅原生 Windows |
 | File Tools | 覆寫 `read`、`write`、`edit`、`ls` | 絕對行號、32 字元 hash、精準 literal／regex、原子寫入、diff worker；`grep/find` 不再由本模組註冊，可由 FFF override 提供 |
 | Web Tools | `web_fetch`；條件式 REST `web_search`；`/web-tools status`、`/web-tools sources` | OpenAI／Codex 原生搜尋預設啟用、無實驗開關或警告，不註冊同名 function tool；Brave／Exa 要明確設定；無登入／CAPTCHA bypass／PDF |
 | Fork | `fork`／`fork_status`／`fork_cancel`／`fork_message`（皆預設啟用，仍受宿主工具限制） | 以獨立 Pi 行程繼承來源對話與能力接手任務，跨 session 切換仍續行，完成後只回報原 session；`fork_message` 可對執行中的 Fork 追加指示（受理不等於套用）；Fork 可用 `subagent`、不可再 Fork，所有 Subagent 不可 Fork；quit／`/reload` 取消全部；完成後以原生 `/resume` 繼續。詳見 `modules/fork/README.md`；不是 OS sandbox |
-| Monitor | `monitor_start/status/stop` | 六來源：command stdout、WS text、cwd 內單一檔案的 metadata 變更（file，不讀內容）、readonly shell_job／subagent_job／fork_job；三工具預設啟用（仍受宿主工具限制），總期限預設5分鐘；不是daemon／PTY／sandbox |
-| Skill Tools | `/skill:create-plan`、`/skill:pi-tools-config` 等隨包技能 | 原生 resource discovery、按需讀取；pi-tools-config 以 SKILL.md 索引 17 份逐模組指令／config references，不修改使用者 home |
+| Monitor | `monitor_start/status/stop` | 七來源：command stdout、WS text、cwd 內單一檔案的 metadata 變更（file，不讀內容）、整機 CPU／RAM 持續達閾值（system）、readonly shell_job／subagent_job／fork_job；三工具預設啟用（仍受宿主工具限制），總期限預設5分鐘；不是daemon／PTY／sandbox |
+| Remote | `remote_list/send/status`（deferred，`tool_search remote`） | 以 WebSocket 把數個 Pi session 連成區網內的網路互傳訊息／任務（例如 push 後通知他平台 pull 測試）；`.pi/agent/remote.json`（受信任專案）設 server 或 client；12 碼配對碼 challenge-response（碼不上線）＋ wss；收到的訊息標示為不受信任資料、預設喚醒 agent（`wake` 可關閉／allowlist）；at-most-once、不排隊；不是遠端執行或 sandbox。`/remote` 與 footer 顯示狀態、system prompt 列出線上 peer；`/settings:remote` 面板設定角色／wake／憑證路徑，server 頁直接顯示配對碼（沒有就即時產生，存檔才寫入）並可 Enter 換新碼，client 遮罩輸入配對碼（存使用者層，不進專案檔） |
+| Skill Tools | `/skill:create-plan`、`/skill:pi-tools-config` 等隨包技能 | 原生 resource discovery、按需讀取；pi-tools-config 以 SKILL.md 索引 18 份逐模組指令／config references，不修改使用者 home |
 | Theme Tools | `/theme:<id>`（deep-sea／warm-charcoal／moss／quiet／signal／paper／dark／light）、`/theme:menu` | 切換 Pi 主題並寫入 settings（使用者明確要求）；詳見 [Theme Tools](modules/theme-tools/README.md) |
 | File Audit | `/file-audit [status\|check\|clear\|limits]` | 成功 read/write/edit/note 的近期活動；預設 4 runs／50 個不同檔案，只在手動 check 才做有 byte 上限的 provenance 檢查；不掃完整歷史、不自動刷新 hash。詳見 [File Audit](modules/file-audit/README.md) |
 | Note Tools | `note` | `{ type, content }`；自動分類、產生純時間戳檔名（`TYPE-<UTC 時間戳>.md`，不附加標題），只新增 Markdown 檔案並回報單一相對路徑，不覆寫 |
 | GPT Speed | `/fast`、`/ultrafast`、`/normal` | GPT >= 5.6 的 luna／terra／sol／astra pattern；Ultrafast 在 luna／terra 降為 Fast；`/cache-ttl-short`／`/cache-ttl-long` 目前停用（不註冊、不送 `prompt_cache_options`）；TUI 只顯示實際速度 |
-| Pi Runtime | `/runtime-recovery status`、`on`、`off`、`/runtime-recover <澄清>` | 每個可識別使用者任務最多 2 次診斷恢復；明確輸入錯誤可自動續行，cyber／policy／未知錯誤須人工 review 與 UI 確認；不啟用工具或更換模型 |
+| Pi Runtime | 無指令（`/settings:<id>` 設定面板共用層供其他模組使用） | Deferred 工具統一啟用與提示（`tool_search`）、跨模組工具規則 system prompt section；已移除 error recovery |
 | JSON Schema | 條件式 `json_output`；`--json-schema`、`--json-output` | CLI schema + zod 4 驗證；有 `--json-output` 寫檔、否則單一 JSON stdout；未給 `--json-schema` 時 inactive |
 
 Subagents **只保留 managed／可續接持久化**：`subagent` 只建立新子代理，提供 agent/task 或 tasks/chain；背景建立成功受理時，各 item 已有實際 managed `subagentSessionId`，但排隊身份不代表可互動或 checkpoint ready。後續使用 `subagent_message({ subagentSessionId, message })`；系統對可互動 invocation 送 control，對安全 ready session 非同步續接。不能覆寫保存的執行配置。`subagent.resume` 與 `resumable` 已移除，舊呼叫須遷移。專案新產生的 ULID 統一使用 `ulid().toUpperCase()`；既有小寫 ULID／UUID 仍可讀取，不更名。所有新 sessions 存於 `<agentDir>/subagent-sessions/<ULID>/`；失敗／取消不會冒稱 ready，舊 ephemeral logs 不自動轉換。
@@ -265,7 +266,7 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 
 ### Schedule Prompt
 
-入口：`modules/schedule-prompt/src/index.ts`（來源 [tintinweb/pi-schedule-prompt](https://github.com/tintinweb/pi-schedule-prompt) 0.4.1，MIT，保留原 LICENSE；非使用者擁有的來源）。若使用 `--tools` 明確 allowlist，請加入 `schedule_prompt` 才能啟用；exclusions／no-tools 仍優先。指令與儲存路徑沿用來源，另有本地 `endAt` 截止擴充，完整說明見 [Schedule Prompt README](modules/schedule-prompt/README.md)。
+入口：`modules/schedule-prompt/src/index.ts`（來源 [tintinweb/pi-schedule-prompt](https://github.com/tintinweb/pi-schedule-prompt) 0.4.1，MIT，保留原 LICENSE；非使用者擁有的來源）。若使用 `--tools` 明確 allowlist，請加入 `schedule_prompt`／`schedule_shell` 才能啟用；exclusions／no-tools 仍優先。指令與儲存路徑沿用來源，另有本地 `endAt` 截止擴充，完整說明見 [Schedule Prompt README](modules/schedule-prompt/README.md)。
 
 - Pi 1.0.0 適配：in-process subagent 改傳 `modelRuntime`（取代已移除的 `modelRegistry` 選項），其餘行為不變。
 - 帶 `model` 的 job 以 `createAgentSession` 在行程內執行，**不經** Subagents 模組的 argument builder／`--exclude-tools subagent` 保障；預設 `noExtensions`、僅內建工具，`extensions: true` 才載入其他 extensions。這不是 OS sandbox，取消只呼叫 `session.abort()`，不代表底層 process tree 已停止。
@@ -287,12 +288,6 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 新 summary 最多16 refs／8000 structural chars，carry／strip 必須驗證實際 insertion span、SHA-256／refs 的 optional `blackhole.notificationEvidence` provenance；不是相信 Markdown header，也不是身份簽章。無 metadata 的舊 compactions 不回填／改寫；壓縮時機、tail、設定與舊 ref 不變。Evidence 專用 scanner 在 parse 前限64 KiB line，另限32 MiB讀取／100000 lines；generic raw recall 另有限32 MiB讀取／1 MiB單行、8 MiB保守payload charge及16 MiB aggregate cache，超限明示 incomplete 並保留原始 #N。這些不是精確heap上限，也不涵蓋宿主已解析的 branch。Selected projection、summary 樣本與 raw history 完整程度不同，producer outputTruncated 與 projection partial 也不同。分頁只推進已交付 body；tiny budget 不足回 `isError`／結構診斷、零交付且無 cursor，最小文字可能僅 `!`；`0` 只解除文字 budget，不解除 projection/scanner 界限。Unavailable 僅表示 selected inspection 未取得，不能推全歷史 absence／outcome。詳見 [Blackhole recall](modules/blackhole/docs/recall.md)。
 
 離線 fixtures 驗證持久化消費端，不代表 producer lifecycle／exactly-once／process-tree cleanup、真實 provider、人工 TUI 或根 release gates 已通過；不讀 logs、不重播或重啟 outcome_unknown 舊工作。
-
-### 有限次 API 錯誤恢復
-
-原生入口 `modules/pi-runtime/src/index.ts` 預設啟用。明確 argument／tool JSON 錯誤會在最終可操作 boundary 加入模型可見診斷，最多 2 次，同診斷再出現就暫停；network／context／auth／billing 沿用宿主，不疊加重試。一般 `invalid_request_error` 不足以觸發自動恢復。
-
-Cyber／policy 及未知錯誤保留待 review 診斷，使用 `/runtime-recover <合法用途與授權範圍澄清>` 並在 idle 真正 TUI 明確確認後，才提交一次診斷 continuation；RPC／JSON／print 即使提供 dialog method 仍拒絕，不推定同意；**不是自動反覆改寫以避開 safeguard**，也不保證 provider 會讓模型收到下一次請求。`/runtime-recovery off` 可停用，`on` 不補額度。額度在 session 中先保留，tree／reload 不回補；`--no-session` 不支援。此機制可能增加模型費用，不改個人 settings/auth，不重播工具副作用。新任務以 idle input／preflight／agent_start 與實際 admitted user-object 的一次性phase證據識別（含transform/template），不是raw prompt文字匹配。完整限制與驗證見 [Pi Runtime README](modules/pi-runtime/README.md)；目前六檔baseline取得limited static acceptance（復審未重跑測試），14-mode為worker既有離線證據；根release gates／retry／Blackhole／overflow共存仍未驗收，不以單模組green宣稱根交付通過。
 
 ### GPT 速度切換
 
@@ -358,7 +353,7 @@ pi -p "Extract company name: Acme" --json-schema $schema --json-output result.js
 }
 ```
 
-十八個模組（subagents、shell-tools、file-tools、web-tools、note-tools、file-audit、gpt-speed、json-schema、pty-terminal、schedule-prompt、blackhole、pi-runtime、monitor、skill-tools、theme-tools、fork、sqlite-tools、sql-connector）的公開入口均為 `modules/<name>/src/index.ts`。薄入口轉接既有實作，內部資源位置不變。
+十九個模組（subagents、shell-tools、file-tools、web-tools、note-tools、file-audit、gpt-speed、json-schema、pty-terminal、schedule-prompt、blackhole、pi-runtime、monitor、skill-tools、theme-tools、fork、sqlite-tools、sql-connector、remote）的公開入口均為 `modules/<name>/src/index.ts`。薄入口轉接既有實作，內部資源位置不變。
 
 Filters 以整合包 root 為基準；與 tool allowlist 不同，它們控制 extension 是否執行／是否啟動生命週期資源。既有 filters 若使用舊入口路徑，請手動更新為新路徑，見 [入口遷移](docs/migration.md#unified-typescript-entry-points)。
 

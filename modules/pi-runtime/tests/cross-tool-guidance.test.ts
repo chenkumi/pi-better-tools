@@ -57,3 +57,22 @@ test('a forced system prompt gets the section appended once and replaced when th
   assert.match(next, /^FORCED\n\n### Cross-tool rules/); assert.doesNotMatch(next, /Delegate/); assert.match(next, /Files and shell/);
   assert.equal((next.match(/### Cross-tool rules/g) ?? []).length, 1);
 });
+
+test('dedicated-tool rules need a shell and name only the active alternatives', () => {
+  assert.doesNotMatch(rules('read', 'grep', 'web_fetch'), /Dedicated tools/, 'no shell, no substitution to warn about');
+  assert.doesNotMatch(rules('bash'), /Dedicated tools/, 'nothing to prefer when no alternative is active');
+  const files = rules('bash', 'read', 'grep');
+  assert.match(files, /`read`\/`grep`, not shell/); assert.doesNotMatch(files, /with `read`\/`grep`\/|web_|Use `web|database tools/);
+  const web = rules('powershell', 'web_search');
+  assert.match(web, /Use `web_search` for web content, not `curl`\/`wget`/); assert.doesNotMatch(web, /web_fetch|`read`/);
+  assert.match(rules('bash', 'sqlite_query'), /database tools, not a database CLI/);
+  assert.match(rules('bash', 'mysql_query'), /database tools/);
+  assert.match(files, /Never use the shell to get around what a dedicated tool refuses/);
+});
+
+test('parallel delegation is requested and the whole section stays within the token budget', () => {
+  assert.match(rules('subagent'), /start independent ones in the same turn/);
+  assert.match(rules('bash'), /same turn/);
+  const all = rules('bash', 'edit', 'write', 'read', 'grep', 'find', 'ls', 'web_fetch', 'web_search', 'sqlite_query', 'subagent', 'fork');
+  assert.ok(all.length / 4 < 560, `~${Math.round(all.length / 4)} tokens`);
+});

@@ -6,6 +6,7 @@
 - `web_search`：`openai`／`native` 模式為模型自己的原生搜尋（hosted search）注入，不註冊同名 function tool；`brave`／`exa`／`deepseek` 模式才註冊 REST 工具。工具參數不接受 provider 切換。
 - `/web-tools status` 顯示設定路徑／模式／金鑰是否存在（不顯示金鑰）／兩個 `captureSources` 開關與來源解碼狀態／瀏覽器狀態，不發網路探測。
 - `/web-tools sources` 顯示目前 branch 最近保存的原生搜尋來源（OpenAI 原生搜尋與 Gemini grounding 共用同一種 entry）。
+- `/settings:web-tools`（僅互動 TUI）開設定面板：選 provider，只顯示該 provider 需要的欄位（金鑰來源 `env`／`key`，DeepSeek 另有 `pi`＝用 Pi 登入憑證），並可改搜尋與 Fetch 數值。`Ctrl+S` 存檔、`Esc` 關閉；只在存檔時寫檔，保留未改欄位，驗證失敗不寫，金鑰以遮罩輸入並明文存入 JSON（既有金鑰不會回顯），面板另有 Fetch 頁的「Chromium download」：顯示是否已安裝，Enter 兩次確認後等同 `browser install` 下載 Chromium（不含 OS 相依套件，`Esc` 取消）。存檔後詢問是否 `/reload`。現有檔案無法解析或含未知欄位時，需確認「以預設值開始」，存檔會取代該檔。
 
 ## Config 與作用範圍
 

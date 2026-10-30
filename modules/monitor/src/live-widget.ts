@@ -13,7 +13,7 @@ export function remainingLabel(ms: number): string {
   return hours ? `剩 ${hours}h${minutes % 60 ? ` ${minutes % 60}m` : ''}` : `剩 ${minutes}m`;
 }
 
-const TARGET_LABELS: Partial<Record<string, string>> = { command: 'Command', websocket: 'Endpoint (origin only)' };
+const TARGET_LABELS: Partial<Record<string, string>> = { command: 'Command', websocket: 'Endpoint (origin only)', system: 'Threshold (whole host)' };
 
 const time = (value?: number) => value === undefined ? 'n/a' : new Date(value).toISOString();
 

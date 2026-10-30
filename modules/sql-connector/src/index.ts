@@ -1,3 +1,4 @@
+import { registerSqlConnectorSettings } from "./settings.js";
 import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { configuredEngines, loadSqlConnectorConfig } from "./config.js";
 import { buildSqlConnectorPrompt } from "./prompt.js";
@@ -17,6 +18,7 @@ function configErrorNotice(message: string): string {
 }
 
 export default function sqlConnectorExtension(pi: ExtensionAPI): void {
+  registerSqlConnectorSettings(pi);
   let runtime: SqlConnectorRuntime | undefined;
   let configError: string | undefined;
   const registeredEngines = new Set<string>();

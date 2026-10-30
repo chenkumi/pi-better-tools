@@ -1,8 +1,8 @@
 /**
  * Live "[Background Jobs]" reminder for a compaction summary.
  *
- * Local Pi Better Tools addition. The data is the readonly id/status list that Shell, Subagents and Fork publish
- * through the Monitor capability rendezvous: no commands, task text, output or paths. It describes the moment of
+ * Local Pi Better Tools addition. The data is the readonly id/status list that Shell, Subagents, Fork and PTY publish
+ * through the Monitor capability rendezvous (PTY sessions arrive as brief-only rows): no commands, task text, output or paths. It describes the moment of
  * compaction only, so it is a generated `jobs` span that later compactions strip instead of carrying forward.
  */
 import { activeJobBriefs, canonicalMonitorCwd, type ActiveJobBrief } from "../../../shell-tools/src/monitor-capability.js";
@@ -10,7 +10,8 @@ import { activeJobBriefs, canonicalMonitorCwd, type ActiveJobBrief } from "../..
 const MAX_ROWS = 16;
 const SAFE_ID = /^[A-Za-z0-9_.:-]{1,128}$/;
 const SAFE_STATUS = /^[a-z_]{1,32}$/;
-const LABEL: Record<ActiveJobBrief["kind"], string> = { shell_job: "Shell Job", subagent_job: "Subagent Job", fork_job: "Fork Job" };
+const PTY_HINT = "PTY sessions are interactive programs that may be waiting for input: check them with pty_list or pty_read, and do not spawn a duplicate.";
+const LABEL: Record<ActiveJobBrief["kind"], string> = { shell_job: "Shell Job", subagent_job: "Subagent Job", fork_job: "Fork Job", pty_session: "PTY Session" };
 
 export function renderBackgroundJobs(briefs: readonly ActiveJobBrief[], partial: boolean): string {
   const rows: string[] = [];
@@ -34,6 +35,7 @@ export function renderBackgroundJobs(briefs: readonly ActiveJobBrief[], partial:
     ...rows,
     ...(lost ? ["- (partial: some jobs were omitted or unreadable)"] : []),
     "These were still unfinished when this summary was written. Check them with the job status tools before acting; do not assume they are still running, and do not restart work that is already in progress.",
+    ...(rows.some(row => row.startsWith(`- ${LABEL.pty_session}:`)) ? [PTY_HINT] : []),
   ].join("\n");
 }
 

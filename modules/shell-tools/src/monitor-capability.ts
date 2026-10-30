@@ -3,15 +3,17 @@ import { resolve } from 'node:path';
 export interface MonitorScope { sessionId: string; cwd: string }
 export type JobKind = 'shell_job' | 'subagent_job' | 'fork_job';
 export interface ReadonlyJobLease { readonly generation: number; snapshot(jobId: string): Record<string, unknown> }
+/** Kinds that appear in the live background-jobs reminder. `pty_session` is brief-only: Monitor has no PTY source. */
+export type BriefKind = JobKind | 'pty_session';
 /** Id and status only: no command, task text, output, usage or paths. */
-export interface ActiveJobBrief { kind: JobKind; jobId: string; status: string }
+export interface ActiveJobBrief { kind: BriefKind; jobId: string; status: string }
 interface Provider { kind: JobKind; scope: MonitorScope; generation: number; read: (id: string) => Record<string, unknown>; valid: () => boolean; revoked: boolean; active?: () => number; briefs?: () => ActiveJobBrief[] }
 // Narrow capability rendezvous, not an extension factory/plugin manager. Never store executable job handles.
 const key = Symbol.for('pi-better-tools.monitor.readonly-jobs.v1');
 const root = globalThis as unknown as Record<symbol, Map<string, Provider>>;
 function registry() { return root[key] ??= new Map(); }
 export function canonicalMonitorCwd(cwd: string) { return realpathSync(resolve(cwd)); }
-function identity(kind: JobKind, scope: MonitorScope) { return JSON.stringify([kind, scope.sessionId, scope.cwd]); }
+function identity(kind: BriefKind, scope: MonitorScope) { return JSON.stringify([kind, scope.sessionId, scope.cwd]); }
 export function publishCapability(kind: JobKind, scope: MonitorScope, generation: number, read: Provider['read'], valid: Provider['valid'], active?: () => number, briefs?: () => ActiveJobBrief[]): () => void {
   const id = identity(kind, scope), providers = registry();
   const old = providers.get(id); if (old) old.revoked = true;
@@ -77,18 +79,35 @@ export function activeMonitorBriefs(scope: MonitorScope): { briefs: ActiveMonito
   } catch { return { briefs: [], partial: true }; }
 }
 const MAX_BRIEFS_PER_KIND = 16;
+interface BriefReader { read: () => Array<{ jobId: string; status: string }>; valid: () => boolean; revoked: boolean }
+// Brief-only publishers (no readonly snapshot, hence no Monitor source). Readers get a plain list, never a handle.
+const briefKey = Symbol.for('pi-better-tools.monitor.job-briefs.v1');
+const briefRoot = globalThis as unknown as Record<symbol, Map<string, BriefReader>>;
+const briefReaders = () => briefRoot[briefKey] ??= new Map();
+/** Publishes this owner's unfinished jobs of a kind that Monitor cannot observe. Returns the revoke handle. */
+export function publishJobBriefs(kind: 'pty_session', scope: MonitorScope, read: BriefReader['read'], valid: BriefReader['valid']): () => void {
+  const id = identity(kind, scope), readers = briefReaders();
+  const old = readers.get(id); if (old) old.revoked = true;
+  if (!old && readers.size >= 64) throw new Error('Job brief capacity exceeded');
+  const reader: BriefReader = { read, valid, revoked: false }; readers.set(id, reader);
+  return () => { reader.revoked = true; if (readers.get(id) === reader) readers.delete(id); };
+}
 /** Readonly list of this owner's unfinished jobs for a model-facing reminder. Never throws; a failing provider only marks the result partial. */
 export function activeJobBriefs(scope: MonitorScope): { briefs: ActiveJobBrief[]; partial: boolean } {
   const briefs: ActiveJobBrief[] = []; let partial = false;
-  for (const kind of ['shell_job', 'subagent_job', 'fork_job'] as const) {
-    const provider = registry().get(identity(kind, scope));
-    if (!provider || provider.revoked || !provider.briefs) continue;
+  const take = (kind: BriefKind, read: () => Array<{ jobId: string; status: string }>) => {
     try {
-      if (!provider.valid()) continue;
-      const rows = provider.briefs();
+      const rows = read();
       if (rows.length > MAX_BRIEFS_PER_KIND) partial = true;
       for (const row of rows.slice(0, MAX_BRIEFS_PER_KIND)) briefs.push({ kind, jobId: String(row.jobId).slice(0, 128), status: String(row.status).slice(0, 32) });
     } catch { partial = true; }
+  };
+  for (const kind of ['shell_job', 'subagent_job', 'fork_job'] as const) {
+    const provider = registry().get(identity(kind, scope));
+    if (!provider || provider.revoked || !provider.briefs) continue;
+    take(kind, () => provider.valid() ? provider.briefs!() : []);
   }
+  const pty = briefReaders().get(identity('pty_session', scope));
+  if (pty && !pty.revoked) take('pty_session', () => pty.valid() ? pty.read() : []);
   return { briefs, partial };
 }

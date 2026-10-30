@@ -82,7 +82,7 @@ Manifest adds `modules/monitor/src/index.ts` (12 local/14 total entries, five na
 
 ## Pi Runtime addition
 
-The manifest adds `modules/pi-runtime/src/index.ts` as a native entry. Existing source mounts load it on reload/restart unless filtered out; no automatic settings/auth edits occur. Review extension filters if bounded diagnostic recovery is not desired, or use `/runtime-recovery off` for the current session/branch. Automatic recovery is limited to explicit input errors; policy/unknown failures require `/runtime-recover` and UI confirmation, not an unconditional retry. Recovery may incur model cost; state persists inside the existing session without historical backfill or replay. See the module README before changing recovery policy.
+The manifest adds `modules/pi-runtime/src/index.ts` as a native entry. Existing source mounts load it on reload/restart unless filtered out; no automatic settings/auth edits occur. The module's error recovery (`/runtime-recovery`, `/runtime-recover`) was later removed; the entry now only provides deferred-tool discovery and cross-module prompt rules.
 
 ## Skill Tools addition (2026-10-12)
 
@@ -190,7 +190,7 @@ The four root Pi development packages, the Shell Monitor backend gate and real-h
 Host changes that touch this package:
 
 - Resumed sessions and `/tree` keep extension tools active when the branch recorded its loadout before they registered. The host still honors `defaultActive: false`, allowlists/exclusions and tools the branch removed, so File Tools' inactive `grep`/`find` registrations and manual deactivation are unchanged.
-- Concurrent extension `select`/`confirm`/`input`/`editor` dialogs now stack instead of replacing each other. Pi Runtime recovery and SQL Connector write confirmations rely only on the public UI context; the Pi Runtime real-TUI fixture reads the visible dialog from the host's dialog stack.
+- Concurrent extension `select`/`confirm`/`input`/`editor` dialogs now stack instead of replacing each other. SQL Connector write confirmations rely only on the public UI context.
 - `generateSummary()` ignores `reserveTokens`; `compaction.reserveTokens` only controls when compaction starts. Blackhole does not call `generateSummary()`, and it still adds its own OpenCode session headers to its direct provider requests.
 - Pi still drops Anthropic `server_tool_use`/`web_search_tool_result` blocks and OpenAI annotation-only URLs, so the Web Tools native-search guidance is unchanged.
 

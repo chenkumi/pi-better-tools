@@ -239,3 +239,17 @@ test('row colors follow the Shell completion card: accent mark, plain label, mut
   assert.match(shell, /^<accent>●<\/accent><text> SH bash · shell work a\s*<\/text><muted>[^<]+<\/muted>$/);
   assert.match(cancelling, /^<warning>◐ SA scout · subagents work b\s+[^<]*<\/warning>$/);
 });
+test('PTY sessions are a panel kind: PT heading, PTY count only when present, own slash-command target', async () => {
+  const pty: PanelJob = { ...job('pty-1-1', 'pty'), label: 'pty', title: 'build-host (ssh)', usageState: 'na', summary: 'running' };
+  const lines = renderJobs([job('1'), pty], theme, 80).map(plain);
+  assert.match(lines[0], /2 active · Subagents 0 \/ Shell 1 \/ PTY 1/);
+  assert.match(lines.join(String.fromCharCode(10)), /● PT pty · build-host \(ssh\) +running /);
+  assert.doesNotMatch(plain(renderJobs([job('1')], theme, 80).join(String.fromCharCode(10))), /PTY/);
+  const hosts = hostPair(); acquireBackgroundPanel(hosts.create());
+  const notices: string[] = [];
+  await hosts.commands.get('background-jobs').handler('bogus', { ui: { notify: (text: string) => notices.push(text) }, mode: 'tui', hasUI: true });
+  assert.match(notices[0], /monitor\|pty\|all/);
+  const ui = view(), panel = new BackgroundPanel(), token = panel.attach('pty', ui.ctx)!;
+  panel.update('pty', token, snapshot([pty]));
+  assert.match(plain(ui.component().render(100).join(String.fromCharCode(10))), /PT pty/);
+});
