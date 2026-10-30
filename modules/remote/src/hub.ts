@@ -114,6 +114,7 @@ export class RemoteHub {
   }
 
   private accept(socket: WebSocket, address: string): void {
+    socket.on('error', () => undefined); // also for refused peers: an invalid frame makes ws emit 'error', which would otherwise be uncaught
     const refuse = (code: 'blocked' | 'full') => { socket.send(frame({ t: 'error', code }), () => socket.close(1008)); };
     if (this.blocked(address)) return refuse('blocked');
     if (this.pending >= LIMITS.maxPending) return refuse('full');
@@ -124,7 +125,6 @@ export class RemoteHub {
     const release = () => { if (!released) { released = true; this.pending -= 1; clearTimeout(timer); } };
     const timer = setTimeout(() => { this.fail(address); socket.terminate(); }, LIMITS.authTimeoutMs);
     const reject = (code: 'auth_failed' | 'protocol') => { this.fail(address); release(); socket.send(frame({ t: 'error', code }), () => socket.close(1008)); };
-    socket.on('error', () => undefined);
     socket.on('pong', () => { if (member) member.alive = true; });
     socket.on('close', () => {
       release();

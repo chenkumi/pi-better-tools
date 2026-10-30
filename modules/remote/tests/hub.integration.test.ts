@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createConnection } from 'node:net';
 import test from 'node:test';
-import { LIMITS, generateCode } from '../src/protocol.js';
+import { LIMITS, REMOTE_PATH, generateCode } from '../src/protocol.js';
 import { RawPeer, fingerprintOf, otherTlsFixture, startClient, startHub, tlsFixture } from './helpers.js';
 
 const send = (to: string, body: string, id = `id-${Math.random().toString(36).slice(2)}`) => ({ t: 'send' as const, id, to, kind: 'message' as const, body });
@@ -85,6 +85,30 @@ test('five failed handshakes block that address, even for the right code', async
   }
   const blocked = RawPeer.open(t, port);
   assert.deepEqual(await blocked.frame('error'), { t: 'error', code: 'blocked' });
+  assert.deepEqual(hub.roster().map(p => p.name), ['srv']);
+});
+
+test('a blocked peer that sends an invalid frame cannot crash the process', async t => {
+  const code = generateCode();
+  const { hub, port } = await startHub(t, { code });
+  for (let i = 0; i < 5; i += 1) {
+    const raw = RawPeer.open(t, port);
+    assert.deepEqual(await raw.hello({ name: 'bad', code, proof: 'f'.repeat(64) }), { t: 'error', code: 'auth_failed' });
+  }
+  const crashes: Error[] = [];
+  const onCrash = (error: Error) => { crashes.push(error); };
+  process.on('uncaughtException', onCrash);
+  t.after(() => { process.off('uncaughtException', onCrash); });
+  const probe = createConnection({ port, host: '127.0.0.1' });
+  t.after(() => probe.destroy());
+  let received = '';
+  probe.on('data', chunk => { received += chunk.toString('latin1'); });
+  probe.on('error', () => undefined);
+  probe.write(['GET ' + REMOTE_PATH + ' HTTP/1.1', 'Host: x', 'Upgrade: websocket', 'Connection: Upgrade', 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==', 'Sec-WebSocket-Version: 13', '', ''].join('\r\n'));
+  await new Promise<void>(resolve => { const poll = setInterval(() => { if (received.includes('error')) { clearInterval(poll); resolve(); } }, 10); });
+  probe.write(Buffer.from([0x83, 0x80, 0, 0, 0, 0])); // masked frame with a reserved opcode
+  await new Promise<void>(resolve => probe.once('close', () => resolve()));
+  assert.deepEqual(crashes.map(error => error.message), []);
   assert.deepEqual(hub.roster().map(p => p.name), ['srv']);
 });
 
