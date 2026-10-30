@@ -50,10 +50,10 @@ function resolveConfigDir(configDir: string | undefined): string {
 
 /** Check if a directory path points to a real user home (not a test temp). */
 function isRealDir(dir: string): boolean {
-  if (dir.startsWith("/tmp") || dir.startsWith("/var/folders")) return false;
   // Cross-platform: os.tmpdir() is /tmp on Linux, /var/folders/... on macOS,
   // and C:\Users\<user>\AppData\Local\Temp on Windows — the prefix check
-  // covers all of them, including paths that don't start with "/tmp".
+  // covers all of them. No hard-coded "/tmp" prefix: an isolated HOME under
+  // /tmp would otherwise bypass the modeled temp boundary.
   const systemTmp = tmpdir();
   return dir !== systemTmp && !dir.startsWith(systemTmp + sep);
 }

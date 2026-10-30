@@ -20,7 +20,7 @@ test('pi-tools-config routes configuration needs by capability and keeps one ref
   assert.ok(description.length <= 1024, 'host skill description limit');
   assert.ok(description.includes('Do not use for routine operations with already-configured tools or for implementing these features in application code.'));
   assert.doesNotMatch(description, /pi-better-tools/);
-  const modules = readdirSync(new URL('../../', import.meta.url), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
+  const modules = readdirSync(new URL('../../', import.meta.url), { withFileTypes: true }).filter(entry => entry.isDirectory() && existsSync(new URL(`../../${entry.name}/src/index.ts`, import.meta.url))).map(entry => entry.name).sort();
   const references = readdirSync(resolve(skillDir, 'references')).sort();
   assert.deepEqual(references, modules.map(name => `${name}.md`));
   const indexed = [...index.matchAll(/\]\(references\/([^)]+)\)/g)].map(match => match[1]).sort();

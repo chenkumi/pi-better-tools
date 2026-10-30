@@ -74,7 +74,8 @@ test("pty_write with readAfterMs and a waitFor pattern cannot reveal the secret"
 	await pending;
 	await sleep(300);
 	const probe = await tools.get("pty_read").execute("r", { sessionId, since: 0, waitFor: "ThisIs", timeoutMs: 300 });
-	assert.match(probe.content[0].text, /waitFor not matched/, "a pattern on the secret must not match");
+	// The program may already have exited by now ("exited"), which is also a non-match.
+	assert.notEqual(probe.details.waitFor, "matched", "a pattern on the secret must not match");
 	const hit = await tools.get("pty_read").execute("r", { sessionId, since: 0, waitFor: "command not found", timeoutMs: 1000 });
 	assert.ok(!hit.details.waitFor || hit.details.waitFor === "matched");
 	assert.ok(!JSON.stringify(hit).includes(SECRET));
