@@ -39,7 +39,7 @@ pi --no-extensions -e ./modules/file-audit/src/index.ts
 
 - 基準只存 size／mtime 與 SHA-256（≤ 8 MiB 才雜湊，背景計算且寫入時重驗 stat），不存內容；基準數量不超過 `maxFiles`。`.env`／`.env.*`、`auth.json`、`.git`、`.pi` 路徑不觀察。
 - size／mtime 相同視為未變；不同時若有基準雜湊則比對內容，僅 mtime 改變（內容相同）不通知；沒有基準雜湊（過大、尚未算完、雜湊失敗）時以 metadata 差異為準，可能誤報。單次最多讀取 32 MiB 做比對，超過的檔案只用 metadata。
-- 通知後基準即更新，同一變更只報一次；檔案刪除後移除基準。自己的 edit／write 在結束時已更新基準，不會誤報。Shell 或外部程式的改動會被報告。
+- 通知後基準即更新，同一變更只報一次；檔案刪除後移除基準。自己的 edit／write 在結束時已更新基準，不會誤報。Shell 或外部程式的改動會被報告：File Audit 只觀察 read／write／edit／note，不解析 shell 指令，所以 agent 自己用 shell 修改或刪除（`sed -i`、`rm` 等）的檔案，與使用者或編輯器造成的變更無法區分，同樣會報 `modified`／`deleted`；`deleted` 只代表檔案已不存在，不推論作者。通知前言明講原因未知、可能包含 agent 自己的 shell 指令。
 - 只在同一 session 內有效：session start、tree、shutdown、`/file-audit clear` 清空基準，不跨 resume，不持久化。
 - 偵測失敗、取消或擁有者換代時不發通知、也不阻擋 prompt。這只是「觀察到差異」，不推論作者或時間；到下一次 user input 才檢查，同一 run 內的外部修改仍由 `edit` 的 `expectedHash` 擋下（`STALE_FILE`）。
 
