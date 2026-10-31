@@ -13,7 +13,9 @@ export function createTestOptions(suite: string = "all") {
     exclude: [...configDefaults.exclude, ...(suite === "unit" ? ["tests/integration/**"] : [])],
     // Real-host probes pay fresh process/TS-loader startup costs. Keep them
     // separate from unit workers; the all-suite manual entry also stays serial.
-    maxWorkers: suite === "unit" ? 2 : 1,
+    // Unit: 4 workers measured ~135-150 s vs ~260 s at 2, stable over two runs; 6 hit cold-start 10 s timeouts.
+    // `--no-isolate` is not an option: it fails ~100 cases that rely on per-file module state.
+    maxWorkers: suite === "unit" ? 4 : 1,
     fileParallelism: suite === "unit",
   };
 }

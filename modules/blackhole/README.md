@@ -52,6 +52,8 @@ Status-bar provenance（2026-10-12）：目前 `src/om/status-bar.ts` 與 `tests
 
 根驗證：`npm run test:module -- blackhole`（保留來源 Vitest runner，並有隔離 Pi 1.1.0 native compact/persist/resume/renderer probe）、`npm run test:cross` 和 `npm run test:package`。完整 suite 有環境／上游阻礙時必須回報失敗，不跳過、不當作通過；進度與證據見 repository `plan/`。
 
+整合差異（2026-10-31）：單元組 `vitest.config.ts` 的 `maxWorkers` 由上游的 2 改為 4（實測約 262 s → 135–150 s，案例數與通過數不變）；6 曾出現冷啟動 10 s 逾時，`--no-isolate` 會使約 100 個依賴逐檔模組狀態的案例失敗，兩者都不採用。整合組維持 1。
+
 測試分組修正：根 unit 明確使用 `--suite=unit` 排除 `tests/integration/**`；native Vitest 分組由 integration／module runner 顯式執行，單一 worker、檔案序列，保留全部案例。手動 runner 未指定 suite 仍執行全部（序列），也可用 `--suite=integration <filter>` 選取 native probes。Unit 10 秒不變；`pi-owned` 使用既有 process helper 的 30 秒程序預算／8 秒終止確認 grace，以及 45 秒 Vitest 外層收尾預算；取消或終止要求不等於 descendants 全部停止，失敗不能當作通過。不改 runtime 邏輯、信任界線或斷言。
 
 本地測試適配：根 `scripts/blackhole-tests.mjs` 保留隔離 HOME／空 credentials／`PI_BLACKHOLE_PASSIVE=true`，但不將 agentDir 環境覆寫蓋過各案例的 SDK mock。`tests/unit-isolation.setup.ts` 僅允許五個明確列出的純 config／mock command 測試暫時移除 passive 覆寫，其他案例維持 passive，並在每案例前後還原。Vitest `.js` alias 限相對來源 import，不改寫宿主 file URL；Windows fixtures 使用 `tmpdir()`／`dirname()`／正規化 Git map keys；唯讀故障注入 EROFS，不依賴 chmod 或 skip；worker deadline 測試以實際 invocation event barrier 對齊 fake clock，不加長 deadline。根 TypeScript compiler 透過 Node resolution 定位，不要求模組內 node_modules。
