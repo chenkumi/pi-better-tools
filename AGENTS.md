@@ -48,6 +48,7 @@
 - 先讀取欲修改模組的 `AGENTS.md`／README；其舊版依賴、獨立 lockfile 與 scripts 宣告是匯入時的歷史資訊，整合版本／命令以根 manifest 為準。未匯入的來源報告位置見 `docs/source-references.md`。
 - 專案只支援 Pi 1.4.0：開發基準與 production smoke 都只驗證 1.4.0，不再維護 1.3.0 或更早版本的相容驗證。模組匯入時的版本不是目前基準；不以 wildcard peers 宣稱其他版本相容。
 - 驗證命令與分組以根 `package.json`、`scripts/run-checks.mjs` 為準；純文件修改核對事實、命令及引用路徑，不必執行程式測試。`npm run build` 目前為 no-op，不代表型別或 runtime 驗證。
+- 單元組（`npm test`）中 sqlite-tools、pty-terminal、subagents、shell-tools、monitor、fork、remote、pi-runtime 以 `--test-concurrency=4` 並行（`scripts/run-checks.mjs` 的 `unitParallel`）：這些組的時間主要是每檔啟動載入，不是案例；整合組與重型組維持各自並行度，不為提速提高。新增單元檔需獨立（隔離 home／暫存目錄、不用固定 port）。
 - 測試依變更範圍分組，不要每次都跑全部：
   - `npm test`（單元）：每次修改程式碼後的基本檢查；`npm run typecheck`：修改 TS 型別、介面或 schema 時。JS／TS 修改另執行 `npm run lint`（correctness baseline，不自動 `--fix`，不等於安全審查）。
   - `npm run test:module -- <module>`（該模組的 build／typecheck／單元／整合／真實 host 測試；module 為 blackhole、file-audit、file-tools、fork、gpt-speed、json-schema、monitor、note-tools、pi-runtime、pty-terminal、remote、schedule-prompt、shell-tools、skill-tools、sql-connector、sqlite-tools、subagents、theme-tools、web-tools；blackhole、schedule-prompt 與 sql-connector 保留 Vitest runner）：只修改該模組時執行，不跑其他模組的整合測試。Web 真實瀏覽器 `fetch` 測試屬重型組（`test:heavy -- web-tools`），`test:module -- web-tools` 只含 `web-read` 等非重型項；皆需先 `npm run browser:install`。

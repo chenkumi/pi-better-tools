@@ -20,16 +20,19 @@ const heavyFiles = new Set([
   'modules/sql-connector/tests/sdk.integration.test.mjs', 'modules/monitor/tests/host.integration.test.mjs']);
 const testFiles = (dir, keep) => readdirSync(join(root, dir)).filter(name => /\.test\.(ts|mjs)$/.test(name) && keep(name) && !heavyFiles.has(`${dir}/${name}`)).sort().map(name => `${dir}/${name}`);
 const isIntegration = name => name.includes('.integration.');
-// Unit files use isolated temp dirs and separate processes. Subagent fault-injection files stay serial:
-// process-global fault mocks and actual resource barriers must not overlap; targeted deadlines start at injected entry.
+// Unit files each run in their own process with isolated temp dirs; per-file startup (tsx load) dominates their wall time (measured: summed case time
+// is a few percent of the group time), so these groups run 4 files at once. Integration groups keep their own concurrency: real hosts are timing-sensitive.
+const unitParallel = { concurrency: 4 };
+// Unit files use isolated temp dirs and separate processes, so process-global fault mocks cannot leak between files. Groups serial by default;
+// Subagent fault-injection integration files keep concurrency 1 (actual resource barriers must not overlap; targeted deadlines start at injected entry).
 const directTests = (label, dir, keep, extra = {}) => {
   // An empty list would make `node --test` scan its default directories and silently run something else.
   const files = testFiles(dir, keep);
   if (files.length === 0) throw new Error(`${label}: no test files matched in ${dir}`);
   return { label, args: ['--import', tsx, '--test', `--test-concurrency=${extra.concurrency ?? 1}`, ...files], ...extra };
 };
-const sourceTests = [directTests('sqlite-tools:test', 'modules/sqlite-tools/tests', name => !isIntegration(name)), directTests('pty-terminal:test', 'modules/pty-terminal/tests', name => !isIntegration(name)), directTests('subagents:test', 'modules/subagents/tests', name => !isIntegration(name)),
-  directTests('shell-tools:test:unit', 'modules/shell-tools/tests', name => !isIntegration(name)),
+const sourceTests = [directTests('sqlite-tools:test', 'modules/sqlite-tools/tests', name => !isIntegration(name), unitParallel), directTests('pty-terminal:test', 'modules/pty-terminal/tests', name => !isIntegration(name), unitParallel), directTests('subagents:test', 'modules/subagents/tests', name => !isIntegration(name), unitParallel),
+  directTests('shell-tools:test:unit', 'modules/shell-tools/tests', name => !isIntegration(name), unitParallel),
   moduleTask('file-tools', 'test'), moduleTask('file-tools', 'test:tooling'),
   directTests('web-tools:test', 'modules/web-tools/tests/unit', () => true, { concurrency: 4 }),
   // Schedule Prompt keeps its source vitest runner (heavy vi.mock use); modules/schedule-prompt/test is therefore not scanned by node --test.
@@ -54,7 +57,7 @@ const groups = {
     { label: 'json-schema:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/json-schema/tsconfig.json'] },
     { label: 'blackhole:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/blackhole/tsconfig.json'] }],
   // Scan test directories (not hard-coded lists) so a new *.test.ts is never silently skipped; *.test.mjs there are real-host integration tests.
-  unit: [directTests('file-audit:test', 'modules/file-audit/tests', name => !isIntegration(name)), directTests('skill-tools:test', 'modules/skill-tools/tests', name => !isIntegration(name)), directTests('theme-tools:test', 'modules/theme-tools/tests', name => !isIntegration(name)), directTests('all-modules:test-tooling', 'tests/unit', () => true), directTests('monitor:test', 'modules/monitor/tests', name => !isIntegration(name)), directTests('fork:test', 'modules/fork/tests', name => !isIntegration(name)), directTests('remote:test', 'modules/remote/tests', name => !isIntegration(name)), directTests('pi-runtime:test', 'modules/pi-runtime/tests', name => !isIntegration(name)), ...sourceTests, ...[['note-tools', 'modules/note-tools/tests'], ['gpt-speed', 'modules/gpt-speed/tests'], ['json-schema', 'modules/json-schema/tests']]
+  unit: [directTests('file-audit:test', 'modules/file-audit/tests', name => !isIntegration(name)), directTests('skill-tools:test', 'modules/skill-tools/tests', name => !isIntegration(name)), directTests('theme-tools:test', 'modules/theme-tools/tests', name => !isIntegration(name)), directTests('all-modules:test-tooling', 'tests/unit', () => true), directTests('monitor:test', 'modules/monitor/tests', name => !isIntegration(name), unitParallel), directTests('fork:test', 'modules/fork/tests', name => !isIntegration(name), unitParallel), directTests('remote:test', 'modules/remote/tests', name => !isIntegration(name), unitParallel), directTests('pi-runtime:test', 'modules/pi-runtime/tests', name => !isIntegration(name), unitParallel), ...sourceTests, ...[['note-tools', 'modules/note-tools/tests'], ['gpt-speed', 'modules/gpt-speed/tests'], ['json-schema', 'modules/json-schema/tests']]
     .map(([module, dir]) => directTests(`${module}:test`, dir, name => name.endsWith('.test.ts')))],
   integration: [directTests('file-audit:real-host', 'modules/file-audit/tests', isIntegration), directTests('sqlite-tools:real-host', 'modules/sqlite-tools/tests', isIntegration), directTests('skill-tools:real-host', 'modules/skill-tools/tests', isIntegration), directTests('monitor:integration', 'modules/monitor/tests', isIntegration), directTests('remote:integration', 'modules/remote/tests', isIntegration), directTests('pi-runtime:real-host', 'modules/pi-runtime/tests', isIntegration), directTests('pty-terminal:test:integration', 'modules/pty-terminal/tests', isIntegration),
     directTests('json-schema:workers', 'modules/json-schema/tests', isIntegration),
