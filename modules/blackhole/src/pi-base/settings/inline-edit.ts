@@ -31,16 +31,6 @@ const GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: "graphem
 /** Shared yank buffer for storing killed text. */
 let yankBuffer = "";
 
-/** Retrieve the current content of the yank buffer. */
-export function getInlineYankBuffer(): string {
-  return yankBuffer;
-}
-
-/** Set the content of the yank buffer. */
-export function setInlineYankBuffer(val: string): void {
-  yankBuffer = val;
-}
-
 /** Mutable cursor state. `cursor` is a code-unit offset into `buffer`. */
 export interface InlineEditState {
   buffer: string;

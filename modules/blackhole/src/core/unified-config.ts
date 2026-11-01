@@ -203,16 +203,6 @@ export interface UnifiedConfig {
   /** Treat every compaction as a full-fold boundary so early reflections/drops
    *  survive the first compaction in a fresh session. Default true. */
   fullFoldAlways: boolean;
-  /** Target token budget for the observation pool (dropper aims here).
-   *  Optional; defaults to half of observationsPoolMaxTokens when unset.
-   *  Must be less than observationsPoolMaxTokens.
-   *
-   *  NOTE: Ported from upstream as forward-compat (no-op in our pool algorithm).
-   *  Upstream renamed budgetTokens→targetTokens (52b5844) and uses this
-   *  for their tokensOverTarget / avgTokensPerObservation drop calculation.
-   *  We keep our ratio-based urgency algorithm; this knob exists so future
-   *  lockstep iterations don't diverge on the config shape. */
-  observationsPoolTargetTokens: number;
   /** Max prompt tokens for reflector model input (rolling window cap). */
   reflectorInputMaxTokens: number;
   /** Max prompt tokens for dropper model input (rolling window cap). */
@@ -320,7 +310,6 @@ export const DEFAULTS: UnifiedConfig = {
   observationsPoolMaxTokens: 20_000,
   reflectionsPoolMaxTokens: 8_000,
   fullFoldAlways: true,
-  observationsPoolTargetTokens: 10_000,
   reflectorInputMaxTokens: 80_000,
   dropperInputMaxTokens: 80_000,
   dropperPressureThreshold: 0.7,
@@ -619,7 +608,6 @@ function parseConfig(raw: Record<string, unknown>): Partial<UnifiedConfig> {
     "recallResponseMaxChars",
     "observationsPoolMaxTokens",
     "reflectionsPoolMaxTokens",
-    "observationsPoolTargetTokens",
     "reflectorInputMaxTokens",
     "dropperInputMaxTokens",
     "observerChunkMaxTokens",
@@ -914,57 +902,6 @@ export function loadUnifiedConfig(cwd: string, onWarn?: WarnFn): UnifiedConfig {
   // pin). Env overrides applied above re-assert an env-set 81000 afterwards,
   // so an explicit PI_BLACKHOLE_COMPACT_AFTER_TOKENS=81000 still pins.
   return withEnv;
-}
-
-/**
- * Write settings back to disk. Preserves unknown keys.
- */
-export function saveUnifiedConfig(settings: Partial<UnifiedConfig>): boolean {
-  try {
-    const path = configPath();
-    const dir = dirname(path);
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-    const existingResult = readJson(path);
-    const existing = existingResult.data ?? {};
-    if (existingResult.error) {
-      console.warn("blackhole: overwriting corrupt config file at " + path);
-    }
-    const next = canonicalPersistedSettings({ ...existing, ...settings });
-    writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Write settings back to disk for a specific scope.
- *
- * - global: writes to `<agentDir>/pi-blackhole/pi-blackhole-config.json`
- * - project: writes to `<cwd>/.pi/pi-blackhole-config.json`
- *
- * Preserves unknown keys in the target file.
- */
-export function saveUnifiedConfigScoped(
-  settings: Partial<UnifiedConfig>,
-  scope: "global" | "project",
-  cwd: string,
-): boolean {
-  try {
-    const dir = scope === "project" ? join(cwd, ".pi") : join(getAgentDir(), "pi-blackhole");
-    const path = join(dir, CONFIG_FILE);
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-    const existingResult = readJson(path);
-    const existing = existingResult.data ?? {};
-    if (existingResult.error) {
-      console.warn("blackhole: overwriting corrupt config file at " + path);
-    }
-    const next = canonicalPersistedSettings({ ...existing, ...settings });
-    writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /**

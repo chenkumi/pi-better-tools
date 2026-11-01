@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { analyzeOrphaned, deleteOrphanedBatch } from "../src/om/cleanup.js";
 import { handleCleanup } from "../src/commands/cleanup.js";
-import { savePendingObservation, savePendingReflection, savePendingDropped, readPendingState, writePendingCursors, listPendingSessions } from "../src/om/pending.js";
+import { savePendingObservation, savePendingReflection, savePendingDropped, readPendingState, writePendingCursors } from "../src/om/pending.js";
 
 vi.mock("node:fs", async importOriginal => ({ ...await importOriginal<typeof import("node:fs")>() }));
 const fixture = vi.hoisted(() => ({ root: "" }));
@@ -36,18 +36,6 @@ for (const [name, save] of [["observation", savePendingObservation], ["reflectio
     expect(fs.readdirSync(join(fixture.root, "pi-blackhole")).filter(p => p.endsWith(".tmp"))).toEqual([]);
   });
 }
-
-test("readonly pending listing isolates corrupt/unreadable entries from valid sessions", () => {
-  savePendingObservation("live", { coversUpToId: "a", data: {} });
-  fs.writeFileSync(join(fixture.root, "pi-blackhole", "corrupt-pending.json"), "{bad");
-  fs.writeFileSync(join(fixture.root, "pi-blackhole", "denied-pending.json"), "{}");
-  const original = fs.readFileSync;
-  vi.spyOn(fs, "readFileSync").mockImplementation((...args: Parameters<typeof fs.readFileSync>) => {
-    if (String(args[0]).endsWith("denied-pending.json")) throw Object.assign(new Error("EACCES"), { code: "EACCES" });
-    return original(...args);
-  });
-  expect(listPendingSessions()).toEqual(["live"]);
-});
 
 test("unreadable live header never authorizes orphan deletion", () => {
   fs.writeFileSync(live, JSON.stringify({ type: "session", id: "live" }) + "\n");

@@ -415,7 +415,7 @@ describe("/blackhole-export", () => {
   });
 
   it("inferReflectionTier falls back to medium when no observation resolves", async () => {
-    const { buildProjectMemoryCorpus } = await import("../src/project-recall/corpus.js");
+    const { buildProjectMemoryCorpusAsync } = await import("../src/project-recall/corpus.js");
     const { buildExportMarkdown } = await import("../src/project-recall/format-export.js");
 
     const scope = encodeScopeDir(projectCwd);
@@ -441,7 +441,7 @@ describe("/blackhole-export", () => {
       }),
     ]);
 
-    const corpus = buildProjectMemoryCorpus({ cwd: projectCwd, agentDir });
+    const corpus = await buildProjectMemoryCorpusAsync({ cwd: projectCwd, agentDir });
     const { markdown } = buildExportMarkdown(corpus, {
       now: Date.now(),
       title: "proj",
@@ -461,8 +461,8 @@ describe("/blackhole-export", () => {
   });
 
   it("prefilter keeps marker-less sessions cheap but counted", async () => {
-    const { buildProjectMemoryCorpus } = await import("../src/project-recall/corpus.js");
-    const corpus = buildProjectMemoryCorpus({ cwd: projectCwd, agentDir });
+    const { buildProjectMemoryCorpusAsync } = await import("../src/project-recall/corpus.js");
+    const corpus = await buildProjectMemoryCorpusAsync({ cwd: projectCwd, agentDir });
     expect(corpus.sessionsConsidered).toBe(3);
     expect(corpus.filesWithMarkers).toBe(2);
     expect(corpus.knownSessionIds.has("ses-1")).toBe(true);

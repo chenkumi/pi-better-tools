@@ -99,28 +99,6 @@ export function emptyCoverageTransitionSummaryByRelevance(): CoverageTransitionS
   };
 }
 
-export function summarizeCoverageTransitionsByRelevance(
-  observations: readonly Observation[],
-  beforeCoverageById: ReadonlyMap<string, ReflectionCoverageTier>,
-  afterCoverageById: ReadonlyMap<string, ReflectionCoverageTier>,
-): CoverageTransitionSummaryByRelevance {
-  const summary = emptyCoverageTransitionSummaryByRelevance();
-  for (const observation of observations) {
-    const before = beforeCoverageById.get(observation.id) ?? "none";
-    const after = afterCoverageById.get(observation.id) ?? "none";
-    if (before === after) continue;
-    const key = `${before}->${after}`;
-    const bucket = summary[observation.relevance][key] ?? {
-      count: 0,
-      tokens: 0,
-    };
-    bucket.count++;
-    bucket.tokens += observation.tokenCount;
-    summary[observation.relevance][key] = bucket;
-  }
-  return summary;
-}
-
 export function observationToDropperLine(
   observation: Observation,
   coverage: ReflectionCoverageTier,

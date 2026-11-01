@@ -35,7 +35,6 @@ import {
   type Observation,
   type Reflection,
 } from "../../ledger/index.js";
-import type { ReflectionCoverageTier } from "../dropper/coverage.js";
 import {
   isDeterministicError,
   withDiscardedCount,
@@ -396,46 +395,5 @@ export async function runReflector(args: RunReflectorArgs): Promise<ReflectorRes
   return {
     reflections: Array.from(accumulated.values()),
     ...(agentError ? { errorAfterClose: agentError } : {}),
-  };
-}
-
-export function observationToReflectorLine(
-  observation: Observation,
-  coverage: ReflectionCoverageTier,
-): string {
-  return `[${observation.id}] ${observation.timestamp} [${observation.relevance}] [coverage: ${coverage}] ${observation.content}`;
-}
-
-export function summarizeSupportIdCounts(reflections: readonly Reflection[]): {
-  reflectionCount: number;
-  totalSupportIds: number;
-  minSupportIds: number;
-  maxSupportIds: number;
-  averageSupportIds: number;
-  histogram: Record<string, number>;
-} {
-  if (reflections.length === 0) {
-    return {
-      reflectionCount: 0,
-      totalSupportIds: 0,
-      minSupportIds: 0,
-      maxSupportIds: 0,
-      averageSupportIds: 0,
-      histogram: {},
-    };
-  }
-  const supportIdCounts = reflections.map((r) => r.supportingObservationIds.length);
-  const total = supportIdCounts.reduce((sum, c) => sum + c, 0);
-  const histogram: Record<string, number> = {};
-  for (const count of supportIdCounts) {
-    histogram[String(count)] = (histogram[String(count)] || 0) + 1;
-  }
-  return {
-    reflectionCount: reflections.length,
-    totalSupportIds: total,
-    minSupportIds: Math.min(...supportIdCounts),
-    maxSupportIds: Math.max(...supportIdCounts),
-    averageSupportIds: total / reflections.length,
-    histogram,
   };
 }

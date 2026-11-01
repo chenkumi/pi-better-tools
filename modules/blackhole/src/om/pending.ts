@@ -18,7 +18,6 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
-  readdirSync,
   renameSync,
   unlinkSync,
   writeFileSync,
@@ -304,15 +303,6 @@ export function isObservationChunkPending(sessionId: string, coversUpToId: strin
   return s.observation?.coversUpToId === coversUpToId;
 }
 
-/**
- * Check whether a coversUpToId matches the already-pending reflection
- * for the given session.
- */
-export function isReflectionChunkPending(sessionId: string, coversUpToId: string): boolean {
-  const s = readSessionState(sessionId);
-  return s.reflection?.coversUpToId === coversUpToId;
-}
-
 /** Read the pending OM state for a specific session. */
 export function readPendingState(sessionId: string): PendingOMState {
   return readSessionState(sessionId);
@@ -345,32 +335,4 @@ export function writePendingCursors(sessionId: string, cursors: PendingOMState["
   const state = readSessionState(sessionId, true);
   state.cursors = { ...cursors };
   writeSessionState(sessionId, state);
-}
-
-/**
- * List all session IDs that have pending data by scanning the pending directory
- * for *-pending.json files.
- */
-export function listPendingSessions(): string[] {
-  const dir = join(getAgentDir(), PENDING_DIR);
-  if (!existsSync(dir)) return [];
-
-  try {
-    const files = readdirSync(dir);
-    const sessions: string[] = [];
-    for (const file of files) {
-      if (!file.endsWith(PENDING_SUFFIX)) continue;
-      const sessionId = file.slice(0, -PENDING_SUFFIX.length);
-      if (!sessionId) continue;
-      // Read-only inventory: one unreadable/corrupt file must not hide the
-      // other valid sessions. Mutation still uses strict reads and fails closed.
-      try {
-        const state = readSessionState(sessionId, true);
-        if (!isEmptyState(state)) sessions.push(sessionId);
-      } catch { /* Not eligible for this read-only listing. */ }
-    }
-    return sessions;
-  } catch {
-    return [];
-  }
 }

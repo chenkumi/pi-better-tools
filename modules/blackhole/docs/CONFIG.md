@@ -53,7 +53,6 @@ The config file must contain **valid JSON**. A trailing comma, partial write, or
   "reflectAfterTokens": 25000,    // Token threshold for reflector + dropper
   "observationsPoolMaxTokens": 20000, // Full-fold pressure + rendered observation-line cap
   "reflectionsPoolMaxTokens": 8000, // Rendered reflection-line cap
-  "observationsPoolTargetTokens": 10000, // Target after dropper prune (no-op)
   "reflectorInputMaxTokens": 80000, // Reflector prompt token cap
   "dropperInputMaxTokens": 80000,  // Dropper prompt token cap
   "observerChunkMaxTokens": 40000, // Max source tokens per observer chunk
@@ -108,7 +107,7 @@ Content comes only from `messagesToSummarize`, `turnPrefixMessages`, and `previo
 
 ### `midRunCompaction`
 
-`off`, `resume`, `pause` remain readable but inactive. No inline adapter is installed, including for in-memory sessions. `agent_end` and `turn_end` do not schedule BH compaction. The old mechanism in `mid-run-compaction.md` is historical only.
+`off`, `resume`, `pause` remain readable but inactive. No inline adapter is installed, including for in-memory sessions. `agent_end` and `turn_end` do not schedule BH compaction. The former mid-run mechanism has been removed (see the repository history).
 
 ### Legacy threshold keys
 
@@ -203,14 +202,6 @@ Hard cap on estimated rendered reflection lines in compaction output. Selects ne
 | non-negative integer | 8000 |
 
 Both output budgets use the project's chars/4 estimate, not an exact provider tokenizer. Section headings, recall note and footer add tokens outside these line budgets; total trailing memory is not exactly 28,000 tokens. Compact-all retains eligible bounded memory and applies recorded drops.
-
-### `observationsPoolTargetTokens`
-
-Target token budget the dropper aims for after pruning. **Currently a no-op** in the pool algorithm. If unset or `>= observationsPoolMaxTokens`, the loader silently resets it to `floor(observationsPoolMaxTokens / 2)`.
-
-| Type | Default |
-|------|---------|
-| number | 10000 |
 
 ### `reflectorInputMaxTokens`
 
@@ -459,7 +450,6 @@ Integer fields (invalid values fall back; `reflectionsPoolMaxTokens` also accept
 | `PI_BLACKHOLE_OBSERVE_AFTER_TOKENS` | `observeAfterTokens` |
 | `PI_BLACKHOLE_REFLECT_AFTER_TOKENS` | `reflectAfterTokens` |
 | `PI_BLACKHOLE_OBSERVATIONS_POOL_MAX_TOKENS` | `observationsPoolMaxTokens` |
-| `PI_BLACKHOLE_OBSERVATIONS_POOL_TARGET_TOKENS` | `observationsPoolTargetTokens` |
 | `PI_BLACKHOLE_REFLECTIONS_POOL_MAX_TOKENS` | `reflectionsPoolMaxTokens` |
 | `PI_BLACKHOLE_REFLECTOR_INPUT_MAX_TOKENS` | `reflectorInputMaxTokens` |
 | `PI_BLACKHOLE_DROPPER_INPUT_MAX_TOKENS` | `dropperInputMaxTokens` |

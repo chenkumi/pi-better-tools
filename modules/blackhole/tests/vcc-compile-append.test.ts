@@ -3,10 +3,10 @@ import {
   compile,
   compileSegment,
   extractRecallNote,
-  stripRecallNotes,
 } from "../src/core/summarize.js";
 
-import { composeGeneratedParts, type GeneratedSummaryProof } from "../src/core/generated-summary-spans.js";
+import { composeGeneratedParts, stripGeneratedSpans, type GeneratedSummaryProof } from "../src/core/generated-summary-spans.js";
+const stripRecallNotes = (t: string, proof?: GeneratedSummaryProof) => stripGeneratedSpans(t, proof, ["recall"]);
 const fileOps = { readFiles: [], modifiedFiles: [] };
 
 describe("append VCC compilation", () => {

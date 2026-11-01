@@ -1,5 +1,11 @@
 # Settings Modal
 
+> **Pi Better Tools snapshot note:** the public entry points `openSettingsModal` / `createSettingsModal`
+> (`settings/modal.ts`) and the `settings/index.ts` barrel were removed from this vendored copy because Blackhole never
+> called them; it mounts the modal body through `createSettingsModalBody` (`body.ts`) from `config-flow.ts`. The Field
+> types, options, modes, keybindings and dirty-tracking sections below still describe `createSettingsModalBody`; examples
+> that call `openSettingsModal` are kept as upstream reference only and no longer compile against this tree.
+
 `@k0valik/pi-base/settings` provides a reusable overlay modal for editing
 extension configuration. Extensions define their config as a list of
 `Field` rows and hand off rendering, dirty tracking, scope selection,
@@ -371,15 +377,6 @@ surfaced via notify. The modal stays open.
 
 `onClose`, `onCancel`, and `render` errors are also caught defensively
 so the modal cannot leave the terminal in a broken state.
-
----
-
-## Singleton guard
-
-`openSettingsModal` tracks whether a modal is already mounted on the
-context. If a second call arrives while the first is still mounted, the
-existing modal is closed before opening the new one. This prevents two
-in-memory buffers racing to write.
 
 ---
 

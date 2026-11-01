@@ -13,7 +13,6 @@ beforeAll(() => {
   initTheme();
 });
 import { createSettingsModalBody } from "./body.ts";
-import { createSettingsModal } from "./modal.ts";
 import type { Field } from "./types.ts";
 
 // ─────────────────────────────────────────────────────────────────────
@@ -354,24 +353,5 @@ describe("createSettingsModalBody — buffered mode", () => {
     expect(close).toHaveBeenCalledTimes(1);
     expect(onSave).not.toHaveBeenCalled();
     expect(onCancel).not.toHaveBeenCalled();
-  });
-
-  // Slice 7: Singleton guard
-  it("modal.ts: opening a second modal closes the first", () => {
-    const ctx = fakeCtx();
-    const fields: Field[] = [{ key: "x", type: "boolean", label: "X", value: false }];
-
-    const firstDone = vi.fn();
-    const secondDone = vi.fn();
-
-    const factory1 = createSettingsModal(ctx, { fields });
-    const factory2 = createSettingsModal(ctx, { fields });
-
-    const comp1 = factory1(fakeTui(), fakeTheme(), null!, firstDone);
-    const comp2 = factory2(fakeTui(), fakeTheme(), null!, secondDone);
-
-    // Opening the second should have closed the first.
-    expect(firstDone).toHaveBeenCalledTimes(1);
-    expect(secondDone).not.toHaveBeenCalled();
   });
 });

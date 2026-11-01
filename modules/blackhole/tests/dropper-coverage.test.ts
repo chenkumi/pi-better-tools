@@ -12,7 +12,6 @@ import {
   reflectionCoverageMap,
   reflectionCoverageTierForCount,
   summarizeCoverageByRelevance,
-  summarizeCoverageTransitionsByRelevance,
 } from "../src/om/agents/dropper/coverage.js";
 import { observation, reflection } from "./fixtures/session.js";
 
@@ -57,32 +56,6 @@ describe("V3 dropper reflection coverage helpers", () => {
       critical: {
         partial: { count: 1, tokens: 5 },
         strong: { count: 1, tokens: 7 },
-      },
-    });
-  });
-
-  it("summarizes coverage transitions by relevance without exposing ids", () => {
-    const observations = [
-      observation("aaaaaaaaaaaa", { relevance: "high", tokenCount: 3 }),
-      observation("bbbbbbbbbbbb", { relevance: "critical", tokenCount: 5 }),
-      observation("cccccccccccc", { relevance: "critical", tokenCount: 7 }),
-    ];
-    const before = reflectionCoverageMap(observations, [
-      reflection("rrrrrrrrrrr1", ["bbbbbbbbbbbb"]),
-    ]);
-    const after = reflectionCoverageMap(observations, [
-      reflection("rrrrrrrrrrr1", ["bbbbbbbbbbbb"]),
-      reflection("rrrrrrrrrrr2", ["aaaaaaaaaaaa", "bbbbbbbbbbbb", "cccccccccccc"]),
-      reflection("rrrrrrrrrrr3", ["cccccccccccc"]),
-    ]);
-
-    expect(summarizeCoverageTransitionsByRelevance(observations, before, after)).toEqual({
-      low: {},
-      medium: {},
-      high: { "none->partial": { count: 1, tokens: 3 } },
-      critical: {
-        "partial->strong": { count: 1, tokens: 5 },
-        "none->strong": { count: 1, tokens: 7 },
       },
     });
   });

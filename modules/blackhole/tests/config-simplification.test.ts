@@ -329,59 +329,6 @@ describe("Env overrides", () => {
   });
 });
 
-// ── Tests: saveUnifiedConfig atomic write ─────────────────────────────────
-
-describe("saveUnifiedConfig — atomic write", () => {
-  it("saves active policy canonically without persisting ignored cut controls", async () => {
-    const { saveUnifiedConfig, loadUnifiedConfig } = await import("../src/core/unified-config.js");
-    const result = saveUnifiedConfig({
-      compaction: "manual",
-      tailBehavior: "minimal",
-    });
-    expect(result).toBe(true);
-
-    // Verify saved to disk
-    const disk = JSON.parse(readFileSync(configPath(), "utf-8"));
-    expect(disk.compaction).toBe("manual");
-    expect(disk).not.toHaveProperty("tailBehavior");
-    expect(disk).not.toHaveProperty("midRunCompaction");
-
-    // Verify load reads it back
-    const config = loadUnifiedConfig(testDir);
-    expect(config.compaction).toBe("manual");
-    expect(config.tailBehavior).toBe("minimal");
-  });
-
-  it("preserves existing keys when saving partial config", async () => {
-    const { saveUnifiedConfig, loadUnifiedConfig } = await import("../src/core/unified-config.js");
-    writeConfig({ compaction: "manual", memory: false });
-
-    saveUnifiedConfig({ compaction: "auto" });
-
-    const config = loadUnifiedConfig(testDir);
-    expect(config.compaction).toBe("auto");
-    expect(config.memory).toBe(false); // preserved
-  });
-
-  it("does not crash on read-only filesystem (returns false)", async () => {
-    const { saveUnifiedConfig } = await import("../src/core/unified-config.js");
-    writeConfig({ compaction: "auto", unknownKey: "preserved" });
-    const before = readFileSync(configPath());
-    // chmod does not deny writes on Windows or for root. Inject the actual
-    // filesystem error at the write boundary; do not skip or weaken the result.
-    const error = Object.assign(new Error("read-only filesystem"), { code: "EROFS" });
-    const write = vi.spyOn(fs, "writeFileSync").mockImplementation(() => { throw error; }).mockClear();
-    try {
-      expect(saveUnifiedConfig({ compaction: "manual" })).toBe(false);
-      expect(write).toHaveBeenCalledTimes(1);
-      expect(write.mock.calls[0][0]).toBe(configPath());
-      expect(readFileSync(configPath())).toEqual(before);
-    } finally {
-      write.mockRestore();
-    }
-  });
-});
-
 // ── Tests: scaffoldConfig for NixOS safety ────────────────────────────────
 
 describe("scaffoldConfig — NixOS safety", () => {

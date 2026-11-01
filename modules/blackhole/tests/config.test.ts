@@ -954,28 +954,6 @@ describe("compactAfterPreset / compactAfterPresets (window-curve presets)", () =
   });
 });
 
-describe("saveUnifiedConfig", () => {
-  it("writes config to disk", async () => {
-    const { saveUnifiedConfig, loadUnifiedConfig } = await import("../src/core/unified-config.js");
-    const result = saveUnifiedConfig({ compaction: "manual", debug: true });
-    expect(result).toBe(true);
-
-    const config = loadUnifiedConfig(testDir);
-    expect(config.compaction).toBe("manual");
-    expect(config.debug).toBe(true);
-  });
-
-  it("preserves existing keys when saving partial config", async () => {
-    const { saveUnifiedConfig, loadUnifiedConfig } = await import("../src/core/unified-config.js");
-    writeConfig({ compaction: "off", memory: false });
-    saveUnifiedConfig({ memory: true });
-    const config = loadUnifiedConfig(testDir);
-    expect(config.compaction).toBe("off");
-    expect(config.memory).toBe(true);
-    expect(config.debug).toBe(false);
-  });
-});
-
 describe("loader parity: file bytes → same effective threshold on both loaders", () => {
   // The runtime hot paths use loadUnifiedConfig, but a settings-modal save
   // repopulates runtime.config through the ConfigManager path
@@ -995,7 +973,8 @@ describe("loader parity: file bytes → same effective threshold on both loaders
   }> {
     const { loadUnifiedConfig } = await import("../src/core/unified-config.js");
     const { config } = await import("../src/pi-base/blackhole-settings.js");
-    const { autoCompactThreshold } = await import("../src/om/model-budget.js");
+    const { compactThresholdTokens, sessionContextWindow } = await import("../src/om/model-budget.js");
+    const autoCompactThreshold = (cfg: never, model: undefined) => compactThresholdTokens(cfg, sessionContextWindow(model, cfg));
     writeConfig(data);
     mkdirSync(mgrDir, { recursive: true });
     writeFileSync(join(mgrDir, "pi-blackhole-config.json"), JSON.stringify(data, null, 2));

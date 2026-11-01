@@ -5,7 +5,7 @@ import {
   tokenizeSurfaceContent,
   computeSimHash64,
   simHashHammingDistance,
-  sorensenDiceTokenSimilarity,
+  sorensenDiceSets,
   clusterObservations,
 } from "../src/project-recall/dedup.js";
 import {
@@ -67,7 +67,7 @@ describe("dedup algorithms", () => {
     it("improves token similarity across morphological variants", () => {
       const a = "User refactored the compaction engine";
       const b = "User is refactoring the compaction engine";
-      const sim = sorensenDiceTokenSimilarity(a, b);
+      const sim = sorensenDiceSets(new Set(tokenizeContent(a)), new Set(tokenizeContent(b)));
       expect(sim).toBe(1);
     });
   });

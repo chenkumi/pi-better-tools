@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { registerStatusBar } from "../src/om/status-bar.js";
 import { registerMemoryCommand } from "../src/commands/memory.js";
-import { scaffoldConfig, saveUnifiedConfig, saveUnifiedConfigScoped, loadUnifiedConfig, DEFAULTS } from "../src/core/unified-config.js";
+import { scaffoldConfig, loadUnifiedConfig, DEFAULTS } from "../src/core/unified-config.js";
 import { config } from "../src/pi-base/blackhole-settings.js";
 const dirs: string[] = [];
 afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }); });
@@ -15,15 +15,11 @@ it("current example contains no ignored controls while keeping active worker/deb
   for (const key of [...ignored, "compactAfterPresets"]) expect(example).not.toHaveProperty(key);
   for (const key of ["memory", "sessionFallback", "fullFoldAlways", "debug", "recallResponseMaxChars", "observationsPoolMaxTokens", "model", "observerModel"]) expect(example).toHaveProperty(key);
 });
-it("migration cold scaffold and explicit modal/unified writes never regenerate ignored keys", () => {
+it("migration cold scaffold and explicit modal writes never regenerate ignored keys", () => {
   const { cwd, global, file } = isolated(); scaffoldConfig(); const warnings: string[] = []; loadUnifiedConfig(cwd, m => warnings.push(m));
   expect(ignored.filter(k => k in JSON.parse(readFileSync(file, "utf8")))).toEqual([]); expect(warnings.filter(w => w.includes("Legacy settings"))).toEqual([]);
   config.save({ ...DEFAULTS, debug: true }, "global", cwd, global);
   expect(ignored.filter(k => k in JSON.parse(readFileSync(file, "utf8")))).toEqual([]);
-  saveUnifiedConfig({ ...DEFAULTS, debug: false });
-  expect(ignored.filter(k => k in JSON.parse(readFileSync(file, "utf8")))).toEqual([]);
-  saveUnifiedConfigScoped({ ...DEFAULTS, debug: false }, "project", cwd);
-  expect(ignored.filter(k => k in JSON.parse(readFileSync(join(cwd, ".pi/pi-blackhole-config.json"), "utf8")))).toEqual([]);
 });
 it("legacy read is readonly; explicit save removes only ignored controls preserving all other existing data", () => {
   const { cwd, global, file } = isolated(); const raw = { compactAfterPreset: "custom", midRunCompaction: "off", tailBehavior: "minimal", retainedToolOutputMaxTokens: 20000, memory: true, fullFoldAlways: true, debug: true, sessionFallback: false, model: { provider: "safe", id: "safe", custom: "preserved" }, compactAfterPresets: { custom: [{ window: 1000, ratio: 0.5 }] }, unknown: { literal: "unchanged" } }; const bytes = JSON.stringify(raw); writeFileSync(file, bytes);

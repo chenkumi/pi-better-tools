@@ -23,7 +23,6 @@ import type { TUI } from "@earendil-works/pi-tui";
 beforeAll(() => {
   initTheme();
 });
-import { createSettingsModal } from "./modal.ts";
 import { createSettingsModalBody } from "./body.ts";
 import type { Field, SettingsModalOptions } from "./types.ts";
 

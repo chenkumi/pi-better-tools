@@ -98,7 +98,6 @@
   "recallResponseMaxChars": 48000,
   "observationsPoolMaxTokens": 20000,
   "reflectionsPoolMaxTokens": 8000,
-  "observationsPoolTargetTokens": 10000,
   "reflectorInputMaxTokens": 80000,
   "dropperInputMaxTokens": 80000,
   "dropperPressureThreshold": 0.7,

@@ -106,7 +106,6 @@ export const DECLARATIVE_ENV_OVERRIDES: Record<string, EnvOverride> = {
       return Number.isInteger(n) && n >= 0 ? n : undefined;
     },
   },
-  observationsPoolTargetTokens: "PI_BLACKHOLE_OBSERVATIONS_POOL_TARGET_TOKENS",
   reflectorInputMaxTokens: "PI_BLACKHOLE_REFLECTOR_INPUT_MAX_TOKENS",
   dropperInputMaxTokens: "PI_BLACKHOLE_DROPPER_INPUT_MAX_TOKENS",
   observerChunkMaxTokens: "PI_BLACKHOLE_OBSERVER_CHUNK_MAX_TOKENS",

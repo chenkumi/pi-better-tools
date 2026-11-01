@@ -10,13 +10,13 @@ import { describe, expect, it } from "vitest";
 import {
   compile,
   compileSegment,
-  stripOMContent,
-  stripRecallNotes,
 } from "../src/core/summarize.js";
 import { buildAppendOnlyDetails } from "../src/core/compaction-chain.js";
 import { isPiVccCompactionDetailsV2 } from "../src/details.js";
 import { composeGeneratedParts, stripGeneratedSpans, type GeneratedSummaryProof } from "../src/core/generated-summary-spans.js";
 
+const stripOMContent = (t: string, proof?: GeneratedSummaryProof) => stripGeneratedSpans(t, proof, ["om"]);
+const stripRecallNotes = (t: string, proof?: GeneratedSummaryProof) => stripGeneratedSpans(t, proof, ["recall"]);
 const fileOps = { readFiles: [], modifiedFiles: [] };
 const RECALL = "The conversation before this point has been compacted";
 

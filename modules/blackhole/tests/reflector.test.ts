@@ -10,9 +10,7 @@ import { validateToolArguments } from "@earendil-works/pi-ai";
 
 import {
   normalizeSupportingObservationIds,
-  observationToReflectorLine,
   runReflector,
-  summarizeSupportIdCounts,
 } from "../src/om/agents/reflector/agent.js";
 import { hashId } from "../src/om/ids.js";
 import { estimateStringTokens } from "../src/om/tokens.js";
@@ -247,47 +245,6 @@ describe("V3 reflector agent", () => {
     expect(userText).toContain(
       "Use complete=false for a partial batch or a correction, and use complete=true only on the final valid batch once every active observation has been reviewed.",
     );
-  });
-
-  it("renders reflector observation lines with coverage evidence only", () => {
-    const line = observationToReflectorLine(
-      observation("aaaaaaaaaaaa", {
-        relevance: "critical",
-        content: "Important reflected fact",
-      }),
-      "partial",
-    );
-
-    expect(line).toContain("[aaaaaaaaaaaa]");
-    expect(line).toContain("[critical]");
-    expect(line).toContain("[coverage: partial]");
-    expect(line).toContain("Important reflected fact");
-    expect(line).not.toContain("drop-priority");
-    expect(line).not.toContain("drop-resistance");
-  });
-
-  it("summarizes accepted reflection support-id counts without exposing ids", () => {
-    expect(summarizeSupportIdCounts([])).toEqual({
-      reflectionCount: 0,
-      totalSupportIds: 0,
-      minSupportIds: 0,
-      maxSupportIds: 0,
-      averageSupportIds: 0,
-      histogram: {},
-    });
-    expect(
-      summarizeSupportIdCounts([
-        reflection("rrrrrrrrrrr1", ["aaaaaaaaaaaa"]),
-        reflection("rrrrrrrrrrr2", ["aaaaaaaaaaaa", "bbbbbbbbbbbb", "cccccccccccc"]),
-      ]),
-    ).toEqual({
-      reflectionCount: 2,
-      totalSupportIds: 4,
-      minSupportIds: 1,
-      maxSupportIds: 3,
-      averageSupportIds: 2,
-      histogram: { "1": 1, "3": 1 },
-    });
   });
 
   it("normalizes supporting observation ids by active observation order", () => {

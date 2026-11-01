@@ -426,5 +426,3 @@ export const compile = (input: CompileInput): string => {
 
 /** No proof means ordinary literal text, including identical user quotations. */
 export const extractRecallNote = (text: string, proof?: GeneratedSummaryProof): string => generatedSection(text, proof, "recall");
-export const stripRecallNotes = (text: string, proof?: GeneratedSummaryProof): string => stripGeneratedSpans(text, proof, ["recall"]);
-export const stripOMContent = (text: string, proof?: GeneratedSummaryProof): string => stripGeneratedSpans(text, proof, ["om"]);

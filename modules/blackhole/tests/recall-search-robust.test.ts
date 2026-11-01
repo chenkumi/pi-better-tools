@@ -1,7 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { searchEntries, getFileIndicators, getTouchedFiles } from "../src/core/search-entries.js";
+import { searchEntriesDetailed, getFileIndicators, getTouchedFiles } from "../src/core/search-entries.js";
 import type { Message } from "@earendil-works/pi-ai";
 import type { RenderedEntry } from "../src/core/render-entries.js";
+
+const searchEntries = (
+  entries: RenderedEntry[],
+  messages: Message[],
+  query?: string,
+  _page?: number,
+  mode?: Parameters<typeof searchEntriesDetailed>[4],
+) => searchEntriesDetailed(entries, messages, query, undefined, mode).hits;
 
 const ts = Date.now();
 const msg = (role: string, content: any): Message =>

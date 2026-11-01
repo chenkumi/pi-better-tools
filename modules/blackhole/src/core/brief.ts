@@ -214,17 +214,6 @@ export interface BriefLine {
   lines: string[];
 }
 
-/** Structured transcript entry for JSON output */
-export interface TranscriptEntry {
-  role: "user" | "assistant" | "tool_error";
-  text?: string;
-  tool?: string;
-  cmd?: string;
-  ref?: string;
-  /** Collapse count when identical tool calls are grouped */
-  count?: number;
-}
-
 /**
  * Build BriefLine sections from NormalizedBlocks.
  */
@@ -415,87 +404,3 @@ export const stringifyBrief = (sections: BriefLine[]): string => {
 
   return out.join("\n");
 };
-
-/** Parse a text line into a structured TranscriptEntry */
-const parseToolLine = (
-  line: string,
-): { tool: string; cmd?: string; ref?: string; count?: number } | null => {
-  // * bash "cmd" (#5)
-  // * bash "cmd" (#1, #3) x2
-  // * tilth "query" (#7)
-  const m = line.match(/^\* (\S+)\s*(?:"([^"]*)")?\s*(?:\((#[\d, #]+)\))?\s*(?:x(\d+))?$/);
-  if (!m) return null;
-  return {
-    tool: m[1],
-    cmd: m[2] || undefined,
-    ref: m[3] || undefined,
-    count: m[4] ? parseInt(m[4]) : undefined,
-  };
-};
-
-const extractRef = (text: string): { clean: string; ref?: string } => {
-  const m = text.match(/\s*\(#(\d+)\)$/);
-  if (!m) return { clean: text };
-  return { clean: text.slice(0, m.index).trimEnd(), ref: `#${m[1]}` };
-};
-
-/**
- * Convert BriefLine sections to structured TranscriptEntry array for JSON output.
- */
-export const sectionsToTranscript = (sections: BriefLine[]): TranscriptEntry[] => {
-  const entries: TranscriptEntry[] = [];
-
-  for (const sec of sections) {
-    if (sec.header === "[user]") {
-      for (const line of sec.lines) {
-        const { clean, ref } = extractRef(line);
-        entries.push({ role: "user", text: clean, ...(ref && { ref }) });
-      }
-    } else if (sec.header === "[assistant]") {
-      for (const line of sec.lines) {
-        if (line.startsWith("* ")) {
-          const parsed = parseToolLine(line);
-          if (parsed) {
-            entries.push({
-              role: "assistant",
-              tool: parsed.tool,
-              ...(parsed.cmd && { cmd: parsed.cmd }),
-              ...(parsed.ref && { ref: parsed.ref }),
-              ...(parsed.count && { count: parsed.count }),
-            });
-          } else {
-            // Fallback: unparseable tool line
-            const { clean, ref } = extractRef(line.slice(2));
-            entries.push({
-              role: "assistant",
-              text: clean,
-              ...(ref && { ref }),
-            });
-          }
-        } else {
-          const { clean, ref } = extractRef(line);
-          entries.push({ role: "assistant", text: clean, ...(ref && { ref }) });
-        }
-      }
-    } else if (sec.header.startsWith("[tool_error]")) {
-      // [tool_error] bash (#5)
-      const headerMatch = sec.header.match(/^\[tool_error\]\s+(\S+)\s*(?:\(#(\d+)\))?/);
-      const tool = headerMatch?.[1] ?? "unknown";
-      const ref = headerMatch?.[2] ? `#${headerMatch[2]}` : undefined;
-      for (const line of sec.lines) {
-        entries.push({
-          role: "tool_error",
-          tool,
-          text: line,
-          ...(ref && { ref }),
-        });
-      }
-    }
-  }
-
-  return entries;
-};
-
-/** Convenience: build sections from blocks and stringify to text */
-export const compileBrief = (blocks: NormalizedBlock[]): string =>
-  stringifyBrief(buildBriefSections(blocks));

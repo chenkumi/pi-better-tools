@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { compileBrief } from "../src/core/brief.js";
+import { buildBriefSections, stringifyBrief } from "../src/core/brief.js";
 import type { NormalizedBlock } from "../src/types.js";
+
+const compileBrief = (blocks: NormalizedBlock[]): string => stringifyBrief(buildBriefSections(blocks));
 
 describe("compileBrief", () => {
   it("returns empty string for no blocks", () => {

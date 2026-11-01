@@ -17,8 +17,6 @@ import {
   moveInlineCursorWordLeft,
   moveInlineCursorWordRight,
   renderInlineEditValue,
-  getInlineYankBuffer,
-  setInlineYankBuffer,
   isPlainSearchInput,
   type InlineEditState,
 } from "./inline-edit.ts";
@@ -372,13 +370,6 @@ describe("handleInlineEditInput", () => {
     expect(handleInlineEditInput(s, "\x19")).toBe(true); // ctrl+y
     expect(s.buffer).toBe(" bar bazfoo");
     expect(s.cursor).toBe(11);
-  });
-});
-
-describe("yank buffer helpers", () => {
-  it("gets and sets the yank buffer directly", () => {
-    setInlineYankBuffer("test-yank");
-    expect(getInlineYankBuffer()).toBe("test-yank");
   });
 });
 

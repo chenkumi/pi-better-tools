@@ -171,18 +171,6 @@ export function sessionContextWindow(
   return effectiveContextWindow(model, undefined);
 }
 
-/**
- * Effective auto-compaction threshold for a session model: resolve the model's
- * window first, then derive the threshold from it. Evaluated per check, so a
- * mid-session `/model` switch is picked up on the next evaluation.
- */
-export function autoCompactThreshold(
-  cfg: CompactThresholdConfig & SessionWindowConfig,
-  model: Model<any> | undefined,
-): number {
-  return compactThresholdTokens(cfg, sessionContextWindow(model, cfg));
-}
-
 export function boundedMaxTokens(
   model: Model<any>,
   requested: number = AGENT_LOOP_MAX_TOKENS,

@@ -2,9 +2,12 @@ const legacyTimingKeys = ["compactAfterTokens", "compactAfterRatio", "compactRes
 
 /** Canonical writes remove inactive controls, not user preset definitions or active aliases. */
 export const IGNORED_CONTROL_KEYS = legacyTimingKeys.filter(key => key !== "compactAfterPresets");
+/** Keys that no longer exist at all. Older files may still hold them: they are never read, and an explicit save drops them. */
+export const RETIRED_KEYS = ["observationsPoolTargetTokens"] as const;
 export function canonicalPersistedSettings(raw: Record<string, unknown>): Record<string, unknown> {
   const result = { ...raw };
   for (const key of IGNORED_CONTROL_KEYS) delete result[key];
+  for (const key of RETIRED_KEYS) delete result[key];
   return result;
 }
 

@@ -540,15 +540,6 @@ function bigramJaccard(a: string, b: string, cache: Map<string, Set<string>>): n
   return inter / (A.size + B.size - inter);
 }
 
-/**
- * Sørensen-Dice coefficient over stop-word-stripped token sets.
- * 2*|intersection|/(|A|+|B|). High when two observations share most
- * content-bearing vocabulary even with different word order.
- */
-export function sorensenDiceTokenSimilarity(a: string, b: string): number {
-  return sorensenDiceSets(new Set(tokenizeContent(a)), new Set(tokenizeContent(b)));
-}
-
 /** Set-based Sørensen-Dice (avoids re-tokenizing inside O(n²) loops). */
 export function sorensenDiceSets(A: Set<string>, B: Set<string>): number {
   if (A.size === 0 || B.size === 0) return 0;

@@ -79,8 +79,8 @@ describe("reflection output configuration", () => {
     },
   );
 
-  it("project then env win in both loaders; scoped save preserves unrelated values", async () => {
-    const { loadUnifiedConfig, saveUnifiedConfigScoped, DEFAULTS } =
+  it("project then env win in both loaders", async () => {
+    const { loadUnifiedConfig, DEFAULTS } =
       await import("../src/core/unified-config.js");
     const { config } = await import("../src/pi-base/blackhole-settings.js");
     writeConfig({ reflectionsPoolMaxTokens: 9000, compactAfterTokens: 168000 });
@@ -103,17 +103,6 @@ describe("reflection output configuration", () => {
     process.env.PI_BLACKHOLE_REFLECTIONS_POOL_MAX_TOKENS = "0";
     for (const cfg of readBoth()) expect(cfg.reflectionsPoolMaxTokens).toBe(0);
     delete process.env.PI_BLACKHOLE_REFLECTIONS_POOL_MAX_TOKENS;
-    expect(saveUnifiedConfigScoped({ reflectionsPoolMaxTokens: 14000 }, "project", testDir)).toBe(
-      true,
-    );
-    expect(
-      JSON.parse(readFileSync(join(testDir, ".pi/pi-blackhole-config.json"), "utf8")),
-    ).toMatchObject({ reflectionsPoolMaxTokens: 14000, custom: "keep" });
-    for (const cfg of readBoth())
-      expect(cfg).toMatchObject({
-        reflectionsPoolMaxTokens: 14000,
-        compactAfterTokens: 168000,
-      });
     expect(DEFAULTS.compactAfterTokens).toBeUndefined();
     expect(DEFAULTS.compactAfterPreset).toBe("default");
   });

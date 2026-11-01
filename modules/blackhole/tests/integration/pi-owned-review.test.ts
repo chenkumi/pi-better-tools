@@ -8,7 +8,10 @@ const { prepareCompaction } = await import(new URL("./core/compaction/compaction
 import { nativeEvidenceEntries } from "../../src/core/native-compaction-input.js";
 import { notificationEvidenceSummary } from "../../src/core/notification-evidence.js";
 import { buildPreCompactionOutputData } from "../../src/hooks/cosmetic-output.js";
-import { stripOMContent, stripRecallNotes, compile } from "../../src/core/summarize.js";
+import { compile } from "../../src/core/summarize.js";
+import { stripGeneratedSpans } from "../../src/core/generated-summary-spans.js";
+const stripOMContent = (t: string) => stripGeneratedSpans(t, undefined, ["om"]);
+const stripRecallNotes = (t: string) => stripGeneratedSpans(t, undefined, ["recall"]);
 import { registerBeforeCompactHook } from "../../src/hooks/before-compact.js";
 import { DEFAULTS, loadUnifiedConfig } from "../../src/core/unified-config.js";
 import { config } from "../../src/pi-base/blackhole-settings.js";

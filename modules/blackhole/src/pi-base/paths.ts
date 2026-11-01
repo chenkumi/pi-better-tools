@@ -61,21 +61,3 @@ export function getExtensionsDir(): string {
   }
   return join(getPiAgentDir(), "extensions");
 }
-
-/**
- * Shorten a working directory path by replacing the user's home directory
- * prefix with `~`. Returns the path unchanged if not under $HOME.
- *
- * @param cwd  The current working directory to shorten
- * @param home Optional home directory override (defaults to `$HOME`)
- */
-export function shortCwd(cwd: string, home?: string): string {
-  const h = (home ?? process.env.HOME ?? process.env.USERPROFILE ?? "").replace(/[\\/]+$/, "");
-  if (!h) return cwd;
-  if (cwd === h) return "~";
-  const sep = h.includes("\\") ? "\\" : "/";
-  if (cwd.startsWith(h + sep)) {
-    return `~${cwd.slice(h.length)}`;
-  }
-  return cwd;
-}

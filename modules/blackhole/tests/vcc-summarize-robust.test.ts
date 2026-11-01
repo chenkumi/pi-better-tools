@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { compile, extractSection, stripOMContent } from "../src/core/summarize.js";
+import { compile, extractSection } from "../src/core/summarize.js";
+import { stripGeneratedSpans, type GeneratedSummaryProof } from "../src/core/generated-summary-spans.js";
+const stripOMContent = (t: string, proof?: GeneratedSummaryProof) => stripGeneratedSpans(t, proof, ["om"]);
 import { composeGeneratedParts } from "../src/core/generated-summary-spans.js";
 import { formatFileList } from "../src/extract/files.js";
 import { userMsg } from "./vcc-fixtures.js";

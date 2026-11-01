@@ -3,9 +3,17 @@
  * Changes: bun:test → vitest, added .js import extensions
  */
 import { describe, it, expect } from "vitest";
-import { searchEntries, searchEntriesDetailed } from "../src/core/search-entries.js";
+import { searchEntriesDetailed } from "../src/core/search-entries.js";
 import type { RenderedEntry } from "../src/core/render-entries.js";
 import type { Message } from "@earendil-works/pi-ai";
+
+const searchEntries = (
+  entries: RenderedEntry[],
+  messages: Message[],
+  query?: string,
+  _page?: number,
+  mode?: Parameters<typeof searchEntriesDetailed>[4],
+) => searchEntriesDetailed(entries, messages, query, undefined, mode).hits;
 
 const entries: RenderedEntry[] = [
   { index: 0, role: "user", summary: "Fix login bug" },

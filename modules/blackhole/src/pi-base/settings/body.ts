@@ -1,7 +1,6 @@
 /**
  * `SettingsModalBody` — the renderable+inputtable component that
- * `createSettingsModal` and `openSettingsModal` mount inside an
- * overlay. Owns:
+ * Blackhole's config flow mounts inside an overlay. Owns:
  *
  *   - Tab strip across the top (when `tabs` is non-empty).
  *   - Optional fuzzy search bar (when `enableSearch` is true).
@@ -110,8 +109,7 @@ export interface BodyState {
 
 /**
  * Build the body component. The factory is independent of overlay
- * lifecycle — `createSettingsModal` (in modal.ts) wraps it for the
- * `ctx.ui.custom` shape; advanced callers can mount the body directly.
+ * lifecycle; callers mount it inside `ctx.ui.custom` (see config-flow.ts).
  */
 export function createSettingsModalBody<F extends Field>(
   options: SettingsModalOptions<F>,
@@ -356,6 +354,29 @@ export function createSettingsModalBody<F extends Field>(
     }
   }
 
+  /** Activate `tab` (no-op if missing or already active) and reset selection. */
+  function switchToTab(tab: Tab | undefined): void {
+    if (!tab || tab.id === state.activeTabId) return;
+    state.activeTabId = tab.id;
+    state.fieldSelected = 0;
+    state.scroll = 0;
+    updateVisibleIndices(state, buildVisibilityContext);
+    state.options.onActiveTabChange?.(tab.id);
+  }
+
+  /** Close, or route through the dirty-confirm / host exit hook when buffered edits exist. */
+  function requestExit(): void {
+    if (state.isBuffered && isDirty(state)) {
+      if (state.options.onRequestExit) {
+        state.options.onRequestExit();
+      } else {
+        mountDirtyConfirm();
+      }
+    } else {
+      state.args.close();
+    }
+  }
+
   function handleInput(data: string): void {
     if (state.confirm) {
       state.confirm.handleInput?.(data);
@@ -426,28 +447,12 @@ export function createSettingsModalBody<F extends Field>(
         state.args.tui.requestRender();
         return;
       }
-      if (state.isBuffered && isDirty(state)) {
-        if (state.options.onRequestExit) {
-          state.options.onRequestExit();
-        } else {
-          mountDirtyConfirm();
-        }
-      } else {
-        state.args.close();
-      }
+      requestExit();
       return;
     }
 
     if (matchesKey(data, "ctrl+c")) {
-      if (state.isBuffered && isDirty(state)) {
-        if (state.options.onRequestExit) {
-          state.options.onRequestExit();
-        } else {
-          mountDirtyConfirm();
-        }
-      } else {
-        state.args.close();
-      }
+      requestExit();
       return;
     }
 
@@ -473,13 +478,7 @@ export function createSettingsModalBody<F extends Field>(
         const currentTabIdx = state.tabs.findIndex((t) => t.id === state.activeTabId);
         const nextTabIdx = currentTabIdx >= 0 ? (currentTabIdx + 1) % state.tabs.length : 0;
         const nextTab = state.tabs[nextTabIdx];
-        if (nextTab && nextTab.id !== state.activeTabId) {
-          state.activeTabId = nextTab.id;
-          state.fieldSelected = 0;
-          state.scroll = 0;
-          updateVisibleIndices(state, buildVisibilityContext);
-          state.options.onActiveTabChange?.(nextTab.id);
-        }
+        switchToTab(nextTab);
         state.args.tui.requestRender();
         return;
       } else {
@@ -487,13 +486,7 @@ export function createSettingsModalBody<F extends Field>(
       }
       if (state.tabActionFocus < state.tabs.length) {
         const tab = state.tabs[state.tabActionFocus];
-        if (tab && tab.id !== state.activeTabId) {
-          state.activeTabId = tab.id;
-          state.fieldSelected = 0;
-          state.scroll = 0;
-          updateVisibleIndices(state, buildVisibilityContext);
-          state.options.onActiveTabChange?.(tab.id);
-        }
+        switchToTab(tab);
       }
       state.args.tui.requestRender();
       return;
@@ -520,13 +513,7 @@ export function createSettingsModalBody<F extends Field>(
             ? (currentTabIdx - 1 + state.tabs.length) % state.tabs.length
             : state.tabs.length - 1;
         const prevTab = state.tabs[prevTabIdx];
-        if (prevTab && prevTab.id !== state.activeTabId) {
-          state.activeTabId = prevTab.id;
-          state.fieldSelected = 0;
-          state.scroll = 0;
-          updateVisibleIndices(state, buildVisibilityContext);
-          state.options.onActiveTabChange?.(prevTab.id);
-        }
+        switchToTab(prevTab);
         state.args.tui.requestRender();
         return;
       } else {
@@ -534,13 +521,7 @@ export function createSettingsModalBody<F extends Field>(
       }
       if (state.tabActionFocus < state.tabs.length) {
         const tab = state.tabs[state.tabActionFocus];
-        if (tab && tab.id !== state.activeTabId) {
-          state.activeTabId = tab.id;
-          state.fieldSelected = 0;
-          state.scroll = 0;
-          updateVisibleIndices(state, buildVisibilityContext);
-          state.options.onActiveTabChange?.(tab.id);
-        }
+        switchToTab(tab);
       }
       state.args.tui.requestRender();
       return;
@@ -578,13 +559,7 @@ export function createSettingsModalBody<F extends Field>(
             : (state.tabActionFocus - 1 + ringStopCount) % ringStopCount;
           if (state.tabActionFocus < state.tabs.length) {
             const tab = state.tabs[state.tabActionFocus];
-            if (tab && tab.id !== state.activeTabId) {
-              state.activeTabId = tab.id;
-              state.fieldSelected = 0;
-              state.scroll = 0;
-              updateVisibleIndices(state, buildVisibilityContext);
-              state.options.onActiveTabChange?.(tab.id);
-            }
+            switchToTab(tab);
           }
         }
         state.args.tui.requestRender();

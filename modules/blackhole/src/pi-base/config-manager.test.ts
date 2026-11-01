@@ -27,7 +27,6 @@ import {
   createTestAgentDir,
 } from "../../tests/fixtures/config-test-helpers.ts";
 import { parseSessionEntries } from "@earendil-works/pi-coding-agent";
-import { createSettingsModal } from "./settings/modal.ts";
 
 // Mock the config-flow module so openSettings doesn't open a real UI
 // A runner-isolated HOME itself lives under the real OS temp directory.

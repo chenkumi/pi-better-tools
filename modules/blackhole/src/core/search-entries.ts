@@ -671,11 +671,3 @@ export const searchEntriesDetailed = (
     cap,
   );
 };
-
-export const searchEntries = (
-  entries: RenderedEntry[],
-  messages: Message[],
-  query?: string,
-  _page?: number,
-  mode?: RecallMode,
-): SearchHit[] => searchEntriesDetailed(entries, messages, query, undefined, mode).hits;

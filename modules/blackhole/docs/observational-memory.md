@@ -172,7 +172,7 @@ The module exports pure functions over the current reflection and observation se
 
 Without coverage evidence the dropper must guess whether an observation's meaning survives elsewhere. Coverage provides a deterministic signal: strongly-covered observations are likely redundant, while uncovered high/critical ones are load-bearing.
 
-This is what lets the pool be pruned toward `observationsPoolTargetTokens` without silently losing durable facts.
+This is what lets the pool be pruned without silently losing durable facts.
 
 ### Invariants and edge cases
 
