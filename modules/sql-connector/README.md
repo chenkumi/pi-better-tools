@@ -12,7 +12,7 @@
 
 每個專案每種引擎最多一個設定，只有已配置的引擎才註冊工具，九個工具全部採 `exposure: "deferred"`。存取資料庫前，用 `tool_search` 搜尋 `mysql`、`mssql` 或 `pgsql`。Pi Runtime 統一提供未載入 namespace 的短提示；載入後移除提示。來源完整參數與安全提示以 `*_state` 的 `promptGuidelines` 提供，只在該工具載入後送出，不另加整份 system prompt replacement。
 
-與 PTY／SQLite 相同，不自行啟用 `tool_search` 或繞過 `--tools`、`--exclude-tools`、`--no-tools`。單獨載入本模組而沒有 Pi Runtime 時，沒有共用提示／startup fallback。Deferred 指延遲向模型宣告工具，不是將已載入的工具程式碼或所有 JS dependencies 延後匯入。
+與 PTY／SQLite 相同，不自行啟用 `tool_search` 或繞過 `--tools`、`--exclude-tools`、`--no-tools`。單獨載入本模組而沒有 Pi Runtime 時，沒有共用提示／startup fallback。Deferred 指延遲向模型宣告工具，不影響程式碼載入；資料庫驅動（mysql2、mssql、pg）則在該引擎第一次被使用、建立 adapter 時才以動態 `import()` 載入，不在 extension 載入時匯入（載入時間約 950 → 350 ms，Windows 量測）。建立失敗不快取，下次呼叫重試。
 
 ## 專案掛載設定
 

@@ -1,7 +1,7 @@
-import mssql from "mssql";
+import type mssql from "mssql";
 import { createRequire } from "node:module";
-import mysql from "mysql2/promise";
-import { Pool as PgPool, type PoolClient, type QueryConfig } from "pg";
+import type mysql from "mysql2/promise";
+import type { Pool as PgPool, PoolClient, QueryConfig } from "pg";
 import { classifyDriverError } from "./driver-errors.js";
 import type { DatabaseConfig, Engine, QueryExecution, SqlConnectorConfig, SqlScalar, StateExecution, UpdateExecution } from "./types.js";
 import { SqlConnectorError } from "./types.js";
@@ -16,6 +16,13 @@ const MYSQL_QUEUE_LIMIT = 32;
 /** Shutdown and reload wait this long for the pools to close; a driver stuck behind a hung statement must not hold them up. */
 const CLOSE_DEADLINE_MS = 5_000;
 const require = createRequire(import.meta.url);
+
+/**
+ * Database drivers are heavy (mysql2, mssql/tedious/@azure/identity, pg load roughly a hundred files), so they are
+ * imported when an engine's adapter is first created, not when the extension loads. Mocked and real CJS modules expose
+ * the API either on `default` or on the namespace itself.
+ */
+const driverApi = <T>(loaded: unknown): T => ((loaded as { default?: T }).default ?? loaded) as T;
 type QueryParams = SqlScalar[] | Record<string, SqlScalar> | undefined;
 
 /**
@@ -92,8 +99,8 @@ function databaseError(engine: Engine, error: unknown, signal: AbortSignal | und
 class MysqlAdapter implements Adapter {
   private readonly pool: mysql.Pool;
 
-  constructor(private readonly config: DatabaseConfig) {
-    this.pool = mysql.createPool({
+  constructor(private readonly config: DatabaseConfig, driver: typeof mysql) {
+    this.pool = driver.createPool({
       host: config.host,
       port: config.port,
       user: config.username,
@@ -183,9 +190,9 @@ class MssqlAdapter implements Adapter {
   private readonly pool: mssql.ConnectionPool;
   private connecting?: Promise<unknown>;
 
-  constructor(private readonly config: DatabaseConfig) {
+  constructor(private readonly config: DatabaseConfig, standardDriver: typeof mssql) {
     // ODBC native bindings are optional; load them only for Windows Authentication.
-    const driver: typeof mssql = config.windowsAuth ? require("mssql/msnodesqlv8") : mssql;
+    const driver: typeof mssql = config.windowsAuth ? require("mssql/msnodesqlv8") : standardDriver;
     const poolConfig = {
       server: config.host,
       ...(config.port === undefined ? {} : { port: config.port }),
@@ -284,8 +291,8 @@ class MssqlAdapter implements Adapter {
 class PgsqlAdapter implements Adapter {
   private readonly pool: PgPool;
 
-  constructor(private readonly config: DatabaseConfig) {
-    this.pool = new PgPool({
+  constructor(private readonly config: DatabaseConfig, driver: { Pool: typeof PgPool }) {
+    this.pool = new driver.Pool({
       host: config.host,
       port: config.port,
       user: config.username,
@@ -370,6 +377,13 @@ class PgsqlAdapter implements Adapter {
   }
 }
 
+/** Imports only the driver the engine needs; Windows Authentication still loads its ODBC binding inside the MSSQL adapter. */
+async function createAdapter(engine: Engine, config: DatabaseConfig): Promise<Adapter> {
+  if (engine === "mysql") return new MysqlAdapter(config, driverApi<typeof mysql>(await import("mysql2/promise")));
+  if (engine === "mssql") return new MssqlAdapter(config, driverApi<typeof mssql>(await import("mssql")));
+  return new PgsqlAdapter(config, driverApi<{ Pool: typeof PgPool }>(await import("pg")));
+}
+
 export class SqlConnectorRuntime {
   private readonly adapters = new Map<Engine, Adapter>();
   private readonly creating = new Map<Engine, Promise<Adapter>>();
@@ -419,12 +433,7 @@ export class SqlConnectorRuntime {
     const config = this.config[engine];
     if (!config) throw new SqlConnectorError("ENGINE_NOT_CONFIGURED", `The ${engine} tools have no database connection configured for this project. Ask the user to set up a ${engine} connection, then run /sql-connector-reload.`);
 
-    const promise = Promise.resolve().then(() => {
-      const adapter: Adapter = engine === "mysql"
-        ? new MysqlAdapter(config)
-        : engine === "mssql"
-          ? new MssqlAdapter(config)
-          : new PgsqlAdapter(config);
+    const promise = createAdapter(engine, config).then((adapter) => {
       if (this.closing) {
         void adapter.close();
         throw shuttingDown();

@@ -4,7 +4,13 @@ import { deadlineState, normalizeEndAt } from "./deadline.js";
 import { intervalError, MAX_TIMER_MS, parseInterval } from "./interval.js";
 import { LockUnavailableError, type CronStorage } from "./storage.js";
 import { isProjectTrusted } from "./trust.js";
-import { runSubagentOnce, type SubagentResult } from "./subagent.js";
+import type { SubagentResult } from "./subagent.js";
+
+// The in-process session runner pulls in a large part of the host SDK, so it loads only once a model-backed prompt job is
+// scheduled (prefetch in scheduleJob) and the cached promise is reused when the job fires. A failed load is not cached.
+let subagentRunner: Promise<typeof import("./subagent.js")> | undefined;
+const loadSubagentRunner = (): Promise<typeof import("./subagent.js")> =>
+  (subagentRunner ??= import("./subagent.js").catch((error: unknown) => { subagentRunner = undefined; throw error; }));
 import type { CronChangeEvent, CronJob, CronJobType } from "./types.js";
 import {
   COMMAND_ABORT_GRACE_MS, COMMAND_CLOSE_WAIT_MS, COMMAND_EXIT_IDLE_MS, COMMAND_OUTPUT_TAIL_BYTES, CommandApprovals,
@@ -236,6 +242,7 @@ export class CronScheduler {
    * Schedule a single job
    */
   private scheduleJob(job: CronJob): void {
+    if (job.model) void loadSubagentRunner().catch(() => undefined);
     try {
       if (!CronScheduler.isLoadedFor(job, this.ctx.sessionManager.getSessionId())) return;
       if (!this.checkDeadline(job)) return;
@@ -620,6 +627,7 @@ export class CronScheduler {
       try {
         let result: SubagentResult;
         try {
+          const { runSubagentOnce } = await loadSubagentRunner();
           result = await runSubagentOnce(this.ctx, job.prompt!, model, controller.signal,
             { extensions: job.extensions, skills: job.skills }, () => {
               if (controller.signal.aborted) return false;

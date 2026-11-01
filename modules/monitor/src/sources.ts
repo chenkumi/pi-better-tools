@@ -1,7 +1,7 @@
 import { realpathSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import os from 'node:os';
-import WebSocket from 'ws';
+import type WebSocket from 'ws';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { execMonitorCommand } from '../../shell-tools/src/monitor-exec.js';
 import type { ReadonlyJobLease } from '../../shell-tools/src/monitor-capability.js';
@@ -44,9 +44,13 @@ export function websocketLaunch(source: Endpoint | NetworkSource, clock: Clock =
       if (signal.aborted) { sink.closed({ sourceClosed: true, startupCanceled: true }); return; }
       sink.fault('source_error'); sink.closed({ sourceClosed: true, startupFailed: true, startupError }, true); return;
     }
+    // `ws` loads when the first WebSocket monitor starts, not when the extension loads.
+    let WebSocketCtor: typeof WebSocket;
+    try { const loaded = await import('ws'); WebSocketCtor = (loaded as { default?: typeof WebSocket }).default ?? (loaded as unknown as typeof WebSocket); }
+    catch (error) { sink.fault('source_error'); sink.closed({ sourceClosed: true, startupFailed: true, startupError: `WEBSOCKET_CONSTRUCT_FAILED: ${reason(error)}` }, true); return; }
     await new Promise<void>(resolve => {
       let ws: WebSocket;
-      try { ws = new WebSocket(endpoint.url, pinnedOptions(endpoint, deadline - clock.now())); }
+      try { ws = new WebSocketCtor(endpoint.url, pinnedOptions(endpoint, deadline - clock.now())); }
       catch (error) { sink.fault('source_error'); sink.closed({ sourceClosed: true, startupFailed: true, startupError: `WEBSOCKET_CONSTRUCT_FAILED: ${reason(error)}` }, true); resolve(); return; }
       let fault = false;
       const abort = () => ws.terminate();

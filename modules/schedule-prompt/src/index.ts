@@ -16,10 +16,7 @@ import { isProjectTrusted } from "./trust.js";
 import { loadSettings, type ScheduleSettings, saveSettings } from "./settings.js";
 import { CronStorage } from "./storage.js";
 import { createPromptTool, createShellTool } from "./tool.js";
-import { runAddFlow } from "./ui/add-flow.js";
 import { CronWidget } from "./ui/cron-widget.js";
-import { JobsView } from "./ui/jobs-view.js";
-import { runJobsMenu } from "./ui/jobs-menu.js";
 
 export default async function (pi: ExtensionAPI) {
   let storage: CronStorage;
@@ -141,6 +138,8 @@ export default async function (pi: ExtensionAPI) {
       }
       const mySessionId = ctx.sessionManager.getSessionId();
 
+      // Menu UI loads when the command is used, not when the extension loads.
+      const [{ runAddFlow }, { JobsView }, { runJobsMenu }] = await Promise.all([import("./ui/add-flow.js"), import("./ui/jobs-view.js"), import("./ui/jobs-menu.js")]);
       const action = await ctx.ui.select("Scheduled Prompts", ["Jobs", "Settings"]);
       if (!action) return;
 

@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { killProcessTree } from "../../subagents/extensions/subagent/concurrency.ts";
-import { getPiInvocation } from "../../subagents/extensions/subagent/index.ts";
+import { getPiInvocation } from "../../subagents/extensions/subagent/pi-invocation.ts";
 import { RpcPipe } from "../../subagents/extensions/subagent/rpc.ts";
 import { CHANNEL } from "./child-guard.ts";
 import { FORK_GUARD_ENV, FORK_TOOLS, isForkTool, type ForkChildGuard } from "./identity.ts";

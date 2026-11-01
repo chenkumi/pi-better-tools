@@ -10,6 +10,8 @@ import { reserveContinuation } from "./message-reservation.ts";
 import { runReadyQuery } from "./ready-query.ts";
 import { validateInteraction } from "./query-snapshot.ts";
 import { StartupDiagnostics } from "./startup-diagnostics.ts";
+import { getPiInvocation } from "./pi-invocation.ts";
+export { getPiInvocation };
 import { StringDecoder } from "node:string_decoder";
 import { stripVTControlCharacters } from "node:util";
 import { ulid } from "ulid";
@@ -368,60 +370,6 @@ async function mapWithConcurrencyLimit<TIn, TOut>(
 	});
 	await Promise.all(workers);
 	return results;
-}
-
-function resolvePiCliFromPackage(): string | undefined {
-	try {
-		const entry = fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent"));
-		let dir = path.dirname(entry);
-		for (let depth = 0; depth < 6; depth++, dir = path.dirname(dir)) {
-			const manifest = path.join(dir, "package.json");
-			if (!fs.existsSync(manifest)) continue;
-			const parsed = JSON.parse(fs.readFileSync(manifest, "utf8")) as { name?: string; bin?: string | Record<string, string> };
-			if (parsed.name !== "@earendil-works/pi-coding-agent") continue;
-			const bin = typeof parsed.bin === "string" ? parsed.bin : parsed.bin?.pi;
-			const cli = bin ? path.resolve(dir, bin) : undefined;
-			return cli && fs.existsSync(cli) ? cli : undefined;
-		}
-	} catch { /* not resolvable (compiled binary, bundled host): use the fallbacks */ }
-	return undefined;
-}
-
-interface PiInvocationHost {
-	execPath: string;
-	argv1: string | undefined;
-	packagedCli: () => string | undefined;
-}
-
-/** Bun's embedded entry: `/$bunfs/root/...` on POSIX, `B:/~BUN/root/...` on Windows. */
-function isBunVirtualScript(script: string | undefined): boolean {
-	return !!script && (script.startsWith("/$bunfs/root/") || /^[A-Za-z]:[\\/]~BUN[\\/]/.test(script));
-}
-
-/**
- * Order: PI_SUBAGENTS_PI_CLI override, a compiled Bun host (Pi-Bolt) running itself, the host-provided pi-coding-agent bin,
- * process.argv[1], then `pi` on PATH. A compiled host is not a script runner, so a package cli.js must not be passed to it.
- */
-export function getPiInvocation(
-	args: string[],
-	env: NodeJS.ProcessEnv = process.env,
-	host: PiInvocationHost = { execPath: process.execPath, argv1: process.argv[1], packagedCli: resolvePiCliFromPackage },
-): { command: string; args: string[] } {
-	const override = env.PI_SUBAGENTS_PI_CLI?.trim();
-	if (override) {
-		if (/\.(?:[cm]?js|ts)$/i.test(override)) return { command: host.execPath, args: [override, ...args] };
-		return { command: override, args };
-	}
-	if (isBunVirtualScript(host.argv1)) return { command: host.execPath, args };
-	const packaged = host.packagedCli();
-	if (packaged) return { command: host.execPath, args: [packaged, ...args] };
-	const currentScript = host.argv1;
-	if (currentScript && fs.existsSync(currentScript)) {
-		return { command: host.execPath, args: [currentScript, ...args] };
-	}
-	const execName = path.basename(host.execPath).toLowerCase();
-	if (!/^(node|bun)(\.exe)?$/.test(execName)) return { command: host.execPath, args };
-	return { command: "pi", args };
 }
 
 function asToolUsage(results: SingleResult[]) {
