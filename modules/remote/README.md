@@ -1,6 +1,6 @@
 # Remote（原生）
 
-入口 `modules/remote/src/index.ts`；只支援 Pi **1.4.0**。以 WebSocket 把數個 Pi session 連成區網內的一個網路，讓不同機器／平台的 agent 互傳訊息與任務。典型用途：在 A 平台改完並 push 後，通知 B 平台的 Pi pull 並測試，再回報結果。
+入口 `modules/remote/src/index.ts`；只支援 Pi **1.5.0**。以 WebSocket 把數個 Pi session 連成區網內的一個網路，讓不同機器／平台的 agent 互傳訊息與任務。典型用途：在 A 平台改完並 push 後，通知 B 平台的 Pi pull 並測試，再回報結果。
 
 它**不是**遠端執行、sandbox 或檔案同步：收件端 agent 以自己的權限與判斷處理訊息，本模組不執行任何 git 或 shell 指令。
 

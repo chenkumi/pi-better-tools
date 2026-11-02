@@ -185,6 +185,20 @@ The Scheduler module was removed (2026-10-06; unrelated to the later Schedule Pr
 
 Do not delete shared schedules/native sessions/logs as part of rollback. No rollback can undo completed tool side effects, and cancellation does not establish arbitrary descendant-process termination.
 
+## Pi 1.5.0 upgrade (2026-11-03)
+
+The four root Pi development packages, the lockfile (which adds `@earendil-works/pi-schema`) and every real-host version assertion now target only 1.5.0; 1.4.0 is no longer verified. Runtime peers remain host-provided. Run root `npm ci --ignore-scripts` after pulling.
+
+Changes in this repository caused by 1.5.0:
+
+- **`StringEnum` typing:** the published `pi-ai` types it as a pi-schema value, so inside a TypeBox `Type.Object` the static type collapsed to `{}`. Note, Subagents, Web, Schedule Prompt and the Blackhole recall tool each define a small local `StringEnum` (`Type.Unsafe`) that emits the same `{ type: "string", enum }` JSON.
+- **`Type`/`Static`:** no longer re-exported by `pi-ai`; Schedule Prompt imports them from `typebox`.
+- **Key hints:** Shell's output renderer uses `context.keyHint` from the render context instead of importing `keyHint` (the package copy cannot see the user's keybindings). Test render contexts must provide `keyText`/`keyHint`.
+- **Tool argument validation** now runs on pi-schema with loose coercion (for example a number for a string property becomes a string). No tool here uses `Type.Refine`, `BigInt`, `Undefined`, codecs or `Format.Set`; `Type.Record` (PTY `env`, SQL parameters) was checked against pi-schema and works. Validation error text the model sees changes.
+- Unchanged and re-verified by the real-host groups: the `session_before_compact` event and result shape.
+
+Not re-verified on 1.5.0: Web's measured Anthropic native-search behaviour (still the 1.4.0 observation) and Blackhole's heavy group.
+
 ## Pi 1.4.0 upgrade (2026-10-23)
 
 The four root Pi development packages, the Shell Monitor backend gate and real-host assertions now target only 1.4.0; 1.3.0 is no longer verified. Runtime peers remain host-provided. Run root `npm ci --ignore-scripts`; no other dependency, personal Pi install, settings/auth, historical session or managed hostContract migration occurs.

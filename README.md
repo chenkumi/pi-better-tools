@@ -10,7 +10,7 @@
 
 ## 本機安裝
 
-需要 Node.js **`^22.22.2 || ^24.15.0 || >=26.0.0`**（與 jsdom 30 的 runtime 需求一致） 與 `@earendil-works/*` namespace 的 Pi。只支援 Pi **1.4.0**（開發基準與 production smoke 皆為 1.4.0；不維護 1.3.0 或更早版本），不代表其他 Pi 版本相容。
+需要 Node.js **`^22.22.2 || ^24.15.0 || >=26.0.0`**（與 jsdom 30 的 runtime 需求一致） 與 `@earendil-works/*` namespace 的 Pi。只支援 Pi **1.5.0**（開發基準與 production smoke 皆為 1.5.0；不維護 1.3.0 或更早版本），不代表其他 Pi 版本相容。
 
 ```powershell
 cd D:\projects\pi-better-tools
@@ -212,6 +212,10 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 6. 執行 `ssh -o BatchMode=yes macos` 確認無需互動即可登入；成功後依 [PTY README](modules/pty-terminal/README.md) 設定 `transport: "ssh"`、`host: "macos"` 與 Mac 上的絕對 `cwd`。
 
 需要協助實際連線時，只需提供 **SSH host alias** 與 **Mac 上的專案絕對路徑**，並明確授權實連；不需要提供密碼。若一定要使用帳號密碼，需另行實作讓使用者直接在終端機輸入、不經過模型的互動登入介面；目前 extension 未提供此功能。
+
+### 2026-11-03 Pi 1.5.0 升級
+
+根四個 Pi devDependencies 與 lockfile 升為 1.5.0（新增 `@earendil-works/pi-schema`），真實 host 斷言改為只接受 1.5.0，不再驗證 1.4.0。因 1.5.0 的型別變動，Note／Subagents／Web／Schedule Prompt／Blackhole recall 各自改用本地 `StringEnum`（輸出的 JSON 相同），Schedule Prompt 的 `Type`／`Static` 改從 `typebox` 取得，Shell 輸出 renderer 改用 render context 的 `keyHint`。細節見 [docs/migration.md](docs/migration.md)。Web 的 Anthropic 原生搜尋實測結論仍是 1.4.0 的觀察，Blackhole 重型組未在 1.5.0 重跑。
 
 ### 2026-10-23 Pi 1.4.0 升級
 
