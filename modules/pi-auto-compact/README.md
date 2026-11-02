@@ -2,11 +2,25 @@
 
 原生模組：以**確定性純函式**壓縮歷史，**不呼叫任何模型**。把歷史由新到舊分成 L1（原樣）、L2（工具呼叫折成一行並附 recallId）、L3（只留對話）三層，各有字元預算，溢出者滑動丟棄。完整設計見本機計畫 `plan/pi-auto-compact-plan.md`（`plan/` 不進版控）。
 
-## 目前狀態：M1 骨架
+## 目前狀態：M2（折疊規則已寫、尚未接入 hook）
 
 - 已註冊 `session_before_compact` hook 並驗證設定檔，**尚未產生任何摘要**：hook 一律回傳 `undefined`，壓縮完全交還 Pi。
 - 不註冊工具、命令或訊息。
-- L1/L2/L3 投影、折疊規則、固定狀態區塊、系統狀態移植依序為 M2～M4，尚未實作。
+- `src/fold/` 的工具折疊註冊表與通用後備已實作並有單元測試，但**還沒有被 hook 使用**；L1/L2/L3 往回填、固定狀態區塊、系統狀態移植依序為 M3～M4。
+
+## 工具折疊（`src/fold/`）
+
+純函式：`foldToolUse(call, result)` 把一組 tool call＋result 折成一行 `[tool] 關鍵參數 → 結果摘要 ⟦e:<entryId>⟧`。
+
+- **只用 session 實際持久化的資料**：`toolResult` 訊息只有 `content` 文字、`details`、`isError`、`durationMs`；`structuredContent` 不會被持久化，所以規則一律從文字與 `details` 取值（例如 bash 的退出碼來自文字尾端的 `Command exited with code N`，耗時來自 `durationMs`）。
+- **不保留內容**：檔案內文、diff、網頁內文、搜尋 snippet、資料列、對端訊息內文、手冊文字一律不進折疊行；`pty_keyin` 不保留任何結果文字，失敗也只回報「失敗」。
+- **遮罩與長度**：指令與 SQL 先遮罩常見憑證形狀（Bearer、`password=`、`--token`、URL 內帳密）再截斷；URL 去掉 query 與 fragment；每行去除控制字元與雙向字元。遮罩是盡力而為，不保證涵蓋所有形狀。
+- **失敗保留較多**：失敗呼叫保留錯誤文字前 400 字元（web 與 remote 為 200）；bash／powershell 的非 0 退出是正常結果，由規則自行處理。
+- **請求不等於完成**：cancel／kill／message 類工具的折疊行明寫「request／accepted 不代表已停止／已套用」。
+- **未登記工具**走通用後備：參數摘要（含 `password`／`token`／`apiKey` 等鍵一律 `***`）＋輸出頭 200／尾 100 字元＋總字元數。規則拋例外時也退回通用後備，不退回原文。
+- **配對**：`foldUnpairedCall`（沒有結果）與 `foldUnpairedResult`（找不到呼叫）都明確標記，不當成成功。
+- 新增工具時：`tests/registry-coverage.test.ts` 會掃描各模組以字面名稱註冊的工具，未登記規則也未列入「通用後備白名單」就會失敗。動態命名的工具（如 `shell_job_*`、`mysql_*`）掃不到，由 `tests/fold.test.ts` 的明確清單把關。
+- 尚未折疊的通知訊息（`fork-result`、`monitor_event`、`remote_message` 等 custom_message）屬 §4.3，留待 M3 之後。
 
 ## 只掛其一
 
@@ -29,4 +43,4 @@
 
 ## 驗證
 
-`npm run test:module -- pi-auto-compact`：設定預設值／覆寫／嚴格驗證／唯讀、hook 註冊與交還 Pi 的行為。尚未做真實 Pi host 的整合測試（M5）。
+`npm run test:module -- pi-auto-compact`：設定預設值／覆寫／嚴格驗證／唯讀、hook 註冊與交還 Pi 的行為、全部已登記工具的折疊規則與安全性（不洩漏內容、遮罩、截斷、失敗保留、請求≠完成）、通用後備、工具註冊覆蓋掃描。尚未做真實 Pi host 的整合測試（M5）。
