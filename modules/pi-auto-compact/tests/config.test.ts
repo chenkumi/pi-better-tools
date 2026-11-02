@@ -11,7 +11,7 @@ function agentDir() {
 }
 
 test('defaults match the plan and the file lives directly under the agent dir', () => {
-  assert.deepEqual({ ...DEFAULT_CONFIG }, { l1Ratio: 0.01, l1MinChars: 30000, l2Ratio: 0.01, l2MinChars: 20000, l3Ratio: 0.01, l3MinChars: 6000, l4Ratio: 0.01, l4MinChars: 6000, charsPerToken: 2.2, maxTotalRatio: 0.5 });
+  assert.deepEqual({ ...DEFAULT_CONFIG }, { l1Ratio: 0.01, l1MinChars: 30000, l2Ratio: 0.01, l2MinChars: 20000, l3Ratio: 0.01, l3MinChars: 6000, l4Ratio: 0.01, l4MinChars: 6000, charsPerToken: 2.2, maxTotalRatio: 0.5, checkpointRatio: 0.5 });
   assert.equal(configPath('/a/b'), join('/a/b', 'auto-compact.json'));
 });
 

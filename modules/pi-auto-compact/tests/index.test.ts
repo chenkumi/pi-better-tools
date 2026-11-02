@@ -26,12 +26,13 @@ async function withAgentDir<T>(file: string | undefined, run: () => Promise<T>):
   }
 }
 
-test('registers exactly one hook and the three deferred read-only session tools, and no commands or messages', () => {
+test('registers the compaction and checkpoint hooks, the three deferred read-only session tools and the anchor tool, and no commands or messages', () => {
   const { handlers, other, tools } = load();
-  assert.deepEqual([...handlers.keys()], ['session_before_compact']);
+  assert.deepEqual([...handlers.keys()].sort(), ['agent_before_settle', 'before_agent_start', 'context', 'session_before_compact', 'session_compact', 'session_start', 'turn_end']);
   assert.deepEqual(other, []);
-  assert.deepEqual(tools.map(tool => tool.name).sort(), ['session_grep', 'session_read', 'session_window']);
-  for (const tool of tools) { assert.equal(tool.exposure, 'deferred'); assert.equal(tool.namespace?.name, 'session'); }
+  assert.deepEqual(tools.map(tool => tool.name).sort(), ['progress_checkpoint', 'session_grep', 'session_read', 'session_window']);
+  for (const tool of tools.filter(tool => tool.name !== 'progress_checkpoint')) { assert.equal(tool.exposure, 'deferred'); assert.equal(tool.namespace?.name, 'session'); }
+  assert.notEqual(tools.find(tool => tool.name === 'progress_checkpoint')!.exposure, 'deferred');
 });
 
 test('a valid or missing file stays silent, and an event Pi cannot be helped with goes back to Pi', async () => {

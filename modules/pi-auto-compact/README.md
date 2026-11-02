@@ -2,7 +2,7 @@
 
 原生模組：以**確定性純函式**壓縮歷史，**不呼叫任何模型**。把歷史由新到舊分成 L1（原樣）、L2（工具呼叫折成一行並附 session 檔行號參照）、L3（只留對話）三層，各有字元預算，溢出者滑動丟棄。完整設計見本機計畫 `plan/pi-auto-compact-plan.md`（`plan/` 不進版控）。
 
-## 目前狀態：M5（真實 host 整合測試已加入；比較腳本為 M6）
+## 目前狀態：M5＋進度錨點（真實 host 整合測試已加入；比較腳本為 M6）
 
 - `session_before_compact` hook 現在會產生確定性摘要：Pi 仍決定何時壓縮與切點，本模組回傳 `preparation.firstKeptEntryId`（切點之後是 L1 原樣訊息；保留尾端超過 L1 預算時才把切點往後移，見下），只替換切點之前的摘要，不呼叫任何模型。
 - 以下情況一律回傳 `undefined`，把壓縮交還 Pi：設定檔無效（有 UI 時警告一次）、`ctx.model.contextWindow` 未知、切點不在分支上或切點之前沒有內容、任何非預期例外（警告一次，壓縮不會因此遺失）。
@@ -14,6 +14,12 @@
 - `details` 記錄 `{compactor:'pi-auto-compact', version:1, windowStart:{entryId,line,sessionId}, stats}`（不送給模型）；`stats.windowStartKept` 與 `guard` 可用來檢視快取穩定度。
 - 系統狀態（`src/state/`）：`jobs.ts`、`monitors.ts` 自 Blackhole 移植，**輸出與 Blackhole 逐字相同**（已用同一批輸入比對），資料來自 `modules/shell-tools/src/monitor-capability.ts` 的唯讀 briefs（相對 import，需 owner sessionId＋canonical cwd 相符；只有 ID、狀態、時限、label，無指令／輸出／路徑；讀取失敗回空字串，不阻擋壓縮）。`worktree.ts` 以有時限、有輸出上限的 `git`（移除 `GIT_DIR` 等重導向變數）取 HEAD、分支與異動檔路徑＋單字標籤（new／unstaged／staged／deleted／renamed／conflicted），最多 20 筆，不含 diff 或內容；非 git 目錄、逾時、中止都回空。這三塊不帶 Blackhole 的 span 證明機制：摘要每次從原始分支重建，不會 carry forward。
 - 真實 host 測試（`tests/real-host.integration.test.mjs`＋`tests/fixtures/real-host.mjs`，約 12 秒，屬一般整合組、非重型組）：以真實 Pi 1.5.0 SDK 建隔離 session（隔離 home／agentDir／workspace、離線假 provider、`fetch` 一律拒絕），直接用 `SessionManager` 灌入含工具呼叫、`write`、`git commit` 的歷史，再呼叫 `session.compact()` 走真實壓縮流程。三個情境：`full`（壓縮持久化、`firstKeptEntryId` 與 `tokensBefore` 沿用 Pi、摘要中每個 `⟦L行:id⟧` 都指到該行真實 entry、重新 `SessionManager.open` 後 context 恰為「摘要＋Pi 保留的尾端」、第二次壓縮保留視窗起點且摘要開頭逐位元組不變、`[Background Jobs]`／`[Active Monitors]` 在最末、檔案內容不進摘要、三個 session 工具在真實 host 啟用並讀到壓縮掉的內容、全程 `providerCalls: 0`）、`invalid-config` 與 `unknown-window`（交還 Pi，Pi 自己產生並持久化摘要）。只驗證手動 `session.compact()`（`reason: "manual"`）；自動 threshold／overflow 路徑尚未以真實 host 驗證。
+- 進度錨點（長任務的斷點）：單一超大回合（同一個請求下連續大量工具呼叫、沒有任何 assistant 文字）會讓摘要的對話層是空的、L1 切點也沒有清楚的位置。因此 context 用量（`ctx.getContextUsage()`）自上次 assistant 文字或錨點呼叫起增加 `checkpointRatio × contextWindow`（預設 0.5）時，在 `turn_end` 邊界追加一則標記過的 `custom_message`（`pi-auto-compact:checkpoint`，`display:false`）並要求繼續，請模型回報 2 到 4 句進度後繼續；每累積一次門檻只要求一次（要求後基準前移，未回應也不重複）。
+  - 回報優先用錨點工具 `progress_checkpoint({ summary })`（`defaultActive:true`，仍受宿主 allowlist／exclusions 控制；AGENTS.md 已記錄為例外）：工具呼叫一定會回到模型，所以不會像純文字回覆那樣讓 run 結束。工具不在 active 清單時改要求文字回報；文字回報後若 run 就要結束，會在 `agent_before_settle` 追加**一則**繼續訊息（`pi-auto-compact:continue`）。每次繼續都綁定恰好一次檢查點要求，不會自行重複，因此不設上限。
+  - 錨點對壓縮等同 assistant 文字訊息：計數器歸零（任何 assistant 文字亦同）；摘要把 `summary` 當作該 assistant 訊息的文字（進 L3 對話層），錨點呼叫與其 tool result 不再另列；L1 切點在能放進預算的候選中優先選擇起於文字或錨點的位置。
+  - 提示訊息只是觸發器：不進摘要，且一旦分支內已有 compaction，已被回答的提示會由 `context` 事件自模型 context 移除（session 檔保留原樣，`session_grep` 仍查得到）。
+  - 主對話、Fork、Subagent 各自獨立計數，同一個 extension 掛載即生效；Subagent 子行程若有明確的 `--tools` 清單，argument builder 會附上 `progress_checkpoint`（`+name`／`-name` 清單附 `+progress_checkpoint`）。
+  - 真實 host 測試（`tests/fixtures/checkpoint-host.mjs`）以離線 provider 驗證錨點與文字兩種路徑；Fork 與 Subagent 子行程的實際載入尚未以真實子行程驗證。
 - 尚未做：跨壓縮共同前綴比較（M6）。
 - 只註冊三個唯讀、deferred 的 session 工具（`session_grep`／`session_window`／`session_read`，命名空間 `session`，由 `tool_search` 載入，註冊時不會被啟用）；不註冊命令或訊息。
 
@@ -81,6 +87,7 @@
 | `l3Ratio`／`l3MinChars` | 0.01／6000 | 同上 | L3 預算 |
 | `l4Ratio`／`l4MinChars` | 0.01／6000 | 同上 | L4 = L3 視窗的**溢出緩衝**（見下節）。摘要的 L3 區段大小在 `L3` 到 `L3+L4` 之間浮動 |
 | `charsPerToken` | 2.2 | 1～8 | 估算 token 用；Pi 內建為 4，中文為主的 session 實測約 2.2 |
+| `checkpointRatio` | 0.5 | (0,1] | 進度錨點：context 自上次 assistant 文字／錨點呼叫起增加此比例的 context window 時要求一次進度回報（見上） |
 | `maxTotalRatio` | 0.5 | (0,1] | 估算總量（最壞情況 L2＋L3＋L4）占 context window 的硬上限；超過時先重設視窗起點、再縮 L3、再縮 L2，不縮 L1 |
 
 - 未知鍵、型別錯誤或超出範圍都是**錯誤**，不退回其他值；hook 會以 warning 通知一次（有 UI 時），並把壓縮交還 Pi。

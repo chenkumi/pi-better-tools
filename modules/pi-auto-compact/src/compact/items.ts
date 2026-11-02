@@ -1,3 +1,4 @@
+import { ANCHOR_TOOL, isCheckpointType } from '../checkpoint/messages.ts';
 import type { EntryRef } from '../fold/ref.ts';
 import type { ToolCallInfo, ToolResultInfo } from '../fold/types.ts';
 import { asRecord, list, num, oneLine, redact, str } from '../fold/util.ts';
@@ -60,6 +61,7 @@ export function buildItems(entries: readonly Entry[], refOf: RefLookup): Item[] 
   for (const entry of entries) if (entry.type === 'context_edit' && str(entry.targetId)) edits.set(entry.targetId as string, entry);
   const items: Item[] = [];
   const pending = new Map<string, CallPair>();
+  const anchorIds = new Set<string>();
   for (const entry of entries) {
     const id = str(entry.id);
     if (!id) continue;
@@ -75,15 +77,19 @@ export function buildItems(entries: readonly Entry[], refOf: RefLookup): Item[] 
         items.push({ ...base, kind: 'user', text: `${text}${imageNote(images)}`, calls: [] });
       } else if (role === 'assistant') {
         const calls: CallPair[] = [];
+        const anchors: string[] = [];
         for (const block of list(message.content)) {
           const b = asRecord(block);
           if (b?.type !== 'toolCall') continue;
+          // The anchor tool's report is an assistant message for compaction: its text joins the turn's text, the call and its result vanish.
+          if (b.name === ANCHOR_TOOL) { anchorIds.add(str(b.id) ?? ''); const report = str(asRecord(b.arguments)?.summary); if (report) anchors.push(report); continue; }
           const pair: CallPair = { call: { id: str(b.id) ?? '', name: str(b.name) ?? 'unknown', args: asRecord(b.arguments) ?? {} } };
           calls.push(pair);
           if (pair.call.id) pending.set(pair.call.id, pair);
         }
-        items.push({ ...base, kind: 'assistant', text: contentText(message.content).text, calls });
+        items.push({ ...base, kind: 'assistant', text: [contentText(message.content).text, ...anchors].filter(Boolean).join(String.fromCharCode(10)), calls });
       } else if (role === 'toolResult') {
+        if (anchorIds.has(str(message.toolCallId) ?? '')) continue;
         const pair = pending.get(str(message.toolCallId) ?? '');
         if (pair && !pair.result) { pair.result = resultInfo(message, ref); continue; }
         items.push({ ...base, kind: 'orphan', text: '', label: str(message.toolName) ?? 'unknown', calls: [], orphan: resultInfo(message, ref) });
@@ -92,6 +98,7 @@ export function buildItems(entries: readonly Entry[], refOf: RefLookup): Item[] 
         items.push({ ...base, kind: 'shell', text: `${JSON.stringify(oneLine(redact(str(message.command) ?? ''), 120))} → ${exit}`, calls: [] });
       }
     } else if (entry.type === 'custom_message') {
+      if (isCheckpointType(entry.customType)) continue;
       items.push({ ...base, kind: 'note', label: str(entry.customType) ?? 'custom', text: contentText(entry.content).text, calls: [] });
     } else if (entry.type === 'branch_summary' && str(entry.summary)) {
       items.push({ ...base, kind: 'note', label: 'branch summary', text: str(entry.summary) as string, calls: [] });

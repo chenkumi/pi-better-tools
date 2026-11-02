@@ -12,6 +12,7 @@
 
 | 鍵 | 預設 | 範圍 |
 |---|---|---|
+| `checkpointRatio` | 0.5 | 大於 0 且至多 1；長任務中 context 自上次 assistant 文字或 `progress_checkpoint` 起增加此比例的 window 時，要求一次簡短進度回報 |
 | `l1Ratio`、`l2Ratio`、`l3Ratio`、`l4Ratio` | 皆 0.01 | 大於 0 且至多 1 |
 | `l1MinChars`、`l2MinChars`、`l3MinChars`、`l4MinChars` | 30000、20000、6000、6000 | 正整數 |
 | `charsPerToken` | 2.2 | 1～8 |
