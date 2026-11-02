@@ -15,7 +15,7 @@ const tsx = import.meta.resolve('tsx');
 const heavyFiles = new Set([
   'modules/json-schema/tests/runtime.test.mjs', 'tests/integration/sdk-hooks.test.mjs', 'modules/subagents/tests/child-shell-guard-reload.integration.test.mjs',
   'modules/shell-tools/tests/recovery.integration.test.mjs', 'modules/shell-tools/tests/extension.integration.test.mjs', 'modules/shell-tools/tests/notification-batching.integration.test.mjs',
-  'modules/web-tools/tests/integration/fetch.test.ts', 'modules/fork/tests/real-host.integration.test.ts', 'modules/fork/tests/blocked-report.integration.test.ts',
+  'modules/fork/tests/real-host.integration.test.ts', 'modules/fork/tests/blocked-report.integration.test.ts',
   'modules/file-audit/tests/tui-workflow.integration.test.mjs', 'modules/blackhole/tests/d03-branch-epoch.integration.test.mjs', 'modules/blackhole/tests/d20-settings-non-tui.integration.test.mjs',
   'modules/sql-connector/tests/sdk.integration.test.mjs', 'modules/monitor/tests/host.integration.test.mjs']);
 const testFiles = (dir, keep) => readdirSync(join(root, dir)).filter(name => /\.test\.(ts|mjs)$/.test(name) && keep(name) && !heavyFiles.has(`${dir}/${name}`)).sort().map(name => `${dir}/${name}`);

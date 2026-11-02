@@ -5,24 +5,21 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const root = resolve(process.argv[2]), mode = process.argv[3] ?? 'real';
-const heartbeat = setInterval(() => console.log(`[browser] ${mode} still running...`), 10000);
+const root = resolve(process.argv[2]), mode = 'static';
+const heartbeat = setInterval(() => console.log(`[web-read] ${mode} still running...`), 10000);
 let server, service, session, outputPath;
 try {
   const { FetchService } = await import(pathToFileURL(join(root, 'modules/web-tools/src/fetch/service.ts')).href);
   const { toolOutput } = await import(pathToFileURL(join(root, 'modules/web-tools/src/output.ts')).href);
-  // This code-only seam is identical to source browser tests. Model-callable Fetch remains private-network blocked.
-  service = new FetchService({ channel: 'chromium', timeoutMs: 20000, maxConcurrency: 2, idleTimeoutMs: 60000 }, { allowPrivateNetwork: true });
+  // Code-only seam for the private-loopback fixture. Model-callable Fetch remains private-network blocked.
+  service = new FetchService({ timeoutMs: 20000, maxConcurrency: 2 }, { allowPrivateNetwork: true });
   server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-    response.end('<title>Large rendered fixture</title><main></main><script>setTimeout(() => { document.querySelector("main").innerHTML = Array.from({length: 1400}, (_, i) => `<p>Paragraph ${i + 1}: independently rendered fixture data with sufficient content for pagination.</p>`).join(""); document.querySelector("main").id="ready"; }, 25);</script>');
+    response.end('<title>Large static fixture</title><main id="ready">' + Array.from({ length: 1400 }, (_, i) => `<p>Paragraph ${i + 1}: independently rendered fixture data with sufficient content for pagination.</p>`).join('') + '</main>');
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  const input = { url: `http://127.0.0.1:${server.address().port}/`, waitForSelector: '#ready', extraction: 'main', format: 'text' };
-  if (mode === 'missing') {
-    await assert.rejects(service.fetch(input), /BROWSER_UNAVAILABLE:.*Install/);
-    console.log(JSON.stringify({ mode, missingBrowserError: true }));
-  } else {
+  const input = { url: `http://127.0.0.1:${server.address().port}/`, extraction: 'main', format: 'text' };
+  {
     const rendered = await service.fetch(input);
     assert.match(rendered.content, /Paragraph 1:/); assert.match(rendered.content, /Paragraph 1400:/);
     const result = await toolOutput(rendered.content, { title: rendered.title });
@@ -47,12 +44,11 @@ try {
     const text = output => output.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
     assert.match(text(first), /READ_CONTINUATION/); assert.match(text(later), /1201│/);
     assert.notEqual(text(first), text(later)); assert.equal(await readFile(outputPath, 'utf8'), rendered.content);
-    const browser = service.browser; assert.equal(browser.isConnected(), true);
-    await service.close(); assert.equal(browser.isConnected(), false);
-    console.log(JSON.stringify({ mode, rendered: true, truncated: true, paginatedRead: true, browserClosed: true }));
+    await service.close();
+    console.log(JSON.stringify({ mode, fetched: true, truncated: true, paginatedRead: true }));
   }
 } finally {
-  console.log('[browser] Closing test-owned resources...');
+  console.log('[web-read] Closing test-owned resources...');
   try { if (session) { await session.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' }); session.dispose(); } }
   finally {
     try { await service?.close(); }

@@ -49,7 +49,7 @@
 ### 未驗證
 
 - 以真實模型執行 Subagent／Fork 的端到端流程（修正只由單元測試與呼叫形狀實測支持）。
-- Web 真實瀏覽器 `fetch`（Playwright 在 Bun 下）、MSSQL 的 `msnodesqlv8`。
+- MSSQL 的 `msnodesqlv8`。
 - `sqlite`／`pty`／`web`／`json-schema` 等工具在 Pi-Bolt 上的完整行為（只確認載入與上表呼叫）。
 - 重型測試組（`test:heavy`、`test:heavy:blackhole`）未在 Pi-Bolt 上執行。
 - Linux、macOS 版本與 JIT 版本（`PIBOLT_VARIANT=x64-jit`），含 JIT 版的 FFF `fff-bun` 後端。

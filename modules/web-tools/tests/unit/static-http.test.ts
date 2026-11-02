@@ -1,51 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { chromium } from 'playwright';
 import { FetchService } from '../../src/fetch/service.js';
 import { decodeDocument, fetchStatic, pinnedOptions } from '../../src/fetch/http.js';
 import { NetworkPolicy } from '../../src/fetch/network.js';
 import { extractHtml } from '../../src/fetch/extract.js';
 
 const signal = () => new AbortController().signal;
-test('only missing executables reach static transport; selector, unknown, permission, deps and timeout never do', async t => {
-  for (const [message, expected] of [
-    ["Executable doesn't exist at SECRET", /Static HTTP cannot honor waitForSelector/],
-    ["Chromium distribution 'chrome' is not found at SECRET", /Static HTTP cannot honor waitForSelector/],
-    ['unknown SECRET', /Browser startup failed/], ['spawn EACCES', /permission was denied/],
-    ['Host system is missing dependencies', /system dependencies are missing/],
-    ['timeout', /Browser startup timed out/],
-  ] as const) {
-    const launch = t.mock.method(chromium, 'launch', async () => { throw Object.assign(new Error(message), { name: message === 'timeout' ? 'TimeoutError' : 'Error' }); });
-    const service = new FetchService({ channel: 'chromium', timeoutMs: 30_000, maxConcurrency: 1, idleTimeoutMs: 0 }, { allowPrivateNetwork: true });
-    const resolve = t.mock.method(service['policy'], 'resolveTarget', async () => { throw new Error('UNEXPECTED_TRANSPORT'); });
-    try {
-      await assert.rejects(service.fetch({ url: 'http://127.0.0.1/', waitForSelector: 'main' }), expected);
-      assert.equal(resolve.mock.callCount(), 0);
-    } finally { launch.mock.restore(); await service.close(); }
-  }
-});
-test('fallback retains the original deadline rather than resetting it after launch', async t => {
-  t.mock.timers.enable({ apis: ['setTimeout'] });
-  let resolving!: () => void;
-  const started = new Promise<void>(resolve => { resolving = resolve; });
-  t.mock.method(chromium, 'launch', async () => {
-    t.mock.timers.tick(600);
-    throw new Error("Executable doesn't exist at SECRET");
-  });
-  const service = new FetchService({ channel: 'chromium', timeoutMs: 1000, maxConcurrency: 1, idleTimeoutMs: 0 }, { allowPrivateNetwork: true });
-  let releaseLookup!: (value: { url: URL; address: string }) => void;
-  t.mock.method(service['policy'], 'resolveTarget', () => new Promise(resolve => { releaseLookup = resolve; resolving(); }));
-  try {
-    const pending = service.fetch({ url: 'http://127.0.0.1/' });
-    const rejected = assert.rejects(pending, /TIMEOUT:/);
-    await started;
-    t.mock.timers.tick(400);
-    await rejected;
-    releaseLookup({ url: new URL('http://127.0.0.1/'), address: '127.0.0.1' });
-    assert.equal(service['operations'].size, 0);
-  } finally { await service.close(); }
-});
-
 test('HTTP target validation rejects all mixed DNS sets and special IPv4/IPv6 before connecting', async () => {
   for (const address of ['127.0.0.1', '::1', '::ffff:127.0.0.1', '169.254.169.254', 'garbage']) {
     const policy = new NetworkPolicy(false, async () => [{ address: '8.8.8.8' }, { address }]);

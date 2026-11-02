@@ -1,34 +1,8 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { join } from 'node:path';
 import test from 'node:test';
-import { browserInvocation, main, packageRoot, runInvocation } from '../../setup/core.mjs';
+import { main, runInvocation } from '../../setup/core.mjs';
 import { formatSetupCommand, setupCommand } from '../../setup/commands.mjs';
-
-test('browser operations use own resolved CLI and current Node, never a shell or global playwright', () => {
-  const root = join(process.cwd(), 'own install');
-  const options = { resolve: name => { assert.equal(name, 'playwright'); return { root }; }, execPath: '/own node' };
-  for (const [action, expected] of [['install', ['install', 'chromium', '--no-shell']], ['install-deps', ['install-deps', 'chromium']], ['setup', ['install', '--with-deps', 'chromium', '--no-shell']]]) {
-    const invocation = browserInvocation(action, options);
-    assert.equal(invocation.command, '/own node');
-    assert.deepEqual(invocation.args, [join(root, 'cli.js'), ...expected]);
-  }
-  assert.throws(() => browserInvocation('__proto__', options), /Unknown/);
-});
-
-test('browser installer keeps the caller cwd so a relative browser cache stays with doctor and runtime', () => {
-  const options = { resolve: () => ({ root: join(process.cwd(), 'own install') }), execPath: '/own node' };
-  // Playwright resolves a relative PLAYWRIGHT_BROWSERS_PATH against the child cwd; moving the child
-  // into the package directory would install where doctor and the running instance never look.
-  assert.equal(browserInvocation('install', options).cwd, process.cwd());
-  assert.notEqual(browserInvocation('install', options).cwd, packageRoot);
-  assert.equal(browserInvocation('install', { ...options, cwd: '/caller cwd' }).cwd, '/caller cwd');
-  const env = { ...process.env, PLAYWRIGHT_BROWSERS_PATH: './browser-cache' };
-  delete env.INIT_CWD;
-  const invocation = browserInvocation('install', { ...options, env });
-  assert.equal(invocation.env.PLAYWRIGHT_BROWSERS_PATH, './browser-cache', 'the relative cache must reach the child unmodified');
-  assert.equal(invocation.env.INIT_CWD, undefined, 'no INIT_CWD override may be invented for the child');
-});
 
 test('CLI parsing is strict and help/doctor cannot invoke installers', async () => {
   const output = [];
@@ -36,12 +10,12 @@ test('CLI parsing is strict and help/doctor cannot invoke installers', async () 
   assert.equal(await main(['--help'], noInstall), 0);
   assert.equal(await main(['doctor', '--json'], noInstall), 0);
   assert.deepEqual(JSON.parse(output[1]), { schemaVersion: 1 });
-  for (const args of [['wat'], ['doctor', '--install'], ['browser', 'install', '--with-deps'], ['pty', 'setup', '--force'], ['--help', 'install']]) {
+  for (const args of [['wat'], ['doctor', '--install'], ['browser', 'install'], ['pty', 'setup', '--force'], ['--help', 'install']]) {
     await assert.rejects(main(args, noInstall), /Unknown arguments/);
   }
   const calls = [];
-  assert.equal(await main(['browser', 'install'], { browser: action => action, run: action => { calls.push(action); return 37; } }), 37);
-  assert.deepEqual(calls, ['install']);
+  assert.equal(await main(['pty', 'setup'], { pty: () => 'pty-invocation', run: action => { calls.push(action); return 37; } }), 37);
+  assert.deepEqual(calls, ['pty-invocation']);
 });
 
 test('setup command quoting labels PowerShell and POSIX and escapes quotes/metacharacters', () => {

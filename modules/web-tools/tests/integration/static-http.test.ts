@@ -1,18 +1,12 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer, type ServerResponse } from 'node:http';
 import https from 'node:https';
 import { cert, key } from '../fixtures/tls-material.js';
 import type { AddressInfo, Socket } from 'node:net';
 import { createServer as createRawServer } from 'node:net';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
 import { brotliCompressSync, gzipSync } from 'node:zlib';
-import { chromium } from 'playwright';
 import { FetchService } from '../../src/fetch/service.js';
 import { fetchStatic, pinnedOptions } from '../../src/fetch/http.js';
 import { MAX_HTML_BYTES } from '../../src/fetch/extract.js';
@@ -114,31 +108,14 @@ test('a 101 upgrade rejects and releases the operation instead of holding the qu
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   t.after(async () => { server.close(); await once(server, 'close'); });
   const port = (server.address() as AddressInfo).port;
-  const launch = t.mock.method(chromium, 'launch', async () => { throw new Error("Executable doesn't exist at /none"); });
-  const service = new FetchService({ channel: 'chromium', timeoutMs: 20_000, maxConcurrency: 1, idleTimeoutMs: 0 }, { allowPrivateNetwork: true });
+  const service = new FetchService({ timeoutMs: 20_000, maxConcurrency: 1 }, { allowPrivateNetwork: true });
   try {
     await assert.rejects(service.fetch({ url: `http://127.0.0.1:${port}/upgrade` }), /UNSUPPORTED_CONTENT: .*101 Upgrade/);
     await clientClosed;
     assert.equal(service['operations'].size, 0, 'a settled static fetch must release its operation');
     // A leaked permit would leave this second fetch queued until its deadline expires.
     await assert.rejects(service.fetch({ url: `http://127.0.0.1:${port}/other` }), /UNSUPPORTED_CONTENT: .*101 Upgrade/);
-    assert.equal(launch.mock.callCount(), 2, 'each fetch must still attempt its own browser launch');
   } finally {
-    launch.mock.restore();
     await service.close();
   }
-});
-
-test('real missing Chromium executable in isolated process and empty browser cache', { timeout: 60_000 }, async () => {
-  const cache = await mkdtemp(join(tmpdir(), 'pi-web-empty-browser-'));
-  try {
-    const child = spawn(process.execPath, ['--import', 'tsx', fileURLToPath(new URL('../fixtures/missing-browser.ts', import.meta.url))], {
-      env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: cache }, stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    let output = '';
-    child.stdout.on('data', chunk => { output += chunk; }); child.stderr.on('data', chunk => { output += chunk; });
-    const [code] = await once(child, 'exit');
-    assert.equal(code, 0, output);
-    assert.match(output, /Missing-browser checks passed/);
-  } finally { await rm(cache, { recursive: true, force: true }); }
 });

@@ -9,7 +9,7 @@ import { MAX_HTML_BYTES } from './extract.js';
 import { describeNetworkFailure, httpStatusAdvice } from './failure.js';
 import { NetworkPolicy } from './network.js';
 
-/** Media types accepted as a page document, by both the static and the browser path. */
+/** Media types accepted as a page document, for the static fetch. */
 export const DOCUMENT_CONTENT_TYPES = ['text/html', 'application/xhtml+xml', 'text/plain'];
 
 /** Keep the URL hostname (Host and TLS identity), but never perform a second DNS lookup. */

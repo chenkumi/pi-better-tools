@@ -22,10 +22,8 @@
     "fetch": {
       "type": "object", "additionalProperties": false,
       "properties": {
-        "channel": { "enum": ["chromium", "chrome"], "default": "chromium" },
         "timeoutMs": { "type": "integer", "minimum": 1000, "maximum": 120000, "default": 30000 },
-        "maxConcurrency": { "type": "integer", "minimum": 1, "maximum": 4, "default": 2 },
-        "idleTimeoutMs": { "type": "integer", "minimum": 1000, "maximum": 300000, "default": 60000 }
+        "maxConcurrency": { "type": "integer", "minimum": 1, "maximum": 4, "default": 2 }
       }
     }
   },

@@ -9,15 +9,15 @@ description: >-
   compaction or memory, or shell and file-tool settings.
   Also use for requests to connect or set up a database when the
   required connection configuration is missing or unknown.
-  Also use for Chromium installation, missing browser or PTY native
-  dependencies, and setup CLI diagnostics.
+  Also use for missing PTY native dependencies and setup CLI
+  diagnostics.
   Do not use for routine operations with already-configured tools
   or for implementing these features in application code.
 ---
 
 # Pi Tools 設定索引
 
-當完成需求需要建立、修改或排查 config，或安裝／診斷 Chromium、PTY 選用元件時使用；以實際功能與工具名稱判斷，不要求使用者知道套件名稱。先依需求選取下列 reference，只讀相關模組，不把所有文件一次載入。
+當完成需求需要建立、修改或排查 config，或安裝／診斷 PTY 選用元件時使用；以實際功能與工具名稱判斷，不要求使用者知道套件名稱。先依需求選取下列 reference，只讀相關模組，不把所有文件一次載入。
 
 ## 使用邊界
 
@@ -32,7 +32,7 @@ description: >-
 | SQLite 要固定掛載到這個專案 | 是 |
 | 新增 SSH target，或把搜尋改成 Brave | 是 |
 | 修改排程的預設 scope | 是 |
-| 沒有 Chromium、想安裝瀏覽器，或 PTY native binding 缺少 | 是 |
+| PTY native binding 缺少 | 是 |
 | 發布套件的安裝命令／doctor 如何使用 | 是 |
 | 用已連線的 MySQL 查詢 orders | 否 |
 | 開啟 SQLite 檔查資料，不需持久掛載 | 否 |
@@ -58,7 +58,7 @@ description: >-
 | Shell：Bash／PowerShell、總逾時、自動轉背景 | [shell-tools](references/shell-tools.md) |
 | File：read／edit／write／ls、除錯與 FFF 搜尋模式 | [file-tools](references/file-tools.md) |
 | File Audit：近期檔案窗口／容量、手動增量檢查與停用 | [file-audit](references/file-audit.md) |
-| Web：原生搜尋（OpenAI／Gemini／Anthropic）、Brave／Exa／DeepSeek、Chromium 安裝與 HTTP 相容模式 | [web-tools](references/web-tools.md) |
+| Web：原生搜尋（OpenAI／Gemini／Anthropic）、Brave／Exa／DeepSeek、基礎靜態 `web_fetch` | [web-tools](references/web-tools.md) |
 | Note：分類筆記與自動路徑 | [note-tools](references/note-tools.md) |
 | Pi Runtime：deferred discovery、共通提示 | [pi-runtime](references/pi-runtime.md) |
 | Skill Tools：技能載入、指令與停用 | [skill-tools](references/skill-tools.md) |

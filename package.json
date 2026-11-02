@@ -118,9 +118,6 @@
         "test:package": "node scripts/package-smoke.mjs",
         "check": "npm run build && npm run typecheck && npm run lint && npm test && npm run test:integration && npm run test:package",
         "pty:install": "node setup/cli.mjs pty setup",
-        "browser:install": "node setup/cli.mjs browser install",
-        "browser:install-deps": "node setup/cli.mjs browser install-deps",
-        "setup:browser": "node setup/cli.mjs browser setup",
         "prepack": "npm run build"
     },
     "allowScripts": {
@@ -140,7 +137,6 @@
         "node-pty": "1.2.0-beta.15",
         "pg": "8.23.1",
         "pi-open-tui": "0.3.13",
-        "playwright": "1.64.1",
         "proper-lockfile": "4.1.2",
         "turndown": "7.2.4",
         "turndown-plugin-gfm": "1.0.2",

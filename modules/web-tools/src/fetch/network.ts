@@ -64,7 +64,7 @@ export class NetworkPolicy {
     private readonly resolve: AddressResolver = (hostname) => lookup(hostname, { all: true, verbatim: true }),
   ) {}
 
-  /** Reject a connection whose actual remote address (Playwright `serverAddr()`) is not public.
+  /** Reject a connection whose actual remote address is not public.
    * A missing address fails closed: it cannot be shown to be public. */
   assertConnectedAddress(address: string | undefined): void {
     if (this.allowPrivateNetwork) return;

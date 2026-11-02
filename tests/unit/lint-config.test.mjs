@@ -45,7 +45,6 @@ test('cleanup implementations pass lint with no-unsafe-finally still enabled', a
   const paths = [
     'modules/subagents/extensions/subagent/index.ts',
     'modules/subagents/extensions/subagent/session-store.ts',
-    'modules/web-tools/scripts/compat.mjs',
     'tests/fixtures/sdk-hooks.mjs',
   ];
   for (const path of paths) {

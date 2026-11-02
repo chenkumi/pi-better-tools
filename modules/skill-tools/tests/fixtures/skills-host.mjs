@@ -20,7 +20,7 @@ const skillPath = join(relocated, 'skills/create-plan/SKILL.md');
 const configSkillPath = join(relocated, 'skills/pi-tools-config/SKILL.md');
 const configReference = join(relocated, 'skills/pi-tools-config/references/sql-connector.md');
 assert.equal(await readFile(configReference, 'utf8'), await readFile(join(root, 'modules/skill-tools/skills/pi-tools-config/references/sql-connector.md'), 'utf8'));
-for (const [name, command] of [['web-tools', 'pi-better-tools browser install'], ['pty-terminal', 'pi-better-tools pty setup']]) {
+for (const [name, command] of [['web-tools', 'web_fetch'], ['pty-terminal', 'pi-better-tools pty setup']]) {
   const text = await readFile(join(relocated, `skills/pi-tools-config/references/${name}.md`), 'utf8');
   assert.equal(text, await readFile(join(root, `modules/skill-tools/skills/pi-tools-config/references/${name}.md`), 'utf8'));
   assert.ok(text.includes(command));
@@ -80,7 +80,6 @@ try {
         const configSkill = skills.find(skill => skill.name === 'pi-tools-config');
         assert.equal(resolve(configSkill.filePath), configSkillPath);
         assert.ok(configSkill.description.includes('required connection configuration is missing or unknown.'));
-        assert.ok(configSkill.description.includes('Chromium installation'));
         assert.ok(configSkill.description.includes('PTY native'));
         assert.ok(configSkill.description.includes('setup CLI diagnostics'));
         assert.ok(configSkill.description.endsWith('Do not use for routine operations with already-configured tools or for implementing these features in application code.'));

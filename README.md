@@ -17,7 +17,6 @@ cd D:\projects\pi-better-tools
 npm ci --ignore-scripts
 npm run pty:install       # 明確執行 node-pty native setup；無 prebuild 時需編譯工具
 npm run build             # 目前沒有需要編譯的產物（no-op）；Pi extensions 直接載入 TS
-npm run browser:install   # 若需要 web_fetch 的 Chromium
 pi install D:/projects/pi-better-tools
 ```
 
@@ -25,14 +24,12 @@ pi install D:/projects/pi-better-tools
 
 **若原五個 packages 或獨立 `pi-pty-terminal`／`pi-sqlite-tools`／`pi-sql-connector` 已啟用，請先停用其 extensions**，避免與整合包重複註冊相同工具。這些設定不會自動修改。完整步驟與回退見 [docs/migration.md](docs/migration.md)。
 
-Pi-managed npm／git package 安裝會處理 runtime dependencies；本機路徑不會自動替你執行 npm install。Chromium 不在 tarball 裡，extension 載入時也不下載／啟動瀏覽器。`web_fetch` 在所選 browser executable 明確缺少時自動改用靜態 HTTP（不執行 JavaScript）；需要動態內容再明確安裝。勿在 runtime-only tarball 執行 repository 的 build／test scripts。
+Pi-managed npm／git package 安裝會處理 runtime dependencies；本機路徑不會自動替你執行 npm install。`web_fetch` 是基礎靜態 HTTP 抓取（不執行 JavaScript），不需要瀏覽器或額外安裝。勿在 runtime-only tarball 執行 repository 的 build／test scripts。
 
 ### 安裝後的 setup CLI（不依賴開發目錄）
 
 ```text
 pi-better-tools doctor
-pi-better-tools browser install
-pi-better-tools browser install-deps
 pi-better-tools pty setup
 ```
 
@@ -43,12 +40,12 @@ pi-better-tools pty setup
 ```
 
 ```sh
-'/absolute/path/to/node' '/absolute/path/to/pi-better-tools/setup/cli.mjs' browser install
+'/absolute/path/to/node' '/absolute/path/to/pi-better-tools/setup/cli.mjs' pty setup
 ```
 
-`doctor` 只讀檢查，不啟動 browser／PTY、不下載或寫設定，檔案存在不等於能啟動。安裝子命令從自身套件位置解析匹配的 Playwright／node-pty，不依目前 cwd，不用 npx 下載另一個最新版。`browser install` 只下載 Chromium；`browser install-deps` 可能以 sudo 修改 Linux 系統套件，須明確同意。`pty setup` 保留 consumer project 的 native-script policy，不替 parent project 自動核可或更改全域 npm 設定。
+`doctor` 只讀檢查，不啟動 PTY、不下載或寫設定，檔案存在不等於能啟動。安裝子命令從自身套件位置解析匹配的 node-pty，不依目前 cwd，不用 npx 下載另一個最新版。`pty setup` 保留 consumer project 的 native-script policy，不替 parent project 自動核可或更改全域 npm 設定。
 
-原 `npm run browser:install`、`browser:install-deps`、`setup:browser`、`pty:install` 保留為 repository 開發別名，轉接同一 CLI；安裝後不需切換進套件目錄。內建 `/skill:pi-tools-config` 提供完整 Web／PTY 安裝與診斷說明，skill 可獨立搬移；其中的範例路徑是產品安裝目標，不是從 skill 位置猜測。套件安裝、extension 載入及 reload 均不自動執行 setup。
+原 `npm run pty:install` 保留為 repository 開發別名，轉接同一 CLI；安裝後不需切換進套件目錄。內建 `/skill:pi-tools-config` 提供完整 Web 設定與 PTY 安裝／診斷說明，skill 可獨立搬移；其中的範例路徑是產品安裝目標，不是從 skill 位置猜測。套件安裝、extension 載入及 reload 均不自動執行 setup。
 
 ### 本地 Blackhole 與兩個 npm Pi packages（原始碼掛載）
 
@@ -58,7 +55,7 @@ pi-better-tools pty setup
 
 啟用整合入口前，請手動停用原本 `npm:pi-open-tui`、`npm:pi-blackhole`、`npm:@ff-labs/pi-fff` 的獨立 extension 資源，避免 hooks／commands／tools 重複載入。Repository 不會改寫真實 Pi settings 或卸載它們。`pi config` 的既有 extension filters 仍有效；只掛載單一 module 入口不會載入全部套件。
 
-這不是個人設定備份：`~/.pi/agent/open-tui.json`、`~/.pi/agent/pi-blackhole/pi-blackhole-config.json`、FFF 個人偏好及模型登入仍需另外搬移／配置，不在安裝時覆寫。Blackhole 背景記憶可能產生模型費用，請沿用自己的模型／fallback 配置；測試使用 passive 模式及隔離 auth。FFF 有各平台原生 binary，必須在目標平台重新安裝與驗證；Nerd Font、Chromium、系統函式庫也不因 Pi 掛載而自動安裝。
+這不是個人設定備份：`~/.pi/agent/open-tui.json`、`~/.pi/agent/pi-blackhole/pi-blackhole-config.json`、FFF 個人偏好及模型登入仍需另外搬移／配置，不在安裝時覆寫。Blackhole 背景記憶可能產生模型費用，請沿用自己的模型／fallback 配置；測試使用 passive 模式及隔離 auth。FFF 有各平台原生 binary，必須在目標平台重新安裝與驗證；Nerd Font、系統函式庫也不因 Pi 掛載而自動安裝。
 
 ### macOS 安裝（Apple Silicon／Intel）
 
@@ -69,17 +66,10 @@ cd ~/GitHub/pi-better-tools    # 改成實際 checkout 路徑
 npm ci --ignore-scripts
 npm run pty:install       # 明確執行 node-pty native setup；無 prebuild 時需編譯工具
 npm run build                 # 目前沒有需要編譯的產物（no-op）
-npm run browser:install       # 選用：web_fetch 的 JavaScript 渲染需要 Chromium
 pi install -l "$PWD"          # 僅安裝到目前專案的 Pi 設定
 ```
 
-`browser:install` 使用本專案的 Playwright 版本執行 `playwright install chromium --no-shell`，下載配套 Chromium；不需要另外全域安裝 Playwright。macOS 通常不需像 Linux 一樣安裝系統函式庫，使用此指令即可，不必執行 Linux 用的 `browser:install-deps` 或 `setup:browser`，也不要以 sudo 執行 `npm ci` 或瀏覽器安裝。支援的 macOS 版本請依目前 [Playwright 系統需求](https://playwright.dev/docs/intro#system-requirements) 確認，不能僅以 Node.js 能執行就判定 Chromium 相容。
-
-- **快取與使用者**：預設瀏覽器下載至 `~/Library/Caches/ms-playwright`，請以執行 Pi 的同一位使用者安裝。若自訂 `PLAYWRIGHT_BROWSERS_PATH`，安裝與啟動 Pi 時必須使用相同值；Chromium 不包含在本專案 tarball 中。
-- **找不到瀏覽器**：需要 JavaScript 渲染時，請用該安裝實例的 `browser install` CLI 命令（repository 開發別名為 `npm run browser:install`）。未指定 `waitForSelector` 的抓取會先以靜態 HTTP 降級；有 selector 時明確失敗，不假裝完成動態等待。更新 Playwright、清理快取或更換 Node.js 架構後，也應重新執行；安裝時可能清理舊瀏覽器版本。
-- **下載或啟動失敗**：確認網路／代理設定、快取目錄權限及 macOS 版本是否受支援。請勿以停用 TLS 驗證或移除系統安全保護作為安裝步驟。僅下載成功不代表 Chromium 能啟動。
-
-Repository 開發環境可用 `npm run test:browser` 驗證真實 Chromium 與清理行為；runtime-only tarball 不包含 repository 測試。只需靜態 HTTP 抓取或非瀏覽器功能時可省略 Chromium 安裝；Pi package 安裝與 extension 載入均不會自動下載或啟動瀏覽器。需要先試用且不修改 Pi 設定，可用 `pi --no-extensions -e "$PWD"`。macOS 支援 Bash；本專案的 PowerShell backend 僅支援原生 Windows。
+`web_fetch` 不需要瀏覽器。需要先試用且不修改 Pi 設定，可用 `pi --no-extensions -e "$PWD"`。macOS 支援 Bash；本專案的 PowerShell backend 僅支援原生 Windows。
 
 ### Linux／WSL2 安裝
 
@@ -90,22 +80,10 @@ cd ~/GitHub/pi-better-tools    # 改成實際 checkout 路徑
 npm ci --ignore-scripts
 npm run pty:install       # 明確執行 node-pty native setup；無 prebuild 時需編譯工具
 npm run build                 # 目前沒有需要編譯的產物（no-op）
-npm run setup:browser         # 選用：JavaScript 渲染需要 Chromium 及 Linux 系統依賴
 pi install -l "$PWD"          # 僅安裝到目前專案的 Pi 設定
 ```
 
-`setup:browser` 呼叫 Playwright 安裝 Chromium 與系統依賴，會下載瀏覽器，並可能要求 sudo 權限、透過系統套件管理器安裝函式庫。只在你同意修改系統套件時執行；不要把整個 `npm ci` 改用 sudo。Pi package 安裝與 extension 載入都不會自動執行此步驟；`--ignore-scripts` 不影響之後明確執行的 `npm run setup:browser`。
-
-若只需靜態 HTTP 抓取或非瀏覽器功能，可以省略 `setup:browser`。想分開安裝，或系統依賴由管理員／container image 提供時：
-
-```bash
-npm run browser:install-deps   # 僅系統依賴；Linux 可能要求 sudo
-npm run browser:install        # 僅下載 Chromium，不安裝系統函式庫
-```
-
-`browser:install` 下載成功不代表 Chromium 一定能啟動。例如缺少 `libnspr4.so`、`libnss3.so` 或 `libasound.so.2` 時，仍需補裝系統依賴。無管理員權限、離線或 Playwright 不支援的 Linux 發行版，需由管理員依環境提供依賴；這些指令不保證每個發行版都能自動安裝。瀏覽器快取由 Playwright 管理，安裝時可能清理舊版本。
-
-Repository 開發環境可用 `npm run test:browser` 驗證實際 Chromium；runtime-only tarball 不包含 repository 測試。需要先試用且不修改 Pi 設定，可用 `pi --no-extensions -e "$PWD"`。Linux 支援 Bash；本專案的 PowerShell backend 僅支援原生 Windows。
+需要先試用且不修改 Pi 設定，可用 `pi --no-extensions -e "$PWD"`。Linux 支援 Bash；本專案的 PowerShell backend 僅支援原生 Windows。
 
 ## Session 載入時的背景工作核對
 
@@ -240,7 +218,7 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 
 ### 2026-10-16 依賴更新
 
-根 lockfile 同步更新 Pi 1.3.0、jsdom 30.1.3、Playwright 1.64.1、nanoid 6、SQL drivers 與型別／lint 工具。node-pty 沿用既有 beta channel 升至 1.2.0-beta.15，不降到 npm latest tag 的 1.1.0。TypeScript 使用 ESLint parser 支援的 6.0.3（不強裝不支援的 7.x），Node 型別採最低支援 Node 22 的最新 22.x。Vitest 5 的 Vite peer 在根 devDependencies 明確宣告，因本專案使用 legacy-peer-deps、不自動安裝 peers。更新後重新執行 `npm ci --ignore-scripts`、`npm run pty:install`、`npm run browser:install`；不更新個人 Pi 安裝或設定。
+根 lockfile 同步更新 Pi 1.3.0、jsdom 30.1.3、nanoid 6、SQL drivers 與型別／lint 工具。node-pty 沿用既有 beta channel 升至 1.2.0-beta.15，不降到 npm latest tag 的 1.1.0。TypeScript 使用 ESLint parser 支援的 6.0.3（不強裝不支援的 7.x），Node 型別採最低支援 Node 22 的最新 22.x。Vitest 5 的 Vite peer 在根 devDependencies 明確宣告，因本專案使用 legacy-peer-deps、不自動安裝 peers。更新後重新執行 `npm ci --ignore-scripts`、`npm run pty:install`、`npm run browser:install`；不更新個人 Pi 安裝或設定。
 
 ### Monitor v1
 
@@ -375,7 +353,7 @@ npm run typecheck
 npm run lint             # ESLint：JS／TS 語法與 correctness baseline，不做格式改寫
 npm test
 npm run test:integration
-npm run test:browser      # 真實 Chromium；Linux 首次可用 setup:browser 安裝瀏覽器與系統依賴
+npm run test:browser      # web_fetch 靜態抓取 + File read 組合（名稱沿用，不使用瀏覽器）
 npm run test:heavy:blackhole  # Blackhole 重型測試獨立一組（2 個整合檔 + 上游 Vitest 整合套件，約 10 分鐘以上）；同樣需使用者指定才執行
 npm run test:heavy        # 重型／高延遲測試（單檔 ≥30 秒，共 12 檔）；需使用者指定或全量驗證才執行，可加模組名縮小，如 -- fork
 npm run test:package      # 真實 tarball + 乾淨 production install；需要 npm registry

@@ -4,7 +4,7 @@
 
 1. Back up the relevant Pi settings file. Review `pi list` and `pi config` in both personal/project scopes.
 2. Disable the extension resources of the old five standalone packages, pi-pty-terminal, pi-sqlite-tools and pi-sql-connector. Preserve their folders, credentials and persistent state. Different package identities do not deduplicate same-named tools.
-3. In this repository run `npm ci --ignore-scripts`, `npm run pty:install` and `npm run build`; install Chromium explicitly if JavaScript-rendered Fetch is needed (static HTTP works when the executable is missing).
+3. In this repository run `npm ci --ignore-scripts`, `npm run pty:install` and `npm run build`.
 4. Run `pi install D:/projects/pi-better-tools`, or use `-l` for the intended project. Project packages require the existing trust policy; do not enable automatic approve just to avoid errors.
 5. Reload/restart Pi. Check the loaded tools, and `/web-tools status`.
 
@@ -12,9 +12,9 @@ No script here automatically changes user settings/auth, deletes logs, removes o
 
 ## Published-package setup and HTTP compatibility
 
-Existing settings and tool arguments require no migration. `web_fetch` still prefers the configured Chromium/Chrome; only a confirmed missing executable enables static HTTP with a warning. `waitForSelector` requires a browser and fails explicitly instead of being ignored. Permission/system dependency/timeout/unknown failures retain diagnostics, and website/TLS/network-policy failures are not retried through another backend. No browser download runs at package install or extension load/reload.
+`web_fetch` is now a basic static HTTP fetch; the Playwright/Chromium path, `waitForSelector`, `fetch.channel`, `fetch.idleTimeoutMs` and the Settings panel Chromium download were removed. The `playwright` dependency, `pi-better-tools browser *` CLI commands, `npm run browser:install`/`browser:install-deps`/`setup:browser` and web-tools `scripts/compat.mjs` were removed too. Delete `fetch.channel`/`fetch.idleTimeoutMs` from `web-search.json` (unknown fields are rejected); other settings and tool arguments need no migration.
 
-Use the installed instance's `pi-better-tools doctor`, `browser install`, `browser install-deps`, or `pty setup`. A package bin is not guaranteed on PATH for Pi-managed/source installs; use the current Node + absolute `setup/cli.mjs` command printed by errors or identify the actual installed package root. No repository checkout/cwd is required; do not run npx to fetch another version. Root npm setup scripts remain developer aliases. Linux OS dependency installation still needs explicit approval; PTY setup respects consumer native-script policy. `/skill:pi-tools-config` contains self-contained installation instructions even when the skill directory is relocated. Settle current jobs before reloading changed extensions.
+Use the installed instance's `pi-better-tools doctor` or `pty setup`. A package bin is not guaranteed on PATH for Pi-managed/source installs; use the current Node + absolute `setup/cli.mjs` command printed by errors or identify the actual installed package root. No repository checkout/cwd is required; do not run npx to fetch another version. Root npm setup scripts remain developer aliases. PTY setup respects consumer native-script policy. `/skill:pi-tools-config` contains self-contained installation instructions even when the skill directory is relocated. Settle current jobs before reloading changed extensions.
 
 ## SQL Connector integration
 

@@ -23,7 +23,7 @@ test('long output is bounded and readable; POSIX mode is not a Windows ACL asser
     assert.ok(result.content[0]!.text.split('\n').length <= MAX_INLINE_LINES);
     assert.equal(await readFile(result.details.fullOutputPath!, 'utf8'), text);
     // L12: shutdown must preserve the documented full-output path for later read calls.
-    const service = new FetchService({ channel: 'chromium', timeoutMs: 1000, maxConcurrency: 1, idleTimeoutMs: 1000 });
+    const service = new FetchService({ timeoutMs: 1000, maxConcurrency: 1 });
     await service.close();
     assert.equal(await readFile(result.details.fullOutputPath!, 'utf8'), text);
     const file = await stat(result.details.fullOutputPath!);

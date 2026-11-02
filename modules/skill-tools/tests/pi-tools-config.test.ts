@@ -16,7 +16,7 @@ test('pi-tools-config routes configuration needs by capability and keeps one ref
   assert.match(description, /^[ -~]+$/);
   for (const capability of ['SQLite', 'MySQL', 'PostgreSQL/Postgres', 'SQL Server/MSSQL', 'pty_*', 'web_search', 'subagent', 'schedule_prompt']) assert.ok(description.includes(capability), `missing config capability: ${capability}`);
   assert.ok(description.includes('required connection configuration is missing or unknown.'));
-  for (const capability of ['Chromium installation', 'PTY native', 'setup CLI diagnostics']) assert.ok(description.includes(capability));
+  for (const capability of ['PTY native', 'setup CLI diagnostics']) assert.ok(description.includes(capability));
   assert.ok(description.length <= 1024, 'host skill description limit');
   assert.ok(description.includes('Do not use for routine operations with already-configured tools or for implementing these features in application code.'));
   assert.doesNotMatch(description, /pi-better-tools/);
@@ -28,17 +28,15 @@ test('pi-tools-config routes configuration needs by capability and keeps one ref
 });
 
 test('installation references describe installed-instance commands without requiring a checkout', () => {
-  const web = readFileSync(resolve(skillDir, 'references/web-tools.md'), 'utf8');
   const pty = readFileSync(resolve(skillDir, 'references/pty-terminal.md'), 'utf8');
-  for (const text of [web, pty]) {
+  for (const text of [pty]) {
     assert.match(text, /pi-better-tools doctor/);
     assert.match(text, /setup\/cli\.mjs/);
     assert.match(text, /PATH/);
     assert.match(text, /npx/);
   }
-  assert.match(web, /pi-better-tools browser install-deps/);
-  assert.match(web, /waitForSelector/);
-  assert.match(web, /PLAYWRIGHT_BROWSERS_PATH/);
+  const web = readFileSync(resolve(skillDir, 'references/web-tools.md'), 'utf8');
+  assert.doesNotMatch(web, /waitForSelector|Chromium|PLAYWRIGHT/);
   assert.match(web, /靜態 HTTP/);
   assert.match(pty, /pi-better-tools pty setup/);
   assert.match(pty, /consumer project/);

@@ -16,9 +16,7 @@
     }
   },
   "fetch": {
-    "channel": "chromium",
     "timeoutMs": 30000,
-    "maxConcurrency": 2,
-    "idleTimeoutMs": 60000
+    "maxConcurrency": 2
   }
 }

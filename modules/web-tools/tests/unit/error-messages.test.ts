@@ -110,29 +110,19 @@ test('disabled and native-selected search explain how to enable the tool', async
   assert.match(unsupported, /^PROVIDER_UNSUPPORTED:.*brave.*exa.*deepseek.*\/reload/s); agentSafe(unsupported);
 });
 
-test('browser startup timeout and fetch deadline messages are agent-safe', () => {
-  const src = readFileSync(new URL('../../src/fetch/service.ts', import.meta.url), 'utf8');
-  assert.doesNotMatch(src, /fetch\.timeoutMs/);
-});
-
 test('config errors give the rule and allowed values', () => {
   assert.match(message(() => parseConfig({ numResults: 99 })), /CONFIG_INVALID: numResults.*integer.*1.*10/);
   assert.match(message(() => parseConfig({ provider: 'gemini' })), /provider.*one of.*brave.*exa.*deepseek/);
-  assert.match(message(() => parseConfig({ fetch: { channel: 'firefox' } })), /fetch\.channel.*chromium.*chrome/);
+  assert.match(message(() => parseConfig({ fetch: { channel: 'chrome' } })), /fetch.*unknown field/);
   assert.match(message(() => parseConfig({ enabled: 'yes' })), /enabled.*true or false/);
   assert.match(message(() => parseConfig({ bogus: 1 })), /root.*unknown field.*allowed/);
   assert.match(message(() => parseConfig({ providers: { brave: { apiKeyEnv: 'bad name' } } })), /providers\.brave\.apiKeyEnv.*environment variable name/);
 });
 
-test('invalid browser fetch options name the field', () => {
-  assert.throws(() => new FetchService({ channel: 'chromium', timeoutMs: 1000, maxConcurrency: 99, idleTimeoutMs: 10 }), /CONFIG_ERROR:.*maxConcurrency.*1.*32/);
-  assert.throws(() => new FetchService({ channel: 'firefox' as never, timeoutMs: 1000, maxConcurrency: 1, idleTimeoutMs: 10 }), /CONFIG_ERROR:.*channel/);
-});
-
-test('waitForSelector limit matches the schema (500) and fetch input errors list valid values', async () => {
-  const service = new FetchService({ channel: 'chromium', timeoutMs: 1000, maxConcurrency: 1, idleTimeoutMs: 10 });
+test('invalid fetch options name the field and fetch input errors list valid values', async () => {
+  assert.throws(() => new FetchService({ timeoutMs: 1000, maxConcurrency: 99 }), /CONFIG_ERROR:.*maxConcurrency.*1.*32/);
+  const service = new FetchService({ timeoutMs: 1000, maxConcurrency: 1 });
   try {
-    assert.match(await rejection(service.fetch({ url: 'https://example.org/', waitForSelector: 'a'.repeat(501) })), /INVALID_INPUT:.*waitForSelector.*1.*500.*501/);
     assert.match(await rejection(service.fetch({ url: 'https://example.org/', format: 'html' as never })), /INVALID_INPUT:.*format.*markdown.*text/);
     assert.match(await rejection(service.fetch({ url: 'https://example.org/', extraction: 'x' as never })), /INVALID_INPUT:.*extraction.*auto.*main.*body/);
   } finally { await service.close(); }

@@ -27,7 +27,7 @@ test('invalid JSON does not expose config contents', () => {
   } finally { rmSync(dir, { recursive: true }); }
 });
 test('partial fetch override retains defaults and OpenAI keys are rejected', () => {
-  assert.equal(parseConfig({ fetch: { channel: 'chrome' } }).fetch.timeoutMs, 30000);
+  assert.equal(parseConfig({ fetch: { maxConcurrency: 3 } }).fetch.timeoutMs, 30000);
   assert.throws(() => parseConfig({ providers: { openai: { apiKey: 'SECRET' } } }), /unknown field/);
   assert.deepEqual(parseConfig({}).providers.openai, { captureSources: false });
   for (const experimentalCodex of [true, false]) {

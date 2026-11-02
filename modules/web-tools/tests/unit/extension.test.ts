@@ -131,7 +131,7 @@ test('headless virtual warning is explicit, deduplicated; status does not probe 
   assert.match(h.diagnostics[0]!, /no injection or automatic fallback/);
   await h.commands.get('web-tools')!.handler('status', h.context);
   assert.match(h.diagnostics.at(-1)!, /inactive \(virtual routing/);
-  assert.match(h.diagnostics.at(-1)!, /Browser service: not initialized/);
+  assert.match(h.diagnostics.at(-1)!, /Fetch service: not initialized/);
   assert.ok(!h.diagnostics.join('').includes('SECRET'));
 });
 test('invalid configuration fails closed for search, leaves lazy fetch, and has headless diagnostics', async () => {
@@ -209,7 +209,7 @@ test('shutdown racing the first lazy import cannot initialize or leave a browser
   await h.hooks.get('session_shutdown')!({}, h.context);
   await assert.rejects(fetch, /CANCELLED/);
   await h.commands.get('web-tools')!.handler('status', h.context);
-  assert.match(h.diagnostics.at(-1)!, /Browser service: not initialized/);
+  assert.match(h.diagnostics.at(-1)!, /Fetch service: not initialized/);
   await assert.rejects(execute('after', { url: 'https://example.com/' }, undefined), /AbortError|CANCELLED|aborted/i);
 });
 
@@ -314,10 +314,8 @@ test('web_search description names the configured provider and guidelines requir
     assert.deepEqual(prepare({ query: 'q' }), { query: 'q' });
   }
   const fetchGuidelines = (harness('brave').definitions.get('web_fetch')!.promptGuidelines as string[]).join('\n');
-  assert.match(fetchGuidelines, /BROWSER_UNAVAILABLE/);
-  assert.match(fetchGuidelines, /installation command for this package instance/);
-  assert.match(fetchGuidelines, /cause-specific guidance/);
-  assert.match(fetchGuidelines, /other startup failures do not prove the browser is uninstalled/);
+  assert.match(fetchGuidelines, /static HTTP fetch/);
+  assert.doesNotMatch(fetchGuidelines, /BROWSER_UNAVAILABLE|waitForSelector/);
   assert.doesNotMatch(fetchGuidelines, /do not retry; tell the user/);
 });
 

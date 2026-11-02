@@ -11,7 +11,7 @@ export interface Config {
   numResults: number;
   searchTimeoutMs: number;
   providers: { openai: { captureSources: boolean }; google: { captureSources: boolean }; brave: Credential; exa: Credential; deepseek: Credential };
-  fetch: { channel: 'chromium' | 'chrome'; timeoutMs: number; maxConcurrency: number; idleTimeoutMs: number };
+  fetch: { timeoutMs: number; maxConcurrency: number };
 }
 // Explicit override only; changing pi's agentDir must not silently migrate secrets.
 export const CONFIG_PATH = process.env.PI_WEB_TOOLS_CONFIG ?? join(homedir(), '.pi', 'agent', 'web-search.json');
@@ -19,7 +19,7 @@ export const defaults = (): Config => ({
   version: 1, provider: 'openai', enabled: true, numResults: 5, searchTimeoutMs: 60000,
   // An empty DeepSeek credential means "use Pi's stored `deepseek` credential"; brave/exa have no Pi login provider.
   providers: { openai: { captureSources: false }, google: { captureSources: false }, brave: { apiKeyEnv: 'BRAVE_API_KEY' }, exa: { apiKeyEnv: 'EXA_API_KEY' }, deepseek: {} },
-  fetch: { channel: 'chromium', timeoutMs: 30000, maxConcurrency: 2, idleTimeoutMs: 60000 },
+  fetch: { timeoutMs: 30000, maxConcurrency: 2 },
 });
 /** `path` names the field; `rule` states what is allowed. Received values are never echoed (they may be credentials). */
 function invalid(path: string, rule: string): never { throw new Error(`CONFIG_INVALID: ${path}: ${rule}`); }
@@ -72,14 +72,9 @@ export function parseConfig(value: unknown): Config {
   }
   if (o.fetch !== undefined) {
     const f = object(o.fetch, 'fetch');
-    keys(f, ['channel', 'timeoutMs', 'maxConcurrency', 'idleTimeoutMs'], 'fetch');
-    if (f.channel !== undefined) {
-      if (f.channel !== 'chromium' && f.channel !== 'chrome') invalid('fetch.channel', 'must be "chromium" or "chrome"');
-      c.fetch.channel = f.channel;
-    }
+    keys(f, ['timeoutMs', 'maxConcurrency'], 'fetch');
     if (f.timeoutMs !== undefined) c.fetch.timeoutMs = integer(f.timeoutMs, 1000, 120000, 'fetch.timeoutMs');
     if (f.maxConcurrency !== undefined) c.fetch.maxConcurrency = integer(f.maxConcurrency, 1, 4, 'fetch.maxConcurrency');
-    if (f.idleTimeoutMs !== undefined) c.fetch.idleTimeoutMs = integer(f.idleTimeoutMs, 1000, 300000, 'fetch.idleTimeoutMs');
   }
   return c;
 }

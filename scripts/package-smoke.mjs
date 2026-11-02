@@ -131,7 +131,7 @@ try {
         const diagnostic = JSON.parse(output);
         assert.equal(diagnostic.schemaVersion, 1);
         assert.equal(diagnostic.packageRoot.replace(/[\\/]+$/, ''), packageRoot);
-        assert.ok(diagnostic.browser.root && diagnostic.pty.root, 'both dependencies resolve before source-layout install');
+        assert.ok(diagnostic.pty.root, 'node-pty resolves before source-layout install');
         assert.equal(diagnostic.pty.owner, temp);
         assert.equal(diagnostic.pty.approved, true);
         return output;
@@ -143,19 +143,18 @@ try {
       await record(`${version}:pty-native-setup`, () => runCommand(`installed CLI native PTY setup Pi ${version}`, process.execPath,
         [join(packageRoot, 'setup/cli.mjs'), 'pty', 'setup'], { cwd: bootstrapHome, env, timeoutMs: 180000 }));
       const setupHome = join(temp, 'home-setup'); await mkdir(setupHome);
-      const setupEnv = { ...isolatedEnv(setupHome), PLAYWRIGHT_BROWSERS_PATH: join(setupHome, 'empty-browser-cache') };
+      const setupEnv = isolatedEnv(setupHome);
       await record(`${version}:setup-cli-outside-package`, async () => {
         const cli = join(packageRoot, 'setup/cli.mjs');
         const help = await runCommand('packaged setup help', process.execPath, [cli, '--help'], { cwd: setupHome, env: setupEnv, timeoutMs: 30000 });
-        assert.match(help, /doctor/); assert.match(help, /browser/); assert.match(help, /pty/);
+        assert.match(help, /doctor/); assert.match(help, /pty/); assert.doesNotMatch(help, /browser/);
         const doctor = await runCommand('packaged setup doctor', process.execPath, [cli, 'doctor'], { cwd: setupHome, env: setupEnv, timeoutMs: 30000 });
-        assert.match(doctor, /chromium/i);
-        await assert.rejects(stat(setupEnv.PLAYWRIGHT_BROWSERS_PATH), { code: 'ENOENT' }, 'doctor must not create/download browser cache');
+        assert.match(doctor, /node-pty/);
         return `${help}\n${doctor}`;
       });
       const webSetupFixture = join(temp, 'web-setup-production.mjs');
       await copyFile(join(root, 'tests/fixtures/web-setup-production.mjs'), webSetupFixture);
-      await record(`${version}:web-no-browser`, () => runCommand('packaged static HTTP fallback', process.execPath, [webSetupFixture, packageRoot],
+      await record(`${version}:web-static-fetch`, () => runCommand('packaged static HTTP fetch', process.execPath, [webSetupFixture, packageRoot],
         { cwd: setupHome, env: { ...setupEnv, PI_BETTER_TOOLS_HOST: host }, timeoutMs: 120000 }));
       await record(`${version}:production-tree`, async () => {
         assert.equal(await realpath(packageRoot), packageRoot);
