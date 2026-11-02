@@ -23,13 +23,11 @@ function harness(entries: any[]) {
   return { run, touched };
 }
 
-describe("a scheduled turn may only read the schedule", () => {
+describe("a scheduled turn may not add, rewrite or re-enable jobs", () => {
   for (const params of [
     { action: "add", schedule: "+10s", prompt: "p" },
     { action: "update", jobId: "victim", prompt: "injected-by-scheduled-run" },
-    { action: "remove", jobId: "victim" },
     { action: "enable", jobId: "victim" },
-    { action: "disable", jobId: "victim" },
     { action: "cleanup" },
   ]) {
     it(`rejects ${params.action} as an isError result without touching storage or the scheduler`, async () => {
@@ -40,6 +38,14 @@ describe("a scheduled turn may only read the schedule", () => {
       expect(touched).toEqual([]);
     });
   }
+
+  it("allows remove and disable so a job can end itself", async () => {
+    for (const action of ["remove", "disable"]) {
+      const { run } = harness(scheduledTurn());
+      const result = await run({ action, jobId: "victim" });
+      expect(result.details.error ?? "").not.toMatch(/scheduled prompt execution/i);
+    }
+  });
 
   it("still allows list inside a scheduled turn", async () => {
     const { run } = harness(scheduledTurn());

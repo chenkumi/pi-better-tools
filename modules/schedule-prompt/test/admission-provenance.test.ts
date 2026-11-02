@@ -52,6 +52,37 @@ describe("D08: tool failures are isError results", () => {
   });
 });
 
+describe("recursion guard allows shrinking the schedule from a scheduled run", () => {
+  const P = "check then stop this schedule";
+  const job = { id: "J1", name: "j", enabled: true, type: "interval", schedule: "3m", intervalMs: 180000, prompt: P, runCount: 1, createdAt: "" };
+  const run = async (action: string) => {
+    const storage = {
+      getJob: vi.fn(() => job),
+      getAllJobs: vi.fn(() => [job]),
+      removeJob: vi.fn(() => true),
+      updateJob: vi.fn(() => ({ ...job, enabled: false })),
+    } as any;
+    const scheduler = { removeJob: vi.fn(), updateJob: vi.fn(), getNextRun: vi.fn(() => null), addJob: vi.fn(), isLoadedFor: vi.fn() } as any;
+    const tool = createPromptTool(() => storage, () => scheduler);
+    // Real shape: marker, then the job prompt delivered as the latest user message.
+    const ctx = { sessionManager: { getBranch: () => [user("hi"), assistant(), marker({ jobId: "J1", prompt: P }), user(P)], getSessionId: () => "s" } } as any;
+    return tool.execute("c", { action, jobId: "J1" } as any, undefined as any, undefined as any, ctx) as Promise<any>;
+  };
+  it("allows remove and disable", async () => {
+    for (const action of ["remove", "disable"]) {
+      const r = await run(action);
+      expect(r.details.error ?? "").not.toMatch(/within a scheduled prompt execution/);
+    }
+  });
+  it("still blocks add, update, enable and cleanup", async () => {
+    for (const action of ["add", "update", "enable", "cleanup"]) {
+      const r = await run(action);
+      expect(r.isError).toBe(true);
+      expect(r.details.error).toMatch(/within a scheduled prompt execution/);
+    }
+  });
+});
+
 describe("D09: child terminal outcome", () => {
   it("classifies aborted, error, missing and normal completions", () => {
     const s = (messages: any[]) => ({ messages }) as any;

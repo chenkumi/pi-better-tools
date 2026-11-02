@@ -225,7 +225,7 @@ Toggle the default for new jobs in `/schedule-prompt → Settings → Bind new j
 
 **Safety:**
 
-- **Infinite loop prevention**: Blocks scheduled jobs from creating more schedules
+- **Infinite loop prevention**: a scheduled run may `list`, `remove` and `disable` jobs (so a job can end itself), but `add`, `update`, `enable` and `cleanup` are rejected inside a scheduled run
 - **Past timestamp detection**: Auto-disables jobs scheduled in the past
 - **Duplicate names**: Prevents name collisions
 - **Auto-cleanup**: Removes disabled jobs on exit. Persistence cleanup failures cannot skip scheduler/widget teardown; shutdown reports the failure, session replacement logs it and tears down the old scheduler. Partial startup rolls back owned UI/timers.

@@ -109,9 +109,11 @@ function createScheduleTool(
         jobs: [],
       };
 
-      // A scheduled turn may only read the schedule. Every mutation (add, update, remove, enable, disable, cleanup) could
-      // rewrite or delete other jobs or build a self-sustaining chain, so the guard sits before the action dispatch.
-      if (action !== "list" && isInScheduledExecution(ctx.sessionManager)) {
+      // A scheduled turn may read the schedule and shrink it (remove, disable: a job must be able to end itself once its
+      // work is done). Actions that create or rewrite jobs (add, update, enable, cleanup) could build a self-sustaining
+      // chain or rewrite the schedule unattended, so the guard sits before the action dispatch.
+      const shrinkOnly = action === "list" || action === "remove" || action === "disable";
+      if (!shrinkOnly && isInScheduledExecution(ctx.sessionManager)) {
         details.error = `Cannot ${action} scheduled prompts from within a scheduled prompt execution. This prevents infinite loops and unattended rewrites of the schedule.`;
         return { isError: true, content: [{ type: "text", text: `✗ Error: ${details.error}` }], details };
       }
