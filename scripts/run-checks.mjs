@@ -65,6 +65,8 @@ const groups = {
     // Real-host regressions for reported defects (todo cases document known limits and do not fail the stage).
     directTests('gpt-speed:real-host', 'modules/gpt-speed/tests', isIntegration),
     directTests('note-tools:real-host', 'modules/note-tools/tests', isIntegration),
+    // Real sockets and TLS for the static fetch path; the file does not follow the *.integration.test naming, so keep everything in the directory.
+    directTests('web-tools:integration', 'modules/web-tools/tests/integration', () => true),
     directTests('schedule-prompt:integration', 'modules/schedule-prompt/tests', isIntegration, { concurrency: 3 }),
     { label: 'schedule-prompt:real-host', args: ['--test', 'tests/integration/schedule-deadline.test.mjs'] },
     { label: 'blackhole:real-host', args: ['--test', 'tests/integration/blackhole-display.test.mjs'] },
