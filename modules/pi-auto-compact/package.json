@@ -4,6 +4,6 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "Project-native deterministic compaction (no model calls); root dependencies and Pi 1.4.0 are authoritative.",
+  "description": "Project-native deterministic compaction (no model calls); root dependencies and Pi 1.5.0 are authoritative.",
   "pi": { "extensions": ["./src/index.ts"] }
 }

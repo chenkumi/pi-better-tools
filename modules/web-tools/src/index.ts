@@ -1,6 +1,9 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { StringEnum } from '@earendil-works/pi-ai';
 import { Type } from 'typebox';
+
+/** Plain `{ type: 'string', enum }` schema, the same JSON as pi-ai's StringEnum, typed as TypeBox so `Static` infers the union (pi-ai 1.5 types it as a pi-schema value). */
+const StringEnum = <const T extends readonly string[]>(values: T, options?: { description?: string; default?: T[number] }) =>
+  Type.Unsafe<T[number]>({ type: 'string', enum: [...values], ...(options?.description && { description: options.description }), ...(options?.default && { default: options.default }) });
 import { registerWebToolsSettings } from './settings.ts';
 import { CONFIG_PATH, agentConfigError, defaults, loadConfig, resolveKey, type Credential } from './config.ts';
 import type { ModelIdentity } from './native-openai.ts';

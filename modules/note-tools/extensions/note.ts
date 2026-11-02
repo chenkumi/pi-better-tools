@@ -1,10 +1,13 @@
 import { mkdir, open, realpath, rm } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { StringEnum } from "@earendil-works/pi-ai";
 import { defineTool, withFileMutationQueue, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { Text } from "@earendil-works/pi-tui";
 import { stripVTControlCharacters } from "node:util";
+
+/** Plain `{ type: "string", enum }` schema, the same JSON as pi-ai's StringEnum, typed as TypeBox so `Static` infers the union (pi-ai 1.5 types it as a pi-schema value). */
+const StringEnum = <const T extends readonly string[]>(values: T, options?: { description?: string; default?: T[number] }) =>
+  Type.Unsafe<T[number]>({ type: "string", enum: [...values], ...(options?.description && { description: options.description }), ...(options?.default && { default: options.default }) });
 
 const displayText = (value: unknown, max = 2000) => typeof value === "string"
   ? stripVTControlCharacters(value.slice(0, max * 4)).replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, "").slice(0, max) : "";

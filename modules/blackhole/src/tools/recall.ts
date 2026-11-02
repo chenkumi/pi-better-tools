@@ -5,11 +5,14 @@
  * Created by pi-vcc-om. Replaces pi-vcc's vcc_recall and OM's standalone recall-observation.
  */
 import { Type } from "typebox";
-import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { loadAllMessages } from "../core/load-messages";
 import { EVIDENCE_REF, loadNotificationEvidence, renderNotificationEvidence } from "../core/notification-evidence.js";
 import { clip } from "../core/content";
+
+/** Plain `{ type: "string", enum }` schema, the same JSON as pi-ai's StringEnum, typed as TypeBox so `Static` infers the union (pi-ai 1.5 types it as a pi-schema value). */
+const StringEnum = <const T extends readonly string[]>(values: T, options?: { description?: string; default?: T[number] }) =>
+  Type.Unsafe<T[number]>({ type: "string", enum: [...values], ...(options?.description && { description: options.description }), ...(options?.default && { default: options.default }) });
 import { searchEntriesDetailed, getFileIndicators, getTouchedFiles } from "../core/search-entries";
 import type { RenderedEntry } from "../core/render-entries";
 import type { SearchHit } from "../core/search-entries";

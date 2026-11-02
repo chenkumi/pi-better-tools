@@ -106,7 +106,7 @@ test("shell output rails keep the omission hint below output and above timing ac
     const definition = session.getToolDefinition(name);
     const output = Array.from({ length: 70 }, (_, i) => i === 67 ? "" : `line ${i + 1} 繁體中文`).join("\n");
     const result = { content: [{ type: "text", text: output }], details: undefined };
-    const context = { state: { startedAt: 1000, endedAt: 51200 }, invalidate() {}, showImages: false };
+    const context = { state: { startedAt: 1000, endedAt: 51200 }, invalidate() {}, showImages: false, keyText: () => "ctrl+o", keyHint: (_id, description) => `ctrl+o ${description}` };
     let component = definition.renderResult(result, { expanded: false, isPartial: false }, palette, context);
     for (const width of [80, 20, 80, 1, 0, 80]) {
       const rows = component.render(width).map(plain);

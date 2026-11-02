@@ -33,7 +33,7 @@ test("call renderer updates streaming UTF-8 counts without changing arguments or
   const context: Parameters<typeof render>[2] = {
     args: undefined, toolCallId: "test-note", invalidate: () => {}, lastComponent: undefined, state: {},
     cwd: process.cwd(), executionStarted: false, argsComplete: false, expanded: false, isPartial: true,
-    showImages: false, isError: false, durationMs: undefined, outputPad: 0,
+    showImages: false, isError: false, durationMs: undefined, outputPad: 0, keyText: () => "", keyHint: (_id: string, description: string) => description,
   };
   const colors = theme as Parameters<typeof render>[1];
   const args = Object.freeze({ type: "plan" as const, content: "# 中文😀\nPRIVATE_BODY" });

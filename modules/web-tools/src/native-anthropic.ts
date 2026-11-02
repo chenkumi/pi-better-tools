@@ -13,7 +13,7 @@ export function supportsAnthropicNativeSearch(model: AnthropicIdentity | undefin
   return model?.api === 'anthropic-messages' && model.provider === 'anthropic';
 }
 
-/** Adds the native tool. Pi 1.4.0 drops the returned server blocks, which the API accepts (verified). */
+/** Adds the native tool. Pi 1.5.0 drops the returned server blocks, which the API accepts (verified). */
 export function injectAnthropicSearch(payload: unknown): unknown {
   if (!record(payload)) return payload;
   if (payload.tools !== undefined && !Array.isArray(payload.tools)) throw unexpectedPayload('Anthropic', 'tools', payload.tools);

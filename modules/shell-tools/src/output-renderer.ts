@@ -1,10 +1,10 @@
-import { keyHint, type createBashToolDefinition } from "@earendil-works/pi-coding-agent";
+import type { createBashToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Container, Spacer, Text, truncateToWidth, type Component } from "@earendil-works/pi-tui";
 
 type ResultRenderer = NonNullable<ReturnType<typeof createBashToolDefinition>["renderResult"]>;
 const PREVIEW_ROWS = 5;
 
-/** Decorate host-produced output only; warnings, sanitization and clocks stay with Pi 1.4.0. */
+/** Decorate host-produced output only; warnings, sanitization and clocks stay with Pi 1.5.0. */
 export function renderShellOutput(
   renderResult: ResultRenderer,
   ...[result, options, theme, context]: Parameters<ResultRenderer>
@@ -27,7 +27,7 @@ export function renderShellOutput(
       const hidden = options.expanded ? 0 : Math.max(0, rows.length - PREVIEW_ROWS);
       const marked = rows.slice(hidden).map(row => truncateToWidth(theme.fg("muted", "▌") + row, width, ""));
       const hint = hidden > 0
-        ? theme.fg("muted", `${hidden} earlier lines, `) + keyHint("app.tools.expand", "to expand")
+        ? theme.fg("muted", `${hidden} earlier lines, `) + context.keyHint("app.tools.expand", "to expand")
         : undefined;
       return ["", ...marked, ...(hint ? ["", truncateToWidth(hint, width, "…")] : [])];
     },
