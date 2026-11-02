@@ -11,7 +11,7 @@ function agentDir() {
 }
 
 test('defaults match the plan and the file lives directly under the agent dir', () => {
-  assert.deepEqual({ ...DEFAULT_CONFIG }, { l1Ratio: 0.3, l1MinChars: 30000, l2Ratio: 0.2, l2MinChars: 20000, l3Ratio: 0.1, l3MinChars: 10000, charsPerToken: 2.2, maxTotalRatio: 0.5 });
+  assert.deepEqual({ ...DEFAULT_CONFIG }, { l1Ratio: 0.3, l1MinChars: 30000, l2Ratio: 0.2, l2MinChars: 20000, l3Ratio: 0.1, l3MinChars: 10000, l4Ratio: 0.1, l4MinChars: 10000, charsPerToken: 2.2, maxTotalRatio: 0.5 });
   assert.equal(configPath('/a/b'), join('/a/b', 'auto-compact.json'));
 });
 
@@ -43,6 +43,8 @@ test('unknown keys, wrong types and out-of-range values are errors, not fallback
     [{ a: 1, b: 2 }, /unknown keys: a, b/],
     [{ l1Ratio: '0.3' }, /l1Ratio must be a finite number/],
     [{ l2Ratio: 0 }, /l2Ratio must be greater than 0 and at most 1/],
+    [{ l4Ratio: 2 }, /l4Ratio must be greater than 0 and at most 1/],
+    [{ l4MinChars: 0 }, /l4MinChars must be a positive integer/],
     [{ maxTotalRatio: 1.5 }, /maxTotalRatio must be greater than 0 and at most 1/],
     [{ l3MinChars: 1.5 }, /l3MinChars must be a positive integer/],
     [{ l1MinChars: -1 }, /l1MinChars must be a positive integer/],

@@ -14,9 +14,15 @@ export interface AutoCompactConfig {
   l2MinChars: number;
   l3Ratio: number;
   l3MinChars: number;
+  /**
+   * L4 = slack of the L3 window: the summary may show L3 plus up to this much older conversation before the window start moves.
+   * The start only moves when the slack is full, so the summary's beginning stays byte-identical between compactions (prompt cache).
+   */
+  l4Ratio: number;
+  l4MinChars: number;
   /** Characters per token used to estimate the total. Pi's own estimate is 4; Chinese-heavy sessions measure about 2.2. */
   charsPerToken: number;
-  /** Hard ceiling on the estimated summary size as a fraction of the context window; L3 shrinks first, then L2, never L1. */
+  /** Hard ceiling on the estimated summary size (worst case L2 + L3 + L4) as a fraction of the context window; the window start resets first, then L3 shrinks, then L2, never L1. */
   maxTotalRatio: number;
 }
 
@@ -24,6 +30,7 @@ export const DEFAULT_CONFIG: Readonly<AutoCompactConfig> = Object.freeze({
   l1Ratio: 0.3, l1MinChars: 30_000,
   l2Ratio: 0.2, l2MinChars: 20_000,
   l3Ratio: 0.1, l3MinChars: 10_000,
+  l4Ratio: 0.1, l4MinChars: 10_000,
   charsPerToken: 2.2,
   maxTotalRatio: 0.5,
 });
@@ -33,8 +40,8 @@ export const configPath = (agentDir: string) => join(agentDir, CONFIG_FILE_NAME)
 
 type Rule = { kind: 'ratio' } | { kind: 'chars' } | { kind: 'range'; min: number; max: number };
 const RULES: Record<keyof AutoCompactConfig, Rule> = {
-  l1Ratio: { kind: 'ratio' }, l2Ratio: { kind: 'ratio' }, l3Ratio: { kind: 'ratio' }, maxTotalRatio: { kind: 'ratio' },
-  l1MinChars: { kind: 'chars' }, l2MinChars: { kind: 'chars' }, l3MinChars: { kind: 'chars' },
+  l1Ratio: { kind: 'ratio' }, l2Ratio: { kind: 'ratio' }, l3Ratio: { kind: 'ratio' }, l4Ratio: { kind: 'ratio' }, maxTotalRatio: { kind: 'ratio' },
+  l1MinChars: { kind: 'chars' }, l2MinChars: { kind: 'chars' }, l3MinChars: { kind: 'chars' }, l4MinChars: { kind: 'chars' },
   charsPerToken: { kind: 'range', min: 1, max: 8 },
 };
 

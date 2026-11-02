@@ -49,6 +49,18 @@
 
 本模組與 Blackhole **只掛其一**。兩者都掛在 `session_before_compact`，同時掛載時**不做任何協調**，行為未定義。切換方式是在 Pi package 設定中啟用／停用對應的 extension 入口（`./modules/pi-auto-compact/src/index.ts` 或 `./modules/blackhole/src/index.ts`），不是設定鍵；也不修改 Blackhole 的任何設定。
 
+## L3 視窗起點與 L4 緩衝（設計，M3 實作）
+
+摘要放在 context 最前面，所以摘要**開頭**一旦改變，system prompt 之後的 prompt 快取就全部失效。L3 滿了之後若每次壓縮都丟掉最舊的一段，開頭每次都變。因此視窗起點 S 要另外記錄，並用遲滯控制它的移動：
+
+- 摘要從 S 顯示到 L2 邊界。每次壓縮先算 S 到邊界的大小：不超過 `L3+L4` 就**不動 S**（摘要只在尾端增長，前段逐位元組相同）；超過就一次重設，S 改為「從邊界往回數剛好 `L3`」的位置，L4 清空。起點變動頻率降為原本的 `L4 ÷ 每次壓縮的增量`。
+- L4 的內容**必須顯示**在摘要裡（隱藏的話摘要仍會位移，沒有快取效益）；它只是 L3 的溢出空間，不是獨立的一層。
+- **起點記錄**：以 compaction entry 的 `details` 為準（機器讀、不送進模型；以 entry id 為準，行號只用來顯示，因為 Fork 複製的 entry id 不變、行號會變）；摘要第一行寫成固定句式 `History shown from ⟦L<行>:<id>⟧; earlier: session_window before=<行>` 供模型看。只有重設時這行才變，而重設時本來就整份失效，沒有額外成本。
+- 下一次壓縮沿目前分支找最近一個 compaction entry 讀 `details`；找不到（entry 已不在分支、上次是 Pi 自己壓的、`details` 缺失）就從 L3 名目起點重算，只破壞一次快取。
+- **逐位元組穩定**：每個項目的呈現只能依自己的內容，不依預算或位置；摘要第一行與 L3 區段不放會變動的東西（計數、壓縮次數、時間、總字數）；會變動的固定狀態區塊放在摘要**最尾端**。
+- 已知限制：L2 的項目變老降為 L3 時折疊行會被刪掉，改寫 L2/L3 交界之後的文字（交界之前的前段仍穩定）。對這個交界做同樣的批次移動留待量測後再決定。
+- 驗證指標：M6 比較腳本量「相鄰兩次摘要的最長共同前綴」。
+
 ## 設定
 
 使用者層 `<agentDir>/auto-compact.json`（預設 `~/.pi/agent/auto-compact.json`，路徑由 Pi 的 agentDir 解析）。檔案可省略；省略的鍵使用預設值。本模組只讀不寫，載入 extension 不改任何 settings。**沒有開關鍵**，也沒有專案層設定。
@@ -58,8 +70,9 @@
 | `l1Ratio`／`l1MinChars` | 0.3／30000 | 比例 (0,1]；正整數 | L1 預算 = `max(ctx × 比例, 最小值)` 字元，`ctx` 為模型 context window 的 token 數 |
 | `l2Ratio`／`l2MinChars` | 0.2／20000 | 同上 | L2 預算 |
 | `l3Ratio`／`l3MinChars` | 0.1／10000 | 同上 | L3 預算 |
+| `l4Ratio`／`l4MinChars` | 0.1／10000 | 同上 | L4 = L3 視窗的**溢出緩衝**（見下節）。摘要的 L3 區段大小在 `L3` 到 `L3+L4` 之間浮動 |
 | `charsPerToken` | 2.2 | 1～8 | 估算 token 用；Pi 內建為 4，中文為主的 session 實測約 2.2 |
-| `maxTotalRatio` | 0.5 | (0,1] | 估算總量占 context window 的硬上限；超過時先縮 L3、再縮 L2，不縮 L1 |
+| `maxTotalRatio` | 0.5 | (0,1] | 估算總量（最壞情況 L2＋L3＋L4）占 context window 的硬上限；超過時先重設視窗起點、再縮 L3、再縮 L2，不縮 L1 |
 
 - 未知鍵、型別錯誤或超出範圍都是**錯誤**，不退回其他值；hook 會以 warning 通知一次（有 UI 時），並把壓縮交還 Pi。
 - 檔案不存在視為全部預設。
