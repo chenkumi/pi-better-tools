@@ -25,6 +25,7 @@ const ownedJobOrThrow = (ctx: Parameters<typeof findOwnedJob>[0], jobId: unknown
 	return job;
 };
 const textResult = (text: string, details: Record<string, unknown>) => ({ content: [{ type: "text" as const, text }], details });
+const STATUS_LIST_LIMIT = 32;
 
 export default function (pi: ExtensionAPI) {
 	// Subagent and Fork children never register creation tools; the schema is also excluded by their argument builders.
@@ -59,7 +60,7 @@ export default function (pi: ExtensionAPI) {
 		name: "fork_status",
 		...renderers("fork_status"),
 		label: "Fork status",
-		description: "Read-only status of Forks created from THIS conversation. Without jobId lists up to 32; with jobId shows one including its bounded result.",
+		description: `Read-only status of Forks created from THIS conversation. Without jobId lists up to ${STATUS_LIST_LIMIT}; with jobId shows one including its bounded result.`,
 		annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
 		defaultActive: true,
 		parameters: Type.Object({ jobId: Type.Optional(Type.String({ minLength: 1, description: "Fork job ID returned by fork; omit to list." })) }, { additionalProperties: false }),
@@ -69,8 +70,8 @@ export default function (pi: ExtensionAPI) {
 				return textResult(JSON.stringify(summary), summary);
 			}
 			const jobs = ownedJobs(ctx);
-			const list = jobs.slice(0, 32).map(job => summarize(job));
-			return textResult(JSON.stringify({ forks: list, partial: jobs.length > 32 }), { forks: list });
+			const list = jobs.slice(0, STATUS_LIST_LIMIT).map(job => summarize(job));
+			return textResult(JSON.stringify({ forks: list, partial: jobs.length > STATUS_LIST_LIMIT }), { forks: list });
 		},
 	}));
 
