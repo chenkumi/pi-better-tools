@@ -7,7 +7,7 @@ it("keeps native host files out of unit without dropping them from integration",
   const all = createTestOptions("all");
   expect(unit.include).toEqual(["tests/**/*.test.ts", "src/**/*.test.ts"]);
   expect(unit.exclude).toContain("tests/integration/**");
-  expect(unit.testTimeout).toBe(10000);
+  expect(unit.testTimeout).toBe(30000);
   expect(integration.include).toEqual(["tests/integration/**/*.test.ts"]);
   expect(integration.maxWorkers).toBe(1);
   expect(integration.fileParallelism).toBe(false);

@@ -8,7 +8,10 @@ export function createTestOptions(suite: string = "all") {
     globals: true,
     setupFiles: ["./tests/unit-isolation.setup.ts"],
     environment: "node" as const,
-    testTimeout: 10000,
+    // The first dynamic import of @earendil-works/pi-coding-agent alone takes ~12-13 s on a cold Windows worker (measured), so a 10 s
+    // limit times out whichever test happens to import it first. 30 s covers that cold load; hung tests still fail.
+    testTimeout: 30000,
+    hookTimeout: 30000,
     include: suite === "integration" ? ["tests/integration/**/*.test.ts"] : ["tests/**/*.test.ts", "src/**/*.test.ts"],
     exclude: [...configDefaults.exclude, ...(suite === "unit" ? ["tests/integration/**"] : [])],
     // Real-host probes pay fresh process/TS-loader startup costs. Keep them
