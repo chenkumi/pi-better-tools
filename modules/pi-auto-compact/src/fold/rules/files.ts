@@ -72,6 +72,17 @@ export const fileRules: Record<string, FoldRule> = {
     args: call => oneLine(redact(Array.isArray(call.args.patterns) ? call.args.patterns.map(item => JSON.stringify(String(item))).join(' ') : ''), 120),
     ok: (_call, result) => searchOutcome(result),
   },
+  /** The reread content is the point of the call, but it is never folded back in: only where it came from and how much came back. */
+  session_read: {
+    args: call => {
+      const line = num(call.args.line), to = num(call.args.to_line), session = str(call.args.session_id);
+      return `${line !== undefined ? `L${line}${to !== undefined && to > line ? `–${to}` : ''}` : ''}${session ? ` session ${oneLine(session, 40)}` : ''}`.trim();
+    },
+    ok: (_call, result) => {
+      const d = detailsOf(result);
+      return `${plural(num(d.chars) ?? result.text.length, 'char')}${d.truncated === true ? ' (truncated)' : ''}; content not kept`;
+    },
+  },
   note: {
     args: call => str(call.args.type) ?? '',
     ok: (_call, result) => oneLine(str(detailsOf(result).relativePath) ?? 'saved', 200),

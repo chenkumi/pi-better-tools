@@ -1,3 +1,5 @@
+import type { EntryRef } from './ref.ts';
+
 export interface ToolCallInfo {
   id: string;
   name: string;
@@ -9,8 +11,8 @@ export interface ToolCallInfo {
  * from the text and `details`.
  */
 export interface ToolResultInfo {
-  /** Session entry id; becomes the recall id. Absent when the result is not part of a session entry. */
-  entryId?: string;
+  /** Location of the result entry in the session file; absent when there is no session file. */
+  ref?: EntryRef;
   text: string;
   details?: unknown;
   isError: boolean;

@@ -3,11 +3,11 @@ import test from 'node:test';
 import { foldToolUse, foldUnpairedCall, foldUnpairedResult, hasRule, registeredToolNames } from '../src/fold/registry.ts';
 import type { ToolResultInfo } from '../src/fold/types.ts';
 
-const E = '01JTESTENTRY0000000000000A';
+const REF = { line: 12, id: 'a1b2c3d4e5f6' };
 function fold(name: string, args: Record<string, unknown>, text: string, extra: Partial<ToolResultInfo> = {}): string {
-  return foldToolUse({ id: 'c1', name, args }, { entryId: E, text, isError: false, ...extra });
+  return foldToolUse({ id: 'c1', name, args }, { ref: REF, text, isError: false, ...extra });
 }
-const recall = ` ⟦e:${E}⟧`;
+const recall = ' ⟦L12:a1b2c3d4⟧';
 
 test('every folded entry is a single bounded line that ends with the recall id', () => {
   const out = fold('read', { path: 'a\nb.ts' }, 'x', { details: { lineStart: 1, lineEnd: 2, totalLines: 2, sha256: 'ab12cd34ef56' } });
@@ -210,15 +210,15 @@ test('a rule that cannot read an unexpected shape falls back to the generic fold
 });
 
 test('unpaired calls and results are marked and never presented as successes', () => {
-  assert.equal(foldUnpairedCall({ id: 'c', name: 'bash', args: { command: 'make' } }, E), `[bash] "make" → no result recorded${recall}`);
-  assert.equal(foldUnpairedResult('bash', { entryId: E, text: 'stray output', isError: false }), `[bash] → (unpaired) stray output${recall}`);
-  assert.match(foldUnpairedResult('bash', { entryId: E, text: 'oops', isError: true }), /\(unpaired\) ERROR: oops/);
+  assert.equal(foldUnpairedCall({ id: 'c', name: 'bash', args: { command: 'make' } }, REF), `[bash] "make" → no result recorded${recall}`);
+  assert.equal(foldUnpairedResult('bash', { ref: REF, text: 'stray output', isError: false }), `[bash] → (unpaired) stray output${recall}`);
+  assert.match(foldUnpairedResult('bash', { ref: REF, text: 'oops', isError: true }), /\(unpaired\) ERROR: oops/);
 });
 
 test('the set of tools with a dedicated rule is exactly the documented one', () => {
   const engines = ['mssql', 'mysql', 'pgsql'].flatMap(engine => ['state', 'query', 'update'].map(kind => `${engine}_${kind}`));
   const expected = [
-    'read', 'write', 'edit', 'ls', 'grep', 'find', 'multi_grep', 'note',
+    'read', 'write', 'edit', 'ls', 'grep', 'find', 'multi_grep', 'note', 'session_read',
     'bash', 'powershell', 'shell_job_status', 'shell_job_cancel', 'schedule_prompt', 'schedule_shell',
     'subagent', 'subagent_status', 'subagent_cancel', 'subagent_message',
     'fork', 'fork_status', 'fork_cancel', 'fork_message', 'monitor_start', 'monitor_status', 'monitor_stop',

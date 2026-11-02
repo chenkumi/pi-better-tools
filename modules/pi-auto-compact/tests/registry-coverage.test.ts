@@ -31,7 +31,6 @@ function* sourceFiles(dir: string): Generator<string> {
 function literalToolNames(): Map<string, string> {
   const found = new Map<string, string>();
   for (const module of readdirSync(modulesDir)) {
-    if (module === 'pi-auto-compact') continue;
     for (const sub of ['src', 'extensions']) {
       const root = join(modulesDir, module, sub);
       try { statSync(root); } catch { continue; }

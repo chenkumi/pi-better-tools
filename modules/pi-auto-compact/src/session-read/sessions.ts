@@ -1,0 +1,44 @@
+import { resolve } from 'node:path';
+import { asRecord, str } from '../fold/util.ts';
+import { scanLines } from './lines.ts';
+
+export interface SessionFile { id: string; file: string }
+
+const MAX_ANCESTORS = 16;
+const MAX_HEADER_BYTES = 64 * 1024;
+
+/** The first line of a session file, if it is a session header. Anything else (not a session, unreadable) yields undefined. */
+export async function readHeader(file: string): Promise<{ id: string; parentSession?: string } | undefined> {
+  try {
+    for await (const first of scanLines(file, 1, 1)) {
+      if (first.text === undefined || first.bytes > MAX_HEADER_BYTES) return undefined;
+      const header = asRecord(JSON.parse(first.text));
+      const id = str(header?.id);
+      const parent = str(header?.parentSession);
+      return header?.type === 'session' && id ? { id, ...(parent ? { parentSession: parent } : {}) } : undefined;
+    }
+  } catch { /* unreadable or not JSON */ }
+  return undefined;
+}
+
+/**
+ * The sessions the tool may read: the current one first, then its ancestors following each header's `parentSession`. A file is
+ * only followed when its first line is a session header, and the walk stops at a cycle or after a fixed depth, so a crafted
+ * `parentSession` cannot turn the tool into a general file reader or loop forever.
+ */
+export async function resolveReadableSessions(current: { id: string; file: string | undefined }): Promise<SessionFile[]> {
+  if (!current.file) return [];
+  const chain: SessionFile[] = [{ id: current.id, file: resolve(current.file) }];
+  const seen = new Set([chain[0]!.file.toLowerCase()]);
+  let header = await readHeader(chain[0]!.file);
+  while (header?.parentSession && chain.length <= MAX_ANCESTORS) {
+    const file = resolve(header.parentSession);
+    if (!/\.jsonl$/i.test(file) || seen.has(file.toLowerCase())) break;
+    seen.add(file.toLowerCase());
+    const parent = await readHeader(file);
+    if (!parent) break;
+    chain.push({ id: parent.id, file });
+    header = parent;
+  }
+  return chain;
+}

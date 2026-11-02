@@ -2,7 +2,7 @@
 
 ## 指令與工具
 
-- 無工具、無指令；只在壓縮時由 `session_before_compact` hook 運作。
+- 一個唯讀工具 `session_read`（依行號讀目前 session 與其祖先 session 的原始 entry）；預設**不啟用**，要用需在 `--tools` 或 `defaultTools` 指名。無指令；壓縮時由 `session_before_compact` hook 運作。
 - 目前是骨架：只驗證設定檔，不產生摘要，壓縮一律交還 Pi。
 - 與 Blackhole **只掛其一**：兩者同時掛載時不做協調。切換方式是在 Pi 的套件／extension 設定中啟用或排除對應入口，不是設定鍵。
 
