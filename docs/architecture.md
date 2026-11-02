@@ -1,6 +1,6 @@
 # Architecture
 
-## One deployment unit, twenty local modules
+## One deployment unit, twenty local modules (nineteen mounted by default)
 
 The root `package.json` declares nineteen local TypeScript `pi.extensions` entries at `./modules/<name>/src/index.ts` (the Blackhole module is kept but not in the default manifest; Pi Auto Compact owns `session_before_compact`), plus two explicit npm dependency entries (twenty-one total): nine current source snapshots (including SQL Connector, SQLite Tools, PTY Terminal, the third-party Schedule Prompt and Blackhole) and eleven native modules (Note Tools, File Audit, GPT Speed, the rewritten JSON Schema, Pi Runtime, Monitor, Skill Tools, Theme Tools, Fork, Remote and Pi Auto Compact). Thin default-export entries forward to existing implementations without moving guards, agents, prompts or workers. Web already uses this layout. There is no aggregator factory or plugin-manager abstraction. Pi controls discovery, ordering, resource filters, tool selection and lifecycle dispatch.
 
