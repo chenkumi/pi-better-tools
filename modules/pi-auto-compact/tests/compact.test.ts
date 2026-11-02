@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import test from 'node:test';
-import { autoCompact } from '../src/compact/hook.ts';
+import { autoCompact, limitKept } from '../src/compact/hook.ts';
 import { buildItems, type Entry, type Item } from '../src/compact/items.ts';
 import { chooseLayout } from '../src/compact/layout.ts';
+import { displayPath } from '../src/compact/state.ts';
 import { noteText, renderL2, renderL3 } from '../src/compact/render.ts';
 import { composeSummary, previousWindowStart } from '../src/compact/summary.ts';
 import { DEFAULT_CONFIG, type AutoCompactConfig } from '../src/config.ts';
@@ -191,6 +192,59 @@ test('the total ceiling acts in order: reset the window start, then shrink L3, t
   assert.equal(hugeTail.details.stats.guard, 'l2', 'a kept tail beyond the ceiling leaves only the state');
   assert.equal(hugeTail.details.stats.shownActivity + hugeTail.details.stats.shownConversation, 0);
   assert.ok(prevStart);
+});
+
+test('files changed are shown relative to the working directory, and a path outside it stays absolute', () => {
+  const cwd = resolve('project-root'), inside = join(cwd, 'src', 'deep', 'a.ts'), outside = resolve('elsewhere', 'b.ts'), sibling = `${cwd}-other${join('/', 'c.ts')}`;
+  assert.equal(displayPath(inside, cwd), 'src/deep/a.ts');
+  assert.equal(displayPath(outside, cwd), outside);
+  assert.equal(displayPath(sibling, cwd), sibling, 'a directory sharing the name prefix is not inside');
+  assert.equal(displayPath('src/a.ts', cwd), 'src/a.ts', 'a relative path is kept');
+  assert.equal(displayPath(inside), inside, 'without a working directory nothing changes');
+  const entries = [user('go'), say('', [{ id: 'w1', name: 'write', args: { path: inside } }, { id: 'w2', name: 'edit', args: { path: 'src/deep/a.ts' } }, { id: 'w3', name: 'write', args: { path: outside } }]),
+    result('w1', 'write', 'ok'), result('w2', 'edit', 'ok'), result('w3', 'write', 'ok')];
+  const { summary } = summarize(entries, cfg(), { cwd });
+  assert.ok(summary.includes('- src/deep/a.ts (edit)'), summary);
+  assert.equal(summary.split(String.fromCharCode(10)).filter(line => line.startsWith('- src/deep/a.ts')).length, 1, 'the absolute and the relative spelling of one file are one entry');
+  assert.ok(summary.includes(`- ${outside} (write)`));
+});
+
+// ------------------------------------------------------------------------------------------------------------------ L1 ceiling
+const sized = (role: string, size: number) => msg({ role, content: text('x'.repeat(size)) });
+const calls = (size: number) => say('', [{ id: nextId(), name: 'bash', args: { command: 'c'.repeat(size) } }]);
+
+test('the L1 ceiling leaves Pi cut alone while the kept tail fits, and moves it to the first allowed cut point that fits otherwise', () => {
+  const entries = [sized('user', 100), sized('assistant', 100), sized('user', 100), sized('assistant', 100), sized('user', 100)];
+  assert.equal(limitKept(entries, 1, 10_000), 1, 'fits: unchanged');
+  assert.equal(limitKept(entries, 0, 250), 3, 'tail from 0 is 500, from 1 is 400, from 2 is 300, from 3 is 200');
+  assert.equal(limitKept(entries, 0, 350), 2);
+  assert.equal(limitKept(entries, 0, 150), 4, 'the first cut point whose tail fits');
+});
+
+test('the L1 ceiling never cuts at a tool result, may cut inside a long turn, and always keeps something raw', () => {
+  const call = say('', [{ id: 'k1', name: 'bash', args: { command: 'x'.repeat(300) } }]);
+  const entries = [user('one request'), call, result('k1', 'bash', 'y'.repeat(300)), sized('assistant', 100), sized('assistant', 100)];
+  assert.equal(limitKept(entries, 0, 250), 3, 'passes the user message and the tool result, lands on an assistant message mid-turn');
+  assert.equal(limitKept(entries, 0, 1), 4, 'nothing fits: the latest cut point stays raw rather than keeping nothing');
+  const onlyResults = [user('go'), call, result('k1', 'bash', 'z'.repeat(500))];
+  assert.equal(limitKept(onlyResults, 0, 10), 1, 'the assistant call stays with its result: the result is never a cut point');
+});
+
+test('the hook moves Pi cut under a small L1 budget, records it, and summarises what it passed', async () => {
+  const history = conversation(12, 80);
+  const entries = [...history, user('tail question'), say('tail answer')];
+  const piCut = history.length;
+  const small = cfg({ l1Ratio: 0.0001, l1MinChars: 400 });
+  const moved = await autoCompact(event(entries, piCut - 6), hookCtx(undefined) as never, small);
+  const compaction = moved!.compaction!;
+  assert.notEqual(compaction.firstKeptEntryId, entries[piCut - 6]!.id, 'the cut is later than Pi');
+  const keptFrom = entries.findIndex(entry => entry.id === compaction.firstKeptEntryId);
+  assert.ok(keptFrom > piCut - 6);
+  assert.equal((compaction.details as { stats: { cutMoved: number } }).stats.cutMoved, keptFrom - (piCut - 6));
+  assert.ok(compaction.summary.includes('request 10'), 'what moved out of the raw tail is in the summary');
+  const roomy = await autoCompact(event(entries, piCut - 6), hookCtx(undefined) as never, cfg());
+  assert.equal(roomy!.compaction!.firstKeptEntryId, entries[piCut - 6]!.id, 'the default budget leaves Pi cut');
+  assert.equal((roomy!.compaction!.details as { stats: { cutMoved: number } }).stats.cutMoved, 0);
 });
 
 // ---------------------------------------------------------------------------------------------------------------- cache

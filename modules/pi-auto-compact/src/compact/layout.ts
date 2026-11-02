@@ -1,11 +1,11 @@
 import type { AutoCompactConfig } from '../config.ts';
 
-export interface Budgets { l2: number; l3: number; l4: number }
+export interface Budgets { l1: number; l2: number; l3: number; l4: number }
 
 /** Budgets in characters: `max(ctx × ratio, minChars)`, where ctx is the model context window in tokens. */
 export function budgetsFor(config: AutoCompactConfig, contextWindow: number): Budgets {
   const pick = (ratio: number, min: number) => Math.max(Math.floor(contextWindow * ratio), min);
-  return { l2: pick(config.l2Ratio, config.l2MinChars), l3: pick(config.l3Ratio, config.l3MinChars), l4: pick(config.l4Ratio, config.l4MinChars) };
+  return { l1: pick(config.l1Ratio, config.l1MinChars), l2: pick(config.l2Ratio, config.l2MinChars), l3: pick(config.l3Ratio, config.l3MinChars), l4: pick(config.l4Ratio, config.l4MinChars) };
 }
 
 export interface Layout {
@@ -49,7 +49,7 @@ export const firstVisible = (lens3: readonly number[], from: number, end: number
  *
  * `lens2` and `lens3` are the rendered lengths per item (0 when an item shows nothing in that section).
  */
-export function chooseLayout(lens2: readonly number[], lens3: readonly number[], budgets: Budgets, previousStart: number): Layout {
+export function chooseLayout(lens2: readonly number[], lens3: readonly number[], budgets: Omit<Budgets, 'l1'>, previousStart: number): Layout {
   const n = lens2.length;
   const l2Start = fitBackward(lens2, n, budgets.l2);
   const nominal = firstVisible(lens3, fitBackward(lens3, l2Start, budgets.l3), l2Start);

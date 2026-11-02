@@ -7,6 +7,7 @@ import { backgroundJobsSection } from '../state/jobs.ts';
 import { activeMonitorsSection } from '../state/monitors.ts';
 import { workingTreeLines } from '../state/worktree.ts';
 import { buildItems, type Entry } from './items.ts';
+import { budgetsFor } from './layout.ts';
 import { composeSummary, previousWindowStart } from './summary.ts';
 
 /** An image costs about this many characters of context (Pi counts ~1200 tokens at 4 characters). */
@@ -43,6 +44,30 @@ function keptChars(entry: Entry): number {
   return total;
 }
 
+const CUT_ROLES = new Set(['user', 'assistant', 'bashExecution']);
+/** The entries Pi allows as the first kept entry: conversation messages and notes, never a tool result (it would lose its call). */
+const isCutPoint = (entry: Entry): boolean => (entry.type === 'message' && CUT_ROLES.has(str(asRecord(entry.message)?.role) ?? '')) || entry.type === 'custom_message' || entry.type === 'branch_summary';
+
+/**
+ * L1 ceiling. Pi's cut keeps its own token budget of recent messages, counted at four characters per token, which can be far more
+ * real tokens than the user wants to spend on raw history (JSON, code and CJK text run near two characters per token). When the
+ * kept tail exceeds `budget` characters the cut moves later, to the first allowed cut point whose tail fits; everything before it
+ * goes into the summary. The cut may fall inside a long turn, as Pi's own split-turn cut does. If no cut point fits, the latest
+ * one is used, so something stays raw and tool calls keep their results.
+ */
+export function limitKept(entries: readonly Entry[], cut: number, budget: number): number {
+  const tail: number[] = new Array(entries.length + 1).fill(0);
+  for (let i = entries.length - 1; i >= 0; i--) tail[i] = tail[i + 1]! + keptChars(entries[i]!);
+  if (tail[cut]! <= budget) return cut;
+  let latest = cut;
+  for (let i = cut + 1; i < entries.length; i++) {
+    if (!isCutPoint(entries[i]!)) continue;
+    if (tail[i]! <= budget) return i;
+    latest = i;
+  }
+  return latest;
+}
+
 export interface HookContext {
   cwd?: string;
   model?: { contextWindow?: number };
@@ -58,8 +83,9 @@ export async function autoCompact(event: SessionBeforeCompactEvent, ctx: HookCon
   const contextWindow = ctx.model?.contextWindow;
   if (typeof contextWindow !== 'number' || !(contextWindow > 0)) return undefined;
   const entries = event.branchEntries as unknown as Entry[];
-  const cut = entries.findIndex(entry => entry.id === event.preparation.firstKeptEntryId);
-  if (cut <= 0) return undefined;
+  const piCut = entries.findIndex(entry => entry.id === event.preparation.firstKeptEntryId);
+  if (piCut <= 0) return undefined;
+  const cut = limitKept(entries, piCut, budgetsFor(config, contextWindow).l1);
   const refs = await indexSessionFile(ctx.sessionManager.getSessionFile());
   const items = buildItems(entries.slice(0, cut), id => refs.get(id));
   if (items.length === 0) return undefined;
@@ -71,6 +97,8 @@ export async function autoCompact(event: SessionBeforeCompactEvent, ctx: HookCon
     sessionId: refs.size ? sessionId : undefined,
     previousStartEntryId: previousWindowStart(entries),
     volatile,
+    cwd,
+    cutMoved: cut - piCut,
   });
-  return { compaction: { summary, firstKeptEntryId: event.preparation.firstKeptEntryId, tokensBefore: event.preparation.tokensBefore, details } };
+  return { compaction: { summary, firstKeptEntryId: entries[cut]!.id as string, tokensBefore: event.preparation.tokensBefore, details } };
 }

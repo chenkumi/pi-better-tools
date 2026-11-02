@@ -27,10 +27,10 @@ export interface AutoCompactConfig {
 }
 
 export const DEFAULT_CONFIG: Readonly<AutoCompactConfig> = Object.freeze({
-  l1Ratio: 0.3, l1MinChars: 30_000,
-  l2Ratio: 0.2, l2MinChars: 20_000,
-  l3Ratio: 0.1, l3MinChars: 10_000,
-  l4Ratio: 0.1, l4MinChars: 10_000,
+  l1Ratio: 0.01, l1MinChars: 30_000,
+  l2Ratio: 0.01, l2MinChars: 20_000,
+  l3Ratio: 0.01, l3MinChars: 6_000,
+  l4Ratio: 0.01, l4MinChars: 6_000,
   charsPerToken: 2.2,
   maxTotalRatio: 0.5,
 });

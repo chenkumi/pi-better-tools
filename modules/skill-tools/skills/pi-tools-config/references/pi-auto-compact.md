@@ -12,8 +12,8 @@
 
 | 鍵 | 預設 | 範圍 |
 |---|---|---|
-| `l1Ratio`、`l2Ratio`、`l3Ratio`、`l4Ratio` | 0.3、0.2、0.1、0.1 | 大於 0 且至多 1 |
-| `l1MinChars`、`l2MinChars`、`l3MinChars`、`l4MinChars` | 30000、20000、10000、10000 | 正整數 |
+| `l1Ratio`、`l2Ratio`、`l3Ratio`、`l4Ratio` | 皆 0.01 | 大於 0 且至多 1 |
+| `l1MinChars`、`l2MinChars`、`l3MinChars`、`l4MinChars` | 30000、20000、6000、6000 | 正整數 |
 | `charsPerToken` | 2.2 | 1～8 |
 | `maxTotalRatio` | 0.5 | 大於 0 且至多 1 |
 

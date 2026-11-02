@@ -26,6 +26,8 @@ export interface CompactionDetails {
     /** Which part of the total guard had to act: nothing, the L4 slack (window start reset), L3, or L2. */
     guard: 'none' | 'l4' | 'l3' | 'l2';
     windowStartKept: boolean;
+    /** How many entries the cut moved later than Pi's to keep the raw tail within its budget (0 = Pi's cut). */
+    cutMoved: number;
   };
 }
 
@@ -37,10 +39,14 @@ export interface SummaryInput {
   /** Estimated characters of what Pi keeps after the cut (L1), counted against the total ceiling. */
   keptChars: number;
   sessionId?: string;
+  /** Working directory; paths inside it are shown relative to it. */
+  cwd?: string;
   /** Window start recorded by the previous compaction of this engine, if any. */
   previousStartEntryId?: string;
   /** Blocks describing the moment of compaction (jobs, monitors, working tree). Always last, because they change every time. */
   volatile?: readonly string[];
+  /** How many entries the cut was moved later than Pi's cut. */
+  cutMoved?: number;
 }
 
 export interface SummaryResult { summary: string; details: CompactionDetails }
@@ -86,7 +92,7 @@ export function composeSummary(input: SummaryInput): SummaryResult {
   const previousIdx = input.previousStartEntryId ? items.findIndex(item => item.entryId === input.previousStartEntryId) : -1;
   const layout = chooseLayout(lens2, lens3, budgetsFor(config, contextWindow), previousIdx);
 
-  const goal = goalLine(items), state = stateLines(items);
+  const goal = goalLine(items), state = stateLines(items, input.cwd);
   const volatile = (input.volatile ?? []).filter(block => block.length > 0);
   const fixed = HEADER_RESERVE + (goal ? goal.length + 1 : 0) + length(state) + (state.length ? 24 : 0) + volatile.reduce((sum, block) => sum + block.length + 2, 0);
   const sectionHeaders = (l3: boolean, l2: boolean) => (l3 ? 28 : 0) + (l2 ? 24 : 0);
@@ -117,7 +123,7 @@ export function composeSummary(input: SummaryInput): SummaryResult {
       stats: {
         items: n, shownConversation: Math.max(0, l2Start - l3Start), shownActivity: n - l2Start, notShown: l3Start,
         conversationChars: pre3[l2Start]! - pre3[l3Start]!, activityChars: pre2[n]! - pre2[l2Start]!, keptChars: input.keptChars,
-        estimatedTokens: Math.round(keptTotal / config.charsPerToken), guard, windowStartKept: keptStart,
+        estimatedTokens: Math.round(keptTotal / config.charsPerToken), guard, windowStartKept: keptStart, cutMoved: input.cutMoved ?? 0,
       },
     },
   };

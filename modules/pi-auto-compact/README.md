@@ -2,17 +2,19 @@
 
 原生模組：以**確定性純函式**壓縮歷史，**不呼叫任何模型**。把歷史由新到舊分成 L1（原樣）、L2（工具呼叫折成一行並附 session 檔行號參照）、L3（只留對話）三層，各有字元預算，溢出者滑動丟棄。完整設計見本機計畫 `plan/pi-auto-compact-plan.md`（`plan/` 不進版控）。
 
-## 目前狀態：M4（摘要含系統狀態與工作樹；真實 host 整合為 M5）
+## 目前狀態：M5（真實 host 整合測試已加入；比較腳本為 M6）
 
-- `session_before_compact` hook 現在會產生確定性摘要：Pi 仍決定何時壓縮與切點，本模組原樣回傳 `preparation.firstKeptEntryId`（切點之後是 L1 原樣訊息），只替換切點之前的摘要，不呼叫任何模型。
+- `session_before_compact` hook 現在會產生確定性摘要：Pi 仍決定何時壓縮與切點，本模組回傳 `preparation.firstKeptEntryId`（切點之後是 L1 原樣訊息；保留尾端超過 L1 預算時才把切點往後移，見下），只替換切點之前的摘要，不呼叫任何模型。
 - 以下情況一律回傳 `undefined`，把壓縮交還 Pi：設定檔無效（有 UI 時警告一次）、`ctx.model.contextWindow` 未知、切點不在分支上或切點之前沒有內容、任何非預期例外（警告一次，壓縮不會因此遺失）。
 - 摘要由切點之前的 branch entries 每次重建（純函式，同輸入同位元組）：先 `buildItems`（套用 `context_edit`、配對工具呼叫與結果；先前的 compaction entry 不當來源，只讀它 `details` 中記錄的視窗起點，且只認本模組、版本 1 的紀錄），再依 `layout` 決定 L2／L3 邊界，最後組裝。
-- 摘要順序：固定首行（session id、視窗起點 `⟦L<行>:<id>⟧`、更早歷史用 `session_window before=<行>`，並提示三個 session 工具需經 `tool_search` 載入——**提示但不預設啟用**）→ 目標（第一則使用者訊息）→ `## Earlier conversation`（L3，含 L4 緩衝）→ `## Recent activity`（L2，折疊工具行）→ `## State at compaction`（異動檔案、commit）→ 壓縮當下的系統狀態：`[Background Jobs]`、`[Active Monitors]`、`Working tree at compaction`（每次都會變，所以固定放最末）。
+- 摘要順序：固定首行（session id、視窗起點 `⟦L<行>:<id>⟧`、更早歷史用 `session_window before=<行>`，並提示三個 session 工具需經 `tool_search` 載入——**提示但不預設啟用**）→ 目標（第一則使用者訊息）→ `## Earlier conversation`（L3，含 L4 緩衝）→ `## Recent activity`（L2，折疊工具行）→ `## State at compaction`（異動檔案、commit；工作目錄內的檔案以相對路徑顯示、同一檔案的絕對與相對寫法合併為一筆，目錄外維持絕對路徑）→ 壓縮當下的系統狀態：`[Background Jobs]`、`[Active Monitors]`、`Working tree at compaction`（每次都會變，所以固定放最末）。
 - 對話文字原樣保留（上限 400／1200 字）；工具輸出尾端與 shell 指令會遮罩憑證；通知訊息只留 kind／status／id 與 `agent:status`，自由文字丟棄；thinking、檔案內容、圖片不進摘要。
+- L1 預算：Pi 的 `keepRecentTokens` 以 4 字元一個 token 估算，但 JSON、程式碼、中文與工具輸出實際接近 2.2 字元一個 token（實測一個 207k 的 session：Pi 以為保留 20k，實際約 34k）。保留尾端的字元數超過 `max(ctx × l1Ratio, l1MinChars)` 時，切點移到下一個合法切點（user／assistant／bashExecution／custom_message／branch_summary，永不落在 tool result 上，可落在同一個 turn 中間，與 Pi 自己的 split turn 相同）使尾端符合預算；沒有任何切點符合時用最後一個，至少保留一點原樣內容，工具呼叫仍與結果同在。被移出的內容進摘要；`details.stats.cutMoved` 記錄移了幾個 entry。預設 L1 為 30000 字元（約 14k tokens），Pi 保留的尾端較大時切點會往後移。
 - 總量保險：`maxTotalRatio × contextWindow × charsPerToken` 對摘要加上切點後保留尾端（L1）的估計字元；超過時依序放棄 L4 緩衝（起點重設）→ 縮 L3 → 縮 L2，不動 L1，仍超過就只剩固定區塊。
 - `details` 記錄 `{compactor:'pi-auto-compact', version:1, windowStart:{entryId,line,sessionId}, stats}`（不送給模型）；`stats.windowStartKept` 與 `guard` 可用來檢視快取穩定度。
 - 系統狀態（`src/state/`）：`jobs.ts`、`monitors.ts` 自 Blackhole 移植，**輸出與 Blackhole 逐字相同**（已用同一批輸入比對），資料來自 `modules/shell-tools/src/monitor-capability.ts` 的唯讀 briefs（相對 import，需 owner sessionId＋canonical cwd 相符；只有 ID、狀態、時限、label，無指令／輸出／路徑；讀取失敗回空字串，不阻擋壓縮）。`worktree.ts` 以有時限、有輸出上限的 `git`（移除 `GIT_DIR` 等重導向變數）取 HEAD、分支與異動檔路徑＋單字標籤（new／unstaged／staged／deleted／renamed／conflicted），最多 20 筆，不含 diff 或內容；非 git 目錄、逾時、中止都回空。這三塊不帶 Blackhole 的 span 證明機制：摘要每次從原始分支重建，不會 carry forward。
-- 尚未做：真實 host 整合測試（M5）、跨壓縮共同前綴比較（M6）。
+- 真實 host 測試（`tests/real-host.integration.test.mjs`＋`tests/fixtures/real-host.mjs`，約 12 秒，屬一般整合組、非重型組）：以真實 Pi 1.5.0 SDK 建隔離 session（隔離 home／agentDir／workspace、離線假 provider、`fetch` 一律拒絕），直接用 `SessionManager` 灌入含工具呼叫、`write`、`git commit` 的歷史，再呼叫 `session.compact()` 走真實壓縮流程。三個情境：`full`（壓縮持久化、`firstKeptEntryId` 與 `tokensBefore` 沿用 Pi、摘要中每個 `⟦L行:id⟧` 都指到該行真實 entry、重新 `SessionManager.open` 後 context 恰為「摘要＋Pi 保留的尾端」、第二次壓縮保留視窗起點且摘要開頭逐位元組不變、`[Background Jobs]`／`[Active Monitors]` 在最末、檔案內容不進摘要、三個 session 工具在真實 host 啟用並讀到壓縮掉的內容、全程 `providerCalls: 0`）、`invalid-config` 與 `unknown-window`（交還 Pi，Pi 自己產生並持久化摘要）。只驗證手動 `session.compact()`（`reason: "manual"`）；自動 threshold／overflow 路徑尚未以真實 host 驗證。
+- 尚未做：跨壓縮共同前綴比較（M6）。
 - 只註冊三個唯讀、deferred 的 session 工具（`session_grep`／`session_window`／`session_read`，命名空間 `session`，由 `tool_search` 載入，註冊時不會被啟用）；不註冊命令或訊息。
 
 ## 工具折疊（`src/fold/`）
@@ -74,10 +76,10 @@
 
 | 鍵 | 預設 | 範圍 | 說明 |
 |---|---|---|---|
-| `l1Ratio`／`l1MinChars` | 0.3／30000 | 比例 (0,1]；正整數 | L1 預算 = `max(ctx × 比例, 最小值)` 字元，`ctx` 為模型 context window 的 token 數 |
-| `l2Ratio`／`l2MinChars` | 0.2／20000 | 同上 | L2 預算 |
-| `l3Ratio`／`l3MinChars` | 0.1／10000 | 同上 | L3 預算 |
-| `l4Ratio`／`l4MinChars` | 0.1／10000 | 同上 | L4 = L3 視窗的**溢出緩衝**（見下節）。摘要的 L3 區段大小在 `L3` 到 `L3+L4` 之間浮動 |
+| `l1Ratio`／`l1MinChars` | 0.01／30000 | 比例 (0,1]；正整數 | L1 預算 = `max(ctx × 比例, 最小值)` 字元，`ctx` 為模型 context window 的 token 數；保留尾端超過時切點往後移（見上），不是 token 上限 |
+| `l2Ratio`／`l2MinChars` | 0.01／20000 | 同上 | L2 預算 |
+| `l3Ratio`／`l3MinChars` | 0.01／6000 | 同上 | L3 預算 |
+| `l4Ratio`／`l4MinChars` | 0.01／6000 | 同上 | L4 = L3 視窗的**溢出緩衝**（見下節）。摘要的 L3 區段大小在 `L3` 到 `L3+L4` 之間浮動 |
 | `charsPerToken` | 2.2 | 1～8 | 估算 token 用；Pi 內建為 4，中文為主的 session 實測約 2.2 |
 | `maxTotalRatio` | 0.5 | (0,1] | 估算總量（最壞情況 L2＋L3＋L4）占 context window 的硬上限；超過時先重設視窗起點、再縮 L3、再縮 L2，不縮 L1 |
 
