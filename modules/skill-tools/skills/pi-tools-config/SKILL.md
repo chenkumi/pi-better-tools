@@ -71,6 +71,7 @@ description: >-
 | PTY：native setup、local／WSL／SSH 與環境過濾 | [pty-terminal](references/pty-terminal.md) |
 | Schedule Prompt：排程、作用域、shell command job | [schedule-prompt](references/schedule-prompt.md) |
 | Blackhole：摘要、記憶、recall 與費用控制 | [blackhole](references/blackhole.md) |
+| Pi Auto Compact：確定性壓縮的參數檔（與 Blackhole 只掛其一） | [pi-auto-compact](references/pi-auto-compact.md) |
 | SQLite：manual／fixed 資料庫掛載 | [sqlite-tools](references/sqlite-tools.md) |
 | SQL Connector：MySQL／MSSQL／PostgreSQL | [sql-connector](references/sql-connector.md) |
 

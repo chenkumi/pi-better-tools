@@ -110,6 +110,7 @@ Shell 與 Subagents 會在 `startup`／`resume`／`reload` 載入 session 時，
 | Remote | `remote_list/send/status`（deferred，`tool_search remote`） | 以 WebSocket 把數個 Pi session 連成區網內的網路互傳訊息／任務（例如 push 後通知他平台 pull 測試）；`.pi/agent/remote.json`（受信任專案）設 server 或 client；12 碼配對碼 challenge-response（碼不上線）＋ wss；收到的訊息標示為不受信任資料、預設喚醒 agent（`wake` 可關閉／allowlist）；at-most-once、不排隊；不是遠端執行或 sandbox。`/remote` 與 footer 顯示狀態、system prompt 列出線上 peer；`/settings:remote` 面板設定角色／wake／憑證路徑，server 頁直接顯示配對碼（沒有就即時產生，存檔才寫入）並可 Enter 換新碼，client 遮罩輸入配對碼（存使用者層，不進專案檔） |
 | Skill Tools | `/skill:create-plan`、`/skill:pi-tools-config` 等隨包技能 | 原生 resource discovery、按需讀取；pi-tools-config 以 SKILL.md 索引 18 份逐模組指令／config references，不修改使用者 home |
 | Theme Tools | `/theme:<id>`（deep-sea／warm-charcoal／moss／quiet／signal／paper／dark／light）、`/theme:menu` | 切換 Pi 主題並寫入 settings（使用者明確要求）；詳見 [Theme Tools](modules/theme-tools/README.md) |
+| Pi Auto Compact | 無工具／命令（`session_before_compact` hook） | 確定性壓縮、不呼叫模型；**目前為骨架（M1），只驗證 `<agentDir>/auto-compact.json`，壓縮仍交還 Pi**。與 Blackhole 只掛其一；詳見 [Pi Auto Compact](modules/pi-auto-compact/README.md) |
 | File Audit | `/file-audit [status\|check\|clear\|limits]` | 成功 read/write/edit/note 的近期活動；預設 4 runs／50 個不同檔案，只在手動 check 才做有 byte 上限的 provenance 檢查；不掃完整歷史、不自動刷新 hash。詳見 [File Audit](modules/file-audit/README.md) |
 | Note Tools | `note` | `{ type, content }`；自動分類、產生純時間戳檔名（`TYPE-<UTC 時間戳>.md`，不附加標題），只新增 Markdown 檔案並回報單一相對路徑，不覆寫 |
 | GPT Speed | `/fast`、`/ultrafast`、`/normal` | GPT >= 5.6 的 luna／terra／sol／astra pattern；Ultrafast 在 luna／terra 降為 Fast；`/cache-ttl-short`／`/cache-ttl-long` 目前停用（不註冊、不送 `prompt_cache_options`）；TUI 只顯示實際速度 |
@@ -331,7 +332,7 @@ pi -p "Extract company name: Acme" --json-schema $schema --json-output result.js
 }
 ```
 
-十九個模組（subagents、shell-tools、file-tools、web-tools、note-tools、file-audit、gpt-speed、json-schema、pty-terminal、schedule-prompt、blackhole、pi-runtime、monitor、skill-tools、theme-tools、fork、sqlite-tools、sql-connector、remote）的公開入口均為 `modules/<name>/src/index.ts`。薄入口轉接既有實作，內部資源位置不變。
+二十個模組（subagents、shell-tools、file-tools、web-tools、note-tools、file-audit、gpt-speed、json-schema、pty-terminal、schedule-prompt、blackhole、pi-runtime、monitor、skill-tools、theme-tools、fork、sqlite-tools、sql-connector、remote、pi-auto-compact）的公開入口均為 `modules/<name>/src/index.ts`。薄入口轉接既有實作，內部資源位置不變。
 
 Filters 以整合包 root 為基準；與 tool allowlist 不同，它們控制 extension 是否執行／是否啟動生命週期資源。既有 filters 若使用舊入口路徑，請手動更新為新路徑，見 [入口遷移](docs/migration.md#unified-typescript-entry-points)。
 

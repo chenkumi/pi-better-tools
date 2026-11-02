@@ -56,6 +56,8 @@
         "modules/pty-terminal/README.md",
         "modules/pty-terminal/LICENSE",
         "modules/schedule-prompt/src",
+        "modules/pi-auto-compact/src",
+        "modules/pi-auto-compact/package.json",
         "modules/blackhole/index.ts",
         "modules/blackhole/package.json",
         "modules/blackhole/src",
@@ -95,6 +97,7 @@
             "./modules/schedule-prompt/src/index.ts",
             "./node_modules/pi-open-tui/extensions/open-tui/index.ts",
             "./modules/blackhole/src/index.ts",
+            "./modules/pi-auto-compact/src/index.ts",
             "./modules/file-tools/src/fff-override.mjs"
         ],
         "themes": [
