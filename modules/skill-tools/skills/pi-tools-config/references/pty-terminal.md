@@ -35,7 +35,7 @@ pi-better-tools doctor
 pi-better-tools pty setup
 ```
 
-上述短命令只適用已安裝套件的 bin 在 PATH，且是目前 Pi 使用的那份套件；不需位於 repository。Pi-managed 安裝可能不提供 PATH 命令，應使用診斷提供的「目前 Node＋此安裝實例 setup/cli.mjs」絕對命令；無提示時先確認實際安裝路徑。命令形式與跨平台範例見 [Web 安裝說明](web-tools.md)，將末尾 `browser install` 換成 `pty setup`。不要由已搬移的 skill 位置猜套件路徑，也不要用 npx 下載另一個版本。
+上述短命令只適用已安裝套件的 bin 在 PATH，且是目前 Pi 使用的那份套件；不需位於 repository。Pi-managed 安裝可能不提供 PATH 命令，應使用診斷提供的「目前 Node＋此安裝實例 setup/cli.mjs」絕對命令；無提示時先確認實際安裝路徑。命令形式：Windows PowerShell 為 `& 'C:\path\to\node.exe' 'C:\path\to\pi-better-tools\setup\cli.mjs' pty setup`，POSIX 為 `'/absolute/path/to/node' '/absolute/path/to/pi-better-tools/setup/cli.mjs' pty setup`（替換所有路徑）。不要由已搬移的 skill 位置猜套件路徑，也不要用 npx 下載另一個版本。
 
 `doctor` 不啟動 PTY、不寫設定或安裝；`pty setup` 是明確的 native setup 操作，針對此安裝實例解析到的 node-pty，而非目前 cwd 的任意套件。安裝時若使用 `--ignore-scripts` 或禁止 native scripts，先依 consumer project 的政策核可 node-pty；本套件不把自己的 allowScripts 當成 parent project 的授權、不覆寫全域 npm 設定。沒有適用的 prebuild 時仍需本機編譯工具；禁止跨 OS／CPU 共用 node_modules。`npm run pty:install` 保留為開發者別名，不是安裝後唯一入口。
 
