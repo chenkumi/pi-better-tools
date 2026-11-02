@@ -96,7 +96,6 @@
             "./modules/pty-terminal/src/index.ts",
             "./modules/schedule-prompt/src/index.ts",
             "./node_modules/pi-open-tui/extensions/open-tui/index.ts",
-            "./modules/blackhole/src/index.ts",
             "./modules/pi-auto-compact/src/index.ts",
             "./modules/file-tools/src/fff-override.mjs"
         ],
