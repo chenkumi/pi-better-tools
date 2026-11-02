@@ -330,6 +330,7 @@ writer.acquire/       # 短期跨 process acquisition/recovery election fence
 ## 安全邊界
 
 - 所有 child 以 `--exclude-tools subagent,subagent_status,subagent_cancel,subagent_message` 啟動，無法再次派遣或管理 parent 的 subagents。若 agent 有 shell 權限仍可自行執行 `pi`，需另用 sandbox 限制。
+- child 有明確 `--tools` 清單時，argument builder 另附 Pi Auto Compact 的 `progress_checkpoint`（`+name`／`-name` 清單附 `+progress_checkpoint`），讓長任務的進度錨點在 allowlist 下仍可用；該工具未掛載時 allowlist 多一個未知名稱，Pi 只當過濾條件。
 - Child 另載入 startup guard，於第一個 provider request 前驗證 model registry 與 trust；不複製 parent 的臨時 provider、credentials 或一次性 approve。Child 須能自行載入相同 provider 定義。
 - **同 process guard reload**：只對同一已驗證 handshake object／invocation，只讀重驗原 startupPath，並重新核對 model／cwd／native ID／thinking／trust。新 lease 保存 serialized JSON 的原始 UTF-8 `Buffer`；檔案以 `readFileSync(fd)` 原始 Buffer 的 `equals` 精確比對，不容錯解碼 UTF-8。依 `lstat → open → fstat → raw read → fstat → lstat` 檢查點核對 regular／非 symlink、bigint dev／ino、size 等於 expected Buffer 長度，並比較前後 mtimeNs／ctimeNs；身份為 0n 或所需 bigint metadata 不可用亦 fail closed。新消耗的 handshake object（即使 payload 相同）沒有重用資格，仍以 `wx` exclusive 建立；拒絕不覆寫外來／變造 receipt、不重建遺失檔案。早期同 process serialized-string lease 僅從其已保存 payload 重建 expected Buffer，再通過全部 raw／metadata 檢查後更新記憶體 cache，不用磁碟解碼字串驗證或接管既有檔案。這不是跨 process 工作恢復或 OS sandbox，receipt 格式及既有 owner／writer admission 不變。
 - 上述驗證是**離散檢查點的觀測，不是原子檔案快照或永久禁止外部修改**；不能證明兩檢查點之間每一瞬間均未變、曾修改再還原的變化一定可見，或最後檢查後不再改寫。size 固定於 expected Buffer 長度是接受條件的上限檢查，不是 `readFileSync` 遇並行增長時的硬性配置／讀取記憶體上限；未加 filesystem lock。O_NOFOLLOW 只在平台提供時使用，仍必須通過 descriptor／後置 path 與 bigint metadata 檢查，不改用弱身份 fallback。

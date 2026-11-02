@@ -39,14 +39,20 @@ test("allowlisted bundled agents retain their tools and exclude subagent", () =>
 	});
 
 	expectSubagentExcluded(args);
-	assert.equal(optionValue(args, "--tools"), "read,grep,find,ls,bash");
+	assert.equal(optionValue(args, "--tools"), "read,grep,find,ls,bash,progress_checkpoint", "the anchor tool of Pi Auto Compact is added to an explicit list");
 });
 
 test("a user agent cannot re-enable subagent through its tools list", () => {
 	const args = buildSubagentPiArgs({ persistence, taskPath: "/tmp/task.txt", tools: ["read", "subagent"] });
 
 	expectSubagentExcluded(args);
-	assert.equal(optionValue(args, "--tools"), "read,subagent");
+	assert.equal(optionValue(args, "--tools"), "read,subagent,progress_checkpoint");
+});
+
+test("a +name/-name tool list gets the anchor tool as +name, never a bare name mixed in", () => {
+	const args = buildSubagentPiArgs({ persistence, taskPath: "/tmp/task.txt", tools: ["-bash", "+grep"] });
+
+	assert.equal(optionValue(args, "--tools"), "-bash,+grep,+progress_checkpoint");
 });
 
 test("provider-resolved model, thinking level, and prompt path are preserved", () => {

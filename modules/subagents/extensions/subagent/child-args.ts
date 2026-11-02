@@ -23,6 +23,10 @@ export interface SubagentPiArgsOptions {
 	taskPath: string;
 }
 
+/** The progress checkpoint anchor tool of Pi Auto Compact; a child with an explicit tool list still needs it to anchor long runs. A tool list of +name/-name entries cannot mix in a bare name. */
+const PROGRESS_CHECKPOINT_TOOL = "progress_checkpoint";
+const withProgressCheckpoint = (tools: readonly string[]): string => (tools.some((tool) => tool.startsWith("+") || tool.startsWith("-")) ? `+${PROGRESS_CHECKPOINT_TOOL}` : PROGRESS_CHECKPOINT_TOOL);
+
 /**
  * Build the Pi CLI arguments for a child subagent process.
  *
@@ -44,7 +48,7 @@ export function buildSubagentPiArgs(options: SubagentPiArgsOptions): string[] {
 	if (rpc && options.bridgePath) args.push("-e", options.bridgePath);
 	if (options.model) args.push("--model", options.model);
 	if (options.thinkingLevel) args.push("--thinking", options.thinkingLevel);
-	if (options.tools && options.tools.length > 0) args.push("--tools", options.tools.join(","));
+	if (options.tools && options.tools.length > 0) args.push("--tools", [...options.tools, withProgressCheckpoint(options.tools)].join(","));
 	if (options.promptPath) args.push("--append-system-prompt", options.promptPath);
 	if (!rpc) args.push(`@${options.taskPath}`);
 
