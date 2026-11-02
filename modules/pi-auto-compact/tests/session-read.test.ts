@@ -133,21 +133,21 @@ test('a range stops at the budget and says exactly where to continue', async () 
   } finally { done(); }
 });
 
-test('the tool is read-only, inactive by default, and resolves the session from the host context', async () => {
+test('the tool is read-only, deferred, and resolves the session from the host context', async () => {
   assert.equal(sessionReadTool.name, 'session_read');
-  assert.equal(sessionReadTool.defaultActive, false);
+  assert.equal(sessionReadTool.exposure, 'deferred');
   assert.equal(sessionReadTool.annotations?.readOnlyHint, true);
   const { dir, done } = workspace();
   try {
     const file = join(dir, 's.jsonl');
     write(file, [header('S'), toolResult('e0000001', 'hello')]);
-    const ctx = { sessionManager: { getSessionId: () => 'S', getSessionFile: () => file } };
+    const ctx = { sessionManager: { getSessionId: () => 'S', getSessionFile: () => file, getLeafId: () => null } };
     const run = (params: Record<string, unknown>) => (sessionReadTool.execute as unknown as (...args: unknown[]) => Promise<{ content: Array<{ text: string }>; details: unknown }>)('call', params, undefined, undefined, ctx);
     const ok = await run({ line: 2, id: 'e000' });
     assert.ok(ok.content[0]!.text.includes('hello'));
-    await assert.rejects(run({ line: 2, id: 'nope' }), /^Error: SESSION_READ_FAILED: Line 2 does not hold entry "nope"/);
-    const none = (sessionReadTool.execute as unknown as (...args: unknown[]) => Promise<unknown>)('call', { line: 2 }, undefined, undefined, { sessionManager: { getSessionId: () => 'M', getSessionFile: () => undefined } });
-    await assert.rejects(none, /SESSION_READ_FAILED: This session has no session file/);
+    await assert.rejects(run({ line: 2, id: 'nope' }), /^Error: SESSION_FAILED: Line 2 does not hold entry "nope"/);
+    const none = (sessionReadTool.execute as unknown as (...args: unknown[]) => Promise<unknown>)('call', { line: 2 }, undefined, undefined, { sessionManager: { getSessionId: () => 'M', getSessionFile: () => undefined, getLeafId: () => null } });
+    await assert.rejects(none, /SESSION_FAILED: This session has no session file/);
   } finally { done(); }
 });
 

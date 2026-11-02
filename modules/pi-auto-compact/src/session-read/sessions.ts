@@ -2,6 +2,8 @@ import { resolve } from 'node:path';
 import { asRecord, str } from '../fold/util.ts';
 import { scanLines } from './lines.ts';
 
+export class SessionReadError extends Error {}
+
 export interface SessionFile { id: string; file: string }
 
 const MAX_ANCESTORS = 16;
@@ -42,3 +44,13 @@ export async function resolveReadableSessions(current: { id: string; file: strin
   }
   return chain;
 }
+
+/** The session a call addresses: the current one by default, else one of the readable ancestors. Anything else is refused. */
+export function pickSession(readable: readonly SessionFile[], sessionId: string | undefined): SessionFile {
+  if (readable.length === 0) throw new SessionReadError('This session has no session file (it is not persisted), so there is nothing to read.');
+  const target = sessionId === undefined ? readable[0] : readable.find(item => item.id === sessionId);
+  if (!target) throw new SessionReadError(`Session ${JSON.stringify(String(sessionId).slice(0, 80))} is not readable here. Readable sessions: ${readable.map(item => item.id).join(', ')}.`);
+  return target;
+}
+
+export const isCurrent = (readable: readonly SessionFile[], target: SessionFile): boolean => target === readable[0];

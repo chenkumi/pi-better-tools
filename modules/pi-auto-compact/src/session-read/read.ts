@@ -1,14 +1,14 @@
 import { asRecord, str } from '../fold/util.ts';
 import { MAX_LINE_BYTES, scanLines } from './lines.ts';
 import { renderEntry } from './render.ts';
-import type { SessionFile } from './sessions.ts';
+import { isCurrent, pickSession, SessionReadError, type SessionFile } from './sessions.ts';
+
+export { SessionReadError };
 
 export const DEFAULT_MAX_CHARS = 20_000;
 export const MAX_CHARS_LIMIT = 50_000;
 export const MAX_LINE_SPAN = 20;
 const MIN_ROOM = 200;
-
-export class SessionReadError extends Error {}
 
 export interface SessionReadRequest {
   sessionId?: string;
@@ -56,9 +56,7 @@ async function countLines(file: string): Promise<number> {
  * current session and its ancestors only) lives in one place and this function cannot be pointed at another file.
  */
 export async function readSessionLines(readable: readonly SessionFile[], request: SessionReadRequest): Promise<SessionReadResult> {
-  if (readable.length === 0) throw new SessionReadError('This session has no session file (it is not persisted), so there is nothing to read.');
-  const target = request.sessionId === undefined ? readable[0]! : readable.find(item => item.id === request.sessionId);
-  if (!target) throw new SessionReadError(`Session ${JSON.stringify(String(request.sessionId).slice(0, 80))} is not readable here. Readable sessions: ${readable.map(item => item.id).join(', ')}.`);
+  const target = pickSession(readable, request.sessionId);
   const line = integer(request.line, 'line', 1);
   const toLine = request.toLine === undefined ? line : integer(request.toLine, 'to_line', line);
   if (toLine - line + 1 > MAX_LINE_SPAN) throw new SessionReadError(`At most ${MAX_LINE_SPAN} lines per call; read the next range with another call.`);
@@ -95,7 +93,7 @@ export async function readSessionLines(readable: readonly SessionFile[], request
   if (out.length === 0) throw new SessionReadError(`Line ${line} is past the end of the session file (${await countLines(target.file)} lines).`);
   let text = out.join('\n---\n');
   if (nextLine !== undefined) {
-    const args = [`line=${nextLine}`, nextOffset ? `offset=${nextOffset}` : '', toLine > nextLine ? `to_line=${toLine}` : '', target === readable[0] ? '' : `session_id=${target.id}`].filter(Boolean).join(' ');
+    const args = [`line=${nextLine}`, nextOffset ? `offset=${nextOffset}` : '', toLine > nextLine ? `to_line=${toLine}` : '', isCurrent(readable, target) ? '' : `session_id=${target.id}`].filter(Boolean).join(' ');
     text += `\n[more: call session_read again with ${args}]`;
   }
   return { text, details: { sessionId: target.id, line, toLine: lastLine, chars: text.length, truncated, ...(nextLine !== undefined ? { nextLine } : {}), ...(nextOffset ? { nextOffset } : {}) } };

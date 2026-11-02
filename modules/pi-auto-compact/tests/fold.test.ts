@@ -218,7 +218,7 @@ test('unpaired calls and results are marked and never presented as successes', (
 test('the set of tools with a dedicated rule is exactly the documented one', () => {
   const engines = ['mssql', 'mysql', 'pgsql'].flatMap(engine => ['state', 'query', 'update'].map(kind => `${engine}_${kind}`));
   const expected = [
-    'read', 'write', 'edit', 'ls', 'grep', 'find', 'multi_grep', 'note', 'session_read',
+    'read', 'write', 'edit', 'ls', 'grep', 'find', 'multi_grep', 'note', 'session_read', 'session_window', 'session_grep',
     'bash', 'powershell', 'shell_job_status', 'shell_job_cancel', 'schedule_prompt', 'schedule_shell',
     'subagent', 'subagent_status', 'subagent_cancel', 'subagent_message',
     'fork', 'fork_status', 'fork_cancel', 'fork_message', 'monitor_start', 'monitor_status', 'monitor_stop',
@@ -227,4 +227,14 @@ test('the set of tools with a dedicated rule is exactly the documented one', () 
     'web_fetch', 'web_search', 'remote_list', 'remote_send', 'remote_status', 'tool_search', 'json_output', ...engines,
   ].sort();
   assert.deepEqual(registeredToolNames(), expected);
+});
+
+test('session tools fold to where they looked and how much came back, never the content', () => {
+  assert.equal(fold('session_read', { line: 1234, to_line: 1236, session_id: 'abcdef123456' }, 'ENTRY TEXT', { details: { chars: 4200, truncated: true } }), `[session_read] L1234–1236 session abcdef123456 → 4200 chars (truncated); content not kept${recall}`);
+  assert.equal(fold('session_window', { before: 900 }, 'OUTLINE TEXT', { details: { entries: 31, truncated: false } }), `[session_window] before L900 → 31 entries; outline not kept${recall}`);
+  assert.equal(fold('session_window', { from: 10, to: 70 }, 'x', { details: { entries: 1, truncated: true } }), `[session_window] L10–70 → 1 entry (truncated); outline not kept${recall}`);
+  const grep = fold('session_grep', { pattern: 'token=abc123456789' }, 'SNIPPET TEXT', { details: { hits: 3, truncated: true } });
+  assert.equal(grep, `[session_grep] "token=***" → 3 hits (more available); snippets not kept${recall}`);
+  assert.ok(!grep.includes('SNIPPET'));
+  assert.match(fold('session_grep', { pattern: 'zz' }, 'SESSION_FAILED: nope', { isError: true }), /^\[session_grep\] "zz" → ERROR: SESSION_FAILED: nope/);
 });

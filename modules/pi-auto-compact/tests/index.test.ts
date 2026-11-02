@@ -7,10 +7,10 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import piAutoCompact from '../src/index.ts';
 
 function load() {
-  const handlers = new Map<string, (event: unknown, ctx: unknown) => unknown>(), other: string[] = [], tools: Array<{ name: string; defaultActive?: boolean }> = [];
+  const handlers = new Map<string, (event: unknown, ctx: unknown) => unknown>(), other: string[] = [], tools: Array<{ name: string; exposure?: string; namespace?: { name: string } }> = [];
   piAutoCompact({
     on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => { handlers.set(event, handler); },
-    registerTool: (tool: { name: string; defaultActive?: boolean }) => tools.push(tool), registerCommand: () => other.push('command'), sendMessage: () => other.push('message'), sendUserMessage: () => other.push('user-message'),
+    registerTool: (tool: { name: string; exposure?: string; namespace?: { name: string } }) => tools.push(tool), registerCommand: () => other.push('command'), sendMessage: () => other.push('message'), sendUserMessage: () => other.push('user-message'),
   } as unknown as ExtensionAPI);
   return { handlers, other, tools };
 }
@@ -26,12 +26,12 @@ async function withAgentDir<T>(file: string | undefined, run: () => Promise<T>):
   }
 }
 
-test('registers exactly one hook and one inactive read-only tool, and no commands or messages', () => {
+test('registers exactly one hook and the three deferred read-only session tools, and no commands or messages', () => {
   const { handlers, other, tools } = load();
   assert.deepEqual([...handlers.keys()], ['session_before_compact']);
   assert.deepEqual(other, []);
-  assert.deepEqual(tools.map(tool => tool.name), ['session_read']);
-  assert.equal(tools[0]!.defaultActive, false);
+  assert.deepEqual(tools.map(tool => tool.name).sort(), ['session_grep', 'session_read', 'session_window']);
+  for (const tool of tools) { assert.equal(tool.exposure, 'deferred'); assert.equal(tool.namespace?.name, 'session'); }
 });
 
 test('the skeleton hands compaction back to Pi and stays silent with a valid or missing file', async () => {

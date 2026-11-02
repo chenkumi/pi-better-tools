@@ -83,6 +83,14 @@ export const fileRules: Record<string, FoldRule> = {
       return `${plural(num(d.chars) ?? result.text.length, 'char')}${d.truncated === true ? ' (truncated)' : ''}; content not kept`;
     },
   },
+  session_window: {
+    args: call => (num(call.args.before) !== undefined ? `before L${num(call.args.before)}` : `L${num(call.args.from) ?? '?'}${num(call.args.to) !== undefined ? `–${num(call.args.to)}` : ''}`),
+    ok: (_call, result) => { const d = detailsOf(result); return `${plural(num(d.entries) ?? 0, 'entry').replace('entrys', 'entries')}${d.truncated === true ? ' (truncated)' : ''}; outline not kept`; },
+  },
+  session_grep: {
+    args: call => JSON.stringify(oneLine(redact(str(call.args.pattern) ?? ''), 60)),
+    ok: (_call, result) => { const d = detailsOf(result); return `${plural(num(d.hits) ?? 0, 'hit')}${d.truncated === true ? ' (more available)' : ''}; snippets not kept`; },
+  },
   note: {
     args: call => str(call.args.type) ?? '',
     ok: (_call, result) => oneLine(str(detailsOf(result).relativePath) ?? 'saved', 200),
