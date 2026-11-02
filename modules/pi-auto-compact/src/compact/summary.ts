@@ -39,6 +39,8 @@ export interface SummaryInput {
   sessionId?: string;
   /** Window start recorded by the previous compaction of this engine, if any. */
   previousStartEntryId?: string;
+  /** Blocks describing the moment of compaction (jobs, monitors, working tree). Always last, because they change every time. */
+  volatile?: readonly string[];
 }
 
 export interface SummaryResult { summary: string; details: CompactionDetails }
@@ -85,7 +87,8 @@ export function composeSummary(input: SummaryInput): SummaryResult {
   const layout = chooseLayout(lens2, lens3, budgetsFor(config, contextWindow), previousIdx);
 
   const goal = goalLine(items), state = stateLines(items);
-  const fixed = HEADER_RESERVE + (goal ? goal.length + 1 : 0) + length(state) + (state.length ? 24 : 0);
+  const volatile = (input.volatile ?? []).filter(block => block.length > 0);
+  const fixed = HEADER_RESERVE + (goal ? goal.length + 1 : 0) + length(state) + (state.length ? 24 : 0) + volatile.reduce((sum, block) => sum + block.length + 2, 0);
   const sectionHeaders = (l3: boolean, l2: boolean) => (l3 ? 28 : 0) + (l2 ? 24 : 0);
   const prefix = (lens: readonly number[]) => { const out = [0]; for (const value of lens) out.push(out[out.length - 1]! + value); return out; };
   const pre2 = prefix(lens2), pre3 = prefix(lens3);
@@ -103,6 +106,7 @@ export function composeSummary(input: SummaryInput): SummaryResult {
   if (l3Start < l2Start) { out.push('', '## Earlier conversation'); for (let i = l3Start; i < l2Start; i++) if (rendered3[i] !== undefined) out.push(rendered3[i]!); }
   if (l2Start < n) { out.push('', '## Recent activity'); for (let i = l2Start; i < n; i++) out.push(...rendered2[i]!); }
   if (state.length) out.push('', '## State at compaction', ...state);
+  for (const block of volatile) out.push('', block);
 
   const keptTotal = total();
   return {

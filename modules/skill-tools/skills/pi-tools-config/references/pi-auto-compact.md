@@ -3,7 +3,7 @@
 ## 指令與工具
 
 - 三個唯讀 deferred 工具（命名空間 `session`，用 `tool_search` 載入）：`session_window`（依行號範圍看大綱，`before` 往前讀）、`session_grep`（字面關鍵字搜尋）、`session_read`（依行號讀原始 entry）；只讀目前 session 與其祖先 session。無指令；壓縮時由 `session_before_compact` hook 運作。
-- hook 會產生確定性摘要（Pi 決定時機與切點，本模組只換切點之前的摘要）；設定無效、未知 context window 或失敗時交還 Pi。系統狀態與工作樹資訊尚未加入。
+- hook 會產生確定性摘要（Pi 決定時機與切點，本模組只換切點之前的摘要）；設定無效、未知 context window 或失敗時交還 Pi。摘要末端附壓縮當下的背景 job／monitor 狀態與工作樹 HEAD／異動檔路徑（只有識別與狀態，不含輸出或 diff）。
 - 與 Blackhole **只掛其一**：兩者同時掛載時不做協調。切換方式是在 Pi 的套件／extension 設定中啟用或排除對應入口，不是設定鍵。
 
 ## Config 與作用範圍

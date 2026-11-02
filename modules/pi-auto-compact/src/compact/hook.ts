@@ -3,6 +3,9 @@ import type { AutoCompactConfig } from '../config.ts';
 import type { EntryRef } from '../fold/ref.ts';
 import { asRecord, list, str } from '../fold/util.ts';
 import { scanLines } from '../session-read/lines.ts';
+import { backgroundJobsSection } from '../state/jobs.ts';
+import { activeMonitorsSection } from '../state/monitors.ts';
+import { workingTreeLines } from '../state/worktree.ts';
 import { buildItems, type Entry } from './items.ts';
 import { composeSummary, previousWindowStart } from './summary.ts';
 
@@ -41,6 +44,7 @@ function keptChars(entry: Entry): number {
 }
 
 export interface HookContext {
+  cwd?: string;
   model?: { contextWindow?: number };
   sessionManager: { getSessionFile(): string | undefined; getSessionId(): string };
 }
@@ -59,11 +63,14 @@ export async function autoCompact(event: SessionBeforeCompactEvent, ctx: HookCon
   const refs = await indexSessionFile(ctx.sessionManager.getSessionFile());
   const items = buildItems(entries.slice(0, cut), id => refs.get(id));
   if (items.length === 0) return undefined;
+  const sessionId = ctx.sessionManager.getSessionId(), cwd = ctx.cwd;
+  const volatile = cwd ? [backgroundJobsSection(sessionId, cwd), activeMonitorsSection(sessionId, cwd), (await workingTreeLines(cwd, event.signal)).join('\n')] : [];
   const { summary, details } = composeSummary({
     items, config, contextWindow,
     keptChars: entries.slice(cut).reduce((sum, entry) => sum + keptChars(entry), 0),
-    sessionId: refs.size ? ctx.sessionManager.getSessionId() : undefined,
+    sessionId: refs.size ? sessionId : undefined,
     previousStartEntryId: previousWindowStart(entries),
+    volatile,
   });
   return { compaction: { summary, firstKeptEntryId: event.preparation.firstKeptEntryId, tokensBefore: event.preparation.tokensBefore, details } };
 }

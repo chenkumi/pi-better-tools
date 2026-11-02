@@ -2,16 +2,17 @@
 
 原生模組：以**確定性純函式**壓縮歷史，**不呼叫任何模型**。把歷史由新到舊分成 L1（原樣）、L2（工具呼叫折成一行並附 session 檔行號參照）、L3（只留對話）三層，各有字元預算，溢出者滑動丟棄。完整設計見本機計畫 `plan/pi-auto-compact-plan.md`（`plan/` 不進版控）。
 
-## 目前狀態：M3（hook 已產生摘要；系統狀態與真實 host 整合為 M4／M5）
+## 目前狀態：M4（摘要含系統狀態與工作樹；真實 host 整合為 M5）
 
 - `session_before_compact` hook 現在會產生確定性摘要：Pi 仍決定何時壓縮與切點，本模組原樣回傳 `preparation.firstKeptEntryId`（切點之後是 L1 原樣訊息），只替換切點之前的摘要，不呼叫任何模型。
 - 以下情況一律回傳 `undefined`，把壓縮交還 Pi：設定檔無效（有 UI 時警告一次）、`ctx.model.contextWindow` 未知、切點不在分支上或切點之前沒有內容、任何非預期例外（警告一次，壓縮不會因此遺失）。
 - 摘要由切點之前的 branch entries 每次重建（純函式，同輸入同位元組）：先 `buildItems`（套用 `context_edit`、配對工具呼叫與結果；先前的 compaction entry 不當來源，只讀它 `details` 中記錄的視窗起點，且只認本模組、版本 1 的紀錄），再依 `layout` 決定 L2／L3 邊界，最後組裝。
-- 摘要順序：固定首行（session id、視窗起點 `⟦L<行>:<id>⟧`、更早歷史用 `session_window before=<行>`，並提示三個 session 工具需經 `tool_search` 載入——**提示但不預設啟用**）→ 目標（第一則使用者訊息）→ `## Earlier conversation`（L3，含 L4 緩衝）→ `## Recent activity`（L2，折疊工具行）→ `## State at compaction`（異動檔案、commit，放最末因為每次都會變）。
+- 摘要順序：固定首行（session id、視窗起點 `⟦L<行>:<id>⟧`、更早歷史用 `session_window before=<行>`，並提示三個 session 工具需經 `tool_search` 載入——**提示但不預設啟用**）→ 目標（第一則使用者訊息）→ `## Earlier conversation`（L3，含 L4 緩衝）→ `## Recent activity`（L2，折疊工具行）→ `## State at compaction`（異動檔案、commit）→ 壓縮當下的系統狀態：`[Background Jobs]`、`[Active Monitors]`、`Working tree at compaction`（每次都會變，所以固定放最末）。
 - 對話文字原樣保留（上限 400／1200 字）；工具輸出尾端與 shell 指令會遮罩憑證；通知訊息只留 kind／status／id 與 `agent:status`，自由文字丟棄；thinking、檔案內容、圖片不進摘要。
 - 總量保險：`maxTotalRatio × contextWindow × charsPerToken` 對摘要加上切點後保留尾端（L1）的估計字元；超過時依序放棄 L4 緩衝（起點重設）→ 縮 L3 → 縮 L2，不動 L1，仍超過就只剩固定區塊。
 - `details` 記錄 `{compactor:'pi-auto-compact', version:1, windowStart:{entryId,line,sessionId}, stats}`（不送給模型）；`stats.windowStartKept` 與 `guard` 可用來檢視快取穩定度。
-- 尚未做：系統狀態（Background Jobs／Active Monitors）與工作樹 HEAD／dirty（M4）、真實 host 整合測試（M5）、跨壓縮共同前綴比較（M6）。
+- 系統狀態（`src/state/`）：`jobs.ts`、`monitors.ts` 自 Blackhole 移植，**輸出與 Blackhole 逐字相同**（已用同一批輸入比對），資料來自 `modules/shell-tools/src/monitor-capability.ts` 的唯讀 briefs（相對 import，需 owner sessionId＋canonical cwd 相符；只有 ID、狀態、時限、label，無指令／輸出／路徑；讀取失敗回空字串，不阻擋壓縮）。`worktree.ts` 以有時限、有輸出上限的 `git`（移除 `GIT_DIR` 等重導向變數）取 HEAD、分支與異動檔路徑＋單字標籤（new／unstaged／staged／deleted／renamed／conflicted），最多 20 筆，不含 diff 或內容；非 git 目錄、逾時、中止都回空。這三塊不帶 Blackhole 的 span 證明機制：摘要每次從原始分支重建，不會 carry forward。
+- 尚未做：真實 host 整合測試（M5）、跨壓縮共同前綴比較（M6）。
 - 只註冊三個唯讀、deferred 的 session 工具（`session_grep`／`session_window`／`session_read`，命名空間 `session`，由 `tool_search` 載入，註冊時不會被啟用）；不註冊命令或訊息。
 
 ## 工具折疊（`src/fold/`）

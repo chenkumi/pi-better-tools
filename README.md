@@ -49,7 +49,7 @@ pi-better-tools pty setup
 
 ### 本地 Blackhole 與兩個 npm Pi packages（原始碼掛載）
 
-根 `dependencies` 固定包含 `pi-open-tui@0.3.13`、`@ff-labs/pi-fff@0.11.0`。Blackhole 0.5.12 原始碼已納入 `modules/blackhole/`，Pi 改載入 `./modules/blackhole/src/index.ts`，不再依賴 npm 的 `pi-blackhole`。`npm ci --ignore-scripts` 會安裝兩個 npm packages；manifest 為十九個本地入口加兩個 npm 入口，共二十一個。仍維持 `private: true`，不需要 npm 發布、bundledDependencies 或 postinstall 呼叫 pi install。
+根 `dependencies` 固定包含 `pi-open-tui@0.3.13`、`@ff-labs/pi-fff@0.11.0`。Blackhole 0.5.12 原始碼已納入 `modules/blackhole/`，入口為 `./modules/blackhole/src/index.ts`，**預設 manifest 不掛載**（`session_before_compact` 由 Pi Auto Compact 負責，兩者只掛其一；要用 Blackhole 須自行在 Pi 套件設定加入該入口並排除 Pi Auto Compact），不再依賴 npm 的 `pi-blackhole`。`npm ci --ignore-scripts` 會安裝兩個 npm packages；manifest 為十九個本地入口加兩個 npm 入口，共二十一個。仍維持 `private: true`，不需要 npm 發布、bundledDependencies 或 postinstall 呼叫 pi install。
 
 換機請下載／複製本專案原始碼及 lockfile，在新機重新執行上述安裝步驟，然後只掛載本專案目錄；不要跨 OS／CPU 複製 node_modules。**本機掛載不會自動執行 npm install**。Repository `.npmrc` 設 `legacy-peer-deps=true`，避免依賴 peers 自動安裝另一份 Pi SDK；Blackhole 快照的上游開發版本／peer 範圍只作歷史 metadata，整合基準為 Pi 1.4.0，不以此設定宣稱相容。
 
@@ -110,7 +110,7 @@ Shell 與 Subagents 會在 `startup`／`resume`／`reload` 載入 session 時，
 | Remote | `remote_list/send/status`（deferred，`tool_search remote`） | 以 WebSocket 把數個 Pi session 連成區網內的網路互傳訊息／任務（例如 push 後通知他平台 pull 測試）；`.pi/agent/remote.json`（受信任專案）設 server 或 client；12 碼配對碼 challenge-response（碼不上線）＋ wss；收到的訊息標示為不受信任資料、預設喚醒 agent（`wake` 可關閉／allowlist）；at-most-once、不排隊；不是遠端執行或 sandbox。`/remote` 與 footer 顯示狀態、system prompt 列出線上 peer；`/settings:remote` 面板設定角色／wake／憑證路徑，server 頁直接顯示配對碼（沒有就即時產生，存檔才寫入）並可 Enter 換新碼，client 遮罩輸入配對碼（存使用者層，不進專案檔） |
 | Skill Tools | `/skill:create-plan`、`/skill:pi-tools-config` 等隨包技能 | 原生 resource discovery、按需讀取；pi-tools-config 以 SKILL.md 索引 18 份逐模組指令／config references，不修改使用者 home |
 | Theme Tools | `/theme:<id>`（deep-sea／warm-charcoal／moss／quiet／signal／paper／dark／light）、`/theme:menu` | 切換 Pi 主題並寫入 settings（使用者明確要求）；詳見 [Theme Tools](modules/theme-tools/README.md) |
-| Pi Auto Compact | `session_grep`／`session_window`／`session_read`（唯讀、deferred）；`session_before_compact` hook | 確定性壓縮、不呼叫模型；hook 已產生摘要（讀 `<agentDir>/auto-compact.json`；失敗或不適用時交還 Pi），系統狀態與真實 host 整合尚未完成。與 Blackhole 只掛其一；詳見 [Pi Auto Compact](modules/pi-auto-compact/README.md) |
+| Pi Auto Compact | `session_grep`／`session_window`／`session_read`（唯讀、deferred）；`session_before_compact` hook | 確定性壓縮、不呼叫模型；hook 已產生摘要（讀 `<agentDir>/auto-compact.json`；失敗或不適用時交還 Pi），摘要含背景 job／monitor 狀態與工作樹資訊，真實 host 整合尚未完成。與 Blackhole 只掛其一；詳見 [Pi Auto Compact](modules/pi-auto-compact/README.md) |
 | File Audit | `/file-audit [status\|check\|clear\|limits]` | 成功 read/write/edit/note 的近期活動；預設 4 runs／50 個不同檔案，只在手動 check 才做有 byte 上限的 provenance 檢查；不掃完整歷史、不自動刷新 hash。詳見 [File Audit](modules/file-audit/README.md) |
 | Note Tools | `note` | `{ type, content }`；自動分類、產生純時間戳檔名（`TYPE-<UTC 時間戳>.md`，不附加標題），只新增 Markdown 檔案並回報單一相對路徑，不覆寫 |
 | GPT Speed | `/fast`、`/ultrafast`、`/normal` | GPT >= 5.6 的 luna／terra／sol／astra pattern；Ultrafast 在 luna／terra 降為 Fast；`/cache-ttl-short`／`/cache-ttl-long` 目前停用（不註冊、不送 `prompt_cache_options`）；TUI 只顯示實際速度 |
