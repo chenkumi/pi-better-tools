@@ -106,8 +106,18 @@ export async function startArm(directory, enabled, mode, options = {}) {
 // The observer records the explicit semantic payload after onPayload hooks, plus
 // the untouched transcript separately. Only fixture roots/note filenames are
 // normalized here; audit strings, prompt sections and tool schemas are NEVER removed.
+// The one exception is the user-input `file-audit-changes` notice: it is the documented,
+// only File Audit text that reaches the model, so the normalized A/B comparison removes
+// exactly that message and nothing else. Raw (non-normalized) text keeps it.
+const CHANGE_NOTICE = 'File Audit: files you read, wrote or edited earlier in this session differ';
+const messageText = message => typeof message?.content === 'string' ? message.content
+  : (message?.content ?? []).filter(part => part?.type === 'text').map(part => part.text).join(' ');
+export const isChangeNotice = message => message?.role === 'user' && messageText(message).startsWith(CHANGE_NOTICE);
 export function requestText(request, home, normalize) {
-  const value = JSON.stringify(request.payload);
+  const payload = normalize && Array.isArray(request.payload?.messages)
+    ? { ...request.payload, messages: request.payload.messages.filter(message => !isChangeNotice(message)) }
+    : request.payload;
+  const value = JSON.stringify(payload);
   if (!normalize) return value;
   // Tool results can embed the resolved path inside nested JSON text, so cover several escape depths (deepest first).
   let escapedHome = home;

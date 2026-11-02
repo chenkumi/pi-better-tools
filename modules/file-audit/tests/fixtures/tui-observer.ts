@@ -27,9 +27,12 @@ export default function tuiObserver(pi: ExtensionAPI, extraScripts: Record<strin
     models: [{ id: "fixture", name: "Audit A/B offline", reasoning: false, input: ["text"], contextWindow: 128000,
       maxTokens: 2048, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }],
     streamSimple(model, context, options) {
-      const user = [...context.messages].reverse().find(message => message.role === "user") as any;
-      const text = typeof user?.content === "string" ? user.content : (user?.content ?? []).filter((x: any) => x.type === "text").map((x: any) => x.text).join(" ");
-      const name = Object.keys(scripts).find(key => text.trim() === key);
+      // The File Audit change notice is also a user-role message and can be the newest one,
+      // so select the newest user message that is actually a scenario key.
+      const userText = (message: any) => typeof message.content === "string" ? message.content
+        : (message.content ?? []).filter((x: any) => x.type === "text").map((x: any) => x.text).join(" ");
+      const keyed = [...context.messages].reverse().find((message: any) => message.role === "user" && Object.keys(scripts).includes(userText(message).trim()));
+      const name = keyed ? userText(keyed).trim() : undefined;
       if (!name) throw new Error("Unexpected A/B prompt");
       if (name !== scenario) { scenario = name; step = 0; }
       const operation = scripts[name][step++];
