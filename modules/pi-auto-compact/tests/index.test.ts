@@ -34,12 +34,25 @@ test('registers exactly one hook and the three deferred read-only session tools,
   for (const tool of tools) { assert.equal(tool.exposure, 'deferred'); assert.equal(tool.namespace?.name, 'session'); }
 });
 
-test('the skeleton hands compaction back to Pi and stays silent with a valid or missing file', async () => {
+test('a valid or missing file stays silent, and an event Pi cannot be helped with goes back to Pi', async () => {
   const { handlers } = load(), notices: string[] = [];
-  const ctx = { hasUI: true, ui: { notify: (message: string) => notices.push(message) } };
-  await withAgentDir(undefined, async () => assert.equal(await handlers.get('session_before_compact')!({}, ctx), undefined));
-  await withAgentDir('{ "l1Ratio": 0.4 }', async () => assert.equal(await handlers.get('session_before_compact')!({}, ctx), undefined));
+  const ctx = { hasUI: true, ui: { notify: (message: string) => notices.push(message) }, model: undefined, sessionManager: { getSessionFile: () => undefined, getSessionId: () => 's' } };
+  const event = { preparation: { firstKeptEntryId: 'x', tokensBefore: 1 }, branchEntries: [] };
+  await withAgentDir(undefined, async () => assert.equal(await handlers.get('session_before_compact')!(event, ctx), undefined));
+  await withAgentDir('{ "l1Ratio": 0.4 }', async () => assert.equal(await handlers.get('session_before_compact')!(event, ctx), undefined));
   assert.deepEqual(notices, []);
+});
+
+test('an unexpected failure warns once and hands compaction back to Pi', async () => {
+  const { handlers } = load(), notices: string[] = [];
+  const ctx = { hasUI: true, ui: { notify: (message: string) => notices.push(message) }, model: { contextWindow: 1000 }, sessionManager: { getSessionFile: () => undefined, getSessionId: () => 's' } };
+  const broken = { preparation: { firstKeptEntryId: 'x', tokensBefore: 1 }, get branchEntries(): never { throw new Error('boom'); } };
+  await withAgentDir(undefined, async () => {
+    assert.equal(await handlers.get('session_before_compact')!(broken, ctx), undefined);
+    assert.equal(await handlers.get('session_before_compact')!(broken, ctx), undefined);
+  });
+  assert.equal(notices.length, 1);
+  assert.match(notices[0]!, /boom.*left to Pi/);
 });
 
 test('an invalid file warns once with a UI, never without one, and still hands compaction back to Pi', async () => {

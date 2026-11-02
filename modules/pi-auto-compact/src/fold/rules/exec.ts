@@ -17,7 +17,7 @@ function shellOutcome(_call: ToolCallInfo, result: ToolResultInfo): string {
   if (code === undefined) return `failed${duration}: ${oneLine(result.text, 240)}`;
   const body = result.text.replace(/\n*Command exited with code \d+\s*$/, '');
   const tail = tailLines(body, code === 0 ? 2 : 5);
-  return `exit ${code}${duration}${truncated}${tail.length ? `; tail: ${tail.map(line => JSON.stringify(line)).join(' ')}` : ''}`;
+  return `exit ${code}${duration}${truncated}${tail.length ? `; tail: ${tail.map(line => JSON.stringify(redact(line))).join(' ')}` : ''}`;
 }
 
 const shell = (): FoldRule => ({ args: command, ok: shellOutcome, errors: 'own' });
