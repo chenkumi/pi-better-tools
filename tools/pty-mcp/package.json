@@ -1,0 +1,15 @@
+{
+  "name": "pty-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local MCP server: drive and observe terminal programs (such as the Pi TUI) through a PTY with a rendered screen.",
+  "scripts": {
+    "test": "node test.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@xterm/headless": "^6.0.0",
+    "zod": "^4.6.7"
+  }
+}

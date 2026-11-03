@@ -15,7 +15,7 @@ export const progressCheckpointTool = defineTool({
   promptSnippet: 'Record a brief progress report during a long task and keep working',
   annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   defaultActive: true,
-  parameters: Type.Object({ summary: Type.String({ minLength: 1, maxLength: 1500, description: 'Two to four sentences: what is done, what is in progress, what is next.' }) }, { additionalProperties: false }),
+  parameters: Type.Object({ summary: Type.String({ minLength: 1, description: 'Two to four sentences: what is done, what is in progress, what is next.' }) }, { additionalProperties: false }),
   async execute() {
     return { content: [{ type: 'text' as const, text: 'Progress recorded. Continue the task.' }], details: {} };
   },

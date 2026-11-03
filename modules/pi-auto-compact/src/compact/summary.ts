@@ -2,7 +2,7 @@ import type { AutoCompactConfig } from '../config.ts';
 import { formatRef } from '../fold/ref.ts';
 import { asRecord, str } from '../fold/util.ts';
 import type { Entry, Item } from './items.ts';
-import { budgetsFor, chooseLayout, firstVisible } from './layout.ts';
+import { budgetsFor, chooseLayout, firstVisible, type Layout } from './layout.ts';
 import { length, renderL2, renderL3 } from './render.ts';
 import { goalLine, stateLines } from './state.ts';
 
@@ -24,10 +24,11 @@ export interface CompactionDetails {
     keptChars: number;
     estimatedTokens: number;
     /** Which part of the total guard had to act: nothing, the L4 slack (window start reset), L3, or L2. */
-    guard: 'none' | 'l4' | 'l3' | 'l2';
-    windowStartKept: boolean;
+    guard: 'none' | 'l4' | 'l3' | 'l2';    windowStartKept: boolean;
     /** How many entries the cut moved later than Pi's to keep the raw tail within its budget (0 = Pi's cut). */
     cutMoved: number;
+    /** L1 budget the raw tail left unused, added to the L2 budget for this compaction. */
+    l2Lent: number;
   };
 }
 
@@ -74,7 +75,29 @@ function header(first: Item | undefined, whole: boolean, sessionId: string | und
     : [`Session ${sessionId}: older conversation is not shown. History below starts at ${mark}; older entries: session_window before=${first.ref.line}. ⟦L<line>:<id>⟧ marks a line of the session file: ${tools}.`];
 }
 
+/** Estimated characters the summary spends on fixed text, for the total ceiling only: the header block, and each section title with its blank line. */
 const HEADER_RESERVE = 600;
+const STATE_TITLE_CHARS = 24;
+const EARLIER_TITLE_CHARS = 28;
+const RECENT_TITLE_CHARS = 24;
+/** A volatile block is preceded by one blank line. */
+const BLOCK_SEPARATOR_CHARS = 2;
+
+type Guard = CompactionDetails['stats']['guard'];
+
+/**
+ * Applies the total ceiling to the section starts chosen by `chooseLayout`. In order: the recorded window start is dropped (the
+ * L4 slack resets to the nominal L3 start), then L3 loses its oldest items, then L2 does. L1 is never touched. `total` is the
+ * estimated summary size for a given pair of section starts.
+ */
+function enforceCeiling(layout: Layout, lens3: readonly number[], n: number, limit: number, total: (l3Start: number, l2Start: number) => number) {
+  let { l2Start, l3Start } = layout, keptStart = layout.keptStart, guard: Guard = 'none';
+  const over = () => total(l3Start, l2Start) > limit;
+  if (over() && keptStart) { l3Start = layout.nominalStart; keptStart = false; guard = 'l4'; }
+  while (over() && l3Start < l2Start) { l3Start = firstVisible(lens3, l3Start + 1, l2Start); guard = 'l3'; }
+  while (over() && l2Start < n) { l2Start++; l3Start = Math.max(l3Start, l2Start); guard = 'l2'; }
+  return { l2Start, l3Start, keptStart, guard };
+}
 
 /**
  * Builds the compaction summary from the items before Pi's cut. Pure: the same input gives the same bytes.
@@ -85,25 +108,28 @@ const HEADER_RESERVE = 600;
 export function composeSummary(input: SummaryInput): SummaryResult {
   const { items, config, contextWindow } = input;
   const n = items.length;
-  const rendered2 = items.map(item => renderL2(item));
-  const rendered3 = items.map(item => renderL3(item));
+  // A user message is shown whole up to half of its section's configured budget (never the borrowed part, so rendering does not
+  // depend on how full L1 was); longer ones keep head and tail.
+  const budgets = budgetsFor(config, contextWindow);
+  const rendered2 = items.map(item => renderL2(item, Math.floor(budgets.l2 / 2)));
+  const rendered3 = items.map(item => renderL3(item, Math.floor(budgets.l3 / 2)));
   const lens2 = rendered2.map(lines => length(lines));
   const lens3 = rendered3.map(line => (line === undefined ? 0 : line.length + 1));
   const previousIdx = input.previousStartEntryId ? items.findIndex(item => item.entryId === input.previousStartEntryId) : -1;
-  const layout = chooseLayout(lens2, lens3, budgetsFor(config, contextWindow), previousIdx);
+  // The raw tail (L1) rarely fills its budget (a parallel batch of large results cannot be split); what it leaves is lent to L2,
+  // so L1 + L2 stays near `l1 + l2` however full L1 is. The worst case total does not change.
+  const l2Lent = Math.max(0, budgets.l1 - input.keptChars);
+  const layout = chooseLayout(lens2, lens3, { ...budgets, l2: budgets.l2 + l2Lent }, previousIdx);
 
   const goal = goalLine(items), state = stateLines(items, input.cwd);
   const volatile = (input.volatile ?? []).filter(block => block.length > 0);
-  const fixed = HEADER_RESERVE + (goal ? goal.length + 1 : 0) + length(state) + (state.length ? 24 : 0) + volatile.reduce((sum, block) => sum + block.length + 2, 0);
-  const sectionHeaders = (l3: boolean, l2: boolean) => (l3 ? 28 : 0) + (l2 ? 24 : 0);
+  const fixed = HEADER_RESERVE + (goal ? goal.length + 1 : 0) + length(state) + (state.length ? STATE_TITLE_CHARS : 0) + volatile.reduce((sum, block) => sum + block.length + BLOCK_SEPARATOR_CHARS, 0);
+  const sectionTitles = (l3: boolean, l2: boolean) => (l3 ? EARLIER_TITLE_CHARS : 0) + (l2 ? RECENT_TITLE_CHARS : 0);
   const prefix = (lens: readonly number[]) => { const out = [0]; for (const value of lens) out.push(out[out.length - 1]! + value); return out; };
   const pre2 = prefix(lens2), pre3 = prefix(lens3);
-  let { l2Start, l3Start } = layout, guard: CompactionDetails['stats']['guard'] = 'none', keptStart = layout.keptStart;
-  const total = () => fixed + sectionHeaders(l3Start < l2Start, l2Start < n) + (pre3[l2Start]! - pre3[l3Start]!) + (pre2[n]! - pre2[l2Start]!) + input.keptChars;
+  const total = (l3Start: number, l2Start: number) => fixed + sectionTitles(l3Start < l2Start, l2Start < n) + (pre3[l2Start]! - pre3[l3Start]!) + (pre2[n]! - pre2[l2Start]!) + input.keptChars;
   const limit = config.maxTotalRatio * contextWindow * config.charsPerToken;
-  if (total() > limit && keptStart) { l3Start = layout.nominalStart; keptStart = false; guard = 'l4'; }
-  while (total() > limit && l3Start < l2Start) { l3Start = firstVisible(lens3, l3Start + 1, l2Start); guard = 'l3'; }
-  while (total() > limit && l2Start < n) { l2Start++; l3Start = Math.max(l3Start, l2Start); guard = 'l2'; }
+  const { l2Start, l3Start, keptStart, guard } = enforceCeiling(layout, lens3, n, limit, total);
 
   const firstShownIdx = l3Start < l2Start ? l3Start : l2Start < n ? l2Start : -1;
   const firstShown = firstShownIdx >= 0 ? items[firstShownIdx] : undefined;
@@ -114,7 +140,7 @@ export function composeSummary(input: SummaryInput): SummaryResult {
   if (state.length) out.push('', '## State at compaction', ...state);
   for (const block of volatile) out.push('', block);
 
-  const keptTotal = total();
+  const keptTotal = total(l3Start, l2Start);
   return {
     summary: out.join('\n'),
     details: {
@@ -123,7 +149,7 @@ export function composeSummary(input: SummaryInput): SummaryResult {
       stats: {
         items: n, shownConversation: Math.max(0, l2Start - l3Start), shownActivity: n - l2Start, notShown: l3Start,
         conversationChars: pre3[l2Start]! - pre3[l3Start]!, activityChars: pre2[n]! - pre2[l2Start]!, keptChars: input.keptChars,
-        estimatedTokens: Math.round(keptTotal / config.charsPerToken), guard, windowStartKept: keptStart, cutMoved: input.cutMoved ?? 0,
+        estimatedTokens: Math.round(keptTotal / config.charsPerToken), guard, windowStartKept: keptStart, cutMoved: input.cutMoved ?? 0, l2Lent,
       },
     },
   };

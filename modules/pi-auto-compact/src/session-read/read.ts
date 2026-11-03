@@ -1,7 +1,7 @@
 import { asRecord, str } from '../fold/util.ts';
 import { MAX_LINE_BYTES, scanLines } from './lines.ts';
 import { renderEntry } from './render.ts';
-import { isCurrent, pickSession, SessionReadError, type SessionFile } from './sessions.ts';
+import { integer, isCurrent, pickSession, SessionReadError, type SessionFile } from './sessions.ts';
 
 export { SessionReadError };
 
@@ -25,11 +25,6 @@ export interface SessionReadResult {
   text: string;
   details: { sessionId: string; line: number; toLine: number; chars: number; truncated: boolean; nextLine?: number; nextOffset?: number };
 }
-
-const integer = (value: unknown, name: string, min: number): number => {
-  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < min) throw new SessionReadError(`"${name}" must be an integer >= ${min}.`);
-  return value;
-};
 
 const topLevelId = (text: string | undefined): string | undefined => {
   if (text === undefined) return undefined;

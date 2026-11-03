@@ -1,5 +1,5 @@
 import type { FoldRule, ToolCallInfo, ToolResultInfo } from '../types.ts';
-import { asRecord, list, num, oneLine, plural, redact, str, tailLines } from '../util.ts';
+import { asRecord, idStatusList, num, oneLine, redact, str, tailLines } from '../util.ts';
 
 const detailsOf = (result: ToolResultInfo) => asRecord(result.details) ?? {};
 const session = (call: ToolCallInfo) => str(call.args.sessionId) ?? '';
@@ -21,10 +21,7 @@ export const ptyRules: Record<string, FoldRule> = {
   },
   pty_list: {
     args: () => '',
-    ok: (_call, result) => {
-      const sessions = list(result.details).map(asRecord).filter((item): item is Record<string, unknown> => item !== undefined);
-      return `${plural(sessions.length, 'session')}${sessions.length ? `: ${sessions.slice(0, 5).map(item => `${str(item.sessionId) ?? '?'}=${str(item.state) ?? '?'}`).join(', ')}${sessions.length > 5 ? ', …' : ''}` : ''}`;
-    },
+    ok: (_call, result) => idStatusList(result.details, 'session', 'sessionId', 'state'),
   },
   pty_read: { args: session, ok: (_call, result) => readOutcome(result) },
   pty_write: { args: session, ok: (_call, result) => (asRecord(detailsOf(result).cursor) ? readOutcome(result) : 'ok') },

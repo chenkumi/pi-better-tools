@@ -49,6 +49,8 @@ describe("engine settings reject unknown keys", () => {
       { mssql: { ...base, trustServerCertificate: "no" } },
       { mssql: { ...base, instanceName: 5 } },
       { mysql: { ...base, odbcDriver: "x" } },
+      { mysql: { ...base, trustServerCertificate: "no" } },
+      { pgsql: { ...base, trustServerCertificate: true } },
       { mysql: "not an object" },
       { oracle: base },
       [],
@@ -69,5 +71,6 @@ describe("engine settings reject unknown keys", () => {
   it("every documented key still loads", async () => {
     await expect(load({ mssql: { ...base, port: 1433, ssl: true, windowsAuth: false, instanceName: "SQLEXPRESS", odbcDriver: "ODBC Driver 18 for SQL Server", trustServerCertificate: true } })).resolves.toBeDefined();
     await expect(load({ pgsql: { ...base, port: 5432, ssl: true } })).resolves.toBeDefined();
+    await expect(load({ mysql: { ...base, port: 3306, ssl: true, trustServerCertificate: true } })).resolves.toBeDefined();
   });
 });

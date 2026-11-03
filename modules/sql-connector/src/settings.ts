@@ -48,7 +48,7 @@ function engineFields(engine: Engine): Field[] {
     { key: k("passEnv"), type: "string", group, label: "Password env name", visibleWhen: (v) => sql(v) && v[k("passSource")] === "env", placeholder: "e.g. PGPASSWORD", help: "The variable name, not the password." },
     { key: k("password"), type: "secret", group, label: "Password", visibleWhen: (v) => sql(v) && v[k("passSource")] === "key", configured: (v) => v[k("passSet")] === true, help: "Plain text in the file. Leave empty to keep the stored password." },
     { key: k("ssl"), type: "boolean", group, label: "TLS", visibleWhen: on },
-    ...(engine === "mssql" ? [{ key: k("trustServerCertificate"), type: "boolean", group, label: "Trust server certificate", visibleWhen: on, help: "Skips certificate verification. Only for a local or self-signed server you trust." } satisfies Field] : []),
+    ...(engine === "mssql" || engine === "mysql" ? [{ key: k("trustServerCertificate"), type: "boolean", group, label: "Trust server certificate", visibleWhen: on, help: "Skips certificate verification. Only for a local or self-signed server you trust." } satisfies Field] : []),
   ];
 }
 
@@ -75,11 +75,11 @@ export function sqlConnectorSettings(path: string): SettingsSchema<Document> {
         v[k("passEnv")] = ref?.[1] ?? "";
         v[k("passSet")] = !!password && !ref; // presence only; the password is never loaded into the panel
         v[k("ssl")] = block?.ssl === true;
+        if (engine === "mssql" || engine === "mysql") v[k("trustServerCertificate")] = block?.trustServerCertificate === true;
         if (engine === "mssql") {
           v[k("windowsAuth")] = block?.windowsAuth === true;
           v[k("instanceName")] = str(block?.instanceName);
           v[k("odbcDriver")] = str(block?.odbcDriver);
-          v[k("trustServerCertificate")] = block?.trustServerCertificate === true;
         }
       }
       return v;
@@ -102,8 +102,8 @@ export function sqlConnectorSettings(path: string): SettingsSchema<Document> {
           if (windows) block.windowsAuth = true;
           if (instance) block.instanceName = instance;
           if (windows && text("odbcDriver") && text("odbcDriver") !== DEFAULT_ODBC) block.odbcDriver = text("odbcDriver");
-          if (v[k("trustServerCertificate")] === true) block.trustServerCertificate = true;
         }
+        if ((engine === "mssql" || engine === "mysql") && v[k("trustServerCertificate")] === true) block.trustServerCertificate = true;
         if (!windows) {
           if (text("username")) block.username = text("username");
           const source = v[k("passSource")];

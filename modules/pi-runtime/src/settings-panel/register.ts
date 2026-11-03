@@ -51,6 +51,7 @@ async function open<C>(schema: SettingsSchema<C>, ctx: ExtensionCommandContext):
   }), { overlay: true, overlayOptions: { anchor: 'center', width: '90%', maxHeight: '90%', margin: 1 } });
   if (!saved) return;
   ctx.ui.notify(`Saved ${schema.path}.${schema.afterSave ? ` ${schema.afterSave}` : ''}`, 'info');
+  if (schema.appliesWithoutReload) return;
   if (await ctx.ui.confirm(`${schema.title} settings`, 'Settings are read when extensions load. Reload now?')) await ctx.reload();
   else ctx.ui.notify('Run /reload to apply the new settings.', 'info');
 }

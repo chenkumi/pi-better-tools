@@ -3,7 +3,9 @@ import { registerCheckpoint } from './checkpoint/hooks.ts';
 import { progressCheckpointTool } from './checkpoint/tool.ts';
 import { autoCompact } from './compact/hook.ts';
 import { loadConfig } from './config.ts';
+import { registerGuidance } from './guidance.ts';
 import { sessionTools } from './session-read/tool.ts';
+import { registerAutoCompactSettings } from './settings.ts';
 
 /**
  * pi-auto-compact: deterministic compaction that never calls a model.
@@ -18,6 +20,8 @@ export default function piAutoCompact(pi: ExtensionAPI) {
   for (const tool of sessionTools) pi.registerTool(tool);
   pi.registerTool(progressCheckpointTool);
   registerCheckpoint(pi);
+  registerGuidance(pi);
+  registerAutoCompactSettings(pi);
   let warned = false;
   const warn = (ctx: { hasUI: boolean; ui: { notify(message: string, type?: 'info' | 'warning' | 'error'): void } }, message: string) => {
     if (warned || !ctx.hasUI) return;

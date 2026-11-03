@@ -121,6 +121,17 @@ describe("MySQL runtime", () => {
     expect((mysql.poolOptions as { queueLimit: number }).queueLimit).toBe(32);
   });
 
+  it("verifies the server certificate with ssl, and skips verification only when trusted explicitly", async () => {
+    const tls = async (overrides: object) => {
+      await new SqlConnectorRuntime({ mysql: { ...base, port: 3306, ...overrides } }).state("mysql");
+      return (mysql.poolOptions as { ssl?: unknown }).ssl;
+    };
+    expect(await tls({})).toBeUndefined();
+    expect(await tls({ trustServerCertificate: true })).toBeUndefined();
+    expect(await tls({ ssl: true })).toEqual({});
+    expect(await tls({ ssl: true, trustServerCertificate: true })).toEqual({ rejectUnauthorized: false });
+  });
+
   it("runs reads with a timeout inside a read-only transaction", async () => {
     const runtime = new SqlConnectorRuntime({ mysql: { ...base, port: 3306 } });
     await runtime.query("mysql", "SELECT id FROM t WHERE id = ? LIMIT 1", [1]);

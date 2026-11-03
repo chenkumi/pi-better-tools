@@ -7,7 +7,6 @@ import { backgroundJobsSection } from '../state/jobs.ts';
 import { activeMonitorsSection } from '../state/monitors.ts';
 import { workingTreeLines } from '../state/worktree.ts';
 import { buildItems, type Entry } from './items.ts';
-import { ANCHOR_TOOL } from '../checkpoint/messages.ts';
 import { budgetsFor } from './layout.ts';
 import { composeSummary, previousWindowStart } from './summary.ts';
 
@@ -49,35 +48,25 @@ const CUT_ROLES = new Set(['user', 'assistant', 'bashExecution']);
 /** The entries Pi allows as the first kept entry: conversation messages and notes, never a tool result (it would lose its call). */
 const isCutPoint = (entry: Entry): boolean => (entry.type === 'message' && CUT_ROLES.has(str(asRecord(entry.message)?.role) ?? '')) || entry.type === 'custom_message' || entry.type === 'branch_summary';
 
-/** A cut point that starts at something a reader can follow: a user message, or an assistant message with text or an anchor-tool report. */
-const isTextPoint = (entry: Entry): boolean => {
-  const message = asRecord(entry.message);
-  if (entry.type !== 'message') return entry.type === 'custom_message' || entry.type === 'branch_summary';
-  if (message?.role === 'user') return true;
-  return message?.role === 'assistant' && list(message.content).some(block => { const b = asRecord(block); return (b?.type === 'text' && (str(b.text) ?? '').trim() !== '') || (b?.type === 'toolCall' && b.name === ANCHOR_TOOL); });
-};
-
 /**
  * L1 ceiling. Pi's cut keeps its own token budget of recent messages, counted at four characters per token, which can be far more
  * real tokens than the user wants to spend on raw history (JSON, code and CJK text run near two characters per token). When the
  * kept tail exceeds `budget` characters the cut moves later, to the first allowed cut point whose tail fits; everything before it
- * goes into the summary. The cut may fall inside a long turn, as Pi's own split-turn cut does. Among the cut points that fit, the first
- * one that starts at text (a user message, assistant text, or an anchor-tool report) wins, so the raw tail begins at a clear boundary;
- * with none, the first that fits. If nothing fits, the latest cut point is used, so something stays raw and tool calls keep their results.
+ * goes into the summary. The cut may fall inside a long turn, as Pi's own split-turn cut does. This is pure budget: savepoints and
+ * text do not influence it (they only shape the L2/L3 border, see `chooseLayout`), because savepoints can be further apart than the
+ * whole budget. If nothing fits, the latest cut point is used, so something stays raw and tool calls keep their results.
  */
 export function limitKept(entries: readonly Entry[], cut: number, budget: number): number {
   const tail: number[] = new Array(entries.length + 1).fill(0);
   for (let i = entries.length - 1; i >= 0; i--) tail[i] = tail[i + 1]! + keptChars(entries[i]!);
   if (tail[cut]! <= budget) return cut;
-  let latest = cut, fits = -1;
+  let latest = cut;
   for (let i = cut + 1; i < entries.length; i++) {
     if (!isCutPoint(entries[i]!)) continue;
     latest = i;
-    if (tail[i]! > budget) continue;
-    if (isTextPoint(entries[i]!)) return i;
-    if (fits < 0) fits = i;
+    if (tail[i]! <= budget) return i;
   }
-  return fits >= 0 ? fits : latest;
+  return latest;
 }
 
 export interface HookContext {

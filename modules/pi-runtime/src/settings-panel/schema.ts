@@ -64,6 +64,8 @@ export interface SettingsSchema<C = unknown> {
   afterWrite?(values: Values, dirty: ReadonlySet<string>): Promise<string | undefined> | string | undefined;
   /** Short note shown after a successful save. */
   afterSave?: string;
+  /** The module re-reads the file on every use, so a saved change applies without a reload: Save does not ask to reload. */
+  appliesWithoutReload?: boolean;
   /** Shown under the title (for example "an environment variable currently overrides this file"). */
   notice?: string;
   /** When every key has been removed, delete the file instead of writing `{}` (the module treats "no file" as its default). */

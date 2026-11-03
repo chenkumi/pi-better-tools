@@ -30,9 +30,11 @@
 
 MSSQL SQL Authentication 使用 username/password；Windows Authentication 使用 windowsAuth true 並省略帳密。Named instance 使用 instanceName，該情況不要指定 port；Windows Authentication 預設 ODBC Driver 18 for SQL Server。trustServerCertificate true 只限明確信任的本機／自簽開發伺服器，不為成功連線自動降低 TLS。
 
+MSSQL 與 MySQL 支援 `trustServerCertificate`（PostgreSQL 不支援、會被拒絕）。MySQL 需同時 `ssl: true`：只設 `ssl` 會驗證憑證與主機名稱；加 `trustServerCertificate: true` 則加密但不驗證（無法防中間人），用於自簽憑證的受信任內網／開發伺服器；只設 `trustServerCertificate` 而沒有 `ssl` 不會啟用 TLS。
+
 設定變更後 reload；未信任／缺設定／無效設定不註冊 DB 工具。池在首次實際操作時建立，shutdown 關閉。與 SQLite 的 SQLITE_PATH／manual-open 模式無關。
 
-- `/settings:sql-connector`（僅互動 TUI、僅受信任專案）開面板：每種引擎一個開關與連線欄位；密碼來源 `env`（寫成 `${VAR}`，建議）或 `key`（遮罩輸入、明文存入 JSON，既有密碼不回顯、留空保留）。只在存檔時寫專案 `sql-connector.json`，只重建被改的引擎區塊、其餘原樣保留；關閉最後一個引擎時刪除檔案；不降級 TLS／認證（`trustServerCertificate` 預設關）。存檔後詢問是否 `/reload`。
+- `/settings:sql-connector`（僅互動 TUI、僅受信任專案）開面板：每種引擎一個開關與連線欄位；密碼來源 `env`（寫成 `${VAR}`，建議）或 `key`（遮罩輸入、明文存入 JSON，既有密碼不回顯、留空保留）。只在存檔時寫專案 `sql-connector.json`，只重建被改的引擎區塊、其餘原樣保留；關閉最後一個引擎時刪除檔案；不降級 TLS／認證（MSSQL／MySQL 的 `trustServerCertificate` 預設關，需使用者主動開啟）。存檔後詢問是否 `/reload`。
 
 ## 安裝與驗證
 

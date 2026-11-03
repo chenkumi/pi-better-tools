@@ -4,6 +4,12 @@ import { scanLines } from './lines.ts';
 
 export class SessionReadError extends Error {}
 
+/** A tool argument that must be a safe integer of at least `min`; anything else is reported to the model under the argument's name. */
+export const integer = (value: unknown, name: string, min: number): number => {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < min) throw new SessionReadError(`"${name}" must be an integer >= ${min}.`);
+  return value;
+};
+
 export interface SessionFile { id: string; file: string }
 
 const MAX_ANCESTORS = 16;

@@ -2,9 +2,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * Parameters of the deterministic compaction. The file is user-level only (`<agentDir>/auto-compact.json`), is read and
- * never written by this module, and carries no on/off switch: whether the engine runs is decided by whether the
- * extension entry is mounted.
+ * Parameters of the deterministic compaction. The file is user-level only (`<agentDir>/auto-compact.json`), is re-read on every
+ * use, is written only by the `/settings:auto-compact` panel (on Save), and carries no on/off switch: whether the engine runs is
+ * decided by whether the extension entry is mounted.
  */
 export interface AutoCompactConfig {
   /** L1 budget = max(ctx × l1Ratio, l1MinChars) characters; ctx is the model context window in tokens. */

@@ -71,13 +71,13 @@ export const sessionReadTool = defineTool({
   },
 });
 
-/** Outline of a line range: conversation text clipped and every tool call folded to one line with its reference. */
+/** Outline of a line range with the L3 rules: conversation text only, no tool calls. */
 export const sessionWindowTool = defineTool({
   ...shared,
   name: SESSION_WINDOW_TOOL,
   label: 'Session Window',
   description:
-    'Outline a range of this conversation by line number: user and assistant text clipped, each tool call folded to one line, compaction boundaries marked, each with a ⟦L<line>:<id>⟧ reference for session_read. ' +
+    'Outline a range of this conversation by line number: user and assistant text clipped (a progress checkpoint counts as assistant text), compaction boundaries marked, each with a ⟦L<line>:<id>⟧ reference for session_read. Tool calls and results are not listed: find them with session_grep, or read an entry with session_read. ' +
     'After a compaction the visible history may start late; use before=<first line you can see> to look further back. Entries on abandoned branches are marked.',
   promptSnippet: 'Outline a range of earlier conversation lines (use before=<line> to look further back).',
   parameters: Type.Object({

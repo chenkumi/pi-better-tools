@@ -14,7 +14,8 @@ const scenario = process.argv[2] ?? 'full';
 const home = homedir(), agentDir = join(home, '.pi/agent'), cwd = join(home, 'workspace');
 await mkdir(agentDir, { recursive: true }); await mkdir(cwd, { recursive: true }); await writeFile(join(agentDir, 'auth.json'), '{}');
 const workspace = await realpath(cwd);
-const SMALL = { l2Ratio: 0.0001, l2MinChars: 1500, l3Ratio: 0.0001, l3MinChars: 1200, l4Ratio: 0.0001, l4MinChars: 1500, maxTotalRatio: 1 };
+// L1 is small too: the unused part of L1 is lent to L2, and a default-size L1 would lend more than this whole history.
+const SMALL = { l1Ratio: 0.0001, l1MinChars: 3000, l2Ratio: 0.0001, l2MinChars: 1500, l3Ratio: 0.0001, l3MinChars: 1200, l4Ratio: 0.0001, l4MinChars: 1500, maxTotalRatio: 1 };
 await writeFile(join(agentDir, 'auto-compact.json'), scenario === 'invalid-config' ? '{ "enabled": true }' : JSON.stringify(SMALL));
 
 const zero = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };

@@ -1,5 +1,5 @@
 import type { FoldRule, ToolCallInfo, ToolResultInfo } from '../types.ts';
-import { asRecord, formatDuration, list, num, oneLine, parseJson, plural, redact, str, tailLines } from '../util.ts';
+import { asRecord, formatDuration, idStatusList, list, num, oneLine, parseJson, plural, redact, str, tailLines } from '../util.ts';
 
 const command = (call: ToolCallInfo) => {
   const background = call.args.background === true ? ' [background]' : '';
@@ -34,10 +34,7 @@ export const execRules: Record<string, FoldRule> = {
     args: call => str(call.args.jobId) ?? '',
     ok: (_call, result) => {
       const parsed = parseJson(result.text);
-      if (Array.isArray(parsed)) {
-        const items = parsed.map(asRecord).filter((item): item is Record<string, unknown> => item !== undefined);
-        return `${plural(items.length, 'job')}${items.length ? `: ${items.slice(0, 5).map(item => `${str(item.jobId) ?? '?'}=${str(item.status) ?? '?'}`).join(', ')}${items.length > 5 ? ', …' : ''}` : ''}`;
-      }
+      if (Array.isArray(parsed)) return idStatusList(parsed, 'job', 'jobId', 'status');
       const object = asRecord(parsed);
       return object ? jobStatus(object) : oneLine(result.text, 160);
     },

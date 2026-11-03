@@ -32,6 +32,8 @@ export const asRecord = (value: unknown): Record<string, unknown> | undefined =>
 export const str = (value: unknown): string | undefined => (typeof value === 'string' && value !== '' ? value : undefined);
 export const num = (value: unknown): number | undefined => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
 export const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+/** The object items of an array; anything that is not an object is dropped. */
+export const records = (value: unknown): Record<string, unknown>[] => list(value).map(asRecord).filter((item): item is Record<string, unknown> => item !== undefined);
 
 /** First line of text parsed as JSON, then the whole text. Returns undefined when neither parses. */
 export function parseJson(text: string): unknown {
@@ -67,8 +69,16 @@ export function tailLines(text: string, count: number, width = 160): string[] {
   return textLines(text).slice(-count).map(line => oneLine(line, width));
 }
 
-export function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? '' : 's'}`;
+export function plural(count: number, noun: string, many = `${noun}s`): string {
+  return `${count} ${count === 1 ? noun : many}`;
+}
+
+/** `3 jobs: a=running, b=done, …` — the first five items of a list as `id=status` pairs. */
+export function idStatusList(items: unknown, noun: string, idKey: string, statusKey: string): string {
+  const rows = records(items);
+  if (!rows.length) return plural(0, noun);
+  const shown = rows.slice(0, 5).map(item => `${str(item[idKey]) ?? '?'}=${str(item[statusKey]) ?? '?'}`).join(', ');
+  return `${plural(rows.length, noun)}: ${shown}${rows.length > 5 ? ', …' : ''}`;
 }
 
 /** Drops query and fragment: URLs routinely carry tokens in them. */

@@ -106,7 +106,7 @@ class MysqlAdapter implements Adapter {
       user: config.username,
       password: config.password,
       database: config.database,
-      ssl: config.ssl ? {} : undefined,
+      ssl: config.ssl ? (config.trustServerCertificate ? { rejectUnauthorized: false } : {}) : undefined,
       waitForConnections: true,
       connectionLimit: POOL_MAX_CONNECTIONS,
       queueLimit: MYSQL_QUEUE_LIMIT,

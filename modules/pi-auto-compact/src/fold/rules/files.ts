@@ -63,7 +63,7 @@ export const fileRules: Record<string, FoldRule> = {
     ok: (_call, result) => {
       const lines = textLines(result.text).filter(line => !line.startsWith('['));
       const count = lines.length === 1 && lines[0] === '(empty directory)' ? 0 : lines.length;
-      return `${plural(count, 'entry').replace('entrys', 'entries')}${detailsOf(result).entryLimitReached !== undefined ? ' (limit reached)' : ''}`;
+      return `${plural(count, 'entry', 'entries')}${detailsOf(result).entryLimitReached !== undefined ? ' (limit reached)' : ''}`;
     },
   },
   grep: { args: call => [quoted(call.args.pattern), str(call.args.path) ? `in ${pathArg(call)}` : ''].filter(Boolean).join(' '), ok: (_call, result) => searchOutcome(result) },
@@ -85,7 +85,7 @@ export const fileRules: Record<string, FoldRule> = {
   },
   session_window: {
     args: call => (num(call.args.before) !== undefined ? `before L${num(call.args.before)}` : `L${num(call.args.from) ?? '?'}${num(call.args.to) !== undefined ? `–${num(call.args.to)}` : ''}`),
-    ok: (_call, result) => { const d = detailsOf(result); return `${plural(num(d.entries) ?? 0, 'entry').replace('entrys', 'entries')}${d.truncated === true ? ' (truncated)' : ''}; outline not kept`; },
+    ok: (_call, result) => { const d = detailsOf(result); return `${plural(num(d.entries) ?? 0, 'entry', 'entries')}${d.truncated === true ? ' (truncated)' : ''}; outline not kept`; },
   },
   session_grep: {
     args: call => JSON.stringify(oneLine(redact(str(call.args.pattern) ?? ''), 60)),

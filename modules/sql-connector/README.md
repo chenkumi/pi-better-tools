@@ -36,9 +36,9 @@
 - 密碼接受 literal 或完整 `${ENV_VAR}`，不做任意字串插值。MySQL 可省略／留空 username、password、database 使用 driver/server 預設。
 - MSSQL SQL Authentication 使用 username／password；Windows Authentication 設 `windowsAuth: true`、省略 username／password。
 - MSSQL named instance 使用 `instanceName`，該情況不要指定 port。Windows Authentication 預設 `odbcDriver: "ODBC Driver 18 for SQL Server"`。
-- `ssl`／`trustServerCertificate` 保留來源行為；`trustServerCertificate: true` 只應用於明確信任的本機／自簽開發伺服器，不為了連線成功自動降低 TLS 驗證。
+- `ssl`／`trustServerCertificate` 保留來源行為；`trustServerCertificate: true` 只應用於明確信任的本機／自簽開發伺服器，不為了連線成功自動降低 TLS 驗證。MSSQL 與 MySQL 支援此欄位（PostgreSQL 不支援，仍拒絕）；MySQL 需同時 `ssl: true`，`trustServerCertificate: true` 時以 `ssl: { rejectUnauthorized: false }` 連線（加密但不驗證憑證與主機名稱，無法防範中間人）；不設或 `ssl` 為 false 時行為不變。
 
-`/settings:sql-connector`（僅互動 TUI、僅受信任專案）提供設定面板：每種引擎一個「Connect to …」開關，開啟後顯示 host／port／database／username／TLS，MSSQL 另有 Windows 認證、instance、ODBC driver、trust server certificate。密碼來源可選 `env`（寫成 `${VAR}`，建議）或 `key`（遮罩輸入、明文寫入 JSON，既有密碼不載入面板、留空表示保留）。只在存檔時寫 `<cwd>/.pi/agent/sql-connector.json`：只重建被改動的引擎區塊，其他引擎原樣保留；關閉引擎只移除其區塊，最後一個也關閉時刪除檔案；合併結果以本模組自己的驗證規則檢查（驗證不要求 `${VAR}` 已設定），失敗不落盤。面板不降級 TLS／認證，`trustServerCertificate` 預設關閉、需使用者主動開啟。存檔後詢問是否 `/reload`。
+`/settings:sql-connector`（僅互動 TUI、僅受信任專案）提供設定面板：每種引擎一個「Connect to …」開關，開啟後顯示 host／port／database／username／TLS，MSSQL 另有 Windows 認證、instance、ODBC driver；MSSQL 與 MySQL 另有 trust server certificate。密碼來源可選 `env`（寫成 `${VAR}`，建議）或 `key`（遮罩輸入、明文寫入 JSON，既有密碼不載入面板、留空表示保留）。只在存檔時寫 `<cwd>/.pi/agent/sql-connector.json`：只重建被改動的引擎區塊，其他引擎原樣保留；關閉引擎只移除其區塊，最後一個也關閉時刪除檔案；合併結果以本模組自己的驗證規則檢查（驗證不要求 `${VAR}` 已設定），失敗不落盤。面板不降級 TLS／認證，`trustServerCertificate` 預設關閉、需使用者主動開啟。存檔後詢問是否 `/reload`。
 
 修改設定後使用 `/reload` 或 `/sql-connector-reload`。連線池在首次實際操作時建立；shutdown／reload 關閉池，不跨行程恢復連線；每個池最多等待 5 秒，之後不再等待（驅動若卡在執行中的語句後面，連線留待行程結束），避免 MySQL 卡住的 UPDATE 讓 shutdown 永久等待。逾時（或關閉失敗）的池不視為已清理：shutdown 以互動 UI 警告未確認關閉的池數量，連線可能仍開著。
 

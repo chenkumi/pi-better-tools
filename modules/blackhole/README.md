@@ -48,7 +48,7 @@ Model/auth/endpoint resolution 亦受 captured positive `workerAttemptTimeoutMs`
 
 保留回歸：`tests/review-recall-safety.test.ts`、`review-history-bounds.test.ts`、`review-resolution-bound.test.ts` 和 `tests/integration/review-recall-host.test.ts`；只跑最小相關分組，沒有改既知 UI fixture 造 green。
 
-Status-bar provenance（2026-10-12）：目前 `src/om/status-bar.ts` 與 `tests/status-bar.test.ts` 經獨立完整查閱及現行測試，作為明示的新本地基準接受；兩筆舊 expected hash 對應的完整內容未能取回，不能宣稱精確歷史差異或僅換行變更。本專案已於 2026-10-26 依使用者要求移除檔案雜湊紀錄與驗證器，這些舊紀錄一併刪除。審查範圍與低風險 UI freshness／直接 session replacement／negative matrix 覆蓋限制見 `report/REPORT-20261012T061203580Z.md`；這不代表新產品修正或全面安全認證。
+Status-bar provenance（2026-10-12）：目前 `src/om/status-bar.ts` 與 `tests/status-bar.test.ts` 經獨立完整查閱及現行測試，作為明示的新本地基準接受；兩筆舊 expected hash 對應的完整內容未能取回，不能宣稱精確歷史差異或僅換行變更。本專案已於 2026-10-26 依使用者要求移除檔案雜湊紀錄與驗證器，這些舊紀錄一併刪除。審查範圍有限（低風險 UI freshness／直接 session replacement／negative matrix 未完整覆蓋）；這不代表新產品修正或全面安全認證。
 
 根驗證：`npm run test:module -- blackhole`（保留來源 Vitest runner，並有隔離 Pi 1.1.0 native compact/persist/resume/renderer probe）、`npm run test:cross` 和 `npm run test:package`。完整 suite 有環境／上游阻礙時必須回報失敗，不跳過、不當作通過；進度與證據見 repository `plan/`。
 

@@ -46,36 +46,58 @@ test('the live branch is the path from the leaf to the root; a gap in the links 
   } finally { f.done(); }
 });
 
-test('window outlines conversation, folds each call with its result line, and marks abandoned branches', async () => {
+test('window follows the L3 rules: conversation text only, no tool call or result, abandoned branches marked', async () => {
   const f = fixture();
   try {
     const result = await readWindow(f.readable, { from: 2, to: 8 });
     const out = result.text;
-    assert.match(out, /^Session SESS L2–8: 7 outline lines; 1 entry on abandoned branches \(marked\)/);
+    assert.match(out, /^Session SESS L2–8: 5 outline lines; 1 entry on abandoned branches \(marked\)/);
     assert.ok(out.includes('⟦L2:a0000001⟧ user: build the thing'));
     assert.ok(out.includes('⟦L3:a0000002⟧ assistant: ok, running tests'));
-    assert.ok(out.includes('  [bash] "npm test" → exit 1, 4.2s; tail: "1 failing" ⟦L4:a0000003⟧'), out);
     assert.ok(out.includes('⟦L5:a0000004⟧ (other branch) assistant: fixing the lockfile'));
-    assert.ok(out.includes('  [read] src/a.ts → lines 1–40 of 40 sha:abcdef01 ⟦L7:b0000006⟧'), out);
-    assert.ok(!out.includes('FILE BODY') && !out.includes('zebra'), 'tool output and thinking are not outlined');
-    assert.equal(result.details.entries, 5, 'two results are folded into their calls');
+    assert.ok(out.includes('⟦L6:b0000005⟧ assistant: trying another way'), 'the live branch carries no marker');
+    assert.ok(!/\[bash\]|\[read\]|npm test|src\/a\.ts|FILE BODY|zebra|tool call/.test(out), `no tool line, tool output or thinking: ${out}`);
+    assert.equal(result.details.entries, 5);
     assert.ok(!out.includes('[earlier'), 'range starts at the first conversation line');
   } finally { f.done(); }
 });
 
-test('window finds a result just past the end of the range, and reports unpaired calls and results', async () => {
+test('window treats a progress checkpoint as assistant text and hides tool-only entries, like the compaction summary does', async () => {
   const f = fixture();
   try {
-    const out = (await readWindow(f.readable, { from: 6, to: 6 })).text;
-    assert.ok(out.includes('  [read] src/a.ts → lines 1–40 of 40 sha:abcdef01 ⟦L7:b0000006⟧'), 'result is the line after the call');
-    const lone = (await readWindow(f.readable, { from: 7, to: 7 })).text;
-    assert.ok(lone.includes('[read] src/a.ts → lines 1–40 of 40 sha:abcdef01 ⟦L7:b0000006⟧') && !lone.includes('unpaired'), 'the call is before the range and is found');
-    const nocall = (await readWindow(f.readable, { from: 3, to: 3, maxChars: 1000 })).text;
-    assert.ok(nocall.includes('[bash] "npm test" → exit 1'), 'a result 1 line after is found');
-    const orphan = entry('o0000001', null, { role: 'toolResult', toolCallId: 'gone', toolName: 'bash', isError: false, content: text('orphan output') });
-    writeFileSync(f.file, `${JSON.stringify({ type: 'session', id: 'SESS' })}\n${orphan}\n`);
-    const unpaired = (await readWindow(f.readable, { from: 2, to: 2 })).text;
-    assert.ok(unpaired.includes('[bash] → (unpaired) orphan output ⟦L2:o0000001⟧'), unpaired);
+    const lines = [
+      JSON.stringify({ type: 'session', id: 'SESS' }),
+      entry('k0000001', null, { role: 'user', content: text('long task') }),
+      entry('k0000002', 'k0000001', { role: 'assistant', content: [{ type: 'toolCall', id: 't1', name: 'bash', arguments: { command: 'make' } }] }),
+      entry('k0000003', 'k0000002', { role: 'toolResult', toolCallId: 't1', toolName: 'bash', isError: false, content: text('built') }),
+      entry('k0000004', 'k0000003', { role: 'assistant', content: [{ type: 'text', text: 'checking' }, { type: 'toolCall', id: 'p1', name: 'progress_checkpoint', arguments: { summary: 'Parser done, tests next.' } }] }),
+      entry('k0000005', 'k0000004', { role: 'toolResult', toolCallId: 'p1', toolName: 'progress_checkpoint', isError: false, content: text('Progress recorded.') }),
+    ];
+    writeFileSync(f.file, `${lines.join(String.fromCharCode(10))}${String.fromCharCode(10)}`);
+    const out = (await readWindow(f.readable, { from: 2, to: 6 })).text;
+    assert.match(out, /^Session SESS L2–6: 2 outline lines/);
+    assert.ok(out.includes('⟦L2:k0000001⟧ user: long task'));
+    assert.ok(out.includes('⟦L5:k0000004⟧ assistant: checking Parser done, tests next.'), out);
+    assert.ok(!out.includes('make') && !out.includes('Progress recorded') && !out.includes('progress_checkpoint'), out);
+  } finally { f.done(); }
+});
+
+test('window shows a user message whole, an assistant message clipped, and a huge user message by head and tail', async () => {
+  const f = fixture();
+  try {
+    const ask = `${'Background for the job. '.repeat(50)}At the very end: also create FINAL.md.`;
+    const lines = [
+      JSON.stringify({ type: 'session', id: 'SESS' }),
+      entry('u0000001', null, { role: 'user', content: text(ask) }),
+      entry('u0000002', 'u0000001', { role: 'assistant', content: text(`${'long answer '.repeat(80)}ANSWER-END`) }),
+      entry('u0000003', 'u0000002', { role: 'user', content: text(`BEGIN ${'z'.repeat(30_000)} PASTE-END`) }),
+    ];
+    writeFileSync(f.file, `${lines.join(String.fromCharCode(10))}${String.fromCharCode(10)}`);
+    const out = (await readWindow(f.readable, { from: 2, to: 4, maxChars: 30_000 })).text;
+    assert.ok(out.includes('At the very end: also create FINAL.md.'), 'the end of a normal user message is there');
+    assert.ok(!out.includes('ANSWER-END'), 'assistant text is clipped');
+    assert.ok(out.includes('BEGIN') && out.includes('PASTE-END') && /\[… \d+ chars omitted …\]/.test(out), 'a pasted block keeps head and tail');
+    assert.ok(out.length < 9000, `${out.length}`);
   } finally { f.done(); }
 });
 

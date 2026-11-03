@@ -9,6 +9,7 @@ import { chooseLayout } from '../src/compact/layout.ts';
 import { displayPath } from '../src/compact/state.ts';
 import { noteText, renderL2, renderL3 } from '../src/compact/render.ts';
 import { composeSummary, previousWindowStart } from '../src/compact/summary.ts';
+import { ANCHOR_TOOL } from '../src/checkpoint/messages.ts';
 import { DEFAULT_CONFIG, type AutoCompactConfig } from '../src/config.ts';
 import { readSessionLines } from '../src/session-read/read.ts';
 import { resolveReadableSessions } from '../src/session-read/sessions.ts';
@@ -24,9 +25,11 @@ const say = (value: string, calls: Array<{ id: string; name: string; args: Recor
 const result = (callId: string, toolName: string, value: string, extra: Record<string, unknown> = {}) =>
   msg({ role: 'toolResult', toolCallId: callId, toolName, isError: false, content: text(value), ...extra });
 const cfg = (over: Partial<AutoCompactConfig> = {}): AutoCompactConfig => ({ ...DEFAULT_CONFIG, ...over });
+/** Summary tests that pin the L2 budget pass `keptChars: 0`; an L1 budget of 0 keeps the unused-L1 loan out of those numbers. */
+const noLoan = { l1Ratio: 0, l1MinChars: 0 };
 const items = (entries: Entry[]) => buildItems(entries, () => undefined);
 const summarize = (entries: Entry[], config = cfg(), extra: Record<string, unknown> = {}) =>
-  composeSummary({ items: items(entries), config, contextWindow: 200_000, keptChars: 0, ...extra });
+  composeSummary({ items: items(entries), config: { ...config, ...noLoan }, contextWindow: 200_000, keptChars: 0, ...extra });
 
 // ------------------------------------------------------------------------------------------------------------------ items
 test('items pair each call with its result, keep orphans visible, and never use compaction entries as a source', () => {
@@ -96,6 +99,43 @@ test('rendering one item never depends on anything but the item', () => {
   assert.equal(renderL3(a), renderL3(b));
 });
 
+// ------------------------------------------------------------------------------------------------------- user text is kept whole
+const userItem = (value: string, images = 0) => items([msg({ role: 'user', content: [...text(value), ...Array.from({ length: images }, () => ({ type: 'image', data: 'x', mimeType: 'image/png' }))] })])[0]!;
+
+test('a user message is kept whole in L3 and L2 (an instruction at its end survives), an assistant message keeps its cap', () => {
+  const ask = `${'Context about the job. '.repeat(60)}Finally, when everything is done create FINAL.md and list the three rules.`;
+  assert.ok(ask.length > 1200, 'longer than both old caps');
+  assert.ok(renderL3(userItem(ask))!.endsWith('create FINAL.md and list the three rules.'), 'L3 keeps the user message to its last word');
+  assert.ok(renderL2(userItem(ask))[0]!.endsWith('create FINAL.md and list the three rules.'), 'so does L2');
+  const long = items([say(ask)])[0]!;
+  assert.ok(renderL3(long)!.length < 450 && renderL3(long)!.endsWith('…'), 'assistant text is still capped (the original stays readable with session_read)');
+  assert.ok(renderL2(long)[0]!.length < 1250);
+});
+
+test('an attachment note at the end of a long user message survives, and an image-only message still shows', () => {
+  const long = `${'Please look at the screenshot. '.repeat(40)}The failing screen is the second one.`;
+  assert.ok(renderL3(userItem(long, 2))!.endsWith('The failing screen is the second one. [+2 images]'));
+  assert.equal(renderL3(userItem('', 1)), 'U: [+1 image]');
+  assert.ok(renderL3(userItem('see this', 1))!.endsWith('see this [+1 image]'));
+});
+
+test('only a user message larger than half of the section budget is shortened, keeping its head and its tail', () => {
+  const body = `START ${'x'.repeat(20_000)} END-OF-MESSAGE`;
+  const out = renderL3(userItem(body), 1000)!;
+  assert.ok(out.length < 1000 + 80, `${out.length}: the cap is the given limit plus the marker`);
+  assert.ok(out.includes('START') && out.endsWith('END-OF-MESSAGE'), 'head and tail both stay');
+  assert.match(out, /\[… \d+ chars omitted …\]/);
+  const exact = 'y'.repeat(1000);
+  assert.ok(!renderL3(userItem(exact), 1000)!.includes('omitted'), 'a message at the limit is whole');
+});
+
+test('a huge pasted user message cannot empty the conversation section: the budget still holds and the neighbours stay', () => {
+  const entries = [user('first request'), say('first answer'), user(`paste: ${'log line '.repeat(20_000)}`), say('second answer'), user('last question')];
+  const { summary, details } = summarize(entries, cfg({ l3Ratio: 0.0001, l3MinChars: 6000, l4Ratio: 0.0001, l4MinChars: 1, l2Ratio: 0.0001, l2MinChars: 1, maxTotalRatio: 1 }));
+  assert.ok(summary.includes('last question') && summary.includes('second answer'), summary.slice(0, 400));
+  assert.ok(details.stats.conversationChars + details.stats.activityChars < 6000 + 3000 + 200, `${details.stats.conversationChars}/${details.stats.activityChars}`);
+});
+
 // ---------------------------------------------------------------------------------------------------------------- layout
 test('layout: L2 is the newest suffix that fits, L3 ends where it starts, an oversized item yields nothing', () => {
   const budgets = { l2: 25, l3: 30, l4: 20 };
@@ -117,6 +157,41 @@ test('layout: the recorded start is kept while L3 plus the L4 slack fits, and re
   assert.equal(chooseLayout(lens2(11), lens3(11), budgets, 11).keptStart, false, 'a start at or after L2 is not kept');
 });
 
+test('a long turn that fits neither L1 nor L2: the L2/L3 border is the budget border, and savepoints are plain assistant text that L3 shows', () => {
+  const tool = (label: string): Entry[] => [say('', [{ id: `c-${label}`, name: 'bash', args: { command: label } }]), result(`c-${label}`, 'bash', 'ok')];
+  const save = (label: string): Entry[] => [say('', [{ id: `p-${label}`, name: ANCHOR_TOOL, args: { summary: label } }]), result(`p-${label}`, ANCHOR_TOOL, 'Progress recorded.')];
+  const tools = (from: number, to: number): Entry[] => Array.from({ length: to - from + 1 }, (_, i) => tool(`TOOL_3_${from + i}`)).flat();
+  // L1 would start at TOOL_3_14, so the history handed to the summary ends with TOOL_3_13.
+  const entries: Entry[] = [user('USER_1'), ...tool('TOOL_1_1'), say('ASSISTANT_1'), user('USER_2'), ...tool('TOOL_2_1'), ...tool('TOOL_2_2'), say('ASSISTANT_2'), user('USER_3'),
+    ...tools(1, 3), ...save('SAVEPOINT_3_1'), ...tools(4, 6), ...save('SAVEPOINT_3_2'), ...tools(7, 9), ...save('SAVEPOINT_3_3'), ...tools(10, 12), ...save('SAVEPOINT_3_4'), ...tools(13, 13)];
+  const built = items(entries), lens2 = built.map(item => renderL2(item).reduce((n, line) => n + line.length + 1, 0));
+  const label = (item: Item) => item.kind === 'user' ? item.text : (item.calls[0]?.call.args.command as string | undefined) ?? item.text;
+  const border = built.findIndex(item => label(item) === 'TOOL_3_5');
+  assert.ok(border > 0, 'the fixture has the border item');
+  const l2 = lens2.slice(border).reduce((n, value) => n + value, 0);
+  const { summary } = composeSummary({ items: built, config: cfg({ ...noLoan, l2Ratio: 0, l2MinChars: l2, l3Ratio: 0, l3MinChars: 100_000, l4Ratio: 0, l4MinChars: 1, maxTotalRatio: 1 }), contextWindow: 200_000, keptChars: 0 });
+  const [l3Text, l2Text] = summary.split('## Earlier conversation')[1]!.split('## Recent activity') as [string, string];
+  const lines = (block: string) => block.split(String.fromCharCode(10)).map(line => line.trim()).filter(line => /^(U|A): |^\[bash\]/.test(line));
+  assert.deepEqual(lines(l3Text), ['U: USER_1', 'A: ASSISTANT_1', 'U: USER_2', 'A: ASSISTANT_2', 'U: USER_3', 'A: SAVEPOINT_3_1'], 'L3 is conversation only; the savepoint counts as assistant text; no tool line, so TOOL_3_4 is gone');
+  const seen = lines(l2Text).filter(line => !line.startsWith('A: →')).map(line => line.replace(/^A: /, '').replace(/^\[bash\] "([^"]+)".*$/, '$1'));
+  assert.deepEqual(seen, ['TOOL_3_5', 'TOOL_3_6', 'SAVEPOINT_3_2', 'TOOL_3_7', 'TOOL_3_8', 'TOOL_3_9', 'SAVEPOINT_3_3', 'TOOL_3_10', 'TOOL_3_11', 'TOOL_3_12', 'SAVEPOINT_3_4', 'TOOL_3_13'], 'L2 starts exactly at the budget border, not at the nearest savepoint');
+});
+
+test('the L1 budget that the raw tail leaves unused is lent to L2, and the lent amount is recorded', () => {
+  const entries = conversation(40, 40);
+  const budgets = { l1: 3000, l2: 1000 };
+  const config = cfg({ l1Ratio: 0.0001, l1MinChars: budgets.l1, l2Ratio: 0.0001, l2MinChars: budgets.l2, l3Ratio: 0.0001, l3MinChars: 100_000, l4Ratio: 0.0001, l4MinChars: 1, maxTotalRatio: 1 });
+  const run = (keptChars: number) => composeSummary({ items: items(entries), config, contextWindow: 200_000, keptChars }).details.stats as { activityChars: number; l2Lent: number };
+  const full = run(budgets.l1), empty = run(0), half = run(budgets.l1 / 2), over = run(budgets.l1 * 3);
+  assert.equal(full.l2Lent, 0, 'a full L1 lends nothing');
+  assert.equal(over.l2Lent, 0, 'an overshooting L1 (nothing fit) never makes the budget negative');
+  assert.equal(empty.l2Lent, budgets.l1);
+  assert.equal(half.l2Lent, budgets.l1 / 2);
+  assert.ok(full.activityChars <= budgets.l2, `${full.activityChars}`);
+  assert.ok(empty.activityChars > full.activityChars && empty.activityChars <= budgets.l1 + budgets.l2, `${empty.activityChars}: L2 grows with the lent budget but stays within l1 + l2`);
+  assert.ok(half.activityChars >= full.activityChars && half.activityChars <= empty.activityChars);
+});
+
 test('layout: the window never starts on an item that shows nothing', () => {
   const layout = chooseLayout([100, 100, 100, 100], [5, 0, 0, 5], { l2: 0, l3: 5, l4: 0 }, -1);
   assert.equal(layout.l2Start, 4);
@@ -132,10 +207,10 @@ function conversation(turns: number, filler = 120): Entry[] {
   }
   return out;
 }
-const small = cfg({ l2Ratio: 0.0001, l2MinChars: 1500, l3Ratio: 0.0001, l3MinChars: 1200, l4Ratio: 0.0001, l4MinChars: 1200, maxTotalRatio: 1 });
+const small = cfg({ ...noLoan, l2Ratio: 0.0001, l2MinChars: 1500, l3Ratio: 0.0001, l3MinChars: 1200, l4Ratio: 0.0001, l4MinChars: 1200, maxTotalRatio: 1 });
 
 test('the summary has a fixed order: header, goal, earlier conversation, recent activity, state', () => {
-  const entries = [user('build the parser'), say('writing', [{ id: 'w', name: 'write', args: { path: 'src/p.ts' } }]), result('w', 'write', 'ok', { details: { path: 'src/p.ts', created: true, bytes: 10 } }),
+  const entries = [user('build the parser'), say('sure, I will look first'), user('now write it'), say('writing', [{ id: 'w', name: 'write', args: { path: 'src/p.ts' } }]), result('w', 'write', 'ok', { details: { path: 'src/p.ts', created: true, bytes: 10 } }),
     say('committing', [{ id: 'g', name: 'bash', args: { command: 'git commit -m "add parser"' } }]), result('g', 'bash', '[main abc1234] add parser\n 1 file changed')];
   const { summary } = summarize(entries, cfg({ l2Ratio: 0.0001, l2MinChars: 120, l3MinChars: 10_000 }));
   const at = (needle: string) => summary.indexOf(needle);
@@ -255,7 +330,7 @@ test('while the window start is kept, each summary begins with the previous one 
     for (let turns = 12; turns <= 180; turns++) {
       const entries = all.slice(0, turns * 3);
       const built = items(entries);
-      const current = composeSummary({ items: built, config, contextWindow: 10_000, keptChars: 0, previousStartEntryId: previousStart });
+      const current = composeSummary({ items: built, config: { ...config, ...noLoan }, contextWindow: 10_000, keptChars: 0, previousStartEntryId: previousStart });
       if (previous && previous.details.stats.notShown > 0) {
         if (current.details.stats.windowStartKept) {
           kept++;

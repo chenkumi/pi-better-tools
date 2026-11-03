@@ -87,7 +87,7 @@ export function buildItems(entries: readonly Entry[], refOf: RefLookup): Item[] 
           calls.push(pair);
           if (pair.call.id) pending.set(pair.call.id, pair);
         }
-        items.push({ ...base, kind: 'assistant', text: [contentText(message.content).text, ...anchors].filter(Boolean).join(String.fromCharCode(10)), calls });
+        items.push({ ...base, kind: 'assistant', text: [contentText(message.content).text, ...anchors].filter(Boolean).join('\n'), calls });
       } else if (role === 'toolResult') {
         if (anchorIds.has(str(message.toolCallId) ?? '')) continue;
         const pair = pending.get(str(message.toolCallId) ?? '');

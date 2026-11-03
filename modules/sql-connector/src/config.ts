@@ -96,8 +96,8 @@ export function parseDatabaseConfig(engine: Engine, value: unknown, env: NodeJS.
   if (value.ssl !== undefined && typeof value.ssl !== "boolean") {
     throw invalidSettings(`The connection settings are invalid: the ${label} TLS option must be true or false.`, `Database configuration field \"${engine}.ssl\" must be a boolean.`);
   }
-  if (value.trustServerCertificate !== undefined && (engine !== "mssql" || typeof value.trustServerCertificate !== "boolean")) {
-    throw invalidSettings("The connection settings are invalid: the server certificate trust option is only supported for Microsoft SQL Server and must be true or false.", "Database configuration field \"mssql.trustServerCertificate\" must be a boolean.");
+  if (value.trustServerCertificate !== undefined && ((engine !== "mssql" && engine !== "mysql") || typeof value.trustServerCertificate !== "boolean")) {
+    throw invalidSettings("The connection settings are invalid: the server certificate trust option is only supported for Microsoft SQL Server and MySQL and must be true or false.", "Database configuration field \"mssql.trustServerCertificate\" and \"mysql.trustServerCertificate\" must be a boolean.");
   }
 
   const optionalCredentials = engine === "mysql" || windowsAuth;
@@ -113,7 +113,7 @@ export function parseDatabaseConfig(engine: Engine, value: unknown, env: NodeJS.
     windowsAuth,
     instanceName,
     odbcDriver,
-    trustServerCertificate: engine === "mssql" && (value.trustServerCertificate ?? false),
+    trustServerCertificate: (engine === "mssql" || engine === "mysql") && (value.trustServerCertificate ?? false),
   };
 }
 

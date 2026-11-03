@@ -1,16 +1,15 @@
 import { formatRef } from '../fold/ref.ts';
 import { asRecord, clip, list, oneLine, redact, str } from '../fold/util.ts';
 import { currentBranchIds } from './branch.ts';
-import { scanLines } from './lines.ts';
+import { MAX_PARSE_BYTES, scanLines } from './lines.ts';
 import { compactJson } from './render.ts';
 import { contentText } from './outline.ts';
-import { isCurrent, pickSession, SessionReadError, type SessionFile } from './sessions.ts';
+import { integer, isCurrent, pickSession, SessionReadError, type SessionFile } from './sessions.ts';
 
 export const DEFAULT_GREP_LIMIT = 30;
 export const MAX_GREP_LIMIT = 100;
 const MAX_PATTERN = 200;
 const SNIPPET_SIDE = 80;
-const PARSE_LIMIT = 16 * 1024 * 1024;
 const TIME_LIMIT_MS = 10_000;
 
 export interface GrepRequest {
@@ -58,11 +57,6 @@ function snippet(text: string, at: number, length: number): string {
   return `${start > 0 ? '…' : ''}${oneLine(redact(text.slice(start, end)), SNIPPET_SIDE * 2 + length + 2)}${end < text.length ? '…' : ''}`;
 }
 
-const whole = (value: unknown, name: string, min: number): number => {
-  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < min) throw new SessionReadError(`"${name}" must be an integer >= ${min}.`);
-  return value;
-};
-
 /**
  * Keyword search over the decoded conversation of one readable session. One hit line per matching entry, with a short redacted
  * snippet and the line reference to pass to session_read. Literal, case-insensitive matching only: a pattern chosen by the
@@ -73,9 +67,9 @@ export async function grepSession(readable: readonly SessionFile[], request: Gre
   const pattern = typeof request.pattern === 'string' ? request.pattern.trim() : '';
   if (pattern.length < 2 || pattern.length > MAX_PATTERN) throw new SessionReadError(`"pattern" must be 2-${MAX_PATTERN} characters of literal text (case-insensitive; regular expressions are not supported).`);
   const needle = pattern.toLowerCase();
-  const limit = Math.min(MAX_GREP_LIMIT, request.limit === undefined ? DEFAULT_GREP_LIMIT : whole(request.limit, 'limit', 1));
-  const from = request.from === undefined ? 2 : whole(request.from, 'from', 1);
-  const to = request.to === undefined ? Number.POSITIVE_INFINITY : whole(request.to, 'to', from);
+  const limit = Math.min(MAX_GREP_LIMIT, request.limit === undefined ? DEFAULT_GREP_LIMIT : integer(request.limit, 'limit', 1));
+  const from = request.from === undefined ? 2 : integer(request.from, 'from', 1);
+  const to = request.to === undefined ? Number.POSITIVE_INFINITY : integer(request.to, 'to', from);
   const onBranch = request.includeOtherBranches === true ? undefined : await currentBranchIds(target.file, isCurrent(readable, target) ? request.leafId : undefined);
   const started = Date.now();
 
@@ -85,7 +79,7 @@ export async function grepSession(readable: readonly SessionFile[], request: Gre
     if (request.signal?.aborted) throw new Error('Aborted');
     if (Date.now() - started > TIME_LIMIT_MS) { nextFrom = item.line; stopped = 'time limit'; break; }
     scanned = item.line;
-    if (item.text === undefined || item.bytes > PARSE_LIMIT) { skipped++; continue; }
+    if (item.text === undefined || item.bytes > MAX_PARSE_BYTES) { skipped++; continue; }
     let entry: Record<string, unknown> | undefined;
     try { entry = asRecord(JSON.parse(item.text)); } catch { continue; }
     if (!entry) continue;

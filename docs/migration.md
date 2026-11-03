@@ -42,7 +42,7 @@ New scaffold and explicit global/project/session Save omit `compactAfterPreset`,
 
 Session overrides follow the actual persisted record's current-branch ancestry; Reset/public session delete appends an empty branch-local record rather than erasing history. Successful Reset or Global/Project Delete synchronizes fresh lower-layer display and Save buffers, so explicit Save can recreate a deleted file without restoring stale untouched fields. Cancellation, callback/unlink refusal and failed writes preserve dirty edits; no cross-writer atomicity or rollback is promised. Warning dedup requires public hasUI true and successful callable notification; native capacity is not trigger timing, and unknown native trigger budget stays unknown. Full details: `docs/configuration.md` and the module's current local `docs/CONFIG.md`/`docs/MIGRATION-GUIDE.md` sections.
 
-The fixed core and settings/migration snapshots have separate limited static acceptance (`report/REPORT-20261009T193032883Z.md`, `report/REPORT-20261009T200405430Z.md`); reviewers did not rerun tests or approve all 336 source files as universally safe. Historical before-request/final-only requirements and their removed normative tests remain history, not active settings, skips or restored triggers. Upstream 0.5.12 identity/MIT credits and unavailable earlier-diff warnings remain; source integrity/cross checks do not constitute full root/package, provider or release acceptance.
+The fixed core and settings/migration snapshots have separate limited static acceptance; reviewers did not rerun tests or approve all 336 source files as universally safe. Historical before-request/final-only requirements and their removed normative tests remain history, not active settings, skips or restored triggers. Upstream 0.5.12 identity/MIT credits and unavailable earlier-diff warnings remain; source integrity/cross checks do not constitute full root/package, provider or release acceptance.
 
 ## Notification evidence and managed-child Shell adoption (2026-10-09)
 
@@ -156,7 +156,7 @@ These slim model-visible output and schemas; tool names, settings keys, storage 
 
 ## 2026-10-10 defect-repair behaviour changes
 
-Tool names, settings keys, storage directories and trust semantics are unchanged; these are fixes whose observable behaviour differs from before (details in each module README and `report/REPORT-20261009T211201258Z.md`).
+Tool names, settings keys, storage directories and trust semantics are unchanged; these are fixes whose observable behaviour differs from before (details in each module README).
 
 - Project trust: Blackhole reads its project layers (`.pi/pi-blackhole-config.json`, legacy `.pi/settings.json`) only when `ctx.isProjectTrusted()` is `true`; Schedule Prompt starts project jobs only when trusted, and its child sessions share one trust-aware SettingsManager. A missing or throwing trust probe fails closed.
 - Blackhole: `/blackhole settings` (and `configure`/`changelog`) return text outside the TUI instead of hanging; `om-on`/`om-off` patch only the `memory` key of the global file; same-session tree navigation fences stale background workers.

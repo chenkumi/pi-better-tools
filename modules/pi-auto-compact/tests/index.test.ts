@@ -7,12 +7,12 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import piAutoCompact from '../src/index.ts';
 
 function load() {
-  const handlers = new Map<string, (event: unknown, ctx: unknown) => unknown>(), other: string[] = [], tools: Array<{ name: string; exposure?: string; namespace?: { name: string } }> = [];
+  const handlers = new Map<string, (event: unknown, ctx: unknown) => unknown>(), other: string[] = [], commands: string[] = [], tools: Array<{ name: string; exposure?: string; namespace?: { name: string } }> = [];
   piAutoCompact({
     on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => { handlers.set(event, handler); },
-    registerTool: (tool: { name: string; exposure?: string; namespace?: { name: string } }) => tools.push(tool), registerCommand: () => other.push('command'), sendMessage: () => other.push('message'), sendUserMessage: () => other.push('user-message'),
+    registerTool: (tool: { name: string; exposure?: string; namespace?: { name: string } }) => tools.push(tool), registerCommand: (name: string) => commands.push(name), sendMessage: () => other.push('message'), sendUserMessage: () => other.push('user-message'),
   } as unknown as ExtensionAPI);
-  return { handlers, other, tools };
+  return { handlers, other, tools, commands };
 }
 
 async function withAgentDir<T>(file: string | undefined, run: () => Promise<T>): Promise<T> {
@@ -26,10 +26,11 @@ async function withAgentDir<T>(file: string | undefined, run: () => Promise<T>):
   }
 }
 
-test('registers the compaction and checkpoint hooks, the three deferred read-only session tools and the anchor tool, and no commands or messages', () => {
-  const { handlers, other, tools } = load();
+test('registers the compaction and checkpoint hooks, the three deferred read-only session tools and the anchor tool, the one settings command and no messages', () => {
+  const { handlers, other, tools, commands } = load();
   assert.deepEqual([...handlers.keys()].sort(), ['agent_before_settle', 'before_agent_start', 'context', 'session_before_compact', 'session_compact', 'session_start', 'turn_end']);
   assert.deepEqual(other, []);
+  assert.deepEqual(commands, ['settings:auto-compact'], 'the panel command only; a bare /settings belongs to Pi');
   assert.deepEqual(tools.map(tool => tool.name).sort(), ['progress_checkpoint', 'session_grep', 'session_read', 'session_window']);
   for (const tool of tools.filter(tool => tool.name !== 'progress_checkpoint')) { assert.equal(tool.exposure, 'deferred'); assert.equal(tool.namespace?.name, 'session'); }
   assert.notEqual(tools.find(tool => tool.name === 'progress_checkpoint')!.exposure, 'deferred');

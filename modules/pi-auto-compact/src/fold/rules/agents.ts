@@ -1,5 +1,5 @@
 import type { FoldRule, ToolCallInfo, ToolResultInfo } from '../types.ts';
-import { asRecord, list, num, oneLine, parseJson, plural, redact, str } from '../util.ts';
+import { asRecord, idStatusList, num, oneLine, parseJson, plural, records, redact, str } from '../util.ts';
 
 const detailsOf = (result: ToolResultInfo) => asRecord(result.details) ?? {};
 const receiptOf = (result: ToolResultInfo) => asRecord(result.details) ?? asRecord(parseJson(result.text)) ?? {};
@@ -13,11 +13,6 @@ function subagentArgs(call: ToolCallInfo): string {
   return [mode, single, call.args.background === true ? '[background]' : ''].filter(Boolean).join(' ');
 }
 
-function jobList(items: unknown[]): string {
-  const jobs = items.map(asRecord).filter((item): item is Record<string, unknown> => item !== undefined);
-  return `${plural(jobs.length, 'job')}${jobs.length ? `: ${jobs.slice(0, 5).map(job => `${str(job.jobId) ?? '?'}=${str(job.status) ?? '?'}`).join(', ')}${jobs.length > 5 ? ', …' : ''}` : ''}`;
-}
-
 export const agentRules: Record<string, FoldRule> = {
   subagent: {
     args: subagentArgs,
@@ -25,7 +20,7 @@ export const agentRules: Record<string, FoldRule> = {
       const d = detailsOf(result);
       const background = asRecord(d.background);
       if (background) return `job ${str(background.jobId) ?? '?'} ${str(background.status) ?? 'accepted'}`;
-      const results = list(d.results).map(asRecord).filter((item): item is Record<string, unknown> => item !== undefined);
+      const results = records(d.results);
       const states = results.slice(0, 6).map(item => `${str(item.agent) ?? '?'}:${str(item.status) ?? '?'}${num(item.exitCode) ? ` exit ${item.exitCode}` : ''}`).join(', ');
       return `${states || 'done'}${results.length > 6 ? ', …' : ''}; ${firstSentence(result.text)}`;
     },
@@ -34,7 +29,7 @@ export const agentRules: Record<string, FoldRule> = {
     args: jobId,
     ok: (_call, result) => {
       const d = receiptOf(result);
-      return Array.isArray(d.jobs) ? jobList(d.jobs) : `${str(d.status) ?? 'unknown'}${d.cancelRequested === true ? ' (cancel requested)' : ''}`;
+      return Array.isArray(d.jobs) ? idStatusList(d.jobs, 'job', 'jobId', 'status') : `${str(d.status) ?? 'unknown'}${d.cancelRequested === true ? ' (cancel requested)' : ''}`;
     },
   },
   subagent_cancel: {
@@ -53,7 +48,7 @@ export const agentRules: Record<string, FoldRule> = {
     args: jobId,
     ok: (_call, result) => {
       const d = receiptOf(result);
-      if (Array.isArray(d.forks)) return `${jobList(d.forks)}${d.partial === true ? ' (partial)' : ''}`;
+      if (Array.isArray(d.forks)) return `${idStatusList(d.forks, 'job', 'jobId', 'status')}${d.partial === true ? ' (partial)' : ''}`;
       const code = str(d.errorCode);
       return `${str(d.status) ?? 'unknown'}${code ? ` ${code}` : ''}${str(d.delivery) ? `, delivery ${d.delivery}` : ''}`;
     },
