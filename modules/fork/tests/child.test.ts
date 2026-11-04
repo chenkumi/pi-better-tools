@@ -26,7 +26,7 @@ function fakeProc(script: { onRequest?: (cmd: any, reply: (data?: unknown, ok?: 
 	proc.exit = (code = 0) => proc.emit("close", code);
 	return { proc, lines };
 }
-const spec = (proc: any, over: Partial<ForkChildSpec> = {}): ForkChildSpec & { token?: string } => ({ jobId: "J", sessionId: "S1", sessionPath: __filename_unused, sessionDir: "/d", cwd: "/w", model: "p/m", thinkingLevel: "off", tools: ["read"], trusted: false,
+const spec = (proc: any, over: Partial<ForkChildSpec> = {}): ForkChildSpec & { token?: string } => ({ jobId: "J", sessionId: "S1", parentSessionId: "P0", delegation: false, sessionPath: __filename_unused, sessionDir: "/d", cwd: "/w", model: "p/m", thinkingLevel: "off", tools: ["read"], trusted: false,
 	guardPath: "/g.ts", forwarded: [], prompt: "PROMPT", invocation: () => ({ command: "pi", args: [] }), spawnImpl: ((_c: string, _a: string[], options: any) => { tokenOf(options.env); return proc; }) as never, closeGraceMs: 5, killGraceMs: 5, ...over });
 const __filename_unused = "/nonexistent-but-unused.jsonl";
 let lastToken = "";
@@ -87,7 +87,8 @@ test("guard rejection, tool-set mismatch and identity mismatch fail before the p
 	for (const [name, act, code] of [
 		["rejected", (p: any) => ipc(p, { type: "rejected", code: "TRUST_REQUIRED" }), "TRUST_REQUIRED"],
 		["extra tool", (p: any) => ipc(p, { type: "verified", tools: ["read", "bash"] }), "CAPABILITY_MISMATCH"],
-		["fork tool visible but ignored", (p: any) => ipc(p, { type: "verified", tools: ["read", "fork"] }), undefined],
+		["Fork tool the parent did not select", (p: any) => ipc(p, { type: "verified", tools: ["read", "fork"] }), "CAPABILITY_MISMATCH"],
+		["parent selection verified but identity wrong", (p: any) => ipc(p, { type: "verified", tools: ["read"] }), undefined],
 	] as const) {
 		const { proc, lines } = fakeProc({ onRequest: (c, reply) => reply(c.type === "get_state" ? { sessionId: "WRONG" } : {}) });
 		const handle = startForkChild(spec(proc));

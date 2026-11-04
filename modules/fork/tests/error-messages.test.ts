@@ -26,7 +26,7 @@ function setup() {
 	const tools = new Map<string, any>();
 	const ctx: any = { cwd, model: { provider: "p", id: "m" }, isProjectTrusted: () => false, hasUI: false, ui: { setStatus() {} }, sessionManager: sm };
 	const pi: any = { getActiveTools: () => ["read", "fork"], getAllTools: () => [{ name: "read", sourceInfo: { path: "/ext/read.ts" } }], getThinkingLevel: () => "off", sendMessage() {},
-		registerTool: (tool: any) => tools.set(tool.name, tool), registerMessageRenderer() {}, on() {} };
+		registerTool: (tool: any) => tools.set(tool.name, tool), registerMessageRenderer() {}, registerCommand() {}, on() {} };
 	forkExtension(pi);
 	return { sm, ctx, pi, tools };
 }

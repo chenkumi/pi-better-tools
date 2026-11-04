@@ -95,7 +95,7 @@ test("snapshot is taken at the turn boundary, child gets exact parent selection,
 	assert.equal(specs.length, 1);
 	const spec = specs[0]!;
 	assert.equal(spec.sessionId, receipt.forkSessionId);
-	assert.deepEqual(spec.tools, ["read"], "Fork tools are removed from the inherited selection");
+	assert.deepEqual(spec.tools, ["read", "fork"], "the child inherits the parent's exact selection, Fork tools included, so its tool list matches the cached prefix");
 	assert.equal(spec.model, "p/m");
 	assert.ok(!spec.prompt.includes("\u0000") && spec.prompt.includes("do work"));
 	assert.ok(spec.prompt.startsWith("You are the background Fork."), "identity is declared first");

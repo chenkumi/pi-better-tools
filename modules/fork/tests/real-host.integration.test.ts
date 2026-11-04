@@ -111,7 +111,7 @@ test("real Pi: fork snapshot, independent child, report back, cold /resume stays
 		assert.ok(!child.some(r => r.pid === root[0].pid), "child is a separate process");
 		assert.ok(root[0].tools.includes("fork") && root[0].tools.includes("read"));
 		for (const name of FORK_TOOLS) assert.ok(root[0].tools.includes(name), `${name} is active without --tools or defaultTools`);
-		assert.deepEqual([...child[0].tools].sort(), root[0].tools.filter((name: string) => !(FORK_TOOLS as readonly string[]).includes(name)).sort(), "child inherits the exact parent selection minus Fork tools");
+		assert.deepEqual([...child[0].tools].sort(), [...root[0].tools].sort(), "child inherits the exact parent selection, Fork tools included (same tool list, same cached prefix)");
 		assert.ok(JSON.stringify(child[0].messages).includes("DO_FORK please"), "child sees the inherited conversation");
 		assert.equal(child[0].roles.at(-1), "user");
 

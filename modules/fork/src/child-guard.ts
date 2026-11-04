@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { activeJobCounts, canonicalMonitorCwd } from "../../shell-tools/src/monitor-capability.ts";
-import { FORK_MARKER_TYPE, consumeForkChildGuard, hasForkMarker, isForkTool } from "./identity.ts";
+import { FORK_CHILD_REFUSAL, FORK_MARKER_TYPE, consumeForkChildGuard, hasForkMarker, isForkTool } from "./identity.ts";
 
 export const CHANNEL = "pi-fork";
 export const POLL_MS = 1000;
@@ -88,13 +88,29 @@ export default function (pi: ExtensionAPI) {
 			else if (fs.realpathSync(ctx.cwd) !== expected.cwd || ctx.sessionManager.getSessionId() !== expected.sessionId || pi.getThinkingLevel() !== expected.thinkingLevel) code = "CONFIG_CHANGED";
 			else if (ctx.isProjectTrusted() !== expected.childTrusted) code = "TRUST_REQUIRED";
 			else if (!hasForkMarker(ctx.sessionManager.getEntries())) code = "FORK_ORIGIN_MISSING";
-			else if (active.some(name => !isForkTool(name) && !expected.tools.includes(name)) || expected.tools.some(name => !active.includes(name))) code = "CAPABILITY_MISMATCH";
-			else if (active.some(isForkTool)) code = "FORK_TOOL_ACTIVE";
+			else if (active.some(name => !expected.tools.includes(name)) || expected.tools.some(name => !active.includes(name))) code = "CAPABILITY_MISMATCH";
 			if (!code) send({ type: "verified", tools: [...active].sort(), sessionFile: ctx.sessionManager.getSessionFile() });
 		} catch { code = "CONFIG_CHANGED"; }
 		if (code) reject(code);
 	});
-	pi.on("tool_call", event => isForkTool(event.toolName) ?{ block: true, reason: "FORK_FORBIDDEN: A Fork process cannot create another Fork." } : undefined);
+	// Provider cache identity: Pi derives the cache key and session-affinity headers from the session id, and a new id makes the
+	// Fork's first request miss the parent's cache. Every request this process sends (first prompt, later turns, fork_message)
+	// uses the parent's id. Headers are written rather than patched: Pi hands this hook an empty set and its provider adds defaults
+	// afterwards, with hook headers merged last. Only a Fork child process loads this; a cold /resume of a Fork is an ordinary session.
+	const cacheId = expected.parentSessionId;
+	if (typeof cacheId === "string" && cacheId) {
+		pi.on("before_provider_headers", event => {
+			event.headers["session_id"] = cacheId;
+			event.headers["x-client-request-id"] = cacheId;
+			for (const name of Object.keys(event.headers)) if (name.toLowerCase() === "x-opencode-session") event.headers[name] = cacheId;
+		});
+		pi.on("before_provider_request", event => {
+			const payload = event.payload as Record<string, unknown> | null;
+			if (payload && typeof payload === "object" && "prompt_cache_key" in payload) return { ...payload, prompt_cache_key: cacheId };
+			return undefined;
+		});
+	}
+	pi.on("tool_call", event => isForkTool(event.toolName) ?{ block: true, reason: FORK_CHILD_REFUSAL } : undefined);
 	let stable = 0;
 	pi.on("agent_settled", (_event, ctx) => {
 		current = ctx; stable = 0;

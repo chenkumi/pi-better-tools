@@ -4,7 +4,8 @@ import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { stripVTControlCharacters } from "node:util";
 import { consumeManagedChildGuard } from "../../shell-tools/src/managed-child.ts";
-import { consumeForkChildGuard } from "./identity.ts";
+import { delegationEnabled, readDelegation, registerDelegationCommand, registerDelegationPrompt, setDelegationEnabled } from "./delegation.ts";
+import { FORK_CHILD_REFUSAL, consumeForkChildGuard, hasForkMarker } from "./identity.ts";
 import { renderForkResult } from "./result-renderer.ts";
 import { isTerminal } from "./store.ts";
 import { RESULT_TYPE, acceptFork, notFoundText, findOwnedJob, messageFork, onSessionShutdown, onSessionStart, onTurnEnd, ownedJobs, requestCancel, summarize } from "./manager.ts";
@@ -28,10 +29,15 @@ const textResult = (text: string, details: Record<string, unknown>) => ({ conten
 const STATUS_LIST_LIMIT = 32;
 
 export default function (pi: ExtensionAPI) {
-	// Subagent and Fork children never register creation tools; the schema is also excluded by their argument builders.
-	if (consumeManagedChildGuard() || consumeForkChildGuard()) return;
+	// Subagent children never register Fork tools; their argument builder also excludes them.
+	if (consumeManagedChildGuard()) return;
+	// A Fork child registers the very same definitions as its parent and refuses every call at execute time: providers match the
+	// cached prefix on the tool list (some, e.g. DeepSeek, on the exact list), so a child with fewer tools cannot continue the parent's cache.
+	const childGuard = consumeForkChildGuard();
+	const forkChild = !!childGuard;
+	const refuseInChild = () => { if (forkChild) throw new Error(FORK_CHILD_REFUSAL); };
 
-	pi.registerMessageRenderer(RESULT_TYPE, renderForkResult);
+	if (!forkChild) pi.registerMessageRenderer(RESULT_TYPE, renderForkResult);
 
 	pi.registerTool(defineTool({
 		name: "fork",
@@ -50,6 +56,7 @@ export default function (pi: ExtensionAPI) {
 		renderCall(args, theme) { return new Text(`${theme.fg("toolTitle", theme.bold("fork"))} ${theme.fg("muted", display(args?.title || args?.task, 100))}`, 0, 0); },
 		renderResult: renderTextResult,
 		async execute(_id, params, _signal, _onUpdate, ctx) {
+			refuseInChild();
 			// Admission is re-checked here: a direct call or forged arguments cannot lift a Subagent/Fork identity.
 			const receipt = acceptFork(pi, ctx, params);
 			return textResult(`Fork accepted: ${receipt.jobId} (${receipt.title}). It starts at the end of this turn as an independent Pi process (session ${receipt.forkSessionId}); the result will be reported to this conversation. Its own messages after it starts (no inherited context) are logged for querying at ${receipt.transcriptPath} (".partial" suffix while running; final path is announced on completion). Use fork_status ${receipt.jobId} to check, fork_cancel to request cancellation.`, { ...receipt });
@@ -65,6 +72,7 @@ export default function (pi: ExtensionAPI) {
 		defaultActive: true,
 		parameters: Type.Object({ jobId: Type.Optional(Type.String({ minLength: 1, description: "Fork job ID returned by fork; omit to list." })) }, { additionalProperties: false }),
 		async execute(_id, params, _signal, _onUpdate, ctx) {
+			refuseInChild();
 			if (params.jobId !== undefined) {
 				const summary = summarize(ownedJobOrThrow(ctx, params.jobId), true);
 				return textResult(JSON.stringify(summary), summary);
@@ -84,6 +92,7 @@ export default function (pi: ExtensionAPI) {
 		defaultActive: true,
 		parameters: Type.Object({ jobId: Type.String() }, { additionalProperties: false }),
 		async execute(_id, params, _signal, _onUpdate, ctx) {
+			refuseInChild();
 			const job = ownedJobOrThrow(ctx, params.jobId);
 			if (isTerminal(job.record.status)) return textResult(`Fork ${job.record.jobId} is already ${job.record.status}; nothing to cancel.`, summarize(job)); // requestCancel would be a no-op
 			try { await requestCancel(job); }
@@ -102,14 +111,20 @@ export default function (pi: ExtensionAPI) {
 		defaultActive: true,
 		parameters: Type.Object({ jobId: Type.String({ minLength: 1 }), message: Type.String({ minLength: 1, maxLength: 65536, description: "Nonblank instruction text; at most 64 KiB of UTF-8 bytes (multibyte text counts more than characters)." }), mode: Type.Optional(Type.Union([Type.Literal("follow_up"), Type.Literal("steer")])) }, { additionalProperties: false }),
 		async execute(_id, params, _signal, _onUpdate, ctx) {
+			refuseInChild();
 			const receipt = await messageFork(ctx, params.jobId, params.message, params.mode ?? "follow_up");
 			return textResult(JSON.stringify(receipt), { ...receipt });
 		},
 	}));
 
+	// The child builds the same system prompt as its parent: the guidance follows the parent's last prompt, not any local choice.
+	if (childGuard) { registerDelegationPrompt(pi, () => childGuard.delegation === true); return; } // no store, Monitor provider, command or turn hooks
+	registerDelegationCommand(pi);
+	// A cold-resumed Fork conversation can never fork, so it never gets the guidance.
+	registerDelegationPrompt(pi, ctx => delegationEnabled() && !hasForkMarker(ctx.sessionManager.getEntries()));
 	// Readonly Monitor capability: optional, never gates Fork acceptance or delivery.
 	let revokeMonitor: (() => void) | undefined;
-	pi.on("session_start", (_event, ctx) => { onSessionStart(pi, ctx); revokeMonitor?.(); revokeMonitor = undefined; try { revokeMonitor = publishForkMonitor(ctx); } catch (error) { if (ctx.hasUI) ctx.ui.notify(`Fork monitor capability unavailable (fork_job Monitor disabled for this session): ${display(String(error), 200)}`, "warning"); } });
+	pi.on("session_start", (_event, ctx) => { setDelegationEnabled(readDelegation(ctx.sessionManager.getEntries())); onSessionStart(pi, ctx); revokeMonitor?.(); revokeMonitor = undefined; try { revokeMonitor = publishForkMonitor(ctx); } catch (error) { if (ctx.hasUI) ctx.ui.notify(`Fork monitor capability unavailable (fork_job Monitor disabled for this session): ${display(String(error), 200)}`, "warning"); } });
 	pi.on("session_shutdown", async event => { revokeMonitor?.(); revokeMonitor = undefined; await onSessionShutdown(event.reason); });
 	pi.on("turn_end", (event, ctx) => { onTurnEnd(ctx, event as never); });
 }

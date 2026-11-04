@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { buildSubagentPiArgs } from "../../subagents/extensions/subagent/child-args.ts";
+import { getPiInvocation } from "../../subagents/extensions/subagent/pi-invocation.ts";
 import { activeJobCounts, publishCapability } from "../../shell-tools/src/monitor-capability.ts";
 import { forwardParentArgs } from "../src/args.ts";
 import { buildForkPiArgs } from "../src/child.ts";
@@ -33,6 +34,43 @@ test("role matrix: only a root session may create a Fork; trusted startup data d
 	clean();
 });
 
+test("extension entry: root registers the Fork tools, a Subagent child none, a Fork child the same definitions that all refuse", async () => {
+	const { default: forkExtension } = await import("../src/index.ts");
+	const load = () => {
+		const tools = new Map<string, any>(), events: string[] = [];
+		forkExtension({ registerTool: (t: any) => tools.set(t.name, t), registerMessageRenderer() {}, registerCommand() {}, on: (name: string) => events.push(name), getActiveTools: () => [] } as any);
+		return { tools, events };
+	};
+	clean();
+	const root = load();
+	assert.deepEqual([...root.tools.keys()], [...FORK_TOOLS]);
+	assert.ok(root.events.includes("turn_end"), "root owns Forks");
+	clean();
+	process.env.PI_SUBAGENTS_GUARD = JSON.stringify({ id: "S", cwd: "/x", startupPath: "/y", shellMode: "foreground-v1" });
+	assert.equal(load().tools.size, 0, "Subagent children register nothing");
+	clean();
+	process.env[FORK_GUARD_ENV] = JSON.stringify({ forkId: "F", token: "t" });
+	const child = load();
+	assert.deepEqual([...child.tools.keys()], [...FORK_TOOLS], "same tool list as the parent so the provider prefix matches");
+	for (const name of FORK_TOOLS) {
+		const a = root.tools.get(name), b = child.tools.get(name);
+		assert.equal(b.description, a.description, `${name} description is identical`);
+		assert.deepEqual(b.parameters, a.parameters, `${name} schema is identical`);
+		assert.equal(b.promptSnippet, a.promptSnippet, `${name} prompt snippet is identical`);
+		assert.deepEqual(b.promptGuidelines, a.promptGuidelines, `${name} prompt guidelines are identical`);
+		await assert.rejects(() => b.execute("id", { task: "x", jobId: "J", message: "m" }, undefined, undefined, {}), /FORK_FORBIDDEN/, `${name} is refused inside a Fork`);
+	}
+	assert.deepEqual(child.events, ["before_agent_start"], "a Fork child owns no Forks (no session or turn hooks); it only builds the parent's system prompt");
+	clean();
+});
+
+test("the Fork child runs the host's own Pi script so both embed the same install paths in the system prompt", () => {
+	const host = { execPath: "node", argv1: new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"), packagedCli: () => "/pkg/cli.js" };
+	assert.equal(getPiInvocation(["-x"], {}, host).args[0], "/pkg/cli.js", "Subagents keep resolving the package");
+	assert.deepEqual(getPiInvocation(["-x"], {}, { ...host, preferHostScript: true }), { command: "node", args: [host.argv1, "-x"] });
+	assert.equal(getPiInvocation(["-x"], {}, { ...host, argv1: "/does/not/exist.js", preferHostScript: true }).args[0], "/pkg/cli.js", "no host script on disk: fall back to the package");
+});
+
 test("Subagent argument builder excludes the Fork tools for new, resume and ready-query alike", () => {
 	for (const persistence of [{ kind: "new" as const, sessionDir: "/d", sessionId: "S" }, { kind: "resume" as const, sessionDir: "/d", sessionFile: "/d/f.jsonl" }]) {
 		for (const transport of ["json", "rpc"] as const) {
@@ -43,16 +81,16 @@ test("Subagent argument builder excludes the Fork tools for new, resume and read
 	}
 });
 
-test("fork_message ships with the other Fork tools and is excluded from every child", () => {
-	assert.deepEqual([...FORK_TOOLS], ["fork", "fork_status", "fork_cancel", "fork_message"], "the tool inventory is the exclusion inventory");
-	const args = buildForkPiArgs({ sessionPath: "/s/f.jsonl", sessionDir: "/s", model: "p/m", thinkingLevel: "high", tools: ["read"], trusted: true, guardPath: "/g.ts", forwarded: [] });
-	assert.equal(args[args.indexOf("--exclude-tools") + 1], "fork,fork_status,fork_cancel,fork_message");
+test("fork_message ships with the other Fork tools; Subagent children exclude all of them, the Fork child excludes none", () => {
+	assert.deepEqual([...FORK_TOOLS], ["fork", "fork_status", "fork_cancel", "fork_message"], "the tool inventory is the Subagent exclusion inventory");
+	const args = buildForkPiArgs({ sessionPath: "/s/f.jsonl", sessionDir: "/s", model: "p/m", thinkingLevel: "high", tools: ["read", ...FORK_TOOLS], trusted: true, guardPath: "/g.ts", forwarded: [] });
+	assert.ok(!args.includes("--exclude-tools"), "the Fork child's tool list equals the parent's so it continues the cached prefix; calls are refused at execute time");
+	assert.equal(args[args.indexOf("--tools") + 1], ["read", ...FORK_TOOLS].join(","));
 });
 
-test("Fork child arguments: exact parent selection, only Fork tools excluded, subagent NOT excluded, no task text", () => {
+test("Fork child arguments: exact parent selection, nothing excluded, subagent kept, no task text", () => {
 	const args = buildForkPiArgs({ sessionPath: "/s/f.jsonl", sessionDir: "/s", model: "p/m", thinkingLevel: "high", tools: ["read", "subagent"], trusted: true, guardPath: "/g.ts", forwarded: ["-e", "/ext.ts"] });
-	assert.equal(args[args.indexOf("--exclude-tools") + 1], FORK_TOOLS.join(","));
-	assert.ok(!args.join(" ").includes("subagent,subagent_status"));
+	assert.ok(!args.includes("--exclude-tools"));
 	assert.equal(args[args.indexOf("--tools") + 1], "read,subagent");
 	assert.ok(args.includes("--approve") && !args.includes("--no-approve"));
 	assert.deepEqual(args.slice(args.indexOf("--session"), args.indexOf("--session") + 2), ["--session", "/s/f.jsonl"]);

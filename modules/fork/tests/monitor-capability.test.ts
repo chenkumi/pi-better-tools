@@ -123,7 +123,7 @@ test("the capability is bound to one session, canonical cwd and generation, and 
 test("the extension publishes the Fork capability on session_start and revokes it on session_shutdown", async () => {
 	const handlers: Record<string, Array<(event: unknown, ctx: unknown) => unknown>> = {};
 	const registered: string[] = [];
-	const pi: any = { registerMessageRenderer() {}, registerTool: (tool: any) => registered.push(tool.name), on: (event: string, fn: any) => { (handlers[event] ??= []).push(fn); } };
+	const pi: any = { registerMessageRenderer() {}, registerCommand() {}, registerTool: (tool: any) => registered.push(tool.name), on: (event: string, fn: any) => { (handlers[event] ??= []).push(fn); } };
 	forkExtension(pi);
 	assert.deepEqual(registered, ["fork", "fork_status", "fork_cancel", "fork_message"]);
 	const sm = origin(); const { ctx } = fakes(sm);

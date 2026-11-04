@@ -156,7 +156,7 @@ test("child maps blocked/unblocked IPC to progress, bounded and sanitized, and i
 	proc.kill = () => true;
 	proc.ipc = (message: Record<string, unknown>) => proc.emit("message", { channel: CHANNEL, ...message });
 	let token = "";
-	const spec: ForkChildSpec = { jobId: "J", sessionId: "S1", sessionPath: join(cwd, "s.jsonl"), sessionDir: sessions, cwd, model: "p/m", thinkingLevel: "off", tools: ["read"], trusted: false,
+	const spec: ForkChildSpec = { jobId: "J", sessionId: "S1", parentSessionId: "P0", delegation: false, sessionPath: join(cwd, "s.jsonl"), sessionDir: sessions, cwd, model: "p/m", thinkingLevel: "off", tools: ["read"], trusted: false,
 		guardPath: "/g.ts", forwarded: [], prompt: "PROMPT", closeGraceMs: 5, killGraceMs: 5,
 		invocation: () => ({ command: "pi", args: [] }) as never, spawnImpl: ((_c: string, _a: string[], options: any) => { token = JSON.parse(options.env[FORK_GUARD_ENV]).token; return proc; }) as never };
 	const seen: Array<[string, unknown]> = [];

@@ -25,6 +25,9 @@ export interface PiInvocationHost {
 	execPath: string;
 	argv1: string | undefined;
 	packagedCli: () => string | undefined;
+	/** Launch the very script the host runs instead of the pi-coding-agent package resolved from this module.
+	 *  Fork needs the same Pi install as its parent: the system prompt embeds install paths, so another install means another cached prefix. */
+	preferHostScript?: boolean;
 }
 
 /** Bun's embedded entry: `/$bunfs/root/...` on POSIX, `B:/~BUN/root/...` on Windows. */
@@ -39,14 +42,16 @@ function isBunVirtualScript(script: string | undefined): boolean {
 export function getPiInvocation(
 	args: string[],
 	env: NodeJS.ProcessEnv = process.env,
-	host: PiInvocationHost = { execPath: process.execPath, argv1: process.argv[1], packagedCli: resolvePiCliFromPackage },
+	hostOverride: Partial<PiInvocationHost> = {},
 ): { command: string; args: string[] } {
+	const host: PiInvocationHost = { execPath: process.execPath, argv1: process.argv[1], packagedCli: resolvePiCliFromPackage, ...hostOverride };
 	const override = env.PI_SUBAGENTS_PI_CLI?.trim();
 	if (override) {
 		if (/\.(?:[cm]?js|ts)$/i.test(override)) return { command: host.execPath, args: [override, ...args] };
 		return { command: override, args };
 	}
 	if (isBunVirtualScript(host.argv1)) return { command: host.execPath, args };
+	if (host.preferHostScript && host.argv1 && fs.existsSync(host.argv1)) return { command: host.execPath, args: [host.argv1, ...args] };
 	const packaged = host.packagedCli();
 	if (packaged) return { command: host.execPath, args: [packaged, ...args] };
 	const currentScript = host.argv1;

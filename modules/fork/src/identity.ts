@@ -4,12 +4,18 @@ import { consumeManagedChildGuard } from "../../shell-tools/src/managed-child.ts
 export const FORK_MARKER_TYPE = "pi-better-tools.fork-origin";
 export const FORK_TOOLS = ["fork", "fork_status", "fork_cancel", "fork_message"] as const;
 export const isForkTool = (name: string) => (FORK_TOOLS as readonly string[]).includes(name);
+/** Every Fork tool call inside a Fork child (execute and tool_call guard) fails with this. */
+export const FORK_CHILD_REFUSAL = "FORK_FORBIDDEN: A Fork process cannot create another Fork, or manage Forks. Do the task directly in this process, or use the subagent tool for a fresh-context worker.";
 export const FORK_GUARD_ENV = "PI_FORK_GUARD";
 const SLOT = Symbol.for("pi-better-tools.fork.child-guard.v1");
 
 export interface ForkChildGuard {
 	forkId: string;
 	sessionId: string;
+	/** The originating session. The child sends it as its provider cache identity so its first request continues the parent's cache. */
+	parentSessionId: string;
+	/** Whether the parent's last system prompt carried the Fork delegation guidance; the child builds the same prompt so the cached prefix matches. */
+	delegation: boolean;
 	cwd: string;
 	model: string;
 	thinkingLevel: string;

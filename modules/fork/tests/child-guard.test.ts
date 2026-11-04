@@ -8,7 +8,7 @@ import { publishCapability } from "../../shell-tools/src/monitor-capability.ts";
 
 const SLOT = Symbol.for("pi-better-tools.fork.child-guard.v1"), LOADED = Symbol.for("pi-better-tools.fork.child-guard.loaded.v1");
 const cwd = realpathSync(mkdtempSync(`${tmpdir()}/fork-guard-`));
-const base = { forkId: "F", sessionId: "S1", cwd, model: "p/m", thinkingLevel: "off", childTrusted: false, tools: ["read"], token: "tok" };
+const base = { forkId: "F", sessionId: "S1", parentSessionId: "PARENT", cwd, model: "p/m", thinkingLevel: "off", childTrusted: false, tools: ["read"], token: "tok" };
 
 function harness(over: Partial<typeof base> = {}, ctxOver: Record<string, unknown> = {}, active = ["read"]) {
 	delete (globalThis as any)[SLOT]; delete (globalThis as any)[LOADED];
@@ -32,6 +32,11 @@ test("verified startup is reported; each mismatch is rejected before any prompt 
 		assert.deepEqual(ok.sent[0].tools, ["read"]);
 		assert.equal(ok.exits.length, 0);
 	} finally { ok.restore(); }
+	const withFork = harness({ tools: ["read", "fork", "fork_status"] }, {}, ["read", "fork", "fork_status"]); try {
+		withFork.handlers.get("session_start")!({ reason: "startup" }, withFork.ctx);
+		assert.equal(withFork.sent.at(-1).type, "verified", "the child keeps the parent's Fork tools active");
+		assert.deepEqual(withFork.sent.at(-1).tools, ["fork", "fork_status", "read"]);
+	} finally { withFork.restore(); }
 	const cases: Array<[string, Partial<typeof base>, Record<string, unknown>, string[]?]> = [
 		["MODEL_UNAVAILABLE", { model: "p/other" }, {}],
 		["CONFIG_CHANGED", { sessionId: "OTHER" }, {}],
@@ -40,7 +45,8 @@ test("verified startup is reported; each mismatch is rejected before any prompt 
 		["FORK_ORIGIN_MISSING", {}, { sessionManager: { getSessionId: () => "S1", getSessionFile: () => "/f", getEntries: () => [] } }],
 		["CAPABILITY_MISMATCH", { tools: ["read", "bash"] }, {}],
 		["CAPABILITY_MISMATCH", {}, {}, ["read", "bash"]],
-		["FORK_TOOL_ACTIVE", {}, {}, ["read", "fork"]],
+		["CAPABILITY_MISMATCH", {}, {}, ["read", "fork"]], // a Fork tool the parent did not select is as foreign as any other
+		["CAPABILITY_MISMATCH", { tools: ["read", "fork"] }, {}], // and a parent Fork tool the child lost would break the cached prefix
 	];
 	for (const [code, over, ctxOver, active] of cases) {
 		const h = harness(over, ctxOver, active); try {
@@ -53,8 +59,29 @@ test("verified startup is reported; each mismatch is rejected before any prompt 
 test("Fork tool calls are blocked even if a stray extension re-adds them", () => {
 	const h = harness(); try {
 		assert.equal(h.handlers.get("tool_call")!({ toolName: "read" }), undefined);
-		for (const toolName of ["fork", "fork_status", "fork_cancel"]) assert.equal(h.handlers.get("tool_call")!({ toolName }).block, true);
+		for (const toolName of ["fork", "fork_status", "fork_cancel", "fork_message"]) assert.equal(h.handlers.get("tool_call")!({ toolName }).block, true);
 	} finally { h.restore(); }
+});
+
+test("every provider request carries the parent's session id as its cache identity", () => {
+	const h = harness(); try {
+		// Pi gives this hook an empty header set (its provider adds defaults afterwards), so the identity must be written, not patched.
+		const empty: Record<string, string> = {};
+		h.handlers.get("before_provider_headers")!({ headers: empty });
+		assert.deepEqual(empty, { session_id: "PARENT", "x-client-request-id": "PARENT" });
+		const opencode: Record<string, string> = { "x-opencode-session": "S1", "x-opencode-client": "pi" };
+		h.handlers.get("before_provider_headers")!({ headers: opencode });
+		assert.equal(opencode["x-opencode-session"], "PARENT");
+		assert.equal(opencode["x-opencode-client"], "pi", "unrelated headers are untouched");
+		const payload = { model: "m", prompt_cache_key: "S1" };
+		assert.deepEqual(h.handlers.get("before_provider_request")!({ payload }), { model: "m", prompt_cache_key: "PARENT" });
+		assert.equal(payload.prompt_cache_key, "S1", "the original payload is not mutated");
+		assert.equal(h.handlers.get("before_provider_request")!({ payload: { model: "m" } }), undefined, "providers without a cache key are left alone");
+	} finally { h.restore(); }
+	const noParent = harness({ parentSessionId: "" }); try {
+		assert.equal(noParent.handlers.has("before_provider_headers"), false);
+		assert.equal(noParent.handlers.has("before_provider_request"), false);
+	} finally { noParent.restore(); }
 });
 
 test("settlement is reported when quiet; with nested jobs it waits for two consecutive quiet ticks", () => {

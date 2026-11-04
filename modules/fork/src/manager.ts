@@ -7,7 +7,8 @@ import { LiveTranscript } from "../../shell-tools/src/live-transcript.ts";
 import { ForkJobsWidget } from "./live-widget.ts";
 import { forwardParentArgs, removeTemporary } from "./args.ts";
 import { startForkChild, type ForkChildHandle, type ForkChildOutcome, type ForkChildSpec, type ForkMessageMode } from "./child.ts";
-import { forkCreationRefusal, isForkTool } from "./identity.ts";
+import { promptedDelegation } from "./delegation.ts";
+import { forkCreationRefusal } from "./identity.ts";
 import { controlId, controlText, messageText, validateInteraction } from "../../subagents/extensions/subagent/query-snapshot.ts";
 import { writeForkSession } from "./snapshot.ts";
 import { MAX_RESULT_BYTES, isTerminal, loadRecords, pruneRecords, saveRecord, transcriptDir, type Delivery, type ForkRecord, type ForkStatus } from "./store.ts";
@@ -108,16 +109,17 @@ function assertCapacity(s: ForkState): void {
 	}
 }
 
-/** The parent's active tools minus Fork's own; tools from inline SDK factories cannot be rebuilt in another process. */
+/** The parent's active tools, Fork's own included (the child refuses them at call time so its tool list matches the cached prefix);
+ *  tools from inline SDK factories cannot be rebuilt in another process. */
 function inheritedTools(pi: ExtensionAPI): string[] {
-	const tools = pi.getActiveTools().filter(name => !isForkTool(name));
+	const tools = [...pi.getActiveTools()];
 	const info = new Map(pi.getAllTools().map(tool => [tool.name, tool] as const));
 	const inline = tools.filter(name => String((info.get(name) as { sourceInfo?: { path?: string } } | undefined)?.sourceInfo?.path ?? "").startsWith("<"));
 	if (inline.length) throw new Error(`FORK_CAPABILITY_UNAVAILABLE: tools provided by inline SDK factories cannot be rebuilt in a separate process: ${inline.slice(0, 8).join(", ")}. Deactivate those tools for this session, or do the work in this conversation.`);
 	return tools;
 }
 
-const forkPrompt = (task: string) => `${FORK_PROMPT_PREFIX} The \`fork\` tool call and its result earlier in this conversation are how YOU were launched; from here on you are the background agent that the parent is waiting on. Do not wait for, poll, or expect a report from any background agent, and do not call fork (it is unavailable to you). Do the task below now with your tools, then end with a concise final report: your final message is what gets delivered back to the parent conversation.
+const forkPrompt = (task: string) => `${FORK_PROMPT_PREFIX} The \`fork\` tool call and its result earlier in this conversation are how YOU were launched; from here on you are the background agent that the parent is waiting on. Do not wait for, poll, or expect a report from any background agent, and do not call fork or any other fork tool (calls are refused in this process). Do the task below now with your tools, then end with a concise final report: your final message is what gets delivered back to the parent conversation.
 
 Task:
 ${task}`;
@@ -179,7 +181,7 @@ function launch(job: Job, sessionPath: string) {
 	const record = job.record;
 	setStatus(job, "starting");
 	record.startedAt = new Date().toISOString();
-	const spec: ForkChildSpec = { jobId: record.jobId, sessionId: record.forkSessionId, sessionPath, sessionDir: job.sessionDir, cwd: record.origin.cwd, model: record.config.model,
+	const spec: ForkChildSpec = { jobId: record.jobId, sessionId: record.forkSessionId, parentSessionId: record.origin.sessionId, delegation: promptedDelegation(), sessionPath, sessionDir: job.sessionDir, cwd: record.origin.cwd, model: record.config.model,
 		thinkingLevel: record.config.thinkingLevel, tools: job.tools, trusted: record.config.trusted, guardPath: GUARD_PATH, forwarded: job.forwarded.args, prompt: job.prompt };
 	// Auxiliary query log of the Fork’s own messages; a failure here only marks it unavailable.
 	const transcript = new ForkTranscript(transcriptDir(record.origin.cwd, record.jobId), record.jobId, record.origin.cwd, () => syncTranscript(job));

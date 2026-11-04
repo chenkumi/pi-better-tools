@@ -10,7 +10,7 @@
 
 ## Config 與作用範圍
 
-**沒有專屬 JSON config 鍵。** 四個工具均 `defaultActive: true`，載入 extension 後預設啟用，不需新增 config。宿主的 `--tools` allowlist、`--exclude-tools`、`--no-tools` 與手動停用仍優先；Subagent／Fork child 仍不註冊這四個工具。
+**沒有專屬 JSON config 鍵。** 四個工具均 `defaultActive: true`，載入 extension 後預設啟用，不需新增 config。宿主的 `--tools` allowlist、`--exclude-tools`、`--no-tools` 與手動停用仍優先；Subagent child 不註冊這四個工具；Fork child 為了延續父代的快取前綴，註冊與父代相同的定義，但每次呼叫一律拒絕。
 
 Fork 繼承 parent 有效 cwd、model／thinking、工具與資源，工具參數不提供這些 override。它與 Subagent 的乾淨 context 不同，不會建立 git worktree、同步 parent 後續訊息或合併檔案。
 

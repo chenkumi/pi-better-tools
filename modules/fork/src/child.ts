@@ -5,7 +5,7 @@ import { killProcessTree } from "../../subagents/extensions/subagent/concurrency
 import { getPiInvocation } from "../../subagents/extensions/subagent/pi-invocation.ts";
 import { RpcPipe } from "../../subagents/extensions/subagent/rpc.ts";
 import { CHANNEL } from "./child-guard.ts";
-import { FORK_GUARD_ENV, FORK_TOOLS, isForkTool, type ForkChildGuard } from "./identity.ts";
+import { FORK_GUARD_ENV, type ForkChildGuard } from "./identity.ts";
 
 const LIVE_EVENT = /"type":"(?:message_start|message_update|message_end|tool_execution_start|tool_execution_update|tool_execution_end)"/;
 /** Longest accepted stdout line, in UTF-16 code units of the decoded text (not UTF-8 bytes). */
@@ -18,6 +18,10 @@ export const KILL_GRACE_MS = 5_000;
 export interface ForkChildSpec {
 	jobId: string;
 	sessionId: string;
+	/** Originating session id; becomes the child's provider cache identity (see child-guard). */
+	parentSessionId: string;
+	/** The parent's prompted delegation state (see ForkChildGuard.delegation). */
+	delegation: boolean;
 	sessionPath: string;
 	sessionDir: string;
 	cwd: string;
@@ -66,7 +70,8 @@ export function buildForkPiArgs(spec: Pick<ForkChildSpec, "sessionPath" | "sessi
 	const args = ["--mode", "rpc", "--session", spec.sessionPath, "--session-dir", spec.sessionDir, "--model", spec.model, "--thinking", spec.thinkingLevel];
 	if (spec.tools.length) args.push("--tools", spec.tools.join(","));
 	else args.push("--no-tools");
-	args.push("--exclude-tools", FORK_TOOLS.join(","), "-e", spec.guardPath, spec.trusted ? "--approve" : "--no-approve", ...spec.forwarded);
+	// No --exclude-tools: the child's tool list must equal the parent's to continue its cached prefix. Fork tools stay defined and are refused at call time.
+	args.push("-e", spec.guardPath, spec.trusted ? "--approve" : "--no-approve", ...spec.forwarded);
 	return args;
 }
 
@@ -111,8 +116,8 @@ class Deferred<T> {
 /** Starts the independent Pi process. Every wait is tied to cancellation or child close; nothing relies on a fixed sleep. */
 export function startForkChild(spec: ForkChildSpec, onProgress: (progress: ForkProgress, detail?: ForkBlockedDetail) => void = () => {}): ForkChildHandle {
 	const token = randomBytes(16).toString("hex");
-	const guard: ForkChildGuard = { forkId: spec.jobId, sessionId: spec.sessionId, cwd: spec.cwd, model: spec.model, thinkingLevel: spec.thinkingLevel, childTrusted: spec.trusted, tools: spec.tools, token };
-	const invocation = (spec.invocation ?? getPiInvocation)(buildForkPiArgs(spec));
+	const guard: ForkChildGuard = { forkId: spec.jobId, sessionId: spec.sessionId, parentSessionId: spec.parentSessionId, delegation: spec.delegation, cwd: spec.cwd, model: spec.model, thinkingLevel: spec.thinkingLevel, childTrusted: spec.trusted, tools: spec.tools, token };
+	const invocation = (spec.invocation ?? ((args: string[]) => getPiInvocation(args, process.env, { preferHostScript: true })))(buildForkPiArgs(spec));
 	const proc: ChildProcess = (spec.spawnImpl ?? spawn)(invocation.command, invocation.args, { cwd: spec.cwd, shell: false, windowsHide: true, detached: process.platform !== "win32",
 		stdio: ["pipe", "pipe", "pipe", "ipc"], env: { ...process.env, [FORK_GUARD_ENV]: JSON.stringify(guard) } });
 	const pipe = new RpcPipe(proc);
@@ -183,7 +188,7 @@ export function startForkChild(spec: ForkChildSpec, onProgress: (progress: ForkP
 			const startup = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(Object.assign(new Error("startup deadline"), { code: "STARTUP_DEADLINE" })), STARTUP_MS); });
 			let ready: { tools: string[]; sessionFile?: string };
 			try { ready = await raceCancel(Promise.race([verified.promise, startup])); } finally { if (timer) clearTimeout(timer); }
-			const want = new Set(spec.tools), got = new Set(ready.tools.filter(name => !isForkTool(name)));
+			const want = new Set(spec.tools), got = new Set(ready.tools);
 			if (want.size !== got.size || [...want].some(name => !got.has(name))) throw Object.assign(new Error("tool set differs from the parent selection"), { code: "CAPABILITY_MISMATCH" });
 			const state = await raceCancel(pipe.request("get_state"));
 			if (state?.sessionId !== spec.sessionId || (typeof state?.sessionFile === "string" && !existsSync(state.sessionFile))) throw Object.assign(new Error("native session identity mismatch"), { code: "CONFIG_CHANGED" });
