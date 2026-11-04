@@ -213,6 +213,10 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 
 需要協助實際連線時，只需提供 **SSH host alias** 與 **Mac 上的專案絕對路徑**，並明確授權實連；不需要提供密碼。若一定要使用帳號密碼，需另行實作讓使用者直接在終端機輸入、不經過模型的互動登入介面；目前 extension 未提供此功能。
 
+### 2026-11-05 模組解耦與 `shared/`
+
+新增根目錄函式庫 `shared/`（非模組、無 extension 入口、單向被 `modules/*` import，規則見 `shared/README.md`）：forced-prompt 附加與 `registerPromptSection`（`prompt/`）、跨模組工具名常數（`contracts/`）、背景共用層（`background/`）、設定面板函式庫（`settings-panel/`）。跨工具 system prompt 規則拆回各模組（`file_rules`、`web_rules`、`shell_rules`、`subagent_rules`、`fork_rules`，通用部分 `cross_tool_rules` 留在 Pi Runtime），所有 `pi_*_` 前綴的 section 鍵去前綴；Fork 只經 `modules/subagents/src/fork-contract.ts` 使用 Subagents。升級後既有 session 的第一個請求 prompt 快取 miss 一次。`pi-runtime` 已無用的 `policy.ts`／`debug-log.ts` 殘留已刪除。耦合調查前後對照見 `reports/`（不進版控）。
+
 ### 2026-11-04 移除 Blackhole 與 `/fork:delegate`
 
 `modules/blackhole/`（0.5.12 快照）、其測試與重型組（`test:heavy:blackhole`、`scripts/blackhole-tests.mjs`）、Blackhole 專屬 fixtures、`pi-tools-config` 的 blackhole 參考頁與所有切換說明一併移除；壓縮只剩 Pi Auto Compact（確定性、不呼叫模型）。使用者個人的 `~/.pi/agent/pi-blackhole/` 設定與記憶檔不由本專案處理、不會被刪除，若 Pi 設定仍列有 `modules/blackhole/src/index.ts` 需自行移除。Fork 的 `/fork:delegate`（委派引導）經測試效果不如預期，已移除；Fork 快取延續不變。
