@@ -5,6 +5,7 @@ import { buildSqlConnectorPrompt } from "./prompt.js";
 import { SqlConnectorRuntime } from "./runtime.js";
 import { registerEngineTools } from "./tools.js";
 import { SqlConnectorError } from "./types.js";
+import { createForcedPromptAppender } from "../../../shared/src/prompt/index.js";
 
 const NOTICE_SECTION = "pi_sql_connector_config_error";
 
@@ -24,16 +25,20 @@ export default function sqlConnectorExtension(pi: ExtensionAPI): void {
   const registeredEngines = new Set<string>();
 
   // Without tools the agent cannot learn why they are missing, so a failed load is explained in the system prompt.
+  const appendToForcedPrompt = createForcedPromptAppender();
   pi.on("before_agent_start", (event) => {
-    if (!configError) return;
-    const notice = configErrorNotice(configError);
-    const options = event.systemPromptOptions as { sections?: Record<string, string>; forceSystemPrompt?: string } | undefined;
+    const notice = configError ? configErrorNotice(configError) : undefined;
+    const options = event.systemPromptOptions as { sections?: Record<string, string> } | undefined;
     if (options?.sections) {
-      options.sections[NOTICE_SECTION] = notice;
-      if (options.forceSystemPrompt === undefined) return;
+      if (notice) options.sections[NOTICE_SECTION] = notice;
+      else delete options.sections[NOTICE_SECTION];
+      return appendToForcedPrompt(event, notice);
     }
-    const base = event.systemPrompt;
-    return base.includes(notice) ? undefined : { systemPrompt: `${base}\n\n${notice}` };
+    // Hosts without sections: append to the built prompt.
+    if (!notice) return;
+    return event.systemPrompt.includes(notice) ? undefined : { systemPrompt: `${event.systemPrompt}
+
+${notice}` };
   });
 
   pi.on("session_start", async (_event, ctx) => {

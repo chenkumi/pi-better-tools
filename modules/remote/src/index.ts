@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { ulid } from 'ulid';
-import { createForcedPromptAppender } from '../../pi-runtime/src/forced-prompt.js';
+import { createForcedPromptAppender } from '../../../shared/src/prompt/index.js';
 import { isManagedForegroundChild } from '../../shell-tools/src/managed-child.js';
 import { loadRemoteConfig, remoteConfigPath, type RemoteConfig } from './config.js';
 import { CredentialStore } from './credentials.js';

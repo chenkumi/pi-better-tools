@@ -15,6 +15,7 @@ import { captureGroundingSources, captureNativeSources, formatSourceRecord, read
 import { isRestProvider, MAX_QUERY_CHARS, MAX_SEARCH_RESULTS, search, type PiCredentialResolver, type RestProvider } from './search.ts';
 import type { FetchService } from './fetch/service.ts';
 import { webRenderers } from './renderers.ts';
+import { createForcedPromptAppender } from '../../../shared/src/prompt/index.ts';
 
 export default function webTools(pi: ExtensionAPI) { return registerWebTools(pi, loadConfig); }
 
@@ -154,6 +155,7 @@ export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig
     try { return injectNative(adapter, event.payload); }
     catch (error) { ctx.abort(); throw error; } // runner swallows errors: abort must remain.
   });
+  const appendToForcedPrompt = createForcedPromptAppender();
   pi.on('before_agent_start', (event, ctx) => {
     warnInactive(ctx);
     const adapter = nativeAdapter(ctx.model);
@@ -162,7 +164,7 @@ export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig
     if (options?.sections) {
       if (guidance) options.sections[PROMPT_SECTION] = guidance.trim();
       else delete options.sections[PROMPT_SECTION];
-      if (options.forceSystemPrompt === undefined) return;
+      return appendToForcedPrompt(event, guidance?.trim());
     }
     // Old hosts lack sections. Respect another extension's forced prompt and avoid duplicating any of our variants.
     const base = NATIVE_GUIDANCES.reduce((prompt, text) => prompt.replace(text, ''), options?.forceSystemPrompt ?? event.systemPrompt);

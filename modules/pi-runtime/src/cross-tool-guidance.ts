@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import { createForcedPromptAppender } from './forced-prompt.js';
+import { createForcedPromptAppender } from '../../../shared/src/prompt/index.js';
 
 /**
  * Rules that span several modules (file tools and shell, subagent and fork). A rule that concerns a single module's tools

@@ -32,7 +32,6 @@ const ALLOWED = new Set([
   'pty-terminal -> modules/shell-tools/src/widget-binding',
   'pty-terminal -> setup/commands',
   'pty-terminal -> setup/core',
-  'remote -> modules/pi-runtime/src/forced-prompt',
   'remote -> modules/pi-runtime/src/settings-panel/index',
   'remote -> modules/shell-tools/src/managed-child',
   'schedule-prompt -> modules/shell-tools/src/monitor-exec',

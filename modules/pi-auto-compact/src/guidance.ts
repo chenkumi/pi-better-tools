@@ -1,5 +1,6 @@
 import { getAgentDir, type ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { loadConfig } from './config.ts';
+import { createForcedPromptAppender } from '../../../shared/src/prompt/index.js';
 
 export const AUTO_COMPACT_SECTION = 'pi_better_tools_auto_compact';
 
@@ -18,17 +19,13 @@ const GUIDANCE = `### Context compaction
 
 /** Adds the section while the compaction of this extension is in effect; an invalid settings file leaves compaction to Pi, so the section is removed. */
 export function registerGuidance(pi: ExtensionAPI): void {
+  const appendToForcedPrompt = createForcedPromptAppender();
   pi.on('before_agent_start', event => {
     const enabled = loadConfig(getAgentDir()).ok;
     const options = event.systemPromptOptions;
     if (enabled) options.sections[AUTO_COMPACT_SECTION] = GUIDANCE;
     else delete options.sections[AUTO_COMPACT_SECTION];
     // Preserve forced/custom prompts from other extensions: they are not built from sections.
-    if (options.forceSystemPrompt !== undefined) {
-      const base = options.forceSystemPrompt.replace(`\n\n${GUIDANCE}`, '');
-      const prompt = base + (enabled ? `\n\n${GUIDANCE}` : '');
-      if (prompt !== event.systemPrompt) return { systemPrompt: prompt };
-    }
-    return undefined;
+    return appendToForcedPrompt(event, enabled ? GUIDANCE : undefined);
   });
 }

@@ -93,6 +93,7 @@ import {
 /** Plain `{ type: "string", enum }` schema, the same JSON as pi-ai's StringEnum, typed as TypeBox so `Static` infers the union (pi-ai 1.5 types it as a pi-schema value). */
 const StringEnum = <const T extends readonly string[]>(values: T, options?: { description?: string; default?: T[number] }) =>
   Type.Unsafe<T[number]>({ type: "string", enum: [...values], ...(options?.description && { description: options.description }), ...(options?.default && { default: options.default }) });
+import { createForcedPromptAppender } from "../../../../shared/src/prompt/index.ts";
 import {
 	SubsessionWriter,
 	collectAssistantText,
@@ -1936,9 +1937,9 @@ ${JSON.stringify(slimReceipt(receipt))}` }], details: { ...makeDetails(dispatchM
 		},
 	});
 
+	const appendToForcedPrompt = createForcedPromptAppender();
 	pi.on("before_agent_start", (event, ctx) => {
 		const options = event.systemPromptOptions;
-		const previousCatalog = options.sections[AGENT_CATALOG_SECTION];
 		let catalog = "";
 		if (pi.getActiveTools().includes("subagent")) {
 			const userAgents = discoverAgents(ctx.cwd, "user").agents;
@@ -1951,9 +1952,6 @@ ${JSON.stringify(slimReceipt(receipt))}` }], details: { ...makeDetails(dispatchM
 			options.sections[AGENT_CATALOG_SECTION] = catalog;
 		} else delete options.sections[AGENT_CATALOG_SECTION];
 		// Only an external full-prompt override needs text composition.
-		if (options.forceSystemPrompt === undefined) return;
-		const base = previousCatalog ? options.forceSystemPrompt.replace(`\n\n${previousCatalog}`, "") : options.forceSystemPrompt;
-		const prompt = base + (catalog ? `\n\n${catalog}` : "");
-		if (prompt !== event.systemPrompt) return { systemPrompt: prompt };
+		return appendToForcedPrompt(event, catalog || undefined);
 	});
 }

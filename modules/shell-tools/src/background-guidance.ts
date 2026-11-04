@@ -1,5 +1,6 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { isManagedForegroundChild } from './managed-child.js';
+import { createForcedPromptAppender } from '../../../shared/src/prompt/index.js';
 
 export const BACKGROUND_LIFECYCLE_SECTION = 'pi_better_tools_background_lifecycle';
 const BACKGROUND_TOOLS = new Set([
@@ -18,16 +19,13 @@ export function registerBackgroundLifecycleGuidance(pi: ExtensionAPI): void {
   // Subagents can also register this shared hook in a managed child. Its Shell
   // names no longer imply background capability; recursion tools stay excluded.
   const foregroundOnly = isManagedForegroundChild();
+  const appendToForcedPrompt = createForcedPromptAppender([GUIDANCE]);
   pi.on('before_agent_start', event => {
     const enabled = !foregroundOnly && pi.getActiveTools().some(name => BACKGROUND_TOOLS.has(name));
     const options = event.systemPromptOptions;
     if (enabled) options.sections[BACKGROUND_LIFECYCLE_SECTION] = GUIDANCE;
     else delete options.sections[BACKGROUND_LIFECYCLE_SECTION];
     // Preserve forced/custom prompts from other extensions (e.g. agent catalog).
-    if (options.forceSystemPrompt !== undefined) {
-      const base = options.forceSystemPrompt.replace(`\n\n${GUIDANCE}`, '');
-      const prompt = base + (enabled ? `\n\n${GUIDANCE}` : '');
-      if (prompt !== event.systemPrompt) return { systemPrompt: prompt };
-    }
+    return appendToForcedPrompt(event, enabled ? GUIDANCE : undefined);
   });
 }
