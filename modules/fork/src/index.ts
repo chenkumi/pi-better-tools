@@ -4,8 +4,7 @@ import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { stripVTControlCharacters } from "node:util";
 import { consumeManagedChildGuard } from "../../shell-tools/src/managed-child.ts";
-import { delegationEnabled, readDelegation, registerDelegationCommand, registerDelegationPrompt, setDelegationEnabled } from "./delegation.ts";
-import { FORK_CHILD_REFUSAL, consumeForkChildGuard, hasForkMarker } from "./identity.ts";
+import { FORK_CHILD_REFUSAL, consumeForkChildGuard } from "./identity.ts";
 import { renderForkResult } from "./result-renderer.ts";
 import { isTerminal } from "./store.ts";
 import { RESULT_TYPE, acceptFork, notFoundText, findOwnedJob, messageFork, onSessionShutdown, onSessionStart, onTurnEnd, ownedJobs, requestCancel, summarize } from "./manager.ts";
@@ -117,14 +116,10 @@ export default function (pi: ExtensionAPI) {
 		},
 	}));
 
-	// The child builds the same system prompt as its parent: the guidance follows the parent's last prompt, not any local choice.
-	if (childGuard) { registerDelegationPrompt(pi, () => childGuard.delegation === true); return; } // no store, Monitor provider, command or turn hooks
-	registerDelegationCommand(pi);
-	// A cold-resumed Fork conversation can never fork, so it never gets the guidance.
-	registerDelegationPrompt(pi, ctx => delegationEnabled() && !hasForkMarker(ctx.sessionManager.getEntries()));
+	if (childGuard) return; // no store, Monitor provider or turn hooks
 	// Readonly Monitor capability: optional, never gates Fork acceptance or delivery.
 	let revokeMonitor: (() => void) | undefined;
-	pi.on("session_start", (_event, ctx) => { setDelegationEnabled(readDelegation(ctx.sessionManager.getEntries())); onSessionStart(pi, ctx); revokeMonitor?.(); revokeMonitor = undefined; try { revokeMonitor = publishForkMonitor(ctx); } catch (error) { if (ctx.hasUI) ctx.ui.notify(`Fork monitor capability unavailable (fork_job Monitor disabled for this session): ${display(String(error), 200)}`, "warning"); } });
+	pi.on("session_start", (_event, ctx) => { onSessionStart(pi, ctx); revokeMonitor?.(); revokeMonitor = undefined; try { revokeMonitor = publishForkMonitor(ctx); } catch (error) { if (ctx.hasUI) ctx.ui.notify(`Fork monitor capability unavailable (fork_job Monitor disabled for this session): ${display(String(error), 200)}`, "warning"); } });
 	pi.on("session_shutdown", async event => { revokeMonitor?.(); revokeMonitor = undefined; await onSessionShutdown(event.reason); });
 	pi.on("turn_end", (event, ctx) => { onTurnEnd(ctx, event as never); });
 }

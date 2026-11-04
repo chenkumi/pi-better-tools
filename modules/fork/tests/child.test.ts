@@ -26,7 +26,7 @@ function fakeProc(script: { onRequest?: (cmd: any, reply: (data?: unknown, ok?: 
 	proc.exit = (code = 0) => proc.emit("close", code);
 	return { proc, lines };
 }
-const spec = (proc: any, over: Partial<ForkChildSpec> = {}): ForkChildSpec & { token?: string } => ({ jobId: "J", sessionId: "S1", parentSessionId: "P0", delegation: false, sessionPath: __filename_unused, sessionDir: "/d", cwd: "/w", model: "p/m", thinkingLevel: "off", tools: ["read"], trusted: false,
+const spec = (proc: any, over: Partial<ForkChildSpec> = {}): ForkChildSpec & { token?: string } => ({ jobId: "J", sessionId: "S1", parentSessionId: "P0", sessionPath: __filename_unused, sessionDir: "/d", cwd: "/w", model: "p/m", thinkingLevel: "off", tools: ["read"], trusted: false,
 	guardPath: "/g.ts", forwarded: [], prompt: "PROMPT", invocation: () => ({ command: "pi", args: [] }), spawnImpl: ((_c: string, _a: string[], options: any) => { tokenOf(options.env); return proc; }) as never, closeGraceMs: 5, killGraceMs: 5, ...over });
 const __filename_unused = "/nonexistent-but-unused.jsonl";
 let lastToken = "";

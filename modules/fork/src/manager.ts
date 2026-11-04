@@ -7,7 +7,6 @@ import { LiveTranscript } from "../../shell-tools/src/live-transcript.ts";
 import { ForkJobsWidget } from "./live-widget.ts";
 import { forwardParentArgs, removeTemporary } from "./args.ts";
 import { startForkChild, type ForkChildHandle, type ForkChildOutcome, type ForkChildSpec, type ForkMessageMode } from "./child.ts";
-import { promptedDelegation } from "./delegation.ts";
 import { forkCreationRefusal } from "./identity.ts";
 import { controlId, controlText, messageText, validateInteraction } from "../../subagents/extensions/subagent/query-snapshot.ts";
 import { writeForkSession } from "./snapshot.ts";
@@ -181,7 +180,7 @@ function launch(job: Job, sessionPath: string) {
 	const record = job.record;
 	setStatus(job, "starting");
 	record.startedAt = new Date().toISOString();
-	const spec: ForkChildSpec = { jobId: record.jobId, sessionId: record.forkSessionId, parentSessionId: record.origin.sessionId, delegation: promptedDelegation(), sessionPath, sessionDir: job.sessionDir, cwd: record.origin.cwd, model: record.config.model,
+	const spec: ForkChildSpec = { jobId: record.jobId, sessionId: record.forkSessionId, parentSessionId: record.origin.sessionId, sessionPath, sessionDir: job.sessionDir, cwd: record.origin.cwd, model: record.config.model,
 		thinkingLevel: record.config.thinkingLevel, tools: job.tools, trusted: record.config.trusted, guardPath: GUARD_PATH, forwarded: job.forwarded.args, prompt: job.prompt };
 	// Auxiliary query log of the Fork’s own messages; a failure here only marks it unavailable.
 	const transcript = new ForkTranscript(transcriptDir(record.origin.cwd, record.jobId), record.jobId, record.origin.cwd, () => syncTranscript(job));

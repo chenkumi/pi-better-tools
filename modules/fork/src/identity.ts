@@ -14,8 +14,6 @@ export interface ForkChildGuard {
 	sessionId: string;
 	/** The originating session. The child sends it as its provider cache identity so its first request continues the parent's cache. */
 	parentSessionId: string;
-	/** Whether the parent's last system prompt carried the Fork delegation guidance; the child builds the same prompt so the cached prefix matches. */
-	delegation: boolean;
 	cwd: string;
 	model: string;
 	thinkingLevel: string;

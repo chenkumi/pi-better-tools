@@ -95,7 +95,7 @@ test("G1-004: a cancel accepted while get_session_stats is pending never publish
 		else if (cmd.type === "get_session_stats") releaseStats = () => reply({ tokens: { total: 1 }, cost: 0 });
 		else reply({ disposition: "started" });
 	} });
-	const spec: ForkChildSpec = { jobId: "J", sessionId: "S1", parentSessionId: "P0", delegation: false, sessionPath: "/nonexistent.jsonl", sessionDir: "/d", cwd: "/w", model: "p/m", thinkingLevel: "off", tools: ["read"], trusted: false, guardPath: "/g.ts", forwarded: [], prompt: "PROMPT",
+	const spec: ForkChildSpec = { jobId: "J", sessionId: "S1", parentSessionId: "P0", sessionPath: "/nonexistent.jsonl", sessionDir: "/d", cwd: "/w", model: "p/m", thinkingLevel: "off", tools: ["read"], trusted: false, guardPath: "/g.ts", forwarded: [], prompt: "PROMPT",
 		invocation: () => ({ command: "pi", args: [] }), spawnImpl: ((_c: string, _a: string[], options: any) => { token = JSON.parse(options.env[FORK_GUARD_ENV]).token; return proc; }) as never, closeGraceMs: 5, killGraceMs: 5 } as never;
 	const handle = startForkChild(spec, () => {});
 	proc.emit("message", { channel: CHANNEL, token, type: "verified", tools: ["read"] });

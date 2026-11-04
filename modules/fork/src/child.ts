@@ -20,8 +20,6 @@ export interface ForkChildSpec {
 	sessionId: string;
 	/** Originating session id; becomes the child's provider cache identity (see child-guard). */
 	parentSessionId: string;
-	/** The parent's prompted delegation state (see ForkChildGuard.delegation). */
-	delegation: boolean;
 	sessionPath: string;
 	sessionDir: string;
 	cwd: string;
@@ -116,7 +114,7 @@ class Deferred<T> {
 /** Starts the independent Pi process. Every wait is tied to cancellation or child close; nothing relies on a fixed sleep. */
 export function startForkChild(spec: ForkChildSpec, onProgress: (progress: ForkProgress, detail?: ForkBlockedDetail) => void = () => {}): ForkChildHandle {
 	const token = randomBytes(16).toString("hex");
-	const guard: ForkChildGuard = { forkId: spec.jobId, sessionId: spec.sessionId, parentSessionId: spec.parentSessionId, delegation: spec.delegation, cwd: spec.cwd, model: spec.model, thinkingLevel: spec.thinkingLevel, childTrusted: spec.trusted, tools: spec.tools, token };
+	const guard: ForkChildGuard = { forkId: spec.jobId, sessionId: spec.sessionId, parentSessionId: spec.parentSessionId, cwd: spec.cwd, model: spec.model, thinkingLevel: spec.thinkingLevel, childTrusted: spec.trusted, tools: spec.tools, token };
 	const invocation = (spec.invocation ?? ((args: string[]) => getPiInvocation(args, process.env, { preferHostScript: true })))(buildForkPiArgs(spec));
 	const proc: ChildProcess = (spec.spawnImpl ?? spawn)(invocation.command, invocation.args, { cwd: spec.cwd, shell: false, windowsHide: true, detached: process.platform !== "win32",
 		stdio: ["pipe", "pipe", "pipe", "ipc"], env: { ...process.env, [FORK_GUARD_ENV]: JSON.stringify(guard) } });
