@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
-import { SettingsPanel, saveSettings, type Field, type Patch, type SettingsSchema, type Values } from '../src/settings-panel/index.js';
+import { SettingsPanel, saveSettings, type Field, type Patch, type SettingsSchema, type Values } from '../../src/settings-panel/index.ts';
 
 function file(t: TestContext) {
   const dir = mkdtempSync(join(tmpdir(), 'pi-settings-save-'));

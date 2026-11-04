@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import { applyPatches, readRaw, writeJsonAtomic } from '../../../pi-runtime/src/settings-panel/index.js';
+import { applyPatches, readRaw, writeJsonAtomic } from '../../../../shared/src/settings-panel/index.js';
 import { defaults, loadConfig, parseConfig } from '../../src/config.ts';
 import { registerWebTools } from '../../src/index.ts';
 import { webToolsSettings } from '../../src/settings.ts';

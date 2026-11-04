@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { CONFIG_DIR_NAME, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { registerSettingsCommand } from "../../pi-runtime/src/settings-panel/index.js";
-import type { Field, Patch, SettingsSchema, Values } from "../../pi-runtime/src/settings-panel/index.js";
+import { registerSettingsCommand } from "../../../shared/src/settings-panel/index.js";
+import type { Field, Patch, SettingsSchema, Values } from "../../../shared/src/settings-panel/index.js";
 import { parseDatabaseConfig } from "./config.js";
 import { ENGINES, SqlConnectorError, type Engine } from "./types.js";
 

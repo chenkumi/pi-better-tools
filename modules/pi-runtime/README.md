@@ -4,9 +4,9 @@
 
 > 原 error-aware recovery（`/runtime-recovery`、`/runtime-recover`、`pi-runtime-state`／`pi-runtime-recovery`）經測試沒有實際作用，已整個移除。舊 session 內殘留的這些 entries 無作用。
 
-## 設定面板共用層
+## 設定面板共用層（已移至 `shared/`）
 
-`src/settings-panel/` 供各模組宣告 `SettingsSchema`（欄位、`visibleWhen`、`toValues`／`toPatch`，驗證沿用模組自己的 parser）並呼叫 `registerSettingsCommand` 註冊 `/settings:<id>`。面板（`ctx.ui.custom` overlay）、保留未改欄位的 patch 合併、原子寫入與 secret 遮罩都在此集中；只有按存檔才寫檔，載入 extension 不寫。`SettingsSchema.appliesWithoutReload`（可選）供「每次使用都重讀檔案」的模組：存檔後不再詢問是否 reload（預設仍詢問）。secret 欄位的既有值不載入面板，輸入值只經 `onSave` 傳出。`code` 欄位顯示一組產生的值（Enter 以 `generate()` 即時換新、存檔才寫入、Esc 放棄）；`SettingsSchema.unsaved` 列出尚未儲存的初始值（視為已變更，存檔才會寫出）。`SettingsSchema.afterWrite` 供檔案以外的效果（如另存於使用者層的憑證）：在檔案寫入成功後執行，回傳字串即為存檔錯誤；沒有 patch（只改了檔外項目）時不改動檔案。存檔流程為匯出的 `saveSettings`（可單獨測試）；`SchemaSource` 可為 async。欄位類型含 `action`（一次性操作，例如下載：Enter 兩次確認、背景執行並回報進度、`Esc` 或關閉面板即中止，不屬於存檔內容）。面板樣式固定：圓角框、標題在上邊框、說明行與按鍵提示行各固定一行（過長以 `…` 截斷）、高度固定。欄位可用 `tab`（預設為 `group`）分頁，`Tab`／`Shift+Tab` 切頁，所有分頁共用同一個高度（取各頁在單一 enum／boolean 切換下可達的最高值，只增不減）。目前使用者：web-tools（`/settings:web-tools`，Search／Fetch 兩頁）、sqlite-tools（`/settings:sqlite-tools`）、sql-connector（`/settings:sql-connector`，每種資料庫一頁）、remote（`/settings:remote`）、pi-auto-compact（`/settings:auto-compact`，Budgets／Limits 兩頁，存檔不問 reload）。
+`shared/src/settings-panel/`（原在本模組 `src/settings-panel/`，只經 `index.ts` 引用，Pi Runtime 不再含設定面板程式）供各模組宣告 `SettingsSchema`（欄位、`visibleWhen`、`toValues`／`toPatch`，驗證沿用模組自己的 parser）並呼叫 `registerSettingsCommand` 註冊 `/settings:<id>`。面板（`ctx.ui.custom` overlay）、保留未改欄位的 patch 合併、原子寫入與 secret 遮罩都在此集中；只有按存檔才寫檔，載入 extension 不寫。`SettingsSchema.appliesWithoutReload`（可選）供「每次使用都重讀檔案」的模組：存檔後不再詢問是否 reload（預設仍詢問）。secret 欄位的既有值不載入面板，輸入值只經 `onSave` 傳出。`code` 欄位顯示一組產生的值（Enter 以 `generate()` 即時換新、存檔才寫入、Esc 放棄）；`SettingsSchema.unsaved` 列出尚未儲存的初始值（視為已變更，存檔才會寫出）。`SettingsSchema.afterWrite` 供檔案以外的效果（如另存於使用者層的憑證）：在檔案寫入成功後執行，回傳字串即為存檔錯誤；沒有 patch（只改了檔外項目）時不改動檔案。存檔流程為匯出的 `saveSettings`（可單獨測試）；`SchemaSource` 可為 async。欄位類型含 `action`（一次性操作，例如下載：Enter 兩次確認、背景執行並回報進度、`Esc` 或關閉面板即中止，不屬於存檔內容）。面板樣式固定：圓角框、標題在上邊框、說明行與按鍵提示行各固定一行（過長以 `…` 截斷）、高度固定。欄位可用 `tab`（預設為 `group`）分頁，`Tab`／`Shift+Tab` 切頁，所有分頁共用同一個高度（取各頁在單一 enum／boolean 切換下可達的最高值，只增不減）。目前使用者：web-tools（`/settings:web-tools`，Search／Fetch 兩頁）、sqlite-tools（`/settings:sqlite-tools`）、sql-connector（`/settings:sql-connector`，每種資料庫一頁）、remote（`/settings:remote`）、pi-auto-compact（`/settings:auto-compact`，Budgets／Limits 兩頁，存檔不問 reload）。
 
 ## Deferred 工具（本專案各模組共用）
 
@@ -39,7 +39,7 @@ section 順序由 manifest 載入順序決定，`tests/unit/prompt-snapshot.test
 
 ## 整合與驗證
 
-入口 `./modules/pi-runtime/src/index.ts`，只呼叫 `registerDeferredTools` 與 `registerCrossToolGuidance`；僅使用 host-provided Pi peers，無模組獨立安裝／bundle。設定面板層由各模組直接 import `src/settings-panel/`。
+入口 `./modules/pi-runtime/src/index.ts`，只呼叫 `registerDeferredTools` 與 `registerCrossToolGuidance`；僅使用 host-provided Pi peers，無模組獨立安裝／bundle。設定面板層在 `shared/src/settings-panel/`，由各模組直接 import；其測試在 `shared/tests/settings-panel/`。
 
 ```bash
 npm run test:module -- pi-runtime

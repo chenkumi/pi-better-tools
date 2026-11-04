@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync, mkdirSync
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { applyPatches, readRaw, removeFile, writeJsonAtomic } from "../../pi-runtime/src/settings-panel/index.js";
+import { applyPatches, readRaw, removeFile, writeJsonAtomic } from "../../../shared/src/settings-panel/index.js";
 import { loadSqlConnectorConfig } from "../src/config.js";
 import { sqlConnectorSettings } from "../src/settings.js";
 

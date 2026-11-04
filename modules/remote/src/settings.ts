@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import { registerSettingsCommand } from '../../pi-runtime/src/settings-panel/index.js';
-import type { Field, Patch, SettingsSchema, Values } from '../../pi-runtime/src/settings-panel/index.js';
+import { registerSettingsCommand } from '../../../shared/src/settings-panel/index.js';
+import type { Field, Patch, SettingsSchema, Values } from '../../../shared/src/settings-panel/index.js';
 import { loadRemoteConfig, parseRemoteConfig, remoteConfigPath, type WakeMode } from './config.js';
 import type { CredentialStore } from './credentials.js';
 import { generateCode, normalizeCode, normalizeName } from './protocol.js';

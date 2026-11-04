@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import { registerSettingsCommand, type SettingsSchema } from '../src/settings-panel/index.js';
+import { registerSettingsCommand, type SettingsSchema } from '../../src/settings-panel/index.ts';
 
 function schema(path: string, extra: Partial<SettingsSchema<{ n: number }>> = {}): SettingsSchema<{ n: number }> {
   return {

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { applyPatches, readRaw, removeFile, writeJsonAtomic } from "../../pi-runtime/src/settings-panel/index.js";
+import { applyPatches, readRaw, removeFile, writeJsonAtomic } from "../../../shared/src/settings-panel/index.js";
 import { registerSqliteSettings, sqliteSettings } from "../src/settings.js";
 
 function withFile(fn: (file: string) => void) {

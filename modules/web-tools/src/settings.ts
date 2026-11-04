@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import { registerSettingsCommand } from '../../pi-runtime/src/settings-panel/index.js';
-import type { Field, Patch, SettingsSchema, Values } from '../../pi-runtime/src/settings-panel/index.js';
+import { registerSettingsCommand } from '../../../shared/src/settings-panel/index.js';
+import type { Field, Patch, SettingsSchema, Values } from '../../../shared/src/settings-panel/index.js';
 import { CONFIG_PATH, parseConfig, type Config, type Provider } from './config.ts';
 
 type CredentialName = 'brave' | 'exa' | 'deepseek';

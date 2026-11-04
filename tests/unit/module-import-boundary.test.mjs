@@ -9,20 +9,15 @@ const ALLOWED = new Set([
   'fork -> modules/subagents/src/fork-contract',
   'monitor -> modules/shell-tools/src/monitor-exec',
   'monitor -> modules/web-tools/src/fetch/network',
-  'pi-auto-compact -> modules/pi-runtime/src/settings-panel/index',
   'pty-terminal -> setup/commands',
   'pty-terminal -> setup/core',
-  'remote -> modules/pi-runtime/src/settings-panel/index',
   'schedule-prompt -> modules/shell-tools/src/monitor-exec',
   'schedule-prompt -> modules/shell-tools/src/timeout-ms',
-  'sql-connector -> modules/pi-runtime/src/settings-panel/index',
-  'sqlite-tools -> modules/pi-runtime/src/settings-panel/index',
   'subagents -> modules/shell-tools/src/background-guidance',
   'subagents -> modules/shell-tools/src/detach-hint',
   'subagents -> modules/shell-tools/src/foreground-handoff',
   'subagents -> modules/shell-tools/src/manual-detach',
   'subagents -> modules/shell-tools/src/recovery',
-  'web-tools -> modules/pi-runtime/src/settings-panel/index',
 ]);
 
 const strip = path => path.replace(/\.(?:ts|mjs|js)$/, '');

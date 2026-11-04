@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test, { type TestContext } from 'node:test';
 import type { ExtensionAPI, ExtensionCommandContext } from '@earendil-works/pi-coding-agent';
-import { readRaw, saveSettings, type Values } from '../../pi-runtime/src/settings-panel/index.js';
+import { readRaw, saveSettings, type Values } from '../../../shared/src/settings-panel/index.js';
 import { loadRemoteConfig, remoteConfigPath } from '../src/config.js';
 import { CredentialStore } from '../src/credentials.js';
 import { generateCode, normalizeCode } from '../src/protocol.js';

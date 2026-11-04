@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import { saveSettings } from '../../pi-runtime/src/settings-panel/index.js';
+import { saveSettings } from '../../../shared/src/settings-panel/index.js';
 import { DEFAULT_CONFIG, configPath, loadConfig } from '../src/config.ts';
 import { autoCompactSettings, registerAutoCompactSettings } from '../src/settings.ts';
 

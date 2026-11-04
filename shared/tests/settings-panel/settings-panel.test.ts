@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { SettingsPanel, applyPatches, readRaw, writeJsonAtomic, type Field, type PanelOptions } from '../src/settings-panel/index.js';
+import { SettingsPanel, applyPatches, readRaw, writeJsonAtomic, type Field, type PanelOptions } from '../../src/settings-panel/index.ts';
 
 const style = { fg: (_c: string, t: string) => t, bold: (t: string) => t };
 const KEY = { up: '\x1b[A', down: '\x1b[B', right: '\x1b[C', enter: '\r', esc: '\x1b', save: '\x13' };
