@@ -49,7 +49,7 @@ try {
   const child = requests.filter(r => r.isChild), root = requests.filter(r => !r.isChild);
   assert.ok(child.length >= 1 && root.length >= 2);
   assert.notEqual(child[0].pid, root[0].pid, 'independent process');
-  assert.deepEqual(child[0].tools, ['read'], 'packaged child inherits the exact selection minus Fork tools');
+  assert.deepEqual(child[0].tools, root[0].tools, "packaged child has the parent's exact tool list (same cache prefix); Fork tools are registered but refused");
   const files = (await readdir(sessions)).filter(name => name.endsWith('.jsonl'));
   assert.equal(files.length, 2);
   const forkFile = files.find(name => name.includes(details.forkSessionId));

@@ -180,8 +180,9 @@ test("real Pi: Fork waits for its own background shell job and can use the subag
 		assert.equal(existsSync(join(iso.ws, "nested.marker")), true, "nested job finished before the Fork was reported");
 		const child = capturedRequests(iso.capture).filter(r => r.isChild).sort((a, b) => a.nth - b.nth);
 		assert.ok(child.length >= 3, "initial turn, early settle turn, and the job wake-up turn");
-		assert.deepEqual([...child[0].tools].sort(), ["bash", "read", "subagent"], "Fork keeps the parent's subagent selection and loses only Fork tools");
-		assert.ok(!child[0].tools.some((name: string) => name.startsWith("fork")));
+		const root = capturedRequests(iso.capture).filter(r => !r.isChild).sort((a, b) => a.nth - b.nth);
+		assert.ok(root.length >= 1);
+		assert.deepEqual([...child[0].tools], [...root[0].tools], "Fork has the parent's exact tool list (same cache prefix); Fork tools are registered but refused");
 		const [meta] = metaRecords(iso.ws);
 		assert.equal(meta.status, "completed"); assert.equal(meta.cleanup.childClosed, true);
 	} finally { try { parent.proc.kill("SIGKILL"); } catch { /* gone */ } await parent.exit.catch(() => undefined); rmSync(iso.root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }); }
