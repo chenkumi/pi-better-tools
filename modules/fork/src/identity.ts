@@ -2,7 +2,8 @@ import { consumeManagedChildGuard } from "../../shell-tools/src/managed-child.ts
 
 /** Persisted in every Fork conversation so a cold /resume still knows its origin. Not an OS boundary. */
 export const FORK_MARKER_TYPE = "pi-better-tools.fork-origin";
-export const FORK_TOOLS = ["fork", "fork_status", "fork_cancel", "fork_message"] as const;
+import { FORK_TOOLS } from "../../../shared/src/contracts/index.js";
+export { FORK_TOOLS };
 export const isForkTool = (name: string) => (FORK_TOOLS as readonly string[]).includes(name);
 /** Every Fork tool call inside a Fork child (execute and tool_call guard) fails with this. */
 export const FORK_CHILD_REFUSAL = "FORK_FORBIDDEN: A Fork process cannot create another Fork, or manage Forks. Do the task directly in this process, or use the subagent tool for a fresh-context worker.";

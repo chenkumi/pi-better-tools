@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { SHELL_JOB_TOOLS, SHELL_TOOLS, SUBAGENT_TOOLS } from "../../../shared/src/contracts/index.js";
 import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";
@@ -18,14 +19,13 @@ const states = new Set(["accepted", "queued", "running", "cancelling", "complete
 const terminal = new Set(["completed", "failed", "cancelled", "timed_out", "aborted", "skipped"]);
 const reasons = new Set(["quit", "reload", "new", "resume", "fork", "owner_unavailable", "notification_failure"]);
 /** Shell tools whose results are background receipts only when their call asked for background:true. */
-const SHELL_TOOLS = ["bash", "powershell"];
 /** Tool results that can carry legacy lifecycle evidence for each kind. */
 const RESULT_TOOLS: Record<RecoveryKind, readonly string[]> = {
-  shell: [...SHELL_TOOLS, "shell_job_status", "shell_job_cancel"],
-  subagent: ["subagent", "subagent_message", "subagent_status", "subagent_cancel"],
+  shell: [...SHELL_TOOLS, ...SHELL_JOB_TOOLS],
+  subagent: SUBAGENT_TOOLS,
 };
 /** Management tools whose terminal result confirms the outcome. */
-const STATUS_TOOLS = ["shell_job_status", "shell_job_cancel", "subagent_status", "subagent_cancel"];
+const STATUS_TOOLS: readonly string[] = [...SHELL_JOB_TOOLS, "subagent_status", "subagent_cancel"];
 /** Bound on tasks per batch job. */
 const MAX_TASKS = 32;
 const object = (value: unknown): Record<string, any> | undefined => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : undefined;

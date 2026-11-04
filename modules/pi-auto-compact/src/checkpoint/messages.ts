@@ -5,7 +5,8 @@ export const DEADLINE_TYPE = 'pi-auto-compact:deadline';
 export const isCheckpointType = (type: unknown): boolean => type === CHECKPOINT_TYPE || type === CONTINUE_TYPE || type === DEADLINE_TYPE;
 
 /** The anchor tool: its `summary` argument is the progress report. For compaction it counts as an assistant text message. */
-export const ANCHOR_TOOL = 'progress_checkpoint';
+import { PROGRESS_CHECKPOINT_TOOL } from '../../../../shared/src/contracts/index.js';
+export const ANCHOR_TOOL = PROGRESS_CHECKPOINT_TOOL;
 
 const WHEN = 'Automatic progress checkpoint (not a user request): you have made many tool calls since your last message.';
 const WHAT = 'a brief progress report of 2 to 4 sentences: what is done, what is in progress, what is next.';

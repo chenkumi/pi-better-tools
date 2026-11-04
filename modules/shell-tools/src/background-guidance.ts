@@ -1,12 +1,10 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { isManagedForegroundChild } from './managed-child.js';
 import { createForcedPromptAppender } from '../../../shared/src/prompt/index.js';
+import { SHELL_JOB_TOOLS, SHELL_TOOLS, SUBAGENT_TOOLS } from '../../../shared/src/contracts/index.js';
 
 export const BACKGROUND_LIFECYCLE_SECTION = 'pi_better_tools_background_lifecycle';
-const BACKGROUND_TOOLS = new Set([
-  'bash', 'powershell', 'shell_job_status', 'shell_job_cancel',
-  'subagent', 'subagent_status', 'subagent_cancel', 'subagent_message',
-]);
+const BACKGROUND_TOOLS = new Set<string>([...SHELL_TOOLS, ...SHELL_JOB_TOOLS, ...SUBAGENT_TOOLS]);
 const GUIDANCE = `### Background job lifecycle
 - Notifications may arrive after logs or newer results, so delivery order is not completion order. Correlate evidence by job/task/invocation ID, not arrival order; an older run must not replace a newer run's result.
 - A receipt, log line, partial assistant conclusion, progress summary or snapshot is provisional, not runner completion. Claim a whole job passed/completed only from its terminal status/result and available exitCode/error, via a completion notification or selected status tool. If only logs establish a conclusion, say "log-based provisional conclusion; runner exit/cleanup not yet confirmed" and list remaining work. Silence or a missing/renamed log is not completion evidence.

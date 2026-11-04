@@ -1,2 +1,4 @@
-// Placeholder until the tool-name constants and result shapes land (plan phase P3).
-export const SHARED_CONTRACTS_READY = true;
+export {
+  FILE_EDIT_TOOLS, FILE_INSPECT_TOOLS, FORK_TOOLS, MONITOR_TOOLS, PROGRESS_CHECKPOINT_TOOL,
+  SHELL_JOB_TOOLS, SHELL_TOOLS, SUBAGENT_TOOLS, WEB_TOOLS, isOneOf,
+} from './tool-names.js';

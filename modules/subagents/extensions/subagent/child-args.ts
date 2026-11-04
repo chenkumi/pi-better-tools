@@ -1,3 +1,5 @@
+import { FORK_TOOLS, PROGRESS_CHECKPOINT_TOOL, SUBAGENT_TOOLS } from "../../../../shared/src/contracts/index.ts";
+
 /** Called only at owned managed-child spawn sites (new/resume/ready-query).
  * Keep identity explicit, not inferred from transport, cwd, or session files.
  * The child consumes the guard environment before tools can spawn grandchildren.
@@ -24,7 +26,6 @@ export interface SubagentPiArgsOptions {
 }
 
 /** The progress checkpoint anchor tool of Pi Auto Compact; a child with an explicit tool list still needs it to anchor long runs. A tool list of +name/-name entries cannot mix in a bare name. */
-const PROGRESS_CHECKPOINT_TOOL = "progress_checkpoint";
 const withProgressCheckpoint = (tools: readonly string[]): string => (tools.some((tool) => tool.startsWith("+") || tool.startsWith("-")) ? `+${PROGRESS_CHECKPOINT_TOOL}` : PROGRESS_CHECKPOINT_TOOL);
 
 /**
@@ -37,7 +38,7 @@ const withProgressCheckpoint = (tools: readonly string[]): string => (tools.some
  */
 export function buildSubagentPiArgs(options: SubagentPiArgsOptions): string[] {
 	const rpc = options.transport === "rpc";
-	const args = ["--mode", rpc ? "rpc" : "json", ...(!rpc ? ["-p"] : []), "--exclude-tools", "subagent,subagent_status,subagent_cancel,subagent_message,fork,fork_status,fork_cancel,fork_message"];
+	const args = ["--mode", rpc ? "rpc" : "json", ...(!rpc ? ["-p"] : []), "--exclude-tools", [...SUBAGENT_TOOLS, ...FORK_TOOLS].join(",")];
 	const persistence = options.persistence;
 	if (!persistence || !["new", "resume"].includes(persistence.kind)) throw new Error("Managed session persistence is required for every subagent child.");
 	args.push("--session-dir", persistence.sessionDir);
