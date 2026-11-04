@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createAssistantMessageEventStream } from '@earendil-works/pi-ai';
 import * as sdk from '@earendil-works/pi-coding-agent';
-import { canonicalMonitorCwd, publishActiveMonitorBriefs, publishCapability } from '../../../shell-tools/src/monitor-capability.ts';
+import { canonicalMonitorCwd, publishActiveMonitorBriefs, publishCapability } from '../../../../shared/src/background/index.ts';
 
 assert.equal(sdk.VERSION, '1.5.0'); sdk.initTheme('dark', false);
 const scenario = process.argv[2] ?? 'full';

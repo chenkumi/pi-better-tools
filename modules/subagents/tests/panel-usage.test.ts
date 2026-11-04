@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { BackgroundJobs } from '../extensions/subagent/background.ts';
-import { panelUsage } from '../../shell-tools/src/job-view.js';
+import { panelUsage } from '../../../shared/src/background/index.js';
 const usage = (total: number) => ({ input: total - 2, output: 2, cacheRead: 0, cacheWrite: 0, totalTokens: total, cost: 0.1 });
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(r => resolve = r); return { promise, resolve }; }
 test('job-level projection sums task invocation snapshots once, keeps query costs separate and private metadata out of receipts', async () => {

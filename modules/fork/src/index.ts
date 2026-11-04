@@ -3,7 +3,7 @@ import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { stripVTControlCharacters } from "node:util";
-import { consumeManagedChildGuard } from "../../shell-tools/src/managed-child.ts";
+import { consumeManagedChildGuard } from "../../../shared/src/background/index.ts";
 import { FORK_CHILD_REFUSAL, consumeForkChildGuard } from "./identity.ts";
 import { renderForkResult } from "./result-renderer.ts";
 import { isTerminal } from "./store.ts";

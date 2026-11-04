@@ -1,8 +1,8 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { canonicalMonitorCwd, publishJobBriefs } from "../../shell-tools/src/monitor-capability.ts";
-import type { PanelHost } from "../../shell-tools/src/background-panel.ts";
-import { safeJobText, type PanelJob } from "../../shell-tools/src/job-view.ts";
-import { JobsWidgetBinding } from "../../shell-tools/src/widget-binding.ts";
+import { canonicalMonitorCwd, publishJobBriefs } from "../../../shared/src/background/index.ts";
+import type { PanelHost } from "../../../shared/src/background/index.ts";
+import { safeJobText, type PanelJob } from "../../../shared/src/background/index.ts";
+import { JobsWidgetBinding } from "../../../shared/src/background/index.ts";
 import type { PtySessionManager, PtySessionSummary } from "./pty-manager.ts";
 
 const MAX_ROWS = 32;

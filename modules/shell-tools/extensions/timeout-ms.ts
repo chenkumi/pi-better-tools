@@ -17,8 +17,8 @@ import { registerBackgroundLifecycleGuidance } from "../src/background-guidance.
 import { SHELL_RULES_SECTION, renderShellRules } from "../src/prompt-rules.js";
 import { registerPromptSection } from "../../../shared/src/prompt/index.js";
 import { registerApiInterruptionRenderer } from "../src/api-interruption-renderer.js";
-import { isManagedForegroundChild } from "../src/managed-child.js";
-import { AUTO_MONITOR_INTERVAL_MS, canonicalMonitorCwd, requestAutoMonitor } from "../src/monitor-capability.js";
+import { isManagedForegroundChild } from "../../../shared/src/background/index.js";
+import { AUTO_MONITOR_INTERVAL_MS, canonicalMonitorCwd, requestAutoMonitor } from "../../../shared/src/background/index.js";
 import { createForegroundHandoff, resolveAutoBackgroundMs } from "../src/foreground-handoff.js";
 import { DETACH_HINT, ensureDetachShortcut, forgetToolRow, isForegroundDetachable, rememberToolRow, trackForeground } from "../src/manual-detach.js";
 import { addDetachHint } from "../src/detach-hint.js";

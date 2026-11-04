@@ -32,7 +32,7 @@ Monitor 在 `session_start` 另經 `monitor-capability.ts` 發布 `publishActive
 
 ## TUI 工作面板
 
-進行中的 `command`／`websocket`／`file`／`system` 監看顯示在 Shell／Subagents／Fork／PTY 共用的輸入欄上方 Jobs 面板（`modules/shell-tools/src/background-panel.ts` 的 `monitor` 種類，`/background-jobs monitor` 篩選）。每個監看一行：`● MN command · tail -f logs/app.log      wake off | 剩 24m`；狀態欄在 `running` 時為 `wake on|off | 剩 <時間>`，`starting`／`stopping` 為 `狀態 | wake …`，來源已結束但 close 未確認（仍占 active 名額）為 `<終態> | cleanup pending`。標題優先用 `label`，沒有則用目標。點 job 列在 More 浮層看唯讀詳細（ID、來源、期限、wake、事件計數、通知狀態、cleanup 證據）；停止仍只能用 `monitor_stop`，面板沒有取消操作。
+進行中的 `command`／`websocket`／`file`／`system` 監看顯示在 Shell／Subagents／Fork／PTY 共用的輸入欄上方 Jobs 面板（`shared/src/background/background-panel.ts` 的 `monitor` 種類，`/background-jobs monitor` 篩選）。每個監看一行：`● MN command · tail -f logs/app.log      wake off | 剩 24m`；狀態欄在 `running` 時為 `wake on|off | 剩 <時間>`，`starting`／`stopping` 為 `狀態 | wake …`，來源已結束但 close 未確認（仍占 active 名額）為 `<終態> | cleanup pending`。標題優先用 `label`，沒有則用目標。點 job 列在 More 浮層看唯讀詳細（ID、來源、期限、wake、事件計數、通知狀態、cleanup 證據）；停止仍只能用 `monitor_stop`，面板沒有取消操作。
 
 - `shell_job`／`subagent_job`／`fork_job` 不進面板：被觀察的 job 已有自己的 SH／SA／FK 列。
 - 投影由 `MonitorRuntime.panelRows()` 產生，是顯示專用的唯讀快照，不開 timer、不觸發 `ownerLost`；不含事件文字、stderr、URL path／query／fragment（websocket 只留 `scheme://host`）。`command` 的指令文字會顯示在使用者自己的終端面板上（與 Shell 面板相同），**不**進模型可見的 receipt／brief／壓縮提醒，那些仍是 `[command withheld]`；不要把含憑證的指令貼進螢幕共享。

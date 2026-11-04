@@ -37,13 +37,13 @@ import { renderBackgroundMessage, renderBackgroundResult } from "./background-re
 import { createForegroundHandoff } from "./foreground-handoff.ts";
 import { SubagentJobsWidget } from "./live-widget.ts";
 import { publishSubagentMonitor } from "./monitor-capability.ts";
-import { isManagedForegroundChild } from "../../../shell-tools/src/managed-child.js";
+import { isManagedForegroundChild } from "../../../../shared/src/background/index.js";
 import { BackgroundRecovery } from "../../../shell-tools/src/recovery.js";
 import { registerBackgroundLifecycleGuidance } from "../../../shell-tools/src/background-guidance.js";
 import { ensureDetachShortcut, trackForeground } from "../../../shell-tools/src/manual-detach.js";
 import { resolveAutoBackgroundMs } from "../../../shell-tools/src/foreground-handoff.js";
 import { addDetachHint } from "../../../shell-tools/src/detach-hint.js";
-import { panelUsage, safeJobText } from "../../../shell-tools/src/job-view.js";
+import { panelUsage, safeJobText } from "../../../../shared/src/background/index.js";
 import { Semaphore, killProcessTree } from "./concurrency.ts";
 import { describeIgnoredOverrides, selectDispatchDefaults } from "./model-selection.ts";
 import { displayTitle, isValidTitle, MAX_TITLE_LENGTH } from "./title.ts";

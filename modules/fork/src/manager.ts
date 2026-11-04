@@ -3,7 +3,7 @@ import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { ulid } from "ulid";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { LiveTranscript } from "../../shell-tools/src/live-transcript.ts";
+import { LiveTranscript } from "../../../shared/src/background/index.ts";
 import { ForkJobsWidget } from "./live-widget.ts";
 import { forwardParentArgs, removeTemporary } from "./args.ts";
 import { startForkChild, type ForkChildHandle, type ForkChildOutcome, type ForkChildSpec, type ForkMessageMode } from "./child.ts";

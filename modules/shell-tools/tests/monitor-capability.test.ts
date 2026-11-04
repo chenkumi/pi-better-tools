@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ShellJobs } from '../src/background-jobs.js';
-import { canonicalMonitorCwd, publishCapability, acquireCapability, publishAutoMonitor, requestAutoMonitor, publishJobBriefs, activeJobBriefs } from '../src/monitor-capability.js';
+import { canonicalMonitorCwd, publishCapability, acquireCapability, publishAutoMonitor, requestAutoMonitor, publishJobBriefs, activeJobBriefs } from '../../../shared/src/background/index.js';
 import { createShellMonitorPublisher } from '../src/monitor-publisher.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -63,7 +63,7 @@ test('auto monitor request is scoped, replaceable, revocable and never throws', 
   revokeNew(); assert.deepEqual(seen, ['job-1']);
 });
 test('activeJobBriefs lists only owner-matching, valid providers as bounded id/status rows', async () => {
-  const { activeJobBriefs } = await import('../src/monitor-capability.js');
+  const { activeJobBriefs } = await import('../../../shared/src/background/index.js');
   const scope = { sessionId: 'brief-owner', cwd: canonicalMonitorCwd(process.cwd()) };
   assert.deepEqual(activeJobBriefs(scope), { briefs: [], partial: false });
   let valid = true;
@@ -76,7 +76,7 @@ test('activeJobBriefs lists only owner-matching, valid providers as bounded id/s
   revoke(); revokeShell();
 });
 test('activeMonitorBriefs reads only the owner-matching reader and marks malformed rows partial', async () => {
-  const { activeMonitorBriefs, publishActiveMonitorBriefs } = await import('../src/monitor-capability.js');
+  const { activeMonitorBriefs, publishActiveMonitorBriefs } = await import('../../../shared/src/background/index.js');
   const scope = { sessionId: 'monitor-brief-owner', cwd: canonicalMonitorCwd(process.cwd()) };
   const brief = { monitorId: 'MON1', source: 'file', state: 'running', target: 'src/app.ts', label: 'schema', remainingMs: 60000 };
   assert.deepEqual(activeMonitorBriefs(scope), { briefs: [], partial: false }, 'no Monitor means no section');
@@ -100,7 +100,7 @@ test('activeMonitorBriefs reads only the owner-matching reader and marks malform
   assert.deepEqual(activeMonitorBriefs(scope), { briefs: [], partial: false }, 'revoked reader publishes nothing');
 });
 test('active Shell briefs carry only the job id and status, never the command', async () => {
-  const { activeJobBriefs } = await import('../src/monitor-capability.js');
+  const { activeJobBriefs } = await import('../../../shared/src/background/index.js');
   const root = mkdtempSync(join(tmpdir(), 'monitor-shell-brief-'));
   const jobs = new ShellJobs({ sendMessage() {} } as any), publisher = createShellMonitorPublisher(jobs);
   const ctx: any = { cwd: root, sessionManager: { getSessionId: () => 'brief-shell-owner' } };

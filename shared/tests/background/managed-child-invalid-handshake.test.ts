@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { consumeManagedChildGuard, isManagedForegroundChild } from '../src/managed-child.js';
+import { consumeManagedChildGuard, isManagedForegroundChild } from '../../src/background/index.ts';
 
 const slot = globalThis as { __piSubagentsGuardExpected?: unknown };
 

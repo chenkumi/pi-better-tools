@@ -12,7 +12,7 @@ import type { MonitorRuntime, Clock } from '../../src/core.ts';
 import shellExtension from '../../../shell-tools/src/index.ts';
 import { ShellJobs } from '../../../shell-tools/src/background-jobs.ts';
 import { BackgroundJobs } from '../../../subagents/extensions/subagent/background.ts';
-import { acquireCapability, canonicalMonitorCwd } from '../../../shell-tools/src/monitor-capability.ts';
+import { acquireCapability, canonicalMonitorCwd } from '../../../../shared/src/background/index.ts';
 import subagentExtension from '../../../subagents/extensions/subagent/index.ts';
 import offlineProvider from './offline-provider.ts';
 class ManualClock implements Clock {

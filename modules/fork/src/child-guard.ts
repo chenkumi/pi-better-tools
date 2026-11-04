@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { activeJobCounts, canonicalMonitorCwd } from "../../shell-tools/src/monitor-capability.ts";
+import { activeJobCounts, canonicalMonitorCwd } from "../../../shared/src/background/index.ts";
 import { FORK_CHILD_REFUSAL, FORK_MARKER_TYPE, consumeForkChildGuard, hasForkMarker, isForkTool } from "./identity.ts";
 
 export const CHANNEL = "pi-fork";

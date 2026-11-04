@@ -8,7 +8,7 @@ import type { ForkChildOutcome, ForkChildSpec } from "../src/child.ts";
 import { acceptFork, deps, onSessionStart, state, type Job } from "../src/manager.ts";
 import { forkMonitorSnapshot, publishForkMonitor } from "../src/monitor-capability.ts";
 import { saveRecord, type ForkRecord } from "../src/store.ts";
-import { acquireCapability } from "../../shell-tools/src/monitor-capability.ts";
+import { acquireCapability } from "../../../shared/src/background/index.ts";
 import forkExtension from "../src/index.ts";
 
 const KEY = Symbol.for("pi-better-tools.fork.registry.v1");
@@ -150,7 +150,7 @@ test("observing a Fork cannot cancel, resume or query it", () => {
 });
 
 test("active Fork briefs carry only the job id and status, and drop finished Forks", async () => {
-	const { activeJobBriefs } = await import("../../shell-tools/src/monitor-capability.ts");
+	const { activeJobBriefs } = await import("../../../shared/src/background/index.ts");
 	const { sm, ctx, jobId, job } = liveFork();
 	const revoke = publishForkMonitor(ctx);
 	try {

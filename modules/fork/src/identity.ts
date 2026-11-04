@@ -1,4 +1,4 @@
-import { consumeManagedChildGuard } from "../../shell-tools/src/managed-child.ts";
+import { consumeManagedChildGuard } from "../../../shared/src/background/index.ts";
 
 /** Persisted in every Fork conversation so a cold /resume still knows its origin. Not an OS boundary. */
 export const FORK_MARKER_TYPE = "pi-better-tools.fork-origin";

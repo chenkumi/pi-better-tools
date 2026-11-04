@@ -5,7 +5,7 @@
  * publishes through the Monitor capability rendezvous: source kind, state, a coarse target, the optional label and the remaining
  * lifetime, never command text, output or events. It describes the moment of compaction only.
  */
-import { activeMonitorBriefs, canonicalMonitorCwd, MAX_ACTIVE_MONITOR_BRIEFS, type ActiveMonitorBrief } from '../../../shell-tools/src/monitor-capability.ts';
+import { activeMonitorBriefs, canonicalMonitorCwd, MAX_ACTIVE_MONITOR_BRIEFS, type ActiveMonitorBrief } from '../../../../shared/src/background/index.ts';
 
 const MAX_ROWS = MAX_ACTIVE_MONITOR_BRIEFS;
 const SAFE_ID = /^[A-Za-z0-9_.:-]{1,128}$/;

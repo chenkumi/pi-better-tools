@@ -4,7 +4,7 @@ import { stripVTControlCharacters as plain } from 'node:util';
 import { visibleWidth } from '@earendil-works/pi-tui';
 import { BackgroundJobs, slimReceipt } from '../extensions/subagent/background.ts';
 import { SUBAGENT_WIDGET_KEY, SubagentJobsWidget } from '../extensions/subagent/live-widget.ts';
-import { renderJobs } from '../../shell-tools/src/job-view.js';
+import { renderJobs } from '../../../shared/src/background/index.js';
 const theme: any = { fg: (_: string, s: string) => `\x1b[32m${s}\x1b[0m`, getBgAnsi: () => '\x1b[48;5;58m', bg: (_: string, s: string) => '\x1b[48;5;58m' + s + '\x1b[49m' };
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(r => resolve = r); return { promise, resolve }; }
 function view(mode = 'tui') {

@@ -39,7 +39,7 @@ async function record(label, action) {
   }
 }
 const required = [
-  'shared/README.md', 'shared/src/contracts/index.ts', 'shared/src/contracts/tool-names.ts', 'shared/src/prompt/index.ts', 'shared/src/prompt/forced-prompt.ts', 'shared/src/prompt/section.ts',
+  'shared/README.md', 'shared/src/contracts/index.ts', 'shared/src/contracts/tool-names.ts', 'shared/src/prompt/index.ts', 'shared/src/prompt/forced-prompt.ts', 'shared/src/prompt/section.ts', 'shared/src/background/index.ts',
   'setup/cli.mjs', 'setup/commands.mjs', 'setup/commands.d.mts', 'setup/core.mjs',
   ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'note-tools', 'gpt-speed', 'json-schema', 'pty-terminal', 'schedule-prompt', 'pi-runtime', 'monitor', 'skill-tools', 'theme-tools', 'fork', 'remote', 'sqlite-tools', 'sql-connector', 'file-audit', 'pi-auto-compact'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
   ...['activity-window', 'events', 'paths', 'provenance', 'commands', 'presentation'].map(name => `modules/file-audit/src/${name}.ts`),
@@ -55,7 +55,7 @@ const required = [
   'modules/monitor/LICENSE', 'modules/monitor/package.json',
   ...['identity', 'snapshot', 'child', 'child-guard', 'manager', 'store', 'args'].map(name => `modules/fork/src/${name}.ts`), 'modules/fork/LICENSE', 'modules/fork/package.json',
   ...['config', 'credentials', 'protocol', 'hub', 'client', 'runtime', 'tools', 'view', 'settings'].map(name => `modules/remote/src/${name}.ts`), 'modules/remote/LICENSE', 'modules/remote/package.json',
-  'modules/shell-tools/src/monitor-capability.ts', 'modules/shell-tools/src/monitor-exec.ts', 'modules/shell-tools/src/monitor-publisher.ts',
+  'modules/shell-tools/src/monitor-exec.ts', 'modules/shell-tools/src/monitor-publisher.ts',
   'modules/subagents/extensions/subagent/monitor-capability.ts',
   'modules/subagents/extensions/subagent/index.ts', 'modules/subagents/extensions/subagent/child-guard.ts',
   'modules/subagents/agents/planner.md', 'modules/subagents/agents/reviewer.md', 'modules/subagents/agents/scout.md', 'modules/subagents/agents/worker.md',

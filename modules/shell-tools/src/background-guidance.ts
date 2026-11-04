@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import { isManagedForegroundChild } from './managed-child.js';
+import { isManagedForegroundChild } from '../../../shared/src/background/index.js';
 import { createForcedPromptAppender } from '../../../shared/src/prompt/index.js';
 import { SHELL_JOB_TOOLS, SHELL_TOOLS, SUBAGENT_TOOLS } from '../../../shared/src/contracts/index.js';
 

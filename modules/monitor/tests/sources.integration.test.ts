@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { commandLaunch, websocketLaunch, jobLaunch } from '../src/sources.ts';
 import { prepareEndpoint, pinnedOptions } from '../src/network.ts';
-import { publishCapability, acquireCapability } from '../../shell-tools/src/monitor-capability.ts';
+import { publishCapability, acquireCapability } from '../../../shared/src/background/index.ts';
 import { MonitorRuntime, type Clock } from '../src/core.ts';
 import { validateStart } from '../src/schema.ts';
 const owner = { sessionId: 'isolated-fixture', cwd: process.cwd() };

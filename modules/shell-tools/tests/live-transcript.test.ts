@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { stripVTControlCharacters as plain } from 'node:util';
 import { initTheme } from '@earendil-works/pi-coding-agent';
-import { JobsOverlay, panelSignature, type PanelJob } from '../src/job-view.js';
-import { LiveTranscript, safeOutputText, OutputTranscript, TranscriptView } from '../src/live-transcript.js';
+import { JobsOverlay, panelSignature, type PanelJob } from '../../../shared/src/background/index.js';
+import { LiveTranscript, safeOutputText, OutputTranscript, TranscriptView } from '../../../shared/src/background/index.js';
 
 initTheme('dark', false);
 const theme: any = { fg: (_: string, s: string) => s, getBgAnsi: () => '', bg: (_: string, s: string) => s };

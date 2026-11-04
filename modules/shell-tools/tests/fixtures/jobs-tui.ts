@@ -1,8 +1,8 @@
 import { appendFileSync } from 'node:fs';
 import { stripVTControlCharacters } from 'node:util';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { acquireBackgroundPanel } from '../../src/background-panel.js';
-import type { PanelJob } from '../../src/job-view.js';
+import { acquireBackgroundPanel } from '../../../../shared/src/background/index.js';
+import type { PanelJob } from '../../../../shared/src/background/index.js';
 
 /** Offline terminal fixture: injected metadata, no subprocess jobs, models or persisted user state. */
 export default function (pi: ExtensionAPI) {

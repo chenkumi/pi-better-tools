@@ -6,7 +6,7 @@ import test from "node:test";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { buildSubagentPiArgs } from "../../subagents/src/fork-contract.ts";
 import { getPiInvocation } from "../../subagents/src/fork-contract.ts";
-import { activeJobCounts, publishCapability } from "../../shell-tools/src/monitor-capability.ts";
+import { activeJobCounts, publishCapability } from "../../../shared/src/background/index.ts";
 import { forwardParentArgs } from "../src/args.ts";
 import { buildForkPiArgs } from "../src/child.ts";
 import { FORK_GUARD_ENV, FORK_MARKER_TYPE, FORK_TOOLS, forkCreationRefusal } from "../src/identity.ts";

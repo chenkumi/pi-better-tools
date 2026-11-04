@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { stripVTControlCharacters as plain } from "node:util";
-import { BACKGROUND_WIDGET_KEY } from "../../shell-tools/src/background-panel.ts";
-import { activeJobBriefs, canonicalMonitorCwd } from "../../shell-tools/src/monitor-capability.ts";
+import { BACKGROUND_WIDGET_KEY } from "../../../shared/src/background/index.ts";
+import { activeJobBriefs, canonicalMonitorCwd } from "../../../shared/src/background/index.ts";
 import { PtySessionsWidget, ptyPanelJob, publishPtyBriefs } from "../src/live-widget.ts";
 import { PtySessionManager, type PtySessionSummary } from "../src/pty-manager.ts";
 

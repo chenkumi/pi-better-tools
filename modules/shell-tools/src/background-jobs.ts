@@ -1,7 +1,7 @@
 import { ulid } from "ulid";
-import { canonicalMonitorCwd } from "./monitor-capability.js";
+import { canonicalMonitorCwd } from "../../../shared/src/background/index.js";
 import { ShellJobsWidget } from "./live-widget.js";
-import { OutputTranscript } from "./live-transcript.js";
+import { OutputTranscript } from "../../../shared/src/background/index.js";
 import { BackgroundRecovery, type RecoveryWriter } from "./recovery.js";
 import { closeSync, mkdtempSync, openSync, promises as asyncFs, writeFileSync, writeSync } from "node:fs";
 import { tmpdir } from "node:os";

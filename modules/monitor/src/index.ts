@@ -1,7 +1,7 @@
 import { Type } from 'typebox';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { isManagedForegroundChild } from '../../shell-tools/src/managed-child.js';
-import { AUTO_MONITOR_INTERVAL_MS, acquireCapability, canonicalMonitorCwd, publishActiveMonitorBriefs, publishAutoMonitor } from '../../shell-tools/src/monitor-capability.js';
+import { isManagedForegroundChild } from '../../../shared/src/background/index.js';
+import { AUTO_MONITOR_INTERVAL_MS, acquireCapability, canonicalMonitorCwd, publishActiveMonitorBriefs, publishAutoMonitor } from '../../../shared/src/background/index.js';
 import { MonitorRuntime, realClock, sameOwner, type Clock, type Owner } from './core.js';
 import { MonitorJobsWidget } from './live-widget.js';
 import { monitorRenderers, renderMonitorEvent } from './renderers.js';

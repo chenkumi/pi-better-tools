@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { PassThrough, Writable } from "node:stream";
 import test, { mock } from "node:test";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { publishCapability } from "../../shell-tools/src/monitor-capability.ts";
+import { publishCapability } from "../../../shared/src/background/index.ts";
 import { startForkChild, type ForkChildSpec } from "../src/child.ts";
 import guard, { CHANNEL, POLL_MS } from "../src/child-guard.ts";
 import { FORK_GUARD_ENV, FORK_MARKER_TYPE } from "../src/identity.ts";

@@ -5,7 +5,7 @@ import { syncBuiltinESMExports } from "node:module";
 import shell from "../extensions/timeout-ms.ts";
 import guard from "../../subagents/extensions/subagent/child-guard.ts";
 import { BACKGROUND_LIFECYCLE_SECTION, registerBackgroundLifecycleGuidance } from "../src/background-guidance.ts";
-import { consumeManagedChildGuard, isManagedForegroundChild } from "../src/managed-child.ts";
+import { consumeManagedChildGuard, isManagedForegroundChild } from "../../../shared/src/background/index.ts";
 
 const slot = globalThis as any;
 function api() {

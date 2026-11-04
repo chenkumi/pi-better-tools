@@ -1,6 +1,6 @@
 import { ulid } from "ulid";
-import { panelUsage, safeJobText, usageDetails, type PanelJob, type PanelUsage } from "../../../shell-tools/src/job-view.js";
-import { LiveTranscript } from "../../../shell-tools/src/live-transcript.js";
+import { panelUsage, safeJobText, usageDetails, type PanelJob, type PanelUsage } from "../../../../shared/src/background/index.js";
+import { LiveTranscript } from "../../../../shared/src/background/index.js";
 export interface TaskPresentation { activity: string; usage?: PanelUsage; usageReported: boolean }
 import type { RecoverySnapshot, RecoveryWriter } from "../../../shell-tools/src/recovery.js";
 import { copyResultSummary, resultSummary } from "./result.ts";

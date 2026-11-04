@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { fileLaunch, jobLaunch, resolveFilePath } from '../src/sources.ts';
 import type { Clock, SourceSink } from '../src/core.ts';
-import type { ReadonlyJobLease } from '../../shell-tools/src/monitor-capability.ts';
+import type { ReadonlyJobLease } from '../../../shared/src/background/index.ts';
 
 function manual() {
   const tasks = new Map<number, () => void>(); let next = 0;

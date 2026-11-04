@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test, { afterEach, beforeEach } from "node:test";
 import { stripVTControlCharacters as plain } from "node:util";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { BACKGROUND_WIDGET_KEY } from "../../shell-tools/src/background-panel.ts";
+import { BACKGROUND_WIDGET_KEY } from "../../../shared/src/background/index.ts";
 import type { ForkChildOutcome } from "../src/child.ts";
 import { forkPanelJob } from "../src/live-widget.ts";
 import { acceptFork, deps, onSessionShutdown, onSessionStart, onTurnEnd, requestCancel, state } from "../src/manager.ts";

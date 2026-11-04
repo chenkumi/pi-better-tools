@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { jobLaunch } from '../src/sources.ts';
 import { validateStart } from '../src/schema.ts';
-import { publishCapability, acquireCapability } from '../../shell-tools/src/monitor-capability.ts';
+import { publishCapability, acquireCapability } from '../../../shared/src/background/index.ts';
 import type { Clock } from '../src/core.ts';
 
 /** Manual clock seam: the job source registers exactly one timer at a time, so tests fire it deterministically. */

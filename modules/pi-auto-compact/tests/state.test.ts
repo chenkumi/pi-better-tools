@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { canonicalMonitorCwd, publishActiveMonitorBriefs, publishCapability } from '../../shell-tools/src/monitor-capability.ts';
+import { canonicalMonitorCwd, publishActiveMonitorBriefs, publishCapability } from '../../../shared/src/background/index.ts';
 import { autoCompact } from '../src/compact/hook.ts';
 import { DEFAULT_CONFIG } from '../src/config.ts';
 import { backgroundJobsSection, renderBackgroundJobs } from '../src/state/jobs.ts';

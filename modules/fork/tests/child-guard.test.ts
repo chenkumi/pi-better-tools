@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import test, { mock } from "node:test";
 import guard, { CHANNEL, POLL_MS } from "../src/child-guard.ts";
 import { FORK_GUARD_ENV, FORK_MARKER_TYPE } from "../src/identity.ts";
-import { publishCapability } from "../../shell-tools/src/monitor-capability.ts";
+import { publishCapability } from "../../../shared/src/background/index.ts";
 
 const SLOT = Symbol.for("pi-better-tools.fork.child-guard.v1"), LOADED = Symbol.for("pi-better-tools.fork.child-guard.loaded.v1");
 const cwd = realpathSync(mkdtempSync(`${tmpdir()}/fork-guard-`));

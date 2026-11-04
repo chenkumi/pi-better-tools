@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import { VERSION, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { consumeManagedChildGuard } from "../../../shell-tools/src/managed-child.ts";
+import { consumeManagedChildGuard } from "../../../../shared/src/background/index.ts";
 import { verifyStartupReceipt } from "./child-startup-receipt.ts";
 
 /** Managed children only. Verify the child's registry/trust before its first provider request.

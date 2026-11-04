@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { stripVTControlCharacters as plain } from 'node:util';
-import { BACKGROUND_WIDGET_KEY } from '../../shell-tools/src/background-panel.js';
+import { BACKGROUND_WIDGET_KEY } from '../../../shared/src/background/index.js';
 import { MonitorRuntime, type Clock, type MonitorPanelRow, type SourceSink } from '../src/core.ts';
 import { PANEL_REFRESH_MS, MonitorJobsWidget, monitorPanelJob, remainingLabel } from '../src/live-widget.ts';
 import { validateStart } from '../src/schema.ts';

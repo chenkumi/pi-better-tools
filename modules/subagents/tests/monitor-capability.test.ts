@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BackgroundJobs } from '../extensions/subagent/background.ts';
 import { subagentMonitorSnapshot, publishSubagentMonitor } from '../extensions/subagent/monitor-capability.ts';
-import { acquireCapability, canonicalMonitorCwd } from '../../shell-tools/src/monitor-capability.ts';
+import { acquireCapability, canonicalMonitorCwd } from '../../../shared/src/background/index.ts';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -43,7 +43,7 @@ test('review adapter W1: positive Subagent job snapshot fences cwd/owner/epoch a
   } finally { revoke?.(); release?.(); await jobs.shutdown(); rmSync(root, { recursive: true, force: true }); rmSync(foreign, { recursive: true, force: true }); }
 });
 test('active Subagent briefs carry only the job id and status while the job is unfinished', async () => {
-  const { activeJobBriefs } = await import('../../shell-tools/src/monitor-capability.ts');
+  const { activeJobBriefs } = await import('../../../shared/src/background/index.ts');
   const root = mkdtempSync(join(tmpdir(), 'monitor-subagent-brief-')), cwd = canonicalMonitorCwd(root), jobs = new BackgroundJobs(() => {});
   let release!: () => void, entered!: () => void; const running = new Promise<void>(r => { entered = r; });
   const ctx: any = { cwd: root, sessionManager: { getSessionId: () => 'brief-owner' } }; let revoke: (() => void) | undefined;

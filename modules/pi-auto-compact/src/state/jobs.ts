@@ -5,7 +5,7 @@
  * The data is the readonly id/status list that Shell, Subagents, Fork and PTY publish through the Monitor capability
  * rendezvous (PTY sessions arrive as brief-only rows): no commands, task text, output or paths.
  */
-import { activeJobBriefs, canonicalMonitorCwd, type ActiveJobBrief } from '../../../shell-tools/src/monitor-capability.ts';
+import { activeJobBriefs, canonicalMonitorCwd, type ActiveJobBrief } from '../../../../shared/src/background/index.ts';
 
 const MAX_ROWS = 16;
 const SAFE_ID = /^[A-Za-z0-9_.:-]{1,128}$/;

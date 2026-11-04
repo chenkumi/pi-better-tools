@@ -1,7 +1,7 @@
 // Readonly, bounded Fork state for Monitor's `fork_job` source. Observation only: the Fork result keeps
 // its own fork-result delivery path, and nothing here can cancel, resume or query a Fork's model.
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { canonicalMonitorCwd, publishCapability } from "../../shell-tools/src/monitor-capability.ts";
+import { canonicalMonitorCwd, publishCapability } from "../../../shared/src/background/index.ts";
 import { findOwnedJob, ownedJobs, state } from "./manager.ts";
 import { isTerminal } from "./store.ts";
 

@@ -210,3 +210,7 @@ status／cancel 的 TUI 使用 `Job status`、`Reason`、`Next` 及展開的 `Jo
 
 Failure responses name the parameter, the rule, a bounded received value and the fix (2026-10-24 guidance pass; see plan/error-message-handoff.md). Agent-visible messages name only the tool's own arguments, tool names and error codes; settings keys such as the auto-background threshold are not named.
 - `timeoutMs` errors state the 1..2147483647 range, the unit and an example; unknown `jobId` points to `shell_job_status` without arguments; background start failures say the command was not run.
+
+## 背景共用層
+
+Jobs 面板、job view、widget 綁定、live transcript、Monitor capability 會合與 managed-child 檢查在 `shared/src/background/`（原在本模組 `src/`），Shell、Subagents、Fork、Monitor、PTY、Remote、Schedule Prompt、Pi Auto Compact 共用；`Symbol.for` 鍵名與匯出名稱不變，只經 `index.ts` 引用。

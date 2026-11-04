@@ -1,7 +1,7 @@
 import type { MessageRenderer } from "@earendil-works/pi-coding-agent";
 import { Box, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { stripVTControlCharacters } from "node:util";
-import { formatJobTokens } from "../../shell-tools/src/job-view.ts";
+import { formatJobTokens } from "../../../shared/src/background/index.ts";
 
 const clean = (value: unknown, limit = 16000) => typeof value === "string"
 	? stripVTControlCharacters(value.slice(0, limit)).replace(/\r\n?/g, "\n").replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f‪-‮⁦-⁩]/g, "").replace(/\t/g, "  ") : "";

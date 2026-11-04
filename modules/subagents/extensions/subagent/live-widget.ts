@@ -1,6 +1,6 @@
-import { BACKGROUND_WIDGET_KEY, type PanelHost } from "../../../shell-tools/src/background-panel.js";
-import type { PanelJob } from "../../../shell-tools/src/job-view.js";
-import { JobsWidgetBinding } from "../../../shell-tools/src/widget-binding.js";
+import { BACKGROUND_WIDGET_KEY, type PanelHost } from "../../../../shared/src/background/index.js";
+import type { PanelJob } from "../../../../shared/src/background/index.js";
+import { JobsWidgetBinding } from "../../../../shared/src/background/index.js";
 export const SUBAGENT_WIDGET_KEY = BACKGROUND_WIDGET_KEY;
 
 /** Owner-bound, event-driven view. Never performs model/provider/tool work. */

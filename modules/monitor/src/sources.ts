@@ -4,7 +4,7 @@ import os from 'node:os';
 import type WebSocket from 'ws';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { execMonitorCommand } from '../../shell-tools/src/monitor-exec.js';
-import type { ReadonlyJobLease } from '../../shell-tools/src/monitor-capability.js';
+import type { ReadonlyJobLease } from '../../../shared/src/background/index.js';
 import { LineParser, preview } from './lines.js';
 import { prepareEndpoint, pinnedOptions, type Endpoint, type NetworkSource } from './network.js';
 import { LIMITS, realClock, type Clock, type Launch, type SourceSink } from './core.js';

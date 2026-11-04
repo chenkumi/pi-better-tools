@@ -1,6 +1,6 @@
-import type { PanelHost } from "../../shell-tools/src/background-panel.ts";
-import { JobsWidgetBinding } from "../../shell-tools/src/widget-binding.ts";
-import { safeJobText, usageDetails, type PanelJob, type PanelUsage } from "../../shell-tools/src/job-view.ts";
+import type { PanelHost } from "../../../shared/src/background/index.ts";
+import { JobsWidgetBinding } from "../../../shared/src/background/index.ts";
+import { safeJobText, usageDetails, type PanelJob, type PanelUsage } from "../../../shared/src/background/index.ts";
 import type { Job } from "./manager.ts";
 import { isTerminal } from "./store.ts";
 
