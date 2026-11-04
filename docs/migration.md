@@ -212,7 +212,7 @@ Host changes that touch this package:
 
 ## Pi 1.3.0 and dependency upgrade (2026-10-16)
 
-The four root Pi development packages and real-host assertions now target only 1.3.0; the Shell Monitor backend gate is pinned to that installed version. Runtime peers remain host-provided. Run root `npm ci --ignore-scripts`, explicit `npm run pty:install` and `npm run browser:install` for the updated node-pty beta.15 and Playwright 1.64.1. No personal Pi install, settings/auth, historical session or managed hostContract migration occurs. TypeScript 6.0.3 (not unsupported 7.x), Node 22 types and explicit Vite for Vitest 5 are compatibility choices, not unexamined latest tags.
+The four root Pi development packages and real-host assertions now target only 1.5.0; the Shell Monitor backend gate is pinned to that installed version. Runtime peers remain host-provided. Run root `npm ci --ignore-scripts`, explicit `npm run pty:install` and `npm run browser:install` for the updated node-pty beta.15 and Playwright 1.64.1. No personal Pi install, settings/auth, historical session or managed hostContract migration occurs. TypeScript 6.0.3 (not unsupported 7.x), Node 22 types and explicit Vite for Vitest 5 are compatibility choices, not unexamined latest tags.
 
 Reload after current work settles to load the new `monitor_event` renderer. Existing saved details/body remain readable; old wake metadata is unknown. New receipts/metadata include wakeAgent. Default true already requests an Agent followUp turn; false is model-visible data without a new turn request, and automatic Shell monitors intentionally stay false. UI rendering never changes this delivery policy.
 
