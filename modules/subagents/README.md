@@ -9,7 +9,7 @@
 - 所有新派遣自動保存 Pi 原生 session，成功提交後可續接。
 - TUI 即時顯示 child 進度（每個 task 保留最新三則單行訊息；工具只顯示 request／completed／failed 與截斷後的參數）。
 - 完成後保留完整輸出、sub-session log 路徑與 token／cost 用量。
-- 在 `before_agent_start` 以獨立 `pi_subagents_agent_catalog` section 提供 agent 目錄（名稱、來源、用途）；未信任專案不注入專案層級 agent，未選取 `subagent` 時移除此 section。
+- 在 `before_agent_start` 以獨立 `subagent_catalog` section 提供 agent 目錄（名稱、來源、用途）；未信任專案不注入專案層級 agent，未選取 `subagent` 時移除此 section。
 
 Catalog 不強制替換完整 system prompt，與 Web／共享背景指引各自組合，保留其他 sections 與 custom prompt。若外部 extension 已設定 `forceSystemPrompt`，仍追加 catalog，並以先前 section 內容去重／更新／移除自己追加的文字；不解析或改寫對方的其他內容。Hook 不限定 user prompt，宿主對 custom-message run 發出此事件時也提供相同 catalog；這不改變派遣、trust、工具選取或 Runtime recovery 額度。
 
@@ -82,7 +82,7 @@ Task 先寫入權限受限的 UTF-8 暫存檔，不放入 command line。同步�
 
 ### 背景工作
 
-每回合注入與 Shell 共用、去重的 `pi_better_tools_background_lifecycle` system prompt section；只有相關建立／管理工具被選取時存在，包含 management-only loadout。通知順序不等於完成順序；partial assistant 結論／log／query snapshot 不是 runner 終結證據，只能宣稱暫定結論。已有充分證據且其餘工作不再需要時，模型須以已選取的 `subagent_cancel({jobId})` 取消 owned 工作（不是 `subagent_message`、也不是 child session ID），再核對收尾；不留著跑只為等通知。仍必要的驗證／寫入／checkpoint／cleanup 不提前中斷。取消要求不等於完整 process tree 已停止，取消／aborted 不得宣稱整套驗證通過。禁止輪詢／sleep 等通知，允許一次性核對終結／取消收尾；cancel 未選取時明說限制，不自行啟用、續接或亂殺行程。此為模型指引，不新增自動取消 heuristic，也不改 registry／guards／steer／cleanup。
+每回合注入與 Shell 共用、去重的 `background_jobs` system prompt section；只有相關建立／管理工具被選取時存在，包含 management-only loadout。通知順序不等於完成順序；partial assistant 結論／log／query snapshot 不是 runner 終結證據，只能宣稱暫定結論。已有充分證據且其餘工作不再需要時，模型須以已選取的 `subagent_cancel({jobId})` 取消 owned 工作（不是 `subagent_message`、也不是 child session ID），再核對收尾；不留著跑只為等通知。仍必要的驗證／寫入／checkpoint／cleanup 不提前中斷。取消要求不等於完整 process tree 已停止，取消／aborted 不得宣稱整套驗證通過。禁止輪詢／sleep 等通知，允許一次性核對終結／取消收尾；cancel 未選取時明說限制，不自行啟用、續接或亂殺行程。此為模型指引，不新增自動取消 heuristic，也不改 registry／guards／steer／cleanup。
 
 ```json
 { "agent": "worker", "task": "完整的委派工作說明", "background": true }

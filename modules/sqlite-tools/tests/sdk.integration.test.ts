@@ -99,7 +99,7 @@ test(`Pi SQLite deferred discovery and lifecycle: ${mode}`, async (t) => {
       { messageType: "user", prompt: "Read SQLite" },
       { cwd, selectedTools: [], skills: [], contextFiles: [], sections: {} },
     );
-    return result.systemPromptOptions.sections.pi_better_tools_deferred_tools;
+    return result.systemPromptOptions.sections.deferred_tools;
   };
   if (mode !== "search") {
     assert.equal(await hint(), undefined);

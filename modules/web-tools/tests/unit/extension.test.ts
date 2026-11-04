@@ -95,7 +95,7 @@ test('modern prompt section preserves other handlers and custom prompts; disabli
   const h = harness(), options = { sections: { another_extension: 'Keep' }, customPrompt: 'User SYSTEM.md' };
   const event = { systemPrompt: 'User SYSTEM.md', systemPromptOptions: options };
   assert.equal(h.hooks.get('before_agent_start')!(event, h.context), undefined);
-  assert.equal((options.sections as Record<string, string>).pi_web_tools_native_search, NATIVE_GUIDANCE.trim());
+  assert.equal((options.sections as Record<string, string>).web_search, NATIVE_GUIDANCE.trim());
   assert.equal(options.sections.another_extension, 'Keep');
   assert.equal(options.customPrompt, 'User SYSTEM.md');
   assert.equal(h.hooks.get('before_agent_start')!(event, h.context), undefined);
@@ -225,7 +225,7 @@ test('provider native injects Gemini search only for Gemini 3 and newer on the p
   assert.equal(h.hooks.get('before_agent_start')!({ systemPrompt: 'Original' }, { ...h.context, model: gemini }).systemPrompt, 'Original' + GEMINI_GUIDANCE);
   const options: { sections: Record<string, string> } = { sections: { another_extension: 'Keep' } };
   assert.equal(h.hooks.get('before_agent_start')!({ systemPrompt: 'Original', systemPromptOptions: options }, { ...h.context, model: gemini }), undefined);
-  assert.equal(options.sections.pi_web_tools_native_search, GEMINI_GUIDANCE.trim());
+  assert.equal(options.sections.web_search, GEMINI_GUIDANCE.trim());
   assert.equal(options.sections.another_extension, 'Keep');
   const untouched = { payload };
   for (const model of [{ api: 'google-generative-ai', provider: 'google', id: 'gemini-2.5-pro' },

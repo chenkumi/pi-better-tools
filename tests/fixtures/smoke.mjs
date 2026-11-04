@@ -281,7 +281,7 @@ try {
     const options = { cwd, tools: definitions, skills: [], contextFiles: [], sections: { fixture: 'KEEP_FIXTURE' } };
     const result = await session.extensionRunner.emitBeforeAgentStart({ messageType: 'user', prompt: '[[fixture]] smoke' }, options);
     assert.equal(result.systemPromptOptions.sections.fixture, 'KEEP_FIXTURE');
-    const lifecycle = result.systemPromptOptions.sections.pi_better_tools_background_lifecycle;
+    const lifecycle = result.systemPromptOptions.sections.background_jobs;
     const hasBackgroundTools = active.some(name => ['bash', 'powershell', 'shell_job_status', 'shell_job_cancel', 'subagent', 'subagent_status', 'subagent_cancel', 'subagent_message'].includes(name));
     assert.equal(Boolean(lifecycle), hasBackgroundTools, 'background lifecycle guidance follows active tools');
     if (hasBackgroundTools) {

@@ -7,7 +7,7 @@ const ARCHITECTURES = new Set(['x64', 'arm64', 'arm', 'ia32', 'ppc64', 'riscv64'
 export const platformLabel = (platform: string): string => PLATFORMS[platform] ?? 'unknown';
 const archLabel = (arch: string): string => (ARCHITECTURES.has(arch) ? arch : '');
 
-export const REMOTE_SECTION = 'pi_better_tools_remote';
+export const REMOTE_SECTION = 'remote_network';
 
 /**
  * The roster shown to the agent so "send this to the Mac" resolves to a peer name. Only validated names and allow-listed

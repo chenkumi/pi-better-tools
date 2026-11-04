@@ -20,9 +20,9 @@ for (const [directory, description] of [[join(root, 'agent', 'agents'), 'User wo
   await mkdir(directory!, { recursive: true });
   await writeFile(join(directory!, 'worker.md'), `---\nname: worker\ndescription: ${description}\n---\nFixture instructions.`);
 }
-const CATALOG = 'pi_subagents_agent_catalog';
-const BACKGROUND = 'pi_better_tools_background_lifecycle';
-const WEB = 'pi_web_tools_native_search';
+const CATALOG = 'subagent_catalog';
+const BACKGROUND = 'background_jobs';
+const WEB = 'web_search';
 function fixture(order: 'subagent-first' | 'web-first', forced = false) {
   const handlers: Function[] = [];
   const active = ['subagent', 'web_fetch'];

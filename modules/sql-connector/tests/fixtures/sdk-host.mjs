@@ -49,7 +49,7 @@ try {
     const result = await session.extensionRunner.emitBeforeAgentStart({ messageType: 'user', prompt: 'Inspect a database' }, { cwd, selectedTools: session.getActiveToolNames(), sections: { fixture: 'KEEP' } });
     assert.equal(result.systemPromptOptions.sections.fixture, 'KEEP');
     assert.equal(result.systemPromptOptions.forceSystemPrompt, undefined, 'SQL Connector does not replace the system prompt');
-    return result.systemPromptOptions.sections.pi_better_tools_deferred_tools;
+    return result.systemPromptOptions.sections.deferred_tools;
   };
   const execute = async (name, args = {}) => {
     const tool = session.agent.state.tools.find(tool => tool.name === name);

@@ -7,7 +7,7 @@ import { registerEngineTools } from "./tools.js";
 import { SqlConnectorError } from "./types.js";
 import { createForcedPromptAppender } from "../../../shared/src/prompt/index.js";
 
-const NOTICE_SECTION = "pi_sql_connector_config_error";
+const NOTICE_SECTION = "sql_connector_error";
 
 /**
  * The agent-facing reason is already neutral (no settings fields, files or variables; see config.ts); the notice is

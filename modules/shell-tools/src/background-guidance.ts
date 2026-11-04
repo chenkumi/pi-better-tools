@@ -3,7 +3,7 @@ import { isManagedForegroundChild } from './managed-child.js';
 import { createForcedPromptAppender } from '../../../shared/src/prompt/index.js';
 import { SHELL_JOB_TOOLS, SHELL_TOOLS, SUBAGENT_TOOLS } from '../../../shared/src/contracts/index.js';
 
-export const BACKGROUND_LIFECYCLE_SECTION = 'pi_better_tools_background_lifecycle';
+export const BACKGROUND_LIFECYCLE_SECTION = 'background_jobs';
 const BACKGROUND_TOOLS = new Set<string>([...SHELL_TOOLS, ...SHELL_JOB_TOOLS, ...SUBAGENT_TOOLS]);
 const GUIDANCE = `### Background job lifecycle
 - Notifications may arrive after logs or newer results, so delivery order is not completion order. Correlate evidence by job/task/invocation ID, not arrival order; an older run must not replace a newer run's result.

@@ -98,7 +98,7 @@ Windows 上可用 `tools.powershell({ command, timeoutMs })`。該 shell 必須�
 
 ### 模型提示與提前停止
 
-每回合透過 `before_agent_start` 注入共享 `pi_better_tools_background_lifecycle` system prompt section（與 Subagents 去重）。只在相關建立／管理工具被選取時存在；不啟用工具、不修改設定，保留其他 sections／custom／forced prompts。
+每回合透過 `before_agent_start` 注入共享 `background_jobs` system prompt section（與 Subagents 去重）。只在相關建立／管理工具被選取時存在；不啟用工具、不修改設定，保留其他 sections／custom／forced prompts。
 
 - 通知抵達順序不等於工作完成順序；依 job／task／invocation ID 核對，不以舊通知覆蓋新版結果。
 - log、partial 結論及 snapshot 只支持暫定結論；整個工作通過須有 terminal status／result 與可用退出／錯誤資訊。只有 log 時須明說尚未確認 runner 退出／cleanup。

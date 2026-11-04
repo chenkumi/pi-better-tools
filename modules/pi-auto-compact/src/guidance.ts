@@ -2,7 +2,7 @@ import { getAgentDir, type ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { loadConfig } from './config.ts';
 import { createForcedPromptAppender } from '../../../shared/src/prompt/index.js';
 
-export const AUTO_COMPACT_SECTION = 'pi_better_tools_auto_compact';
+export const AUTO_COMPACT_SECTION = 'context_compaction';
 
 /**
  * Fixed text (same bytes every run, so it does not disturb the prompt cache). It tells the agent how the compacted context works

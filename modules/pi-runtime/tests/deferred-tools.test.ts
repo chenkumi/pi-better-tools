@@ -45,15 +45,15 @@ test('nothing happens when there is no deferred tool, or tool_search is already 
 
 test('one hint lists each unloaded group of this package until it loads; third-party tools are not listed', () => {
   const h = host([TS, PTY, SCHED, THIRD], ['read', 'tool_search']);
-  const first = h.prompt().options.sections.pi_better_tools_deferred_tools;
+  const first = h.prompt().options.sections.deferred_tools;
   assert.match(first, /- pty: pty group \(query "pty"\)/); assert.match(first, /- schedule: schedule group \(query "schedule"\)/); assert.doesNotMatch(first, /mcp/);
   h.setActive(['read', 'tool_search', 'pty_spawn']);
-  const second = h.prompt().options.sections.pi_better_tools_deferred_tools;
+  const second = h.prompt().options.sections.deferred_tools;
   assert.doesNotMatch(second, /- pty:/); assert.match(second, /- schedule:/);
   h.setActive(['read', 'tool_search', 'pty_spawn', 'schedule_prompt']);
-  assert.equal(h.prompt().options.sections.pi_better_tools_deferred_tools, undefined);
+  assert.equal(h.prompt().options.sections.deferred_tools, undefined);
   const noSearch = host([PTY], ['read']);
-  assert.equal(noSearch.prompt().options.sections.pi_better_tools_deferred_tools, undefined);
+  assert.equal(noSearch.prompt().options.sections.deferred_tools, undefined);
 });
 
 test('a forced system prompt gets the section appended once, updated as groups load, and cleaned at the end', () => {

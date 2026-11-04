@@ -18,7 +18,7 @@ async function host(prefix, { withToolSearch }) {
   assert.deepEqual(created.loadErrors(), []);
   const names = () => created.session.getActiveToolNames();
   const section = async () => (await created.session.extensionRunner.emitBeforeAgentStart({ messageType: 'user', prompt: 'x' },
-    { cwd: env.cwd, tools: [], skills: [], contextFiles: [], sections: {} })).systemPromptOptions.sections.pi_better_tools_deferred_tools;
+    { cwd: env.cwd, tools: [], skills: [], contextFiles: [], sections: {} })).systemPromptOptions.sections.deferred_tools;
   const all = async () => (await created.session.extensionRunner.emitBeforeAgentStart({ messageType: 'user', prompt: 'x' },
     { cwd: env.cwd, tools: [], skills: [], contextFiles: [], sections: {} })).systemPromptOptions.sections;
   return { created, names, section, all };

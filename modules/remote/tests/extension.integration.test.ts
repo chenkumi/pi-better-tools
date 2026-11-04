@@ -198,15 +198,15 @@ test('inbound text shape stays stable for replies and carries no unsanitized nam
 
 test('the system prompt gets a roster section naming the other peers, and loses it when the network is gone', async t => {
   const { server, client } = await pair(t);
-  await server.changes.until(() => server.beforeStart().sections.pi_better_tools_remote?.includes('cli') ?? false, 'server roster lists cli');
-  const section = server.beforeStart().sections.pi_better_tools_remote!;
+  await server.changes.until(() => server.beforeStart().sections.remote_network?.includes('cli') ?? false, 'server roster lists cli');
+  const section = server.beforeStart().sections.remote_network!;
   assert.match(section, /This session is "srv"/);
   assert.match(section, /- cli \(/);
-  assert.match(client.beforeStart().sections.pi_better_tools_remote ?? '', /- srv \(/);
+  assert.match(client.beforeStart().sections.remote_network ?? '', /- srv \(/);
   assert.equal(server.beforeStart().result, undefined, 'a normal prompt is left to the structured section');
 
   await server.shutdown();
-  assert.equal(server.beforeStart().sections.pi_better_tools_remote, undefined);
+  assert.equal(server.beforeStart().sections.remote_network, undefined);
 });
 
 test('a forced prompt from another extension keeps one current copy of the roster section', async t => {

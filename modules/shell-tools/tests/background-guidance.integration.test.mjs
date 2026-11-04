@@ -15,7 +15,7 @@ test('real Pi background guidance follows selection, forced prompts and reload w
         forceSystemPrompt: 'KEEP_FORCED', sections: { other: 'KEEP_OTHER' },
       });
       const result = await emit();
-      assert.equal(Boolean(result.systemPromptOptions.sections.pi_better_tools_background_lifecycle), enabled);
+      assert.equal(Boolean(result.systemPromptOptions.sections.background_jobs), enabled);
       assert.equal(result.systemPromptOptions.sections.other, 'KEEP_OTHER');
       assert.equal(result.systemPromptOptions.customPrompt, 'KEEP_CUSTOM');
       assert.ok(result.systemPromptOptions.forceSystemPrompt.startsWith('KEEP_FORCED'));
@@ -23,7 +23,7 @@ test('real Pi background guidance follows selection, forced prompts and reload w
       assert.deepEqual(session.agent.state.tools.map(tool => tool.name), before);
       await session.reload();
       const after = await emit();
-      assert.equal(Boolean(after.systemPromptOptions.sections.pi_better_tools_background_lifecycle), enabled);
+      assert.equal(Boolean(after.systemPromptOptions.sections.background_jobs), enabled);
       assert.deepEqual(session.agent.state.tools.map(tool => tool.name), before);
     }
   } finally { fixture.cleanup(); }

@@ -257,14 +257,14 @@ try {
     assert.doesNotMatch(f.session.systemPrompt, /\n- subagent: Delegate tasks/);
     assert.doesNotMatch(f.session.systemPrompt, /\n- web_fetch: Retrieve rendered/);
     assert.equal(prompt.forceSystemPrompt, undefined, 'package guidance must not force the complete prompt');
-    assert.match(prompt.sections.pi_subagents_agent_catalog, /subagent agent catalog/);
-    assert.match(prompt.sections.pi_web_tools_native_search, /OpenAI native web_search/);
-    assert.match(prompt.sections.pi_better_tools_background_lifecycle, /Background job lifecycle/);
+    assert.match(prompt.sections.subagent_catalog, /subagent agent catalog/);
+    assert.match(prompt.sections.web_search, /OpenAI native web_search/);
+    assert.match(prompt.sections.background_jobs, /Background job lifecycle/);
     // session.systemPrompt reverts to base options after settlement; inspect the actual request transcript.
     const requested = f.requestedPrompt();
-    assert.match(requested, /<pi_subagents_agent_catalog>/);
-    assert.match(requested, /<pi_web_tools_native_search>/);
-    assert.match(requested, /<pi_better_tools_background_lifecycle>/);
+    assert.match(requested, /<subagent_catalog>/);
+    assert.match(requested, /<web_search>/);
+    assert.match(requested, /<background_jobs>/);
     assert.doesNotMatch(requested, /\n- read: Read file contents|When copying oldText from read output|\n- subagent: Delegate tasks|\n- web_fetch: Retrieve rendered/);
     assert.ok(f.session.getCallableToolNames().includes('read')); assert.ok(f.session.getCallableToolNames().includes('subagent'));
     assert.equal(f.calls(), 1);
@@ -272,9 +272,9 @@ try {
     await f.session.prompt('OFFLINE_CATALOG_DISABLED', { expandPromptTemplates: false });
     const disabled = f.observedPrompt();
     assert.equal(disabled.forceSystemPrompt, undefined);
-    assert.equal(disabled.sections.pi_subagents_agent_catalog, undefined);
-    assert.equal(disabled.sections.pi_better_tools_background_lifecycle, undefined);
-    assert.match(disabled.sections.pi_web_tools_native_search, /OpenAI native web_search/);
+    assert.equal(disabled.sections.subagent_catalog, undefined);
+    assert.equal(disabled.sections.background_jobs, undefined);
+    assert.match(disabled.sections.web_search, /OpenAI native web_search/);
     assert.doesNotMatch(f.requestedPrompt(), /### subagent agent catalog|### Background job lifecycle/);
     assert.match(f.requestedPrompt(), /OpenAI native web_search/);
     assert.equal(f.calls(), 2);

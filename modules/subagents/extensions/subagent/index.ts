@@ -111,7 +111,7 @@ import {
 const MAX_PARALLEL_TASKS = 32;
 const MAX_CONCURRENCY = 8;
 const MAX_CHAIN_STEPS = 32;
-const AGENT_CATALOG_SECTION = "pi_subagents_agent_catalog";
+const AGENT_CATALOG_SECTION = "subagent_catalog";
 // Shared by every subagent tool call in this process: total active children never exceed MAX_CONCURRENCY.
 // One semaphore per process, not per module instance: /reload re-evaluates this module while old children may still run.
 const activeChildrenKey = Symbol.for("pi-better-tools.subagents.active-children.v1");

@@ -133,7 +133,7 @@ file-tools 只保留 `ls` 搜尋／目錄包裝（`defaultActive:false`），不
 
 ### 結構化 run-start 指引
 
-Subagents 的 `pi_subagents_agent_catalog`、Web 的 `pi_web_tools_native_search` 與共享 `pi_better_tools_background_lifecycle` 由 `before_agent_start` 各自維護獨立 section，不再因 catalog 而強制替換整份 system prompt；停用工具時移除自己的內容，保留其他 sections、custom prompt 與外部 forced prompt 支援。Runtime 仍使用既有任務 admission 證據鏈；宿主若提供 `messageType`，明確 custom run 不取得新任務候選，`user` 也不等同真人新任務。支援／驗證基準已升為 Pi 1.4.0（根 devDependencies 與 lockfile），不再維護 1.3.0 或更早版本。詳見 [架構](docs/architecture.md#structured-run-start-prompt-composition-2026-10-13)。
+Subagents 的 `subagent_catalog`、Web 的 `web_search` 與共享 `background_jobs` 由 `before_agent_start` 各自維護獨立 section，不再因 catalog 而強制替換整份 system prompt；停用工具時移除自己的內容，保留其他 sections、custom prompt 與外部 forced prompt 支援。Runtime 仍使用既有任務 admission 證據鏈；宿主若提供 `messageType`，明確 custom run 不取得新任務候選，`user` 也不等同真人新任務。支援／驗證基準已升為 Pi 1.4.0（根 devDependencies 與 lockfile），不再維護 1.3.0 或更早版本。詳見 [架構](docs/architecture.md#structured-run-start-prompt-composition-2026-10-13)。
 
 ### 工具 TUI 顯示
 

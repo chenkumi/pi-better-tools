@@ -13,7 +13,7 @@ import { createForcedPromptAppender } from '../../../shared/src/prompt/index.js'
  *   declared directly, which is the behavior before they were deferred.
  * - While `tool_search` is active, one prompt section lists each namespace that still has unloaded tools.
  */
-export const DEFERRED_SECTION = 'pi_better_tools_deferred_tools';
+export const DEFERRED_SECTION = 'deferred_tools';
 const TOOL_SEARCH = 'tool_search';
 // modules/pi-runtime/src -> modules/. Only tools registered from this package's modules are managed.
 const norm = (path: string) => path.split('\\').join('/').toLowerCase();

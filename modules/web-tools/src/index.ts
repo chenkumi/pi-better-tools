@@ -20,7 +20,7 @@ import { WEB_RULES_SECTION, renderWebRules } from './prompt-rules.ts';
 
 export default function webTools(pi: ExtensionAPI) { return registerWebTools(pi, loadConfig); }
 
-const PROMPT_SECTION = 'pi_web_tools_native_search';
+const PROMPT_SECTION = 'web_search';
 const PROVIDER_LABELS: Record<RestProvider, string> = { brave: 'Brave', exa: 'Exa', deepseek: 'DeepSeek' };
 /** web_fetch keeps this much cleaned content in structured data; the text output has its own bounds. */
 const FETCH_DATA_MAX_BYTES = 16 * 1024;
