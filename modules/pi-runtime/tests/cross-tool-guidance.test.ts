@@ -65,8 +65,7 @@ test('dedicated-tool rules need a shell and name only the active alternatives', 
   assert.match(files, /`read`\/`grep`, not shell/); assert.doesNotMatch(files, /with `read`\/`grep`\/|web_|Use `web|database tools/);
   const web = rules('powershell', 'web_search');
   assert.match(web, /Use `web_search` for web content, not `curl`\/`wget`/); assert.doesNotMatch(web, /web_fetch|`read`/);
-  assert.match(rules('bash', 'sqlite_query'), /database tools, not a database CLI/);
-  assert.match(rules('bash', 'mysql_query'), /database tools/);
+  assert.doesNotMatch(rules('bash', 'sqlite_query', 'mysql_query'), /Dedicated tools|database/, 'database tool usage rules belong in the user\'s AGENTS.md/CLAUDE.md');
   assert.match(files, /Never use the shell to get around what a dedicated tool refuses/);
 });
 

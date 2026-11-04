@@ -9,7 +9,6 @@ export const CROSS_TOOL_SECTION = 'pi_better_tools_cross_tool_rules';
 const SHELL = ['bash', 'powershell'];
 const any = (active: Set<string>, names: string[]) => names.some(name => active.has(name));
 const listed = (active: Set<string>, names: string[]) => names.filter(name => active.has(name)).map(name => `\`${name}\``).join('/');
-const DATABASE_TOOL = /^(?:sqlite|mysql|mssql|pgsql)_/;
 
 /** Only the dedicated tools that are active are named; without any of them there is nothing to prefer over the shell. */
 function dedicatedToolsBlock(active: Set<string>): string | undefined {
@@ -17,7 +16,6 @@ function dedicatedToolsBlock(active: Set<string>): string | undefined {
   const lines = [
     ...(inspect ? [`Look at the workspace with ${inspect}, not shell \`cat\`/\`rg\`/\`find\`/\`ls\`: search first, then read only the ranges you need.`] : []),
     ...(web ? [`Use ${web} for web content, not \`curl\`/\`wget\`.`] : []),
-    ...([...active].some(name => DATABASE_TOOL.test(name)) ? ['Use the loaded database tools, not a database CLI or driver script run from the shell.'] : []),
   ];
   if (!lines.length) return undefined;
   lines.push('Never use the shell to get around what a dedicated tool refuses (confirmation, allowlist, private-address or size limits).');

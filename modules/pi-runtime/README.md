@@ -23,7 +23,7 @@
 `cross-tool-guidance.ts` 注入 system prompt section `pi_better_tools_cross_tool_rules`（全部工具啟用時約 490 tokens，一般更少）。只放跨模組規則：
 
 - **並行**：獨立的工具呼叫在同一回合送出。
-- **專用工具優先於 shell**（需 `bash`／`powershell` 啟用）：用已啟用的 `read`／`grep`／`find`／`ls` 代替 shell 的 `cat`／`rg`／`find`／`ls`；用 `web_fetch`／`web_search` 代替 `curl`／`wget`；有 SQLite／SQL Connector 工具時不用資料庫 CLI 或驅動腳本；不得用 shell 繞過專用工具拒絕的事（確認、allowlist、私有位址、大小上限）。只列出實際啟用的工具名。
+- **專用工具優先於 shell**（需 `bash`／`powershell` 啟用）：用已啟用的 `read`／`grep`／`find`／`ls` 代替 shell 的 `cat`／`rg`／`find`／`ls`；用 `web_fetch`／`web_search` 代替 `curl`／`wget`；不得用 shell 繞過專用工具拒絕的事（確認、allowlist、私有位址、大小上限）。只列出實際啟用的工具名。
 - **檔案修改**走 `edit`／`write`，不經 shell 重導向、`sed` 或一次性腳本（`node -e`、`perl -i`）——從 shell 改檔會繞過 edit/write 的 version token 保護，並明文標示為規則違規。
 - **委派**：`subagent`／`fork` 的分工；獨立的 subagent 同一回合啟動以並行；委派結果是主張不是證明。
 - 完成前先驗證；失敗處理與破壞性動作先確認。
