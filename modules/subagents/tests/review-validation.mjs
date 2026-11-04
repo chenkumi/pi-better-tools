@@ -8,7 +8,7 @@ const repo = fileURLToPath(new URL('../../../', import.meta.url));
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-review-verify-'));
 const agent = path.join(root, 'agent'); fs.mkdirSync(agent); fs.writeFileSync(path.join(agent, 'auth.json'), '{}');
 const env = { ...process.env, HOME: root, USERPROFILE: root, TEMP: root, TMP: root, TMPDIR: root,
- PI_CODING_AGENT_DIR: agent, PI_BLACKHOLE_PASSIVE: 'true', PI_OFFLINE: '1', PI_SKIP_VERSION_CHECK: '1', PI_TELEMETRY: '0',
+ PI_CODING_AGENT_DIR: agent, PI_OFFLINE: '1', PI_SKIP_VERSION_CHECK: '1', PI_TELEMETRY: '0',
  PI_SUBAGENTS_TEST_CLI: path.join(repo, 'node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js'),
  PI_SUBAGENTS_TEST_EVIDENCE: path.join(repo, 'modules/subagents/tests/review-evidence/host') };
 const stages = [];

@@ -2,7 +2,7 @@
 
 原生 Pi extension，只提供本專案模組共用的基礎設施：設定面板共用層、deferred 工具統一處理、跨模組工具規則。本身不註冊工具或指令，也沒有設定鍵。
 
-> 原 error-aware recovery（`/runtime-recovery`、`/runtime-recover`、`pi-runtime-state`／`pi-runtime-recovery`）經測試沒有實際作用，已整個移除。舊 session 內殘留的這些 entries 無作用；Blackhole 仍可唯讀投影舊的 `pi-runtime-recovery` custom message。
+> 原 error-aware recovery（`/runtime-recovery`、`/runtime-recover`、`pi-runtime-state`／`pi-runtime-recovery`）經測試沒有實際作用，已整個移除。舊 session 內殘留的這些 entries 無作用。
 
 ## 設定面板共用層
 

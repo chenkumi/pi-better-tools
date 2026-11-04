@@ -24,8 +24,6 @@ const dependencyEntries = {
 const localEntries = manifest.pi.extensions.filter(entry => entry.startsWith('./modules/') && entry !== dependencyEntries['@ff-labs/pi-fff'].manifestEntry);
 for (const entry of localEntries) assert.match(entry, /^\.\/modules\/[^/]+\/src\/index\.ts$/);
 assert.equal(localEntries.length, 19);
-assert.ok(!manifest.pi.extensions.includes('./modules/blackhole/src/index.ts'), 'Blackhole is opt-in; Pi Auto Compact owns session_before_compact by default');
-assert.equal(manifest.dependencies['pi-blackhole'], undefined);
 for (const [name, expected] of Object.entries(dependencyEntries)) {
   assert.equal(manifest.dependencies[name], expected.version);
   const dependency = JSON.parse(await readFile(join(packageRoot, 'node_modules', name, 'package.json'), 'utf8'));
@@ -36,7 +34,6 @@ for (const [name, expected] of Object.entries(dependencyEntries)) {
   assert.ok((await stat(resolve(packageRoot, entry))).isFile());
   assert.ok((await stat(resolve(packageRoot, 'node_modules', name, expected.entry))).isFile());
 }
-assert.equal(process.env.PI_BLACKHOLE_PASSIVE, 'true', 'fixture must never run real Blackhole model workers');
 const mode = process.argv[3] ?? 'full';
 const host = process.env.PI_BETTER_TOOLS_HOST;
 const heartbeat = setInterval(() => console.error(`[smoke] ${mode} still running`), 10000);
@@ -67,9 +64,8 @@ try {
   assert.deepEqual(loaded.errors, []); assert.equal(loaded.extensions.length, expectedExtensions);
   assert.deepEqual(loaded.extensions.map(e => resolve(e.path)).sort(), manifest.pi.extensions.map(p => resolve(packageRoot, p)).sort());
   const definitions = loaded.extensions.flatMap(e => [...e.tools.values()].map(t => t.definition));
-  const ownedDefinitions = loaded.extensions.filter(e => manifest.pi.extensions.filter(p => p.startsWith('./modules/') && p !== './modules/blackhole/src/index.ts').some(p => resolve(packageRoot, p) === resolve(e.path))).flatMap(e => [...e.tools.values()].map(t => t.definition));
+  const ownedDefinitions = loaded.extensions.filter(e => manifest.pi.extensions.filter(p => p.startsWith('./modules/')).some(p => resolve(packageRoot, p) === resolve(e.path))).flatMap(e => [...e.tools.values()].map(t => t.definition));
   // Upstream packages retain their renderer contracts.
-  // Existing owned-tool checks are unchanged; Blackhole's plain custom entry renderer is tested separately.
   // SQLite retains the host's default renderer, as in its source extension.
   assertToolRenderers(ownedDefinitions.filter(d => !d.name.startsWith('sqlite_')), cwd);
   assertMessageRenderers(loaded.extensions);
@@ -100,7 +96,6 @@ try {
   assert.ok(loaded.extensions.some(e => e.commands.has('file-audit')), 'bounded file inspection command registered');
   assert.ok(loaded.extensions.some(e => e.commands.has('web-tools')));
   assert.ok(loaded.extensions.some(e => e.commands.has('open-tui')), 'npm TUI dependency registered');
-  assert.ok(!loaded.extensions.some(e => e.commands.has('blackhole')), 'Blackhole is not mounted by default');
   // FFF pre-registers its own alias names at load for historical renderers; the override names appear at session_start.
   for (const name of ['fffind', 'ffgrep']) assert.ok(names.includes(name), `npm dependency tool ${name}`);
   assert.equal(names.includes('fff-multi-grep'), process.env.PI_FFF_MULTIGREP === '1', 'FFF multi-grep remains upstream opt-in');

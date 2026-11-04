@@ -1,7 +1,7 @@
 import { SessionManager } from '@earendil-works/pi-coding-agent';
 import { MonitorRuntime, type Clock } from '../../src/core.ts';
 import { validateStart } from '../../src/schema.ts';
-/** Parent/Blackhole handoff: actual Monitor producer + actual Pi1.1.0 persisted-entry shape, no consumer edits. */
+/** Parent/compaction handoff: actual Monitor producer + actual Pi1.1.0 persisted-entry shape, no consumer edits. */
 export async function buildProducerFixtures() {
   const fixtures: Record<string, unknown[]> = {};
   for (const mode of ['success', 'failure', 'rate', 'expiry', 'cleanup-unknown']) {

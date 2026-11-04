@@ -12,7 +12,7 @@ import { provisionRipgrep } from '../helpers/test-tools.mjs';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
 const expectedExtensions = manifest.pi.extensions.length;
-const modules = (await readdir(join(root, 'modules'), { withFileTypes: true })).filter(e => e.isDirectory()).map(e => e.name).filter(name => name !== 'blackhole'); // Blackhole stays in the repository but is opt-in
+const modules = (await readdir(join(root, 'modules'), { withFileTypes: true })).filter(e => e.isDirectory()).map(e => e.name);
 const dependencyEntries = [
   './node_modules/pi-open-tui/extensions/open-tui/index.ts',
   './modules/file-tools/src/fff-override.mjs',

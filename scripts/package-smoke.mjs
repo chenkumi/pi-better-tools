@@ -40,7 +40,7 @@ async function record(label, action) {
 }
 const required = [
   'setup/cli.mjs', 'setup/commands.mjs', 'setup/commands.d.mts', 'setup/core.mjs',
-  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'note-tools', 'gpt-speed', 'json-schema', 'pty-terminal', 'schedule-prompt', 'blackhole', 'pi-runtime', 'monitor', 'skill-tools', 'theme-tools', 'fork', 'remote', 'sqlite-tools', 'sql-connector', 'file-audit', 'pi-auto-compact'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
+  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'note-tools', 'gpt-speed', 'json-schema', 'pty-terminal', 'schedule-prompt', 'pi-runtime', 'monitor', 'skill-tools', 'theme-tools', 'fork', 'remote', 'sqlite-tools', 'sql-connector', 'file-audit', 'pi-auto-compact'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
   ...['activity-window', 'events', 'paths', 'provenance', 'commands', 'presentation'].map(name => `modules/file-audit/src/${name}.ts`),
   'modules/sqlite-tools/src/sqlite-manager.ts',
   ...['config', 'runtime', 'tools', 'prompt', 'types', 'output', 'security/sql-policy'].map(name => `modules/sql-connector/src/${name}.ts`),
@@ -74,9 +74,6 @@ const required = [
   // notices remain preserved, but duplicate module LICENSE files are not required.
   'modules/pty-terminal/src/targets.ts', 'modules/pty-terminal/src/pty-manager.ts', 'modules/pty-terminal/src/renderers.ts', 'modules/pty-terminal/src/install.mjs', 'modules/pty-terminal/README.md', 'modules/pty-terminal/LICENSE',
   'modules/schedule-prompt/src/scheduler.ts', 'modules/schedule-prompt/src/tool.ts', 'modules/schedule-prompt/src/subagent.ts', 'modules/schedule-prompt/LICENSE',
-  'modules/blackhole/index.ts', 'modules/blackhole/package.json', 'modules/blackhole/LICENSE',
-  'modules/blackhole/src/hooks/cosmetic-output.ts', 'modules/blackhole/src/changelog/changelog.ts',
-  'modules/blackhole/CHANGELOG.md', 'modules/blackhole/example-config.json', 'modules/blackhole/llms.txt',
   'LICENSE', 'THIRD_PARTY_NOTICES.md', 'docs/configuration.md',
 ];
 function checkContents(pack) {
@@ -318,31 +315,6 @@ try {
         const result = JSON.parse(output.trim().split('\n').at(-1));
         assert.equal(result.status, 'passed'); assert.equal(result.host, version); assert.equal(result.providerCalls, 0);
         assert.deepEqual(result.cases, ['startup', 'reload', 'relocated', 'lazy-body', 'skill-command', 'extension-filter', 'no-tools']); return output;
-      });
-      const blackholeFixture = join(temp, 'blackhole-display.mjs');
-      await copyFile(join(root, 'tests/fixtures/blackhole-display.mjs'), blackholeFixture);
-      await copyFile(join(root, 'tests/fixtures/blackhole-display-audit.ts'), join(temp, 'blackhole-display-audit.ts'));
-      const blackholeHome = join(temp, 'home-blackhole'); await mkdir(blackholeHome);
-      await record(`${version}:blackhole-display-resume`, async () => {
-        const output = await runCommand(`production Pi ${version} blackhole native-cut compact/resume`, process.execPath,
-          [blackholeFixture, packageRoot], { cwd: blackholeHome, env: isolatedEnv(blackholeHome), timeoutMs: 180000 });
-        const result = JSON.parse(output.trim().split('\n').at(-1));
-        assert.equal(result.contract, 'pi-owned-native-cut-display-v1'); assert.equal(result.host, version);
-        for (const key of ['nativeCut', 'persisted', 'resumed', 'rendered', 'duplicateSafe', 'displayOnly', 'noModelCopyDuplicate']) assert.equal(result[key], true, key);
-        assert.deepEqual(result.counterSemantics, { modelStreamCalls: 'main-agent-streamFunction-invocations', actualExternalFetchCalls: 'global-fetch-attempts', providerCalls: 'compatibility-alias-of-actualExternalFetchCalls' });
-        for (const key of ['modelStreamCalls', 'actualExternalFetchCalls', 'providerCalls']) assert.equal(result[key], 0, key);
-        assert.equal(Object.hasOwn(result, 'compactAll'), false);
-        assert.deepEqual(result.cases.map(row => row.scenario), ['retained-final', 'dropped-final']);
-        for (const row of result.cases) {
-          assert.equal(row.nativeCut, true); assert.equal(row.firstKeptEntryId, row.expectedFirstKeptEntryId); assert.ok(typeof row.firstKeptEntryId === 'string' && row.firstKeptEntryId.length > 0);
-          assert.equal(row.tokensBefore, row.expectedTokensBefore); assert.ok(Number.isSafeInteger(row.tokensBefore) && row.tokensBefore > 0);
-          assert.equal(row.keepRecentTokens, 8); assert.equal(row.reserveTokens, 256);
-          for (const key of ['summaryInputExact', 'toolPairsComplete', 'currentFinalRetained', 'persisted', 'resumed', 'rawHistoryDiskExact', 'resumedCompactionExact', 'duplicateSafe', 'displayOnly', 'noModelCopyDuplicate']) assert.equal(row[key], true, key);
-          assert.equal(row.currentFinalCopied, false); for (const key of ['modelStreamCalls', 'actualExternalFetchCalls', 'providerCalls']) assert.equal(row[key], 0, key);
-        }
-        assert.equal(result.cases[0].copies, 0); assert.equal(result.cases[0].rendered, false); assert.equal(result.cases[0].copiedSourceOutsideContext, false);
-        assert.equal(result.cases[1].copies, 1); assert.equal(result.cases[1].rendered, true); assert.equal(result.cases[1].copiedSourceOutsideContext, true);
-        return output;
       });
       const jsonFixture = join(temp, 'json-schema-runtime.mjs'); await copyFile(join(root, 'tests/fixtures/json-schema-runtime.mjs'), jsonFixture);
       const jsonProvider = join(temp, 'json-schema-provider.ts'); await copyFile(join(root, 'tests/fixtures/json-schema-provider.ts'), jsonProvider);

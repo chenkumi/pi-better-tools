@@ -45,4 +45,4 @@ SSH 先由使用者驗證 alias／key／known_hosts；不關閉 host-key 檢查�
 
 本機 kill 不保證遠端子程序樹停止；PTY 不提供每個 shell 指令的結構化 exit code。設定 target 不會移動其他 file／shell 工具的 cwd。
 
-TUI 中有 PTY session 時，輸入欄上方的 Jobs 面板會與其他背景工作一起列出 `PT` 列（只顯示本 workspace 執行中的 session，不顯示輸出或指令；`/background-jobs pty` 可開清單）。Blackhole 壓縮摘要的 `[Background Jobs]` 也會列出執行中的 `PTY Session`（只有 ID 與狀態），這些 session 可能在等輸入，請先用 `pty_list`／`pty_read` 核對，不要重複 spawn。這些顯示不是設定項目，也沒有開關。
+TUI 中有 PTY session 時，輸入欄上方的 Jobs 面板會與其他背景工作一起列出 `PT` 列（只顯示本 workspace 執行中的 session，不顯示輸出或指令；`/background-jobs pty` 可開清單）。Pi Auto Compact 壓縮摘要的 `[Background Jobs]` 也會列出執行中的 `PTY Session`（只有 ID 與狀態），這些 session 可能在等輸入，請先用 `pty_list`／`pty_read` 核對，不要重複 spawn。這些顯示不是設定項目，也沒有開關。

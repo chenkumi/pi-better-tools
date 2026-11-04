@@ -16,7 +16,7 @@ const heavyFiles = new Set([
   'modules/json-schema/tests/runtime.test.mjs', 'tests/integration/sdk-hooks.test.mjs', 'modules/subagents/tests/child-shell-guard-reload.integration.test.mjs',
   'modules/shell-tools/tests/recovery.integration.test.mjs', 'modules/shell-tools/tests/extension.integration.test.mjs', 'modules/shell-tools/tests/notification-batching.integration.test.mjs',
   'modules/fork/tests/real-host.integration.test.ts', 'modules/fork/tests/blocked-report.integration.test.ts',
-  'modules/file-audit/tests/tui-workflow.integration.test.mjs', 'modules/blackhole/tests/d03-branch-epoch.integration.test.mjs', 'modules/blackhole/tests/d20-settings-non-tui.integration.test.mjs',
+  'modules/file-audit/tests/tui-workflow.integration.test.mjs',
   'modules/sql-connector/tests/sdk.integration.test.mjs', 'modules/monitor/tests/host.integration.test.mjs']);
 const testFiles = (dir, keep) => readdirSync(join(root, dir)).filter(name => /\.test\.(ts|mjs)$/.test(name) && keep(name) && !heavyFiles.has(`${dir}/${name}`)).sort().map(name => `${dir}/${name}`);
 const isIntegration = name => name.includes('.integration.');
@@ -37,8 +37,7 @@ const sourceTests = [directTests('sqlite-tools:test', 'modules/sqlite-tools/test
   directTests('web-tools:test', 'modules/web-tools/tests/unit', () => true, { concurrency: 4 }),
   // Schedule Prompt keeps its source vitest runner (heavy vi.mock use); modules/schedule-prompt/test is therefore not scanned by node --test.
   { label: 'sql-connector:test', args: ['node_modules/vitest/vitest.mjs', 'run', '--root', 'modules/sql-connector', '--exclude', '**/tests/**'] },
-  { label: 'schedule-prompt:test', args: ['node_modules/vitest/vitest.mjs', 'run', '--root', 'modules/schedule-prompt'] },
-  { label: 'blackhole:test', args: ['scripts/blackhole-tests.mjs', '--suite=unit'] }];
+  { label: 'schedule-prompt:test', args: ['node_modules/vitest/vitest.mjs', 'run', '--root', 'modules/schedule-prompt'] }];
 const groups = {
   // No module ships compiled artifacts any more; the group stays so `npm run build` / prepack remain valid no-ops.
   build: [],
@@ -55,8 +54,7 @@ const groups = {
     { label: 'gpt-speed:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/gpt-speed/tsconfig.json'] },
     { label: 'schedule-prompt:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/schedule-prompt/tsconfig.json'] },
     { label: 'json-schema:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/json-schema/tsconfig.json'] },
-    { label: 'pi-auto-compact:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/pi-auto-compact/tsconfig.json'] },
-    { label: 'blackhole:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/blackhole/tsconfig.json'] }],
+    { label: 'pi-auto-compact:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/pi-auto-compact/tsconfig.json'] }],
   // Scan test directories (not hard-coded lists) so a new *.test.ts is never silently skipped; *.test.mjs there are real-host integration tests.
   unit: [directTests('file-audit:test', 'modules/file-audit/tests', name => !isIntegration(name)), directTests('skill-tools:test', 'modules/skill-tools/tests', name => !isIntegration(name)), directTests('theme-tools:test', 'modules/theme-tools/tests', name => !isIntegration(name)), directTests('all-modules:test-tooling', 'tests/unit', () => true), directTests('monitor:test', 'modules/monitor/tests', name => !isIntegration(name), unitParallel), directTests('fork:test', 'modules/fork/tests', name => !isIntegration(name), unitParallel), directTests('remote:test', 'modules/remote/tests', name => !isIntegration(name), unitParallel), directTests('pi-runtime:test', 'modules/pi-runtime/tests', name => !isIntegration(name), unitParallel), ...sourceTests, ...[['note-tools', 'modules/note-tools/tests'], ['gpt-speed', 'modules/gpt-speed/tests'], ['json-schema', 'modules/json-schema/tests'], ['pi-auto-compact', 'modules/pi-auto-compact/tests']]
     .map(([module, dir]) => directTests(`${module}:test`, dir, name => name.endsWith('.test.ts')))],
@@ -69,8 +67,6 @@ const groups = {
     directTests('web-tools:integration', 'modules/web-tools/tests/integration', () => true),
     directTests('schedule-prompt:integration', 'modules/schedule-prompt/tests', isIntegration, { concurrency: 3 }),
     { label: 'schedule-prompt:real-host', args: ['--test', 'tests/integration/schedule-deadline.test.mjs'] },
-    { label: 'blackhole:real-host', args: ['--test', 'tests/integration/blackhole-display.test.mjs'] },
-    directTests('blackhole:integration', 'modules/blackhole/tests', isIntegration),
     directTests('shell-tools:test:integration', 'modules/shell-tools/tests', isIntegration), moduleTask('file-tools', 'test:integration'),
     directTests('subagents:test:integration', 'modules/subagents/tests', isIntegration, { concurrency: 3 }),
     { label: 'all-modules:integration', args: ['--import', import.meta.resolve('tsx'), '--test', '--test-concurrency=1', 'tests/integration/package.test.mjs'] }],
@@ -84,11 +80,7 @@ const heavyTask = file => {
   const module = file.startsWith('modules/') ? file.split('/')[1] : 'all-modules';
   return { label: `${module}:heavy:${file.split('/').pop().replace(/\.test\.(ts|mjs)$/, '')}`, args: ['--import', tsx, '--test', file] };
 };
-// Non-file heavy commands: the Blackhole upstream Vitest integration suite measured ~600 s (its single-file budget was exhausted), so it gets a larger budget.
-// Blackhole's heavy tests form their own group (`heavy-blackhole`), never mixed into `heavy`.
-const allHeavyTasks = [...heavyFiles].sort().map(heavyTask);
-const heavyTasks = allHeavyTasks.filter(task => ownerOf(task) !== 'blackhole');
-const blackholeHeavyTasks = [...allHeavyTasks.filter(task => ownerOf(task) === 'blackhole'), { label: 'blackhole:heavy:native-vitest', args: ['scripts/blackhole-tests.mjs', '--suite=integration'], timeoutMs: 1500000 }];
+const heavyTasks = [...heavyFiles].sort().map(heavyTask);
 const allTasks = [...groups.build, ...groups.typecheck, ...groups.unit, ...groups.integration, ...groups.browser];
 const modules = [...new Set(allTasks.map(ownerOf))].filter(name => name !== 'all-modules').sort();
 const selected = process.argv[3];
@@ -100,7 +92,6 @@ else if (group === 'heavy') {
   if (selected && !heavyTasks.some(task => ownerOf(task) === selected)) throw new Error(`Usage: run-checks.mjs heavy [${[...new Set(heavyTasks.map(ownerOf))].join('|')}]`);
   groups.heavy = heavyTasks.filter(task => !selected || ownerOf(task) === selected);
 }
-else if (group === 'heavy-blackhole') groups['heavy-blackhole'] = blackholeHeavyTasks;
 const resultName = group === 'module' ? `module-${selected}` : group === 'heavy' && selected ? `heavy-${selected}` : group;
 if (!groups[group]) throw new Error(`Unknown check group: ${group}`);
 const evidenceScope = process.env.PI_BETTER_TOOLS_EVIDENCE_SCOPE ?? '';
@@ -112,7 +103,7 @@ const results = [];
 for (const task of groups[group]) {
   const startedAt = new Date().toISOString();
   try {
-    const env = { ...process.env, PI_OFFLINE: '1', PI_SKIP_VERSION_CHECK: '1', PI_TELEMETRY: '0', PI_BLACKHOLE_PASSIVE: 'true' };
+    const env = { ...process.env, PI_OFFLINE: '1', PI_SKIP_VERSION_CHECK: '1', PI_TELEMETRY: '0' };
     if (task.label === 'subagents:test:integration') {
       env.PI_SUBAGENTS_TEST_CLI = join(dirname(fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))), 'bundle/cli.js');
       env.PI_SUBAGENTS_TEST_EVIDENCE = join(outputEvidence, 'subagents');

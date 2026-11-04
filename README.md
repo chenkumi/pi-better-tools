@@ -6,7 +6,7 @@
 
 ## 重構整理（2026-10-16）
 
-移除未接入的 Blackhole 舊壓縮 trigger／private inline adapter、過期版本通知與 Runtime 孤立日誌 helper；ConfigManager 測試 helper 不再隨產品打包。Blackhole 共用 env 解析及非搜尋選單，Shell／Subagents／Fork 共用純 UI binding，Subagents 面板只保留現行 `PanelJob[]` 投影。工具、設定、持久化格式、原生壓縮與各自執行／取消／通知契約不變；來源身份與授權說明保留，細節見 [架構](docs/architecture.md)。
+移除過期版本通知與 Runtime 孤立日誌 helper；ConfigManager 測試 helper 不再隨產品打包。Shell／Subagents／Fork 共用純 UI binding，Subagents 面板只保留現行 `PanelJob[]` 投影。工具、設定、持久化格式、原生壓縮與各自執行／取消／通知契約不變；來源身份與授權說明保留，細節見 [架構](docs/architecture.md)。
 
 ## 本機安裝
 
@@ -47,15 +47,15 @@ pi-better-tools pty setup
 
 原 `npm run pty:install` 保留為 repository 開發別名，轉接同一 CLI；安裝後不需切換進套件目錄。內建 `/skill:pi-tools-config` 提供完整 Web 設定與 PTY 安裝／診斷說明，skill 可獨立搬移；其中的範例路徑是產品安裝目標，不是從 skill 位置猜測。套件安裝、extension 載入及 reload 均不自動執行 setup。
 
-### 本地 Blackhole 與兩個 npm Pi packages（原始碼掛載）
+### 兩個 npm Pi packages（原始碼掛載）
 
-根 `dependencies` 固定包含 `pi-open-tui@0.3.13`、`@ff-labs/pi-fff@0.11.0`。Blackhole 0.5.12 原始碼已納入 `modules/blackhole/`，入口為 `./modules/blackhole/src/index.ts`，**預設 manifest 不掛載**（`session_before_compact` 由 Pi Auto Compact 負責，兩者只掛其一；要用 Blackhole 須自行在 Pi 套件設定加入該入口並排除 Pi Auto Compact），不再依賴 npm 的 `pi-blackhole`。`npm ci --ignore-scripts` 會安裝兩個 npm packages；manifest 為十九個本地入口加兩個 npm 入口，共二十一個。仍維持 `private: true`，不需要 npm 發布、bundledDependencies 或 postinstall 呼叫 pi install。
+根 `dependencies` 固定包含 `pi-open-tui@0.3.13`、`@ff-labs/pi-fff@0.11.0`。`session_before_compact` 由 Pi Auto Compact 負責。`npm ci --ignore-scripts` 會安裝兩個 npm packages；manifest 為十九個本地入口加兩個 npm 入口，共二十一個。仍維持 `private: true`，不需要 npm 發布、bundledDependencies 或 postinstall 呼叫 pi install。
 
-換機請下載／複製本專案原始碼及 lockfile，在新機重新執行上述安裝步驟，然後只掛載本專案目錄；不要跨 OS／CPU 複製 node_modules。**本機掛載不會自動執行 npm install**。Repository `.npmrc` 設 `legacy-peer-deps=true`，避免依賴 peers 自動安裝另一份 Pi SDK；Blackhole 快照的上游開發版本／peer 範圍只作歷史 metadata，整合基準為 Pi 1.4.0，不以此設定宣稱相容。
+換機請下載／複製本專案原始碼及 lockfile，在新機重新執行上述安裝步驟，然後只掛載本專案目錄；不要跨 OS／CPU 複製 node_modules。**本機掛載不會自動執行 npm install**。Repository `.npmrc` 設 `legacy-peer-deps=true`，避免依賴 peers 自動安裝另一份 Pi SDK；整合基準為 Pi 1.5.0，不以此設定宣稱相容。
 
-啟用整合入口前，請手動停用原本 `npm:pi-open-tui`、`npm:pi-blackhole`、`npm:@ff-labs/pi-fff` 的獨立 extension 資源，避免 hooks／commands／tools 重複載入。Repository 不會改寫真實 Pi settings 或卸載它們。`pi config` 的既有 extension filters 仍有效；只掛載單一 module 入口不會載入全部套件。
+啟用整合入口前，請手動停用原本 `npm:pi-open-tui`、`npm:@ff-labs/pi-fff` 的獨立 extension 資源，避免 hooks／commands／tools 重複載入。Repository 不會改寫真實 Pi settings 或卸載它們。`pi config` 的既有 extension filters 仍有效；只掛載單一 module 入口不會載入全部套件。
 
-這不是個人設定備份：`~/.pi/agent/open-tui.json`、`~/.pi/agent/pi-blackhole/pi-blackhole-config.json`、FFF 個人偏好及模型登入仍需另外搬移／配置，不在安裝時覆寫。Blackhole 背景記憶可能產生模型費用，請沿用自己的模型／fallback 配置；測試使用 passive 模式及隔離 auth。FFF 有各平台原生 binary，必須在目標平台重新安裝與驗證；Nerd Font、系統函式庫也不因 Pi 掛載而自動安裝。
+這不是個人設定備份：`~/.pi/agent/open-tui.json`、FFF 個人偏好及模型登入仍需另外搬移／配置，不在安裝時覆寫。FFF 有各平台原生 binary，必須在目標平台重新安裝與驗證；Nerd Font、系統函式庫也不因 Pi 掛載而自動安裝。
 
 ### macOS 安裝（Apple Silicon／Intel）
 
@@ -110,7 +110,7 @@ Shell 與 Subagents 會在 `startup`／`resume`／`reload` 載入 session 時，
 | Remote | `remote_list/send/status`（deferred，`tool_search remote`） | 以 WebSocket 把數個 Pi session 連成區網內的網路互傳訊息／任務（例如 push 後通知他平台 pull 測試）；`.pi/agent/remote.json`（受信任專案）設 server 或 client；12 碼配對碼 challenge-response（碼不上線）＋ wss；收到的訊息標示為不受信任資料、預設喚醒 agent（`wake` 可關閉／allowlist）；at-most-once、不排隊；不是遠端執行或 sandbox。`/remote` 與 footer 顯示狀態、system prompt 列出線上 peer；`/settings:remote` 面板設定角色／wake／憑證路徑，server 頁直接顯示配對碼（沒有就即時產生，存檔才寫入）並可 Enter 換新碼，client 遮罩輸入配對碼（存使用者層，不進專案檔） |
 | Skill Tools | `/skill:create-plan`、`/skill:pi-tools-config` 等隨包技能 | 原生 resource discovery、按需讀取；pi-tools-config 以 SKILL.md 索引 18 份逐模組指令／config references，不修改使用者 home |
 | Theme Tools | `/theme:<id>`（deep-sea／warm-charcoal／moss／quiet／signal／paper／dark／light）、`/theme:menu` | 切換 Pi 主題並寫入 settings（使用者明確要求）；詳見 [Theme Tools](modules/theme-tools/README.md) |
-| Pi Auto Compact | `session_grep`／`session_window`／`session_read`（唯讀、deferred）、`progress_checkpoint`；`/settings:auto-compact` 設定面板；`session_before_compact` hook | 確定性壓縮、不呼叫模型；hook 已產生摘要（讀 `<agentDir>/auto-compact.json`；失敗或不適用時交還 Pi），摘要含背景 job／monitor 狀態與工作樹資訊，真實 host 整合尚未完成。與 Blackhole 只掛其一；詳見 [Pi Auto Compact](modules/pi-auto-compact/README.md) |
+| Pi Auto Compact | `session_grep`／`session_window`／`session_read`（唯讀、deferred）、`progress_checkpoint`；`/settings:auto-compact` 設定面板；`session_before_compact` hook | 確定性壓縮、不呼叫模型；hook 已產生摘要（讀 `<agentDir>/auto-compact.json`；失敗或不適用時交還 Pi），摘要含背景 job／monitor 狀態與工作樹資訊，真實 host 整合尚未完成。詳見 [Pi Auto Compact](modules/pi-auto-compact/README.md) |
 | File Audit | `/file-audit [status\|check\|clear\|limits]` | 成功 read/write/edit/note 的近期活動；預設 4 runs／50 個不同檔案，只在手動 check 才做有 byte 上限的 provenance 檢查；不掃完整歷史、不自動刷新 hash。詳見 [File Audit](modules/file-audit/README.md) |
 | Note Tools | `note` | `{ type, content }`；自動分類、產生純時間戳檔名（`TYPE-<UTC 時間戳>.md`，不附加標題），只新增 Markdown 檔案並回報單一相對路徑，不覆寫 |
 | GPT Speed | `/fast`、`/ultrafast`、`/normal` | GPT >= 5.6 的 luna／terra／sol／astra pattern；Ultrafast 在 luna／terra 降為 Fast；`/cache-ttl-short`／`/cache-ttl-long` 目前停用（不註冊、不送 `prompt_cache_options`）；TUI 只顯示實際速度 |
@@ -213,9 +213,13 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 
 需要協助實際連線時，只需提供 **SSH host alias** 與 **Mac 上的專案絕對路徑**，並明確授權實連；不需要提供密碼。若一定要使用帳號密碼，需另行實作讓使用者直接在終端機輸入、不經過模型的互動登入介面；目前 extension 未提供此功能。
 
+### 2026-11-04 移除 Blackhole 與 `/fork:delegate`
+
+`modules/blackhole/`（0.5.12 快照）、其測試與重型組（`test:heavy:blackhole`、`scripts/blackhole-tests.mjs`）、Blackhole 專屬 fixtures、`pi-tools-config` 的 blackhole 參考頁與所有切換說明一併移除；壓縮只剩 Pi Auto Compact（確定性、不呼叫模型）。使用者個人的 `~/.pi/agent/pi-blackhole/` 設定與記憶檔不由本專案處理、不會被刪除，若 Pi 設定仍列有 `modules/blackhole/src/index.ts` 需自行移除。Fork 的 `/fork:delegate`（委派引導）經測試效果不如預期，已移除；Fork 快取延續不變。
+
 ### 2026-11-03 Pi 1.5.0 升級
 
-根四個 Pi devDependencies 與 lockfile 升為 1.5.0（新增 `@earendil-works/pi-schema`），真實 host 斷言改為只接受 1.5.0，不再驗證 1.4.0。因 1.5.0 的型別變動，Note／Subagents／Web／Schedule Prompt／Blackhole recall 各自改用本地 `StringEnum`（輸出的 JSON 相同），Schedule Prompt 的 `Type`／`Static` 改從 `typebox` 取得，Shell 輸出 renderer 改用 render context 的 `keyHint`。細節見 [docs/migration.md](docs/migration.md)。Web 的 Anthropic 原生搜尋實測結論仍是 1.4.0 的觀察，Blackhole 重型組未在 1.5.0 重跑。
+根四個 Pi devDependencies 與 lockfile 升為 1.5.0（新增 `@earendil-works/pi-schema`），真實 host 斷言改為只接受 1.5.0，不再驗證 1.4.0。因 1.5.0 的型別變動，Note／Subagents／Web／Schedule Prompt 各自改用本地 `StringEnum`（輸出的 JSON 相同），Schedule Prompt 的 `Type`／`Static` 改從 `typebox` 取得，Shell 輸出 renderer 改用 render context 的 `keyHint`。細節見 [docs/migration.md](docs/migration.md)。Web 的 Anthropic 原生搜尋實測結論仍是 1.4.0 的觀察。
 
 ### 2026-10-23 Pi 1.4.0 升級
 
@@ -231,7 +235,7 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 
 `monitor_event` 使用與 Shell／Fork 通知一致的主題背景面板，不再直接顯示 raw JSON；收合顯示來源狀態與末三筆事件，展開顯示完整 IDs 與此通知保留的資料，控制碼只在顯示層清理，最多300行。
 
-`wakeAgent` 預設true，使用 `triggerTurn:true, deliverAs:"steer"`；false仍提交模型可見的display custom `monitor_event`，但不主動要求turn（下次合法模型請求可見，不是永遠只給使用者）。Shell 自動建立的 Monitor 固定為false，原 Shell job 完成通知另會喚醒 Agent。面板標示 Agent turn requested／Display only，舊資料沒有 wakeAgent 欄位時顯示 unknown；不以顯示成功冒稱模型送達確認。Busy由agent_start/agent_settled維持，ordered data／bounded batches，submitted不代表host ack／persisted；cancel/exit不代表source close／descendants cleanup，reload不恢復或重播。完整schema／limits／Blackhole producer交接與驗證邊界見 [Monitor README](modules/monitor/README.md)。Blackhole allowlist接線另由父agent協調，未因此宣稱壓縮共存已通過。
+`wakeAgent` 預設true，使用 `triggerTurn:true, deliverAs:"steer"`；false仍提交模型可見的display custom `monitor_event`，但不主動要求turn（下次合法模型請求可見，不是永遠只給使用者）。Shell 自動建立的 Monitor 固定為false，原 Shell job 完成通知另會喚醒 Agent。面板標示 Agent turn requested／Display only，舊資料沒有 wakeAgent 欄位時顯示 unknown；不以顯示成功冒稱模型送達確認。Busy由agent_start/agent_settled維持，ordered data／bounded batches，submitted不代表host ack／persisted；cancel/exit不代表source close／descendants cleanup，reload不恢復或重播。完整schema／limits／producer交接與驗證邊界見 [Monitor README](modules/monitor/README.md)。
 
 ### Extension 提供的 skills
 
@@ -256,22 +260,6 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 - 排程在 `session_start` 啟動、`session_shutdown` 停止；Pi 關閉後不會觸發，沒有補跑。排定觸發的 job 可能呼叫模型並產生費用，請自行確認 prompt 與 model。
 - 本地擴充 `endAt`：含秒與時區的 ISO 截止時間（如 `2030-01-01T18:00:00+08:00`，請改成預期未來時間），到達後拒絕新觸發並自動停用；不是強制結束已啟動工作。`update` 省略欄位保留原截止、`endAt: null` 清除，過期工作須先延長／清除再明確 `enable`。舊資料未設截止者不變；舊版或新舊混跑不保證截止生效。測試分組 `npm run test:module -- schedule-prompt` 包含專屬離線 Pi 1.1.0 host probe。
 
-### Blackhole 壓縮與最後回答顯示
-
-本地入口 `modules/blackhole/src/index.ts` 轉接 0.5.12 原 factory，保留 `/blackhole`、`recall`、記憶與原生 compaction 流程。修正 `getBranch()` 掃描方向：Pi 回傳 oldest-first，現在從成功的 compaction entry 往較舊訊息掃描。`showPreCompactionMessage: true` 時，最新被省略且未 aborted 的 assistant 文字會保存為 `[Previous output — display only]` 副本（最多 16 KiB），resume 可讀回並顯示；不增加模型訊息，不改 tail 保留界線。
-
-現行 Blackhole **只替換 Pi 已啟動的原生摘要**：Pi 控制 threshold／reserve、auto／manual／overflow 時點、preparation、cut／tokensBefore、persist／rebuild、retry／cancel；允許 Pi 在 final 後原生 threshold 壓縮及 callback replay，不修改 Pi。舊 `midRunCompaction`／`tailBehavior: "minimal"`／BH threshold 自選 timing/cut 描述只屬歷史，不能控制現行保留邊界。已被 Pi native tail 保留的最新 final 不新建 display 副本；只有真的被切掉的最新 assistant 文字可保存 plain custom，零模型投影。歷史 raw entries 不刪除，但 resume 不是完整歷史視圖，也不回填舊缺失副本。設定／採用與 filters 見 [configuration](docs/configuration.md) 和 [migration](docs/migration.md)。根 `npm run test:module -- blackhole` 沿用 Vitest 與離線 Pi 1.1.0 exact native preparation/cut、兩種 retained/dropped final、persist／resume／renderer probes；不是付費模型或人工 TUI 驗證。固定快照的 core／settings-migration 已分別取得限定靜態接受（皆 0 critical／0 warning）；reviewer 沒有重跑測試，也不代表所有來源全面安全、採用或 release。
-
-新 scaffold／明確 Save 不再生成七個 ignored timing/cut controls；舊檔載入只讀、診斷相容，UI 只顯示 readonly 說明。有效 memory/debug、模型／fallback 與未改 metadata 保留；Pi context capacity 不等於可推算的 compaction trigger，未知 budget 明示 unknown。Session branch authority、Reset／Delete→Save buffer 與 warning delivery 邊界見 [configuration](docs/configuration.md)／[migration](docs/migration.md)，沒有自動修改個人設定或歷史 JSONL。
-
-### Blackhole 通知 evidence 與穩定引用
-
-`recall`／`/blackhole-recall` 新增 allowlisted persisted `custom_message` 消費端：Shell 完成批次、Subagent task/query 結果、Runtime 診斷、Schedule subagent 結果與背景 reconciliation。以 ID 搜尋後使用 `e:<persisted-entry-id>`／`page`；stable ID namespace 不重編舊 message-only `#N`。排除 plain custom、display-only 副本、start/inline markers、private query 欄位與 credentials；details 的 producer-specific 結構為權威，正文僅補公開 scalar display，不提升為指令或 goal/preference。Query 的 lateUsage／snapshotUnavailable（含 false）保留，但不復活失敗答案。
-
-新 summary 最多16 refs／8000 structural chars，carry／strip 必須驗證實際 insertion span、SHA-256／refs 的 optional `blackhole.notificationEvidence` provenance；不是相信 Markdown header，也不是身份簽章。無 metadata 的舊 compactions 不回填／改寫；壓縮時機、tail、設定與舊 ref 不變。Evidence 專用 scanner 在 parse 前限64 KiB line，另限32 MiB讀取／100000 lines；generic raw recall 另有限32 MiB讀取／1 MiB單行、8 MiB保守payload charge及16 MiB aggregate cache，超限明示 incomplete 並保留原始 #N。這些不是精確heap上限，也不涵蓋宿主已解析的 branch。Selected projection、summary 樣本與 raw history 完整程度不同，producer outputTruncated 與 projection partial 也不同。分頁只推進已交付 body；tiny budget 不足回 `isError`／結構診斷、零交付且無 cursor，最小文字可能僅 `!`；`0` 只解除文字 budget，不解除 projection/scanner 界限。Unavailable 僅表示 selected inspection 未取得，不能推全歷史 absence／outcome。詳見 [Blackhole recall](modules/blackhole/docs/recall.md)。
-
-離線 fixtures 驗證持久化消費端，不代表 producer lifecycle／exactly-once／process-tree cleanup、真實 provider、人工 TUI 或根 release gates 已通過；不讀 logs、不重播或重啟 outcome_unknown 舊工作。
-
 ### GPT 速度切換
 
 `/fast` 設定 Fast（`service_tier: "priority"`），`/ultrafast` 設定 Ultrafast（`service_tier: "ultrafast"`），`/normal` 關閉本 extension 的 tier 注入。指令不是 toggle。只對 `openai`／`openai-codex` provider 且完整 ID 符合 `gpt-<major>[.<minor>]-<luna|terra|sol|astra>`、版本 >= 5.6 的模型生效；`5.10` 與 `6` 皆符合。Ultrafast 遇到 luna／terra 的實際速度降為 Fast，換回 sol／astra 恢復 Ultrafast；其他模型請求保持原樣。
@@ -292,7 +280,6 @@ pi -p "Extract company name: Acme" --json-schema $schema --json-output result.js
 
 ### 2026-10-12 review 修正
 
-- Blackhole pending 保存以 exclusive temporary + rename 保留舊主檔，保存失敗不推進 recorded cursor，停止本輪而非重試模型；cleanup 掃描不完整時不授權 orphan 刪除，保護當前 session 並於刪除前重查。
 - JSON Schema 啟動時拒絕深層／非 definition `$ref`，只支援 `#` 與直接 `$defs`／`definitions` 引用，避免 converter 漏驗。
 - Subagents metadata／aggregate writer close 拒絕亦保留 managed ownership；ready-query stdout 故障後只 drain、不持續保留 payload。Mandatory readable log 單筆序列化 JSONL 上限 **1 MiB**，與 wire／retained output cap 不同，超限使 run failed；長內容應寫檔回傳路徑。
 - Web REST snippets 使用線性 tag scanner；Schedule list 重用已讀 job snapshot，不改真正 fire 的 fresh admission；PTY `waitFor` 搜尋完整 retained unread output，仍保留 worker 計算期限／容量上限。
@@ -336,7 +323,7 @@ pi -p "Extract company name: Acme" --json-schema $schema --json-output result.js
 }
 ```
 
-二十個模組（subagents、shell-tools、file-tools、web-tools、note-tools、file-audit、gpt-speed、json-schema、pty-terminal、schedule-prompt、blackhole、pi-runtime、monitor、skill-tools、theme-tools、fork、sqlite-tools、sql-connector、remote、pi-auto-compact）的公開入口均為 `modules/<name>/src/index.ts`。薄入口轉接既有實作，內部資源位置不變。
+十九個模組（subagents、shell-tools、file-tools、web-tools、note-tools、file-audit、gpt-speed、json-schema、pty-terminal、schedule-prompt、pi-runtime、monitor、skill-tools、theme-tools、fork、sqlite-tools、sql-connector、remote、pi-auto-compact）的公開入口均為 `modules/<name>/src/index.ts`。薄入口轉接既有實作，內部資源位置不變。
 
 Filters 以整合包 root 為基準；與 tool allowlist 不同，它們控制 extension 是否執行／是否啟動生命週期資源。既有 filters 若使用舊入口路徑，請手動更新為新路徑，見 [入口遷移](docs/migration.md#unified-typescript-entry-points)。
 
@@ -359,17 +346,14 @@ npm run lint             # ESLint：JS／TS 語法與 correctness baseline，不
 npm test
 npm run test:integration
 npm run test:browser      # web_fetch 靜態抓取 + File read 組合（名稱沿用，不使用瀏覽器）
-npm run test:heavy:blackhole  # Blackhole 重型測試獨立一組（2 個整合檔 + 上游 Vitest 整合套件，約 10 分鐘以上）；同樣需使用者指定才執行
-npm run test:heavy        # 重型／高延遲測試（單檔 ≥30 秒，共 12 檔）；需使用者指定或全量驗證才執行，可加模組名縮小，如 -- fork
+npm run test:heavy        # 重型／高延遲測試（單檔 ≥30 秒，共 11 檔）；需使用者指定或全量驗證才執行，可加模組名縮小，如 -- fork
 npm run test:package      # 真實 tarball + 乾淨 production install；需要 npm registry
 npm pack                 # prepack 會執行 build（目前為 no-op）
 ```
 
 `npm run lint` 使用根 `eslint.config.mjs`，檢查模組來源／入口／測試、根 scripts／tests 與 lint 設定；排除依賴、建置產物、`.pi` 與筆記／證據目錄。初始規則為 `no-debugger`、`no-dupe-else-if`、`no-unsafe-finally`、`use-isnan`、`valid-typeof`；TypeScript 透過 parser 解析，不啟用 type-aware／風格／格式規則。這是 correctness baseline，不等同完整安全審查；`npm run check` 包含 lint，不自動 `--fix`。ESLint 與 parser 僅為根 devDependencies，不改 host peers 或 runtime dependencies。
 
-Blackhole 保留 Vitest runner，但 `npm test` 只跑 unit；`tests/integration/**` 的 native probes 由 `test:integration`／`test:module -- blackhole` 的 `blackhole:native-vitest` 階段序列執行。Unit 仍為 10 秒，`pi-owned` 每案另有 30 秒子行程預算與 45 秒外層收尾預算；不修改產品 timeout 或測試斷言。手動篩選可用 `node scripts/blackhole-tests.mjs --suite=unit <filter>`／`--suite=integration <filter>`；未指定 suite 仍執行全部案例。
-
-Subagents `runner-io` 使用 test-only phase clock：真實 managed 準備與非目標 I/O 保留產品 300 秒預算，只在指定 mock 進入受阻 barrier 後將原 deadline callback 重排到 300ms（slow write 2000ms）；不繞過真實 gate／locks／actual close，也不改 inactivity 或產品期限。Blackhole status-bar source／test 的舊 expected 內容未能取回，現碼經獨立審查後作明示的新本地基準；專案不再維護檔案雜湊基準。詳見 [來源界限](docs/source-references.md) 與兩模組 README。
+Subagents `runner-io` 使用 test-only phase clock：真實 managed 準備與非目標 I/O 保留產品 300 秒預算，只在指定 mock 進入受阻 barrier 後將原 deadline callback 重排到 300ms（slow write 2000ms）；不繞過真實 gate／locks／actual close，也不改 inactivity 或產品期限。專案不再維護檔案雜湊基準。詳見 [來源界限](docs/source-references.md) 與兩模組 README。
 
 Cross／production smoke 的 grep 前置需求是可執行的 ripgrep：在 PATH 安裝 `rg`，或明確設定測試用環境變數 `PI_BETTER_TOOLS_TEST_RG` 指向 binary。測試驗證版本後只複製 binary 到各自隔離的 `agentDir/bin`，記錄版本／來源／SHA-256；不下載、不修改個人設定，缺少時明確失敗，不 skip 或移除 grep 斷言。此變數只由測試 helper 讀取，不是 Pi runtime 設定。
 

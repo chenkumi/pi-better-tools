@@ -9,7 +9,7 @@ const eslint = new ESLint({ cwd });
 test('lint parses JS and TS and rejects actual syntax errors', async () => {
   for (const [filePath, source] of [
     ['scripts/lint-probe.mjs', 'export const value = 1;'],
-    ['modules/blackhole/src/lint-probe.ts', 'export const value: number = 1;'],
+    ['modules/schedule-prompt/src/lint-probe.ts', 'export const value: number = 1;'],
   ]) {
     const [result] = await eslint.lintText(source, { filePath });
     assert.equal(result.errorCount, 0);
@@ -33,10 +33,10 @@ test('lint correctness rules detect invalid code without changing source', async
 });
 
 test('lint ignores dependencies, artifacts and notes, but includes module tests', async () => {
-  for (const path of ['node_modules/probe.ts', 'modules/blackhole/plan/probe.ts', 'plan/evidence/probe.mjs', '.pi/probe.ts', 'dist/probe.ts']) {
+  for (const path of ['node_modules/probe.ts', 'modules/pi-auto-compact/plan/probe.ts', 'plan/evidence/probe.mjs', '.pi/probe.ts', 'dist/probe.ts']) {
     assert.equal(await eslint.isPathIgnored(path), true, path);
   }
-  for (const path of ['modules/blackhole/src/index.ts', 'modules/blackhole/tests/rereview-ui-migration.test.ts', 'modules/schedule-prompt/test/deadline.test.ts', 'tests/unit/lint-config.test.mjs']) {
+  for (const path of ['modules/pi-auto-compact/src/index.ts', 'modules/pi-auto-compact/tests/compact.test.ts', 'modules/schedule-prompt/test/deadline.test.ts', 'tests/unit/lint-config.test.mjs']) {
     assert.equal(await eslint.isPathIgnored(path), false, path);
   }
 });
@@ -57,7 +57,7 @@ test('cleanup implementations pass lint with no-unsafe-finally still enabled', a
 });
 
 test('upstream TypeScript rule directives resolve without enabling type-aware lint', async () => {
-  const [result] = await eslint.lintText('/* eslint-disable @typescript-eslint/no-misused-promises */\nexport const value: number = 1;', { filePath: 'modules/blackhole/src/lint-probe.ts' });
+  const [result] = await eslint.lintText('/* eslint-disable @typescript-eslint/no-misused-promises */\nexport const value: number = 1;', { filePath: 'modules/schedule-prompt/src/lint-probe.ts' });
   assert.equal(result.errorCount, 0);
   assert.equal(result.warningCount, 0);
 });

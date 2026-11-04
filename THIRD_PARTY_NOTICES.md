@@ -11,7 +11,6 @@ On 2026-10-01, the project owner confirmed ownership of all five source projects
 | web-tools | pi-web-tools 0.1.0 | MIT; original `modules/web-tools/LICENSE` preserved |
 | pty-terminal | pi-pty-terminal 0.1.0 | MIT; owner confirmed ownership and requested integration; original `modules/pty-terminal/LICENSE` preserved |
 | schedule-prompt | pi-schedule-prompt 0.4.1 (tintinweb) | MIT, Copyright (c) tintinweb; third-party source, not owner-confirmed; original `modules/schedule-prompt/LICENSE` preserved and not re-licensed |
-| blackhole | pi-blackhole 0.5.12 (k0valik) | MIT; third-party snapshot, original `modules/blackhole/LICENSE` preserved; no ownership claim or re-licensing |
 | json-schema | project-native rewrite (2026-10-02) | MIT (root `LICENSE`); written from documented behavior only and contains no code from the former @nqbao/pi-json-schema import, whose source is no longer available |
 
 The Shell/File import snapshots originally had no root LICENSE or package license field. That historical observation is no longer an unresolved permission blocker for this integration after the owner's confirmation and MIT request.
@@ -26,11 +25,7 @@ Import provenance (which project each module came from and under which license) 
 
 ## npm Pi extension dependencies (local-source suite)
 
-2026-10-08: at the user's request, the root declares `pi-open-tui` 0.3.11 (OldSuns, MIT), `pi-blackhole` 0.5.11 (k0valik, MIT), and `@ff-labs/pi-fff` 0.11.0 (FFF project, MIT) as pinned npm dependencies. Pi loads their original extension entries from the repository's installed node_modules; their source is not copied into modules, altered, or re-licensed. Preserve each installed package's LICENSE/copyright and all transitive dependency notices when redistributing copies. FFF's native/FFI dependencies retain their own licenses and platform distributions. These are external runtime dependencies, not newly owner-confirmed source snapshots or host Pi implementations. No npm/GitHub publication or automatic personal-settings migration is authorized by this integration.
-
-## Vendored Blackhole
-
-2026-10-09: at the user's request, Blackhole is now copied from the local 0.5.12 source checkout (commit `a2e4c13`) into `modules/blackhole/`, replacing the former npm 0.5.11 dependency. Preserve its original MIT LICENSE/copyright and source identity; this authorization is not an ownership declaration. Local adaptations are the direct TS forwarding entry/private metadata, chronological display-copy selector and matching host-order regression fixtures. Source hashes and upstream pnpm lock identity are recorded without importing node_modules or a nested lockfile. Personal configuration, memory and old sessions are not migrated or rewritten. The 2026-10-08 npm suite record above remains historical; only pi-open-tui and pi-fff remain external npm extension dependencies.
+2026-10-08: at the user's request, the root declares `pi-open-tui` 0.3.11 (OldSuns, MIT) and `@ff-labs/pi-fff` 0.11.0 (FFF project, MIT) as pinned npm dependencies. Pi loads their original extension entries from the repository's installed node_modules; their source is not copied into modules, altered, or re-licensed. Preserve each installed package's LICENSE/copyright and all transitive dependency notices when redistributing copies. FFF's native/FFI dependencies retain their own licenses and platform distributions. These are external runtime dependencies, not newly owner-confirmed source snapshots or host Pi implementations. No npm/GitHub publication or automatic personal-settings migration is authorized by this integration.
 
 ## PTY dependencies
 

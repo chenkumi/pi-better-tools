@@ -17,7 +17,7 @@ test('Pi 1.0.0 ready query answers from committed child history with zero tools 
   let queryReported!: () => void;
   const queryResult = new Promise<void>(resolve => { queryReported = resolve; });
   try {
-    const env = { ...isolatedEnv(root), PI_BLACKHOLE_PASSIVE: 'true' };
+    const env = isolatedEnv(root);
     for (const key of Object.keys(process.env)) delete process.env[key];
     Object.assign(process.env, env);
     await mkdir(join(root, 'config'), { recursive: true });

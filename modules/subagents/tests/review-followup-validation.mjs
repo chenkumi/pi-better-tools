@@ -15,7 +15,7 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-owned-followup-'));
 const agent = path.join(root, 'agent'); fs.mkdirSync(agent); fs.writeFileSync(path.join(agent, 'auth.json'), '{}');
 const inherited = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/(?:API_KEY|ACCESS_TOKEN|AUTH_TOKEN|SECRET|PASSWORD)/i.test(key)));
 const env = { ...inherited, HOME: root, USERPROFILE: root, TEMP: root, TMP: root, TMPDIR: root,
- PI_CODING_AGENT_DIR: agent, PI_BLACKHOLE_PASSIVE: 'true', PI_OFFLINE: '1', PI_SKIP_VERSION_CHECK: '1', PI_TELEMETRY: '0',
+ PI_CODING_AGENT_DIR: agent, PI_OFFLINE: '1', PI_SKIP_VERSION_CHECK: '1', PI_TELEMETRY: '0',
  PI_SUBAGENTS_TEST_CLI: path.join(repo, 'node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js'),
  PI_SUBAGENTS_TEST_EVIDENCE: path.join(evidence, 'host') };
 const core = ['--import', 'tsx', '--test', '--test-name-pattern=C2|W1', 'modules/subagents/tests/session-store.test.ts'];

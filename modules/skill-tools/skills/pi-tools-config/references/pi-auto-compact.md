@@ -5,7 +5,7 @@
 - `/settings:auto-compact`：設定面板（互動 TUI），兩頁（Budgets：L1～L4 的比例與最小字元數；Limits：`maxTotalRatio`、`charsPerToken`、`checkpointRatio`、`checkpointMinTokens`、`deadlineMarginMinTokens`）。欄位留空＝使用預設值並刪除該鍵；只有按存檔才寫入 `auto-compact.json`；存檔後立即生效，不需 `/reload`。檔案有誤（含未知鍵）時會詢問是否從預設值重來。
 - 三個唯讀 deferred 工具（命名空間 `session`，用 `tool_search` 載入）：`session_window`（依行號範圍看對話大綱，規則同摘要的 L3：只有對話與進度錨點文字、不列工具；`before` 往前讀）、`session_grep`（字面關鍵字搜尋）、`session_read`（依行號讀原始 entry）；只讀目前 session 與其祖先 session。無指令；壓縮時由 `session_before_compact` hook 運作。
 - hook 會產生確定性摘要（Pi 決定時機；切點預設取 Pi 的，但保留尾端超過 L1 預算時會被移到後面的合法切點，預設 30000 字元所以常會移動；切點之前的內容才進摘要）；設定無效、未知 context window 或失敗時交還 Pi。摘要末端附壓縮當下的背景 job／monitor 狀態與工作樹 HEAD／異動檔路徑（只有識別與狀態，不含輸出或 diff）。
-- 與 Blackhole **只掛其一**：兩者同時掛載時不做協調。切換方式是在 Pi 的套件／extension 設定中啟用或排除對應入口，不是設定鍵。
+- 是否啟用由 Pi 的套件／extension 設定是否掛載（或排除）本模組入口決定，不是設定鍵。
 
 ## Config 與作用範圍
 
@@ -27,4 +27,3 @@
 
 - 啟動後出現 `pi-auto-compact: … Compaction is left to Pi.` 警告：設定檔有誤，依訊息中的鍵與路徑修正；修正前壓縮由 Pi 處理。
 - 想停用：從套件／extension 設定排除 Pi Auto Compact 入口，不要建立開關鍵。
-- 想改用它取代 Blackhole：先排除 Blackhole 入口，再啟用本模組；不要兩者同時掛載。

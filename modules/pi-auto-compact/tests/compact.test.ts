@@ -352,7 +352,7 @@ test('while the window start is kept, each summary begins with the previous one 
 
 test('only a compaction made by this engine provides a window start', () => {
   const ours = { type: 'compaction', id: 'c1', details: { compactor: 'pi-auto-compact', version: 1, windowStart: { entryId: 'e0000009' } } };
-  const theirs = { type: 'compaction', id: 'c2', details: { compactor: 'blackhole', version: 1 } };
+  const theirs = { type: 'compaction', id: 'c2', details: { compactor: 'other-compactor', version: 1 } };
   assert.equal(previousWindowStart([user('x'), ours]), 'e0000009');
   assert.equal(previousWindowStart([ours, user('x'), theirs]), undefined, 'the latest compaction decides');
   assert.equal(previousWindowStart([ours, { ...ours, details: { ...ours.details, version: 2 } }]), undefined);
@@ -417,7 +417,7 @@ test('the hook continues from the window start its own previous compaction recor
   const ours = await autoCompact(event(more, more.length - 1), hookCtx(undefined) as never, config);
   assert.equal((ours!.compaction!.details as { stats: { windowStartKept: boolean } }).stats.windowStartKept, true);
   assert.equal((ours!.compaction!.details as { windowStart: { entryId: string } }).windowStart.entryId, start, 'the start did not move');
-  const others = [...history, marker({ compactor: 'blackhole' }), ...conversation(2, 80), user('tail')];
+  const others = [...history, marker({ compactor: 'other-compactor' }), ...conversation(2, 80), user('tail')];
   const reset = await autoCompact(event(others, others.length - 1), hookCtx(undefined) as never, config);
   assert.equal((reset!.compaction!.details as { stats: { windowStartKept: boolean } }).stats.windowStartKept, false);
 });

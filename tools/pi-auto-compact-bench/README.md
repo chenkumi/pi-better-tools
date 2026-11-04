@@ -1,6 +1,6 @@
 # Pi Auto Compact 長程任務試驗
 
-兩個自訂任務，用來比較 `pi-auto-compact` 與 Blackhole（或 Pi 原生壓縮）在**連續壓縮多次**後的表現。腳本只產生資料與判分，**不呼叫任何模型**；真正跑任務是你手動在 Pi 裡進行，會花真實模型費用。
+兩個自訂任務，用來比較 `pi-auto-compact` 與 Pi 原生壓縮在**連續壓縮多次**後的表現。腳本只產生資料與判分，**不呼叫任何模型**；真正跑任務是你手動在 Pi 裡進行，會花真實模型費用。
 
 ## 任務
 
@@ -21,7 +21,7 @@ node gen.mjs --mode parallel   --out D:/bench/p1 --seed 1
 # 2. 每個要比較的組態各複製一份 workspace（只複製 workspace，不要把 expected.json 放進去）
 cp -r D:/bench/c1/workspace D:/bench/c1-auto/workspace   # 之後 --dir 指向 c1-auto，並把 expected.json 一起放在 c1-auto/
 
-# 3. 在該 workspace 啟動 Pi，掛載要比較的壓縮 extension（pi-auto-compact 或 Blackhole，只掛其一），
+# 3. 在該 workspace 啟動 Pi，掛載要比較的壓縮設定（掛載 pi-auto-compact，或排除它以使用 Pi 原生壓縮），
 #    把 PROMPT.md 的內容貼進去，讓它跑到結束。不要中途插話或手動壓縮。
 
 # 4. 判分與蒐集

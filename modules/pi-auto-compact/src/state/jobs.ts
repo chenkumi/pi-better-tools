@@ -1,8 +1,7 @@
 /**
  * Live "[Background Jobs]" reminder for a compaction summary.
  *
- * Ported from the Blackhole module with identical output (same input, same text) so the two engines can be compared side by
- * side. Not carried forward: the summary is rebuilt at every compaction, so this block only describes the moment of compaction.
+ * Not carried forward: the summary is rebuilt at every compaction, so this block only describes the moment of compaction.
  * The data is the readonly id/status list that Shell, Subagents, Fork and PTY publish through the Monitor capability
  * rendezvous (PTY sessions arrive as brief-only rows): no commands, task text, output or paths.
  */

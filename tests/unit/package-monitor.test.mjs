@@ -37,7 +37,6 @@ test('isolated env preserves only the required OS install directories, not crede
     for (const key of ['OPENAI_API_KEY', 'PI_WEB_TOOLS_CONFIG', 'PI_SUBAGENTS_GUARD']) assert.equal(env[key], undefined);
     assert.equal(env.HOME, 'isolated-test-home');
     assert.equal(env.PI_CODING_AGENT_DIR, join('isolated-test-home', '.pi/agent'));
-    assert.equal(env.PI_BLACKHOLE_PASSIVE, 'true');
   } finally {
     for (const [key, value] of saved) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
   }

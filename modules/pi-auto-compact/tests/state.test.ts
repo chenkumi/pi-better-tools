@@ -11,7 +11,6 @@ import { backgroundJobsSection, renderBackgroundJobs } from '../src/state/jobs.t
 import { activeMonitorsSection, renderActiveMonitors } from '../src/state/monitors.ts';
 import { parsePorcelain, tagFromPorcelain, workingTreeLines } from '../src/state/worktree.ts';
 
-// These cases mirror the Blackhole tests for the same renderers: same input, same output.
 const job = (kind: string, jobId: string, status = 'running') => ({ kind, jobId, status }) as never;
 const mon = (over: Record<string, unknown> = {}) => ({ monitorId: '01HZZZZZZZZZZZZZZZZZZZZZZZ', source: 'file', state: 'running', target: 'src/app.ts', remainingMs: 240000, ...over }) as never;
 

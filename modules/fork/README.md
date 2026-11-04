@@ -24,7 +24,7 @@
    - **前提是 child 送出的前綴與父代逐位元相同**：快取鍵、工具清單、system prompt、訊息前綴。任一不同，第一個請求就整段 miss。
    - **會破壞的情況**：extension 的 `context` hook 依行程狀態（pid、行程內計數器、時間等）改寫訊息——child 會經轉發的 `-e` 載入同一個 extension，但行程狀態不同，改寫結果就不同（實測 pid 標記：Fork 第一個請求 `cacheRead` 0）；其他依 child 身分或狀態變動的 system prompt 內容；父代閒置超過 provider 的快取存活時間才呼叫 `fork`（通常數分鐘）；`--model`／`--thinking` 與父代不同。
    - **已實測正常**：只依訊息內容的確定性 `context` 改寫（命中 0.99）；壓縮過的 session（Pi Auto Compact 命中 0.99、Pi 原生壓縮 0.98，Fork 複製壓縮條目後重建出相同上下文）；兩個 Fork 近乎同時啟動（各自第一個請求皆命中，約 0.99，父代之後的對話命中率不變）；Fork 完成後父代繼續對話（0.97–1.00）。
-   - **未驗證**：Anthropic provider（快取靠明確斷點）；壓縮在 Fork 執行期間發生；壓縮自動觸發；長時間並行的多個 Fork（共用同一快取鍵，高頻請求是否在 provider 端被分流未知）；專案內會改寫 context 的真實 extension（如 Blackhole）；工具順序不同；父代中途以 `tool_search` 載入 deferred 工具後的工具順序；Pi 1.5.0 以外的版本（`before_provider_headers` 觸發時標頭為空是 1.5.0 行為，升級須重測）。
+   - **未驗證**：Anthropic provider（快取靠明確斷點）；壓縮在 Fork 執行期間發生；壓縮自動觸發；長時間並行的多個 Fork（共用同一快取鍵，高頻請求是否在 provider 端被分流未知）；專案內會改寫 context 的真實 extension；工具順序不同；父代中途以 `tool_search` 載入 deferred 工具後的工具順序；Pi 1.5.0 以外的版本（`before_provider_headers` 觸發時標頭為空是 1.5.0 行為，升級須重測）。
    - **OpenAI 不穩定**：openai／gpt-6-luna 在請求內容完全相同（快取鍵、工具、system prompt、訊息前綴 hash 皆一致）的重複實測中，Fork 第一個請求有時命中（約 12.5k）、有時 `cacheRead` 為 0（三次中兩次），原因未查明，不是本模組的請求形狀造成；父代自身偶爾也有莫名的 0 命中。不可假設 Fork 一定命中。
    - **`session_read` 行號**：Fork 檔案只含父代的 active branch（`snapshot.ts`），父代曾分支時行號會位移；與快取無關。見 Pi Auto Compact README 的 `session_read`（找不到條目時自動搜尋祖先）。
 5. **完成判定**：child 的 guard 在 `agent_settled` 時檢查自己 session 的 Shell／Subagent 未完成工作數（經 `activeJobCounts` 唯讀計數橋，僅計數，不暴露 handle、輸出或取消能力）。有未完成工作時不發布成功；工作自身的 wake-up 會再次 settle，若工作結束但未喚醒，需連續兩次 quiet 才視為完成。完成後才取最後 assistant 文字與用量（`get_session_stats` 前後差值，繼承歷史不重複計入）、關閉 stdin、等待真實 `close`。第三方任意 OS 工作不宣稱可完整追蹤。

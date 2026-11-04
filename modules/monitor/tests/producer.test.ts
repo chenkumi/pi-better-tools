@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildProducerFixtures } from './fixtures/producer.ts';
-test('Blackhole handoff uses real producer details and actual Pi persisted custom_message entries', async () => {
+test('compaction handoff uses real producer details and actual Pi persisted custom_message entries', async () => {
   const fixtures = await buildProducerFixtures();
   for (const [name, entries] of Object.entries(fixtures)) {
     assert.ok(entries.length, name);

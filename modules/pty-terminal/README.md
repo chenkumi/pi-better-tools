@@ -40,7 +40,7 @@
 - `recovered` 的 session 明示「exit 未確認」；細節固定註明關閉 local transport 不代表遠端／WSL process tree 已停止。
 - 底部面板與其他背景工作共用「合計五列」，按啟動時間由舊到新排序；長時間閒置的 PTY（REPL、SSH）會佔位，較新的 job 可能被擠到 More，需用 `/background-jobs` 查看。
 - 顯示純為觀察：`PtySessionManager.onChange` 的例外一律吞掉，不影響 session；非 TUI／managed child 不綁定。`snapshot()` 為唯讀（不 reclaim），`list()` 行為不變。
-- Blackhole 壓縮摘要的 `[Background Jobs]` 會多一行 `- PTY Session: <sessionId> (running)`（只有執行中者，只含 ID 與狀態），並附一句提示須用 `pty_list`／`pty_read` 核對、可能在等輸入、不要重複 spawn。資料經 `publishJobBriefs('pty_session', …)`（brief-only，owner sessionId＋canonical cwd 必須相符，shutdown／session 換代即撤銷）；Monitor **沒有** PTY 來源。
+- Pi Auto Compact 壓縮摘要的 `[Background Jobs]` 會多一行 `- PTY Session: <sessionId> (running)`（只有執行中者，只含 ID 與狀態），並附一句提示須用 `pty_list`／`pty_read` 核對、可能在等輸入、不要重複 spawn。資料經 `publishJobBriefs('pty_session', …)`（brief-only，owner sessionId＋canonical cwd 必須相符，shutdown／session 換代即撤銷）；Monitor **沒有** PTY 來源。
 - 程式：`src/live-widget.ts`；測試 `tests/live-widget.test.ts`。
 
 ## 設定

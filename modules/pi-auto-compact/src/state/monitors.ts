@@ -1,7 +1,7 @@
 /**
  * Live "[Active Monitors]" reminder for a compaction summary.
  *
- * Ported from the Blackhole module with identical output. The data is the readonly live-monitor list the Monitor extension
+ * The data is the readonly live-monitor list the Monitor extension
  * publishes through the Monitor capability rendezvous: source kind, state, a coarse target, the optional label and the remaining
  * lifetime, never command text, output or events. It describes the moment of compaction only.
  */

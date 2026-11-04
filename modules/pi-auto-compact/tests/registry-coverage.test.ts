@@ -12,8 +12,6 @@ const modulesDir = fileURLToPath(new URL('../../', import.meta.url));
  * Adding a tool to this list is a decision: it will be folded by the generic fallback.
  */
 const GENERIC_BY_DESIGN = new Set([
-  // Blackhole's own tools: `recall` reads Blackhole memory, the others are worker-only tools that never reach the main agent.
-  'recall', 'record_observations', 'record_reflections', 'drop_observations',
   // Not tools: deferred-tool namespaces and a provider stream event name that sit next to `name:` in the same files.
   'pty', 'remote', 'sqlite', 'session', 'provider_stream_event',
 ]);

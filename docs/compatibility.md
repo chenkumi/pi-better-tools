@@ -15,7 +15,7 @@
 
 | 項目 | 結果 |
 |---|---|
-| 十九個本地 `pi.extensions` 入口載入（Blackhole 為 opt-in） | 全部載入（`pi-bolt doctor` 無載入失敗） |
+| 十九個本地 `pi.extensions` 入口載入 | 全部載入（`pi-bolt doctor` 無載入失敗） |
 | 本專案使用的 hook 事件 | 事件名稱與分派方法都存在於 Pi-Bolt 的 extension runner |
 | Pi 套件 import | 本專案只 import `pi-coding-agent`、`pi-tui`、`pi-ai`（含 `/compat`）、`pi-agent-core`，皆在 Pi-Bolt 的虛擬模組清單內 |
 | `node:sqlite`（建表、寫入、查詢） | 可用 |
@@ -51,13 +51,13 @@
 - 以真實模型執行 Subagent／Fork 的端到端流程（修正只由單元測試與呼叫形狀實測支持）。
 - MSSQL 的 `msnodesqlv8`。
 - `sqlite`／`pty`／`web`／`json-schema` 等工具在 Pi-Bolt 上的完整行為（只確認載入與上表呼叫）。
-- 重型測試組（`test:heavy`、`test:heavy:blackhole`）未在 Pi-Bolt 上執行。
+- 重型測試組（`test:heavy`）未在 Pi-Bolt 上執行。
 - Linux、macOS 版本與 JIT 版本（`PIBOLT_VARIANT=x64-jit`），含 JIT 版的 FFF `fff-bun` 後端。
 - FFF 在真實 TUI session（含 `@` 自動完成、`/fff-*` 指令）與大 repo 的效能；上述 FFF 探測是代為觸發 `session_start` 後直接執行工具。
 - 以 `opensec-pi-fff` 取代本專案 FFF 入口的流程（packages 過濾）。
 
 ### 營運備註
 
-- 預設版本以直譯器執行執行期載入的 extension，載入較慢（實測 `sql-connector` 約 8.6 秒、`blackhole` 約 6.3 秒；首次啟動含 Defender 掃描與 jiti 快取建立）。可改用 JIT 版本或 `pi-bolt compile`；後者對本專案的大型模組是否可行未驗證。
+- 預設版本以直譯器執行執行期載入的 extension，載入較慢（實測 `sql-connector` 約 8.6 秒；首次啟動含 Defender 掃描與 jiti 快取建立）。可改用 JIT 版本或 `pi-bolt compile`；後者對本專案的大型模組是否可行未驗證。
 - Pi-Bolt 的 Bun 轉譯快取在 `%USERPROFILE%\.bun\install\cache\@t@pi-bolt`。曾有防毒軟體把其中的快取檔（內容為 Azure Identity SDK 的 `AzurePowerShellCredential`，由 `sql-connector` 的依賴引入）誤判為惡意軟體；檔案內容為一般 SDK 程式碼，快取可刪除並會重建。
 - Pi-Bolt 不讀取工作目錄的 `.env`，環境變數需在啟動它的 shell 設定。

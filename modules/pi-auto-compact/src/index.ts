@@ -13,8 +13,7 @@ import { registerAutoCompactSettings } from './settings.ts';
  * Pi keeps ownership of when to compact and where to cut; this handler only replaces the summary of the entries before the
  * cut. Whenever it cannot (invalid settings, unknown context window, an unexpected failure) it returns nothing and Pi keeps its
  * own compaction, so a compaction is never lost. Also registers the deferred, read-only `session_grep` / `session_window` /
- * `session_read` tools that the summary's line references point at. Mount this entry OR Blackhole, not both: no coordination
- * between the two is implemented.
+ * `session_read` tools that the summary's line references point at.
  */
 export default function piAutoCompact(pi: ExtensionAPI) {
   for (const tool of sessionTools) pi.registerTool(tool);
