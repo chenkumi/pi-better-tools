@@ -15,7 +15,8 @@ import { captureGroundingSources, captureNativeSources, formatSourceRecord, read
 import { isRestProvider, MAX_QUERY_CHARS, MAX_SEARCH_RESULTS, search, type PiCredentialResolver, type RestProvider } from './search.ts';
 import type { FetchService } from './fetch/service.ts';
 import { webRenderers } from './renderers.ts';
-import { createForcedPromptAppender } from '../../../shared/src/prompt/index.ts';
+import { createForcedPromptAppender, registerPromptSection } from '../../../shared/src/prompt/index.ts';
+import { WEB_RULES_SECTION, renderWebRules } from './prompt-rules.ts';
 
 export default function webTools(pi: ExtensionAPI) { return registerWebTools(pi, loadConfig); }
 
@@ -36,6 +37,7 @@ const piCredential = (ctx: ExtensionContext): PiCredentialResolver => async prov
 export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig,
   report: (message: string) => void = message => process.stderr.write(`[pi-web-tools] ${message}\n`),
   writeFailure: typeof logToolExecutionFailure = logToolExecutionFailure) {
+  registerPromptSection(pi, WEB_RULES_SECTION, renderWebRules);
   let config = defaults(), configError: string | undefined;
   try { config = readConfig(); } catch (e) { configError = (e as Error).message; }
   let fetchService: FetchService | undefined;

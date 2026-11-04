@@ -60,7 +60,7 @@ test("extension entry: root registers the Fork tools, a Subagent child none, a F
 		assert.deepEqual(b.promptGuidelines, a.promptGuidelines, `${name} prompt guidelines are identical`);
 		await assert.rejects(() => b.execute("id", { task: "x", jobId: "J", message: "m" }, undefined, undefined, {}), /FORK_FORBIDDEN/, `${name} is refused inside a Fork`);
 	}
-	assert.deepEqual(child.events, [], "a Fork child owns no Forks (no session or turn hooks)");
+	assert.deepEqual(child.events, ["before_agent_start"], "a Fork child owns no Forks (no session or turn hooks); only the delegation rule section hook stays, so its system prompt matches the parent's");
 	clean();
 });
 

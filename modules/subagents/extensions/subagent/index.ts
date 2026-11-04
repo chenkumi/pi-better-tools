@@ -93,7 +93,8 @@ import {
 /** Plain `{ type: "string", enum }` schema, the same JSON as pi-ai's StringEnum, typed as TypeBox so `Static` infers the union (pi-ai 1.5 types it as a pi-schema value). */
 const StringEnum = <const T extends readonly string[]>(values: T, options?: { description?: string; default?: T[number] }) =>
   Type.Unsafe<T[number]>({ type: "string", enum: [...values], ...(options?.description && { description: options.description }), ...(options?.default && { default: options.default }) });
-import { createForcedPromptAppender } from "../../../../shared/src/prompt/index.ts";
+import { createForcedPromptAppender, registerPromptSection } from "../../../../shared/src/prompt/index.ts";
+import { SUBAGENT_RULES_SECTION, renderSubagentRules } from "./prompt-rules.ts";
 import {
 	SubsessionWriter,
 	collectAssistantText,
@@ -1363,6 +1364,7 @@ function backgroundResult(result: SingleResult) {
 }
 
 export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
+	registerPromptSection(pi, SUBAGENT_RULES_SECTION, renderSubagentRules);
 	registerBackgroundLifecycleGuidance(pi);
 	if (!isManagedForegroundChild()) ensureDetachShortcut(pi);
 	pi.registerMessageRenderer("subagent_background", renderBackgroundMessage);

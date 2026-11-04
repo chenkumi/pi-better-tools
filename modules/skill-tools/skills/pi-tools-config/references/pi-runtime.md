@@ -15,4 +15,4 @@
 
 未載入 namespace 的短提示隨 active tool set 更新：PTY `pty`、排程 `schedule`、SQLite `sqlite`、SQL Connector `mysql`／`mssql`／`pgsql`。工具被 allowlist／exclude 排除時不能搜尋載入。
 
-`pi_better_tools_cross_tool_rules` 依已選工具加入跨模組指引，無獨立設定鍵。停用整個 Runtime 應使用 package extension filter 排除 `modules/pi-runtime/src/index.ts`，同時會失去這些共用行為；不要只為拿掉一段提示而擅自停用整個 Runtime 或改全域設定。
+`cross_tool_rules` 加入不屬於單一模組的通用規則（各模組的工具規則由 file-tools、web-tools、shell-tools、subagents、fork 各自以 `file_rules`、`web_rules`、`shell_rules`、`subagent_rules`、`fork_rules` 注入），無獨立設定鍵。停用整個 Runtime 應使用 package extension filter 排除 `modules/pi-runtime/src/index.ts`，同時會失去這些共用行為；不要只為拿掉一段提示而擅自停用整個 Runtime 或改全域設定。

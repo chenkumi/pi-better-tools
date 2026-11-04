@@ -26,6 +26,8 @@ import { resolveToolPath } from "../src/path-utils.js";
 import { findUniqueSkillFallbackPath } from "../src/skill-paths.js";
 import { hintMissingSubagentLog } from "../src/subagent-log-paths.js";
 import { registerLsTool } from "../src/search-tools.js";
+import { FILE_RULES_SECTION, renderFileRules } from "../src/prompt-rules.js";
+import { registerPromptSection } from "../../../shared/src/prompt/index.js";
 
 class WriteCallWithCount extends Container {
   preview?: Component;
@@ -491,6 +493,7 @@ async function readBufferAtPath(absolutePath: string, displayPath: string, signa
 }
 
 export default function fileToolsExtension(pi: ExtensionAPI) {
+  registerPromptSection(pi, FILE_RULES_SECTION, renderFileRules);
   const debugLog = loadFileToolsGlobalConfig().debugLog ?? false;
   // Explicitly retain the host's call/ successful read presentation (including images).
   const builtinRead = createReadToolDefinition(process.cwd());

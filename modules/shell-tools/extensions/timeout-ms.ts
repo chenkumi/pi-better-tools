@@ -14,6 +14,8 @@ import { stripVTControlCharacters } from "node:util";
 
 import { ShellJobs, compactJob, isActiveJobStatus, timeoutMessage } from "../src/background-jobs.js";
 import { registerBackgroundLifecycleGuidance } from "../src/background-guidance.js";
+import { SHELL_RULES_SECTION, renderShellRules } from "../src/prompt-rules.js";
+import { registerPromptSection } from "../../../shared/src/prompt/index.js";
 import { registerApiInterruptionRenderer } from "../src/api-interruption-renderer.js";
 import { isManagedForegroundChild } from "../src/managed-child.js";
 import { AUTO_MONITOR_INTERVAL_MS, canonicalMonitorCwd, requestAutoMonitor } from "../src/monitor-capability.js";
@@ -337,6 +339,7 @@ function registerTimeoutMsOverride(
 }
 
 export default function (pi: ExtensionAPI) {
+  registerPromptSection(pi, SHELL_RULES_SECTION, renderShellRules);
   const foregroundOnly = isManagedForegroundChild();
   if (foregroundOnly) {
     registerApiInterruptionRenderer(pi);

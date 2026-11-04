@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 // Keep the post-commit regression in the module's fixed integration entry list.
 import "./review-r1.integration.test.mjs";
-import { mkdtemp, mkdir, readFile, writeFile, rm, symlink, unlink } from "node:fs/promises";
+import { cp, mkdtemp, mkdir, readFile, writeFile, rm, symlink, unlink } from "node:fs/promises";
 import { findPackageJSON } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -53,6 +53,8 @@ test(`packaged extension with real Pi ${hostVersion} loader`, { timeout: 120000 
     assert.ok(!manifest.files.some(file => /^(tests|scripts|issues|node_modules)\//.test(file.path)));
     // A drive-letter archive path is interpreted as a remote host by GNU tar.
     await runCommand("extract package", "tar", ["-xzf", manifest.filename, "-C", extracted], { cwd: root, timeoutMs: 30000 });
+    // The module-level pack has no root layout: place the repository shared/ library where the extracted module reaches it (../../../shared).
+    await cp(fileURLToPath(new URL("../../../shared/src", import.meta.url)), join(root, "shared", "src"), { recursive: true });
     // Source-module regression uses the shared development tree; the root production smoke installs real dependencies.
     await symlink(fileURLToPath(new URL("../../../node_modules", import.meta.url)), join(packageRoot, "node_modules"), process.platform === "win32" ? "junction" : "dir");
     linked = true;

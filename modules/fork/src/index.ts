@@ -9,6 +9,8 @@ import { renderForkResult } from "./result-renderer.ts";
 import { isTerminal } from "./store.ts";
 import { RESULT_TYPE, acceptFork, notFoundText, findOwnedJob, messageFork, onSessionShutdown, onSessionStart, onTurnEnd, ownedJobs, requestCancel, summarize } from "./manager.ts";
 import { publishForkMonitor } from "./monitor-capability.ts";
+import { FORK_RULES_SECTION, renderForkRules } from "./prompt-rules.ts";
+import { registerPromptSection } from "../../../shared/src/prompt/index.ts";
 
 const display = (value: unknown, max = 300) => typeof value === "string" ? stripVTControlCharacters(value.slice(0, max * 4)).replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f‪-‮⁦-⁩]/g, "").slice(0, max) : "";
 function renderTextResult(result: any, _options: unknown, theme: any, context: any) {
@@ -36,6 +38,8 @@ export default function (pi: ExtensionAPI) {
 	const forkChild = !!childGuard;
 	const refuseInChild = () => { if (forkChild) throw new Error(FORK_CHILD_REFUSAL); };
 
+	// The child carries the same rule text as its parent: the system prompt prefix has to match for the cached prefix to continue.
+	registerPromptSection(pi, FORK_RULES_SECTION, renderForkRules);
 	if (!forkChild) pi.registerMessageRenderer(RESULT_TYPE, renderForkResult);
 
 	pi.registerTool(defineTool({

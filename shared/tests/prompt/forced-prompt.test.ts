@@ -33,3 +33,29 @@ test('known sections are stripped even when this instance never appended them', 
   assert.deepEqual(append(event('F\n\nA', 'F\n\nA'), 'A'), undefined, 'already present: nothing to change');
   assert.deepEqual(append(event('F\n\nA', 'F\n\nA'), undefined), { systemPrompt: 'F' });
 });
+
+import { registerPromptSection } from '../../src/prompt/index.ts';
+
+function host(active: string[]) {
+  let handler: ((e: any) => any) | undefined;
+  registerPromptSection({ on: (_n: string, h: any) => { handler = h; }, getActiveTools: () => active } as never, 'demo_rules',
+    tools => (tools.has('bash') ? 'RULE' : undefined));
+  return (forced?: string, systemPrompt = 'built') => {
+    const options: any = { sections: { keep: 'K' }, forceSystemPrompt: forced };
+    return { options, result: handler!({ systemPrompt, systemPromptOptions: options }) };
+  };
+}
+
+test('registerPromptSection sets the section while its condition holds and removes it otherwise', () => {
+  const run = host(['bash']);
+  assert.equal(run().options.sections.demo_rules, 'RULE');
+  assert.deepEqual(Object.keys(run().options.sections), ['keep', 'demo_rules']);
+  const idle = host([]);
+  assert.deepEqual(Object.keys(idle().options.sections), ['keep']);
+});
+
+test('registerPromptSection appends to a forced prompt and leaves a sectioned prompt unchanged', () => {
+  const run = host(['bash']);
+  assert.equal(run().result, undefined);
+  assert.deepEqual(run('FORCED', 'FORCED').result, { systemPrompt: 'FORCED\n\nRULE' });
+});

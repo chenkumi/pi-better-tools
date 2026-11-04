@@ -32,8 +32,8 @@ test('default settings: tool_search is activated, deferred tools stay unloaded, 
     // schedule_prompt is declared directly (not deferred), so it is active without tool_search and is never listed in the hint.
     assert.ok(names().includes('schedule_prompt'), 'a directly declared module tool is active from the start');
     assert.ok(!names().includes('pty_spawn'));
-    const rules = (await all()).pi_better_tools_cross_tool_rules;
-    assert.match(rules, /^### Cross-tool rules/); assert.doesNotMatch(rules, /Delegate/, 'only blocks for active tools');
+    const rules = (await all()).cross_tool_rules;
+    assert.match(rules, /^Run independent tool calls/); assert.doesNotMatch(rules, /Delegate/, 'delegation rules belong to the subagent and fork modules');
     const hint = await section();
     assert.match(hint, /- pty: .*\(query "pty"\)/); assert.doesNotMatch(hint, /- schedule:/, 'a directly declared tool has no deferred group');
     const [pty] = await created.callTools({ name: 'tool_search', arguments: { query: 'pty' } });
