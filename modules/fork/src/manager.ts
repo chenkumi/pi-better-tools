@@ -8,7 +8,7 @@ import { ForkJobsWidget } from "./live-widget.ts";
 import { forwardParentArgs, removeTemporary } from "./args.ts";
 import { startForkChild, type ForkChildHandle, type ForkChildOutcome, type ForkChildSpec, type ForkMessageMode } from "./child.ts";
 import { forkCreationRefusal } from "./identity.ts";
-import { controlId, controlText, messageText, validateInteraction } from "../../subagents/extensions/subagent/query-snapshot.ts";
+import { controlId, controlText, messageText, validateInteraction } from "../../subagents/src/fork-contract.ts";
 import { writeForkSession } from "./snapshot.ts";
 import { MAX_RESULT_BYTES, isTerminal, loadRecords, pruneRecords, saveRecord, transcriptDir, type Delivery, type ForkRecord, type ForkStatus } from "./store.ts";
 import { ForkTranscript, transcriptPaths, type FinalizeOutcome } from "./transcript.ts";

@@ -72,3 +72,7 @@
 Failure responses name the parameter, the rule and the fix (2026-10-24 guidance pass; see plan/error-message-handoff.md). Agent-visible messages name only the tool's own arguments, tool names, error codes and slash commands; startup flags and settings are not named. The Fork store location and transcript path in receipts are data locations the agent needs, not settings.
 - `fork_cancel` on a Fork that already finished answers "already <status>; nothing to cancel" instead of "Cancel requested".
 - Unknown `jobId` messages echo the value and point to `fork_status`.
+
+## 與 Subagents 的契約面
+
+Fork 只經 `modules/subagents/src/fork-contract.ts` 使用 Subagents 的行程樹終止、Pi 啟動器、RPC pipe、查詢快照與 transcript 工具；`tests/unit/module-import-boundary.test.mjs` 強制這是唯一入口。

@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import type { ForkUsage } from "./child.ts";
 import { errorText, utf8Prefix } from "./text.ts";
-import { SubsessionWriter, readableText, serializeAssistantContent, serializeToolResultContent, type ReadableRecord, type SubsessionStatus } from "../../subagents/extensions/subagent/subsession-log.ts";
+import { SubsessionWriter, readableText, serializeAssistantContent, serializeToolResultContent, type ReadableRecord, type SubsessionStatus } from "../../subagents/src/fork-contract.ts";
 
 /**
  * Query-only transcript of what a Fork says and does AFTER it starts. The inherited conversation is never copied here

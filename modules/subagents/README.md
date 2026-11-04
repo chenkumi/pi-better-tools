@@ -356,3 +356,7 @@ Failure responses name the parameter, the rule and the fix (2026-10-24 guidance 
 - `subagent_message` limits are UTF-8 bytes, and the message says so; rejected receipts carry a concrete `nextAction` per error code and `errorCode` is only the leading UPPER_SNAKE code (otherwise `MESSAGE_REJECTED`).
 - Ignored `model`/`thinkingLevel` overrides are reported in a separate `Note:` text block after a successful result; the receipt JSON is unchanged.
 - Unknown job/session ids point to `subagent_status` without `jobId`. The 32 submitted / 8 active limits and `--exclude-tools subagent` are unchanged.
+
+## 給 Fork 的契約面
+
+`src/fork-contract.ts` 是 Fork 唯一引用的 Subagents 內部符號集合（`killProcessTree`、`getPiInvocation`、`RpcPipe`、查詢快照與 `subsession-log` 工具、`buildSubagentPiArgs`）。變更這些匯出須同步 Fork。
