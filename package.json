@@ -18,6 +18,8 @@
     },
     "files": [
         "setup",
+        "shared/src",
+        "shared/README.md",
         "modules/*/README.md",
         "modules/*/LICENSE",
         "modules/subagents/extensions",

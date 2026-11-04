@@ -9,6 +9,8 @@ const files = [
   'modules/*/vitest.config.ts',
   'scripts/**/*.{ts,js,mjs,cjs}',
   'setup/**/*.{ts,js,mjs,cjs}',
+  'shared/**/*.{ts,js,mjs,cjs}',
+  'tools/module-coupling/**/*.{ts,js,mjs,cjs}',
   'tests/**/*.{ts,js,mjs,cjs}',
   '*.mjs',
 ];

@@ -10,6 +10,7 @@ test('lint parses JS and TS and rejects actual syntax errors', async () => {
   for (const [filePath, source] of [
     ['scripts/lint-probe.mjs', 'export const value = 1;'],
     ['modules/schedule-prompt/src/lint-probe.ts', 'export const value: number = 1;'],
+    ['shared/src/lint-probe.ts', 'export const value: number = 1;'],
   ]) {
     const [result] = await eslint.lintText(source, { filePath });
     assert.equal(result.errorCount, 0);

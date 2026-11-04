@@ -39,6 +39,7 @@ async function record(label, action) {
   }
 }
 const required = [
+  'shared/README.md', 'shared/src/contracts/index.ts',
   'setup/cli.mjs', 'setup/commands.mjs', 'setup/commands.d.mts', 'setup/core.mjs',
   ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'note-tools', 'gpt-speed', 'json-schema', 'pty-terminal', 'schedule-prompt', 'pi-runtime', 'monitor', 'skill-tools', 'theme-tools', 'fork', 'remote', 'sqlite-tools', 'sql-connector', 'file-audit', 'pi-auto-compact'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
   ...['activity-window', 'events', 'paths', 'provenance', 'commands', 'presentation'].map(name => `modules/file-audit/src/${name}.ts`),

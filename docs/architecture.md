@@ -56,6 +56,10 @@ The direct locked ws8.22 transport validates every DNS address, pins actual look
 
 Monitor registers a themed `monitor_event` message renderer alongside its tool renderers: collapsed recent events and expanded bounded named fields, 300 physical rows maximum, sanitized control/bidi text and terminal-width-safe layout, no raw JSON fallback or model-data rewrite. Receipts and per-source batch metadata expose `wakeAgent`; any selected true source requests a followUp model turn, false still appends a model-visible message without starting a turn. Automatic Shell monitors remain false; Shell completion delivery is separate. Missing historical wake metadata is unknown, not inferred. Runtime busy/settled gates, throttling and no-ack semantics remain unchanged.
 
+## Shared library
+
+`shared/` (repository root, next to `setup/`) is a plain library, not a module: no extension entry, no manifest entry. Modules import it one way, only through `shared/src/<area>/index.ts`; it never imports `modules/`, and importing it registers nothing. It ships in the package (`files`) and is checked as the `shared` unit (`npm run test:module -- shared`). Rules: `shared/README.md`.
+
 ## Pi Runtime
 
 `modules/pi-runtime/src/index.ts` only wires shared infrastructure: `deferred-tools.ts` (`tool_search` activation, direct-declaration fallback, `### Deferred tools` prompt section) and `cross-tool-guidance.ts` (`pi_better_tools_cross_tool_rules`). The settings-panel layer (`src/settings-panel/`) is imported directly by Web, SQLite and SQL Connector. The former error-aware recovery (`/runtime-recovery`, `/runtime-recover`, `pi-runtime-state`) was removed because testing showed no practical effect.

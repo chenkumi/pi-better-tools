@@ -18,7 +18,11 @@ const heavyFiles = new Set([
   'modules/fork/tests/real-host.integration.test.ts', 'modules/fork/tests/blocked-report.integration.test.ts',
   'modules/file-audit/tests/tui-workflow.integration.test.mjs',
   'modules/sql-connector/tests/sdk.integration.test.mjs', 'modules/monitor/tests/host.integration.test.mjs']);
-const testFiles = (dir, keep) => readdirSync(join(root, dir)).filter(name => /\.test\.(ts|mjs)$/.test(name) && keep(name) && !heavyFiles.has(`${dir}/${name}`)).sort().map(name => `${dir}/${name}`);
+const testFiles = (dir, keep, recursive = false) => readdirSync(join(root, dir), { withFileTypes: true }).flatMap(entry => {
+  const path = `${dir}/${entry.name}`;
+  if (entry.isDirectory()) return recursive ? testFiles(path, keep, true) : [];
+  return /\.test\.(ts|mjs)$/.test(entry.name) && keep(entry.name) && !heavyFiles.has(path) ? [path] : [];
+}).sort();
 const isIntegration = name => name.includes('.integration.');
 // Unit files each run in their own process with isolated temp dirs; per-file startup (tsx load) dominates their wall time (measured: summed case time
 // is a few percent of the group time), so these groups run 4 files at once. Integration groups keep their own concurrency: real hosts are timing-sensitive.
@@ -27,7 +31,7 @@ const unitParallel = { concurrency: 4 };
 // Subagent fault-injection integration files keep concurrency 1 (actual resource barriers must not overlap; targeted deadlines start at injected entry).
 const directTests = (label, dir, keep, extra = {}) => {
   // An empty list would make `node --test` scan its default directories and silently run something else.
-  const files = testFiles(dir, keep);
+  const files = testFiles(dir, keep, extra.recursive);
   if (files.length === 0) throw new Error(`${label}: no test files matched in ${dir}`);
   return { label, args: ['--import', tsx, '--test', `--test-concurrency=${extra.concurrency ?? 1}`, ...files], ...extra };
 };
@@ -42,6 +46,7 @@ const groups = {
   // No module ships compiled artifacts any more; the group stays so `npm run build` / prepack remain valid no-ops.
   build: [],
   typecheck: [moduleTask('file-tools', 'typecheck'),
+    { label: 'shared:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'shared/tsconfig.json'] },
     ...['shell-tools', 'web-tools', 'pty-terminal', 'subagents', 'sqlite-tools', 'sql-connector'].map(m => ({ label: `${m}:typecheck`, args: ['node_modules/typescript/bin/tsc', '-p', `modules/${m}/tsconfig.json`] })),
     { label: 'file-audit:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/file-audit/tsconfig.json'] },
     { label: 'fork:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/fork/tsconfig.json'] },
@@ -56,7 +61,7 @@ const groups = {
     { label: 'json-schema:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/json-schema/tsconfig.json'] },
     { label: 'pi-auto-compact:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/pi-auto-compact/tsconfig.json'] }],
   // Scan test directories (not hard-coded lists) so a new *.test.ts is never silently skipped; *.test.mjs there are real-host integration tests.
-  unit: [directTests('file-audit:test', 'modules/file-audit/tests', name => !isIntegration(name)), directTests('skill-tools:test', 'modules/skill-tools/tests', name => !isIntegration(name)), directTests('theme-tools:test', 'modules/theme-tools/tests', name => !isIntegration(name)), directTests('all-modules:test-tooling', 'tests/unit', () => true), directTests('monitor:test', 'modules/monitor/tests', name => !isIntegration(name), unitParallel), directTests('fork:test', 'modules/fork/tests', name => !isIntegration(name), unitParallel), directTests('remote:test', 'modules/remote/tests', name => !isIntegration(name), unitParallel), directTests('pi-runtime:test', 'modules/pi-runtime/tests', name => !isIntegration(name), unitParallel), ...sourceTests, ...[['note-tools', 'modules/note-tools/tests'], ['gpt-speed', 'modules/gpt-speed/tests'], ['json-schema', 'modules/json-schema/tests'], ['pi-auto-compact', 'modules/pi-auto-compact/tests']]
+  unit: [directTests('shared:test', 'shared/tests', name => !isIntegration(name), { recursive: true }), directTests('file-audit:test', 'modules/file-audit/tests', name => !isIntegration(name)), directTests('skill-tools:test', 'modules/skill-tools/tests', name => !isIntegration(name)), directTests('theme-tools:test', 'modules/theme-tools/tests', name => !isIntegration(name)), directTests('all-modules:test-tooling', 'tests/unit', () => true), directTests('monitor:test', 'modules/monitor/tests', name => !isIntegration(name), unitParallel), directTests('fork:test', 'modules/fork/tests', name => !isIntegration(name), unitParallel), directTests('remote:test', 'modules/remote/tests', name => !isIntegration(name), unitParallel), directTests('pi-runtime:test', 'modules/pi-runtime/tests', name => !isIntegration(name), unitParallel), ...sourceTests, ...[['note-tools', 'modules/note-tools/tests'], ['gpt-speed', 'modules/gpt-speed/tests'], ['json-schema', 'modules/json-schema/tests'], ['pi-auto-compact', 'modules/pi-auto-compact/tests']]
     .map(([module, dir]) => directTests(`${module}:test`, dir, name => name.endsWith('.test.ts')))],
   integration: [directTests('file-audit:real-host', 'modules/file-audit/tests', isIntegration), directTests('sqlite-tools:real-host', 'modules/sqlite-tools/tests', isIntegration), directTests('skill-tools:real-host', 'modules/skill-tools/tests', isIntegration), directTests('monitor:integration', 'modules/monitor/tests', isIntegration), directTests('pi-auto-compact:real-host', 'modules/pi-auto-compact/tests', isIntegration), directTests('remote:integration', 'modules/remote/tests', isIntegration), directTests('pi-runtime:real-host', 'modules/pi-runtime/tests', isIntegration), directTests('pty-terminal:test:integration', 'modules/pty-terminal/tests', isIntegration),
     directTests('json-schema:workers', 'modules/json-schema/tests', isIntegration),
