@@ -6,6 +6,9 @@ export const MAX_LINE_BYTES = 64 * 1024 * 1024;
 /** A line larger than this is still listed, but the outline and the search do not parse it as JSON. */
 export const MAX_PARSE_BYTES = 16 * 1024 * 1024;
 
+/** Where a line's id or tree links are not found by the cheap head match, the line is parsed in full only up to this size. */
+export const MAX_ID_PARSE_BYTES = 1024 * 1024;
+
 export interface RawLine {
   line: number;
   /** Undefined when the line exceeds {@link MAX_LINE_BYTES}. */

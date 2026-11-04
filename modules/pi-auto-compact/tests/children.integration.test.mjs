@@ -21,6 +21,8 @@ async function run(kind) {
   try {
     for (const dir of [config, ws, sessions]) await mkdir(dir, { recursive: true });
     await writeFile(join(config, 'auth.json'), '{}');
+    // The 100k-token offline window never reaches the default 200k minimum of the interval checkpoint.
+    await writeFile(join(config, 'auto-compact.json'), JSON.stringify({ checkpointMinTokens: 1 }));
     await writeFile(join(config, 'settings.json'), JSON.stringify({ extensions, compaction: { enabled: false }, retry: { enabled: false }, cacheWarming: 'off', defaultProjectTrust: 'never' }));
     await writeFile(join(ws, 'probe.txt'), 'probe');
     const env = {};

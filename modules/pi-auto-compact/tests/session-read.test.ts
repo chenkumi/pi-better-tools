@@ -100,6 +100,42 @@ test('readSessionLines reads the cited line, verifies the id, and refuses sessio
   } finally { done(); }
 });
 
+test('an entry missing from a Fork file is read from the ancestor that has it, once, nearest first', async () => {
+  const { dir, done } = workspace();
+  try {
+    const grand = join(dir, 'grand.jsonl'), parent = join(dir, 'parent.jsonl'), child = join(dir, 'child.jsonl');
+    // The parent holds an abandoned-branch entry (L3) that its Fork never received, so later parent lines sit one line further down.
+    write(grand, [header('G'), toolResult('gggg0001', 'grand output')]);
+    write(parent, [header('P', grand), toolResult('pppp0001', 'parent first'), toolResult('abnd0001', 'abandoned branch output'), toolResult('pppp0002', 'parent last')]);
+    write(child, [header('C', parent), toolResult('pppp0001', 'parent first'), toolResult('pppp0002', 'parent last'), toolResult('cccc0001', 'child output')]);
+    const readable = await resolveReadableSessions({ id: 'C', file: child });
+    assert.deepEqual(readable.map(item => item.id), ['C', 'P', 'G']);
+
+    const parentOnly = await readSessionLines(readable, { line: 3, id: 'abnd0001' });
+    assert.match(parentOnly.text, /^\[Entry "abnd0001" is not in session C \(line 3 holds "pppp0002"\); read from session P, line 3\.\]\n/);
+    assert.ok(parentOnly.text.includes('abandoned branch output'));
+    assert.equal(parentOnly.details.sessionId, 'P');
+    assert.equal(parentOnly.details.redirectedFrom, 'C');
+
+    const grandOnly = await readSessionLines(readable, { line: 2, id: 'gggg0001' });
+    assert.ok(grandOnly.text.includes('read from session G, line 2.') && grandOnly.text.includes('grand output'));
+    assert.equal(grandOnly.details.sessionId, 'G');
+
+    const pastEnd = await readSessionLines(readable, { line: 40, id: 'abnd0001' });
+    assert.ok(pastEnd.text.includes('line 40 is past its end') && pastEnd.text.includes('abandoned branch output'), 'a parent line number beyond the Fork file is recovered too');
+
+    // Same file, wrong line: still the existing message with the corrected line, never a silent redirect.
+    await assert.rejects(readSessionLines(readable, { line: 2, id: 'cccc0001' }), /holds "pppp0001".*That entry is at line 4/);
+    // Unknown everywhere, or no id to search for: refused, never a wrong read.
+    await assert.rejects(readSessionLines(readable, { line: 3, id: 'nope0000' }), /No entry with that id was found in any readable session \(C, P, G\)/);
+    await assert.rejects(readSessionLines(readable, { line: 40 }), /past the end of the session file \(4 lines\)\.$/);
+    // An explicitly addressed ancestor is searched in the other direction too, and the chain never widens.
+    const fromAncestor = await readSessionLines(readable, { sessionId: 'P', line: 2, id: 'cccc0001' });
+    assert.ok(fromAncestor.text.includes('read from session C, line 4.') && fromAncestor.text.includes('child output'));
+    await assert.rejects(readSessionLines(readable.slice(0, 1), { line: 3, id: 'abnd0001' }), /No entry with that id was found in this session\./);
+  } finally { done(); }
+});
+
 test('a huge entry is paged by offset and never returned whole; an inline image cannot flood the result', async () => {
   const { dir, done } = workspace();
   try {

@@ -32,6 +32,10 @@ const FIELDS: readonly Field[] = [
     help: `1 to 8. Default ${DEFAULT_CONFIG.charsPerToken}. Pi assumes 4; code, JSON and Chinese text measure about 2.2.` },
   { key: 'checkpointRatio', type: 'string', tab: 'Limits', group: 'Progress checkpoint', label: 'Checkpoint interval', placeholder: String(DEFAULT_CONFIG.checkpointRatio),
     help: `Ask for a short progress report after this share of the window of new context. Default ${DEFAULT_CONFIG.checkpointRatio}.` },
+  { key: 'checkpointMinTokens', type: 'string', tab: 'Limits', group: 'Progress checkpoint', label: 'Checkpoint from context size', placeholder: String(DEFAULT_CONFIG.checkpointMinTokens),
+    help: `Only ask while the context is larger than this many tokens. Default ${DEFAULT_CONFIG.checkpointMinTokens}. 0 turns the interval checkpoint off.` },
+  { key: 'deadlineMarginMinTokens', type: 'string', tab: 'Limits', group: 'Before compaction', label: 'Notes notice margin (minimum tokens)', placeholder: String(DEFAULT_CONFIG.deadlineMarginMinTokens),
+    help: `Ask the agent to save notes this many tokens (at least 10% of the window) before Pi compacts. Default ${DEFAULT_CONFIG.deadlineMarginMinTokens}. A window below 200k uses this value; 0 leaves just 10%. The notice never comes earlier than half of Pi's compaction threshold.` },
 ];
 const KEYS = new Set<string>(FIELDS.map(field => field.key));
 const NUMBER = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i;

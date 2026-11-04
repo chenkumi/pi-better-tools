@@ -1,3 +1,4 @@
+import { DEFAULT_CONFIG } from '../config.ts';
 import { type EntryRef, formatRef } from '../fold/ref.ts';
 import { foldToolUse, foldUnpairedCall, foldUnpairedResult } from '../fold/registry.ts';
 import { asRecord, clip, num, oneLine, records, redact, str } from '../fold/util.ts';
@@ -28,8 +29,8 @@ export function userSay(text: string, max: number): string {
   return `${flat.slice(0, head)} [… ${flat.length - head - tail} chars omitted …] ${flat.slice(flat.length - tail)}`;
 }
 /** Default limits, used when a caller renders a single item without a budget (half of the default L3 and L2 budgets). */
-export const DEFAULT_USER_MAX_L3 = 3000;
-export const DEFAULT_USER_MAX_L2 = 10_000;
+export const DEFAULT_USER_MAX_L3 = Math.floor(DEFAULT_CONFIG.l3MinChars / 2);
+export const DEFAULT_USER_MAX_L2 = Math.floor(DEFAULT_CONFIG.l2MinChars / 2);
 /** Commands may carry credentials, so they are masked. */
 const masked = (text: string, max: number) => clip(oneLine(redact(text), max), max);
 

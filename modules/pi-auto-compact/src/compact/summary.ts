@@ -24,7 +24,8 @@ export interface CompactionDetails {
     keptChars: number;
     estimatedTokens: number;
     /** Which part of the total guard had to act: nothing, the L4 slack (window start reset), L3, or L2. */
-    guard: 'none' | 'l4' | 'l3' | 'l2';    windowStartKept: boolean;
+    guard: 'none' | 'l4' | 'l3' | 'l2';
+    windowStartKept: boolean;
     /** How many entries the cut moved later than Pi's to keep the raw tail within its budget (0 = Pi's cut). */
     cutMoved: number;
     /** L1 budget the raw tail left unused, added to the L2 budget for this compaction. */
@@ -69,7 +70,7 @@ export function previousWindowStart(branch: readonly Entry[]): string | undefine
 function header(first: Item | undefined, whole: boolean, sessionId: string | undefined): string[] {
   const tools = 'read a line with session_read, search with session_grep, outline a range with session_window (load them with tool_search)';
   if (!first?.ref || !sessionId) return [whole ? 'The whole earlier conversation is shown below, newest last.' : 'Earlier conversation is shown below, newest last; entries older than the first one shown are not available.'];
-  const mark = `${formatRef({ line: first.ref.line, id: first.ref.id })}`;
+  const mark = formatRef({ line: first.ref.line, id: first.ref.id });
   return whole
     ? [`Session ${sessionId}: the whole earlier conversation is shown below, newest last. ⟦L<line>:<id>⟧ marks a line of the session file: ${tools}.`]
     : [`Session ${sessionId}: older conversation is not shown. History below starts at ${mark}; older entries: session_window before=${first.ref.line}. ⟦L<line>:<id>⟧ marks a line of the session file: ${tools}.`];

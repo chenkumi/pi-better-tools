@@ -1,5 +1,5 @@
 import { asRecord, str } from '../fold/util.ts';
-import { MAX_LINE_BYTES, scanLines } from './lines.ts';
+import { MAX_ID_PARSE_BYTES, MAX_LINE_BYTES, scanLines } from './lines.ts';
 import { renderEntry } from './render.ts';
 import { integer, isCurrent, pickSession, SessionReadError, type SessionFile } from './sessions.ts';
 
@@ -23,7 +23,9 @@ export interface SessionReadRequest {
 
 export interface SessionReadResult {
   text: string;
-  details: { sessionId: string; line: number; toLine: number; chars: number; truncated: boolean; nextLine?: number; nextOffset?: number };
+  details: { sessionId: string; line: number; toLine: number; chars: number; truncated: boolean; nextLine?: number; nextOffset?: number;
+    /** Set when the entry was not in the addressed session and was read from another readable one (`sessionId`). */
+    redirectedFrom?: string };
 }
 
 const topLevelId = (text: string | undefined): string | undefined => {
@@ -34,8 +36,18 @@ const topLevelId = (text: string | undefined): string | undefined => {
 /** Locates the line of an entry id by scanning; used for the mismatch message only. */
 async function findEntry(file: string, idPrefix: string): Promise<number | undefined> {
   for await (const item of scanLines(file, 2)) {
-    if (item.text === undefined || item.bytes > 1024 * 1024 || !item.text.includes(`"id":"${idPrefix}`)) continue;
+    if (item.text === undefined || item.bytes > MAX_ID_PARSE_BYTES || !item.text.includes(`"id":"${idPrefix}`)) continue;
     if (topLevelId(item.text)?.startsWith(idPrefix)) return item.line;
+  }
+  return undefined;
+}
+
+/** The first other readable session (current first, then ancestors outward) that holds the entry id. */
+async function findInOtherSessions(readable: readonly SessionFile[], searched: SessionFile, idPrefix: string): Promise<{ session: SessionFile; line: number } | undefined> {
+  for (const session of readable) {
+    if (session === searched) continue;
+    const line = await findEntry(session.file, idPrefix);
+    if (line) return { session, line };
   }
   return undefined;
 }
@@ -59,14 +71,28 @@ export async function readSessionLines(readable: readonly SessionFile[], request
   const maxChars = Math.min(MAX_CHARS_LIMIT, request.maxChars === undefined ? DEFAULT_MAX_CHARS : integer(request.maxChars, 'max_chars', 1000));
   const expectedId = request.id?.trim() || undefined;
 
+  const notFoundText = () => ` No entry with that id was found in ${readable.length > 1 ? `any readable session (${readable.map(item => item.id).join(', ')})` : 'this session'}.`;
+  /** A Fork's file holds only the parent's active branch, so a reference minted in the parent can name an entry that is not here.
+   *  The ancestors are readable anyway: search them once (nearest first) and read the entry from the first session that has it. */
+  const readFromOtherSession = async (why: string): Promise<SessionReadResult | undefined> => {
+    const elsewhere = expectedId ? await findInOtherSessions(readable, target, expectedId) : undefined;
+    if (!elsewhere) return undefined;
+    const found = await readSessionLines(readable, { sessionId: elsewhere.session.id, line: elsewhere.line, id: expectedId, offset: request.offset, maxChars: request.maxChars });
+    const note = `[Entry ${JSON.stringify(expectedId!.slice(0, 40))} is not in session ${target.id} (${why}); read from session ${elsewhere.session.id}, line ${elsewhere.line}.]`;
+    return { text: `${note}\n${found.text}`, details: { ...found.details, redirectedFrom: target.id } };
+  };
+
   const out: string[] = [];
   let used = 0, lastLine = line - 1, truncated = false, nextLine: number | undefined, nextOffset: number | undefined;
   for await (const item of scanLines(target.file, line, toLine)) {
     if (item.line === line && expectedId) {
       const actual = topLevelId(item.text);
       if (!actual?.startsWith(expectedId)) {
+        const holds = actual ? JSON.stringify(actual) : 'a line without an entry id';
         const moved = await findEntry(target.file, expectedId);
-        throw new SessionReadError(`Line ${line} does not hold entry ${JSON.stringify(expectedId.slice(0, 40))} (it holds ${actual ? JSON.stringify(actual) : 'a line without an entry id'}).${moved ? ` That entry is at line ${moved}.` : ' No entry with that id was found in this session.'}`);
+        const redirected = moved ? undefined : await readFromOtherSession(`line ${line} holds ${holds}`);
+        if (redirected) return redirected;
+        throw new SessionReadError(`Line ${line} does not hold entry ${JSON.stringify(expectedId.slice(0, 40))} (it holds ${holds}).${moved ? ` That entry is at line ${moved}.` : notFoundText()}`);
       }
     }
     if (item.text === undefined) {
@@ -85,7 +111,13 @@ export async function readSessionLines(readable: readonly SessionFile[], request
     lastLine = item.line;
     if (end < body.length) { truncated = true; nextLine = item.line; nextOffset = end; break; }
   }
-  if (out.length === 0) throw new SessionReadError(`Line ${line} is past the end of the session file (${await countLines(target.file)} lines).`);
+  if (out.length === 0) {
+    // A line number minted in a longer ancestor file can lie past the end of this one.
+    const moved = expectedId ? await findEntry(target.file, expectedId) : undefined;
+    const redirected = moved ? undefined : await readFromOtherSession(`line ${line} is past its end`);
+    if (redirected) return redirected;
+    throw new SessionReadError(`Line ${line} is past the end of the session file (${await countLines(target.file)} lines).${expectedId ? (moved ? ` Entry ${JSON.stringify(expectedId.slice(0, 40))} is at line ${moved}.` : notFoundText()) : ''}`);
+  }
   let text = out.join('\n---\n');
   if (nextLine !== undefined) {
     const args = [`line=${nextLine}`, nextOffset ? `offset=${nextOffset}` : '', toLine > nextLine ? `to_line=${toLine}` : '', isCurrent(readable, target) ? '' : `session_id=${target.id}`].filter(Boolean).join(' ');

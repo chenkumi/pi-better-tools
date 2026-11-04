@@ -2,7 +2,7 @@ import { ANCHOR_TOOL, isCheckpointType } from '../checkpoint/messages.ts';
 import type { EntryRef } from '../fold/ref.ts';
 import type { ToolCallInfo, ToolResultInfo } from '../fold/types.ts';
 import { asRecord, list, num, oneLine, redact, str } from '../fold/util.ts';
-import { contentText } from '../session-read/outline.ts';
+import { contentText, imageNote } from '../session-read/outline.ts';
 
 export type Entry = Record<string, unknown>;
 
@@ -31,8 +31,6 @@ export interface Item {
 
 /** Looks up where an entry lives in the session file (absent when the session is not persisted). */
 export type RefLookup = (entryId: string) => EntryRef | undefined;
-
-const imageNote = (count: number) => (count > 0 ? ` [+${count} image${count === 1 ? '' : 's'}]` : '');
 
 /**
  * Applies a context edit the way Pi does when it builds model context: `null` omits the entry, a replacement swaps the

@@ -1,9 +1,8 @@
 import { statSync } from 'node:fs';
-import { scanLines } from './lines.ts';
+import { MAX_ID_PARSE_BYTES, scanLines } from './lines.ts';
 
 /** Entries are serialised as {"type":…,"id":…,"parentId":…,…}, so the tree links can be read without parsing a huge line. */
 const HEAD = /^\{"type":"[a-z_]+","id":"([^"]+)","parentId":(?:null|"([^"]*)")/;
-const PARSE_LIMIT = 1024 * 1024;
 
 const cache = new Map<string, Set<string> | undefined>();
 
@@ -23,7 +22,7 @@ export async function currentBranchIds(file: string, leafId?: string): Promise<S
     const match = HEAD.exec(item.text.slice(0, 400));
     let id: string | undefined, parent: string | null | undefined;
     if (match) { id = match[1]; parent = match[2] ?? null; }
-    else if (item.bytes <= PARSE_LIMIT) {
+    else if (item.bytes <= MAX_ID_PARSE_BYTES) {
       try { const entry = JSON.parse(item.text) as { id?: unknown; parentId?: unknown }; if (typeof entry.id === 'string') { id = entry.id; parent = typeof entry.parentId === 'string' ? entry.parentId : null; } } catch { /* skip */ }
     }
     if (id !== undefined) { parents.set(id, parent ?? null); last = id; }

@@ -26,7 +26,7 @@ test('the section explains the mechanism, how to recall, and the conclusion-firs
   assert.equal(load()(e), undefined, 'a normal prompt is built from sections, so nothing is returned');
   const section = e.systemPromptOptions.sections[AUTO_COMPACT_SECTION]!;
   assert.ok(section.length > 200 && section.length < 1500, `${section.length}`);
-  for (const needle of ['⟦L', 'session_read', 'tool_search', 'first sentence']) assert.ok(section.includes(needle), needle);
+  for (const needle of ['⟦L', 'session_read', 'tool_search', 'first sentence', 'task notes']) assert.ok(section.includes(needle), needle);
   const again = event();
   load()(again);
   assert.equal(again.systemPromptOptions.sections[AUTO_COMPACT_SECTION], section, 'the same text every time (prompt cache)');

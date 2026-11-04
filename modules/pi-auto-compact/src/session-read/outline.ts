@@ -31,7 +31,8 @@ export function contentText(content: unknown): { text: string; images: number } 
 }
 
 const refOf = (item: LineEntry) => formatRef({ line: item.line, id: str(item.entry?.id) ?? '?', bytes: item.bytes });
-const images = (count: number) => (count > 0 ? ` [+${count} image${count === 1 ? '' : 's'}]` : '');
+/** ` [+2 images]` after the text of a message that carried images, nothing when it had none. */
+export const imageNote = (count: number) => (count > 0 ? ` [+${count} image${count === 1 ? '' : 's'}]` : '');
 const branchMark = (item: LineEntry, onBranch: ReadonlySet<string> | undefined) => (onBranch && item.entry && !onBranch.has(str(item.entry.id) ?? '') ? '(other branch) ' : '');
 
 /**
@@ -51,7 +52,7 @@ export function projectOutline(items: readonly LineEntry[], firstLine: number, l
     const head = (label: string, text: string, extra = '') => `${refOf(item)} ${mark}${label}${text ? `: ${clip(oneLine(text, L3_TEXT_MAX), L3_TEXT_MAX)}` : ''}${extra}`;
     if (type === 'message' && message) {
       const role = str(message.role);
-      if (role === 'user') { const { text, images: n } = contentText(message.content); groups.push({ line: item.line, lines: [`${refOf(item)} ${mark}user${text ? `: ${userSay(text, DEFAULT_USER_MAX_L3)}` : ''}${images(n)}`] }); }
+      if (role === 'user') { const { text, images: n } = contentText(message.content); groups.push({ line: item.line, lines: [`${refOf(item)} ${mark}user${text ? `: ${userSay(text, DEFAULT_USER_MAX_L3)}` : ''}${imageNote(n)}`] }); }
       else if (role === 'assistant') {
         const reports = list(message.content).map(asRecord).filter((b): b is Record<string, unknown> => b?.type === 'toolCall' && b.name === ANCHOR_TOOL).map(b => str(asRecord(b.arguments)?.summary)).filter((v): v is string => !!v);
         const text = [contentText(message.content).text, ...reports].filter(Boolean).join('\n');

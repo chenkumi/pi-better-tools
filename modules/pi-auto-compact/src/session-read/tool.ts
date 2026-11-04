@@ -48,7 +48,8 @@ export const sessionReadTool = defineTool({
   label: 'Session Read',
   description:
     'Read an earlier entry of this conversation by the line reference shown in a compaction summary, outline or search result, e.g. ⟦L1234:a1b2c3d4⟧ → line=1234, id="a1b2c3d4". ' +
-    'Returns the entry as readable text: images, thinking and base64 blobs are replaced by placeholders and long entries are paged with offset.',
+    'Returns the entry as readable text: images, thinking and base64 blobs are replaced by placeholders and long entries are paged with offset. ' +
+    'Always pass id: if that entry is not in the addressed session (a Fork file lacks some entries of its parent), it is looked up in the ancestor sessions and read from there, with a note saying which session.',
   promptSnippet: 'Read an earlier conversation entry by the line reference (⟦L<line>:<id>⟧) from a compaction summary.',
   promptGuidelines: ['When a compaction summary cites ⟦L<line>:<id>⟧ and you need the original tool output, call session_read with that line and id instead of repeating the work.'],
   parameters: Type.Object({

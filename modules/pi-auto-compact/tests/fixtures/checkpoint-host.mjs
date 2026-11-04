@@ -13,6 +13,8 @@ assert.equal(sdk.VERSION, '1.5.0'); sdk.initTheme('dark', false);
 const scenario = process.argv[2] ?? 'anchor';
 const home = homedir(), agentDir = join(home, '.pi/agent'), cwd = join(home, 'workspace');
 await mkdir(agentDir, { recursive: true }); await mkdir(cwd, { recursive: true }); await writeFile(join(agentDir, 'auth.json'), '{}');
+// The 100k-token offline window never reaches the default 200k minimum of the interval checkpoint.
+await writeFile(join(agentDir, 'auto-compact.json'), JSON.stringify({ checkpointMinTokens: 1 }));
 const workspace = await realpath(cwd);
 
 const WINDOW = 100000, PER_REQUEST = 15000, PROBE_TURNS = 7;
@@ -29,7 +31,7 @@ const offline = pi => {
     streamSimple(model, context) {
       providerCalls++; requests++;
       const incoming = lastText(context); seen.push(incoming);
-      const asked = /Automatic progress checkpoint/.test(incoming), continued = /progress report is recorded/.test(incoming);
+      const asked = /Automatic progress checkpoint/.test(incoming), continued = /Continue the task if it is unfinished/.test(incoming);
       let content, stopReason = 'stop';
       if (asked && scenario === 'anchor') { content = [{ type: 'toolCall', id: `anchor-${requests}`, name: 'progress_checkpoint', arguments: { summary: 'Probed three times; more probing next.' } }]; stopReason = 'toolUse'; }
       else if (asked) content = [{ type: 'text', text: 'Progress: probed three times; more probing next.' }];
@@ -76,7 +78,7 @@ if (anchorOn) {
   assert.ok(entries.some(e => e.type === 'message' && e.message.role === 'toolResult' && e.message.toolName === 'progress_checkpoint'));
 } else {
   assert.equal(anchors.length, 0); assert.equal(continues.length, 1, 'a text report that stopped the run is followed by one continuation');
-  assert.ok(seen.some(text => /progress report is recorded/.test(text)));
+  assert.ok(seen.some(text => /Continue the task if it is unfinished/.test(text)));
 }
 assert.ok(seen.filter(text => /Automatic progress checkpoint/.test(text)).length === 1, 'the model saw the request once');
 assert.equal(errors.length, 0, JSON.stringify(errors));

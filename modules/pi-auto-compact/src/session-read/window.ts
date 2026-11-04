@@ -1,3 +1,4 @@
+import { asRecord } from '../fold/util.ts';
 import { MAX_PARSE_BYTES, scanLines } from './lines.ts';
 import { currentBranchIds } from './branch.ts';
 import { type LineEntry, projectOutline } from './outline.ts';
@@ -48,7 +49,7 @@ export async function readWindow(readable: readonly SessionFile[], request: Wind
   for await (const raw of scanLines(target.file, from, to)) {
     let entry: Record<string, unknown> | undefined;
     if (raw.text !== undefined && raw.bytes <= MAX_PARSE_BYTES) {
-      try { const parsed = JSON.parse(raw.text) as unknown; if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) entry = parsed as Record<string, unknown>; } catch { /* shown as unreadable */ }
+      try { entry = asRecord(JSON.parse(raw.text)); } catch { /* shown as unreadable */ }
     }
     items.push({ line: raw.line, bytes: raw.bytes, ...(entry ? { entry } : {}) });
   }

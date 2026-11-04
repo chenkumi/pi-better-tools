@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import test from 'node:test';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { registerCheckpoint } from '../src/checkpoint/hooks.ts';
-import { ANCHOR_TOOL, CHECKPOINT_TYPE, CONTINUE_TYPE } from '../src/checkpoint/messages.ts';
-import { createTracker, DEADLINE_MARGIN_RATIO, REQUEST_TOKENS, type TurnFacts } from '../src/checkpoint/tracker.ts';
+import { ANCHOR_TOOL, CHECKPOINT_TYPE, CONTINUE_TYPE, DEADLINE_TYPE } from '../src/checkpoint/messages.ts';
+import { createTracker, deadlineMargin, type TurnFacts } from '../src/checkpoint/tracker.ts';
 import { progressCheckpointTool } from '../src/checkpoint/tool.ts';
 import { buildItems, type Entry } from '../src/compact/items.ts';
 import { keptChars, limitKept } from '../src/compact/hook.ts';
@@ -20,6 +20,26 @@ test('a checkpoint is requested once the context grew by the ratio since the bas
   assert.equal(tracker.turnEnd(turn(59_000), 0.5), 'none');
   assert.equal(tracker.turnEnd(turn(60_000), 0.5), 'checkpoint');
   assert.equal(tracker.turnEnd(turn(90_000), 0.5), 'none', 'a request that is ignored does not repeat while requested');
+});
+
+test('the interval checkpoint only applies above the minimum context size, and 0 turns it off; the growth rule is otherwise unchanged', () => {
+  const tracker = createTracker();
+  tracker.turnEnd(turn(10_000), 0.5, 65_000);
+  assert.equal(tracker.turnEnd(turn(65_000), 0.5, 65_000), 'none', 'grown enough, but not larger than the minimum');
+  assert.equal(tracker.turnEnd(turn(65_001), 0.5, 65_000), 'checkpoint', 'larger than the minimum');
+  const off = createTracker();
+  off.turnEnd(turn(10_000), 0.5, 0);
+  assert.equal(off.turnEnd(turn(99_000), 0.5, 0), 'none', '0 never asks');
+  const late = createTracker();
+  late.turnEnd(turn(10_000), 0.5, 80_000);
+  assert.equal(late.turnEnd(turn(70_000), 0.5, 80_000), 'none', 'below the minimum the base still follows the context');
+  assert.equal(late.turnEnd(turn(81_000), 0.5, 80_000), 'checkpoint', 'the first turn above the minimum asks, since the growth is already there');
+});
+
+test('the minimum does not affect the deadline notice', () => {
+  const tracker = createTracker();
+  tracker.turnEnd(turn(10_000, { threshold: W - 16_384 }), 1, 0);
+  assert.equal(tracker.turnEnd(turn(W - 16_384 - deadlineMargin(W), { threshold: W - 16_384 }), 1, 0), 'deadline');
 });
 
 test('assistant text and an anchor call both reset the count; unknown sizes and tool-less turns never request', () => {
@@ -69,25 +89,25 @@ test('a text-only report that ends the run is followed by exactly one continuati
 // Pi compacts above THRESHOLD = window - reserve; the deadline zone is the last 12% of the window before it. The interval ratio is
 // 1 in these tests, so the interval trigger (growth of a full window) never fires and only the deadline can.
 const THRESHOLD = W - 16_384;
-const ZONE = THRESHOLD - DEADLINE_MARGIN_RATIO * W;
+const ZONE = THRESHOLD - deadlineMargin(W);
 const dl = (tokens: number | null, over: Partial<TurnFacts> = {}): TurnFacts => turn(tokens, { threshold: THRESHOLD, ...over });
 
-test('the deadline asks once the size enters the last stretch before Pi compacts, and only then', () => {
+test('the deadline notice is sent once, when the size enters the last stretch before Pi compacts, and only then', () => {
   const tracker = createTracker();
   assert.equal(tracker.turnEnd(dl(10_000), 1), 'none');
   assert.equal(tracker.turnEnd(dl(ZONE - 1), 1), 'none', 'just before the zone');
-  assert.equal(tracker.turnEnd(dl(ZONE), 1), 'checkpoint', 'the first turn in the zone');
-  assert.equal(tracker.turnEnd(dl(ZONE + 1000), 1), 'none', 'an unanswered request does not repeat');
+  assert.equal(tracker.turnEnd(dl(ZONE), 1), 'deadline', 'the first turn in the zone');
+  assert.equal(tracker.turnEnd(dl(ZONE + 1000), 1), 'none', 'once per compaction cycle, whether or not it was answered');
 });
 
-test('the deadline never asks when Pi would compact before the model could answer, or when the threshold is unknown', () => {
+test('the deadline never fires once the size is over Pi\'s threshold, or when the threshold is unknown', () => {
   const late = createTracker();
   late.turnEnd(dl(10_000), 1);
-  assert.equal(late.turnEnd(dl(THRESHOLD - REQUEST_TOKENS + 1), 1), 'none', 'the request itself would push the estimate over the threshold');
+  assert.equal(late.turnEnd(dl(THRESHOLD), 1), 'none', 'at the threshold Pi compacts right after this response');
   assert.equal(late.turnEnd(dl(THRESHOLD + 2000), 1), 'none', 'already over the threshold');
   const edge = createTracker();
   edge.turnEnd(dl(10_000), 1);
-  assert.equal(edge.turnEnd(dl(THRESHOLD - REQUEST_TOKENS), 1), 'checkpoint', 'the request still fits exactly');
+  assert.equal(edge.turnEnd(dl(THRESHOLD - 1), 1), 'deadline', 'just below the threshold');
   for (const threshold of [null, undefined]) {
     const unknown = createTracker();
     unknown.turnEnd(turn(10_000, { threshold }), 1);
@@ -99,60 +119,114 @@ test('the deadline never asks when Pi would compact before the model could answe
   assert.equal(createTracker().turnEnd(dl(null), 1), 'none', 'an unknown size');
 });
 
-test('a report from the last stretch makes another one unnecessary; an older report, or ordinary text, does not', () => {
-  const fresh = createTracker();
-  fresh.turnEnd(dl(10_000), 1);
-  assert.equal(fresh.turnEnd(dl(ZONE + 500, { anchored: true }), 1), 'none');
-  assert.equal(fresh.turnEnd(dl(ZONE + 3000), 1), 'none', 'the anchor inside the zone is the savepoint');
+test('the deadline goes by the size the provider reported; Pi\'s estimate only stands in when none was reported', () => {
+  const underEstimated = createTracker();
+  underEstimated.turnEnd(dl(10_000), 1);
+  assert.equal(underEstimated.turnEnd(dl(ZONE - 2000, { reportedTokens: ZONE + 10 }), 1), 'deadline', 'the estimate is still below the zone, the reported size is not');
+  const overEstimated = createTracker();
+  overEstimated.turnEnd(dl(10_000), 1);
+  assert.equal(overEstimated.turnEnd(dl(THRESHOLD + 5000, { reportedTokens: ZONE - 1 }), 1), 'none', 'the reported size is below the zone, whatever the estimate says');
+  assert.equal(overEstimated.turnEnd(dl(THRESHOLD + 5000, { reportedTokens: THRESHOLD + 1 }), 1), 'none', 'the reported size is over the threshold');
+  const none = createTracker();
+  none.turnEnd(dl(10_000), 1);
+  assert.equal(none.turnEnd(dl(ZONE + 10, { reportedTokens: null }), 1), 'deadline', 'no reported size: the estimate is used');
+});
 
-  const stale = createTracker();
-  stale.turnEnd(dl(10_000), 1);
-  assert.equal(stale.turnEnd(dl(ZONE - 5000, { anchored: true }), 1), 'none');
-  assert.equal(stale.turnEnd(dl(ZONE + 100), 1), 'checkpoint', 'the last report is older than the zone');
+test('the deadline is skipped while the agent has no tool to write a notes file, and sent once it has one', () => {
+  const tracker = createTracker();
+  tracker.turnEnd(dl(10_000), 1);
+  assert.equal(tracker.turnEnd(dl(ZONE + 100, { canWrite: false }), 1), 'none');
+  assert.equal(tracker.turnEnd(dl(ZONE + 400, { canWrite: true }), 1), 'deadline');
+});
+
+test('earlier reports or text do not replace the notes: a turn with text and tool calls is asked, a turn that only reports is not', () => {
+  const reports = createTracker();
+  reports.turnEnd(dl(10_000), 1);
+  assert.equal(reports.turnEnd(dl(ZONE + 100, { anchored: true, toolCalls: 0 }), 1), 'none', 'the anchor call alone returns to the model; nothing to add yet');
+  assert.equal(reports.turnEnd(dl(ZONE + 200, { hasText: true, toolCalls: 0 }), 1), 'none', 'a final text ends the run');
+  assert.equal(reports.turnEnd(dl(ZONE + 400), 1), 'deadline', 'the next tool turn in the zone');
 
   const chatty = createTracker();
   chatty.turnEnd(dl(10_000), 1);
-  assert.equal(chatty.turnEnd(dl(ZONE - 1000, { hasText: true }), 1), 'none');
-  assert.equal(chatty.turnEnd(dl(ZONE + 100), 1), 'checkpoint', 'text before the zone is no savepoint');
-
-  const inside = createTracker();
-  inside.turnEnd(dl(10_000), 1);
-  assert.equal(inside.turnEnd(dl(ZONE + 100, { hasText: true }), 1), 'none', 'a turn with text is not asked');
-  assert.equal(inside.turnEnd(dl(ZONE + 400), 1), 'checkpoint', 'ordinary text inside the zone is not a savepoint either');
+  assert.equal(chatty.turnEnd(dl(ZONE + 100, { hasText: true, toolCalls: 2 }), 1), 'deadline', 'a sentence next to tool calls must not hide the zone');
+  assert.equal(chatty.turnEnd(dl(ZONE + 900, { hasText: true, toolCalls: 1 }), 1), 'none', 'still once');
 });
 
-test('text that answers a request counts as the savepoint', () => {
+test('a new session forgets that the notice was sent; a new user request does not', () => {
   const tracker = createTracker();
   tracker.turnEnd(dl(10_000), 1);
-  assert.equal(tracker.turnEnd(dl(ZONE + 100), 1), 'checkpoint');
-  assert.equal(tracker.turnEnd(dl(ZONE + 900, { hasText: true }), 1), 'none', 'the answer');
-  assert.equal(tracker.turnEnd(dl(ZONE + 4000), 1), 'none', 'answered, so nothing more is asked in this stretch');
-});
-
-test('a compaction starts a new cycle: the report no longer counts, and an unanswered request does not block the next one', () => {
-  const answered = createTracker();
-  answered.turnEnd(dl(10_000), 1);
-  assert.equal(answered.turnEnd(dl(ZONE + 100, { anchored: true }), 1), 'none');
-  answered.compacted();
-  assert.equal(answered.turnEnd(dl(null), 1), 'none');
-  assert.equal(answered.turnEnd(dl(30_000), 1), 'none');
-  assert.equal(answered.turnEnd(dl(ZONE + 100), 1), 'checkpoint', 'the next cycle asks again');
-
-  const ignored = createTracker();
-  ignored.turnEnd(dl(10_000), 1);
-  assert.equal(ignored.turnEnd(dl(ZONE + 100), 1), 'checkpoint');
-  ignored.compacted();
-  ignored.turnEnd(dl(30_000), 1);
-  assert.equal(ignored.turnEnd(dl(ZONE + 100), 1), 'checkpoint', 'the model ignored the request, which must not silence the next cycle');
-});
-
-test('a new user request does not forget a report: the context did not shrink', () => {
-  const tracker = createTracker();
-  tracker.turnEnd(dl(10_000), 1);
-  tracker.turnEnd(dl(ZONE + 100, { anchored: true }), 1);
+  assert.equal(tracker.turnEnd(dl(ZONE + 100), 1), 'deadline');
   tracker.reset();
-  tracker.turnEnd(dl(ZONE + 2000), 1);
-  assert.equal(tracker.turnEnd(dl(ZONE + 4000), 1), 'none');
+  assert.equal(tracker.turnEnd(dl(ZONE + 300), 1), 'none', 'same session, context did not shrink');
+  tracker.restart();
+  assert.equal(tracker.turnEnd(dl(ZONE + 500), 1), 'deadline', 'another session starts a new cycle');
+
+  const stale = createTracker();
+  stale.turnEnd(dl(10_000), 1);
+  stale.turnEnd(dl(ZONE + 100), 1);
+  stale.restart();
+  assert.equal(stale.turnEnd(dl(5_000, { hasText: true, toolCalls: 0 }), 1), 'none');
+  assert.equal(stale.shouldContinue(), false, 'an unanswered notice of the old session does not turn a text reply into its answer');
+});
+
+test('the first text-only turn after the deadline notice that ends the run gets one continuation, even after tool turns; a turn that calls tools does not', () => {
+  const textOnly = createTracker();
+  textOnly.turnEnd(dl(10_000), 1);
+  assert.equal(textOnly.turnEnd(dl(ZONE + 100), 1), 'deadline');
+  assert.equal(textOnly.turnEnd(dl(ZONE + 900, { hasText: true, toolCalls: 0 }), 1), 'none');
+  assert.equal(textOnly.shouldContinue(), true);
+  assert.equal(textOnly.shouldContinue(), false, 'one continuation per notice');
+
+  const wrote = createTracker();
+  wrote.turnEnd(dl(10_000), 1);
+  wrote.turnEnd(dl(ZONE + 100), 1);
+  wrote.turnEnd(dl(ZONE + 900, { hasText: true, toolCalls: 1 }), 1);
+  assert.equal(wrote.shouldContinue(), false, 'the note call returns to the model anyway');
+
+  const silent = createTracker();
+  silent.turnEnd(dl(10_000), 1);
+  silent.turnEnd(dl(ZONE + 100), 1);
+  silent.turnEnd(dl(ZONE + 900), 1);
+  silent.turnEnd(dl(ZONE + 1500, { hasText: true, toolCalls: 0 }), 1);
+  assert.equal(silent.shouldContinue(), true, 'the notice is answered by the first turn without tool calls, however many tool turns come first');
+  assert.equal(silent.shouldContinue(), false, 'one continuation per notice');
+
+  const saved = createTracker();
+  saved.turnEnd(dl(10_000), 1);
+  saved.turnEnd(dl(ZONE + 100), 1);
+  saved.turnEnd(dl(ZONE + 900), 1);
+  saved.turnEnd(dl(ZONE + 1500, { hasText: true, toolCalls: 0 }), 1);
+  saved.shouldContinue();
+  saved.turnEnd(dl(ZONE + 1600, { hasText: true, toolCalls: 0 }), 1);
+  assert.equal(saved.shouldContinue(), false, 'a later final text is an ordinary answer');
+
+  const compacted = createTracker();
+  compacted.turnEnd(dl(10_000), 1);
+  compacted.turnEnd(dl(ZONE + 100), 1);
+  compacted.turnEnd(dl(ZONE + 900), 1);
+  compacted.compacted();
+  compacted.turnEnd(dl(20_000, { hasText: true, toolCalls: 0 }), 1);
+  assert.equal(compacted.shouldContinue(), false, 'a compaction closes the old notice');
+
+  const newRequest = createTracker();
+  newRequest.turnEnd(dl(10_000), 1);
+  newRequest.turnEnd(dl(ZONE + 100), 1);
+  newRequest.turnEnd(dl(ZONE + 900), 1);
+  newRequest.reset();
+  newRequest.turnEnd(dl(ZONE + 1500, { hasText: true, toolCalls: 0 }), 1);
+  assert.equal(newRequest.shouldContinue(), false, 'a new user request closes the old notice');
+});
+
+test('a compaction starts a new cycle and the notice may be sent again; a new user request does not', () => {
+  const tracker = createTracker();
+  tracker.turnEnd(dl(10_000), 1);
+  assert.equal(tracker.turnEnd(dl(ZONE + 100), 1), 'deadline');
+  tracker.reset();
+  assert.equal(tracker.turnEnd(dl(ZONE + 2000), 1), 'none', 'the context did not shrink, so the notice stays sent');
+  tracker.compacted();
+  assert.equal(tracker.turnEnd(dl(null), 1), 'none');
+  assert.equal(tracker.turnEnd(dl(30_000), 1), 'none');
+  assert.equal(tracker.turnEnd(dl(ZONE + 100), 1), 'deadline', 'the next cycle asks again');
 });
 
 test('the interval trigger is unchanged by the deadline: it still fires on growth, with or without a threshold', () => {
@@ -160,6 +234,7 @@ test('the interval trigger is unchanged by the deadline: it still fires on growt
   tracker.turnEnd(dl(10_000), 0.5);
   assert.equal(tracker.turnEnd(dl(60_000), 0.5), 'checkpoint', 'growth of half a window while still far from the zone');
 });
+
 
 // -------------------------------------------------------------------------------------------------------------------- hooks
 type Handler = (event: any, ctx: any) => any;
@@ -175,6 +250,8 @@ function withAgentDir<T>(file: string | undefined, run: () => T): T {
   try { return run(); }
   finally { if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previous; rmSync(dir, { recursive: true, force: true }); }
 }
+/** The interval checkpoint only applies above 200k tokens by default; these tests run in a 100k window, so they lower the minimum. */
+const MIN1 = '{ "checkpointMinTokens": 1 }';
 const MODEL = { provider: 'p', id: 'm', contextWindow: W };
 function loadWithSettings(settings: unknown, active: string[] = ['bash']) {
   const handlers = new Map<string, Handler>();
@@ -188,7 +265,7 @@ const text = (value: string) => ({ type: 'text', text: value });
 const endTurn = (handlers: Map<string, Handler>, tokens: number, message: unknown, model: unknown = { contextWindow: W }) =>
   handlers.get('turn_end')!({ message, entries: [], toolResults: [] }, { ...ctx(tokens), model });
 
-test('the turn boundary appends a checkpoint message and asks to continue; the anchor wording appears only when the anchor tool is active', () => withAgentDir(undefined, () => {
+test('the turn boundary appends a checkpoint message and asks to continue; the anchor wording appears only when the anchor tool is active', () => withAgentDir(MIN1, () => {
   for (const [active, anchorWording] of [[[ANCHOR_TOOL, 'bash'], true], [['bash'], false]] as const) {
     const handlers = load([...active]);
     handlers.get('session_start')!({}, {});
@@ -201,7 +278,7 @@ test('the turn boundary appends a checkpoint message and asks to continue; the a
   }
 }));
 
-test('a text report that ends the run gets one continuation message at the settle boundary; an anchor report does not', () => withAgentDir(undefined, () => {
+test('a text report that ends the run gets one continuation message at the settle boundary; an anchor report does not', () => withAgentDir(MIN1, () => {
   const textual = load(['bash']);
   textual.get('session_start')!({}, {});
   endTurn(textual, 10_000, assistant(call('bash'))); endTurn(textual, 70_000, assistant(call('bash')));
@@ -218,7 +295,7 @@ test('a text report that ends the run gets one continuation message at the settl
 }));
 
 test('a new user request resets the count, and an invalid settings file turns the checkpoint off without a message', () => {
-  withAgentDir(undefined, () => {
+  withAgentDir(MIN1, () => {
     const handlers = load(['bash']);
     handlers.get('session_start')!({}, {});
     endTurn(handlers, 10_000, assistant(call('bash')));
@@ -227,13 +304,13 @@ test('a new user request resets the count, and an invalid settings file turns th
     handlers.get('before_agent_start')!({ messageType: 'custom' }, {});
     assert.equal(endTurn(handlers, 130_000, assistant(call('bash'))).continue, true, 'our own custom message does not reset');
   });
-  withAgentDir('{ "checkpointRatio": 5 }', () => {
+  withAgentDir('{ "checkpointRatio": 5, "checkpointMinTokens": 1 }', () => {
     const handlers = load(['bash']);
     handlers.get('session_start')!({}, {});
     endTurn(handlers, 10_000, assistant(call('bash')));
     assert.equal(endTurn(handlers, 99_000, assistant(call('bash'))), undefined);
   });
-  withAgentDir('{ "checkpointRatio": 0.1 }', () => {
+  withAgentDir('{ "checkpointRatio": 0.1, "checkpointMinTokens": 1 }', () => {
     const handlers = load(['bash']);
     handlers.get('session_start')!({}, {});
     endTurn(handlers, 10_000, assistant(call('bash')));
@@ -243,14 +320,16 @@ test('a new user request resets the count, and an invalid settings file turns th
 
 test('the hook asks shortly before Pi\'s threshold, using Pi\'s settings: reserve, per-model override, compaction off, unreadable settings', () => withAgentDir('{ "checkpointRatio": 1 }', () => {
   const run = (settings: unknown, tokens: number) => {
-    const handlers = loadWithSettings(settings);
+    const handlers = loadWithSettings(settings, ['note', 'bash']);
     handlers.get('session_start')!({}, {});
     endTurn(handlers, 10_000, assistant(call('bash')), MODEL);
     return endTurn(handlers, tokens, assistant(call('bash')), MODEL);
   };
-  const zone = (reserve: number) => W - reserve - DEADLINE_MARGIN_RATIO * W;
+  const zone = (reserve: number) => W - reserve - deadlineMargin(W);
   const out = run({}, zone(16_384) + 1);
-  assert.equal(out.continue, true); assert.equal(out.entries[0].customType, CHECKPOINT_TYPE);
+  assert.equal(out.continue, true); assert.equal(out.entries[0].customType, DEADLINE_TYPE); assert.equal(out.entries[0].display, false);
+  assert.match(String(out.entries[0].content), /compaction will happen soon[\s\S]*update it[\s\S]*with the note tool[\s\S]*file path/);
+  assert.ok(!String(out.entries[0].content).includes(ANCHOR_TOOL), 'the notice does not ask for the anchor tool');
   assert.equal(run({}, zone(16_384) - 1), undefined, 'the default reserve puts the zone at about 71.6k');
   assert.equal(run({ compaction: { reserveTokens: 5000 } }, zone(16_384) + 1), undefined, 'a smaller reserve moves the zone later');
   assert.equal(run({ compaction: { reserveTokens: 5000 } }, zone(5000) + 1).continue, true);
@@ -260,7 +339,75 @@ test('the hook asks shortly before Pi\'s threshold, using Pi\'s settings: reserv
   assert.equal(run(new Error('boom'), zone(16_384) + 1), undefined, 'unreadable settings');
 }));
 
-test('the interval trigger still works when the host exposes no settings, and a deadline request is answered like any other', () => withAgentDir(undefined, () => {
+test('the deadline wording names the note tool only when it is active, and nothing is sent when no tool can write a file', () => withAgentDir('{ "checkpointRatio": 1 }', () => {
+  const run = (active: string[]) => {
+    const handlers = loadWithSettings({}, active);
+    handlers.get('session_start')!({}, {});
+    endTurn(handlers, 10_000, assistant(call('bash')), MODEL);
+    return endTurn(handlers, W - 16_384 - deadlineMargin(W) + 1, assistant(call('bash')), MODEL);
+  };
+  assert.ok(String(run(['edit', 'bash']).entries[0].content).includes('create one. '), 'without the note tool it just says to create a file');
+  assert.ok(!String(run(['write']).entries[0].content).includes('note tool'));
+  assert.equal(run(['bash', 'read']), undefined, 'a read-only agent cannot save notes');
+}));
+
+test('the hook reads the minimum from the settings file: default 200k keeps a 100k window quiet, a lower value asks, 0 never asks', () => {
+  const asks = (file: string | undefined) => withAgentDir(file, () => {
+    const handlers = load(['bash']);
+    handlers.get('session_start')!({}, {});
+    endTurn(handlers, 10_000, assistant(call('bash')));
+    return endTurn(handlers, 70_000, assistant(call('bash'))) !== undefined;
+  });
+  assert.equal(asks(undefined), false, 'default minimum');
+  assert.equal(asks('{ "checkpointMinTokens": 60000 }'), true);
+  assert.equal(asks('{ "checkpointMinTokens": 70000 }'), false, 'not larger than the minimum');
+  assert.equal(asks('{ "checkpointMinTokens": 0 }'), false, 'off');
+});
+
+test('the hook reads the notice margin floor from the settings file: a bigger floor asks earlier, 0 leaves the 10% share', () => {
+  const asks = (file: string | undefined, tokens: number) => withAgentDir(file, () => {
+    const handlers = loadWithSettings({}, ['note', 'bash']);
+    handlers.get('session_start')!({}, {});
+    endTurn(handlers, 10_000, assistant(call('bash')), MODEL);
+    return endTurn(handlers, 10_000, { ...assistant(call('bash')), usage: { totalTokens: tokens } }, MODEL) !== undefined;
+  });
+  const threshold = W - 16_384;
+  assert.equal(asks(undefined, threshold - 20_000), true, 'default floor 20k');
+  assert.equal(asks(undefined, threshold - 20_001), false, 'just before the default zone');
+  assert.equal(asks('{ "deadlineMarginMinTokens": 30000 }', threshold - 30_000), true, 'larger floor');
+  assert.equal(asks('{ "deadlineMarginMinTokens": 0 }', threshold - 10_000), true, 'floor 0: the 10% share (10k of 100k)');
+  assert.equal(asks('{ "deadlineMarginMinTokens": 0 }', threshold - 10_001), false, 'floor 0: before the 10% share');
+});
+
+test('the margin cannot reach back past half of the threshold: a small window or a huge floor does not fire on the first turn', () => {
+  const tracker = createTracker();
+  const small = { threshold: 15_616, marginMinTokens: 20_000 };
+  assert.equal(tracker.turnEnd(turn(2_000, { ...small, contextWindow: 32_000 }), 1, 0), 'none', 'tiny context, 20k floor on a 32k window');
+  assert.equal(tracker.turnEnd(turn(7_807, { ...small, contextWindow: 32_000 }), 1, 0), 'none', 'just under half of the threshold');
+  assert.equal(tracker.turnEnd(turn(7_808, { ...small, contextWindow: 32_000 }), 1, 0), 'deadline', 'half of the threshold');
+  const huge = createTracker();
+  assert.equal(huge.turnEnd(turn(10_000, { threshold: W - 16_384, marginMinTokens: 5_000_000 }), 1, 0), 'none', 'a huge floor');
+  assert.equal(huge.turnEnd(turn((W - 16_384) / 2, { threshold: W - 16_384, marginMinTokens: 5_000_000 }), 1, 0), 'deadline');
+});
+
+test('the hook takes the size from the response usage (totalTokens, else the sum of the parts); an error, an abort or no usage fall back to Pi\'s estimate', () => withAgentDir('{ "checkpointRatio": 1 }', () => {
+  const zone = W - 16_384 - deadlineMargin(W);
+  const asks = (extra: Record<string, unknown>) => {
+    const handlers = loadWithSettings({}, ['note', 'bash']);
+    handlers.get('session_start')!({}, {});
+    endTurn(handlers, 10_000, assistant(call('bash')), MODEL);
+    return endTurn(handlers, 10_000, { ...assistant(call('bash')), ...extra }, MODEL) !== undefined;
+  };
+  assert.equal(asks({ usage: { totalTokens: zone + 10 } }), true, 'totalTokens');
+  assert.equal(asks({ usage: { input: zone, output: 20, cacheRead: 0, cacheWrite: 0 } }), true, 'sum of the parts');
+  assert.equal(asks({ usage: { totalTokens: zone - 10 } }), false, 'reported size below the zone');
+  assert.equal(asks({ usage: { totalTokens: zone + 10 }, stopReason: 'aborted' }), false, 'an aborted response reports nothing usable');
+  assert.equal(asks({ usage: { totalTokens: zone + 10 }, stopReason: 'error' }), false, 'nor does an error');
+  assert.equal(asks({ usage: { totalTokens: 0 } }), false, 'a zero usage is no usage');
+  assert.equal(asks({}), false, 'no usage at all: the estimate (10k) decides');
+}));
+
+test('the interval trigger still works when the host exposes no settings', () => withAgentDir(MIN1, () => {
   const handlers = load(['bash']);
   handlers.get('session_start')!({}, {});
   endTurn(handlers, 10_000, assistant(call('bash')));
@@ -270,7 +417,7 @@ test('the interval trigger still works when the host exposes no settings, and a 
 test('after a compaction the answered checkpoint messages leave the model context; the unanswered one and everything else stay', () => withAgentDir(undefined, () => {
   const handlers = load(['bash']);
   const custom = (customType: string) => ({ role: 'custom', customType, content: 'x', display: false });
-  const messages = [{ role: 'user', content: 'q' }, assistant(call('bash')), custom(CHECKPOINT_TYPE), assistant(text('report')), custom('other'), custom(CONTINUE_TYPE), assistant(call('bash')), custom(CHECKPOINT_TYPE)];
+  const messages = [{ role: 'user', content: 'q' }, assistant(call('bash')), custom(CHECKPOINT_TYPE), assistant(text('report')), custom('other'), custom(CONTINUE_TYPE), custom(DEADLINE_TYPE), assistant(call('bash')), custom(CHECKPOINT_TYPE)];
   assert.equal(handlers.get('context')!({ messages }, ctx(1, [{ type: 'message' }])), undefined, 'without a compaction nothing is removed');
   const out = handlers.get('context')!({ messages }, ctx(1, [{ type: 'compaction' }]));
   assert.deepEqual(out.messages.map((m: { role: string; customType?: string }) => m.customType ?? m.role), ['user', 'assistant', 'assistant', 'other', 'assistant', CHECKPOINT_TYPE]);

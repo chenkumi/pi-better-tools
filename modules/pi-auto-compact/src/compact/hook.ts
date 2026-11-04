@@ -2,7 +2,7 @@ import type { SessionBeforeCompactEvent, SessionBeforeCompactResult } from '@ear
 import type { AutoCompactConfig } from '../config.ts';
 import type { EntryRef } from '../fold/ref.ts';
 import { asRecord, list, str } from '../fold/util.ts';
-import { scanLines } from '../session-read/lines.ts';
+import { MAX_ID_PARSE_BYTES, scanLines } from '../session-read/lines.ts';
 import { backgroundJobsSection } from '../state/jobs.ts';
 import { activeMonitorsSection } from '../state/monitors.ts';
 import { workingTreeLines } from '../state/worktree.ts';
@@ -22,7 +22,7 @@ export async function indexSessionFile(file: string | undefined): Promise<Map<st
     for await (const item of scanLines(file, 2)) {
       if (item.text === undefined) continue;
       let id = ID_HEAD.exec(item.text.slice(0, 300))?.[1];
-      if (!id && item.bytes < 1024 * 1024) { try { id = str(asRecord(JSON.parse(item.text))?.id); } catch { /* not an entry */ } }
+      if (!id && item.bytes < MAX_ID_PARSE_BYTES) { try { id = str(asRecord(JSON.parse(item.text))?.id); } catch { /* not an entry */ } }
       if (id) refs.set(id, { line: item.line, id, bytes: item.bytes });
     }
   } catch { /* the summary works without references */ }

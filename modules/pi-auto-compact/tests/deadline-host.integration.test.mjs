@@ -9,8 +9,8 @@ import { runCommand } from '../../file-tools/scripts/test-process.mjs';
 
 const fixture = fileURLToPath(new URL('./fixtures/deadline-host.mjs', import.meta.url));
 const cases = {
-  reported: 'the model is asked shortly before the threshold, answers with the anchor, and the report is in the summary\'s timeline after Pi\'s compaction',
-  missed: 'a single turn that jumps over the threshold gets no request',
+  reported: 'the model gets the notice shortly before the threshold, saves notes through the note tool, and still sees the summary after Pi\'s compaction',
+  missed: 'a single turn that jumps over the threshold gets no notice',
 };
 for (const [scenario, title] of Object.entries(cases)) test(`Pi 1.5.0 Pi Auto Compact deadline savepoint: ${title}`, { timeout: 180000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), 'pi-auto-compact-deadline-host-')); await mkdir(join(home, 'tmp'));
