@@ -11,6 +11,8 @@ type OpenResult = { success: boolean; message: string };
 type Host = { child: ChildProcess; ready: Promise<void>; exited: Promise<void>; reopened: boolean };
 
 const CHILD_HEAP_MB = 256;
+/** How long a (re)started process may take to report ready and reopen the file before it is killed and the call fails. */
+const STARTUP_TIMEOUT_MS = 30_000;
 /** Only the end of the child's stderr is kept, to explain a failed startup. */
 const STDERR_TAIL_BYTES = 4096;
 const NOT_OPEN = "No database is currently open. Use sqlite_open to open a database first.";
@@ -38,6 +40,8 @@ export class SqliteClient {
   private openPath: string | undefined;
   /** Set once the session is over: calls still waiting in the queue are refused instead of reopening a connection. */
   private disposed = false;
+
+  constructor(private readonly startupTimeoutMs = STARTUP_TIMEOUT_MS) {}
 
   open(filePath: string, signal?: AbortSignal): Promise<OpenResult> {
     return this.enqueue(async () => {
@@ -131,7 +135,7 @@ export class SqliteClient {
   }
 
   private async send<T>(method: string, args: unknown[], signal?: AbortSignal): Promise<T> {
-    const host = await this.start();
+    const host = await this.start(signal);
     throwIfCancelled(signal);
     const id = this.nextId++;
     return await new Promise<T>((resolve, reject) => {
@@ -151,7 +155,7 @@ export class SqliteClient {
   }
 
   /** Starts the process if needed (never while one is still exiting), and reopens the session's file after a restart. */
-  private async start(): Promise<Host> {
+  private async start(signal?: AbortSignal): Promise<Host> {
     if (this.exiting) await this.exiting;
     if (this.disposed) throw new Error(DISPOSED_MESSAGE);
     let node: string | undefined;
@@ -160,11 +164,11 @@ export class SqliteClient {
       if (this.disposed) throw new Error(DISPOSED_MESSAGE);
     }
     const host = this.host ?? this.spawn(node!);
-    await host.ready;
+    await this.untilStarted(host.ready, signal, "The SQLite process did not report ready");
     if (this.host !== host) throw new Error("The SQLite process was stopped.");
     if (this.openPath && !host.reopened) {
       const path = this.openPath;
-      const result = await this.request<OpenResult>(host, "open", [path]);
+      const result = await this.untilStarted(this.request<OpenResult>(host, "open", [path]), signal, "Reopening the database did not finish");
       if (!result.success) {
         this.openPath = undefined;
         await this.stop();
@@ -173,6 +177,28 @@ export class SqliteClient {
       host.reopened = true;
     }
     return host;
+  }
+
+  /**
+   * Waits for a startup step, but not forever: a cancelled call or an expired startup bound kills the process (and waits for its
+   * exit, like any other cancel) instead of leaving the queue behind a helper that never answers.
+   */
+  private async untilStarted<T>(step: Promise<T>, signal: AbortSignal | undefined, what: string): Promise<T> {
+    let interrupted = false;
+    let cleanup = () => {};
+    const interruption = new Promise<never>((_, reject) => {
+      const timer = setTimeout(() => reject(new SqliteStartupError(`${what} within ${Math.round(this.startupTimeoutMs / 1000)} seconds; the SQLite process was terminated.`)), this.startupTimeoutMs);
+      const onAbort = () => reject(new Error(CANCELLED_MESSAGE));
+      if (signal?.aborted) onAbort(); else signal?.addEventListener("abort", onAbort, { once: true });
+      cleanup = () => { clearTimeout(timer); signal?.removeEventListener("abort", onAbort); };
+    });
+    interruption.catch(() => undefined);
+    try {
+      return await Promise.race([step, interruption.catch(error => { interrupted = true; throw error; })]);
+    } catch (error) {
+      if (interrupted) await this.stop();
+      throw error;
+    } finally { cleanup(); }
   }
 
   /**

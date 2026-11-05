@@ -19,6 +19,8 @@ export interface ClientOptions {
   onState: (state: ClientState, detail?: string) => void;
   /** Reconnect delay in ms for attempt n (0-based); injectable so tests need no real waiting. */
   backoff?: (attempt: number) => number;
+  /** Silence limit in ms (default 45000); injectable so tests need no real waiting. */
+  silenceMs?: number;
 }
 export const defaultBackoff = (attempt: number) => Math.min(30000, 1000 * 2 ** attempt) * (0.5 + Math.random() / 2);
 /** No frame, ping or pong from the hub for this long means the link is dead. */
@@ -73,7 +75,7 @@ export class RemoteClient {
   }
   private touch(): void {
     clearTimeout(this.silence);
-    this.silence = setTimeout(() => this.socket?.terminate(), SILENCE_MS);
+    this.silence = setTimeout(() => this.socket?.terminate(), this.options.silenceMs ?? SILENCE_MS);
     this.silence.unref();
   }
 
@@ -94,6 +96,8 @@ export class RemoteClient {
       if (tls) fingerprint = (response.socket as TLSSocket).getPeerCertificate().fingerprint256?.replace(/:/g, '').toLowerCase() ?? '';
     });
     socket.on('error', () => undefined);
+    // The limit also runs from the upgrade to the first frame: a hub that accepts the socket and then says nothing is a dead link too.
+    socket.on('open', () => this.touch());
     socket.on('ping', () => this.touch());
     socket.on('close', () => {
       clearTimeout(this.silence);

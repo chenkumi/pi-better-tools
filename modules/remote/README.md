@@ -58,7 +58,7 @@ Port 被占用、憑證讀取失敗等會成為 `fault` 狀態並通知使用者
 JSON frame，`ws(s)://host:port/remote`。server → client：`challenge`、`welcome`（最終名稱＋roster）、`roster`（完整快照）、`deliver`、`ack`、`error`；client → server：`hello`（含 `instanceId`）、`send`。所有 peer 名稱在收到時重新驗證 `[a-z0-9-]`；hostname／project 等自由文字只供顯示，不進 system prompt。
 
 - Hub 為星狀拓樸；server 自身以 in-process 方式成為 peer，不經 socket。
-- Server 以 ws ping 做心跳（15 秒），未回 pong 即中斷；client 45 秒未收到任何 frame／ping 視為斷線並以 exponential backoff＋jitter 重連。
+- Server 以 ws ping 做心跳（15 秒），未回 pong 即中斷；client 45 秒未收到任何 frame／ping（連線建立後也一樣，起算點是連線開啟，不是第一個 frame）視為斷線並以 exponential backoff＋jitter 重連。
 - 同一 `instanceId` 重連（舊連線尚未被偵測為斷線）接手原名稱；不同 instance 同名則加數字後綴。每個 peer 每 10 秒最多 30 則訊息；socket 緩衝超過 1 MiB 的 peer 會被中斷；最多 16 個 peer。
 - 關閉 socket 不代表對方已處理任何訊息，也不影響其他 peer 的 process。
 
