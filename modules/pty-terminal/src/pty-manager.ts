@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import type { IPty, spawn } from "node-pty";
 import { setupCommand } from "../../../setup/commands.mjs";
+import { ToolError } from "../../../shared/src/tool-error/index.ts";
 import { filterEnv, type EnvPolicy } from "./env.ts";
 import { matchPattern, MATCH_BUDGET_MS } from "./matcher.ts";
 import { stripEscapes, truncatePtyOutput, type OutputFormat } from "./output.ts";
@@ -34,6 +35,8 @@ export const DEFAULT_ROWS = 30;
 const DEFAULT_KILL_WAIT_MS = 2_000;
 /** Exited sessions are reclaimed this long after exit, even if never released. */
 export const EXITED_RETENTION_MS = 10 * 60_000;
+/** `ssh` itself exits with 255 on connection errors, so the code says nothing about the remote command. */
+export const SSH_CONNECTION_ERROR_EXIT = 255;
 export const KILL_SIGNALS = ["SIGHUP", "SIGINT", "SIGQUIT", "SIGTERM", "SIGKILL"] as const;
 export type KillSignal = (typeof KILL_SIGNALS)[number];
 
@@ -131,15 +134,15 @@ export function errorText(error: unknown): string {
 
 function checkSize(value: number | undefined, max: number, label: string): void {
 	if (value === undefined) return;
-	if (!Number.isInteger(value) || value < 1 || value > max) throw new Error(`${label} must be an integer between 1 and ${max} (got ${typeof value === "number" ? String(value) : typeof value}); pass a value in that range or omit it for the default.`);
+	if (!Number.isInteger(value) || value < 1 || value > max) throw new ToolError("PTY_INVALID_ARGUMENT", `${label} must be an integer between 1 and ${max} (got ${typeof value === "number" ? String(value) : typeof value}); pass a value in that range or omit it for the default.`);
 }
 
 /** Local spawn cwd must be an existing directory; node-pty reports a missing one as an opaque native error. */
 function assertDirectory(cwd: string, target: string): void {
 	let info;
 	try { info = statSync(cwd); }
-	catch { throw new Error(`Invalid cwd "${cwd}" (target "${target}"): the directory does not exist. Pass cwd as an existing directory, or omit it to use the workspace.`); }
-	if (!info.isDirectory()) throw new Error(`Invalid cwd "${cwd}" (target "${target}"): the path is not a directory. Pass an existing directory, or omit cwd to use the workspace.`);
+	catch { throw new ToolError("PTY_INVALID_ARGUMENT", `Invalid cwd "${cwd}" (target "${target}"): the directory does not exist. Pass cwd as an existing directory, or omit it to use the workspace.`); }
+	if (!info.isDirectory()) throw new ToolError("PTY_INVALID_ARGUMENT", `Invalid cwd "${cwd}" (target "${target}"): the path is not a directory. Pass an existing directory, or omit cwd to use the workspace.`);
 }
 
 export type SessionState = "running" | "exited";
@@ -288,11 +291,11 @@ export class PtySessionManager {
 	}
 
 	spawn(command: string, args: string[], options: SpawnOptions, defaultCwd: string): { sessionId: string; pid: number; target: string; transport: Transport } {
-		if (this.closing) throw new Error("PTY manager is shutting down; new sessions are not admitted. Retry after the reload/shutdown completes.");
+		if (this.closing) throw new ToolError("PTY_SHUTTING_DOWN", "PTY manager is shutting down; new sessions are not admitted. Retry after the reload/shutdown completes.");
 		checkSize(options.cols, MAX_COLS, "cols");
 		checkSize(options.rows, MAX_ROWS, "rows");
 		this.reclaim(true);
-		if (this.sessions.size >= this.maxSessions) throw new Error(`PTY session limit reached (${this.maxSessions}); unread exited output is retained. Use pty_read to drain an exited session or pty_kill to explicitly release an existing session first`);
+		if (this.sessions.size >= this.maxSessions) throw new ToolError("PTY_SESSION_LIMIT", `PTY session limit reached (${this.maxSessions}); unread exited output is retained. Use pty_read to drain an exited session or pty_kill to explicitly release an existing session first`);
 		const spawnCwd = options.cwd ?? defaultCwd;
 		const targetName = options.target ?? "local";
 		assertDirectory(spawnCwd, targetName);
@@ -310,7 +313,7 @@ export class PtySessionManager {
 				},
 			});
 		} catch (error) {
-			throw new Error(`Failed to start "${command}" (target "${targetName}", cwd "${spawnCwd}"): ${errorText(error)}. Check that the command exists on the executable search path (on Windows pass an .exe path; shell builtins and .cmd/.bat files need an interpreter such as "cmd.exe" with args ["/c", ...]) and that cwd is an existing directory.`, { cause: error });
+			throw new ToolError("PTY_SPAWN_FAILED", `Failed to start "${command}" (target "${targetName}", cwd "${spawnCwd}"): ${errorText(error)}. Check that the command exists on the executable search path (on Windows pass an .exe path; shell builtins and .cmd/.bat files need an interpreter such as "cmd.exe" with args ["/c", ...]) and that cwd is an existing directory.`, { cause: error });
 		}
 
 		let id = `pty-${process.pid}-${++this.nextId}`;
@@ -319,7 +322,7 @@ export class PtySessionManager {
 			id,
 			owner: canonicalOwner(defaultCwd),
 			pid: pty.pid,
-			target: options.target ?? "local",
+			target: targetName,
 			transport: options.transport ?? "local",
 			pty,
 			state: "running",
@@ -353,7 +356,7 @@ export class PtySessionManager {
 	assertWritable(sessionId: string): void {
 		const session = this.requireSession(sessionId);
 		if (session.state === "exited") {
-			throw new Error(`PTY session ${sessionId} has exited${session.exitInfo ? ` (exitCode ${session.exitInfo.exitCode})` : ""}; input was not sent. Use pty_read to drain remaining output, pty_kill to release it, or pty_spawn a new session.`);
+			throw new ToolError("PTY_SESSION_EXITED", `PTY session ${sessionId} has exited${session.exitInfo ? ` (exitCode ${session.exitInfo.exitCode})` : ""}; input was not sent. Use pty_read to drain remaining output, pty_kill to release it, or pty_spawn a new session.`);
 		}
 	}
 
@@ -411,7 +414,7 @@ export class PtySessionManager {
 		if (options.signal?.aborted) throw abortError(options.signal);
 		const end = () => endCursor(session);
 		if (options.since !== undefined && (!Number.isInteger(options.since) || options.since < 0 || options.since > end())) {
-			throw new Error(`since must be a cursor between 0 and ${end()} (the latest cursor); use a cursor from an earlier pty_read.`);
+			throw new ToolError("PTY_INVALID_ARGUMENT", `since must be a cursor between 0 and ${end()} (the latest cursor); use a cursor from an earlier pty_read.`);
 		}
 		const from = options.since ?? session.readPos;
 		const started = this.now();
@@ -525,15 +528,15 @@ export class PtySessionManager {
 		checkSize(cols, MAX_COLS, "cols");
 		checkSize(rows, MAX_ROWS, "rows");
 		const session = this.requireSession(sessionId);
-		if (session.state === "exited") throw new Error(`PTY session ${sessionId} has exited${session.exitInfo ? ` (exitCode ${session.exitInfo.exitCode})` : ""}; resize was not applied. Use pty_read to drain remaining output, pty_kill to release it, or pty_spawn a new session.`);
+		if (session.state === "exited") throw new ToolError("PTY_SESSION_EXITED", `PTY session ${sessionId} has exited${session.exitInfo ? ` (exitCode ${session.exitInfo.exitCode})` : ""}; resize was not applied. Use pty_read to drain remaining output, pty_kill to release it, or pty_spawn a new session.`);
 		try { session.pty.resize(cols, rows); }
 		catch (error) { throw new Error(`PTY resize to ${cols}x${rows} failed for session ${sessionId}: ${errorText(error)}; resize not applied. Use pty_list to check whether the session is still running.`); }
 	}
 
 	async waitForExit(sessionId: string, timeoutMs: number, signal?: AbortSignal): Promise<ExitInfo> {
 		const session = this.requireSession(sessionId);
-		const annotate = (info: ExitInfo): ExitInfo => session.transport === "ssh" && info.exitCode === 255
-			? { ...info, note: "SSH exit code 255 may indicate a connection error rather than the remote command's exit code; check pty_read output." }
+		const annotate = (info: ExitInfo): ExitInfo => session.transport === "ssh" && info.exitCode === SSH_CONNECTION_ERROR_EXIT
+			? { ...info, note: `SSH exit code ${SSH_CONNECTION_ERROR_EXIT} may indicate a connection error rather than the remote command's exit code; check pty_read output.` }
 			: info;
 		if (session.exitInfo) return annotate(session.exitInfo);
 
@@ -548,10 +551,10 @@ export class PtySessionManager {
 	 * Exit of the local transport does not prove a remote/WSL process tree stopped.
 	 */
 	async kill(sessionId: string, signal: string = "SIGHUP"): Promise<KillResult> {
-		if (!(KILL_SIGNALS as readonly string[]).includes(signal)) throw new Error(`Unsupported signal ${signal}; allowed: ${KILL_SIGNALS.join(", ")}`);
+		if (!(KILL_SIGNALS as readonly string[]).includes(signal)) throw new ToolError("PTY_INVALID_ARGUMENT", `Unsupported signal ${signal}; allowed: ${KILL_SIGNALS.join(", ")}`);
 		const session = this.requireSession(sessionId);
 		const windows = process.platform === "win32";
-		const note = "Only the local PTY transport is tracked; remote/WSL process-tree termination is not confirmed.";
+		const note = "local transport only; remote process tree not confirmed stopped";
 		let escalated = false;
 		const result = (released: boolean): KillResult => ({ sessionId, released, exited: session.state === "exited", signal: windows ? "n/a (Windows)" : signal, escalatedToSigkill: escalated, note });
 		if (session.state === "running") {
@@ -645,7 +648,7 @@ export class PtySessionManager {
 		const session = this.sessions.get(sessionId);
 		if (!session) {
 			const ids = [...this.sessions.keys()];
-			throw new Error(`Unknown PTY session "${sessionId}". ${ids.length ? `Active sessions: ${ids.slice(0, 20).join(", ")}${ids.length > 20 ? ", ..." : ""}` : "No sessions are active"}; use pty_list to see ids. It may already have been released by pty_kill, evicted after exit, or lost to a reload.`);
+			throw new ToolError("PTY_SESSION_NOT_FOUND", `Unknown PTY session "${sessionId}". ${ids.length ? `Active sessions: ${ids.slice(0, 20).join(", ")}${ids.length > 20 ? ", ..." : ""}` : "No sessions are active"}; use pty_list to see ids. It may already have been released by pty_kill, evicted after exit, or lost to a reload.`);
 		}
 		return session;
 	}
@@ -705,11 +708,6 @@ export class PtySessionManager {
 			dataWaiters?.add(onData);
 			exitWaiters?.add(onExitWaiter);
 			signal?.addEventListener("abort", onAbort, { once: true });
-
-			if (session.exitInfo) {
-				onExit?.();
-				finish();
-			}
 		});
 	}
 }

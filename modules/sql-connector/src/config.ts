@@ -1,21 +1,23 @@
 import { CONFIG_DIR_NAME } from "@earendil-works/pi-coding-agent";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { ENGINES, type DatabaseConfig, type Engine, type SqlConnectorConfig, SqlConnectorError } from "./types.js";
+import { ENGINES, ENGINE_LABEL, type DatabaseConfig, type Engine, type SqlConnectorConfig, SqlConnectorError } from "./types.js";
 
 /** The documented per-engine fields; engine-specific ones are still validated below. */
 const ENGINE_KEYS = ["host", "port", "username", "password", "database", "ssl", "windowsAuth", "instanceName", "odbcDriver", "trustServerCertificate"];
-const DEFAULT_PORT: Record<Engine, number> = {
+export const DEFAULT_PORT: Record<Engine, number> = {
   mysql: 3306,
   mssql: 1433,
   pgsql: 5432,
 };
+export const DEFAULT_ODBC_DRIVER = "ODBC Driver 18 for SQL Server";
+/** A password written as `${VAR}` names an environment variable instead of holding the secret. */
+export const ENV_REFERENCE = /^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-const ENGINE_LABEL: Record<Engine, string> = { mysql: "MySQL", mssql: "Microsoft SQL Server", pgsql: "PostgreSQL" };
 const RELOAD_GUIDANCE = "Ask the user to correct the database connection settings, then run /sql-connector-reload.";
 
 /**
@@ -51,7 +53,7 @@ function optionalString(value: unknown, field: Setting): string | undefined {
 function resolvePassword(engine: Engine, value: unknown, env: NodeJS.ProcessEnv, optional: boolean): string | undefined {
   if (optional && (value === undefined || value === "")) return undefined;
   const password = requiredString(value, setting(engine, "password", "user password", "password"));
-  const match = /^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/.exec(password);
+  const match = ENV_REFERENCE.exec(password);
   if (!match) return password;
 
   const resolved = env[match[1]];
@@ -87,7 +89,7 @@ export function parseDatabaseConfig(engine: Engine, value: unknown, env: NodeJS.
     throw invalidSettings("The connection settings are invalid: the ODBC driver option is only supported for Microsoft SQL Server.", "Database configuration field \"mssql.odbcDriver\" is only supported for MSSQL.");
   }
   const odbcDriver = engine === "mssql" && windowsAuth
-    ? optionalString(value.odbcDriver, setting(engine, "odbcDriver", "ODBC driver name", "mssql.odbcDriver")) ?? "ODBC Driver 18 for SQL Server"
+    ? optionalString(value.odbcDriver, setting(engine, "odbcDriver", "ODBC driver name", "mssql.odbcDriver")) ?? DEFAULT_ODBC_DRIVER
     : undefined;
   const port = value.port ?? (engine === "mssql" && instanceName ? undefined : DEFAULT_PORT[engine]);
   if (port !== undefined && (!Number.isInteger(port) || (port as number) < 1 || (port as number) > 65535)) {

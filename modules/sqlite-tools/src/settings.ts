@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { CONFIG_DIR_NAME, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { registerSettingsCommand } from "../../../shared/src/settings-panel/index.js";
+import { SettingsInputError, registerSettingsCommand } from "../../../shared/src/settings-panel/index.js";
 import type { Patch, SettingsSchema, Values } from "../../../shared/src/settings-panel/index.js";
 
 interface SqliteConfig { databasePath: string }
@@ -29,7 +29,7 @@ export function sqliteSettings(path: string, env: NodeJS.ProcessEnv = process.en
       const key = ["databasePath"];
       if (v.mode === "manual") return [{ path: key, value: undefined }];
       const databasePath = String(v.databasePath ?? "").trim();
-      if (!databasePath) throw new Error("Enter a database path, or choose manual mode.");
+      if (!databasePath) throw new SettingsInputError("Enter a database path, or choose manual mode.");
       return [{ path: key, value: databasePath }];
     },
   };

@@ -1,36 +1,41 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { JsonValue } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import { describeUnexpectedError } from "./driver-errors.js";
-import { formatRows } from "./output.js";
-import { assertReadOnlySql, assertUpdateSql } from "./security/sql-policy.js";
+import { formatRows, MAX_BYTES, MAX_STRING_CHARS } from "./output.js";
+import { assertReadOnlySql, assertUpdateSql, MAX_READ_ROWS } from "./security/sql-policy.js";
 import { SqlConnectorRuntime } from "./runtime.js";
-import { SqlConnectorError, type Engine, type SqlScalar } from "./types.js";
+import { ENGINE_LABEL, SqlConnectorError, type Engine, type SqlScalar } from "./types.js";
 
 const scalarSchema = Type.Union([Type.Null(), Type.Boolean(), Type.Number(), Type.String()]);
 const positionalParamsSchema = () => Type.Optional(Type.Array(scalarSchema));
 const namedParamsSchema = () => Type.Optional(Type.Record(Type.String(), scalarSchema));
-const mysqlOrPgsqlQuerySchema = Type.Object({
-  sql: Type.String({ minLength: 1 }),
-  params: positionalParamsSchema(),
-});
-const mssqlQuerySchema = Type.Object({
-  sql: Type.String({ minLength: 1 }),
-  params: namedParamsSchema(),
-});
-const mysqlOrPgsqlUpdateSchema = Type.Object({
-  sql: Type.String({ minLength: 1 }),
-  params: positionalParamsSchema(),
-  reason: Type.String({ minLength: 1 }),
-});
-const mssqlUpdateSchema = Type.Object({
-  sql: Type.String({ minLength: 1 }),
-  params: namedParamsSchema(),
-  reason: Type.String({ minLength: 1 }),
-});
+type ParamsSchema = ReturnType<typeof positionalParamsSchema> | ReturnType<typeof namedParamsSchema>;
+const makeQuerySchema = (params: ParamsSchema) => Type.Object({ sql: Type.String({ minLength: 1 }), params });
+const makeUpdateSchema = (params: ParamsSchema) =>
+  Type.Object({ sql: Type.String({ minLength: 1 }), params, reason: Type.String({ minLength: 1 }) });
+const mysqlOrPgsqlQuerySchema = makeQuerySchema(positionalParamsSchema());
+const mssqlQuerySchema = makeQuerySchema(namedParamsSchema());
+const mysqlOrPgsqlUpdateSchema = makeUpdateSchema(positionalParamsSchema());
+const mssqlUpdateSchema = makeUpdateSchema(namedParamsSchema());
 
-function engineLabel(engine: Engine): string {
-  return engine === "mysql" ? "MySQL" : engine === "mssql" ? "Microsoft SQL Server" : "PostgreSQL";
-}
+const stateOutputSchema = Type.Object({
+  connected: Type.Boolean(),
+  engine: Type.String(),
+  database: Type.Union([Type.String(), Type.Null()]),
+  version: Type.Union([Type.String(), Type.Null()]),
+});
+const queryOutputSchema = Type.Object({
+  columns: Type.Array(Type.String()),
+  rows: Type.Array(Type.Record(Type.String(), Type.Unknown())),
+  returnedRows: Type.Number(),
+  totalRows: Type.Union([Type.Number(), Type.Null()]),
+  truncated: Type.Boolean(),
+  hint: Type.Optional(Type.String()),
+});
+const updateOutputSchema = Type.Object({ affectedRows: Type.Number() });
+
+const engineLabel = (engine: Engine): string => ENGINE_LABEL[engine];
 
 function throwSafe(error: unknown): never {
   if (error instanceof SqlConnectorError) throw error;
@@ -71,7 +76,7 @@ export function registerEngineTools(pi: ExtensionAPI, runtime: SqlConnectorRunti
   const updateSchema = positional ? mysqlOrPgsqlUpdateSchema : mssqlUpdateSchema;
   const placeholder = engine === "mysql" ? "?" : engine === "mssql" ? "@name" : "$1, $2, ...";
   const paramsDescription = positional ? "ordered JSON array" : "JSON object whose keys omit @";
-  const readLimit = engine === "mssql" ? "TOP n, where n is 1 to 200" : "LIMIT n, where n is 1 to 200";
+  const readLimit = engine === "mssql" ? `TOP n, where n is 1 to ${MAX_READ_ROWS}` : `LIMIT n, where n is 1 to ${MAX_READ_ROWS}`;
   const namespace = {
     name: engine,
     description: `${engineLabel(engine)} database tools. Use tool_search to find and load ${engine} tools before accessing this database.`,
@@ -86,6 +91,7 @@ export function registerEngineTools(pi: ExtensionAPI, runtime: SqlConnectorRunti
     promptSnippet: `Check the configured ${engineLabel(engine)} database state`,
     promptGuidelines: guidance ? [guidance] : [],
     parameters: Type.Object({}),
+    outputSchema: stateOutputSchema,
     async execute(_toolCallId, _params, signal) {
       checkAborted(signal);
       try {
@@ -93,6 +99,7 @@ export function registerEngineTools(pi: ExtensionAPI, runtime: SqlConnectorRunti
         checkAborted(signal);
         return {
           content: [{ type: "text", text: JSON.stringify({ connected: true, ...state }, null, 2) }],
+          structuredContent: { connected: true, ...state },
           details: { connected: true, ...state },
         };
       } catch (error) {
@@ -106,9 +113,10 @@ export function registerEngineTools(pi: ExtensionAPI, runtime: SqlConnectorRunti
     namespace,
     name: `${prefix}_query`,
     label: `${engineLabel(engine)} Query`,
-    description: `Run one read-only SQL statement against the configured ${engineLabel(engine)} database. Use ${placeholder} placeholders and an ${paramsDescription} for params. SELECT queries must include ${readLimit}. Results are limited to 200 rows or 48 KiB; columns named like password/secret/token are returned as [REDACTED] and strings over 4,000 characters are cut with an ellipsis.`,
+    description: `Run one read-only SQL statement against the configured ${engineLabel(engine)} database. Use ${placeholder} placeholders and an ${paramsDescription} for params. SELECT queries must include ${readLimit}. Results are limited to ${MAX_READ_ROWS} rows or ${MAX_BYTES / 1024} KiB; columns named like password/secret/token are returned as [REDACTED] and strings over ${MAX_STRING_CHARS.toLocaleString("en-US")} characters are cut with an ellipsis.`,
     promptSnippet: `Run read-only ${engineLabel(engine)} SQL with ${placeholder} placeholders and ${readLimit}`,
     parameters: querySchema,
+    outputSchema: queryOutputSchema,
     async execute(_toolCallId, params, signal) {
       checkAborted(signal);
       try {
@@ -118,6 +126,8 @@ export function registerEngineTools(pi: ExtensionAPI, runtime: SqlConnectorRunti
         const formatted = formatRows(execution.rows, execution.rowCount);
         return {
           content: [{ type: "text", text: formatted.text }],
+          // Rows were normalised to JSON values by formatRows.
+          structuredContent: formatted.structured as unknown as JsonValue,
           details: formatted.details,
         };
       } catch (error) {
@@ -135,6 +145,7 @@ export function registerEngineTools(pi: ExtensionAPI, runtime: SqlConnectorRunti
     promptSnippet: `Run a confirmed ${engineLabel(engine)} INSERT, UPDATE, or DELETE`,
     executionMode: "sequential",
     parameters: updateSchema,
+    outputSchema: updateOutputSchema,
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       checkAborted(signal);
       try {
@@ -144,6 +155,7 @@ export function registerEngineTools(pi: ExtensionAPI, runtime: SqlConnectorRunti
         const execution = await runtime.update(engine, params.sql, params.params, signal);
         return {
           content: [{ type: "text", text: JSON.stringify({ affectedRows: execution.affectedRows }, null, 2) }],
+          structuredContent: { affectedRows: execution.affectedRows },
           details: { affectedRows: execution.affectedRows },
         };
       } catch (error) {

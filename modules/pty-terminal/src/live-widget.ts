@@ -1,11 +1,9 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { canonicalMonitorCwd, publishJobBriefs } from "../../../shared/src/background/index.ts";
-import type { PanelHost } from "../../../shared/src/background/index.ts";
-import { safeJobText, type PanelJob } from "../../../shared/src/background/index.ts";
-import { JobsWidgetBinding } from "../../../shared/src/background/index.ts";
+import { canonicalMonitorCwd, JobsWidgetBinding, publishJobBriefs, safeJobText } from "../../../shared/src/background/index.ts";
+import type { PanelHost, PanelJob } from "../../../shared/src/background/index.ts";
 import type { PtySessionManager, PtySessionSummary } from "./pty-manager.ts";
 
-const MAX_ROWS = 32;
+const MAX_WIDGET_ROWS = 32;
 
 /**
  * Plain projection of one PTY session. Never reads output, the command line or typed secrets: only identity, target and
@@ -34,7 +32,7 @@ export function ptyPanelJob(session: PtySessionSummary): PanelJob {
 
 /** Binding-scoped, event-driven view of this workspace's PTY sessions. Presentation only: no polling, no model work. */
 export class PtySessionsWidget extends JobsWidgetBinding<PtySessionSummary> {
-	constructor(api?: PanelHost) { super("pty", rows => rows.slice(0, MAX_ROWS).map(ptyPanelJob), api); }
+	constructor(api?: PanelHost) { super("pty", rows => rows.slice(0, MAX_WIDGET_ROWS).map(ptyPanelJob), api); }
 }
 
 /** Running sessions only (id and status, nothing else) for the live background-jobs reminder at compaction. Returns the revoke handle. */

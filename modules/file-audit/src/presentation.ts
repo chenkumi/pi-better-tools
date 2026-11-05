@@ -1,7 +1,6 @@
 import { stripVTControlCharacters } from "node:util";
 import { relative } from "node:path";
 import type { ActivityWindow } from "./activity-window.js";
-import type { ScanResult } from "./provenance.js";
 
 export const MAX_OUTPUT_BYTES = 8192;
 const MAX_DETAIL_LINES = 10;
@@ -27,21 +26,5 @@ export function statusText(window: ActivityWindow, pending: number, cwd: string)
     "Only successful read/write/edit/note since observation start; no Shell/search/other sessions/history replay.",
     ...files.slice(0, MAX_DETAIL_LINES).map(item => `${item.createdRun !== undefined ? "created" : item.writeRun !== undefined ? "modified" : "read"}: ${safeText(relative(cwd, item.path))} (last: ${item.action})`),
     ...(files.length > MAX_DETAIL_LINES ? [`${files.length - MAX_DETAIL_LINES} retained file details hidden.`] : []),
-  ]);
-}
-export function resultText(result: ScanResult, cwd: string): string {
-  const counts = new Map<string, number>();
-  for (const item of result.findings) counts.set(item.status, (counts.get(item.status) ?? 0) + 1);
-  const checked = (counts.get("matched") ?? 0) + (counts.get("mismatch") ?? 0) + (counts.get("expected-absent") ?? 0) + (counts.get("missing") ?? 0);
-  const details = result.findings.filter(item => item.status !== "matched" && item.status !== "expected-absent");
-  return bounded([
-    REPORT_HEADER,
-    `Selected: ${result.findings.length}; checked: ${checked}; content bytes: ${result.bytes}; metadata bytes: ${result.metadataBytes}; elapsed: ${Math.round(result.elapsedMs)}ms`,
-    Array.from(counts, ([status, count]) => `${status}=${count}`).join(", ") || "No candidates; no verification performed.",
-    ...(result.error ? [`Inspection unavailable: ${safeText(result.error)}`] : []),
-    ...details.slice(0, MAX_DETAIL_LINES).map(item => `${item.status}: ${safeText(relative(cwd, item.path))}${item.reason ? ` (${safeText(item.reason)})` : ""}`),
-    ...(details.length > MAX_DETAIL_LINES ? [`${details.length - MAX_DETAIL_LINES} finding details hidden.`] : []),
-    ...(result.findings.some(item => item.historical) ? ["Historical earlier diff unavailable: matching hashes do not certify historical-diff equivalence."] : []),
-    "Only selected recent files were inspected. Untracked/skipped/unavailable items are NOT passes; no author or change-time attribution.",
   ]);
 }

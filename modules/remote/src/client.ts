@@ -2,7 +2,7 @@ import type { TLSSocket } from 'node:tls';
 import WebSocket from 'ws';
 import type { Inbound, SendFrame } from './hub.js';
 import {
-  LIMITS, PROTOCOL_VERSION, REMOTE_PATH, authProof, frame, parseServerFrame,
+  LIMITS, PROTOCOL_VERSION, REMOTE_PATH, authProof, frame, parseServerFrame, toInbound,
   type AckStatus, type PeerInfo, type RosterEntry, type ServerFrame,
 } from './protocol.js';
 
@@ -125,7 +125,7 @@ export class RemoteClient {
           this.options.onRoster(message.peers, this.name);
           return;
         case 'roster': return this.options.onRoster(message.peers, this.name);
-        case 'deliver': return this.options.onMessage({ id: message.id, from: message.from, kind: message.kind, body: message.body, ...(message.git ? { git: message.git } : {}), ...(message.replyTo ? { replyTo: message.replyTo } : {}) });
+        case 'deliver': return this.options.onMessage(toInbound(message));
         case 'ack': {
           const waiter = this.waiting.get(message.id);
           if (!waiter) return;

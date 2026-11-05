@@ -61,6 +61,10 @@ test("a secret the program echoes back is masked in pty_read, with a notice, in 
 		assert.ok(text.includes(`bash: ${MASK}: command not found`), text);
 		assert.match(text, /masked as \*{8}/);
 		assert.ok(last.details.masked >= 1);
+		// structuredContent is what a codemode script resolves: it must be masked on its own, not only the content text.
+		assert.ok(!JSON.stringify(last).includes(SECRET) && !JSON.stringify(last).includes("ThisIs"), "no field of the result carries the secret");
+		assert.equal(typeof last.structuredContent?.output, "string");
+		assert.ok(last.structuredContent.output.includes(MASK), "structuredContent.output is the masked text");
 	}
 });
 

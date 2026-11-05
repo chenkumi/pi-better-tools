@@ -96,7 +96,7 @@ test("owner, shutdown and unknown-job errors carry a fix hint and known ids", as
     const receipt = jobs.submit(ctx, "bash", "c1", undefined, async () => { await new Promise<void>(r => { release = r; }); return success("ok"); }, "sleeping-command");
     await boundary();
     const foreign = message(() => jobs.status(ctxOf("other"), receipt.jobId));
-    assert.match(foreign, /different owner session/); assert.match(foreign, /shell_job_status with no arguments/);
+    assert.match(foreign, /^SHELL_OWNER_MISMATCH: .*different owner session/); assert.match(foreign, /shell_job_status with no arguments/);
     const missing = message(() => jobs.status(ctx, "NOPE"));
     assert.match(missing, /Shell job NOPE/); assert.match(missing, /shell_job_status with no arguments/);
     assert.ok(missing.includes(receipt.jobId) && missing.includes("sleeping-command"), missing);
@@ -107,7 +107,7 @@ test("owner, shutdown and unknown-job errors carry a fix hint and known ids", as
     release(); await boundary(); await boundary();
     await jobs.shutdown();
     const down = message(() => jobs.status(ctx, receipt.jobId));
-    assert.match(down, /shutting down/); assert.match(down, /do not retry/i);
+    assert.match(down, /^SHELL_SHUTTING_DOWN: .*shutting down/); assert.match(down, /do not retry/i);
   } finally { release?.(); await jobs.shutdown(); }
 });
 
@@ -126,7 +126,7 @@ test("onAccepted failures are wrapped with operation and consequence", async () 
   const ctx = ctxOf("owner"); jobs.start(ctx);
   try {
     const text = message(() => jobs.submit(ctx, "bash", "c", undefined, async () => success("x"), "cmd", () => { throw Object.assign(new Error("EACCES: /secret/raw/path"), { code: "EACCES" }); }));
-    assert.match(text, /Background job could not be started/); assert.match(text, /command was not run/i); assert.match(text, /foreground/i);
+    assert.match(text, /^SHELL_BACKGROUND_START_FAILED: Background job could not be started/); assert.match(text, /command was not run/i); assert.match(text, /foreground/i);
     assert.doesNotMatch(text, /\/secret\/raw\/path/);
     assert.equal(jobs.list(ctx).length, 0);
   } finally { await jobs.shutdown(); }

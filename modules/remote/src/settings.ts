@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import { registerSettingsCommand } from '../../../shared/src/settings-panel/index.js';
+import { SettingsInputError, registerSettingsCommand } from '../../../shared/src/settings-panel/index.js';
 import type { Field, Patch, SettingsSchema, Values } from '../../../shared/src/settings-panel/index.js';
 import { loadRemoteConfig, parseRemoteConfig, remoteConfigPath, type WakeMode } from './config.js';
 import type { CredentialStore } from './credentials.js';
@@ -88,8 +88,8 @@ export function remoteSettings(path: string, credentials: CredentialStore, facts
     toPatch(v, dirty): Patch[] {
       const mode = v.mode as PanelConfig['mode'];
       if (mode === 'client') {
-        if (!String(v.host ?? '').trim()) throw new Error('Enter the server host (an IP address or a name).');
-        if (dirty.has('clientCode') && !normalizeCode(String(v.clientCode ?? ''))) throw new Error('Enter a 12-character pairing code, for example ABCD-EFGH-JKLM.');
+        if (!String(v.host ?? '').trim()) throw new SettingsInputError('Enter the server host (an IP address or a name).');
+        if (dirty.has('clientCode') && !normalizeCode(String(v.clientCode ?? ''))) throw new SettingsInputError('Enter a 12-character pairing code, for example ABCD-EFGH-JKLM.');
       }
       // Pairing codes live outside this file: when only they changed, the file stays as it is.
       if (![...dirty].some(key => key !== 'clientCode' && key !== 'serverCode')) return [];
@@ -97,18 +97,18 @@ export function remoteSettings(path: string, credentials: CredentialStore, facts
       if (mode === 'off') return patches;
       if (dirty.has('name')) {
         const name = String(v.name ?? '').trim();
-        if (name && !normalizeName(name)) throw new Error('Enter a name of 1-24 characters: a-z, 0-9 and "-".');
+        if (name && !normalizeName(name)) throw new SettingsInputError('Enter a name of 1-24 characters: a-z, 0-9 and "-".');
         patches.push({ path: ['name'], value: name ? normalizeName(name) : undefined });
       }
       if (dirty.has('wake')) patches.push({ path: ['wake'], value: v.wake === 'on' ? undefined : v.wake });
       if (dirty.has('allowFrom')) {
-        const names = String(v.allowFrom ?? '').split(/[,\s]+/).filter(Boolean).map(entry => normalizeName(entry) ?? (() => { throw new Error(`Enter valid peer names (a-z, 0-9 and "-"), separated by commas; "${entry.slice(0, 24)}" is not one.`); })());
+        const names = String(v.allowFrom ?? '').split(/[,\s]+/).filter(Boolean).map(entry => normalizeName(entry) ?? (() => { throw new SettingsInputError(`Enter valid peer names (a-z, 0-9 and "-"), separated by commas; "${entry.slice(0, 24)}" is not one.`); })());
         patches.push({ path: ['allowFrom'], value: names.length ? names : undefined });
       }
       if (dirty.has('insecure')) patches.push({ path: ['insecure'], value: v.insecure === true ? true : undefined });
       if (mode === 'server') {
         const cert = String(v.tlsCert ?? '').trim(), key = String(v.tlsKey ?? '').trim();
-        if (!cert !== !key) throw new Error('Enter both the certificate and the private key path, or leave both empty.');
+        if (!cert !== !key) throw new SettingsInputError('Enter both the certificate and the private key path, or leave both empty.');
         const bind = String(v.bind ?? '').trim() || DEFAULT_BIND;
         patches.push(
           { path: ['client'], value: undefined },

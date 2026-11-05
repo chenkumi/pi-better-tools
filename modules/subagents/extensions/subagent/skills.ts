@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import { stripFrontmatter } from "@earendil-works/pi-coding-agent";
 import { SessionError } from "./session-store.ts";
+import { errorToString } from "./values.ts";
 
 export const MAX_SKILLS_PER_TASK = 8;
 
@@ -37,7 +38,7 @@ export async function resolveSkillBlock(names: readonly string[] | undefined, co
 		if (!location) throw new SessionError("INVALID_DISPATCH", `Unknown skill: "${name}". Available skills: ${[...available.keys()].map(key => `"${key}"`).join(", ") || "none"}.`);
 		let content: string;
 		try { content = await fs.promises.readFile(location, "utf8"); }
-		catch (error) { throw new SessionError("INVALID_DISPATCH", `Unable to read skill "${name}" at ${location}: ${error instanceof Error ? error.message : String(error)}`); }
+		catch (error) { throw new SessionError("INVALID_DISPATCH", `Unable to read skill "${name}" at ${location}: ${errorToString(error)}`); }
 		blocks.push(buildSkillBlock(name, location, content));
 	}
 	return blocks.join("\n\n");

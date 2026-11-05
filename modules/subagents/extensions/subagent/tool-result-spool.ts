@@ -3,6 +3,7 @@ import { ulid } from "ulid";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { serializeToolResultContent } from "./subsession-log.ts";
+import { errorToString } from "./values.ts";
 
 export interface ToolSpoolRecord {
 	toolCallId?: string;
@@ -184,7 +185,7 @@ export class ToolResultSpool {
 	}
 
 	private diagnostic(operation: string, error: unknown): Error {
-		const message = error instanceof Error ? error.message : String(error);
+		const message = errorToString(error);
 		return new Error(`Tool result spool ${operation} failed (${this.directory}); diagnostic files preserved: ${message}`, { cause: error });
 	}
 
@@ -210,7 +211,7 @@ export class ToolResultSpool {
 			await fs.promises.appendFile(path.join(this.directory, "journal.jsonl"), `${JSON.stringify(entry)}\n`, "utf8");
 			await fs.promises.rename(temporary, path.join(this.directory, `${entry.key}.json`));
 		} catch (error) {
-			this.failure = (error instanceof Error ? error.message : String(error)).slice(0, 1024);
+			this.failure = errorToString(error).slice(0, 1024);
 			throw this.diagnostic("put", error);
 		}
 	}
@@ -227,7 +228,7 @@ export class ToolResultSpool {
 				if (!missing(error)) throw error;
 			}
 		} catch (error) {
-			this.failure = (error instanceof Error ? error.message : String(error)).slice(0, 1024);
+			this.failure = errorToString(error).slice(0, 1024);
 			throw this.diagnostic("remove", error);
 		}
 	}

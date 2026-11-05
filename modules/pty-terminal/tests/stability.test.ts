@@ -31,7 +31,7 @@ test('shutdown retains refused transport without fabricating exit; other transpo
   const report = await manager.shutdown();
   assert.deepEqual(report.retained, [first.sessionId]); assert.match(report.errors.join(' '), /refused/);
   assert.equal(manager.list()[0].state, 'running'); assert.equal(exitResolved, false);
-  assert.throws(() => manager.spawn('new', [], {}, process.cwd()), /shutting down/);
+  assert.throws(() => manager.spawn('new', [], {}, process.cwd()), /PTY_SHUTTING_DOWN: .*shutting down/);
   refuse = false;
   assert.deepEqual((await manager.shutdown()).retained, []);
   assert.equal((await pending).exitCode, 7); assert.equal(exitResolved, true);

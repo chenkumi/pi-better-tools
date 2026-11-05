@@ -1086,11 +1086,10 @@ async function atomicWrite(
         await verifyFingerprintUnchanged(absolutePath, displayPath, retried);
         abortIfRequested(signal);
       });
-      committed = true;
     } else {
       await commitNewFile(temporaryPath, absolutePath, displayPath, content, targetMode);
-      committed = true;
     }
+    committed = true;
     // rename/link is the commit point. Cancellation after this point must not turn a committed write into an error.
   } catch (error) {
     if (temporaryHandle !== undefined) {
@@ -1254,6 +1253,11 @@ function searchedPreview(text: string): string {
   return text.length > limit ? `${text.slice(0, limit)}...` : text;
 }
 
+/** Per-regex deadline: the regex time limit from now, never past the overall edit deadline. */
+function regexDeadlineFor(deadline: number): number {
+  return Math.min(deadline, Date.now() + REGEX_TIMEOUT_MS);
+}
+
 /**
  * Match one edit inside its lineRange window (or the whole file). A ranged literal miss falls back
  * to a unique whole-file match; otherwise a miss or an ambiguous non-replaceAll match throws.
@@ -1273,15 +1277,14 @@ async function findScopedMatches(
   let rangeContent = lineRange
     ? view.text.slice(rangeStart, lineContentEnd(map, lineRange.end - 1))
     : view.text;
-  const regexDeadline = Math.min(deadline, Date.now() + REGEX_TIMEOUT_MS);
+  const regexDeadline = regexDeadlineFor(deadline);
   let operationMatches = await collectOperationMatches(rangeContent, edit, displayPath, editIndex, regexDeadline, signal, session);
   assertEditDeadline(deadline, displayPath, editIndex);
 
   if (operationMatches.length === 0) {
     let candidates: RegexMatch[] = [];
     if (lineRange && rangeContent.length !== view.text.length) {
-      const candidateRegexDeadline = Math.min(deadline, Date.now() + REGEX_TIMEOUT_MS);
-      candidates = await collectOperationMatches(view.text, edit, displayPath, editIndex, candidateRegexDeadline, signal, session);
+      candidates = await collectOperationMatches(view.text, edit, displayPath, editIndex, regexDeadlineFor(deadline), signal, session);
     }
     assertEditDeadline(deadline, displayPath, editIndex);
     if (lineRange && edit.oldText !== undefined && candidates.length === 1) {
@@ -1567,17 +1570,18 @@ export async function editTextFile(
     const normalizedUpdated = normalizedAfterEdits(view, matched, updatedRaw, replacedRanges);
     const displayDiff = await createDiffFeedback(view.text, normalizedUpdated, displayPath, signal);
     const patch = displayDiff.patch;
+    const changedMatches = matched.filter((edit) => edit.changed);
     const result: EditResult = {
       path: displayPath,
       sha256Before: shortenHash(snapshot.hash)!,
       sha256After: sha256Token(finalText),
       appliedEdits: edits.length,
       matchedCount: matched.length,
-      changedCount: matched.filter((edit) => edit.changed).length,
+      changedCount: changedMatches.length,
       diff: displayDiff.diff,
       patch,
       firstChangedLine: displayDiff.firstChangedLine,
-      changedRanges: matched.filter((edit) => edit.changed).map((edit) => ({
+      changedRanges: changedMatches.map((edit) => ({
         editIndex: edit.editIndex,
         matchIndex: edit.matchIndex,
         requestedLineRange: edit.requestedLineRange,

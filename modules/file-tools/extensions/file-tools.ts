@@ -212,7 +212,7 @@ export function prepareWriteArguments(value: unknown) {
   rejectUnknown(input, ["path", "content", "expectedHash"], "write", { path });
   if (typeof input.content !== "string") {
     throw new FileToolError("INVALID_ARGUMENT", `write.content must be a string (received ${describeReceived(input.content)}).`, {
-      path: typeof input.path === "string" ? input.path : undefined,
+      path,
       recovery: "Provide the complete file content. Use an empty string only to intentionally clear the file.",
     });
   }

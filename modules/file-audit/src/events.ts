@@ -1,16 +1,18 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { ActivityWindow, boundedString, MAX_ID_BYTES, MAX_PENDING, type FileAction } from "./activity-window.js";
+import { ActivityWindow, boundedString, FILE_ACTIONS, MAX_ID_BYTES, MAX_PENDING, type FileAction } from "./activity-window.js";
 import { ChangeNotice } from "./change-notice.js";
+import { GitWatch } from "./git-state.js";
 import { asRecord, canonicalPath, notePath } from "./paths.js";
 
 /** Activity belongs to one session in one cwd; a change of either starts a new owner. */
 export const ownerOf = (ctx: Pick<ExtensionContext, "sessionManager" | "cwd">): string => `${ctx.sessionManager.getSessionId()}\0${ctx.cwd}`;
 
 interface Pending { action: FileAction; path?: string; cwd: string; owner: string; generation: number; run: number }
-const ACTIONS = new Set<string>(["read", "write", "edit", "note"]);
+const ACTIONS = new Set<string>(FILE_ACTIONS);
 export class AuditTracker {
   readonly window = new ActivityWindow();
   readonly changes = new ChangeNotice();
+  readonly git = new GitWatch();
   private readonly pending = new Map<string, Pending>();
   generation = 0;
   private owner = "";

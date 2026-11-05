@@ -20,7 +20,11 @@ beforeEach(() => {
 	cwd = realpathSync(root); sessions = join(cwd, "sessions");
 	deps.argv = () => []; deps.launchCwd = () => cwd;
 });
-afterEach(() => { rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }); delete (globalThis as any)[KEY]; });
+afterEach(async () => {
+	// Tests end with Forks still running; close their transcript files explicitly instead of leaving the handles to the garbage collector.
+	await Promise.all([...state().jobs.values()].map(job => job.transcript?.finalize("aborted", { childClosed: false })));
+	rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }); delete (globalThis as any)[KEY];
+});
 
 /** A real persisted SessionManager whose branch ends in an assistant tool call, like a Fork tool execution. */
 function origin(extraEntries: (sm: SessionManager) => void = () => {}) {

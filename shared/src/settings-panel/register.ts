@@ -1,4 +1,5 @@
 import type { ExtensionAPI, ExtensionCommandContext } from '@earendil-works/pi-coding-agent';
+import { SettingsInputError } from './errors.js';
 import { SettingsPanel, type PanelStyle } from './panel.js';
 import type { SettingsSchema, Values } from './schema.js';
 import { applyPatches, readRaw, removeFile, writeJsonAtomic } from './store.js';
@@ -80,8 +81,12 @@ export async function saveSettings<C>(schema: SettingsSchema<C>, edited: Values,
   return undefined;
 }
 
-/** Validation messages from schema.parse never carry values; anything else is reduced to a generic line. */
+/**
+ * Shown as is: a `SettingsInputError` (a module opts in for input it wrote for the user), a config parse error (`CONFIG_INVALID`,
+ * which never carries values) and the store's own write errors. Anything else is reduced to a generic line.
+ */
 function message(error: unknown): string {
+  if (error instanceof SettingsInputError) return error.message;
   const text = error instanceof Error ? error.message : '';
-  return /^(CONFIG_INVALID|cannot write|configuration path|Enter|Select|API key)/.test(text) ? text : 'the settings could not be validated';
+  return /^(CONFIG_INVALID|cannot write|configuration path)/.test(text) ? text : 'the settings could not be validated';
 }

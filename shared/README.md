@@ -22,6 +22,26 @@ Pure library code used by several modules under `modules/`. It is not a Pi exten
 | `contracts/` | Tool-name constants and cross-module result shapes | P3 |
 | `prompt/` | Forced/custom system-prompt appender | P1 |
 | `background/` | Background job panel, job view, live transcript, Monitor capability | P5 |
-| `settings-panel/` | `/settings:<id>` panel library | P5b |
+| `tool-error/` | `ToolError`: agent-facing failure whose message starts with a stable `CODE: ` (only `content` and `isError` reach the model, not `details`) | — |
+| `git/` | `runGit`: read-only git runner (no optional locks, no fsmonitor, bounded time and output; `undefined` on any failure) | — |
+| `tool-result/` | `jsonResult`: a result whose text, `details` and `structuredContent` are one JSON-clean value | — |
+| `settings-panel/` | `/settings:<id>` panel library. A validation message the user should see must be thrown as `SettingsInputError`; any other `Error` shows the generic "could not be validated" text | P5b |
 
 Checks: `npm run test:module -- shared` (typecheck + unit tests).
+
+## Tool error codes
+
+Tool failures that the agent can act on start with `CODE: ` (see `tool-error/`); only message text reaches the model. Prefix a module's codes with its name. Codes in use besides the ones owned by older modules (`FORK_*`, `NOTE_*`, `BACKGROUND_*`, `OUTPUT_TOO_LARGE`, file-tools `FILE_TOOL_ERROR_CODE_LIST`, sql-connector `SqlConnectorError`):
+
+| Module | Codes |
+|---|---|
+| pty-terminal | `PTY_SESSION_NOT_FOUND`, `PTY_SESSION_EXITED`, `PTY_SESSION_LIMIT`, `PTY_SHUTTING_DOWN`, `PTY_SPAWN_FAILED`, `PTY_INVALID_ARGUMENT` |
+| shell-tools | `SHELL_CAPACITY`, `SHELL_SHUTTING_DOWN`, `SHELL_OWNER_MISMATCH`, `SHELL_BACKGROUND_START_FAILED`, `SHELL_JOB_NOT_FOUND`, `SHELL_JOB_EVICTED`, `SHELL_INVALID_ARGUMENT`, `SHELL_FOREGROUND_ONLY` |
+| sqlite-tools | `SQLITE_INVALID_BINDINGS`, `SQLITE_NOT_READY` |
+| monitor | `MONITOR_TOOL_DISABLED`, `MONITOR_OWNER_MISMATCH` |
+| remote | `REMOTE_NOT_ENABLED` |
+| subagents | `SUBAGENT_CAPACITY`, `SUBAGENT_PROJECT_AGENT_REFUSED`, `INVALID_DISPATCH` (also in `details.errorCode`) |
+
+## Tool results and codemode
+
+A Pi codemode script gets a tool's `structuredContent` when the tool declares an `outputSchema`, and only the text `content` otherwise. Every tool of this package that returns data therefore declares an `outputSchema` and sets `structuredContent` (the same bounded, masked data the text carries) on every successful return path; thrown errors carry no structured value and start with a `CODE: ` (see above). `content` text and `details` stay as they are, because the model reads the text. The host does not validate `structuredContent` against the schema; each module's tests check it with `Value.Check`. Results that cannot be bounded (pager-style text, page bodies) keep their own limits.

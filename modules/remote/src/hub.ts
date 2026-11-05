@@ -4,11 +4,11 @@ import https from 'node:https';
 import type { AddressInfo } from 'node:net';
 import WebSocket, { WebSocketServer } from 'ws';
 import {
-  LIMITS, PROTOCOL_VERSION, REMOTE_PATH, authProof, cleanBody, frame, normalizeName, parseClientFrame, proofMatches,
-  type AckStatus, type ClientFrame, type GitInfo, type Kind, type PeerInfo, type RosterEntry, type ServerFrame,
+  LIMITS, PROTOCOL_VERSION, REMOTE_PATH, authProof, cleanBody, frame, normalizeName, parseClientFrame, proofMatches, toInbound,
+  type AckStatus, type ClientFrame, type Inbound, type PeerInfo, type RosterEntry, type ServerFrame,
 } from './protocol.js';
 
-export interface Inbound { id: string; from: string; kind: Kind; body: string; git?: GitInfo; replyTo?: string }
+export type { Inbound };
 export type SendFrame = Extract<ClientFrame, { t: 'send' }>;
 export type Ack = Extract<ServerFrame, { t: 'ack' }>;
 export interface HubOptions {
@@ -52,7 +52,7 @@ export class RemoteHub {
   }
 
   async start(): Promise<{ port: number; bind: string; tls: boolean }> {
-    this.self = { info: this.options.self, sent: [], alive: true, deliver: message => { if (message.t === 'deliver') this.options.onMessage({ id: message.id, from: message.from, kind: message.kind, body: message.body, ...(message.git ? { git: message.git } : {}), ...(message.replyTo ? { replyTo: message.replyTo } : {}) }); return true; } };
+    this.self = { info: this.options.self, sent: [], alive: true, deliver: message => { if (message.t === 'deliver') this.options.onMessage(toInbound(message)); return true; } };
     this.members.set(this.self.info.name, this.self);
     const server = this.options.tls ? https.createServer({ cert: this.options.tls.cert, key: this.options.tls.key }) : http.createServer();
     server.on('request', (_request, response) => { response.writeHead(426, { Connection: 'close' }); response.end(); });
@@ -90,7 +90,8 @@ export class RemoteHub {
   }
 
   roster(): RosterEntry[] {
-    return [...this.members.values()].map(({ info: { instanceId: _ignored, ...entry } }) => entry);
+    // Pick the roster fields by name: a field later added to PeerInfo must not reach the strict remote_list output unreviewed.
+    return [...this.members.values()].map(({ info: { name, platform, arch, hostname, project } }) => ({ name, platform, arch, hostname, project }));
   }
 
   /** The server's own session sends through the same routing as any peer. */

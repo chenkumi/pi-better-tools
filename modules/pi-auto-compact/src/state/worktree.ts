@@ -1,22 +1,9 @@
-import { execFile } from 'node:child_process';
+import { runGit } from '../../../../shared/src/git/index.js';
 
-const TIMEOUT_MS = 5000;
-const MAX_BUFFER = 1024 * 1024;
 const MAX_FILES = 20;
 const CONTROL = /[\x00-\x1f\x7f-\x9f‪-‮⁦-⁩]/g;
 const CONFLICT = new Set(['DD', 'AU', 'UD', 'UA', 'DU', 'AA', 'UU']);
-/** Variables that relocate git's repository discovery; stripped so the status always describes `cwd`. */
-const REPO_ENV = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_COMMON_DIR', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_CEILING_DIRECTORIES', 'GIT_NAMESPACE', 'GIT_PREFIX'];
-
-function git(cwd: string, args: string[], signal?: AbortSignal): Promise<string | undefined> {
-  const env = { ...process.env };
-  for (const key of REPO_ENV) delete env[key];
-  return new Promise(resolve => {
-    try {
-      execFile('git', args, { cwd, env, timeout: TIMEOUT_MS, maxBuffer: MAX_BUFFER, windowsHide: true, signal, encoding: 'utf8' }, (error, stdout) => resolve(error ? undefined : stdout));
-    } catch { resolve(undefined); }
-  });
-}
+const git = (cwd: string, args: string[], signal?: AbortSignal) => runGit(cwd, args, { signal });
 
 /** One word per porcelain `XY` status; ignored files give nothing. */
 export function tagFromPorcelain(xy: string): string | undefined {

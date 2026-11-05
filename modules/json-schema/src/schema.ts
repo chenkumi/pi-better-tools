@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import { validationPool } from "./validation-pool.ts";
+import { validationPool, VALIDATION_CANCELLED } from "./validation-pool.ts";
 export { VALIDATION_BUDGET_MS } from "./validation-pool.ts";
 import { assertSafeSchemaPattern } from "./pattern-policy.ts";
 import { childSchemas, formatIssues, SUBSCHEMA_LIST, toZodSchema } from "./validation-schema.mjs";
@@ -162,11 +162,7 @@ export function compileSchema(text: string): CompiledSchema {
   let validator: ZodType;
   try {
     validator = loadZod().z.fromJSONSchema(toZodSchema(parsed) as never);
-  } catch (error) {
-    throw new Error(`schema cannot be compiled: ${error instanceof Error ? error.message : String(error)}`);
-  }
-  // Exercise the compiled validator once so structurally broken schemas fail now, not after a model request.
-  try {
+    // Exercise the compiled validator once so structurally broken schemas fail now, not after a model request.
     validator.safeParse({});
   } catch (error) {
     throw new Error(`schema cannot be compiled: ${error instanceof Error ? error.message : String(error)}`);
@@ -178,7 +174,7 @@ export function compileSchema(text: string): CompiledSchema {
     jsonSchema,
     validate(data, signal) {
       if (isolated) return validationPool.validate(parsed, data, signal);
-      if (signal?.aborted) return "Validation cancelled";
+      if (signal?.aborted) return VALIDATION_CANCELLED;
       const result = validator.safeParse(data);
       if (result.success) return undefined;
       return formatIssues(result.error.issues);

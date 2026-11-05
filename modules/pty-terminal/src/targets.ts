@@ -1,3 +1,4 @@
+import { ToolError } from "../../../shared/src/tool-error/index.ts";
 import type { SpawnOptions } from "./pty-manager.ts";
 
 export type Transport = "local" | "wsl" | "ssh";
@@ -30,11 +31,11 @@ export function quotePosix(value: string): string {
 export function resolveTarget(command: string, args: string[], options: SpawnOptions & { target?: string }, defaultCwd: string, settings: unknown, platform: NodeJS.Platform = process.platform): LaunchPlan {
 	const target = options.target ?? "local";
 	if (target === "local") return { command, args, options, target, transport: "local" };
-	if (!TARGET_NAME.test(target)) throw new Error(`Invalid PTY target name ${show(target)}: use letters, digits, '_' or '-' (starting with a letter or digit), or omit target to run locally.`);
+	if (!TARGET_NAME.test(target)) throw new ToolError("PTY_INVALID_ARGUMENT", `Invalid PTY target name ${show(target)}: use letters, digits, '_' or '-' (starting with a letter or digit), or omit target to run locally.`);
 	if (!record(settings) || !record(settings.targets) || !Object.hasOwn(settings.targets, target)) {
 		// Settings reach here already trust-filtered by the host; list names only (never host/cwd/distribution values).
 		const names = record(settings) && record(settings.targets) ? Object.keys(settings.targets).filter(name => TARGET_NAME.test(name)).sort() : [];
-		throw new Error(`Unknown PTY target: ${target}. Configured targets: ${names.length ? names.join(", ") : "(none)"}; "local" is the default.`);
+		throw new ToolError("PTY_INVALID_ARGUMENT", `Unknown PTY target: ${target}. Configured targets: ${names.length ? names.join(", ") : "(none)"}; "local" is the default.`);
 	}
 	const config = settings.targets[target];
 	if (!record(config) || !["ssh", "wsl"].includes(String(config.transport))) throw new Error(`PTY target "${target}" is misconfigured in the user's settings: its connection type must be SSH or WSL. ${ASK_USER}, or use another target or omit target for local.`);
@@ -44,14 +45,14 @@ export function resolveTarget(command: string, args: string[], options: SpawnOpt
 	const cwd = options.cwd ?? config.cwd;
 	if (cwd === undefined || cwd === "") throw new Error(`PTY target "${target}" needs a working directory: pass the cwd parameter as an absolute POSIX path (e.g. "/home/user/project") or ask the user to set a default working directory for this target in their settings.`);
 	if (!isText(cwd) || !cwd.startsWith("/")) throw new Error(`Invalid cwd ${typeof cwd === "string" ? show(cwd) : `(${typeof cwd})`} for PTY target "${target}": it must be an absolute POSIX path starting with "/" (e.g. "/home/user/project") without NUL characters.`);
-	if (!isText(command)) throw new Error('Invalid command: parameter "command" must be a non-empty string without NUL characters (the executable name, e.g. "bash"; put options in args).');
-	if (!command.trim()) throw new Error('Invalid command: parameter "command" is empty or only whitespace; pass the executable name, e.g. "bash".');
-	if (command.startsWith("-")) throw new Error(`Invalid command ${show(command)}: it starts with '-' and would be parsed as an option; put the executable in command and options in args.`);
+	if (!isText(command)) throw new ToolError("PTY_INVALID_ARGUMENT", 'Invalid command: parameter "command" must be a non-empty string without NUL characters (the executable name, e.g. "bash"; put options in args).');
+	if (!command.trim()) throw new ToolError("PTY_INVALID_ARGUMENT", 'Invalid command: parameter "command" is empty or only whitespace; pass the executable name, e.g. "bash".');
+	if (command.startsWith("-")) throw new ToolError("PTY_INVALID_ARGUMENT", `Invalid command ${show(command)}: it starts with '-' and would be parsed as an option; put the executable in command and options in args.`);
 	// env treats KEY=value as an assignment even after "--"; pass variables through the env option instead.
-	if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(command)) throw new Error(`Invalid command ${show(command)}: it looks like a KEY=value assignment; pass variables with the env parameter and put the executable in command.`);
+	if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(command)) throw new ToolError("PTY_INVALID_ARGUMENT", `Invalid command ${show(command)}: it looks like a KEY=value assignment; pass variables with the env parameter and put the executable in command.`);
 	args.forEach((arg, index) => { if (arg.includes("\0")) throw new Error(`NUL is not allowed in remote arguments: args[${index}] contains a NUL character; remove it.`); });
 	const env = Object.entries(options.env ?? {}).map(([key, value]) => {
-		if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) throw new Error(`Invalid remote environment name ${show(key)}: use letters, digits and '_' only, not starting with a digit.`);
+		if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) throw new ToolError("PTY_INVALID_ARGUMENT", `Invalid remote environment name ${show(key)}: use letters, digits and '_' only, not starting with a digit.`);
 		if (value.includes("\0")) throw new Error(`NUL is not allowed in remote environment: the value of env "${key}" contains a NUL character; remove it.`);
 		return `${key}=${value}`;
 	});

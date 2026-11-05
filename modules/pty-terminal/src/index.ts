@@ -3,12 +3,13 @@ import { Type } from "typebox";
 import { decodeControlEscapes } from "./escape.ts";
 import { parseEnvPolicy } from "./env.ts";
 import { KEY_NAMES, resolveKeys } from "./keys.ts";
-import { truncatePtyOutput, type OutputFormat } from "./output.ts";
-import { DEFAULT_COLS, DEFAULT_ROWS, droppedNotice, errorText, KILL_SIGNALS, MAX_COLS, MAX_ROWS, MAX_WAIT_MS, PtySessionManager, sharedOrphanRegistry, type ReadSnapshot } from "./pty-manager.ts";
+import { MAX_OUTPUT_BYTES, MAX_OUTPUT_LINES, truncatePtyOutput, type OutputFormat } from "./output.ts";
+import { DEFAULT_COLS, DEFAULT_ROWS, droppedNotice, errorText, KILL_SIGNALS, MAX_COLS, MAX_ROWS, MAX_WAIT_MS, PtySessionManager, sharedOrphanRegistry, SSH_CONNECTION_ERROR_EXIT, type ReadSnapshot } from "./pty-manager.ts";
 import { compileWaitFor, MAX_WAIT_FOR_LENGTH } from "./wait-for.ts";
 import { resolveTarget } from "./targets.ts";
 import { ptyRenderers } from "./renderers.ts";
 import { SecretInput } from "./secret-input.ts";
+import { ToolError } from "../../../shared/src/tool-error/index.ts";
 import { MASK } from "./secret-mask.ts";
 import { PtySessionsWidget, publishPtyBriefs } from "./live-widget.ts";
 
@@ -43,6 +44,52 @@ const spawnParameters = Type.Object({
 	env: Type.Optional(Type.Record(Type.String(), Type.String(), { description: "Additional environment variables." })),
 });
 
+const sessionIdField = Type.String({ description: "PTY session id." });
+const cursorRange = Type.Object({ from: Type.Integer(), to: Type.Integer() });
+/** Output of pty_read and pty_write(readAfterMs): `output` is the masked text (SecretMasker output), never the raw buffer. */
+const readOutputSchema = Type.Object({
+	sessionId: sessionIdField,
+	output: Type.String({ description: "The same masked, truncated output text as the model-visible content, without the bracketed notes." }),
+	truncated: Type.Boolean(),
+	cursor: cursorRange,
+	masked: Type.Optional(Type.Integer()),
+	dropped: Type.Optional(cursorRange),
+	waitFor: Type.Optional(Type.Union([Type.Literal("matched"), Type.Literal("timeout"), Type.Literal("exited")])),
+	exited: Type.Optional(Type.Literal(true)),
+	format: Type.Optional(Type.Literal("text")),
+});
+const spawnOutputSchema = Type.Object({ sessionId: sessionIdField, target: Type.Optional(Type.String()) });
+/** pty_write without readAfterMs only reports the id; with readAfterMs it returns the pty_read shape. */
+const writeOutputSchema = Type.Union([Type.Object({ sessionId: sessionIdField }), readOutputSchema]);
+const keyinOutputSchema = Type.Object({
+	sessionId: sessionIdField,
+	delivered: Type.Boolean(),
+	reason: Type.Optional(Type.Union([Type.Literal("cancelled"), Type.Literal("timeout"), Type.Literal("aborted"), Type.Literal("exited"), Type.Literal("prompt_gone")])),
+});
+const resizeOutputSchema = Type.Object({ sessionId: sessionIdField, cols: Type.Integer(), rows: Type.Integer() });
+const waitExitOutputSchema = Type.Object({ exitCode: Type.Integer(), signal: Type.Optional(Type.Integer()), timedOut: Type.Optional(Type.Literal(true)), note: Type.Optional(Type.String()) });
+const killOutputSchema = Type.Object({
+	released: Type.Boolean(),
+	exited: Type.Optional(Type.Boolean()),
+	escalatedToSigkill: Type.Optional(Type.Literal(true)),
+	note: Type.String(),
+	hint: Type.Optional(Type.String()),
+});
+const listOutputSchema = Type.Array(Type.Object({
+	sessionId: sessionIdField,
+	state: Type.Union([Type.Literal("running"), Type.Literal("exited")]),
+	target: Type.String(),
+	recovered: Type.Optional(Type.Literal(true)),
+	note: Type.Optional(Type.String()),
+	transport: Type.Optional(Type.Union([Type.Literal("wsl"), Type.Literal("ssh")])),
+	unreadBytes: Type.Optional(Type.Integer()),
+	droppedChars: Type.Optional(Type.Integer()),
+}));
+
+/** Plain JSON copy for structuredContent (the host type is JsonValue, which interfaces and optional members do not satisfy). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const plain = (value: unknown): any => JSON.parse(JSON.stringify(value));
+
 /** Every PTY tool; kept in step with the registrations below by extension.test.ts. */
 export const PTY_TOOL_NAMES = ["pty_spawn", "pty_write", "pty_keyin", "pty_read", "pty_resize", "pty_wait_exit", "pty_kill", "pty_list"] as const;
 // Deferred: not declared to the model until tool_search loads them (one search loads the whole namespace). Activation of
@@ -67,6 +114,7 @@ export default function (pi: ExtensionAPI) {
 		promptSnippet: "pty_spawn: start a TTY-dependent process and return a session id",
 		promptGuidelines: ["Use shell for one-off commands and a shell background job for long-running background work; use pty_spawn only for interactive programs/TUIs that need continuous input, then control it with the other pty_* tools. PTY has no structured exit code (pty_wait_exit reports only the local transport's exit)."],
 		parameters: spawnParameters,
+		outputSchema: spawnOutputSchema,
 		executionMode: "sequential",
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			if (signal?.aborted) throw new Error("PTY spawn aborted");
@@ -75,7 +123,7 @@ export default function (pi: ExtensionAPI) {
 			const plan = resolveTarget(params.command, params.args ?? [], params, ctx.cwd, params.target && params.target !== "local" ? settings : undefined);
 			const result = sessions.spawn(plan.command, plan.args, { ...plan.options, target: plan.target, transport: plan.transport, envPolicy: parseEnvPolicy(settings) }, ctx.cwd);
 			const text = { sessionId: result.sessionId, ...(result.target !== "local" ? { target: result.target } : {}) };
-			return { content: [{ type: "text", text: JSON.stringify(text) }], details: result };
+			return { content: [{ type: "text", text: JSON.stringify(text) }], details: result, structuredContent: text };
 		},
 	});
 
@@ -93,18 +141,21 @@ export default function (pi: ExtensionAPI) {
 		if (snapshot.wait === "timeout") notes.push("waitFor not matched before timeout");
 		if (snapshot.exited) notes.push("session exited");
 		if (notes.length) parts.push(`[${notes.join("; ")}]`);
+		const details = {
+			sessionId,
+			truncated: truncated.truncated,
+			cursor: { from: snapshot.start, to: end },
+			...(snapshot.masked ? { masked: snapshot.masked } : {}),
+			...(snapshot.dropped ? { dropped: snapshot.dropped } : {}),
+			...(snapshot.wait ? { waitFor: snapshot.wait } : {}),
+			...(snapshot.exited ? { exited: true as const } : {}),
+			...(format === "text" ? { format } : {}),
+		};
+		// truncated.content derives from snapshot.text, which the manager has already masked; the raw buffer never reaches here.
 		return {
 			content: [{ type: "text" as const, text: parts.join("\n") }],
-			details: {
-				sessionId,
-				truncated: truncated.truncated,
-				cursor: { from: snapshot.start, to: end },
-				...(snapshot.masked ? { masked: snapshot.masked } : {}),
-				...(snapshot.dropped ? { dropped: snapshot.dropped } : {}),
-				...(snapshot.wait ? { waitFor: snapshot.wait } : {}),
-				...(snapshot.exited ? { exited: true } : {}),
-				...(format === "text" ? { format } : {}),
-			},
+			details,
+			structuredContent: plain({ ...details, output: truncated.content }),
 		};
 	}
 
@@ -122,12 +173,13 @@ export default function (pi: ExtensionAPI) {
 			readAfterMs: Type.Optional(Type.Integer({ minimum: 0, maximum: MAX_WAIT_MS, description: `Wait this many ms after writing, then drain and return output (max ${MAX_WAIT_MS}). Omit to only write.` })),
 			format: formatParameter,
 		}),
+		outputSchema: writeOutputSchema,
 		executionMode: "sequential",
 		async execute(_toolCallId, params, signal) {
 			const keys = params.keys?.length ? resolveKeys(params.keys) : "";
-			if (params.data === undefined && !keys) throw new Error(`pty_write needs data and/or keys. Supported keys: ${KEY_NAMES.join(", ")}.`);
+			if (params.data === undefined && !keys) throw new ToolError("PTY_INVALID_ARGUMENT", `pty_write needs data and/or keys. Supported keys: ${KEY_NAMES.join(", ")}.`);
 			sessions.write(params.sessionId, (params.data === undefined ? "" : decodeControlEscapes(params.data)) + keys);
-			if (params.readAfterMs === undefined) return { content: [{ type: "text", text: "ok" }], details: { sessionId: params.sessionId } };
+			if (params.readAfterMs === undefined) return { content: [{ type: "text", text: "ok" }], details: { sessionId: params.sessionId }, structuredContent: { sessionId: params.sessionId } };
 			try {
 				await sessions.pause(params.sessionId, params.readAfterMs, signal);
 			} catch (error) {
@@ -153,6 +205,7 @@ export default function (pi: ExtensionAPI) {
 			prompt: Type.Optional(Type.String({ maxLength: 200, description: "Short text telling the user what is being asked for (shown as coming from the agent)." })),
 			confirmPrompt: Type.Optional(Type.Boolean({ description: "Set true only after pty_read showed the program really is waiting for a secret although its last line looks like a shell prompt. Skips the prompt check." })),
 		}),
+		outputSchema: keyinOutputSchema,
 		executionMode: "sequential",
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			if (!ctx.hasUI) throw new Error("pty_keyin needs an interactive Pi UI, which this session does not have. Ask the user to run the program that needs the secret themselves; do not ask for the secret in chat.");
@@ -195,7 +248,7 @@ export default function (pi: ExtensionAPI) {
 			}
 			if (secret === undefined) {
 				const why = { cancelled: "the user cancelled", timeout: "the user did not answer in time", aborted: "the tool call was aborted", exited: "the PTY session exited while waiting" }[reason ?? "cancelled"];
-				return { content: [{ type: "text", text: `Nothing was sent: ${why}. Do not ask the user for the secret in chat.` }], details: { sessionId: params.sessionId, delivered: false, reason: reason ?? "cancelled" } };
+				return { content: [{ type: "text", text: `Nothing was sent: ${why}. Do not ask the user for the secret in chat.` }], details: { sessionId: params.sessionId, delivered: false, reason: reason ?? "cancelled" }, structuredContent: plain({ sessionId: params.sessionId, delivered: false, reason: reason ?? "cancelled" }) };
 			}
 			// The dialog can stay open for minutes: sudo and friends give up in the meantime and hand the next line to the shell.
 			let after: string | undefined;
@@ -207,7 +260,7 @@ export default function (pi: ExtensionAPI) {
 			}
 			if (after) {
 				secret = undefined;
-				return { content: [{ type: "text", text: `Nothing was sent: ${after}. The program stopped waiting while the dialog was open. Use pty_read, restart the command that needs the secret, then call pty_keyin again.` }], details: { sessionId: params.sessionId, delivered: false, reason: "prompt_gone" } };
+				return { content: [{ type: "text", text: `Nothing was sent: ${after}. The program stopped waiting while the dialog was open. Use pty_read, restart the command that needs the secret, then call pty_keyin again.` }], details: { sessionId: params.sessionId, delivered: false, reason: "prompt_gone" }, structuredContent: plain({ sessionId: params.sessionId, delivered: false, reason: "prompt_gone" }) };
 			}
 			try {
 				sessions.write(params.sessionId, `${secret}\r`);
@@ -218,7 +271,7 @@ export default function (pi: ExtensionAPI) {
 			} finally {
 				secret = undefined;
 			}
-			return { content: [{ type: "text", text: "The user entered the secret and it was sent to the session (content not visible to you). Use pty_read to see the program's response." }], details: { sessionId: params.sessionId, delivered: true } };
+			return { content: [{ type: "text", text: "The user entered the secret and it was sent to the session (content not visible to you). Use pty_read to see the program's response." }], details: { sessionId: params.sessionId, delivered: true }, structuredContent: plain({ sessionId: params.sessionId, delivered: true }) };
 		},
 	});
 
@@ -227,7 +280,7 @@ export default function (pi: ExtensionAPI) {
 		...PTY_EXPOSURE,
 		...ptyRenderers("read"),
 		label: "PTY read",
-		description: `Read and drain accumulated PTY output (capped at 2,000 lines/50 KiB; the rest stays buffered). If nothing is pending, waits up to timeoutMs (default ${DEFAULT_READ_TIMEOUT_MS}; ${CONDITIONAL_READ_TIMEOUT_MS} when waitFor or settleMs is set). Cancelling only stops the wait; the session stays.`,
+		description: `Read and drain accumulated PTY output (capped at ${MAX_OUTPUT_LINES.toLocaleString("en-US")} lines/${MAX_OUTPUT_BYTES / 1024} KiB; the rest stays buffered). If nothing is pending, waits up to timeoutMs (default ${DEFAULT_READ_TIMEOUT_MS}; ${CONDITIONAL_READ_TIMEOUT_MS} when waitFor or settleMs is set). Cancelling only stops the wait; the session stays.`,
 		promptSnippet: "pty_read: collect output from a PTY session, optionally waiting for a pattern or quiet period",
 		parameters: Type.Object({
 			sessionId: Type.String({ description: "PTY session id." }),
@@ -237,6 +290,7 @@ export default function (pi: ExtensionAPI) {
 			format: formatParameter,
 			since: Type.Optional(Type.Integer({ minimum: 0, description: "Cursor (from a previous [cursor a-b]) to re-read from without draining; output older than the buffer is reported as dropped." })),
 		}),
+		outputSchema: readOutputSchema,
 		executionMode: "sequential",
 		async execute(_toolCallId, params, signal) {
 			const waitFor = params.waitFor === undefined ? undefined : compileWaitFor(params.waitFor);
@@ -259,10 +313,11 @@ export default function (pi: ExtensionAPI) {
 			cols: positiveInteger("Terminal columns.", MAX_COLS),
 			rows: positiveInteger("Terminal rows.", MAX_ROWS),
 		}),
+		outputSchema: resizeOutputSchema,
 		executionMode: "sequential",
 		async execute(_toolCallId, params) {
 			sessions.resize(params.sessionId, params.cols, params.rows);
-			return { content: [{ type: "text", text: "ok" }], details: params };
+			return { content: [{ type: "text", text: "ok" }], details: params, structuredContent: { sessionId: params.sessionId, cols: params.cols, rows: params.rows } };
 		},
 	});
 
@@ -271,16 +326,18 @@ export default function (pi: ExtensionAPI) {
 		...PTY_EXPOSURE,
 		...ptyRenderers("wait_exit"),
 		label: "PTY wait for exit",
-		description: "Wait for a PTY process to exit and return its transport exit code. On timeout returns exitCode -1 with timedOut:true. SSH exit 255 may be a connection error.",
+		description: `Wait for a PTY process to exit and return its transport exit code. On timeout returns exitCode -1 with timedOut:true. SSH exit ${SSH_CONNECTION_ERROR_EXIT} may be a connection error.`,
 		parameters: Type.Object({
 			sessionId: Type.String({ description: "PTY session id." }),
 			timeoutMs: Type.Optional(positiveInteger(`Maximum wait in milliseconds (max ${MAX_WAIT_MS}). Defaults to ${DEFAULT_EXIT_WAIT_MS}.`, MAX_WAIT_MS)),
 		}),
+		outputSchema: waitExitOutputSchema,
 		executionMode: "sequential",
 		async execute(_toolCallId, params, signal) {
 			const result = await sessions.waitForExit(params.sessionId, params.timeoutMs ?? DEFAULT_EXIT_WAIT_MS, signal);
 			const { signal: exitSignal, ...rest } = result;
-			return { content: [{ type: "text", text: JSON.stringify({ ...rest, ...(exitSignal ? { signal: exitSignal } : {}) }) }], details: result };
+			const text = { ...rest, ...(exitSignal ? { signal: exitSignal } : {}) };
+			return { content: [{ type: "text", text: JSON.stringify(text) }], details: result, structuredContent: text };
 		},
 	});
 
@@ -294,11 +351,12 @@ export default function (pi: ExtensionAPI) {
 			sessionId: Type.String({ description: "PTY session id." }),
 			signal: Type.Optional(Type.String({ description: `POSIX signal: one of ${KILL_SIGNALS.join(", ")}. Defaults to SIGHUP; ignored on Windows.` })),
 		}),
+		outputSchema: killOutputSchema,
 		executionMode: "sequential",
 		async execute(_toolCallId, params) {
 			const result = await sessions.kill(params.sessionId, params.signal);
-			const text = { released: result.released, ...(result.released ? {} : { exited: result.exited }), ...(result.escalatedToSigkill ? { escalatedToSigkill: true } : {}), note: "local transport only; remote process tree not confirmed stopped", ...(result.released ? {} : { hint: `Session ${params.sessionId} is retained because the transport has not exited; call pty_kill again (optionally with signal SIGKILL on POSIX) or check pty_list.` }) };
-			return { content: [{ type: "text", text: JSON.stringify(text) }], details: result };
+			const text = { released: result.released, ...(result.released ? {} : { exited: result.exited }), ...(result.escalatedToSigkill ? { escalatedToSigkill: true } : {}), note: result.note, ...(result.released ? {} : { hint: `Session ${params.sessionId} is retained because the transport has not exited; call pty_kill again (optionally with signal SIGKILL on POSIX) or check pty_list.` }) };
+			return { content: [{ type: "text", text: JSON.stringify(text) }], details: result, structuredContent: text };
 		},
 	});
 
@@ -309,13 +367,14 @@ export default function (pi: ExtensionAPI) {
 		label: "PTY list",
 		description: "List active and exited PTY sessions that have not been released.",
 		parameters: Type.Object({}),
+		outputSchema: listOutputSchema,
 		executionMode: "sequential",
 		async execute() {
 			const result = sessions.list();
 			const text = result.map(({ sessionId, state, target, transport, bufferedBytes, droppedChars, recovered }) => ({
 				sessionId, state, target, ...(recovered ? { recovered, note: "survived a failed shutdown; local transport exit unconfirmed, remote tree unknown; use pty_kill to retry" } : {}), ...(transport !== "local" ? { transport } : {}), ...(bufferedBytes ? { unreadBytes: bufferedBytes } : {}), ...(droppedChars ? { droppedChars } : {}),
 			}));
-			return { content: [{ type: "text", text: JSON.stringify(text) }], details: result };
+			return { content: [{ type: "text", text: JSON.stringify(text) }], details: result, structuredContent: text };
 		},
 	});
 

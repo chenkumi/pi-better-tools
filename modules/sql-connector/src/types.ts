@@ -1,6 +1,7 @@
 export const ENGINES = ["mysql", "mssql", "pgsql"] as const;
 
 export type Engine = (typeof ENGINES)[number];
+export const ENGINE_LABEL: Record<Engine, string> = { mysql: "MySQL", mssql: "Microsoft SQL Server", pgsql: "PostgreSQL" };
 export type SqlScalar = null | boolean | number | string;
 
 export interface DatabaseConfig {

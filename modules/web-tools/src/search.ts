@@ -1,11 +1,10 @@
-import type { Config } from './config.ts';
-import { resolveKey } from './config.ts';
+import type { Config, RestProvider } from './config.ts';
+import { REST_PROVIDERS, resolveKey } from './config.ts';
 import { describeNetworkFailure } from './fetch/failure.ts';
 import { isRecord as record } from './record.ts';
 
 export interface SearchResult { title: string; url: string; snippet?: string; publishedAt?: string }
-export const REST_PROVIDERS = ['brave', 'exa', 'deepseek'] as const;
-export type RestProvider = (typeof REST_PROVIDERS)[number];
+export { REST_PROVIDERS, type RestProvider };
 export const isRestProvider = (provider: string): provider is RestProvider => (REST_PROVIDERS as readonly string[]).includes(provider);
 /** Input bounds shared by the web_search schema and the runtime check below. */
 export const MAX_QUERY_CHARS = 2000;

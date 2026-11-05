@@ -17,6 +17,10 @@ const NOT_OPEN = "No database is currently open. Use sqlite_open to open a datab
 const DISPOSED_MESSAGE = "SQLite session has shut down; the session has ended and this tool can no longer be used. Start a new session.";
 export const CANCELLED_MESSAGE = "The SQLite call was cancelled and its process was terminated. Whether a write completed is not confirmed; check the data before retrying.";
 
+function throwIfCancelled(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw new Error(CANCELLED_MESSAGE);
+}
+
 /**
  * The session's SQLite connection, kept in a child process: `node:sqlite` is synchronous, so a long statement would
  * otherwise freeze Pi, and only killing the process stops it. Calls run one at a time, in order. Cancelling a running
@@ -38,10 +42,10 @@ export class SqliteClient {
   open(filePath: string, signal?: AbortSignal): Promise<OpenResult> {
     return this.enqueue(async () => {
       // Nothing is closed or created for a call that was cancelled while it waited.
-      if (signal?.aborted) throw new Error(CANCELLED_MESSAGE);
+      throwIfCancelled(signal);
       this.openPath = undefined;
       await this.stop();
-      if (signal?.aborted) throw new Error(CANCELLED_MESSAGE);
+      throwIfCancelled(signal);
       const result = await this.send<OpenResult>("open", [filePath], signal);
       if (result.success) {
         this.openPath = filePath;
@@ -53,7 +57,7 @@ export class SqliteClient {
 
   close(signal?: AbortSignal): Promise<OpenResult> {
     return this.enqueue(async () => {
-      if (signal?.aborted) throw new Error(CANCELLED_MESSAGE);
+      throwIfCancelled(signal);
       if (!this.openPath) return { success: false, message: "No database is currently open." };
       const closedPath = this.openPath;
       this.openPath = undefined;
@@ -92,7 +96,7 @@ export class SqliteClient {
 
   private call<T>(method: string, args: unknown[], signal?: AbortSignal): Promise<T> {
     return this.enqueue(async () => {
-      if (signal?.aborted) throw new Error(CANCELLED_MESSAGE);
+      throwIfCancelled(signal);
       if (!this.openPath) throw new Error(NOT_OPEN);
       return await this.send<T>(method, args, signal);
     }, signal);
@@ -128,7 +132,7 @@ export class SqliteClient {
 
   private async send<T>(method: string, args: unknown[], signal?: AbortSignal): Promise<T> {
     const host = await this.start();
-    if (signal?.aborted) throw new Error(CANCELLED_MESSAGE);
+    throwIfCancelled(signal);
     const id = this.nextId++;
     return await new Promise<T>((resolve, reject) => {
       const onAbort = () => {

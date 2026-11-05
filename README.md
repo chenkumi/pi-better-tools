@@ -111,7 +111,7 @@ Shell 與 Subagents 會在 `startup`／`resume`／`reload` 載入 session 時，
 | Skill Tools | `/skill:create-plan`、`/skill:pi-tools-config` 等隨包技能 | 原生 resource discovery、按需讀取；pi-tools-config 以 SKILL.md 索引 18 份逐模組指令／config references，不修改使用者 home |
 | Theme Tools | `/theme:<id>`（deep-sea／warm-charcoal／moss／quiet／signal／paper／dark／light）、`/theme:menu` | 切換 Pi 主題並寫入 settings（使用者明確要求）；詳見 [Theme Tools](modules/theme-tools/README.md) |
 | Pi Auto Compact | `session_grep`／`session_window`／`session_read`（唯讀、deferred）、`progress_checkpoint`；`/settings:auto-compact` 設定面板；`session_before_compact` hook | 確定性壓縮、不呼叫模型；hook 已產生摘要（讀 `<agentDir>/auto-compact.json`；失敗或不適用時交還 Pi），摘要含背景 job／monitor 狀態與工作樹資訊，真實 host 整合尚未完成。詳見 [Pi Auto Compact](modules/pi-auto-compact/README.md) |
-| File Audit | `/file-audit [status\|check\|clear\|limits]` | 成功 read/write/edit/note 的近期活動；預設 4 runs／50 個不同檔案，只在手動 check 才做有 byte 上限的 provenance 檢查；不掃完整歷史、不自動刷新 hash。詳見 [File Audit](modules/file-audit/README.md) |
+| File Audit | `/file-audit [status\|clear\|limits]` | 成功 read/write/edit/note 的近期活動；預設 4 runs／50 個不同檔案，並在使用者輸入時通知檔案被外部改動；不掃完整歷史。詳見 [File Audit](modules/file-audit/README.md) |
 | Note Tools | `note` | `{ type, content }`；自動分類、產生純時間戳檔名（`TYPE-<UTC 時間戳>.md`，不附加標題），只新增 Markdown 檔案並回報單一相對路徑，不覆寫 |
 | GPT Speed | `/fast`、`/ultrafast`、`/normal` | GPT >= 5.6 的 luna／terra／sol／astra pattern；Ultrafast 在 luna／terra 降為 Fast；`/cache-ttl-short`／`/cache-ttl-long` 目前停用（不註冊、不送 `prompt_cache_options`）；TUI 只顯示實際速度 |
 | Pi Runtime | 無指令（`/settings:<id>` 設定面板共用層供其他模組使用） | Deferred 工具統一啟用與提示（`tool_search`）、跨模組工具規則 system prompt section；已移除 error recovery |
@@ -212,6 +212,10 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 6. 執行 `ssh -o BatchMode=yes macos` 確認無需互動即可登入；成功後依 [PTY README](modules/pty-terminal/README.md) 設定 `transport: "ssh"`、`host: "macos"` 與 Mac 上的絕對 `cwd`。
 
 需要協助實際連線時，只需提供 **SSH host alias** 與 **Mac 上的專案絕對路徑**，並明確授權實連；不需要提供密碼。若一定要使用帳號密碼，需另行實作讓使用者直接在終端機輸入、不經過模型的互動登入介面；目前 extension 未提供此功能。
+
+### 2026-11-05 移除 `/file-audit check`
+
+`/file-audit check` 與其 provenance 檢查（`provenance.ts`、讀 `docs/sources.json`／`docs/adaptations.json`／`docs/native-modules.json`）已移除：本專案沒有檔案雜湊基準，該命令在此只會回報 unavailable。隨之移除針對它的單元測試、`tui-ab`／`tui-workflow` 真實 PTY A/B 實驗與 fixtures（重型組由 11 檔變為 10 檔）。`/file-audit` 保留 `status`／`clear`／`limits` 與使用者輸入時的變更通知；`check` 現在回報用法錯誤。
 
 ### 2026-11-05 模組解耦與 `shared/`
 
@@ -350,7 +354,7 @@ npm run lint             # ESLint：JS／TS 語法與 correctness baseline，不
 npm test
 npm run test:integration
 npm run test:browser      # web_fetch 靜態抓取 + File read 組合（名稱沿用，不使用瀏覽器）
-npm run test:heavy        # 重型／高延遲測試（單檔 ≥30 秒，共 11 檔）；需使用者指定或全量驗證才執行，可加模組名縮小，如 -- fork
+npm run test:heavy        # 重型／高延遲測試（單檔 ≥30 秒，共 10 檔）；需使用者指定或全量驗證才執行，可加模組名縮小，如 -- fork
 npm run test:package      # 真實 tarball + 乾淨 production install；需要 npm registry
 npm pack                 # prepack 會執行 build（目前為 no-op）
 ```

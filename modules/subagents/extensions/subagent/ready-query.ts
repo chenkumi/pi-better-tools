@@ -10,6 +10,7 @@ import { RpcInteraction, type InteractionNotice, type QueryReceipt } from "./rpc
 import { IoGate } from "./io-gate.ts";
 import { queryDirectoryPrefix, REMOVE_OPTIONS } from "./temp-sweep.ts";
 import { killProcessTree } from "./concurrency.ts";
+import { errorToString } from "./values.ts";
 import { ManagedSession } from "./session-store.ts";
 
 export interface ReadyQueryOptions {
@@ -192,7 +193,7 @@ export async function runReadyQuery(options: ReadyQueryOptions): Promise<QueryRe
         temporaryRemoved = true;
       }, "remove private query copies");
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorToString(error);
       failure = new Error(failure ? `${failure.message}; cleanup failed: ${message}` : message);
       pending();
     } finally {

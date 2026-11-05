@@ -4,7 +4,7 @@ import type { BashOperations } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_AUTO_BACKGROUND_MS, createForegroundHandoff, resolveAutoBackgroundMs } from "../src/foreground-handoff.js";
 import { MAX_LOG_BYTES, TAIL_BYTES } from "../src/background-jobs.js";
 
-test("auto background threshold defaults to 180s and accepts only a positive integer or 0", () => {
+test("auto background threshold defaults to 300s and accepts only a positive integer or 0", () => {
   assert.equal(DEFAULT_AUTO_BACKGROUND_MS, 300_000);
   assert.equal(resolveAutoBackgroundMs(undefined), 300_000);
   assert.equal(resolveAutoBackgroundMs({}), 300_000);

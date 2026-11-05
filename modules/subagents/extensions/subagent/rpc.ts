@@ -1,5 +1,6 @@
 import type { ChildProcess } from "node:child_process";
 import { ulid } from "ulid";
+import { errorToString } from "./values.ts";
 import { controlText, messageText, validateInteraction, MAX_QUERY_REPLY_BYTES } from "./query-snapshot.ts";
 
 const MAX_RPC_BYTES = 8 * 1024 * 1024;
@@ -122,7 +123,7 @@ export class RpcInteraction {
 				}
 			} catch (error) {
 				if (!["accepted", "queued"].includes(record.receipt.status)) return;
-				record.receipt.status = "delivery_unknown"; record.receipt.error = error instanceof Error ? error.message : String(error);
+				record.receipt.status = "delivery_unknown"; record.receipt.error = errorToString(error);
 				this.emit({ kind: "control_result", ...record.receipt });
 			}
 		});

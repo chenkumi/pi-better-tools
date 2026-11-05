@@ -1,5 +1,6 @@
 export { registerSettingsCommand, saveSettings } from './register.js';
 export type { SchemaSource } from './register.js';
+export { SettingsInputError } from './errors.js';
 export { SettingsPanel } from './panel.js';
 export type { PanelOptions, PanelStyle } from './panel.js';
 export { applyPatches, readRaw, removeFile, writeJsonAtomic } from './store.js';

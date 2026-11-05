@@ -1,11 +1,23 @@
-const MAX_ROWS = 200;
-const MAX_BYTES = 48 * 1024;
+import { MAX_READ_ROWS } from "./security/sql-policy.js";
+
+/** A result never carries more rows than a read may request, so the two caps are one number. */
+const MAX_ROWS = MAX_READ_ROWS;
+export const MAX_BYTES = 48 * 1024;
 /** Longer string cell values are cut and marked with an ellipsis. */
-const MAX_STRING_CHARS = 4_000;
+export const MAX_STRING_CHARS = 4_000;
 const SENSITIVE_COLUMN = /^(password|password_hash|secret|token|access_token|refresh_token|api_key)$/i;
 
 export interface FormattedRows {
   text: string;
+  /** The same bounded, masked payload the text is rendered from, plus `columns`; never more than the text carries. */
+  structured: {
+    columns: string[];
+    rows: Array<Record<string, unknown>>;
+    returnedRows: number;
+    totalRows: number | null;
+    truncated: boolean;
+    hint?: string;
+  };
   details: {
     returnedRows: number;
     totalRows: number | null;
@@ -71,6 +83,7 @@ export function formatRows(rows: Array<Record<string, unknown>>, totalRows: numb
   };
   return {
     text: JSON.stringify(payload, null, 2),
+    structured: { ...payload, columns: Object.keys(safeRows[0] ?? {}) },
     details: {
       returnedRows: safeRows.length,
       totalRows,

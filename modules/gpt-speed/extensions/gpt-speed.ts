@@ -84,11 +84,14 @@ function storedValues(settings: Record<string, unknown>): SettingsPatch {
 	};
 }
 
+/** User-supplied text echoed in a warning: longer than 40 characters is cut and marked with `...`. */
+const clip40 = (text: string) => text.length > 40 ? `${text.slice(0, 40)}...` : text;
+
 /** Warning text for a stored `mode` that is present but not one of the allowed values (undefined when absent or valid). */
 function invalidModeWarning(settings: Record<string, unknown>, path: string): string | undefined {
 	const value = asObject(settings[SETTINGS_KEY])?.mode;
 	if (value === undefined || SPEED_MODES.some(allowed => allowed === value)) return undefined;
-	const shown = typeof value === "string" ? JSON.stringify(value.length > 40 ? `${value.slice(0, 40)}...` : value) : JSON.stringify(value) ?? String(value);
+	const shown = typeof value === "string" ? JSON.stringify(clip40(value)) : JSON.stringify(value) ?? String(value);
 	return `pi-gpt-speed: ${SETTINGS_KEY}.mode ${shown} is ignored; use ${SPEED_MODES.slice(0, -1).join(", ")} or ${SPEED_MODES[SPEED_MODES.length - 1]} (in ${path}).`;
 }
 
@@ -217,7 +220,7 @@ export default function gptSpeedExtension(pi: ExtensionAPI): void {
 				mode = selected;
 				updateStatus(ctx);
 				const extra = typeof args === "string" ? args.trim() : "";
-				if (extra) report(ctx, `pi-gpt-speed: /${selected} takes no arguments; ignored ${JSON.stringify(extra.length > 40 ? `${extra.slice(0, 40)}...` : extra)}.`);
+				if (extra) report(ctx, `pi-gpt-speed: /${selected} takes no arguments; ignored ${JSON.stringify(clip40(extra))}.`);
 				if (ctx.hasUI) ctx.ui.notify(statusLabel(ctx.model), "info");
 				try { persistSettings(globalPath(), { mode: selected }); }
 				catch (error) { warn(ctx, "save speed settings (current mode remains active)", error); }
@@ -248,24 +251,18 @@ export default function gptSpeedExtension(pi: ExtensionAPI): void {
 		mode = "normal";
 		cache = "short";
 		projectOverrideNoticed.clear();
-		try {
-			const settings = readSettings(globalPath());
-			const invalid = invalidModeWarning(settings, globalPath());
-			if (invalid) report(ctx, invalid);
-			const stored = storedValues(settings);
-			mode = stored.mode ?? mode;
-			cache = stored.cache ?? cache;
-		} catch (error) { warn(ctx, "load global speed settings", error); }
-		if (ctx.isProjectTrusted()) {
+		const applyLayer = (path: () => string, failureLabel: string) => {
 			try {
-				const settings = readSettings(projectPath(ctx));
-				const invalid = invalidModeWarning(settings, projectPath(ctx));
+				const settings = readSettings(path());
+				const invalid = invalidModeWarning(settings, path());
 				if (invalid) report(ctx, invalid);
 				const stored = storedValues(settings);
 				mode = stored.mode ?? mode;
 				cache = stored.cache ?? cache;
-			} catch (error) { warn(ctx, "load project speed settings", error); }
-		}
+			} catch (error) { warn(ctx, failureLabel, error); }
+		};
+		applyLayer(globalPath, "load global speed settings");
+		if (ctx.isProjectTrusted()) applyLayer(() => projectPath(ctx), "load project speed settings");
 		updateStatus(ctx);
 	});
 

@@ -1,4 +1,5 @@
-export type FileAction = "read" | "write" | "edit" | "note";
+export const FILE_ACTIONS = ["read", "write", "edit", "note"] as const;
+export type FileAction = typeof FILE_ACTIONS[number];
 export interface Limits { windowRuns: number; maxFiles: number }
 export interface Activity {
   path: string;

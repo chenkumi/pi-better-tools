@@ -5,50 +5,7 @@ export const UNSAFE_DISPLAY_CHARACTERS = /[\u0000-\u0008\u000b-\u001f\u007f-\u00
 
 const safeDisplay = (text: string) => stripVTControlCharacters(text).replace(/\r\n?/g, "\n").replace(UNSAFE_DISPLAY_CHARACTERS, "");
 
-export type FileToolErrorCode =
-  | "INVALID_ARGUMENT"
-  | "FILE_NOT_FOUND"
-  | "FILE_NOT_READABLE"
-  | "FILE_NOT_WRITABLE"
-  | "FILE_TOO_LARGE"
-  | "INVALID_ENCODING"
-  | "SYMLINK_UNSUPPORTED"
-  | "RANGE_OUT_OF_BOUNDS"
-  | "TEXT_NOT_FOUND"
-  | "TEXT_NOT_FOUND_IN_RANGE"
-  | "AMBIGUOUS_MATCH"
-  | "OVERLAPPING_EDITS"
-  | "INVALID_REGEX"
-  | "REGEX_TIMEOUT"
-  | "OPERATION_TIMEOUT"
-  | "TOO_MANY_MATCHES"
-  | "RESULT_TOO_LARGE"
-  | "STALE_FILE"
-  | "FILE_ALREADY_EXISTS"
-  | "NO_CHANGE"
-  | "OPERATION_ABORTED"
-  | "IO_ERROR";
-
-export interface FileToolErrorPayload {
-  status: "error";
-  code: FileToolErrorCode;
-  message: string;
-  path?: string;
-  editIndex?: number;
-  lineStart?: number;
-  lineEnd?: number;
-  lineRange?: { start: number; end: number };
-  expectedHash?: string;
-  actualHash?: string;
-  occurrences?: number;
-  candidateRanges?: Array<{ start: number; end: number }>;
-  rangePreview?: string;
-  recovery?: string;
-  causeCode?: string;
-}
-
-const FILE_TOOL_ERROR_MARKER = "[FILE_TOOL_ERROR]\n";
-const FILE_TOOL_ERROR_CODES: ReadonlySet<string> = new Set<FileToolErrorCode>([
+const FILE_TOOL_ERROR_CODE_LIST = [
   "INVALID_ARGUMENT",
   "FILE_NOT_FOUND",
   "FILE_NOT_READABLE",
@@ -71,7 +28,30 @@ const FILE_TOOL_ERROR_CODES: ReadonlySet<string> = new Set<FileToolErrorCode>([
   "NO_CHANGE",
   "OPERATION_ABORTED",
   "IO_ERROR",
-]);
+] as const;
+
+export type FileToolErrorCode = (typeof FILE_TOOL_ERROR_CODE_LIST)[number];
+
+export interface FileToolErrorPayload {
+  status: "error";
+  code: FileToolErrorCode;
+  message: string;
+  path?: string;
+  editIndex?: number;
+  lineStart?: number;
+  lineEnd?: number;
+  lineRange?: { start: number; end: number };
+  expectedHash?: string;
+  actualHash?: string;
+  occurrences?: number;
+  candidateRanges?: Array<{ start: number; end: number }>;
+  rangePreview?: string;
+  recovery?: string;
+  causeCode?: string;
+}
+
+const FILE_TOOL_ERROR_MARKER = "[FILE_TOOL_ERROR]\n";
+const FILE_TOOL_ERROR_CODES: ReadonlySet<string> = new Set<FileToolErrorCode>(FILE_TOOL_ERROR_CODE_LIST);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

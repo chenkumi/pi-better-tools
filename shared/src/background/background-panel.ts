@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { MouseRegion, visibleWidth, type Component } from "@earendil-works/pi-tui";
-import { JobsOverlay, MORE_HOVER, displayedJobs, jobKey, renderJobs, safeJobText, type PanelJob, type PanelKind } from "./job-view.js";
+import { JobsOverlay, MORE_HOVER, PANEL_KINDS, displayedJobs, jobKey, renderJobs, safeJobText, type PanelJob, type PanelKind } from "./job-view.js";
 
 export { type PanelKind } from "./job-view.js";
 export const BACKGROUND_WIDGET_KEY = "pi-better-tools-background-jobs";
@@ -9,10 +9,13 @@ const RENDEZVOUS = "pi-better-tools:background-panel:v2";
 export type PanelHost = Partial<Pick<ExtensionAPI, "events" | "registerCommand">>;
 export interface PanelSnapshot { jobs: readonly PanelJob[]; signature: string }
 type Entry = { token: object; ctx: ExtensionContext; owner: string; snapshot?: PanelSnapshot };
-const kinds: PanelKind[] = ["subagents", "shell", "fork", "monitor", "pty"];
+const kinds: readonly PanelKind[] = PANEL_KINDS;
+const BACKGROUND_JOBS_USAGE = `Usage: /background-jobs [more|${PANEL_KINDS.join("|")}|all|collapse]`;
 /** SGR mouse report: motion with no button held is code 35 (32 motion + 3 "none"). */
 const SGR_MOUSE = /^\x1b\[<(\d+);(\d+);(\d+)[Mm]$/;
 const FOCUS_OUT = "\x1b[O";
+
+const hasTui = (ctx: ExtensionContext) => ctx.mode === "tui" && ctx.hasUI;
 
 /** Presentation only. Registry ownership, admission, cancellation and messages stay in each module. */
 export class BackgroundPanel {
@@ -28,8 +31,8 @@ export class BackgroundPanel {
   private overlay?: { ctx: ExtensionContext; owner: string; close?: () => void; component?: JobsOverlay; cancelled: boolean };
 
   attach(kind: PanelKind, ctx: ExtensionContext): object | undefined {
-    if (ctx.mode !== "tui" || !ctx.hasUI) return;
-    const owner = ctx.sessionManager.getSessionId();
+    if (!hasTui(ctx)) return;
+    const owner =ctx.sessionManager.getSessionId();
     this.closeOverlay();
     if (owner !== this.owner) {
       this.entries.clear(); this.collapsed = false; this.hide(); this.owner = owner;
@@ -121,10 +124,11 @@ export class BackgroundPanel {
             renderedWidth = width; moreRow = -1; jobRows = [];
             if (disposed || revision !== this.revision || this.collapsed) return [];
             const jobs = this.jobs();
-            const lines = renderJobs(jobs, theme, width, tui.terminal?.rows ?? 40, this.hover);
+            const rows = tui.terminal?.rows ?? 40;
+            const lines = renderJobs(jobs, theme, width, rows, this.hover);
             moreRow = lines.length - 1;
             // Each displayed job owns one row between the heading and More; anything that does not line up is simply not clickable.
-            const shown = displayedJobs(jobs, tui.terminal?.rows ?? 40);
+            const shown = displayedJobs(jobs, rows);
             if (lines.length === shown.length + 2) jobRows = shown.map(jobKey);
             moreEnd = width >= 3 ? 1 + visibleWidth("More…") : -1;
             // Only the complete More label is a mouse target, not clipped text or row contents.
@@ -158,13 +162,13 @@ export class BackgroundPanel {
   /** Retain old command aliases; collapse is explicit, active jobs appear automatically by default. */
   toggle(kind: PanelKind | "all" | "collapse", ctx?: ExtensionContext): boolean {
     const entries = this.validEntries();
-    if (ctx && (ctx.mode !== "tui" || !ctx.hasUI || !this.isOwner(ctx))) return false;
+    if (ctx && (!hasTui(ctx) || !this.isOwner(ctx))) return false;
     if (!entries.some(e => (!kinds.includes(kind as PanelKind) || e.kind === kind) && e.entry.snapshot?.jobs.length)) { this.redraw(); return false; }
     this.collapsed = kind === "collapse";
     this.last = undefined; this.redraw(); return true;
   }
   async openMore(ctx: ExtensionContext, kind?: PanelKind, detailKey?: string): Promise<boolean> {
-    if (ctx.mode !== "tui" || !ctx.hasUI || !this.isOwner(ctx) || !this.jobs(kind).length || this.overlay) return false;
+    if (!hasTui(ctx) || !this.isOwner(ctx) || !this.jobs(kind).length || this.overlay) return false;
     const lease = { ctx, owner: this.owner!, cancelled: false } as NonNullable<BackgroundPanel["overlay"]>;
     this.overlay = lease;
     try {
@@ -201,12 +205,12 @@ export function acquireBackgroundPanel(api?: PanelHost): BackgroundPanel {
       if (request?.protocol === RENDEZVOUS && typeof request.offer === "function") request.offer(shared);
     });
     api?.registerCommand?.("background-jobs", {
-      description: "Background jobs above the editor; More opens a bounded list: more | subagents | shell | fork | monitor | pty | all | collapse (TUI only)",
+      description: `Background jobs above the editor; More opens a bounded list: more | ${PANEL_KINDS.join(" | ")} | all | collapse (TUI only)`,
       handler: async (args, ctx) => {
         const target = args.trim() || "more";
-        if (![...kinds, "more", "all", "collapse"].includes(target)) { ctx.ui.notify("Usage: /background-jobs [more|subagents|shell|fork|monitor|pty|all|collapse]", "warning"); return; }
+        if (![...kinds, "more", "all", "collapse"].includes(target)) { ctx.ui.notify(BACKGROUND_JOBS_USAGE, "warning"); return; }
         if (target === "collapse") { shared.toggle("collapse", ctx); return; }
-        if (ctx.mode !== "tui" || !ctx.hasUI) return;
+        if (!hasTui(ctx)) return;
         shared.toggle(target === "more" ? "all" : target as PanelKind | "all", ctx);
         if (!await shared.openMore(ctx, kinds.includes(target as PanelKind) ? target as PanelKind : undefined)) ctx.ui.notify("No retained background jobs here, or the job list is already open.", "info");
       },

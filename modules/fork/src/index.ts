@@ -10,6 +10,7 @@ import { isTerminal } from "./store.ts";
 import { RESULT_TYPE, acceptFork, notFoundText, findOwnedJob, messageFork, onSessionShutdown, onSessionStart, onTurnEnd, ownedJobs, requestCancel, summarize } from "./manager.ts";
 import { publishForkMonitor } from "./monitor-capability.ts";
 import { FORK_RULES_SECTION, renderForkRules } from "./prompt-rules.ts";
+import { forkMessageReceiptSchema, forkReceiptSchema, forkStatusOutputSchema, forkSummarySchema } from "./output-schema.ts";
 import { registerPromptSection } from "../../../shared/src/prompt/index.ts";
 
 const display = (value: unknown, max = 300) => typeof value === "string" ? stripVTControlCharacters(value.slice(0, max * 4)).replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f‪-‮⁦-⁩]/g, "").slice(0, max) : "";
@@ -26,7 +27,8 @@ const ownedJobOrThrow = (ctx: Parameters<typeof findOwnedJob>[0], jobId: unknown
 	if (!job) throw new Error(`FORK_NOT_FOUND: ${notFoundText(jobId)}`);
 	return job;
 };
-const textResult = (text: string, details: Record<string, unknown>) => ({ content: [{ type: "text" as const, text }], details });
+/** structuredContent is the JSON-clean copy of `structured` (what codemode scripts resolve to); `details` stays as before. `structured` must be plain JSON data (no Map/Set/Date/BigInt/cycles): the round-trip drops or throws on those. */
+const textResult = (text: string, details: Record<string, unknown>, structured: Record<string, unknown> = details) => ({ content: [{ type: "text" as const, text }], details, structuredContent: JSON.parse(JSON.stringify(structured)) });
 const STATUS_LIST_LIMIT = 32;
 
 export default function (pi: ExtensionAPI) {
@@ -56,6 +58,7 @@ export default function (pi: ExtensionAPI) {
 			task: Type.String({ description: "What the Fork must do. It sees this conversation up to the end of the current turn." }),
 			title: Type.Optional(Type.String({ description: "Short label (<=120 chars) shown in status and the result notice." })),
 		}, { additionalProperties: false }),
+		outputSchema: forkReceiptSchema,
 		renderCall(args, theme) { return new Text(`${theme.fg("toolTitle", theme.bold("fork"))} ${theme.fg("muted", display(args?.title || args?.task, 100))}`, 0, 0); },
 		renderResult: renderTextResult,
 		async execute(_id, params, _signal, _onUpdate, ctx) {
@@ -74,6 +77,7 @@ export default function (pi: ExtensionAPI) {
 		annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
 		defaultActive: true,
 		parameters: Type.Object({ jobId: Type.Optional(Type.String({ minLength: 1, description: "Fork job ID returned by fork; omit to list." })) }, { additionalProperties: false }),
+		outputSchema: forkStatusOutputSchema,
 		async execute(_id, params, _signal, _onUpdate, ctx) {
 			refuseInChild();
 			if (params.jobId !== undefined) {
@@ -82,7 +86,8 @@ export default function (pi: ExtensionAPI) {
 			}
 			const jobs = ownedJobs(ctx);
 			const list = jobs.slice(0, STATUS_LIST_LIMIT).map(job => summarize(job));
-			return textResult(JSON.stringify({ forks: list, partial: jobs.length > STATUS_LIST_LIMIT }), { forks: list });
+			const partial = jobs.length > STATUS_LIST_LIMIT;
+			return textResult(JSON.stringify({ forks: list, partial }), { forks: list }, { forks: list, partial });
 		},
 	}));
 
@@ -94,6 +99,7 @@ export default function (pi: ExtensionAPI) {
 		annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
 		defaultActive: true,
 		parameters: Type.Object({ jobId: Type.String() }, { additionalProperties: false }),
+		outputSchema: forkSummarySchema,
 		async execute(_id, params, _signal, _onUpdate, ctx) {
 			refuseInChild();
 			const job = ownedJobOrThrow(ctx, params.jobId);
@@ -113,6 +119,7 @@ export default function (pi: ExtensionAPI) {
 		annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
 		defaultActive: true,
 		parameters: Type.Object({ jobId: Type.String({ minLength: 1 }), message: Type.String({ minLength: 1, maxLength: 65536, description: "Nonblank instruction text; at most 64 KiB of UTF-8 bytes (multibyte text counts more than characters)." }), mode: Type.Optional(Type.Union([Type.Literal("follow_up"), Type.Literal("steer")])) }, { additionalProperties: false }),
+		outputSchema: forkMessageReceiptSchema,
 		async execute(_id, params, _signal, _onUpdate, ctx) {
 			refuseInChild();
 			const receipt = await messageFork(ctx, params.jobId, params.message, params.mode ?? "follow_up");

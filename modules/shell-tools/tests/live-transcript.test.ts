@@ -105,6 +105,16 @@ test('shell output copy keeps only the bounded tail and drops everything on rele
   assert.equal(out.subscribe(() => calls++)(), undefined);
 });
 
+test('shell output copy never starts its kept tail inside a multi-byte character', () => {
+  const out = new OutputTranscript(5);
+  // "a€€" is 7 bytes; the 5-byte tail would start on a continuation byte of the first euro sign.
+  out.append(Buffer.from('a€€'));
+  const snap = out.snapshot();
+  assert.equal(snap.text, '€');
+  assert.equal(snap.truncated, true);
+  assert.ok(!snap.text.includes('�'));
+});
+
 test('shell output view renders plain text and strips terminal controls', () => {
   const out = new OutputTranscript();
   out.append(Buffer.from('\u001b[31mred line\u001b[0m\nsecond\n'));

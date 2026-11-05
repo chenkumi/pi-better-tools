@@ -6,7 +6,7 @@ import { findOwnedJob, ownedJobs, state } from "./manager.ts";
 import { isTerminal } from "./store.ts";
 
 const MAX_REASON = 200;
-const bounded = (value: string, max = MAX_REASON) => value.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, "").slice(0, max);
+const bounded = (value: string, max = MAX_REASON) => value.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f‪-‮⁦-⁩]/g, "").slice(0, max);
 
 /** Bounded status view of one owned Fork: no task text, no result output, no usage, no native session path. */
 export function forkMonitorSnapshot(ctx: ExtensionContext, jobId: string): Record<string, unknown> {

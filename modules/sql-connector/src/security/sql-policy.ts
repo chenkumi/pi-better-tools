@@ -6,7 +6,7 @@ function denied(message: string): never {
 }
 
 /** Largest row count a read may request through LIMIT/TOP (per statement; set operations add up for MSSQL). */
-const MAX_READ_ROWS = 200;
+export const MAX_READ_ROWS = 200;
 
 const BACKSLASH_DENIED = "Backslashes inside string literals are not allowed because their meaning depends on server settings; pass the value as a bound parameter.";
 
@@ -237,7 +237,7 @@ function assertReadLimit(engine: Engine, code: string): void {
   if (engine === "mssql") {
     // PERCENT and WITH TIES do not cap the row count; the driver would buffer the whole recordset first.
     if (/\btop\s*\(?\s*\d+(?:\.\d+)?\s*\)?\s*percent\b/.test(code) || /\bwith\s+ties\b/.test(code)) {
-      denied("MSSQL reads must use TOP n with n from 1 to 200 (TOP PERCENT and WITH TIES are not allowed).");
+      denied(`MSSQL reads must use TOP n with n from 1 to ${MAX_READ_ROWS} (TOP PERCENT and WITH TIES are not allowed).`);
     }
     // A set operation returns rows from every branch, so each branch needs its own TOP and the total stays within 200.
     let total = 0;
@@ -245,11 +245,11 @@ function assertReadLimit(engine: Engine, code: string): void {
       const top = /\bselect\s+(?:distinct\s+)?top\s+(\d+)\b/.exec(branch);
       const amount = Number(top?.[1]);
       if (!top || !Number.isInteger(amount) || amount < 1 || amount > MAX_READ_ROWS) {
-        denied(`MSSQL reads must use TOP n with n from 1 to 200 in every SELECT of a UNION/INTERSECT/EXCEPT; ${top ? `received TOP ${top[1]}` : "a SELECT has no TOP n"}. Use a literal, e.g. SELECT TOP 100 ...`);
+        denied(`MSSQL reads must use TOP n with n from 1 to ${MAX_READ_ROWS} in every SELECT of a UNION/INTERSECT/EXCEPT; ${top ? `received TOP ${top[1]}` : "a SELECT has no TOP n"}. Use a literal, e.g. SELECT TOP 100 ...`);
       }
       total += amount;
     }
-    if (total > MAX_READ_ROWS) denied(`MSSQL reads must return at most 200 rows; the TOP values of a set operation add up (received a total of ${total}). Lower the TOP values.`);
+    if (total > MAX_READ_ROWS) denied(`MSSQL reads must return at most ${MAX_READ_ROWS} rows; the TOP values of a set operation add up (received a total of ${total}). Lower the TOP values.`);
     return;
   }
 
@@ -258,7 +258,7 @@ function assertReadLimit(engine: Engine, code: string): void {
   const countText = limit?.[2];
   const amount = Number(countText);
   if (!limit || !Number.isInteger(amount) || amount < 1 || amount > MAX_READ_ROWS) {
-    denied(`${engine} reads must use a top-level LIMIT n with n from 1 to 200; ${limit ? `received LIMIT ${countText}` : "no top-level LIMIT found (a LIMIT inside a subquery does not count)"}. Add a literal LIMIT such as LIMIT 100 at the end.`);
+    denied(`${engine} reads must use a top-level LIMIT n with n from 1 to ${MAX_READ_ROWS}; ${limit ? `received LIMIT ${countText}` : "no top-level LIMIT found (a LIMIT inside a subquery does not count)"}. Add a literal LIMIT such as LIMIT 100 at the end.`);
   }
 }
 

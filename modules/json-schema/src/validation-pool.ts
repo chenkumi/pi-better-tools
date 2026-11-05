@@ -4,6 +4,9 @@ export const VALIDATION_BUDGET_MS = 2_000;
 export const MAX_VALIDATION_WORKERS = 4;
 export const MAX_QUEUED_VALIDATIONS = 256;
 const STARTUP_BUDGET_MS = 10_000;
+/** Reason prefix of a cancelled validation; `isValidationFault` in validation-schema.mjs matches `Validation cancelled`. */
+export const VALIDATION_CANCELLED = "Validation cancelled";
+const POOL_SHUTDOWN = `${VALIDATION_CANCELLED}: pool shutdown`;
 const IDLE_MS = 30_000;
 
 type Job = {
@@ -25,24 +28,24 @@ export class ValidationPool {
   /** Drain on session shutdown; a later session can use the pool again. */
   close(): Promise<void> {
     if (this.closing) return this.closing;
-    for (const job of this.queue.splice(0)) this.complete(job, "Validation cancelled: pool shutdown");
-    this.closing = Promise.all([...this.slots].map(slot => this.retire(slot, "Validation cancelled: pool shutdown"))).then(() => undefined).finally(() => { this.closing = undefined; });
+    for (const job of this.queue.splice(0)) this.complete(job, POOL_SHUTDOWN);
+    this.closing = Promise.all([...this.slots].map(slot => this.retire(slot, POOL_SHUTDOWN))).then(() => undefined).finally(() => { this.closing = undefined; });
     return this.closing;
   }
 
   validate(schema: Record<string, unknown>, data: unknown, signal?: AbortSignal): Promise<string | undefined> {
-    if (this.closing) return Promise.resolve("Validation cancelled: pool shutdown");
-    if (signal?.aborted) return Promise.resolve("Validation cancelled");
+    if (this.closing) return Promise.resolve(POOL_SHUTDOWN);
+    if (signal?.aborted) return Promise.resolve(VALIDATION_CANCELLED);
     if (this.queue.length >= MAX_QUEUED_VALIDATIONS) return Promise.resolve("Validation capacity exhausted; retry after active validation completes");
     return new Promise(resolve => {
       const job: Job = { schema, data, signal, resolve, abort: () => {
         const index = this.queue.indexOf(job);
         if (index >= 0) {
           this.queue.splice(index, 1);
-          this.complete(job, "Validation cancelled");
+          this.complete(job, VALIDATION_CANCELLED);
         } else {
           const slot = [...this.slots].find(slot => slot.job === job);
-          if (slot) void this.retire(slot, "Validation cancelled");
+          if (slot) void this.retire(slot, VALIDATION_CANCELLED);
         }
       } };
       signal?.addEventListener("abort", job.abort, { once: true });
@@ -73,7 +76,7 @@ export class ValidationPool {
       }
       const slot: Slot = { worker, ready: false, retiring: false, job };
       this.slots.add(slot);
-      slot.timer = setTimeout(() => void this.retire(slot, "Validation worker startup exceeded 10000ms"), STARTUP_BUDGET_MS);
+      slot.timer = setTimeout(() => void this.retire(slot, `Validation worker startup exceeded ${STARTUP_BUDGET_MS}ms`), STARTUP_BUDGET_MS);
       worker.on("message", (message: { ready?: boolean; reason?: string }) => {
         if (slot.retiring) return;
         if (!slot.ready) {

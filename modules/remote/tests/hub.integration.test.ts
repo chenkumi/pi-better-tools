@@ -16,6 +16,7 @@ test('server, two clients and the server itself exchange messages through one ro
   assert.deepEqual(alpha.peers(), ['srv', 'alpha', 'beta']);
   assert.deepEqual(hub.roster().map(p => p.name), ['srv', 'alpha', 'beta']);
   assert.ok(hub.roster().every(entry => !('instanceId' in entry)), 'instance ids are not shared');
+  assert.ok(hub.roster().every(entry => Object.keys(entry).sort().join() === 'arch,hostname,name,platform,project'), 'only the five roster fields are exposed');
 
   assert.deepEqual(await alpha.client.send(send('beta', 'hello beta')), { status: 'delivered', count: 1 });
   await beta.changes.until(() => beta.inbox.length === 1, 'beta received');

@@ -106,7 +106,7 @@ export class SettingsPanel implements Component {
       } else if (act && field.type === 'action') {
         if (this.#armed !== field.key) { this.#armed = field.key; this.#message = { text: `${field.confirm} Enter starts, other keys cancel.`, error: false }; }
         else { this.#armed = undefined; void this.#runAction(field); }
-      } else if (act && field.type !== 'boolean' && field.type !== 'enum' && field.type !== 'code') {
+      } else if (act) {
         this.#edit = { key: field.key, buffer: field.type === 'secret' ? '' : String(this.#values[field.key] ?? '') };
       }
     }

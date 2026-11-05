@@ -4,6 +4,8 @@ import { LiveTranscript } from "../../../../shared/src/background/index.js";
 export interface TaskPresentation { activity: string; usage?: PanelUsage; usageReported: boolean }
 import type { RecoverySnapshot, RecoveryWriter } from "../../../shell-tools/src/recovery.js";
 import { copyResultSummary, resultSummary } from "./result.ts";
+import { errorToString, isRecord as isPlainRecord } from "./values.ts";
+import { MAX_CONCURRENCY } from "./concurrency.ts";
 import type { RpcInteraction, ControlReceipt, QueryReceipt, InteractionNotice } from "./rpc.ts";
 
 export interface BackgroundTask {
@@ -62,7 +64,6 @@ const admissionKey = Symbol.for("pi-better-tools.subagents.admission.v1");
 const sharedAdmission = ((globalThis as typeof globalThis & { [admissionKey]?: { submittedTasks: number } })[admissionKey] ??= { submittedTasks: 0 });
 const MAX_SUBMITTED = 32;
 const MAX_RETAINED_JOBS = 64;
-const MAX_ACTIVE = 8;
 
 export interface BackgroundJobSummary {
 	jobId: string;
@@ -107,10 +108,9 @@ export function slimJobList(jobs: BackgroundJobSummary[]): Record<string, unknow
 }
 
 // A finished task shows its status; its last progress text would read as work still in flight.
-const progressActivity = (job: Job, index: number, status: string) => ["completed", "failed", "aborted", "skipped"].includes(status) ? status : job.widgetProgress[index]?.activity ?? (status === "queued" ? "Queued" : status);
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
+const isActive = (status: string | undefined) => status === "queued" || status === "running";
+const isSettled = (status: string | undefined) => status === "completed" || status === "failed" || status === "aborted" || status === "skipped";
+const progressActivity = (job: Job, index: number, status: string) => isSettled(status) ? status : job.widgetProgress[index]?.activity ?? (status === "queued" ? "Queued" : status);
 
 export interface NotificationObservation {
 	phase: "canonical_applied" | "callback_attempted" | "callback_returned" | "callback_threw" | "suppressed";
@@ -228,7 +228,7 @@ export class BackgroundJobs {
 	/** Current admission load, for actionable capacity diagnostics. */
 	load(): string {
 		const active = this.activeCount?.();
-		return `submitted ${sharedAdmission.submittedTasks}/${MAX_SUBMITTED}${active === undefined ? "" : `, active ${active}/${MAX_ACTIVE}`}`;
+		return `submitted ${sharedAdmission.submittedTasks}/${MAX_SUBMITTED}${active === undefined ? "" : `, active ${active}/${MAX_CONCURRENCY}`}`;
 	}
 	/** Read-only listing of this owner's retained jobs, newest first. */
 	list(owner: string, cwd: string): BackgroundJobSummary[] {
@@ -261,7 +261,7 @@ export class BackgroundJobs {
 		const view = structuredClone({ jobId: job.jobId, status: job.status, tasks: job.tasks.map((task, index) => {
 			const handle = job.interactive.get(index);
 			const projected = { ...task, ...(handle ? { canMessage: !job.readonlyQueryId && handle.isRunning && !job.cancelRequested, ...handle.snapshot() } : {}) };
-			if (job.readonlyQueryId && ["queued", "running"].includes(job.status)) {
+			if (job.readonlyQueryId && isActive(job.status)) {
 				// RPC terminal evidence describes the model request, not worker/lease cleanup.
 				// Worker faults outrank it until settlement installs the final retained receipt.
 				const query = this.provisionalReadyQuery(job, projected.queries?.[0]);
@@ -302,7 +302,7 @@ export class BackgroundJobs {
 		if (this.closed) throw new Error("BACKGROUND_RUNTIME_CLOSED: runtime is closed");
 		for (const job of [...this.jobs.values()].reverse()) {
 			const index = job.tasks.findIndex(task => task.subagentSessionId === sessionId);
-			if (index < 0 || !["queued", "running"].includes(job.status)) continue;
+			if (index < 0 || !isActive(job.status)) continue;
 			if (job.owner !== owner || job.cwd !== cwd || job.generation !== this.generation) throw new Error("OWNER_MISMATCH: active session is not owned by this parent/canonical cwd/runtime");
 			const task = job.tasks[index], handle = job.interactive.get(index);
 			const state = job.cancelRequested ? "canceling" : task.status === "queued" ? "queued" : job.readonlyQueryId ? "busy" : handle?.isRunning ? "running" : handle ? "finalizing" : task.status === "running" ? "startup" : "finalizing";
@@ -378,7 +378,7 @@ export class BackgroundJobs {
 		if (!agents.length || agents.length > MAX_SUBMITTED || sharedAdmission.submittedTasks + agents.length > MAX_SUBMITTED) throw new Error(`BACKGROUND_CAPACITY: Request not accepted: capacity limit reached. at most ${MAX_SUBMITTED} submitted background tasks process-wide (now ${this.load()}; this request adds ${agents.length}). Next: call subagent_status (no jobId lists your jobs) to see what is still running, subagent_cancel jobs you no longer need, or split the work into smaller batches and submit the rest after task_result completion notifications arrive.`);
 		for (const [id, job] of this.jobs) {
 			if (this.jobs.size < MAX_RETAINED_JOBS) break;
-			if (!["queued", "running"].includes(job.status)) this.jobs.delete(id);
+			if (!isActive(job.status)) this.jobs.delete(id);
 		}
 		if (this.jobs.size >= MAX_RETAINED_JOBS) throw new Error(`BACKGROUND_CAPACITY: Request not accepted: capacity limit reached. retained job limit (${MAX_RETAINED_JOBS}) reached with unfinished jobs (now ${this.load()}). Next: call subagent_status to list jobs and subagent_cancel ones you no longer need, then retry.`);
 		const job: Job = { jobId: ulid().toUpperCase(), owner, cwd, generation: this.generation, status: "queued", cancelRequested: false,
@@ -415,7 +415,7 @@ export class BackgroundJobs {
 					// A settled sibling is announced on its own; cancellation is covered by job_result.
 					if (job.perTaskNotify && ["completed", "failed", "aborted"].includes(status) && !job.cancelRequested && !job.notifiedTasks.has(task.taskId)) {
 						job.notifiedTasks.add(task.taskId);
-						this.deliver(job, "task_result", admitted, undefined, { taskId: task.taskId, completed: job.tasks.filter(t => ["completed", "failed", "aborted", "skipped"].includes(t.status)).length, total: job.tasks.length });
+						this.deliver(job, "task_result", admitted, undefined, { taskId: task.taskId, completed: job.tasks.filter(t => isSettled(t.status)).length, total: job.tasks.length });
 					}
 				}, (index, handle) => { if (job.readonlyQueryId) { job.tasks[index].status = "running"; job.readonlyQueryStarted = true; this.record(job); } job.interactive.set(index, handle); this.changed(job); send("log_ready"); }, (index, notice) => {
 					if (notice.kind === "control_result" && notice.status === "applied") this.observe(job, notice.kind, "canonical_applied", job.tasks[index].taskId);
@@ -436,12 +436,12 @@ export class BackgroundJobs {
 					} else this.deliver(job, notice.kind, admitted, { ...notice, taskId: job.tasks[index].taskId, subagentSessionId: job.tasks[index].subagentSessionId, action: notice.kind === "query_result" ? "query" : "control" });
 					this.changed(job);
 				}, (index, data) => {
-					if (this.closed || job.generation !== this.generation || this.jobs.get(job.jobId) !== job || !["queued", "running"].includes(job.status) || !["queued", "running"].includes(job.tasks[index]?.status)) return;
+					if (this.closed || job.generation !== this.generation || this.jobs.get(job.jobId) !== job || !isActive(job.status) || !isActive(job.tasks[index]?.status)) return;
 					job.widgetProgress[index] = { activity: safeJobText(data.activity, 256), usageReported: data.usageReported, usage: data.usageReported ? panelUsage(data.usage) : undefined };
 					this.changed(job);
 				}, (index, event) => {
 					// Memory copy for the live viewer only; a late event after a terminal state never revives it.
-					if (this.closed || job.generation !== this.generation || this.jobs.get(job.jobId) !== job || !["queued", "running"].includes(job.tasks[index]?.status)) return;
+					if (this.closed || job.generation !== this.generation || this.jobs.get(job.jobId) !== job || !isActive(job.tasks[index]?.status)) return;
 					try {
 						const created = !job.transcripts[index];
 						(job.transcripts[index] ??= new LiveTranscript()).ingest(event);
@@ -456,10 +456,10 @@ export class BackgroundJobs {
 			} catch (error) {
 				for (const t of job.transcripts) t?.release();
 				job.transcripts = [];
-				if (job.readonlyQueryId) job.readonlyQueryRunnerError = error instanceof Error ? error.message : String(error);
+				if (job.readonlyQueryId) job.readonlyQueryRunnerError = errorToString(error);
 				job.status = job.controller.signal.aborted ? "aborted" : "failed";
-				for (const task of job.tasks) if (job.readonlyQueryId || ["queued", "running"].includes(task.status)) {
-					task.status = job.status; task.result = job.readonlyQueryId ? { ...(isPlainRecord(task.result) ? task.result : {}), status: job.status, error: error instanceof Error ? error.message : String(error) } : { error: error instanceof Error ? error.message : String(error) };
+				for (const task of job.tasks) if (job.readonlyQueryId || isActive(task.status)) {
+					task.status = job.status; task.result = job.readonlyQueryId ? { ...(isPlainRecord(task.result) ? task.result : {}), status: job.status, error: errorToString(error) } : { error: errorToString(error) };
 					if (job.readonlyQueryId && isPlainRecord(task.result)) {
 						delete task.result.output;
 						task.result.cleanupPending = true;
@@ -485,7 +485,7 @@ export class BackgroundJobs {
 					this.record(job, true); this.changed(job);
 					this.deliver(job, "query_result", admitted, notice);
 				} else { this.record(job, true); this.changed(job); }
-				if (job.perTaskNotify) this.deliver(job, "job_result", admitted, undefined, { completed: job.tasks.filter(t => ["completed", "failed", "aborted", "skipped"].includes(t.status)).length, total: job.tasks.length, unnotified: job.tasks.filter(t => !job.notifiedTasks.has(t.taskId)).length, notifiedTaskIds: [...job.notifiedTasks] });
+				if (job.perTaskNotify) this.deliver(job, "job_result", admitted, undefined, { completed: job.tasks.filter(t => isSettled(t.status)).length, total: job.tasks.length, unnotified: job.tasks.filter(t => !job.notifiedTasks.has(t.taskId)).length, notifiedTaskIds: [...job.notifiedTasks] });
 				else send("task_result");
 			}
 		});
@@ -497,7 +497,7 @@ export class BackgroundJobs {
 		this.changed();
 		const jobs = [...this.jobs.values()];
 		for (const job of jobs) {
-			if (["queued", "running"].includes(job.status)) { job.cancelRequested = true; this.record(job); }
+			if (isActive(job.status)) { job.cancelRequested = true; this.record(job); }
 			job.controller.abort();
 			// The viewer's memory copy must not outlive the owner, even if the runner never settles.
 			for (const t of job.transcripts) t?.release();

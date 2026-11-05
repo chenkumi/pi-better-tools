@@ -3,6 +3,7 @@ import { ulid } from "ulid";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { renameWithRetry } from "./session-store.ts";
+import { errorToString, isRecord } from "./values.ts";
 
 export type SubsessionStatus = "completed" | "failed" | "aborted";
 
@@ -160,10 +161,6 @@ export interface SerializedToolResult {
 	omitted: OmittedContent[];
 }
 
-function errorToString(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
-}
-
 function safePathSegment(value: string): string {
 	return value.replace(/[^a-zA-Z0-9._-]/g, "_") || "unknown";
 }
@@ -175,10 +172,6 @@ function byteLength(value: unknown): number | undefined {
 	} catch {
 		return Buffer.byteLength(value, "utf8");
 	}
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function binaryOmission(

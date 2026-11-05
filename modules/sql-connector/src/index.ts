@@ -28,17 +28,10 @@ export default function sqlConnectorExtension(pi: ExtensionAPI): void {
   const appendToForcedPrompt = createForcedPromptAppender();
   pi.on("before_agent_start", (event) => {
     const notice = configError ? configErrorNotice(configError) : undefined;
-    const options = event.systemPromptOptions as { sections?: Record<string, string> } | undefined;
-    if (options?.sections) {
-      if (notice) options.sections[NOTICE_SECTION] = notice;
-      else delete options.sections[NOTICE_SECTION];
-      return appendToForcedPrompt(event, notice);
-    }
-    // Hosts without sections: append to the built prompt.
-    if (!notice) return;
-    return event.systemPrompt.includes(notice) ? undefined : { systemPrompt: `${event.systemPrompt}
-
-${notice}` };
+    const { sections } = event.systemPromptOptions;
+    if (notice) sections[NOTICE_SECTION] = notice;
+    else delete sections[NOTICE_SECTION];
+    return appendToForcedPrompt(event, notice);
   });
 
   pi.on("session_start", async (_event, ctx) => {

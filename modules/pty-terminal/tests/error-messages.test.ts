@@ -56,7 +56,7 @@ test("spawn validates cwd and wraps native failures with command, cwd and hint",
 	assert.match(m, /not a directory/);
 	const failing = fakeManager(() => { throw new Error("File not found: "); });
 	m = msg(() => failing.spawn("nope-cmd", [], { target: "local" }, tmpdir()));
-	assert.match(m, /Failed to start "nope-cmd"/); assert.match(m, /File not found/); assert.match(m, /executable search path/); assert.match(m, /target "local"/);
+	assert.match(m, /^PTY_SPAWN_FAILED: Failed to start "nope-cmd"/); assert.match(m, /File not found/); assert.match(m, /executable search path/); assert.match(m, /target "local"/);
 });
 
 test("size, session and resize errors show received values and next steps", () => {
@@ -93,7 +93,7 @@ test("resize on an exited session says so instead of surfacing a native error", 
 	const { sessionId } = manager.spawn("node", [], {}, tmpdir());
 	exit({ exitCode: 3 });
 	const m = msg(() => manager.resize(sessionId, 80, 24));
-	assert.match(m, /has exited \(exitCode 3\)/); assert.match(m, /resize was not applied/); assert.match(m, /pty_spawn/);
+	assert.match(m, /^PTY_SESSION_EXITED: .*has exited \(exitCode 3\)/); assert.match(m, /resize was not applied/); assert.match(m, /pty_spawn/);
 	assert.doesNotMatch(m, /native/);
 });
 

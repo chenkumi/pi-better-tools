@@ -9,15 +9,21 @@ export type BriefKind = JobKind | 'pty_session';
 export interface ActiveJobBrief { kind: BriefKind; jobId: string; status: string }
 interface Provider { kind: JobKind; scope: MonitorScope; generation: number; read: (id: string) => Record<string, unknown>; valid: () => boolean; revoked: boolean; active?: () => number; briefs?: () => ActiveJobBrief[] }
 // Narrow capability rendezvous, not an extension factory/plugin manager. Never store executable job handles.
+/** Process-wide registries live on globalThis under a Symbol.for key so separately loaded copies of this file share them. */
+function globalRegistry<V>(key: symbol): Map<string, V> {
+  const root = globalThis as unknown as Record<symbol, Map<string, V>>;
+  return root[key] ??= new Map();
+}
+/** Upper bound on publishers per registry (providers, brief readers). */
+const MAX_PUBLISHERS = 64;
 const key = Symbol.for('pi-better-tools.monitor.readonly-jobs.v1');
-const root = globalThis as unknown as Record<symbol, Map<string, Provider>>;
-function registry() { return root[key] ??= new Map(); }
+function registry() { return globalRegistry<Provider>(key); }
 export function canonicalMonitorCwd(cwd: string) { return realpathSync(resolve(cwd)); }
 function identity(kind: BriefKind, scope: MonitorScope) { return JSON.stringify([kind, scope.sessionId, scope.cwd]); }
 export function publishCapability(kind: JobKind, scope: MonitorScope, generation: number, read: Provider['read'], valid: Provider['valid'], active?: () => number, briefs?: () => ActiveJobBrief[]): () => void {
   const id = identity(kind, scope), providers = registry();
   const old = providers.get(id); if (old) old.revoked = true;
-  if (!old && providers.size >= 64) throw new Error('Monitor capability capacity exceeded');
+  if (!old && providers.size >= MAX_PUBLISHERS) throw new Error('Monitor capability capacity exceeded');
   const provider: Provider = { kind, scope: { ...scope }, generation, read, valid, revoked: false, ...(active ? { active } : {}), ...(briefs ? { briefs } : {}) }; providers.set(id, provider);
   return () => { provider.revoked = true; if (providers.get(id) === provider) providers.delete(id); };
 }
@@ -32,8 +38,7 @@ export const AUTO_MONITOR_INTERVAL_MS = 180000;
 export type AutoMonitorStarter = (jobId: string) => string | undefined;
 // Same rendezvous style as the readonly capability: Shell asks, an installed Monitor decides. No handles are shared.
 const autoKey = Symbol.for('pi-better-tools.monitor.auto-shell-job.v1');
-const autoRoot = globalThis as unknown as Record<symbol, Map<string, AutoMonitorStarter>>;
-const autoRegistry = () => autoRoot[autoKey] ??= new Map();
+const autoRegistry = () => globalRegistry<AutoMonitorStarter>(autoKey);
 export function publishAutoMonitor(scope: MonitorScope, starter: AutoMonitorStarter): () => void {
   const id = identity('shell_job', scope), starters = autoRegistry();
   starters.set(id, starter);
@@ -58,8 +63,7 @@ export interface ActiveMonitorBrief { monitorId: string; source: string; state: 
 export const MAX_ACTIVE_MONITOR_BRIEFS = 16;
 // Monitor publishes its own live receipts here; readers get a plain list, never the runtime or a stop/start handle.
 const activeMonitorKey = Symbol.for('pi-better-tools.monitor.active-monitors.v1');
-const activeMonitorRoot = globalThis as unknown as Record<symbol, Map<string, () => ActiveMonitorBrief[]>>;
-const activeMonitorReaders = () => activeMonitorRoot[activeMonitorKey] ??= new Map();
+const activeMonitorReaders = () => globalRegistry<() => ActiveMonitorBrief[]>(activeMonitorKey);
 const monitorIdentity = (scope: MonitorScope) => JSON.stringify([scope.sessionId, scope.cwd]);
 export function publishActiveMonitorBriefs(scope: MonitorScope, read: () => ActiveMonitorBrief[]): () => void {
   const id = monitorIdentity(scope), readers = activeMonitorReaders();
@@ -82,13 +86,12 @@ const MAX_BRIEFS_PER_KIND = 16;
 interface BriefReader { read: () => Array<{ jobId: string; status: string }>; valid: () => boolean; revoked: boolean }
 // Brief-only publishers (no readonly snapshot, hence no Monitor source). Readers get a plain list, never a handle.
 const briefKey = Symbol.for('pi-better-tools.monitor.job-briefs.v1');
-const briefRoot = globalThis as unknown as Record<symbol, Map<string, BriefReader>>;
-const briefReaders = () => briefRoot[briefKey] ??= new Map();
+const briefReaders = () => globalRegistry<BriefReader>(briefKey);
 /** Publishes this owner's unfinished jobs of a kind that Monitor cannot observe. Returns the revoke handle. */
 export function publishJobBriefs(kind: 'pty_session', scope: MonitorScope, read: BriefReader['read'], valid: BriefReader['valid']): () => void {
   const id = identity(kind, scope), readers = briefReaders();
   const old = readers.get(id); if (old) old.revoked = true;
-  if (!old && readers.size >= 64) throw new Error('Job brief capacity exceeded');
+  if (!old && readers.size >= MAX_PUBLISHERS) throw new Error('Job brief capacity exceeded');
   const reader: BriefReader = { read, valid, revoked: false }; readers.set(id, reader);
   return () => { reader.revoked = true; if (readers.get(id) === reader) readers.delete(id); };
 }

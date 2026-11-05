@@ -1,10 +1,9 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import { registerSettingsCommand } from '../../../shared/src/settings-panel/index.js';
+import { SettingsInputError, registerSettingsCommand } from '../../../shared/src/settings-panel/index.js';
 import type { Field, Patch, SettingsSchema, Values } from '../../../shared/src/settings-panel/index.js';
-import { CONFIG_PATH, parseConfig, type Config, type Provider } from './config.ts';
+import { CONFIG_PATH, MAX_CONCURRENCY_RANGE, NUM_RESULTS_RANGE, PROVIDERS, PROVIDER_LABELS, REST_PROVIDERS, TIMEOUT_MS_RANGE, parseConfig, type Config, type Provider, type RestProvider } from './config.ts';
 
-type CredentialName = 'brave' | 'exa' | 'deepseek';
-const PROVIDERS: readonly Provider[] = ['openai', 'native', 'brave', 'exa', 'deepseek'];
+type CredentialName = RestProvider;
 const providerIs = (...names: Provider[]) => (v: Values) => names.includes(v.provider as Provider);
 
 function credentialFields(name: CredentialName, label: string, usesPi: boolean): Field[] {
@@ -23,15 +22,13 @@ function credentialFields(name: CredentialName, label: string, usesPi: boolean):
 const FIELDS: readonly Field[] = [
   { key: 'enabled', type: 'boolean', group: 'Search', tab: 'Search', label: 'web_search enabled' },
   { key: 'provider', type: 'enum', group: 'Search', tab: 'Search', label: 'Provider', options: PROVIDERS, help: 'openai/native use the model\'s own search; brave/exa/deepseek call a REST API.' },
-  { key: 'numResults', type: 'int', group: 'Search', tab: 'Search', label: 'Results', min: 1, max: 10 },
-  { key: 'searchTimeoutMs', type: 'int', group: 'Search', tab: 'Search', label: 'Search timeout (ms)', min: 1000, max: 120000 },
+  { key: 'numResults', type: 'int', group: 'Search', tab: 'Search', label: 'Results', ...NUM_RESULTS_RANGE },
+  { key: 'searchTimeoutMs', type: 'int', group: 'Search', tab: 'Search', label: 'Search timeout (ms)', ...TIMEOUT_MS_RANGE },
   { key: 'openai.captureSources', type: 'boolean', group: 'OpenAI', tab: 'Search', label: 'Capture sources', visibleWhen: providerIs('openai'), help: 'Opt-in: keep native search sources for /web-tools sources.' },
   { key: 'google.captureSources', type: 'boolean', group: 'Native (Gemini)', tab: 'Search', label: 'Capture sources', visibleWhen: providerIs('native'), help: 'Opt-in: keep native search sources for /web-tools sources.' },
-  ...credentialFields('brave', 'Brave', false),
-  ...credentialFields('exa', 'Exa', false),
-  ...credentialFields('deepseek', 'DeepSeek', true),
-  { key: 'fetch.timeoutMs', type: 'int', group: 'Fetch', tab: 'Fetch', label: 'Timeout (ms)', min: 1000, max: 120000 },
-  { key: 'fetch.maxConcurrency', type: 'int', group: 'Fetch', tab: 'Fetch', label: 'Max concurrency', min: 1, max: 4 },
+  ...REST_PROVIDERS.flatMap(name => credentialFields(name, PROVIDER_LABELS[name], name === 'deepseek')),
+  { key: 'fetch.timeoutMs', type: 'int', group: 'Fetch', tab: 'Fetch', label: 'Timeout (ms)', ...TIMEOUT_MS_RANGE },
+  { key: 'fetch.maxConcurrency', type: 'int', group: 'Fetch', tab: 'Fetch', label: 'Max concurrency', ...MAX_CONCURRENCY_RANGE },
 ];
 /** Panel key -> JSON path for the fields that map one-to-one. Credentials are handled separately. */
 const SIMPLE: Record<string, readonly string[]> = {
@@ -39,7 +36,6 @@ const SIMPLE: Record<string, readonly string[]> = {
   'openai.captureSources': ['providers', 'openai', 'captureSources'], 'google.captureSources': ['providers', 'google', 'captureSources'],
   'fetch.timeoutMs': ['fetch', 'timeoutMs'], 'fetch.maxConcurrency': ['fetch', 'maxConcurrency'],
 };
-const NAMES: Record<CredentialName, string> = { brave: 'Brave', exa: 'Exa', deepseek: 'DeepSeek' };
 
 export function webToolsSettings(path = CONFIG_PATH): SettingsSchema<Config> {
   return {
@@ -52,7 +48,7 @@ export function webToolsSettings(path = CONFIG_PATH): SettingsSchema<Config> {
         'openai.captureSources': c.providers.openai.captureSources, 'google.captureSources': c.providers.google.captureSources,
         'fetch.timeoutMs': c.fetch.timeoutMs, 'fetch.maxConcurrency': c.fetch.maxConcurrency,
       };
-      for (const name of ['brave', 'exa', 'deepseek'] as const) {
+      for (const name of REST_PROVIDERS) {
         const cred = c.providers[name];
         v[`${name}.source`] = cred.apiKey ? 'key' : cred.apiKeyEnv ? 'env' : name === 'deepseek' ? 'pi' : 'env';
         v[`${name}.env`] = cred.apiKeyEnv ?? '';
@@ -63,25 +59,25 @@ export function webToolsSettings(path = CONFIG_PATH): SettingsSchema<Config> {
     toPatch(v, dirty, current) {
       const patches: Patch[] = [];
       for (const key of dirty) if (SIMPLE[key]) patches.push({ path: SIMPLE[key], value: v[key] });
-      for (const name of ['brave', 'exa', 'deepseek'] as const) {
+      for (const name of REST_PROVIDERS) {
         if (!providerIs(name)(v) || !(dirty.has(`${name}.source`) || dirty.has(`${name}.env`) || dirty.has(`${name}.key`))) continue;
         const at = (field: string) => ['providers', name, field];
         const source = v[`${name}.source`];
         if (source === 'pi') patches.push({ path: at('apiKey'), value: undefined }, { path: at('apiKeyEnv'), value: undefined });
         else if (source === 'env') {
           const env = String(v[`${name}.env`] ?? '').trim();
-          if (!env) return fail(`Enter the environment variable name for ${NAMES[name]} (the name, not the key).`);
+          if (!env) return fail(`Enter the environment variable name for ${PROVIDER_LABELS[name]} (the name, not the key).`);
           patches.push({ path: at('apiKeyEnv'), value: env }, { path: at('apiKey'), value: undefined });
         } else {
           const typed = typeof v[`${name}.key`] === 'string' ? (v[`${name}.key`] as string).trim() : '';
           if (typed) patches.push({ path: at('apiKey'), value: typed }, { path: at('apiKeyEnv'), value: undefined });
-          else if (!current.providers[name].apiKey) return fail(`API key: type the ${NAMES[name]} key, or choose another key source.`);
+          else if (!current.providers[name].apiKey) return fail(`API key: type the ${PROVIDER_LABELS[name]} key, or choose another key source.`);
         }
       }
       return patches;
     },
   };
 }
-function fail(message: string): never { throw new Error(message); }
+function fail(message: string): never { throw new SettingsInputError(message); }
 
 export function registerWebToolsSettings(pi: ExtensionAPI): void { registerSettingsCommand(pi, webToolsSettings()); }

@@ -44,8 +44,11 @@ export function applyPatches(raw: Record<string, unknown>, patches: readonly Pat
   return next;
 }
 
+/** The text register.ts recognises as a store error (starts with "cannot write"); it names the errno code, never a path or content. */
+const writeFailure = (error: unknown) => new Error(`cannot write the configuration file (${(error as NodeJS.ErrnoException).code ?? 'error'})`);
+
 export function removeFile(path: string): void {
-  try { rmSync(path, { force: true }); } catch (error) { throw new Error(`cannot write the configuration file (${(error as NodeJS.ErrnoException).code ?? 'error'})`); }
+  try { rmSync(path, { force: true }); } catch (error) { throw writeFailure(error); }
 }
 
 /** Temp file in the same directory, then rename. A failed write never leaves a partial config behind. */
@@ -59,6 +62,6 @@ export function writeJsonAtomic(path: string, value: unknown): void {
     renameSync(temp, path);
   } catch (error) {
     try { rmSync(temp, { force: true }); } catch { /* best effort */ }
-    throw new Error(`cannot write the configuration file (${(error as NodeJS.ErrnoException).code ?? 'error'})`);
+    throw writeFailure(error);
   }
 }

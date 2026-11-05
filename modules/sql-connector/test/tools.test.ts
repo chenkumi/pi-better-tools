@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ExtensionAPI, ExtensionToolContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { Value } from "typebox/value";
 import { registerEngineTools } from "../src/tools.js";
 import type { SqlConnectorRuntime } from "../src/runtime.js";
 import { ENGINES } from "../src/types.js";
@@ -30,6 +31,23 @@ for (const engine of ENGINES) {
       expect(f.runtime.query).toHaveBeenCalledWith(engine, sql, params, undefined);
       expect(JSON.stringify(result.content)).toContain("[REDACTED]");
       expect(JSON.stringify(result.content)).not.toContain("synthetic-only");
+    });
+    it("returns masked, bounded structuredContent that validates against each outputSchema", async () => {
+      const f = fixture(true, true);
+      const sql = engine === "mssql" ? "SELECT TOP 1 id FROM users" : "SELECT id FROM users LIMIT 1";
+      const results = {
+        state: await f.call("state", {}),
+        query: await f.call("query", { sql }),
+        update: await f.call("update", { sql: "DELETE FROM users WHERE id = 1", reason: "fixture" }),
+      };
+      for (const [action, result] of Object.entries(results)) {
+        const schema = f.tools.get(`${engine}_${action}`)!.outputSchema!;
+        expect(Value.Check(schema, result.structuredContent), action).toBe(true);
+      }
+      expect(results.state.structuredContent).toEqual({ connected: true, engine, database: "fixture", version: "test" });
+      expect(results.query.structuredContent).toEqual({ columns: ["id", "password"], rows: [{ id: 1, password: "[REDACTED]" }], returnedRows: 1, totalRows: 1, truncated: false });
+      expect(JSON.stringify(results.query.structuredContent)).not.toContain("synthetic-only");
+      expect(results.update.structuredContent).toEqual({ affectedRows: 1 });
     });
     it("rejects unattended or denied writes without reaching the runtime", async () => {
       for (const hasUI of [false, true]) {

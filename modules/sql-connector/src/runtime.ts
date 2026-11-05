@@ -63,7 +63,6 @@ function stateFrom(engine: Engine, row: Record<string, unknown> | undefined, dat
   return { engine, database: row?.[databaseColumn] ? String(row[databaseColumn]) : (configuredDatabase ?? null), version: row?.version ? String(row.version) : null };
 }
 
-/** Resolves when the adapter has closed or the deadline passes; connections still open then are left to the process exit. */
 /** Resolves true only when the adapter confirmed it closed; a failure or the deadline leaves it unconfirmed. */
 async function closeWithin(adapter: Adapter, deadlineMs: number): Promise<boolean> {
   let timer: NodeJS.Timeout | undefined;
@@ -162,7 +161,8 @@ class MysqlAdapter implements Adapter {
         await connection.query("ROLLBACK");
         return result;
       });
-      return { rows: rowsFrom(rows), rowCount: rowsFrom(rows).length };
+      const resultRows = rowsFrom(rows);
+      return { rows: resultRows, rowCount: resultRows.length };
     } catch (error) {
       return databaseError("mysql", error, signal, { config: this.config });
     }

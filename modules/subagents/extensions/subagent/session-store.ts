@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { ulid } from "ulid";
 import { StringDecoder } from "node:string_decoder";
 import type { AgentConfig, AgentScope } from "./agents.ts";
+import { MAX_SNAPSHOT_BYTES } from "./query-snapshot.ts";
 import type { SessionPersistence } from "./child-args.ts";
 
 export const MAX_METADATA_BYTES = 256 * 1024;
@@ -399,7 +400,7 @@ export class ManagedSession {
 	async readQuerySnapshot(): Promise<Buffer> {
 		await this.assertLock();
 		await this.validateCheckpoint();
-		const limit = 8 * 1024 * 1024, cp = this.manifest.checkpoint!;
+		const limit = MAX_SNAPSHOT_BYTES, cp = this.manifest.checkpoint!;
 		if (cp.nativeBytes > limit) fail("SNAPSHOT_CAPACITY", "Query checkpoint exceeds 8 MiB; use mode control or start a new subagent");
 		const file = path.join(this.directory, this.manifest.nativeFile!);
 		await contained(this.root, file);

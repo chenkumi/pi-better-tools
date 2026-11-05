@@ -286,10 +286,11 @@ describe("configuration messages", () => {
       expect(notice).toMatch(/ask the user/i);
       expect(notice).toMatch(/sql-connector-reload/);
       expect(notice).not.toContain(SECRET);
-      const legacy = handlers.get("before_agent_start")!({ systemPrompt: "Base", systemPromptOptions: {} }, ctx);
-      expect(legacy.systemPrompt).toContain("Base");
-      expect(legacy.systemPrompt).toContain("CONFIG_INVALID");
-      expectNoConfigLeak(legacy.systemPrompt);
+      // A forced/custom prompt from another extension gets the same notice appended, still without the config details.
+      const forced = handlers.get("before_agent_start")!({ systemPrompt: "Forced", systemPromptOptions: { sections: {}, forceSystemPrompt: "Forced" } }, ctx);
+      expect(forced.systemPrompt).toContain("Forced");
+      expect(forced.systemPrompt).toContain("CONFIG_INVALID");
+      expectNoConfigLeak(forced.systemPrompt);
       // The human-only UI notice keeps the detailed field and file names.
       expect(notices).toHaveLength(1);
       expect(notices[0]).toContain("pgsql.sll");

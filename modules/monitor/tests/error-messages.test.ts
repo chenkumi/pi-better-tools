@@ -96,6 +96,9 @@ test('agent-facing messages name tool args only, never settings, flags or enviro
   const result = await tools.get('monitor_status').execute('id', {}, undefined, undefined, ctx);
   const text = JSON.stringify(result);
   assert.match(text, /monitor_status is registered but not enabled for this session; ask the user to enable it/);
+  assert.equal(result.isError, true);
+  assert.equal(result.structuredContent.code, 'MONITOR_TOOL_DISABLED', 'the code is its own field, not only a message prefix');
+  assert.match(result.structuredContent.error, /^MONITOR_TOOL_DISABLED: /);
   assert.doesNotMatch(text, forbidden);
   for (const tool of tools.values()) assert.doesNotMatch(`${tool.description} ${JSON.stringify(tool.parameters)}`, forbidden, tool.name);
   const messages: string[] = [];

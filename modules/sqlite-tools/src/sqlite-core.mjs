@@ -52,7 +52,7 @@ function assertSingleStatement(sql) {
   if (TRIGGER_STATEMENT.test(leadingKeywordText(sql))) return;
   let index = 0;
   while (index < sql.length) {
-    const char = sql[index] ;
+    const char = sql[index];
     const next = sql[index + 1];
     if (char === "'" || char === '"' || char === "`") {
       index += 1;
@@ -100,8 +100,7 @@ function driverHint(message, writes) {
 /** Wraps a raw node:sqlite error with the operation, SQLite code, bounded SQL and a fix hint. */
 function wrapDriverError(operation, error, sql, writes) {
   if (error instanceof GuidedError) return error;
-  const detail = error;
-  const code = typeof detail.errcode === "number" ? ` (SQLite code ${detail.errcode}${typeof detail.errstr === "string" ? `: ${detail.errstr}` : ""})` : "";
+  const code = typeof error.errcode === "number" ? ` (SQLite code ${error.errcode}${typeof error.errstr === "string" ? `: ${error.errstr}` : ""})` : "";
   const message = errorMessage(error);
   return new Error(`${operation} failed: ${message}${code}. SQL: ${sqlExcerpt(sql)}. ${driverHint(message, writes)}`);
 }

@@ -1,10 +1,9 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { AuditTracker, ownerOf } from "./events.js";
 import { validateLimits, type Limits } from "./activity-window.js";
-import { resultText, safeText, statusText } from "./presentation.js";
-import { failureCode, scan } from "./provenance.js";
+import { safeText, statusText } from "./presentation.js";
 
-const USAGE = "/file-audit [status|check|clear|limits --window <1–30> --max-files <1–500>]";
+const USAGE = "/file-audit [status|clear|limits --window <1–30> --max-files <1–500>]";
 const MAX_ARGS_LENGTH = 1024;
 const MAX_ECHO = 40;
 const usageError = (problem: string) => new Error(`${problem}. Usage: ${USAGE}`);
@@ -14,7 +13,7 @@ export function parseCommand(args: string, current: Limits): { action: string; l
   if (args.length > MAX_ARGS_LENGTH) throw usageError(`Arguments exceed ${MAX_ARGS_LENGTH} characters (received ${args.length})`);
   const tokens = args.trim().split(/\s+/).filter(Boolean), action = tokens.shift() ?? "status";
   if (action !== "limits") {
-    if (!["status", "check", "clear"].includes(action)) throw usageError(`Unknown action ${echo(action)} (expected one of status, check, clear, limits)`);
+    if (!["status", "clear"].includes(action)) throw usageError(`Unknown action ${echo(action)} (expected one of status, clear, limits)`);
     if (tokens.length) throw usageError(`"${action}" takes no arguments; got ${echo(tokens[0])}`);
     return { action };
   }
@@ -33,31 +32,16 @@ export function parseCommand(args: string, current: Limits): { action: string; l
   return { action, limits: next };
 }
 export class AuditCommands {
-  private active?: AbortController;
-  constructor(readonly tracker: AuditTracker, private readonly inspect: typeof scan = scan) {}
-  cancel(): void { this.active?.abort(); }
+  constructor(readonly tracker: AuditTracker) {}
   async handle(args: string, ctx: ExtensionCommandContext): Promise<void> {
     if (ctx.mode !== "tui") return;
     let command: ReturnType<typeof parseCommand>;
     try { command = parseCommand(args, this.tracker.window.limits); }
     catch (error) { ctx.ui.notify(safeText(error instanceof Error ? error.message : USAGE, 500), "warning"); return; }
     if (command.action === "clear") {
-      this.cancel(); this.tracker.reset(ownerOf(ctx), false);
+      this.tracker.reset(ownerOf(ctx), false);
     } else if (command.action === "limits") {
       this.tracker.window.configure(command.limits!);
-    } else if (command.action === "check") {
-      if (this.active) { ctx.ui.notify("File Audit: inspection busy; no second scan queued.", "warning"); return; }
-      const generation = this.tracker.generation;
-      const controller = new AbortController(); this.active = controller;
-      const cwd = ctx.cwd, owner = ownerOf(ctx);
-      const current = () => generation === this.tracker.generation && owner === ownerOf(ctx);
-      try {
-        const result = await this.inspect(cwd, this.tracker.window.snapshot(), { signal: controller.signal });
-        if (current() && !controller.signal.aborted) ctx.ui.notify(resultText(result, cwd), result.error ? "warning" : "info");
-      } catch (error) {
-        if (current() && !controller.signal.aborted) ctx.ui.notify(`File Audit: inspection failed (${failureCode(error)}); no verification claimed.`, "warning");
-      } finally { if (this.active === controller) this.active = undefined; }
-      return;
     }
     ctx.ui.notify(statusText(this.tracker.window, this.tracker.pendingCount, ctx.cwd), "info");
   }

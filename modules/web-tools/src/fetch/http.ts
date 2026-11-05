@@ -90,11 +90,13 @@ async function readDocument(response: IncomingMessage, signal: AbortSignal): Pro
   return decodeDocument(Buffer.concat(chunks), type);
 }
 
+const MAX_REDIRECTS = 20;
+
 /** No cookies, auth, subresources, script/meta navigation, retry, proxy or shared connection pool. */
 export async function fetchStatic(value: string, policy: NetworkPolicy, signal: AbortSignal): Promise<{ html: string; finalUrl: string; status: number }> {
   try {
     let target = value;
-    for (let hop = 0; hop < 20; hop++) {
+    for (let hop = 0; hop < MAX_REDIRECTS; hop++) {
       const { url, address } = await resolveAbortable(policy, target, signal);
       aborted(signal);
       const request = (url.protocol === 'https:' ? https : http).request(url, pinnedOptions(url, address, signal));
@@ -122,7 +124,7 @@ export async function fetchStatic(value: string, policy: NetworkPolicy, signal: 
         await closed;
       }
     }
-    throw new Error('NETWORK_ERROR: Too many redirects (limit 20); the URL redirects in a loop. Try the final destination URL directly.');
+    throw new Error(`NETWORK_ERROR: Too many redirects (limit ${MAX_REDIRECTS}); the URL redirects in a loop. Try the final destination URL directly.`);
   } catch (error) {
     aborted(signal);
     if (error instanceof Error && /^(NETWORK_BLOCKED|NETWORK_ERROR|INVALID_URL|HTTP_ERROR|UNSUPPORTED_CONTENT|TOO_LARGE):/.test(error.message)) throw error;

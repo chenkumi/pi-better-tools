@@ -1,17 +1,13 @@
 import { join } from "node:path";
 import { CONFIG_DIR_NAME, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { registerSettingsCommand } from "../../../shared/src/settings-panel/index.js";
+import { SettingsInputError, registerSettingsCommand } from "../../../shared/src/settings-panel/index.js";
 import type { Field, Patch, SettingsSchema, Values } from "../../../shared/src/settings-panel/index.js";
-import { parseDatabaseConfig } from "./config.js";
-import { ENGINES, SqlConnectorError, type Engine } from "./types.js";
+import { DEFAULT_ODBC_DRIVER, DEFAULT_PORT, ENV_REFERENCE, parseDatabaseConfig } from "./config.js";
+import { ENGINES, ENGINE_LABEL, SqlConnectorError, type Engine } from "./types.js";
 
 type Block = Record<string, unknown>;
 type Document = Partial<Record<Engine, Block>>;
 
-const LABEL: Record<Engine, string> = { mysql: "MySQL", mssql: "Microsoft SQL Server", pgsql: "PostgreSQL" };
-const DEFAULT_PORT: Record<Engine, number> = { mysql: 3306, mssql: 1433, pgsql: 5432 };
-const DEFAULT_ODBC = "ODBC Driver 18 for SQL Server";
-const ENV_REFERENCE = /^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/;
 /** Validation must not depend on the environment: any `${VAR}` counts as set. */
 const anyEnv = new Proxy({}, { get: () => "x" }) as NodeJS.ProcessEnv;
 
@@ -29,7 +25,7 @@ function parse(raw: unknown): Document {
 }
 
 function engineFields(engine: Engine): Field[] {
-  const group = LABEL[engine], k = (name: string) => `${engine}.${name}`;
+  const group = ENGINE_LABEL[engine], k = (name: string) => `${engine}.${name}`;
   const on = (v: Values) => v[k("enabled")] === true;
   const sql = (v: Values) => on(v) && !(engine === "mssql" && v[k("windowsAuth")] === true);
   return [
@@ -40,7 +36,7 @@ function engineFields(engine: Engine): Field[] {
     ...(engine === "mssql" ? [
       { key: k("windowsAuth"), type: "boolean", group, label: "Windows authentication", visibleWhen: on, help: "Needs the optional msnodesqlv8 binding and an ODBC driver; there is no fallback to SQL authentication." } satisfies Field,
       { key: k("instanceName"), type: "string", group, label: "Instance name", visibleWhen: on, help: "Named instance; leave empty to use the port." } satisfies Field,
-      { key: k("odbcDriver"), type: "string", group, label: "ODBC driver", visibleWhen: (v: Values) => on(v) && v[k("windowsAuth")] === true, placeholder: DEFAULT_ODBC } satisfies Field,
+      { key: k("odbcDriver"), type: "string", group, label: "ODBC driver", visibleWhen: (v: Values) => on(v) && v[k("windowsAuth")] === true, placeholder: DEFAULT_ODBC_DRIVER } satisfies Field,
     ] : []),
     { key: k("username"), type: "string", group, label: "Username", visibleWhen: sql, help: engine === "mysql" ? "Optional for MySQL." : "Use a least-privilege account; reads should use a read-only account." },
     { key: k("passSource"), type: "enum", group, label: "Password source", options: engine === "pgsql" ? ["env", "key"] : ["none", "env", "key"], visibleWhen: sql,
@@ -101,21 +97,21 @@ export function sqlConnectorSettings(path: string): SettingsSchema<Document> {
         if (engine === "mssql") {
           if (windows) block.windowsAuth = true;
           if (instance) block.instanceName = instance;
-          if (windows && text("odbcDriver") && text("odbcDriver") !== DEFAULT_ODBC) block.odbcDriver = text("odbcDriver");
+          if (windows && text("odbcDriver") && text("odbcDriver") !== DEFAULT_ODBC_DRIVER) block.odbcDriver = text("odbcDriver");
         }
         if ((engine === "mssql" || engine === "mysql") && v[k("trustServerCertificate")] === true) block.trustServerCertificate = true;
         if (!windows) {
           if (text("username")) block.username = text("username");
           const source = v[k("passSource")];
           if (source === "env") {
-            if (!text("passEnv")) throw new Error(`Enter the environment variable name for the ${LABEL[engine]} password (the name, not the password).`);
+            if (!text("passEnv")) throw new SettingsInputError(`Enter the environment variable name for the ${ENGINE_LABEL[engine]} password (the name, not the password).`);
             block.password = `\${${text("passEnv")}}`;
           } else if (source === "key") {
             const typed = typeof v[k("password")] === "string" ? (v[k("password")] as string).trim() : "";
             const kept = str(old?.password);
             if (typed) block.password = typed;
             else if (kept && !ENV_REFERENCE.test(kept)) block.password = kept;
-            else throw new Error(`Enter the ${LABEL[engine]} password, or choose another password source.`);
+            else throw new SettingsInputError(`Enter the ${ENGINE_LABEL[engine]} password, or choose another password source.`);
           }
         }
         if (v[k("ssl")] === true) block.ssl = true;

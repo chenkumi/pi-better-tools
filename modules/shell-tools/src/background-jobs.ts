@@ -1,5 +1,6 @@
 import { ulid } from "ulid";
 import { canonicalMonitorCwd } from "../../../shared/src/background/index.js";
+import { ToolError } from "../../../shared/src/tool-error/index.js";
 import { ShellJobsWidget } from "./live-widget.js";
 import { OutputTranscript } from "../../../shared/src/background/index.js";
 import { BackgroundRecovery, type RecoveryWriter } from "./recovery.js";
@@ -260,17 +261,17 @@ export class ShellJobs {
   }
 
   private assertOwner(ctx: ExtensionContext) {
-    if (this.stopped) throw new Error("Shell background runtime is shutting down (the session is ending or reloading); do not retry in this session.");
+    if (this.stopped) throw new ToolError("SHELL_SHUTTING_DOWN", "Shell background runtime is shutting down (the session is ending or reloading); do not retry in this session.");
     if (this.owner === undefined) this.start(ctx);
     let validOwner = false;
     try { validOwner = this.currentSession?.() === this.owner; }
     catch { /* A disposed SDK context must fail closed, not escape callbacks. */ }
     if (!validOwner) {
       this.invalidateOwner();
-      throw new Error("Shell background owner session is disposed or replaced; its jobs are no longer available. Retry in the current session, or run the command in the foreground (without background).");
+      throw new ToolError("SHELL_OWNER_MISMATCH", "Shell background owner session is disposed or replaced; its jobs are no longer available. Retry in the current session, or run the command in the foreground (without background).");
     }
     // A foreign caller must not be able to cancel the actual owner's jobs.
-    if (ctx.sessionManager.getSessionId() !== this.owner) throw new Error("Shell job belongs to a different owner session and cannot be inspected or cancelled from this one. Call shell_job_status with no arguments to list the jobs of the current session.");
+    if (ctx.sessionManager.getSessionId() !== this.owner) throw new ToolError("SHELL_OWNER_MISMATCH", "Shell job belongs to a different owner session and cannot be inspected or cancelled from this one. Call shell_job_status with no arguments to list the jobs of the current session.");
   }
 
   submit(ctx: ExtensionContext, tool: string, toolCallId: string, signal: AbortSignal | undefined,
@@ -281,7 +282,7 @@ export class ShellJobs {
     this.assertOwner(ctx);
     if (signal?.aborted) throw new Error("Command aborted before background acceptance; nothing was run. Re-issue the command if it is still needed.");
     const active = [...this.jobs.values()].filter(j => isActiveJobStatus(j.status));
-    if (active.length >= MAX_ACTIVE_JOBS) throw new Error(`Request not accepted: capacity limit reached. Shell background active limit (${MAX_ACTIVE_JOBS}) reached. Wait for one of these to finish (completion is announced automatically) or cancel one with shell_job_cancel if selected: ${this.describe(active)}`);
+    if (active.length >= MAX_ACTIVE_JOBS) throw new ToolError("SHELL_CAPACITY", `Request not accepted: capacity limit reached. Shell background active limit (${MAX_ACTIVE_JOBS}) reached. Wait for one of these to finish (completion is announced automatically) or cancel one with shell_job_cancel if selected: ${this.describe(active)}`);
     this.evictForAdmission();
     if (!swept) { // Lazily, once per process, at the first real submission (loading the extension creates nothing).
       swept = true;
@@ -301,7 +302,7 @@ export class ShellJobs {
       this.closeLog(job);
       housekeep(() => removeJobDirectory(directory));
       // No runner has been scheduled and no command was executed. Journal errors already carry a BACKGROUND_JOURNAL_FAILED reason.
-      throw new Error(`Background job could not be started: ${acceptanceReason(error)}. The command was not run; retry, or run it in the foreground (omit background).`, { cause: error });
+      throw new ToolError("SHELL_BACKGROUND_START_FAILED", `Background job could not be started: ${acceptanceReason(error)}. The command was not run; retry, or run it in the foreground (omit background).`, { cause: error });
     }
     try { job.monitorCwd = canonicalMonitorCwd(ctx.cwd); } catch { /* Monitor must refuse unavailable cwd evidence; Shell behavior is unchanged. */ }
     this.jobs.set(job.jobId, job);
@@ -314,7 +315,7 @@ export class ShellJobs {
       // accepted-but-never-started entry for the next load to report as an orphan.
       job.recovery?.update({ jobId: job.jobId, toolCallId: job.toolCallId, state: "failed", started: false, cancelRequested: false, terminal: true });
       housekeep(() => removeJobDirectory(directory));
-      throw new Error(`Background job could not be started: the foreground handoff could not be linked (${errorCode(error)}). The command was not run by a background job; retry, or run it in the foreground (omit background).`, { cause: error });
+      throw new ToolError("SHELL_BACKGROUND_START_FAILED", `Background job could not be started: the foreground handoff could not be linked (${errorCode(error)}). The command was not run by a background job; retry, or run it in the foreground (omit background).`, { cause: error });
     }
     // A later event-loop boundary ensures even immediate completion cannot precede the receipt.
     job.done = new Promise<void>(resolve => setImmediate(resolve)).then(() => this.runJob(job, run))
@@ -329,7 +330,7 @@ export class ShellJobs {
       const oldest = [...this.jobs.values()].find(j => !isActiveJobStatus(j.status) && !this.pending.has(j));
       if (!oldest) {
         const blocking = [...this.jobs.values()];
-        throw new Error(`Request not accepted: capacity limit reached. Shell background retention limit (${MAX_RETAINED_JOBS}) reached: every retained job is running or awaiting its completion notification. Wait for a completion notification (or cancel a running job with shell_job_cancel if selected): ${this.describe(blocking)}`);
+        throw new ToolError("SHELL_CAPACITY", `Request not accepted: capacity limit reached. Shell background retention limit (${MAX_RETAINED_JOBS}) reached: every retained job is running or awaiting its completion notification. Wait for a completion notification (or cancel a running job with shell_job_cancel if selected): ${this.describe(blocking)}`);
       }
       // EBUSY/EPERM on Windows (a straggler child still holds the directory) must not wedge every later submit.
       housekeep(() => removeJobDirectory(oldest.directory)); // Failed/capped cleanup remains orphaned; admission is not blocked.
@@ -533,9 +534,10 @@ export class ShellJobs {
     if (!job || !this.isRetainedHere(job)) {
       const known = [...this.jobs.values()].filter(j => this.isRetainedHere(j));
       const suffix = ` Call shell_job_status with no arguments to list retained jobs (job records do not survive a session reload). Known jobs: ${this.describe(known)}`;
-      throw new Error(this.evicted.has(jobId)
-        ? `Shell job ${jobId} was evicted from retained history (at most ${MAX_RETAINED_JOBS} jobs are retained). Its result is no longer queryable; log cleanup was attempted.${suffix}`
-        : `No retained job record was found in this session/runtime for Shell job ${ellipsize(String(jobId), 64)}. Check the job ID and owning session.${suffix}`);
+      if (this.evicted.has(jobId)) {
+        throw new ToolError("SHELL_JOB_EVICTED", `Shell job ${jobId} was evicted from retained history (at most ${MAX_RETAINED_JOBS} jobs are retained). Its result is no longer queryable; log cleanup was attempted.${suffix}`);
+      }
+      throw new ToolError("SHELL_JOB_NOT_FOUND", `No retained job record was found in this session/runtime for Shell job ${ellipsize(String(jobId), 64)}. Check the job ID and owning session.${suffix}`);
     }
     return job;
   }

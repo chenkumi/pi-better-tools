@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
-import { SettingsPanel, saveSettings, type Field, type Patch, type SettingsSchema, type Values } from '../../src/settings-panel/index.ts';
+import { SettingsInputError, SettingsPanel, saveSettings, type Field, type Patch, type SettingsSchema, type Values } from '../../src/settings-panel/index.ts';
 
 function file(t: TestContext) {
   const dir = mkdtempSync(join(tmpdir(), 'pi-settings-save-'));
@@ -42,6 +42,16 @@ test('with no patches the file is left alone (not created, not rewritten), but a
   assert.equal(await saveSettings(s, {}, new Set(['secret'])), undefined);
   assert.equal(readFileSync(path, 'utf8'), '{"hand":"edited"}');
   assert.equal(ran, 2);
+});
+
+test('only an input error a module marked is shown as written; any other error becomes a generic line', async t => {
+  const path = file(t);
+  const throwing = (error: Error) => schema(path, { toPatch: () => { throw error; } });
+  assert.equal(await saveSettings(throwing(new SettingsInputError('Enter a value.')), { note: 'x' }, new Set(['note'])), 'Enter a value.');
+  // Starting with "Enter" is no longer enough: the text of an unmarked error may carry anything.
+  assert.equal(await saveSettings(throwing(new Error('Enter secret-value-123')), { note: 'x' }, new Set(['note'])), 'the settings could not be validated');
+  assert.equal(await saveSettings(throwing(new Error('boom')), { note: 'x' }, new Set(['note'])), 'the settings could not be validated');
+  assert.equal(existsSync(path), false);
 });
 
 test('a rejected document is not written and afterWrite does not run', async t => {

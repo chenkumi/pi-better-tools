@@ -1,7 +1,7 @@
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { Text } from '@earendil-works/pi-tui';
 import { stripVTControlCharacters } from 'node:util';
-import { sanitizeText } from './output.ts';
+import { MAX_INLINE_BYTES, sanitizeText } from './output.ts';
 
 const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const clean = (value: unknown, max = 1000) => typeof value === 'string' || typeof value === 'number'
@@ -16,7 +16,7 @@ const urlLabel = (value: unknown) => {
 /** Interactive hosts forward content/details, not structuredContent. Parse only a bounded,
  * best-effort preview of the existing formatted search text; never treat it as trusted metadata. */
 function searchPreview(text: string) {
-  const bounded = text.slice(0, 24 * 1024);
+  const bounded = text.slice(0, MAX_INLINE_BYTES);
   return {
     query: /^Query: ([^\n]*)/m.exec(bounded)?.[1],
     results: Array.from(bounded.matchAll(/^\[\d+\] ([^\n]*)\n(https?:\/\/[^\n]+)/gm)).slice(0, 10).map(match => ({ title: match[1], url: match[2] })),

@@ -56,6 +56,8 @@ test("extension entry: root registers the Fork tools, a Subagent child none, a F
 		const a = root.tools.get(name), b = child.tools.get(name);
 		assert.equal(b.description, a.description, `${name} description is identical`);
 		assert.deepEqual(b.parameters, a.parameters, `${name} schema is identical`);
+		assert.ok(a.outputSchema, `${name} declares an outputSchema`);
+		assert.deepEqual(b.outputSchema, a.outputSchema, `${name} output schema is identical`);
 		assert.equal(b.promptSnippet, a.promptSnippet, `${name} prompt snippet is identical`);
 		assert.deepEqual(b.promptGuidelines, a.promptGuidelines, `${name} prompt guidelines are identical`);
 		await assert.rejects(() => b.execute("id", { task: "x", jobId: "J", message: "m" }, undefined, undefined, {}), /FORK_FORBIDDEN/, `${name} is refused inside a Fork`);

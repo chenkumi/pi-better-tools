@@ -1,3 +1,6 @@
+/** Maximum subagent children running at once in this process. */
+export const MAX_CONCURRENCY = 8;
+
 /** Process-wide FIFO permit pool. Per-call limits alone let parallel tool calls multiply the active child count. */
 export class Semaphore {
 	private available: number;

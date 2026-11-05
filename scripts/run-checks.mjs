@@ -16,7 +16,6 @@ const heavyFiles = new Set([
   'modules/json-schema/tests/runtime.test.mjs', 'tests/integration/sdk-hooks.test.mjs', 'modules/subagents/tests/child-shell-guard-reload.integration.test.mjs',
   'modules/shell-tools/tests/recovery.integration.test.mjs', 'modules/shell-tools/tests/extension.integration.test.mjs', 'modules/shell-tools/tests/notification-batching.integration.test.mjs',
   'modules/fork/tests/real-host.integration.test.ts', 'modules/fork/tests/blocked-report.integration.test.ts',
-  'modules/file-audit/tests/tui-workflow.integration.test.mjs',
   'modules/sql-connector/tests/sdk.integration.test.mjs', 'modules/monitor/tests/host.integration.test.mjs']);
 const testFiles = (dir, keep, recursive = false) => readdirSync(join(root, dir), { withFileTypes: true }).flatMap(entry => {
   const path = `${dir}/${entry.name}`;

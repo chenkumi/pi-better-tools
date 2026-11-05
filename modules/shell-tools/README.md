@@ -83,7 +83,7 @@ Default-shell 卡片改由 self-shell 重建原有 Box，避免外層留白仍�
 
 ### 背景 job 預設 Monitor
 
-`background:true`（或前景自動轉背景）且未設定 `timeoutMs` 時，job 被接受後 Shell 經 `monitor-capability.ts` 的 rendezvous 請求已載入的 Monitor 啟動一個 `shell_job` 來源：`intervalMs` 180000、`wakeAgent:false`（僅 display、不要求模型回合）、`durationMs` 1800000（Monitor 上限）、label `auto: shell job without timeoutMs`。receipt 文字附上 monitorId 與 `monitor_stop` 提示。Best effort：`monitor_start` 未選取（allowlist／exclude／no-tools）、Monitor 未載入、owner／cwd 不符或 4 個 active 上限已滿時靜默略過，不啟用未選工具、不影響 job；Monitor 只讀取 snapshot，停止或到期都不取消 job。前景指令與有設定 `timeoutMs` 的背景 job 不啟動。自動 monitor 佔用 Monitor 的 active 名額。
+`background:true`（或前景自動轉背景）且未設定 `timeoutMs` 時，job 被接受後 Shell 經 `shared/src/background/monitor-capability.ts` 的 rendezvous 請求已載入的 Monitor 啟動一個 `shell_job` 來源：`intervalMs` 180000、`wakeAgent:false`（僅 display、不要求模型回合）、`durationMs` 1800000（Monitor 上限）、label `auto: shell job without timeoutMs`。receipt 文字附上 monitorId 與 `monitor_stop` 提示。Best effort：`monitor_start` 未選取（allowlist／exclude／no-tools）、Monitor 未載入、owner／cwd 不符或 4 個 active 上限已滿時靜默略過，不啟用未選工具、不影響 job；Monitor 只讀取 snapshot，停止或到期都不取消 job。前景指令與有設定 `timeoutMs` 的背景 job 不啟動。自動 monitor 佔用 Monitor 的 active 名額。
 
 ### Codemode
 
@@ -95,6 +95,8 @@ text({ output: result.output, exitCode: result.exit_code });
 Windows 上可用 `tools.powershell({ command, timeoutMs })`。該 shell 必須已被選取，載入本擴充不會自動讓 codemode 可用。
 
 ## 背景工作
+
+背景工作的拒絕與查詢失敗以穩定錯誤碼開頭（`CODE: message`，`shared/src/tool-error/`；只有訊息文字會進模型）：`SHELL_CAPACITY`、`SHELL_SHUTTING_DOWN`、`SHELL_OWNER_MISMATCH`、`SHELL_BACKGROUND_START_FAILED`、`SHELL_JOB_NOT_FOUND`、`SHELL_JOB_EVICTED`；參數錯誤為 `SHELL_INVALID_ARGUMENT`，Managed subagent 傳入 background 為 `SHELL_FOREGROUND_ONLY`。`timeoutMs` 驗證錯誤暫無碼；`BACKGROUND_JOURNAL_FAILED` 為既有碼。
 
 ### 模型提示與提前停止
 
@@ -109,7 +111,7 @@ Windows 上可用 `tools.powershell({ command, timeoutMs })`。該 shell 必須�
 
 ### 即時 TUI 面板
 
-Shell／Subagents／Fork／Monitor／PTY 的 owner-bound `bind`／`refresh`／`clear` 共用 `src/widget-binding.ts`；只共用 UI context、producer token 與顯示更新，各自的資料投影、執行 registry、取消、通知及生命週期仍獨立。
+Shell／Subagents／Fork／Monitor／PTY 的 owner-bound `bind`／`refresh`／`clear` 共用 `shared/src/background/widget-binding.ts`；只共用 UI context、producer token 與顯示更新，各自的資料投影、執行 registry、取消、通知及生命週期仍獨立。
 
 Jobs 面板自動掛在輸入欄上方 `aboveEditor`，Shell／Subagents／Fork／Monitor／PTY **合計最多五個 job，每個一行**，最多7行（標題＋5 job＋More）：左側 `● SH|SA|FK|MN|PT 標籤 · 標題`，右側狀態欄 `狀態 | 用量`（Shell 執行中只顯示 `N/A`；Monitor 為 `wake on|off | 剩 24m`；取消中仍在 finalize、Fork 清理未確認、blocked 這類不能看起來健康的狀態直接寫在狀態欄）；標題列依實際數量顯示 `Subagents n / Shell n`，Fork／Monitor／PTY 只在大於 0 時出現。短 ID 與活動摘要（Running／output received 或 no output observed 等）移到 More 詳細；寬度不足 40 欄時省略狀態欄；窄欄截短不折行，高度不足減少列數，More 顯示省略數。只列目前 owner/runtime 的背景 Bash／PowerShell，running／cancelling 直到 registry settlement；取消要求不冒充程序樹已停止。Shell 顯示 Running／output received 或 no output observed，沒有輸出不自行推斷卡住；工具本身沒有模型用量帳本，固定顯示 `tokens N/A`，不推算命令內呼叫 AI 的 token。
 

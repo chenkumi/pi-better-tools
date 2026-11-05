@@ -47,11 +47,15 @@ test('OpenAI only registers fetch; REST modes expose output schemas and conserva
   }
   assert.deepEqual(harness('brave', false).tools, ['web_fetch']);
 });
+/** A `before_agent_start` event as Pi 1.5.0 builds it: structured sections are always present. */
+const promptEvent = () => ({ systemPrompt: 'Original', systemPromptOptions: { sections: {} as Record<string, string> } });
 test('native hook restricted by model and mode; virtual payload model is never guessed', () => {
   const native = harness(), context = native.context, event = { payload: { tools: [], model: 'gpt-looks-openai' } };
   assert.deepEqual(native.hooks.get('before_provider_request')!(event, context).tools, [{ type: 'web_search' }]);
   assert.deepEqual(event.payload.tools, []);
-  assert.ok(native.hooks.get('before_agent_start')!({ systemPrompt: 'Original' }, context).systemPrompt.startsWith('Original'));
+  const start = promptEvent();
+  assert.equal(native.hooks.get('before_agent_start')!(start, context), undefined);
+  assert.equal(start.systemPromptOptions.sections.web_search, NATIVE_GUIDANCE.trim());
   for (const model of [{ api: 'anthropic-messages', provider: 'anthropic' }, { api: 'pi-virtual', provider: 'router' }]) {
     assert.equal(native.hooks.get('before_provider_request')!(event, { ...context, model }), undefined);
   }
@@ -65,7 +69,9 @@ test('Codex native search works by default without TUI or headless warnings and 
       ui: { notify: (message: string) => h.diagnostics.push(message) } };
     h.hooks.get('session_start')!({}, ctx);
     h.hooks.get('model_select')!({}, ctx);
-    assert.equal(h.hooks.get('before_agent_start')!({ systemPrompt: 'Original' }, ctx).systemPrompt, 'Original' + NATIVE_GUIDANCE);
+    const start = promptEvent();
+    assert.equal(h.hooks.get('before_agent_start')!(start, ctx), undefined);
+    assert.equal(start.systemPromptOptions.sections.web_search, NATIVE_GUIDANCE.trim());
     const event = { payload: { tools: [], include: [] } };
     const result = h.hooks.get('before_provider_request')!(event, ctx);
     assert.deepEqual(result.tools, [{ type: 'web_search' }]);
@@ -77,7 +83,9 @@ test('Codex native search works by default without TUI or headless warnings and 
     assert.doesNotMatch(h.diagnostics.join(''), /experimental|opt-in.*Codex/i);
     for (const other of [harness('openai', false), harness('brave'), harness('exa')]) {
       assert.equal(other.hooks.get('before_provider_request')!(event, ctx), undefined);
-      assert.equal(other.hooks.get('before_agent_start')!({ systemPrompt: 'Original' }, ctx), undefined);
+      const otherStart = promptEvent();
+      assert.equal(other.hooks.get('before_agent_start')!(otherStart, ctx), undefined);
+      assert.deepEqual(otherStart.systemPromptOptions.sections, {});
     }
   }
 });
@@ -103,20 +111,21 @@ test('modern prompt section preserves other handlers and custom prompts; disabli
   assert.equal(h.hooks.get('before_agent_start')!(event, h.context), undefined);
   assert.deepEqual(options.sections, { another_extension: 'Keep' });
 });
-test('legacy and forced prompts are preserved without duplicate guidance', () => {
+test('a forced prompt gets the guidance appended once and loses it when the model no longer qualifies', () => {
   const h = harness();
-  const first = h.hooks.get('before_agent_start')!({ systemPrompt: 'Original' }, h.context);
-  assert.equal(first.systemPrompt, 'Original' + NATIVE_GUIDANCE);
-  assert.equal(h.hooks.get('before_agent_start')!({ systemPrompt: first.systemPrompt }, h.context), undefined);
-  const event = { systemPrompt: 'Forced', systemPromptOptions: { sections: { other: 'Preserve' }, forceSystemPrompt: 'Forced' } };
-  assert.equal(h.hooks.get('before_agent_start')!(event, h.context).systemPrompt, 'Forced' + NATIVE_GUIDANCE);
+  const forced = { systemPrompt: 'Forced', systemPromptOptions: { sections: { other: 'Preserve' } as Record<string, string>, forceSystemPrompt: 'Forced' } };
+  assert.equal(h.hooks.get('before_agent_start')!(forced, h.context).systemPrompt, 'Forced' + NATIVE_GUIDANCE);
+  assert.equal(forced.systemPromptOptions.sections.other, 'Preserve');
+  const fedBack = { systemPrompt: 'Forced' + NATIVE_GUIDANCE, systemPromptOptions: { sections: {} as Record<string, string>, forceSystemPrompt: 'Forced' + NATIVE_GUIDANCE } };
+  assert.equal(h.hooks.get('before_agent_start')!(fedBack, h.context), undefined, 'the host feeding the changed prompt back does not append it twice');
   h.context.model = { api: 'anthropic-messages', provider: 'anthropic', id: 'fixture' };
-  assert.equal(h.hooks.get('before_agent_start')!({ systemPrompt: first.systemPrompt }, h.context).systemPrompt, 'Original');
+  const unqualified = { systemPrompt: 'Forced' + NATIVE_GUIDANCE, systemPromptOptions: { sections: {} as Record<string, string>, forceSystemPrompt: 'Forced' + NATIVE_GUIDANCE } };
+  assert.equal(h.hooks.get('before_agent_start')!(unqualified, h.context).systemPrompt, 'Forced');
 });
 test('conflict explicitly aborts even when runner swallows hook errors', () => {
   const h = harness(); h.tools.push('web_search');
   const abort = new AbortController(), ctx = { ...h.context, abort: () => abort.abort() };
-  assert.equal(h.hooks.get('before_agent_start')!({ systemPrompt: 'Original' }, ctx), undefined);
+  assert.equal(h.hooks.get('before_agent_start')!(promptEvent(), ctx), undefined);
   const payload = { tools: [{ type: 'function', name: 'web_search' }] };
   assert.throws(() => h.hooks.get('before_provider_request')!({ payload }, ctx), /TOOL_CONFLICT/);
   assert.equal(abort.signal.aborted, true);
@@ -222,7 +231,6 @@ test('provider native injects Gemini search only for Gemini 3 and newer on the p
   assert.deepEqual(result.config.tools, [{ functionDeclarations: [{ name: 'web_fetch' }] }, { googleSearch: {} }]);
   assert.deepEqual(result.config.toolConfig, { includeServerSideToolInvocations: true });
   assert.deepEqual(payload.config.tools, [{ functionDeclarations: [{ name: 'web_fetch' }] }], 'the original payload is untouched');
-  assert.equal(h.hooks.get('before_agent_start')!({ systemPrompt: 'Original' }, { ...h.context, model: gemini }).systemPrompt, 'Original' + GEMINI_GUIDANCE);
   const options: { sections: Record<string, string> } = { sections: { another_extension: 'Keep' } };
   assert.equal(h.hooks.get('before_agent_start')!({ systemPrompt: 'Original', systemPromptOptions: options }, { ...h.context, model: gemini }), undefined);
   assert.equal(options.sections.web_search, GEMINI_GUIDANCE.trim());
@@ -231,7 +239,9 @@ test('provider native injects Gemini search only for Gemini 3 and newer on the p
   for (const model of [{ api: 'google-generative-ai', provider: 'google', id: 'gemini-2.5-pro' },
     { api: 'google-vertex', provider: 'google-vertex', id: 'gemini-3-pro' }, { api: 'anthropic-messages', provider: 'kimi-coding', id: 'kimi' }]) {
     assert.equal(h.hooks.get('before_provider_request')!(untouched, { ...h.context, model }), undefined);
-    assert.equal(h.hooks.get('before_agent_start')!({ systemPrompt: 'Original' }, { ...h.context, model }), undefined);
+    const skipped = promptEvent();
+    assert.equal(h.hooks.get('before_agent_start')!(skipped, { ...h.context, model }), undefined);
+    assert.deepEqual(skipped.systemPromptOptions.sections, {});
   }
   assert.deepEqual(untouched.payload.config.tools, [{ functionDeclarations: [{ name: 'web_fetch' }] }]);
   assert.equal(harness('openai').hooks.get('before_provider_request')!(untouched, { ...h.context, model: gemini }), undefined, 'provider openai keeps its original scope');
@@ -241,7 +251,9 @@ test('provider native injects Gemini search only for Gemini 3 and newer on the p
   const anthropicResult = h.hooks.get('before_provider_request')!({ payload: anthropicPayload }, { ...h.context, model: claude });
   assert.deepEqual(anthropicResult.tools, [{ name: 'web_fetch', input_schema: {} }, { type: 'web_search_20250305', name: 'web_search', max_uses: 8 }]);
   assert.deepEqual(anthropicPayload.tools, [{ name: 'web_fetch', input_schema: {} }], 'the original payload is untouched');
-  assert.equal(h.hooks.get('before_agent_start')!({ systemPrompt: 'Original' }, { ...h.context, model: claude }).systemPrompt, 'Original' + ANTHROPIC_GUIDANCE);
+  const claudeStart = promptEvent();
+  assert.equal(h.hooks.get('before_agent_start')!(claudeStart, { ...h.context, model: claude }), undefined);
+  assert.equal(claudeStart.systemPromptOptions.sections.web_search, ANTHROPIC_GUIDANCE.trim());
   assert.equal(harness('brave').hooks.get('before_provider_request')!({ payload: anthropicPayload }, { ...h.context, model: claude }), undefined);
 });
 test('DeepSeek mode registers the REST tool and borrows the pi credential only when config has none', async () => {

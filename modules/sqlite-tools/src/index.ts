@@ -11,11 +11,16 @@ import {
   type ExtensionAPI,
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { Type, type Static } from "typebox";
+import type { JsonValue } from "@earendil-works/pi-ai";
+import { Type, type Static, type TSchema } from "typebox";
+import { ToolError } from "../../../shared/src/tool-error/index.js";
 import { SqliteStartupError } from "./node-runtime.js";
 import { SqliteClient } from "./sqlite-client.js";
 import { registerSqliteSettings } from "./settings.js";
-import { errorMessage, type SqlParams } from "./sqlite-manager.js";
+import { errorMessage, MAX_BLOB_BYTES, MAX_QUERY_BYTES, MAX_QUERY_ROWS, type SqlParams } from "./sqlite-manager.js";
+
+const MAX_OUTPUT_LINES_TEXT = DEFAULT_MAX_LINES.toLocaleString("en-US");
+const MAX_QUERY_ROWS_TEXT = MAX_QUERY_ROWS.toLocaleString("en-US");
 
 const sqliteNamespace = {
   name: "sqlite",
@@ -40,7 +45,7 @@ Both \`sqlite_query\` and \`sqlite_execute\` accept bindings in exactly one styl
 
 ## Safety
 
-Use \`sqlite_query\` only for statements that return rows; use \`sqlite_execute\` for writes or schema changes. Check \`sqlite_status\` before modifying data and use \`sqlite_list_tables\` or \`sqlite_describe_table\` to inspect an unfamiliar database. Query output is limited to 2,000 lines or 50 KB; use \`LIMIT\` for large results. One query reads at most 10,000 rows or about 8 MiB (the result then carries \`truncated: true\`), and BLOB values over 1 KiB are shown as a 1 KiB prefix with their \`byteLength\`. Opening a path that does not exist creates a new empty database; the open result says so. Opening never changes the database's journal mode.`;
+Use \`sqlite_query\` only for statements that return rows; use \`sqlite_execute\` for writes or schema changes. Check \`sqlite_status\` before modifying data and use \`sqlite_list_tables\` or \`sqlite_describe_table\` to inspect an unfamiliar database. Query output is limited to ${MAX_OUTPUT_LINES_TEXT} lines or ${DEFAULT_MAX_BYTES / 1024} KB; use \`LIMIT\` for large results. One query reads at most ${MAX_QUERY_ROWS_TEXT} rows or about ${MAX_QUERY_BYTES / (1024 * 1024)} MiB (the result then carries \`truncated: true\`), and BLOB values over ${MAX_BLOB_BYTES / 1024} KiB are shown as a ${MAX_BLOB_BYTES / 1024} KiB prefix with their \`byteLength\`. Opening a path that does not exist creates a new empty database; the open result says so. Opening never changes the database's journal mode.`;
 
 // Keep this as an unconstrained JSON value at the tool-schema boundary. Pi providers
 // can otherwise coerce a TypeBox array/object union to an empty collection before
@@ -59,6 +64,45 @@ const querySchema = statementSchema("A single SQL statement that returns rows (n
 const executeSchema = statementSchema("A single write or schema SQL statement (INSERT, UPDATE, DELETE, CREATE, etc.)");
 
 type StatementInput = Static<typeof querySchema>;
+
+// Output schemas for codemode scripts. Integers that exceed the JS safe range are shown as decimal strings
+// (the same conversion the text output uses), hence the number-or-string unions.
+const integerOutput = Type.Union([Type.Number(), Type.String()]);
+const nullableString = Type.Union([Type.String(), Type.Null()]);
+const outputTruncatedField = { outputTruncated: Type.Boolean({ description: "True when the structured rows were cut to match the size-limited text output." }) };
+const openOutputSchema = Type.Object({ success: Type.Boolean(), message: Type.String(), ...outputTruncatedField });
+const statusOutputSchema = Type.Object({
+  isOpen: Type.Boolean(),
+  filePath: nullableString,
+  tables: Type.Union([Type.Number(), Type.Null()]),
+  startupError: Type.Optional(Type.String()),
+  hint: Type.Optional(Type.String()),
+  ...outputTruncatedField,
+});
+const queryOutputSchema = Type.Object({
+  columns: Type.Array(Type.String()),
+  rows: Type.Array(Type.Array(Type.Unknown())),
+  rowCount: Type.Number({ description: "Rows read by the query (before any output cut)." }),
+  truncated: Type.Optional(Type.Boolean({ description: "Present (true) when the read stopped at the row or byte cap; more rows exist." })),
+  hint: Type.Optional(Type.String()),
+  ...outputTruncatedField,
+});
+const executeOutputSchema = Type.Object({ changes: integerOutput, lastInsertRowid: integerOutput, ...outputTruncatedField });
+const listTablesOutputSchema = Type.Object({ tables: Type.Array(Type.String()), ...outputTruncatedField });
+const describeTableOutputSchema = Type.Object({
+  name: Type.String(),
+  columns: Type.Array(Type.Object({
+    cid: Type.Number(),
+    name: Type.String(),
+    type: Type.String(),
+    notnull: Type.Boolean(),
+    defaultValue: Type.Unknown(),
+    pk: Type.Boolean(),
+  })),
+  rowCount: integerOutput,
+  ...outputTruncatedField,
+});
+const manualOutputSchema = Type.Object({ manual: Type.String() });
 
 function normalizePath(input: string, cwd: string): string {
   const path = input.startsWith("@") ? input.slice(1) : input;
@@ -119,13 +163,13 @@ function asParams(params: unknown): SqlParams | undefined {
   if (Array.isArray(params)) return params;
   if (params !== null && typeof params === "object") return params as Record<string, unknown>;
   const received = params === null ? "null" : typeof params;
-  throw new Error(`SQL bindings must be an array for positional placeholders or an object for named placeholders; received ${received}. Pass the values in the "bindings" field as [v1, v2] for ? placeholders or {"name": value} for :name/@name/$name placeholders.`);
+  throw new ToolError("SQLITE_INVALID_BINDINGS", `SQL bindings must be an array for positional placeholders or an object for named placeholders; received ${received}. Pass the values in the "bindings" field as [v1, v2] for ? placeholders or {"name": value} for :name/@name/$name placeholders.`);
 }
 
 function getBindings(input: StatementInput): SqlParams | undefined {
   // `bindings` avoids a transport-level `params` field collision in some tool clients.
   if (input.bindings !== undefined && input.params !== undefined) {
-    throw new Error("Both `bindings` and `params` were given; they are aliases and only one is used. Pass the values in `bindings` and omit `params`.");
+    throw new ToolError("SQLITE_INVALID_BINDINGS", "Both `bindings` and `params` were given; they are aliases and only one is used. Pass the values in `bindings` and omit `params`.");
   }
   return asParams(input.bindings ?? input.params);
 }
@@ -181,6 +225,25 @@ async function formatResult(value: unknown) {
   };
 }
 
+/**
+ * The structured value of a result: the same JSON the text is rendered from. When the text was cut, the array at
+ * `arrayKey` keeps only the longest prefix whose JSON still fits the text limits, so it never carries more than the text.
+ */
+function structuredFor(value: unknown, textTruncated: boolean, arrayKey: string | undefined): Record<string, unknown> {
+  const normalized = JSON.parse(json(value)) as Record<string, unknown>;
+  if (!textTruncated) return { ...normalized, outputTruncated: false };
+  const items = arrayKey ? normalized[arrayKey] : undefined;
+  if (!Array.isArray(items)) return { ...normalized, outputTruncated: true };
+  const fits = (count: number) => !truncateHead(json({ ...normalized, [arrayKey!]: items.slice(0, count) }), { maxBytes: DEFAULT_MAX_BYTES, maxLines: DEFAULT_MAX_LINES }).truncated;
+  let low = 0;
+  let high = items.length;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (fits(middle)) low = middle; else high = middle - 1;
+  }
+  return { ...normalized, [arrayKey!]: items.slice(0, low), outputTruncated: true };
+}
+
 export default function sqliteExtension(pi: ExtensionAPI) {
   registerSqliteSettings(pi);
   const manager = new SqliteClient();
@@ -193,13 +256,14 @@ export default function sqliteExtension(pi: ExtensionAPI) {
   let startupHint: string | undefined = "Wait for session_start, then call this tool again.";
 
   function ensureReady(): void {
-    if (startupError) throw new Error(startupError);
+    if (startupError) throw new ToolError("SQLITE_NOT_READY", startupError);
   }
 
-  async function result(value: unknown) {
+  async function result<S extends TSchema>(_schema: S, value: unknown, arrayKey?: string) {
     const output = await formatResult(value);
     return {
       content: [{ type: "text" as const, text: output.text }],
+      structuredContent: structuredFor(value, output.truncated, arrayKey) as unknown as Static<S> & JsonValue,
       details: { outputTruncated: output.truncated },
     };
   }
@@ -218,10 +282,11 @@ export default function sqliteExtension(pi: ExtensionAPI) {
       parameters: Type.Object({
         file_path: Type.String({ minLength: 1, description: "Absolute or project-relative SQLite database path" }),
       }),
+      outputSchema: openOutputSchema,
       async execute(_id, params, signal, _onUpdate, ctx) {
         ensureReady();
         const filePath = normalizePath(params.file_path, ctx.cwd);
-        return result(await manager.open(filePath, signal));
+        return result(openOutputSchema, await manager.open(filePath, signal));
       },
     });
 
@@ -232,9 +297,10 @@ export default function sqliteExtension(pi: ExtensionAPI) {
       label: "Close SQLite Database",
       description: "Close the currently open SQLite database connection.",
       parameters: Type.Object({}),
+      outputSchema: openOutputSchema,
       async execute(_id, _params, signal) {
         ensureReady();
-        return result(await manager.close(signal));
+        return result(openOutputSchema, await manager.close(signal));
       },
     });
   }
@@ -247,10 +313,11 @@ export default function sqliteExtension(pi: ExtensionAPI) {
     description: "Report whether a database is open, its resolved path, and its user-table count.",
     promptSnippet: "Check the active SQLite connection and database summary",
     parameters: Type.Object({}),
+    outputSchema: statusOutputSchema,
     async execute(_id, _params, signal) {
       const status = await manager.status(signal);
-      if (status.isOpen) return result(status);
-      return result({
+      if (status.isOpen) return result(statusOutputSchema, status);
+      return result(statusOutputSchema, {
         ...status,
         ...(startupError ? { startupError } : {}),
         hint: startupHint ?? "No database is open. In manual mode call sqlite_open with a file_path; otherwise ask the user to fix a database for this session in the SQLite database settings and run /reload.",
@@ -263,14 +330,15 @@ export default function sqliteExtension(pi: ExtensionAPI) {
     namespace: sqliteNamespace,
     name: "sqlite_query",
     label: "Query SQLite Database",
-    description: "Execute one SQL statement that returns rows, normally SELECT. Pass bindings as either an array for every ? placeholder or an object for every :name/@name/$name placeholder; never mix styles. Reads at most 10,000 rows (truncated: true when cut); output is truncated to 2,000 lines or 50 KB.",
+    description: `Execute one SQL statement that returns rows, normally SELECT. Pass bindings as either an array for every ? placeholder or an object for every :name/@name/$name placeholder; never mix styles. Reads at most ${MAX_QUERY_ROWS_TEXT} rows (truncated: true when cut); output is truncated to ${MAX_OUTPUT_LINES_TEXT} lines or ${DEFAULT_MAX_BYTES / 1024} KB.`,
     promptSnippet: "Read rows from the active SQLite database",
     promptGuidelines: ["Use sqlite_query only for SQL that returns rows; use sqlite_execute for mutations."],
     parameters: querySchema,
+    outputSchema: queryOutputSchema,
     async execute(_id, params, signal) {
       signal?.throwIfAborted();
       ensureReady();
-      return result(await manager.query(params.sql, getBindings(params), signal));
+      return result(queryOutputSchema, await manager.query(params.sql, getBindings(params), signal), "rows");
     },
   });
 
@@ -283,10 +351,11 @@ export default function sqliteExtension(pi: ExtensionAPI) {
     promptSnippet: "Modify data or schema in the active SQLite database",
     promptGuidelines: ["Use sqlite_execute only after confirming the active database with sqlite_status when the operation changes data or schema."],
     parameters: executeSchema,
+    outputSchema: executeOutputSchema,
     async execute(_id, params, signal) {
       signal?.throwIfAborted();
       ensureReady();
-      return result(await manager.execute(params.sql, getBindings(params), signal));
+      return result(executeOutputSchema, await manager.execute(params.sql, getBindings(params), signal));
     },
   });
 
@@ -297,9 +366,10 @@ export default function sqliteExtension(pi: ExtensionAPI) {
     label: "List SQLite Tables",
     description: "List non-system tables in the active SQLite database.",
     parameters: Type.Object({}),
+    outputSchema: listTablesOutputSchema,
     async execute(_id, _params, signal) {
       ensureReady();
-      return result(await manager.listTables(signal));
+      return result(listTablesOutputSchema, await manager.listTables(signal), "tables");
     },
   });
 
@@ -312,9 +382,10 @@ export default function sqliteExtension(pi: ExtensionAPI) {
     parameters: Type.Object({
       table_name: Type.String({ minLength: 1, description: "Exact table name to inspect" }),
     }),
+    outputSchema: describeTableOutputSchema,
     async execute(_id, params, signal) {
       ensureReady();
-      return result(await manager.describeTable(params.table_name, signal));
+      return result(describeTableOutputSchema, await manager.describeTable(params.table_name, signal), "columns");
     },
   });
 
@@ -325,8 +396,9 @@ export default function sqliteExtension(pi: ExtensionAPI) {
     label: "SQLite Tools Manual",
     description: "Explain the SQLite tool lifecycle, parameter binding, safety rules, and output limits.",
     parameters: Type.Object({}),
+    outputSchema: manualOutputSchema,
     async execute() {
-      return { content: [{ type: "text", text: manual }], details: {} };
+      return { content: [{ type: "text", text: manual }], structuredContent: { manual }, details: {} };
     },
   });
 

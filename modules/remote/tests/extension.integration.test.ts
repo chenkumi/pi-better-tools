@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test, { type TestContext } from 'node:test';
 import type { ExtensionAPI, ExtensionContext, ExtensionToolContext, ToolDefinition } from '@earendil-works/pi-coding-agent';
+import { Check, Errors } from 'typebox/value';
 import { remoteConfigPath } from '../src/config.js';
 import { CredentialStore } from '../src/credentials.js';
 import remoteExtension, { inboundText } from '../src/index.js';
@@ -99,6 +100,28 @@ test('tools are deferred in the remote namespace and never default-active', asyn
     assert.match(tool.namespace?.description ?? '', /tool_search/);
     assert.notEqual(tool.defaultActive, true, tool.name);
   }
+});
+
+test('every tool declares an outputSchema and its structuredContent validates and equals the text', async t => {
+  const { server, client } = await pair(t);
+  const ctx = server.ctx as unknown as ExtensionToolContext;
+  const run = async (s: typeof server, name: string, params: Record<string, unknown> = {}) => {
+    const tool = s.tools.get(name)!;
+    assert.ok(tool.outputSchema, `${name} outputSchema`);
+    const result = await tool.execute('call', params as never, undefined, undefined, ctx);
+    const text = result.content[0]!.type === 'text' ? result.content[0].text : '';
+    assert.ok(Check(tool.outputSchema, result.structuredContent), `${name}: ${JSON.stringify([...Errors(tool.outputSchema, result.structuredContent)])}`);
+    assert.equal(JSON.stringify(result.structuredContent), text);
+    return result.structuredContent as Record<string, any>;
+  };
+  assert.equal((await run(server, 'remote_list')).peers.length, 2);
+  const receipt = await run(client, 'remote_send', { name: 'srv', message: 'hello', kind: 'sync' });
+  assert.equal(receipt.status, 'delivered');
+  await run(client, 'remote_send', { name: 'ghost', message: 'x' });
+  assert.equal((await run(client, 'remote_status')).sends.length, 2);
+  assert.equal((await run(client, 'remote_status', { id: receipt.id })).sends.length, 1);
+  const serialized = JSON.stringify(await run(server, 'remote_status'));
+  assert.ok(!/code|fingerprint/i.test(serialized.replace(/"secure"/g, '')));
 });
 
 test('peers see each other, and a message arrives labelled as untrusted data that wakes the agent through steer', async t => {

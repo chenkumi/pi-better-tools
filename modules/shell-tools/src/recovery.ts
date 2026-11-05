@@ -18,7 +18,6 @@ const MAX_NOTICE_JOBS = 32;
 const states = new Set(["accepted", "queued", "running", "cancelling", "completed", "failed", "cancelled", "timed_out", "aborted", "skipped"]);
 const terminal = new Set(["completed", "failed", "cancelled", "timed_out", "aborted", "skipped"]);
 const reasons = new Set(["quit", "reload", "new", "resume", "fork", "owner_unavailable", "notification_failure"]);
-/** Shell tools whose results are background receipts only when their call asked for background:true. */
 /** Tool results that can carry legacy lifecycle evidence for each kind. */
 const RESULT_TOOLS: Record<RecoveryKind, readonly string[]> = {
   shell: [...SHELL_TOOLS, ...SHELL_JOB_TOOLS],

@@ -44,7 +44,8 @@ import { ensureDetachShortcut, trackForeground } from "../../../shell-tools/src/
 import { resolveAutoBackgroundMs } from "../../../shell-tools/src/foreground-handoff.js";
 import { addDetachHint } from "../../../shell-tools/src/detach-hint.js";
 import { panelUsage, safeJobText } from "../../../../shared/src/background/index.js";
-import { Semaphore, killProcessTree } from "./concurrency.ts";
+import { MAX_CONCURRENCY, Semaphore, killProcessTree } from "./concurrency.ts";
+import { errorToString, isRecord } from "./values.ts";
 import { describeIgnoredOverrides, selectDispatchDefaults } from "./model-selection.ts";
 import { displayTitle, isValidTitle, MAX_TITLE_LENGTH } from "./title.ts";
 import { ManagedSession, SessionError, ConversationDigest, canonicalCwd, snapshotConfig, validateConfig } from "./session-store.ts";
@@ -94,6 +95,7 @@ import {
 const StringEnum = <const T extends readonly string[]>(values: T, options?: { description?: string; default?: T[number] }) =>
   Type.Unsafe<T[number]>({ type: "string", enum: [...values], ...(options?.description && { description: options.description }), ...(options?.default && { default: options.default }) });
 import { createForcedPromptAppender, registerPromptSection } from "../../../../shared/src/prompt/index.ts";
+import { codedText } from "../../../../shared/src/tool-error/index.ts";
 import { SUBAGENT_RULES_SECTION, renderSubagentRules } from "./prompt-rules.ts";
 import {
 	SubsessionWriter,
@@ -109,7 +111,6 @@ import {
 } from "./subsession-log.ts";
 
 const MAX_PARALLEL_TASKS = 32;
-const MAX_CONCURRENCY = 8;
 const MAX_CHAIN_STEPS = 32;
 const AGENT_CATALOG_SECTION = "subagent_catalog";
 // Shared by every subagent tool call in this process: total active children never exceed MAX_CONCURRENCY.
@@ -188,14 +189,6 @@ function formatUsageStats(usage: UsageStats, model?: string): string {
 	return parts.join(" ");
 }
 
-function appendBoundedText(current: string, next: string, maxBytes: number): string {
-	return appendBoundedUtf8(current, next, maxBytes);
-}
-
-function errorToString(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
-}
-
 /** A rejection code is the leading UPPER_SNAKE token; anything else (a sentence) is reported as MESSAGE_REJECTED. */
 export function messageRejectionCode(error: unknown): string {
 	if (error instanceof SessionError) return error.code;
@@ -220,10 +213,6 @@ export function messageNextAction(code: string): string {
 
 function finiteNumber(value: unknown): number {
 	return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function isAssistantContent(content: unknown): boolean {
@@ -284,7 +273,7 @@ function getFailureDiagnostic(result: SingleResult): string {
 	if (Buffer.byteLength(diagnostic, "utf8") <= MAX_RENDERED_ERROR_BYTES) return diagnostic;
 	const suffix = "\n[Diagnostic truncated for display.]";
 	const diagnosticBytes = Math.max(0, MAX_RENDERED_ERROR_BYTES - Buffer.byteLength(suffix, "utf8"));
-	return `${appendBoundedText("", diagnostic, diagnosticBytes)}${suffix}`;
+	return `${appendBoundedUtf8("", diagnostic, diagnosticBytes)}${suffix}`;
 }
 
 /** One `Session: <id> - <state>` line (just `<state>` before a session exists); a running task shows no log line until there is a path or an error. */
@@ -554,10 +543,10 @@ async function runSingleAgentUnlimited(
 		publishPresentation();
 	};
 	const recordInternalError = (text: string) => {
-		internalDiagnostic = appendBoundedText(internalDiagnostic, `\n[${text}]`, MAX_RENDERED_ERROR_BYTES);
+		internalDiagnostic = appendBoundedUtf8(internalDiagnostic, `\n[${text}]`, MAX_RENDERED_ERROR_BYTES);
 	};
 	/** Managed run metadata with bounded diagnostics, as persisted by commit and blocked. */
-	const runMetadata = () => ({ ...invocationMetadata(currentResult), stderr: appendBoundedText("", stderrDiagnostic, MAX_PERSISTED_STDERR_BYTES), diagnostic: internalDiagnostic });
+	const runMetadata = () => ({ ...invocationMetadata(currentResult), stderr: appendBoundedUtf8("", stderrDiagnostic, MAX_PERSISTED_STDERR_BYTES), diagnostic: internalDiagnostic });
 	const reserveCapturedBytes = (bytes: number) => {
 		if (trackedIdentityBytes + bytes > MAX_TRACKED_IDENTITY_BYTES) throw new Error("Subagent retained message memory exceeded the safety limit; inspect the sub-session log for diagnostics.");
 		trackedIdentityBytes += bytes;
@@ -570,7 +559,7 @@ async function runSingleAgentUnlimited(
 		if (capturedMessageBytes + delta > MAX_CAPTURED_MESSAGE_BYTES) {
 			const marker = "\n[Only part of the result is retained here.]";
 			const room = Math.max(0, MAX_CAPTURED_MESSAGE_BYTES - capturedMessageBytes - Buffer.byteLength(marker, "utf8"));
-			nextOutput = `${appendBoundedText("", nextOutput, currentBytes + room)}${marker}`;
+			nextOutput = `${appendBoundedUtf8("", nextOutput, currentBytes + room)}${marker}`;
 			outputTruncated = true;
 			recordInternalError("Assistant output truncated at the retained-memory limit");
 		}
@@ -671,7 +660,7 @@ async function runSingleAgentUnlimited(
 		await io.run(async () => { await managed!.acquire(taskId); lockHeld = true; }, "acquire managed writer");
 		if (runtime.resumeSession) {
 			try { await io.run(() => managed!.validateCheckpoint(), "validate native checkpoint"); }
-			catch (error) { integrityFailure = error instanceof SessionError && ["CHECKPOINT_MISMATCH"].includes(error.code); throw error; }
+			catch (error) { integrityFailure = error instanceof SessionError && error.code === "CHECKPOINT_MISMATCH"; throw error; }
 			if (runtime.validateResumeConfig) await io.run(runtime.validateResumeConfig, "revalidate saved configuration");
 		}
 		await io.run(async () => { await managed!.begin(taskId, parentToolCallId, task, () => !io.stopped); runStarted = true; }, "begin managed run");
@@ -947,11 +936,11 @@ async function runSingleAgentUnlimited(
 						// A stderr-only chatty child must still time out: renewal stops after a bounded stdout-silent window.
 						if (performance.now() - lastStdoutAt < inactivityMs * STDERR_ONLY_RENEWAL_FACTOR) activity(); else stderrOnlyExpired = true;
 						const text = stderrDecoder.write(chunk);
-						stderrDiagnostic = appendBoundedText(stderrDiagnostic, text, MAX_STDERR_BYTES);
+						stderrDiagnostic = appendBoundedUtf8(stderrDiagnostic, text, MAX_STDERR_BYTES);
 
 					}
 					const tail = stderrDecoder.end();
-					stderrDiagnostic = appendBoundedText(stderrDiagnostic, tail, MAX_STDERR_BYTES);
+					stderrDiagnostic = appendBoundedUtf8(stderrDiagnostic, tail, MAX_STDERR_BYTES);
 				} catch (error) { fail("io", `Subagent stderr processing failed: ${errorToString(error)}`); }
 			};
 			// Start at most two bounded consumers; no data-event promise queues.
@@ -1325,7 +1314,7 @@ export function normalizeDispatch(params: Record<string, any>): "single" | "para
 
 function invocationMetadata(result: SingleResult) {
 	return { taskId: result.taskId, subagentSessionId: result.subagentSessionId, status: getResultStatus(result), exitCode: result.exitCode,
-		stopReason: result.stopReason, errorCode: result.errorCode, errorMessage: result.errorMessage ? appendBoundedText("", result.errorMessage, MAX_RENDERED_ERROR_BYTES) : undefined,
+		stopReason: result.stopReason, errorCode: result.errorCode, errorMessage: result.errorMessage ? appendBoundedUtf8("", result.errorMessage, MAX_RENDERED_ERROR_BYTES) : undefined,
 		usage: result.usage, logPath: result.logPath, model: result.model };
 }
 
@@ -1360,7 +1349,7 @@ function foregroundStructured(mode: SubagentDetails["mode"], results: SingleResu
 
 function backgroundResult(result: SingleResult) {
 	return copyResultSummary(result, { ...invocationMetadata(result), agent: result.agent, canResume: result.canResume,
-		output: appendBoundedText("", result.output, 8192), outputTruncated: Buffer.byteLength(result.output, "utf8") > 8192 });
+		output: appendBoundedUtf8("", result.output, 8192), outputTruncated: Buffer.byteLength(result.output, "utf8") > 8192 });
 }
 
 export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
@@ -1373,7 +1362,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 	const jobs = new BackgroundJobs((kind, receipt, interaction, scope) => {
 		const visible = { ...receipt, tasks: receipt.tasks.map(task => {
 			const result = isRecord(task.result) ? task.result : undefined;
-			return { ...task, controls: task.controls?.map(control => ({ messageId: control.messageId, status: control.status })), queries: task.queries?.map(query => ({ queryId: query.queryId, status: query.status, usage: query.usage })), result: kind === "log_ready" ? undefined : result ? { ...result, output: typeof result.output === "string" ? resultSummary(result, MAX_RESULT_SUMMARY_BYTES) : undefined, errorMessage: typeof result.errorMessage === "string" ? appendBoundedText("", result.errorMessage, 512) : undefined } : task.result };
+			return { ...task, controls: task.controls?.map(control => ({ messageId: control.messageId, status: control.status })), queries: task.queries?.map(query => ({ queryId: query.queryId, status: query.status, usage: query.usage })), result: kind === "log_ready" ? undefined : result ? { ...result, output: typeof result.output === "string" ? resultSummary(result, MAX_RESULT_SUMMARY_BYTES) : undefined, errorMessage: typeof result.errorMessage === "string" ? appendBoundedUtf8("", result.errorMessage, 512) : undefined } : task.result };
 		}) };
 		const details = interaction ? { kind, jobId: receipt.jobId, interaction } : kind === "log_ready" ? { kind, ...visible } : { kind, ...receipt, tasks: receipt.tasks.map(task => ({ ...task, queries: task.queries?.map(query => ({ queryId: query.queryId, status: query.status, usage: query.usage, usageUnknown: query.usageUnknown, cleanupPending: query.cleanupPending, asOf: query.asOf, lateUsage: query.lateUsage, outputTruncated: query.outputTruncated })) })) };
 		// job_result: tasks already announced one by one keep status only; their output was delivered in their own task_result.
@@ -1608,7 +1597,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 			const projectTrusted = ctx.isProjectTrusted();
 			let mode: ReturnType<typeof normalizeDispatch>;
 			try { mode = normalizeDispatch(params); }
-			catch (error) { return { content: [{ type: "text", text: errorToString(error) }], details: { mode: "single", agentScope: "user", projectAgentsDir: null, results: [], errorCode: "INVALID_DISPATCH" }, isError: true }; }
+			catch (error) { return { content: [{ type: "text", text: codedText("INVALID_DISPATCH", errorToString(error)) }], details: { mode: "single", agentScope: "user", projectAgentsDir: null, results: [], errorCode: "INVALID_DISPATCH" }, isError: true }; }
 			const debugLog = runtime.debugLog ?? await readGlobalDebugLogSetting(runtime.settingsAgentDir ?? getAgentDir());
 			const taskRuntime: RunnerRuntime = { ...runtime, transport: params.background ? "rpc" : runtime.transport, debugLog, agentScope: params.agentScope ?? "user", projectTrusted: ctx.isProjectTrusted() };
 			let agentScope: AgentScope = params.agentScope ?? "user";
@@ -1650,11 +1639,18 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 					results,
 					...(progress && progress.length > 0 ? { progress } : {}),
 				});
-			if (params.tasks && params.tasks.length > MAX_PARALLEL_TASKS) {
-				return { content: [{ type: "text", text: `Request not accepted: capacity limit reached. Too many parallel tasks (${params.tasks.length}). Max is ${MAX_PARALLEL_TASKS} per call (now ${jobs.load()}; at most ${MAX_CONCURRENCY} children run at once). Next: split into batches of at most ${MAX_PARALLEL_TASKS} tasks and send later batches after earlier ones finish; for background work use subagent_status (no jobId lists your jobs) or subagent_cancel to free capacity.` }], details: makeDetails("parallel")([]), isError: true };
+			const foregroundEnvelope = (mode: SubagentDetails["mode"], results: SingleResult[], text: string, isError: boolean) => ({
+				content: [{ type: "text" as const, text }],
+				details: makeDetails(mode)(results),
+				structuredContent: foregroundStructured(mode, results),
+				usage: asToolUsage(results),
+				...(isError ? { isError: true } : {}),
+			});
+			if (params.tasks &&params.tasks.length > MAX_PARALLEL_TASKS) {
+				return { content: [{ type: "text", text: codedText("SUBAGENT_CAPACITY", `Request not accepted: capacity limit reached. Too many parallel tasks (${params.tasks.length}). Max is ${MAX_PARALLEL_TASKS} per call (now ${jobs.load()}; at most ${MAX_CONCURRENCY} children run at once). Next: split into batches of at most ${MAX_PARALLEL_TASKS} tasks and send later batches after earlier ones finish; for background work use subagent_status (no jobId lists your jobs) or subagent_cancel to free capacity.`) }], details: makeDetails("parallel")([]), isError: true };
 			}
 			if (params.chain && params.chain.length > MAX_CHAIN_STEPS) {
-				return { content: [{ type: "text", text: `Request not accepted: capacity limit reached. Too many chain steps (${params.chain.length}). Max is ${MAX_CHAIN_STEPS}. Next: split the work into stages of at most ${MAX_CHAIN_STEPS} steps and pass the earlier stage output in the next call's first task.` }], details: makeDetails("chain")([]), isError: true };
+				return { content: [{ type: "text", text: codedText("SUBAGENT_CAPACITY", `Request not accepted: capacity limit reached. Too many chain steps (${params.chain.length}). Max is ${MAX_CHAIN_STEPS}. Next: split the work into stages of at most ${MAX_CHAIN_STEPS} steps and pass the earlier stage output in the next call's first task.`) }], details: makeDetails("chain")([]), isError: true };
 			}
 
 			// Skills come from the host's already-loaded (trust-filtered) skill list, resolved once per item before anything starts.
@@ -1663,7 +1659,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 			try {
 				const commands = skillItems.some(item => item.skills?.length) ? pi.getCommands() : [];
 				skillBlocks = await Promise.all(skillItems.map(item => resolveSkillBlock(item.skills, commands)));
-			} catch (error) { return { content: [{ type: "text", text: errorToString(error) }], details: { ...makeDetails(dispatchMode)([]), errorCode: "INVALID_DISPATCH" }, isError: true }; }
+			} catch (error) { return { content: [{ type: "text", text: codedText("INVALID_DISPATCH", errorToString(error)) }], details: { ...makeDetails(dispatchMode)([]), errorCode: "INVALID_DISPATCH" }, isError: true }; }
 
 			// Fail closed: untrusted project agents always need approval; the removed legacy confirmProjectAgents parameter, if still sent, is ignored.
 			if ((agentScope === "project" || agentScope === "both") && !ctx.isProjectTrusted()) {
@@ -1673,7 +1669,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 				if (params.agent) requestedNames.add(params.agent);
 				const projectAgents = Array.from(requestedNames).map((name) => agents.find((agent) => agent.name === name)).filter((agent): agent is AgentConfig => agent?.source === "project");
 				if (projectAgents.length > 0 && !ctx.hasUI) {
-					return { content: [{ type: "text", text: `Refused: project-local agents (${projectAgents.map((agent) => agent.name).join(", ")}) are repo-controlled and this project is not trusted; without a UI they cannot be approved. Next: trust the project in Pi or use agentScope "user".` }], details: makeDetails(dispatchMode)([]), isError: true };
+					return { content: [{ type: "text", text: codedText("SUBAGENT_PROJECT_AGENT_REFUSED", `Refused: project-local agents (${projectAgents.map((agent) => agent.name).join(", ")}) are repo-controlled and this project is not trusted; without a UI they cannot be approved. Next: trust the project in Pi or use agentScope "user".`) }], details: makeDetails(dispatchMode)([]), isError: true };
 				}
 				if (projectAgents.length > 0) {
 					const approved = await ctx.ui.confirm("Run project-local agents?", `Agents: ${projectAgents.map((agent) => agent.name).join(", ")}\nSource: ${discovery.projectAgentsDir ?? "(unknown)"}\n\nProject agents are repo-controlled. Only continue for trusted repositories.`, { signal });
@@ -1690,7 +1686,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 						const results = await mapWithConcurrencyLimit(requested, MAX_CONCURRENCY, (item) =>
 							runSingleAgent(ctx.cwd, dispatchDefaultsFor(item.agent), agents, item.agent, item.task, item.cwd, item.step, canceled.signal, undefined, makeDetails(mode), parentSessionId, toolCallId, taskRuntime, item.title),
 						);
-						return { content: [{ type: "text", text: `Canceled: project-local agents not approved (approval was denied or aborted; no child started). Use agentScope "user" to avoid the approval prompt.\n\n${formatParentResults(mode, results)}` }], details: makeDetails(mode)(results), structuredContent: foregroundStructured(mode, results), usage: asToolUsage(results), isError: true };
+						return foregroundEnvelope(mode, results, `Canceled: project-local agents not approved (approval was denied or aborted; no child started). Use agentScope "user" to avoid the approval prompt.\n\n${formatParentResults(mode, results)}`, true);
 					}
 				}
 			}
@@ -1736,7 +1732,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 						if (signal?.aborted) throw new Error("Background submission aborted before acceptance");
 					}, undefined, signal, { perTaskNotify: hasTasks });
 					return { content: [{ type: "text", text: JSON.stringify(slimReceipt(receipt)) }], details: { ...makeDetails(dispatchMode)([]), background: receipt }, structuredContent: jsonReceipt(receipt) };
-				} catch (error) { return { content: [{ type: "text", text: errorToString(error) }], details: { ...makeDetails("single")([]), errorCode: error instanceof SessionError ? error.code : "BACKGROUND_REJECTED" }, isError: true }; }
+				} catch (error) { return { content: [{ type: "text", text: errorToString(error) }], details: { ...makeDetails(dispatchMode)([]), errorCode: error instanceof SessionError ? error.code : "BACKGROUND_REJECTED" }, isError: true }; }
 			}
 
 			// Foreground dispatch can be adopted by a background job (user shortcut) without restarting any child:
@@ -1764,11 +1760,11 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 					results.push(result);
 					settle(index, result);
 					if (isFailedResult(result)) {
-						return { content: [{ type: "text", text: formatParentResults("chain", results) }], details: makeDetails("chain")(results), structuredContent: foregroundStructured("chain", results), usage: asToolUsage(results), isError: true };
+						return foregroundEnvelope("chain", results, formatParentResults("chain", results), true);
 					}
 					previousOutput = result.output;
 				}
-				return { content: [{ type: "text", text: formatParentResults("chain", results) }], details: makeDetails("chain")(results), structuredContent: foregroundStructured("chain", results), usage: asToolUsage(results) };
+				return foregroundEnvelope("chain", results, formatParentResults("chain", results), false);
 			}
 
 			if (params.tasks && params.tasks.length > 0) {
@@ -1806,13 +1802,13 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 					return result;
 				});
 				const successCount = results.filter((result) => !isFailedResult(result)).length;
-				return { content: [{ type: "text", text: `Parallel execution: ${successCount}/${results.length} tasks succeeded.\n\n${formatParentResults("parallel", results)}` }], details: makeDetails("parallel")(results), structuredContent: foregroundStructured("parallel", results), usage: asToolUsage(results), ...(successCount === results.length ? {} : { isError: true }) };
+				return foregroundEnvelope("parallel", results, `Parallel execution: ${successCount}/${results.length} tasks succeeded.\n\n${formatParentResults("parallel", results)}`, successCount !== results.length);
 			}
 
 			if (params.agent && params.task) {
 				const result = await runSingleAgent(ctx.cwd, dispatchDefaultsFor(params.agent), agents, params.agent, params.task, params.cwd, undefined, signal, onUpdate, makeDetails("single"), parentSessionId, toolCallId, taskRuntimeAt(0), params.title);
 				settle(0, result);
-				return { content: [{ type: "text", text: formatParentResults("single", [result]) }], details: makeDetails("single")([result]), structuredContent: foregroundStructured("single", [result]), usage: asToolUsage([result]), ...(isFailedResult(result) ? { isError: true } : {}) };
+				return foregroundEnvelope("single", [result], formatParentResults("single", [result]), isFailedResult(result));
 			}
 			return { content: [{ type: "text", text: "Invalid parameters: no dispatch mode matched; provide exactly one of agent+task, tasks[] or chain[]." }], details: makeDetails("single")([]) };
 			};

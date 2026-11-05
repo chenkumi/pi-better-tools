@@ -5,9 +5,9 @@ import { Type } from 'typebox';
 const StringEnum = <const T extends readonly string[]>(values: T, options?: { description?: string; default?: T[number] }) =>
   Type.Unsafe<T[number]>({ type: 'string', enum: [...values], ...(options?.description && { description: options.description }), ...(options?.default && { default: options.default }) });
 import { registerWebToolsSettings } from './settings.ts';
-import { CONFIG_PATH, agentConfigError, defaults, loadConfig, resolveKey, type Credential } from './config.ts';
+import { CONFIG_PATH, PROVIDER_LABELS, agentConfigError, defaults, loadConfig, resolveKey, type Credential } from './config.ts';
 import type { ModelIdentity } from './native-openai.ts';
-import { NATIVE_GUIDANCE_BY_ADAPTER, NATIVE_GUIDANCES, injectNative, isNativeProvider, nativeInactiveReason, selectNative } from './native.ts';
+import { NATIVE_GUIDANCE_BY_ADAPTER, injectNative, isNativeProvider, nativeInactiveReason, selectNative } from './native.ts';
 import { clip, sanitizeText, toolOutput } from './output.ts';
 import { executeWithDebugLog, logToolExecutionFailure } from './debug-log.ts';
 import { fetchOutputSchema, searchOutputSchema, webToolMetadata } from './tool-schemas.ts';
@@ -21,7 +21,6 @@ import { WEB_RULES_SECTION, renderWebRules } from './prompt-rules.ts';
 export default function webTools(pi: ExtensionAPI) { return registerWebTools(pi, loadConfig); }
 
 const PROMPT_SECTION = 'web_search';
-const PROVIDER_LABELS: Record<RestProvider, string> = { brave: 'Brave', exa: 'Exa', deepseek: 'DeepSeek' };
 /** web_fetch keeps this much cleaned content in structured data; the text output has its own bounds. */
 const FETCH_DATA_MAX_BYTES = 16 * 1024;
 const FETCH_DATA_MAX_LINES = 900;
@@ -162,16 +161,10 @@ export function registerWebTools(pi: ExtensionAPI, readConfig: typeof loadConfig
     warnInactive(ctx);
     const adapter = nativeAdapter(ctx.model);
     const guidance = adapter && !pi.getActiveTools().includes('web_search') ? NATIVE_GUIDANCE_BY_ADAPTER[adapter] : undefined;
-    const options = event.systemPromptOptions as typeof event.systemPromptOptions & { sections?: Record<string, string>; forceSystemPrompt?: string };
-    if (options?.sections) {
-      if (guidance) options.sections[PROMPT_SECTION] = guidance.trim();
-      else delete options.sections[PROMPT_SECTION];
-      return appendToForcedPrompt(event, guidance?.trim());
-    }
-    // Old hosts lack sections. Respect another extension's forced prompt and avoid duplicating any of our variants.
-    const base = NATIVE_GUIDANCES.reduce((prompt, text) => prompt.replace(text, ''), options?.forceSystemPrompt ?? event.systemPrompt);
-    const prompt = base + (guidance ?? '');
-    if (prompt !== event.systemPrompt) return { systemPrompt: prompt };
+    const { sections } = event.systemPromptOptions;
+    if (guidance) sections[PROMPT_SECTION] = guidance.trim();
+    else delete sections[PROMPT_SECTION];
+    return appendToForcedPrompt(event, guidance?.trim());
   });
 
   const pending = new Map<string, NativeSourceRecord>();

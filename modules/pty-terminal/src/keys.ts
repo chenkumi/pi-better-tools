@@ -1,3 +1,5 @@
+import { ToolError } from "../../../shared/src/tool-error/index.ts";
+
 const NAMED: Record<string, string> = {
 	enter: "\r", tab: "\t", esc: "\x1b", space: " ", backspace: "\x7f", delete: "\x1b[3~", insert: "\x1b[2~",
 	up: "\x1b[A", down: "\x1b[B", right: "\x1b[C", left: "\x1b[D", home: "\x1b[H", end: "\x1b[F",
@@ -21,7 +23,7 @@ export function resolveKeys(keys: readonly string[]): string {
 		const ctrl = /^ctrl-([a-z])$/.exec(normalized);
 		if (ctrl) return String.fromCharCode(ctrl[1].charCodeAt(0) - 96);
 		const sequence = Object.hasOwn(NAMED, normalized) ? NAMED[normalized] : undefined;
-		if (sequence === undefined) throw new Error(`Unknown key "${key.slice(0, 40)}". Supported keys: ${KEY_NAMES.join(", ")} (case-insensitive; Ctrl+C, C-c also accepted).`);
+		if (sequence === undefined) throw new ToolError("PTY_INVALID_ARGUMENT", `Unknown key "${key.slice(0, 40)}". Supported keys: ${KEY_NAMES.join(", ")} (case-insensitive; Ctrl+C, C-c also accepted).`);
 		return sequence;
 	}).join("");
 }

@@ -36,6 +36,28 @@ function boundedResult(result: Rec, expanded: boolean): Rec {
 const textOf = (content: unknown): string => typeof content === "string" ? content
   : Array.isArray(content) ? content.map(part => isRec(part) && part.type === "text" && typeof part.text === "string" ? part.text : "").join("") : "";
 
+/** Listener set shared by both transcripts: observer failures are swallowed and never reach the producer. */
+class TranscriptObservers {
+  private listeners = new Set<() => void>();
+  private released = false;
+  get isReleased() { return this.released; }
+  subscribe(listener: () => void): () => void {
+    if (this.released) return () => {};
+    this.listeners.add(listener);
+    return () => { this.listeners.delete(listener); };
+  }
+  notify() {
+    for (const listener of [...this.listeners]) try { listener(); } catch { /* observer failures never reach the producer */ }
+  }
+  /** First call only: runs `drop`, then notifies every listener one last time and forgets them. */
+  release(drop: () => void) {
+    if (this.released) return;
+    this.released = true; drop();
+    const listeners = [...this.listeners]; this.listeners.clear();
+    for (const listener of listeners) try { listener(); } catch { /* observer failures never reach the producer */ }
+  }
+}
+
 /**
  * In-memory copy of one child's conversation, built from the same RPC events the parent already receives.
  * Presentation only: never a record, never fed to a model. `release()` at the terminal state drops everything,
@@ -45,26 +67,18 @@ export class LiveTranscript {
   readonly mode = "conversation" as const;
   private items: Item[] = [];
   private tools = new Map<string, ToolState>();
-  private listeners = new Set<() => void>();
-  private released = false;
+  private observers = new TranscriptObservers();
   version = 0;
 
-  subscribe(listener: () => void): () => void {
-    if (this.released) return () => {};
-    this.listeners.add(listener);
-    return () => { this.listeners.delete(listener); };
-  }
-  get isReleased() { return this.released; }
+  subscribe(listener: () => void): () => void { return this.observers.subscribe(listener); }
+  get isReleased() { return this.observers.isReleased; }
   snapshot(): { items: readonly Item[]; tools: ReadonlyMap<string, ToolState> } { return { items: this.items, tools: this.tools }; }
   release() {
-    if (this.released) return;
-    this.released = true; this.items = []; this.tools = new Map(); this.version++;
-    const listeners = [...this.listeners]; this.listeners.clear();
-    for (const listener of listeners) try { listener(); } catch { /* observer failures never reach the child */ }
+    this.observers.release(() => { this.items = []; this.tools = new Map(); this.version++; });
   }
   /** Mirrors the main TUI's event switch, minus anything that needs the host session. */
   ingest(event: unknown) {
-    if (this.released || !isRec(event)) return;
+    if (this.observers.isReleased || !isRec(event)) return;
     const message = isRec(event.message) ? event.message : undefined;
     let changed = true;
     switch (event.type) {
@@ -100,7 +114,7 @@ export class LiveTranscript {
     }
     if (!changed) return;
     this.version++;
-    for (const listener of [...this.listeners]) try { listener(); } catch { /* ignored */ }
+    this.observers.notify();
   }
   private tool(id: string): ToolState {
     let state = this.tools.get(id);
@@ -121,30 +135,28 @@ export class OutputTranscript {
   readonly mode = "output" as const;
   private buffer = Buffer.alloc(0);
   private dropped = 0;
-  private listeners = new Set<() => void>();
-  private released = false;
+  private observers = new TranscriptObservers();
   version = 0;
   constructor(private limit = OUTPUT_TRANSCRIPT_BYTES) {}
-  subscribe(listener: () => void): () => void {
-    if (this.released) return () => {};
-    this.listeners.add(listener);
-    return () => { this.listeners.delete(listener); };
-  }
-  get isReleased() { return this.released; }
+  subscribe(listener: () => void): () => void { return this.observers.subscribe(listener); }
+  get isReleased() { return this.observers.isReleased; }
   release() {
-    if (this.released) return;
-    this.released = true; this.buffer = Buffer.alloc(0); this.version++;
-    const listeners = [...this.listeners]; this.listeners.clear();
-    for (const listener of listeners) try { listener(); } catch { /* observer failures never reach the job */ }
+    this.observers.release(() => { this.buffer = Buffer.alloc(0); this.version++; });
   }
   /** Only the last `limit` bytes are kept; evicted bytes are counted, never retained. */
   append(chunk: Buffer) {
-    if (this.released || !chunk.length) return;
+    if (this.observers.isReleased || !chunk.length) return;
     const data = this.buffer.length ? Buffer.concat([this.buffer, chunk]) : Buffer.from(chunk);
-    if (data.length > this.limit) { this.dropped += data.length - this.limit; this.buffer = Buffer.from(data.subarray(data.length - this.limit)); }
-    else this.buffer = data;
+    if (data.length > this.limit) {
+      // Do not start the kept tail inside a multi-byte character (a UTF-8 character has at most 3 continuation bytes): it would decode as U+FFFD.
+      const first = data.length - this.limit;
+      let start = first;
+      while (start < data.length && start < first + 3 && (data[start]! & 0xc0) === 0x80) start++;
+      this.dropped += start;
+      this.buffer = Buffer.from(data.subarray(start));
+    } else this.buffer = data;
     this.version++;
-    for (const listener of [...this.listeners]) try { listener(); } catch { /* ignored */ }
+    this.observers.notify();
   }
   snapshot(): { text: string; truncated: boolean } { return { text: this.buffer.toString("utf8"), truncated: this.dropped > 0 }; }
 }

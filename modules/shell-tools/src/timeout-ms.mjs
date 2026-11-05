@@ -9,9 +9,14 @@ export function describeReceived(value) {
   return Array.isArray(value) ? "array" : typeof value;
 }
 
+/** An omitted timeoutMs, or the schema maximum, means the command runs without a time limit. */
+export function isUnboundedTimeout(timeoutMs) {
+  return timeoutMs === undefined || timeoutMs === MAX_TIMEOUT_MS;
+}
+
 /** Convert a positive integer timeout in milliseconds to Pi shell timeout seconds. */
 export function timeoutMsToSeconds(timeoutMs) {
-  if (timeoutMs === undefined || timeoutMs === MAX_TIMEOUT_MS) return undefined;
+  if (isUnboundedTimeout(timeoutMs)) return undefined;
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
     const shown = typeof timeoutMs === "number" ? String(timeoutMs) : describeReceived(timeoutMs);
     throw new TypeError(`timeoutMs must be a positive integer between 1 and ${MAX_TIMEOUT_MS} milliseconds (e.g. 20000 = 20 seconds); received ${shown}. Omit timeoutMs for no timeout.`);

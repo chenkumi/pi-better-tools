@@ -51,6 +51,7 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
     process.stderr.write(`${PREFIX} ${message}\n`);
     process.exitCode = 1;
   };
+  const failModelRequest = (reply: { stopReason?: string; errorMessage?: string }) => fail(reply.errorMessage || `model request ${reply.stopReason}`);
   const clone = (value: unknown) => JSON.parse(JSON.stringify(value)) as unknown;
   /**
    * Host order: tool_execution_start carries the model's raw arguments, then Pi coerces a copy (Value.Convert, optional-null
@@ -142,7 +143,7 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
     if (message.role !== "assistant" || !Array.isArray(message.content)) return;
     if (message.provider && message.model) answeredBy = { provider: message.provider, id: message.model };
     if (message.stopReason === "error" || message.stopReason === "aborted") {
-      fail(message.errorMessage || `model request ${message.stopReason}`);
+      failModelRequest(message);
       return;
     }
     if (message.content.some((block) => block.type === "toolCall")) return;
@@ -169,7 +170,7 @@ export default function jsonSchemaExtension(pi: ExtensionAPI) {
     transcript = [...transcript, ...messages];
     // An upstream error or abort is a failed run; never try to recover a result from it.
     const last = [...event.messages].reverse().find((message) => (message as { role?: string }).role === "assistant") as { stopReason?: string; errorMessage?: string } | undefined;
-    if (last && (last.stopReason === "error" || last.stopReason === "aborted")) fail(last.errorMessage || `model request ${last.stopReason}`);
+    if (last && (last.stopReason === "error" || last.stopReason === "aborted")) failModelRequest(last);
   });
 
   async function recover(ctx: ExtensionContext): Promise<unknown | undefined> {

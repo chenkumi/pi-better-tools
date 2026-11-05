@@ -2,7 +2,8 @@ import * as fs from "node:fs";
 import { createHash } from "node:crypto";
 import type { ExtensionAPI, ExtensionContext, SessionHeader, SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { AssistantMessage, ThinkingLevel } from "@earendil-works/pi-ai";
-import { safeSnapshot, validateInteraction, messageText, MAX_INTERACTION_BYTES, MAX_QUERY_REPLY_BYTES } from "./query-snapshot.ts";
+import { safeSnapshot, validateInteraction, messageText, MAX_INTERACTION_BYTES, MAX_QUERY_REPLY_BYTES, MAX_SNAPSHOT_BYTES } from "./query-snapshot.ts";
+import { errorToString } from "./values.ts";
 
 /** Managed RPC children only. IPC is separate from RPC stdout, and never writes
  * query prompts, answers, usage or branch entries into the main SessionManager. */
@@ -36,10 +37,10 @@ export default function (pi: ExtensionAPI) {
 				const file = fs.openSync(captured.path, "r");
 				let bytes: Buffer;
 				try {
-					const buffer = Buffer.alloc(8 * 1024 * 1024 + 1); let length = 0;
+					const buffer = Buffer.alloc(MAX_SNAPSHOT_BYTES + 1); let length = 0;
 					while (length < buffer.length) { const read = fs.readSync(file, buffer, length, buffer.length - length, null); if (!read) break; length += read; }
 					bytes = buffer.subarray(0, length);
-					if (length > 8 * 1024 * 1024 || createHash("sha256").update(bytes).digest("hex") !== captured.hash) throw new Error("QUERY_CHECKPOINT_CHANGED: committed query copy changed");
+					if (length > MAX_SNAPSHOT_BYTES || createHash("sha256").update(bytes).digest("hex") !== captured.hash) throw new Error("QUERY_CHECKPOINT_CHANGED: committed query copy changed");
 				} finally { fs.closeSync(file); }
 				const records = new TextDecoder("utf-8", { fatal: true }).decode(bytes).trim().split("\n").map(line => JSON.parse(line));
 				const savedHeader = records.shift();
@@ -67,8 +68,12 @@ export default function (pi: ExtensionAPI) {
 			if (result.stopReason === "error") throw new Error(result.errorMessage ?? "Query provider failed");
 			if (result.content.some(part => part.type === "toolCall")) throw new Error("QUERY_TOOLS_FORBIDDEN: provider emitted a tool call; it was not executed");
 			const text = messageText(result.content);
-			const output = Buffer.from(text.slice(0, 8192), "utf8").subarray(0, 8192).toString("utf8").replace(/\uFFFD$/u, "");
-			reply({ type: "query_result", queryId: id, status: "completed", asOf, output, outputTruncated: Buffer.byteLength(text, "utf8") > 8192, usage: result.usage, provider: model.provider, model: model.id });
+			const textBytes = Buffer.from(text, "utf8");
+			// Cut at a character boundary: step back over continuation bytes instead of decoding a partial character and stripping its replacement.
+			let end = Math.min(textBytes.length, 8192);
+			while (end < textBytes.length && end > 0 && (textBytes[end]! & 0xc0) === 0x80) end--;
+			const output = textBytes.subarray(0, end).toString("utf8");
+			reply({ type: "query_result", queryId: id, status: "completed", asOf, output, outputTruncated: textBytes.length > 8192, usage: result.usage, provider: model.provider, model: model.id });
 		} catch (error) {
 			reply({ type: "query_result", queryId: id, status: !forbiddenTools && controller.signal.aborted ? "aborted" : "failed", asOf: asOf ?? null, snapshotUnavailable: !asOf, usage: result?.usage, usageUnknown: !result?.usage, provider: model?.provider, model: model?.id, error: forbiddenTools ? "QUERY_TOOLS_FORBIDDEN: provider streamed a tool call; it was not executed" : error instanceof Error ? error.message.slice(0, 2048) : String(error).slice(0, 2048) });
 		} finally { clearTimeout(deadline); queries.delete(id); }
@@ -84,7 +89,7 @@ export default function (pi: ExtensionAPI) {
 			validateInteraction(value.message);
 			if (queries.size >= 2 || queries.has(value.queryId)) throw new Error("QUERY_CAPACITY: at most two child queries concurrently");
 			void query(value.queryId, value.message, context);
-		} catch (error) { reply({ type: "query_result", queryId: value.queryId, status: "failed", error: error instanceof Error ? error.message : String(error) }); }
+		} catch (error) { reply({ type: "query_result", queryId: value.queryId, status: "failed", error: errorToString(error) }); }
 	};
 	pi.on("before_agent_start", () => { if (expected.readyQuerySnapshot) throw new Error("QUERY_MAINLINE_FORBIDDEN: disposable ready query cannot prompt or steer the task"); });
 	pi.on("session_start", (_event, ctx) => { context = ctx; closed = false; process.on("message", receive); });

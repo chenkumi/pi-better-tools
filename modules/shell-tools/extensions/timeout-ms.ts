@@ -9,6 +9,7 @@ import {
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { ToolError } from "../../../shared/src/tool-error/index.js";
 import { Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { stripVTControlCharacters } from "node:util";
 
@@ -29,6 +30,7 @@ import { writeFailureDebugLog, type FailureDetails } from "../src/debug-log.mjs"
 import {
   MAX_TIMEOUT_MS,
   describeReceived,
+  isUnboundedTimeout,
   timeoutMsToRenderSeconds,
   timeoutMsToSeconds,
 } from "../src/timeout-ms.mjs";
@@ -86,25 +88,25 @@ function withTimeoutHint(error: unknown, timeoutMs: unknown, foregroundOnly: boo
   return timedOut !== error.message ? new Error(timedOut, { cause: error }) : error;
 }
 
+const FOREGROUND_ONLY_MESSAGE = "Managed subagent Shell is foreground-only; background is not accepted. Remove the background parameter and run in the foreground, bounding it with timeoutMs if needed.";
+
 /**
  * Validates the raw input in a fixed order, before any settings read, backend creation or spawn. Presence of
  * `background` is rejected for a managed child, even false/undefined, including direct execute calls that
  * bypass host schema validation.
  */
-const FOREGROUND_ONLY_MESSAGE = "Managed subagent Shell is foreground-only; background is not accepted. Remove the background parameter and run in the foreground, bounding it with timeoutMs if needed.";
-
 function parseShellInput(name: string, input: Record<string, unknown>, foregroundOnly: boolean) {
-  if (foregroundOnly && "background" in input) throw new Error(FOREGROUND_ONLY_MESSAGE);
+  if (foregroundOnly && "background" in input) throw new ToolError("SHELL_FOREGROUND_ONLY", FOREGROUND_ONLY_MESSAGE);
   // Schema validation can be skipped when AJV is unavailable, so reject the
   // legacy seconds field explicitly instead of silently running unbounded.
   if (input.timeout !== undefined) {
-    throw new Error(
+    throw new ToolError("SHELL_INVALID_ARGUMENT",
       `${name} no longer accepts timeout (seconds); use timeoutMs in milliseconds, e.g. 20000 for 20 seconds.`,
     );
   }
   const backgroundInput = input.background;
-  if (backgroundInput !== undefined && typeof backgroundInput !== "boolean") throw new Error(`background must be a boolean (true or false); received ${describeReceived(backgroundInput)}. Omit it for a foreground command.`);
-  if (typeof input.command !== "string") throw new Error(`command is required and must be a string containing the shell command to run; received ${input.command === undefined ? "undefined" : input.command === null ? "null" : typeof input.command}.`);
+  if (backgroundInput !== undefined && typeof backgroundInput !== "boolean") throw new ToolError("SHELL_INVALID_ARGUMENT", `background must be a boolean (true or false); received ${describeReceived(backgroundInput)}. Omit it for a foreground command.`);
+  if (typeof input.command !== "string") throw new ToolError("SHELL_INVALID_ARGUMENT", `command is required and must be a string containing the shell command to run; received ${input.command === undefined ? "undefined" : input.command === null ? "null" : typeof input.command}.`);
   const timeout = timeoutMsToSeconds(input.timeoutMs as number | undefined);
   return { command: input.command, timeout, background: backgroundInput === true };
 }
@@ -117,7 +119,7 @@ type Receipt = { jobId: string; status: "running"; liveLogPath: string };
 function receiptResult(pi: ExtensionAPI, ctx: ExtensionContext, timeoutMs: unknown, receipt: Receipt, headline: string) {
   // A job without timeoutMs has no upper bound, so ask Monitor for a display-only sampler (best effort).
   let monitorId: string | undefined;
-  if (timeoutMs === undefined || timeoutMs === MAX_TIMEOUT_MS) {
+  if (isUnboundedTimeout(timeoutMs)) {
     try { monitorId = requestAutoMonitor({ sessionId: ctx.sessionManager.getSessionId(), cwd: canonicalMonitorCwd(ctx.cwd) }, receipt.jobId); } catch { /* monitor is optional */ }
   }
   const monitorNote = monitorId ? `\nMonitor ${monitorId} samples this job every ${AUTO_MONITOR_INTERVAL_MS / 1000}s (display only, no model wake-up; monitor_stop to stop it).` : "";
@@ -177,7 +179,7 @@ function registerTimeoutMsOverride(
     defaultActive: !foregroundOnly,
     description: foregroundOnly
       ? `${descriptionWithoutOldTimeout} timeoutMs is a total time limit in ms from launch. Commands run synchronously until completion. ${platformNote}`
-      : `${descriptionWithoutOldTimeout} timeoutMs is a total time limit in ms from launch (foreground and background). A foreground command without timeoutMs still running after 180s is moved to a background job automatically (same process, not restarted) and you get a job receipt; the turn's abort no longer stops it, use shell_job_cancel. background:true returns a jobId/liveLogPath receipt (no exit code) and reports completion automatically; without timeoutMs it also auto-starts a display-only Monitor sampling every 180s; shell_job_status/cancel are active by default unless the host excludes them. ${platformNote}`,
+      : `${descriptionWithoutOldTimeout} timeoutMs is a total time limit in ms from launch (foreground and background). A foreground command without timeoutMs still running after the auto-background threshold (default 300s, user-configurable; the receipt states the actual value) is moved to a background job automatically (same process, not restarted) and you get a job receipt; the turn's abort no longer stops it, use shell_job_cancel. background:true returns a jobId/liveLogPath receipt (no exit code) and reports completion automatically; without timeoutMs it also auto-starts a display-only Monitor sampling every 180s; shell_job_status/cancel are active by default unless the host excludes them. ${platformNote}`,
     parameters: foregroundOnly ? Type.Omit(parameters, ["background"], { additionalProperties: false }) : parameters,
     outputSchema: foregroundOnly ? base.outputSchema! : Type.Union([base.outputSchema!, receiptSchema]),
     promptGuidelines: [...(base.promptGuidelines ?? []), timeoutGuideline],
@@ -256,10 +258,10 @@ function registerTimeoutMsOverride(
           }
         };
         if (background) {
-          if (!jobs) throw new Error(FOREGROUND_ONLY_MESSAGE);
+          if (!jobs) throw new ToolError("SHELL_FOREGROUND_ONLY", FOREGROUND_ONLY_MESSAGE);
           return receiptResult(pi, ctx, input.timeoutMs, jobs.submit(ctx, name, toolCallId, signal, run, command), "Background job accepted; its outcome will be reported when it finishes.");
         }
-        const autoMs = jobs && (input.timeoutMs === undefined || input.timeoutMs === MAX_TIMEOUT_MS) ? resolveAutoBackgroundMs(pi.getSettings?.()) : 0;
+        const autoMs = jobs && isUnboundedTimeout(input.timeoutMs) ? resolveAutoBackgroundMs(pi.getSettings?.()) : 0;
         // Without a UI nobody can press the detach shortcut, so only the timer can trigger a handoff.
         if (!jobs || (autoMs === 0 && !ctx.hasUI)) return await run(signal);
         // The SAME process is adopted by a background job, so the turn is released. It is never restarted.
@@ -390,10 +392,10 @@ export default function (pi: ExtensionAPI) {
       },
       async execute(_id, input, _signal, _onUpdate, ctx) {
         if (action === "cancel" && (typeof input.jobId !== "string" || input.jobId === "")) {
-          throw new Error(`jobId is required (non-empty string); received ${describeReceived(input.jobId)}. Call shell_job_status with no arguments to list job ids, then pass one as jobId.`);
+          throw new ToolError("SHELL_INVALID_ARGUMENT", `jobId is required (non-empty string); received ${describeReceived(input.jobId)}. Call shell_job_status with no arguments to list job ids, then pass one as jobId.`);
         }
         if (action === "status" && input.jobId !== undefined && (typeof input.jobId !== "string" || input.jobId === "")) {
-          throw new Error(`jobId must not be empty and must be a string; received ${describeReceived(input.jobId)}. Call shell_job_status with no arguments (omit jobId) to list job ids.`);
+          throw new ToolError("SHELL_INVALID_ARGUMENT", `jobId must not be empty and must be a string; received ${describeReceived(input.jobId)}. Call shell_job_status with no arguments (omit jobId) to list job ids.`);
         }
         const result = action === "status" && input.jobId === undefined
           ? { jobs: jobs.list(ctx) }

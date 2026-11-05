@@ -116,6 +116,7 @@ Shutdown 失敗的 recovery：shutdown 時 transport 退出未確認的 session 
 Failure responses name the offending parameter or target, the violated rule and the fix (2026-10-24 guidance pass; see plan/error-message-handoff.md).
 - `pty_wait_exit` timeout: `timedOut`/`exitCode` are unchanged (`exitCode: -1` is not a real exit code); the result adds a `note` saying the session is still running and to call `pty_wait_exit` again, `pty_read`, or `pty_kill`.
 - `pty_kill` that did not release the session returns an extra `hint` (the session is retained; call `pty_kill` again, optionally with SIGKILL on POSIX, or check `pty_list`).
+- Session-level failures start with a stable code (`CODE: message`, `shared/src/tool-error/`), because only the message text reaches the model: `PTY_SESSION_NOT_FOUND`, `PTY_SESSION_EXITED`, `PTY_SESSION_LIMIT`, `PTY_SHUTTING_DOWN`, `PTY_SPAWN_FAILED`, and `PTY_INVALID_ARGUMENT` for bad tool arguments (cwd, cursor, signal, keys, waitFor, command, target name). Target-settings and env-policy errors have no code yet.
 - Spawn failures keep the original error as `cause`; env policy and target settings errors describe the problem in neutral terms ("the user's PTY environment policy", "the named terminal target in the user's settings") without naming settings keys; only the tool's own arguments (for example `target`) are named.
 - Messages never contain passwords or resolved secrets.
 

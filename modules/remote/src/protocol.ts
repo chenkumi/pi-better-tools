@@ -145,3 +145,11 @@ export function proofMatches(a: string, b: string): boolean {
   return left.length === right.length && left.length > 0 && timingSafeEqual(left, right);
 }
 export const frame = (value: ClientFrame | ServerFrame): string => JSON.stringify(value);
+
+export interface Inbound { id: string; from: string; kind: Kind; body: string; git?: GitInfo; replyTo?: string }
+/** The message a `deliver` frame hands to the extension; optional fields are present only when set. */
+export const toInbound = (message: Extract<ServerFrame, { t: 'deliver' }>): Inbound => ({
+  id: message.id, from: message.from, kind: message.kind, body: message.body,
+  ...(message.git ? { git: message.git } : {}),
+  ...(message.replyTo ? { replyTo: message.replyTo } : {}),
+});

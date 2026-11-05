@@ -2,7 +2,16 @@ import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 
-export type Provider = 'openai' | 'native' | 'brave' | 'exa' | 'deepseek';
+/** Providers that call a REST API (the others use the model's own search). */
+export const REST_PROVIDERS = ['brave', 'exa', 'deepseek'] as const;
+export type RestProvider = (typeof REST_PROVIDERS)[number];
+export const PROVIDERS = ['openai', 'native', ...REST_PROVIDERS] as const;
+export type Provider = (typeof PROVIDERS)[number];
+export const PROVIDER_LABELS: Record<RestProvider, string> = { brave: 'Brave', exa: 'Exa', deepseek: 'DeepSeek' };
+/** Inclusive integer ranges shared by parseConfig and the settings panel. */
+export const NUM_RESULTS_RANGE = { min: 1, max: 10 } as const;
+export const TIMEOUT_MS_RANGE = { min: 1000, max: 120000 } as const;
+export const MAX_CONCURRENCY_RANGE = { min: 1, max: 4 } as const;
 export interface Credential { apiKey?: string; apiKeyEnv?: string }
 export interface Config {
   version: 1;
@@ -53,16 +62,16 @@ export function parseConfig(value: unknown): Config {
   keys(o, ['version', 'provider', 'enabled', 'numResults', 'searchTimeoutMs', 'providers', 'fetch'], 'root');
   if (o.version !== undefined && o.version !== 1) invalid('version', 'must be 1');
   if (o.provider !== undefined) {
-    if (!['openai', 'native', 'brave', 'exa', 'deepseek'].includes(o.provider as string)) invalid('provider', 'must be one of openai, native, brave, exa, deepseek');
+    if (!(PROVIDERS as readonly string[]).includes(o.provider as string)) invalid('provider', `must be one of ${PROVIDERS.join(', ')}`);
     c.provider = o.provider as Provider;
   }
   if (o.enabled !== undefined) c.enabled = boolean(o.enabled, 'enabled');
-  if (o.numResults !== undefined) c.numResults = integer(o.numResults, 1, 10, 'numResults');
-  if (o.searchTimeoutMs !== undefined) c.searchTimeoutMs = integer(o.searchTimeoutMs, 1000, 120000, 'searchTimeoutMs');
+  if (o.numResults !== undefined) c.numResults = integer(o.numResults, NUM_RESULTS_RANGE.min, NUM_RESULTS_RANGE.max, 'numResults');
+  if (o.searchTimeoutMs !== undefined) c.searchTimeoutMs = integer(o.searchTimeoutMs, TIMEOUT_MS_RANGE.min, TIMEOUT_MS_RANGE.max, 'searchTimeoutMs');
   if (o.providers !== undefined) {
     const p = object(o.providers, 'providers');
-    keys(p, ['openai', 'google', 'brave', 'exa', 'deepseek'], 'providers');
-    for (const name of ['brave', 'exa', 'deepseek'] as const) if (p[name] !== undefined) c.providers[name] = credential(p[name], `providers.${name}`);
+    keys(p, ['openai', 'google', ...REST_PROVIDERS], 'providers');
+    for (const name of REST_PROVIDERS) if (p[name] !== undefined) c.providers[name] = credential(p[name], `providers.${name}`);
     for (const name of ['openai', 'google'] as const) {
       if (p[name] === undefined) continue;
       const a = object(p[name], `providers.${name}`);
@@ -73,8 +82,8 @@ export function parseConfig(value: unknown): Config {
   if (o.fetch !== undefined) {
     const f = object(o.fetch, 'fetch');
     keys(f, ['timeoutMs', 'maxConcurrency'], 'fetch');
-    if (f.timeoutMs !== undefined) c.fetch.timeoutMs = integer(f.timeoutMs, 1000, 120000, 'fetch.timeoutMs');
-    if (f.maxConcurrency !== undefined) c.fetch.maxConcurrency = integer(f.maxConcurrency, 1, 4, 'fetch.maxConcurrency');
+    if (f.timeoutMs !== undefined) c.fetch.timeoutMs = integer(f.timeoutMs, TIMEOUT_MS_RANGE.min, TIMEOUT_MS_RANGE.max, 'fetch.timeoutMs');
+    if (f.maxConcurrency !== undefined) c.fetch.maxConcurrency = integer(f.maxConcurrency, MAX_CONCURRENCY_RANGE.min, MAX_CONCURRENCY_RANGE.max, 'fetch.maxConcurrency');
   }
   return c;
 }

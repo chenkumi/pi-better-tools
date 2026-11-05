@@ -3,7 +3,8 @@ import { Box, SelectList, matchesKey, truncateToWidth, visibleWidth, wrapTextWit
 import { TranscriptView, type TranscriptSource } from "./live-transcript.js";
 import { stripVTControlCharacters } from "node:util";
 
-export type PanelKind = "subagents" | "shell" | "fork" | "monitor" | "pty";
+export const PANEL_KINDS = ["subagents", "shell", "fork", "monitor", "pty"] as const;
+export type PanelKind = typeof PANEL_KINDS[number];
 /** Hover target of the "More…" label; job rows use their {@link jobKey}. */
 export const MORE_HOVER = "more";
 export type UsageState = "pending" | "reported" | "unknown" | "na";
@@ -74,6 +75,9 @@ export function jobSummary(job: PanelJob): string {
   const usage = rowUsage(job);
   return job.kind === "shell" && job.state === "running" ? usage : `${safeJobText(job.state, 32)} | ${usage}`;
 }
+const clampWidth = (width: number) => Number.isFinite(width) ? Math.max(0, Math.floor(width)) : 0;
+/** A style reset inside `text` would drop the surrounding background, so each reset is followed by the background again. */
+const keepBackground = (text: string, bg: string) => text.replace(/\x1b\[(?:0)?m/g, reset => reset + bg);
 /** One row per job, so the budget is rows left after editor/footer/chat, capped at five jobs. */
 const panelJobLimit = (terminalRows: number) => Math.min(5, Math.max(0, Math.floor(terminalRows - 10)));
 /** The jobs renderJobs draws, in row order: job i owns physical row 1 + i, between the heading row and the More row. */
@@ -82,7 +86,7 @@ export function displayedJobs(jobs: readonly PanelJob[], terminalRows = 40): Pan
 }
 /** Five JOBS total, one physical row each. `hover` is a {@link jobKey} or {@link MORE_HOVER}; it only recolours, never changes the row layout. */
 export function renderJobs(jobs: readonly PanelJob[], theme: Theme, width: number, terminalRows = 40, hover?: string): string[] {
-  width = Number.isFinite(width) ? Math.max(0, Math.floor(width)) : 0;
+  width = clampWidth(width);
   const active = orderedJobs(jobs.filter(j => j.active));
   if (!active.length) return [];
   const limit = panelJobLimit(terminalRows);
@@ -91,7 +95,7 @@ export function renderJobs(jobs: readonly PanelJob[], theme: Theme, width: numbe
   // The highlight ends in the default background, so the panel background is restored for the cells after it.
   const highlight = (line: string) => {
     const bg = theme.getBgAnsi("selectedBg");
-    return theme.bg("selectedBg", line.replace(/\x1b\[(?:0)?m/g, reset => reset + bg)) + theme.getBgAnsi("toolPendingBg");
+    return theme.bg("selectedBg", keepBackground(line, bg)) + theme.getBgAnsi("toolPendingBg");
   };
   const lines = [theme.fg("accent", truncateToWidth(`Jobs · ${active.length} active · Subagents ${count("subagents")} / Shell ${count("shell")}${fork ? ` / Fork ${fork}` : ""}${monitor ? ` / Monitor ${monitor}` : ""}${pty ? ` / PTY ${pty}` : ""}`, inner))];
   for (const job of active.slice(0, limit)) {
@@ -114,7 +118,7 @@ export function renderJobs(jobs: readonly PanelJob[], theme: Theme, width: numbe
   // Only the "More…" label is a click target, so only it lights up.
   lines.push(hover === MORE_HOVER && more.startsWith("More…") ? highlight(theme.fg("accent", "More…")) + theme.fg("dim", more.slice("More…".length)) : theme.fg("dim", more));
   const bg = theme.getBgAnsi("toolPendingBg");
-  const box = new Box(padding, 0, text => theme.bg("toolPendingBg", text.replace(/\x1b\[(?:0)?m/g, reset => reset + bg)));
+  const box = new Box(padding, 0, text => theme.bg("toolPendingBg", keepBackground(text, bg)));
   box.addChild({ render: () => lines, invalidate() {} });
   return box.render(width);
 }
@@ -232,7 +236,7 @@ export class JobsOverlay implements Component {
   }
   render(width: number): string[] {
     if (this.disposed) return [];
-    width = Number.isFinite(width) ? Math.max(0, Math.floor(width)) : 0;
+    width = clampWidth(width);
     const height = Math.max(1, Math.min(20, this.height() - 2));
     const bordered = width >= 3 && height >= 4, inner = Math.max(0, width - (bordered ? 2 : 0));
     const contentRows = height - (bordered ? 2 : 0), bodyRows = Math.max(0, contentRows - 2);
