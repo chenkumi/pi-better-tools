@@ -10,14 +10,14 @@ const SLOT = Symbol.for("pi-better-tools.fork.child-guard.v1"), LOADED = Symbol.
 const cwd = realpathSync(mkdtempSync(`${tmpdir()}/fork-guard-`));
 const base = { forkId: "F", sessionId: "S1", parentSessionId: "PARENT", cwd, model: "p/m", thinkingLevel: "off", childTrusted: false, tools: ["read"], token: "tok" };
 
-function harness(over: Partial<typeof base> = {}, ctxOver: Record<string, unknown> = {}, active = ["read"]) {
+function harness(over: Partial<typeof base> & { loadable?: string[] } = {}, ctxOver: Record<string, unknown> = {}, active = ["read"]) {
 	delete (globalThis as any)[SLOT]; delete (globalThis as any)[LOADED];
 	process.env[FORK_GUARD_ENV] = JSON.stringify({ ...base, ...over });
 	const handlers = new Map<string, Function>(); const sent: any[] = [];
 	Object.defineProperty(process, "connected", { value: true, configurable: true });
 	(process as any).send = (m: unknown, cb?: () => void) => { sent.push(m); cb?.(); return true; };
 	const exits: number[] = []; const realExit = process.exit; process.exit = ((code: number) => { exits.push(code); }) as never;
-	const pi: any = { on: (n: string, h: Function) => handlers.set(n, h), getActiveTools: () => active, getThinkingLevel: () => "off" };
+	const pi: any = { on: (n: string, h: Function) => handlers.set(n, h), getActiveTools: () => active, setActiveTools: (names: string[]) => { active = names; }, getThinkingLevel: () => "off" };
 	guard(pi);
 	const state = { idle: true, pending: false };
 	const ctx: any = { cwd, model: { provider: "p", id: "m" }, isProjectTrusted: () => false, isIdle: () => state.idle, hasPendingMessages: () => state.pending,
@@ -82,6 +82,17 @@ test("every provider request carries the parent's session id as its cache identi
 		assert.equal(noParent.handlers.has("before_provider_headers"), false);
 		assert.equal(noParent.handlers.has("before_provider_request"), false);
 	} finally { noParent.restore(); }
+});
+
+test("deferred tools named in --tools (so they register) are deactivated again; only those names, anything else still rejects", () => {
+	const ok = harness({ tools: ["read"], loadable: ["sqlite_query"] }, {}, ["read", "sqlite_query"]); try {
+		ok.handlers.get("session_start")!({ reason: "startup" }, ok.ctx);
+		assert.equal(ok.sent.at(-1).type, "verified"); assert.deepEqual(ok.sent.at(-1).tools, ["read"]);
+	} finally { ok.restore(); }
+	const foreign = harness({ tools: ["read"], loadable: ["sqlite_query"] }, {}, ["read", "sqlite_query", "bash"]); try {
+		try { foreign.handlers.get("session_start")!({ reason: "startup" }, foreign.ctx); } catch { /* exit stub */ }
+		assert.equal(foreign.sent.at(-1).code, "CAPABILITY_MISMATCH");
+	} finally { foreign.restore(); }
 });
 
 test("settlement is reported when quiet; with nested jobs it waits for two consecutive quiet ticks", () => {

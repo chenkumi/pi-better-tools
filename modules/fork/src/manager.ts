@@ -36,6 +36,7 @@ export interface Job {
 	acceptLeafId: string | null;
 	sessionDir: string;
 	tools: string[];
+	loadable: string[];
 	prompt: string;
 	forwarded: { args: string[]; temporaryFiles: string[] };
 	persistError?: string;
@@ -118,6 +119,13 @@ function inheritedTools(pi: ExtensionAPI): string[] {
 	return tools;
 }
 
+/** The parent's registered deferred tools that are not active (reachable only through `tool_search`). The child must register them too,
+ *  or its deferred-tools prompt section and `tool_search` would differ from the parent's. Inline SDK tools cannot be rebuilt and are left out. */
+function loadableTools(pi: ExtensionAPI, active: readonly string[]): string[] {
+	const on = new Set(active);
+	return pi.getAllTools().filter(tool => tool.exposure === "deferred" && !on.has(tool.name) && !String((tool as { sourceInfo?: { path?: string } }).sourceInfo?.path ?? "").startsWith("<")).map(tool => tool.name);
+}
+
 const forkPrompt = (task: string) => `${FORK_PROMPT_PREFIX} The \`fork\` tool call and its result earlier in this conversation are how YOU were launched; from here on you are the background agent that the parent is waiting on. Do not wait for, poll, or expect a report from any background agent, and do not call fork or any other fork tool (calls are refused in this process). Do the task below now with your tools, then end with a concise final report: your final message is what gets delivered back to the parent conversation.
 
 Task:
@@ -146,7 +154,7 @@ export function acceptFork(pi: ExtensionAPI, ctx: ExtensionContext, params: { ta
 		Object.assign(forwarded, forwardParentArgs(deps.argv(), deps.launchCwd(), jobId, cwd));
 	} catch (error) { removeTemporary(forwarded.temporaryFiles); throw new Error(`FORK_STORE_UNAVAILABLE: cannot write the Fork store under ${cwd}/.pi/forks (check permissions and disk space); nothing was started. Cause: ${errorText(error, 200)}`); }
 	pruneRecords(cwd); // Old finished records beyond the bounded scan would otherwise accumulate in the workspace forever.
-	s.jobs.set(jobId, { record, released: false, acceptLeafId: sm.getLeafId(), sessionDir, tools, prompt: forkPrompt(params.task), forwarded });
+	s.jobs.set(jobId, { record, released: false, acceptLeafId: sm.getLeafId(), sessionDir, tools, loadable: loadableTools(pi, tools), prompt: forkPrompt(params.task), forwarded });
 	refreshUi();
 	return { jobId, forkSessionId, status: "awaiting_snapshot", title, transcriptPath: record.transcript!.path, resumeHint: "The native conversation file is created at the next turn boundary; use fork_status for its path." };
 }
@@ -181,7 +189,7 @@ function launch(job: Job, sessionPath: string) {
 	setStatus(job, "starting");
 	record.startedAt = new Date().toISOString();
 	const spec: ForkChildSpec = { jobId: record.jobId, sessionId: record.forkSessionId, parentSessionId: record.origin.sessionId, sessionPath, sessionDir: job.sessionDir, cwd: record.origin.cwd, model: record.config.model,
-		thinkingLevel: record.config.thinkingLevel, tools: job.tools, trusted: record.config.trusted, guardPath: GUARD_PATH, forwarded: job.forwarded.args, prompt: job.prompt };
+		thinkingLevel: record.config.thinkingLevel, tools: job.tools, loadable: job.loadable, trusted: record.config.trusted, guardPath: GUARD_PATH, forwarded: job.forwarded.args, prompt: job.prompt };
 	// Auxiliary query log of the Fork’s own messages; a failure here only marks it unavailable.
 	const transcript = new ForkTranscript(transcriptDir(record.origin.cwd, record.jobId), record.jobId, record.origin.cwd, () => syncTranscript(job));
 	job.transcript = transcript;
@@ -296,7 +304,7 @@ export function onSessionStart(pi: ExtensionAPI, ctx: ExtensionContext): void {
 	try {
 		for (const record of loadRecords(binding.cwd)) {
 			if (!ownedBy(record, binding.sessionId, binding.cwd) || record.origin.file !== binding.file || s.jobs.has(record.jobId)) continue;
-			const job: Job = { record, released: true, acceptLeafId: null, sessionDir: "", tools: [], prompt: "", forwarded: { args: [], temporaryFiles: [] } };
+			const job: Job = { record, released: true, acceptLeafId: null, sessionDir: "", tools: [], loadable: [], prompt: "", forwarded: { args: [], temporaryFiles: [] } };
 			if (!isTerminal(record.status)) {
 				let alive = false;
 				if (record.ownerPid !== process.pid) { try { process.kill(record.ownerPid, 0); alive = true; } catch { alive = false; } }

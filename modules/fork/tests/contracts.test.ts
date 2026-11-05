@@ -160,3 +160,8 @@ test("active-job bridge reports counts only for a valid scope and never exposes 
 	valid = true; assert.equal(activeJobCounts({ ...scope, sessionId: "other" }).shell, 0);
 	revoke(); assert.equal(activeJobCounts(scope).shell, 0);
 });
+
+test("Fork child allowlist adds the parent's unloaded deferred tools after the active ones, so tool_search there can load the same groups", () => {
+	const args = buildForkPiArgs({ sessionPath: "/s/f.jsonl", sessionDir: "/s", model: "p/m", thinkingLevel: "high", tools: ["read", "tool_search"], loadable: ["sqlite_open", "pty_spawn"], trusted: true, guardPath: "/g.ts", forwarded: [] });
+	assert.equal(args[args.indexOf("--tools") + 1], "read,tool_search,sqlite_open,pty_spawn");
+});

@@ -20,6 +20,8 @@ export interface ForkChildGuard {
 	thinkingLevel: string;
 	childTrusted: boolean;
 	tools: string[];
+	/** Deferred tools the parent has registered but not activated. Pi activates every name in `--tools`, so the child deactivates these at start. */
+	loadable?: string[];
 	token: string;
 }
 

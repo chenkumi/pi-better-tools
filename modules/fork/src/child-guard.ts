@@ -83,6 +83,9 @@ export default function (pi: ExtensionAPI) {
 		let code: string | undefined;
 		try {
 			const model = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined;
+			// Naming a deferred tool in `--tools` registers it but also activates it. Undo exactly those names; any other difference still rejects below.
+			const loadable = new Set(expected.loadable ?? []);
+			if (pi.getActiveTools().some(name => loadable.has(name))) pi.setActiveTools(pi.getActiveTools().filter(name => !loadable.has(name)));
 			const active = pi.getActiveTools();
 			if (model !== expected.model) code = "MODEL_UNAVAILABLE";
 			else if (fs.realpathSync(ctx.cwd) !== expected.cwd || ctx.sessionManager.getSessionId() !== expected.sessionId || pi.getThinkingLevel() !== expected.thinkingLevel) code = "CONFIG_CHANGED";

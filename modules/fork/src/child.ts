@@ -26,6 +26,8 @@ export interface ForkChildSpec {
 	model: string;
 	thinkingLevel: string;
 	tools: string[];
+	/** Registered but inactive deferred tools of the parent. Named in `--tools` so they register (Pi activates them there; the child guard deactivates them again). */
+	loadable?: string[];
 	trusted: boolean;
 	guardPath: string;
 	/** Parent resource/prompt flags forwarded verbatim (already absolute); never contains task text. */
@@ -64,9 +66,11 @@ export interface ForkChildHandle { readonly pid?: number; cancel(): Promise<void
 export type ForkMessageMode = "follow_up" | "steer";
 
 /** Argument vector for the Fork child. The task travels over RPC stdin, never on the command line. */
-export function buildForkPiArgs(spec: Pick<ForkChildSpec, "sessionPath" | "sessionDir" | "model" | "thinkingLevel" | "tools" | "trusted" | "guardPath" | "forwarded">): string[] {
+export function buildForkPiArgs(spec: Pick<ForkChildSpec, "sessionPath" | "sessionDir" | "model" | "thinkingLevel" | "tools" | "loadable" | "trusted" | "guardPath" | "forwarded">): string[] {
 	const args = ["--mode", "rpc", "--session", spec.sessionPath, "--session-dir", spec.sessionDir, "--model", spec.model, "--thinking", spec.thinkingLevel];
-	if (spec.tools.length) args.push("--tools", spec.tools.join(","));
+	// The allowlist is the active set plus the parent's unloaded deferred tools: without them they would not register in the child, and
+	// `tool_search` there could not load what the parent can. Pi activates every named tool, so the child guard deactivates the extras.
+	if (spec.tools.length) args.push("--tools", [...spec.tools, ...(spec.loadable ?? [])].join(","));
 	else args.push("--no-tools");
 	// No --exclude-tools: the child's tool list must equal the parent's to continue its cached prefix. Fork tools stay defined and are refused at call time.
 	args.push("-e", spec.guardPath, spec.trusted ? "--approve" : "--no-approve", ...spec.forwarded);
@@ -114,7 +118,7 @@ class Deferred<T> {
 /** Starts the independent Pi process. Every wait is tied to cancellation or child close; nothing relies on a fixed sleep. */
 export function startForkChild(spec: ForkChildSpec, onProgress: (progress: ForkProgress, detail?: ForkBlockedDetail) => void = () => {}): ForkChildHandle {
 	const token = randomBytes(16).toString("hex");
-	const guard: ForkChildGuard = { forkId: spec.jobId, sessionId: spec.sessionId, parentSessionId: spec.parentSessionId, cwd: spec.cwd, model: spec.model, thinkingLevel: spec.thinkingLevel, childTrusted: spec.trusted, tools: spec.tools, token };
+	const guard: ForkChildGuard = { forkId: spec.jobId, sessionId: spec.sessionId, parentSessionId: spec.parentSessionId, cwd: spec.cwd, model: spec.model, thinkingLevel: spec.thinkingLevel, childTrusted: spec.trusted, tools: spec.tools, loadable: spec.loadable ?? [], token };
 	const invocation = (spec.invocation ?? ((args: string[]) => getPiInvocation(args, process.env, { preferHostScript: true })))(buildForkPiArgs(spec));
 	const proc: ChildProcess = (spec.spawnImpl ?? spawn)(invocation.command, invocation.args, { cwd: spec.cwd, shell: false, windowsHide: true, detached: process.platform !== "win32",
 		stdio: ["pipe", "pipe", "pipe", "ipc"], env: { ...process.env, [FORK_GUARD_ENV]: JSON.stringify(guard) } });
