@@ -4,7 +4,7 @@
 
 <!-- user-specified -->
 - 使用繁體中文對話。
-- 使用者另要求原生 `note` extension：`{ type, content }`，分類為 plan／design／issue／research／report／task，自動產生檔名、只新增檔案並回報路徑；後續交由檔案工具操作。檔名由系統自動產生（`TYPE-<UTC 時間戳>.md`，不附加標題或 slug，不接受使用者指定路徑），回傳單一相對路徑。
+- 使用者另要求原生 `note` extension：`{ type, content }`，分類為 plan／design／issue／research／report／task，自動產生檔名、只新增檔案並回報路徑；後續交由檔案工具操作。檔名由系統自動產生（`TYPE-<UTC 時間戳>.md`，不附加標題或 slug，不接受使用者指定路徑），回傳單一相對路徑，另附與 `write` 相同的 `sha256` 版本 token 與 `bytes`（可直接作為首次 `edit` 的 `expectedHash`）。
 - 專案新產生的 ULID 一律使用 `ulid().toUpperCase()`；保留既有小寫 ULID／UUID 的讀取相容性，不改寫既有 ID。
 - Script 長時間執行時定期輸出英文進度，不允許長期沉默。
 

@@ -22,7 +22,7 @@
 - 檔名由系統自動產生，只含分類及時間戳，不附加內容標題或 slug，也不接受使用者指定路徑或檔名。
 - 內容原樣寫入，不加標題、frontmatter 或模板；含孤立 UTF-16 surrogate 的內容會被拒絕。
 - 以 exclusive-create 建立，不覆寫既有檔案；檔名碰撞時時間戳加 1 毫秒重試，最多 1000 次（刻意保留此規則；僅碰撞時可能比呼叫時刻晚最多 999 毫秒，檔名時間戳不是精確的寫入時間證明），超過則回報 `NOTE_FILENAME_COLLISION`。
-- 回傳文字只含一個路徑：`Saved note: <相對路徑> (relative to cwd; use read/edit on this path to change it)`，不含絕對路徑；`details`、`structuredContent` 與輸出 schema 皆只含 `{ relativePath }`（`relativePath` 相對於 cwd、使用 `/`）。
+- 回傳文字：`Saved note: <相對路徑> sha256:<32 碼> bytes:<位元組> (relative to cwd; use edit on this path with this sha256 as expectedHash)`，不含絕對路徑；`details`、`structuredContent` 與輸出 schema 皆為 `{ relativePath, sha256, bytes }`（`relativePath` 相對於 cwd、使用 `/`；`sha256` 與 `bytes` 同 `write` 的回報：寫入位元組 SHA-256 的前 128 位元，可直接作為後續 `edit` 的 `expectedHash`，不必先 `read`）。`created` 不回報：note 永遠是新建。
 - 寫入開始前會檢查取消；開始寫入後會完成該次寫入。
 - 若 `<cwd>/<type>` 是指向工作目錄外的 symlink／junction，回報 `NOTE_DIRECTORY_ESCAPE` 並拒絕寫入（以 realpath 驗證）。
   路徑比較以完整 segment 進行（`..`、`..` + 分隔符、絕對路徑才算逃逸；解析後等於工作區根目錄本身不算逃逸，所以指回工作區自己的 junction 可以使用），因此指向工作區內名為 `..archive` 之類目錄的 junction 會被接受。

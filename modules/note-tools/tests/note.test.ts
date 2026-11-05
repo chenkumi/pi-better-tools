@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fsPromises, { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
@@ -7,6 +8,7 @@ import { test, type TestContext } from "node:test";
 import type { ExtensionAPI, ExtensionToolContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { Static } from "typebox";
 import { Check } from "typebox/value";
+import { ToolError, toolErrorCode } from "../../../shared/src/tool-error/index.ts";
 import noteExtension, { MAX_NOTE_BYTES, noteTool } from "../extensions/note.ts";
 
 const timestamp = Date.UTC(2026, 0, 2, 3, 4, 5, 6);
@@ -74,8 +76,9 @@ for (const type of types) {
     const file = join(cwd, saved.relativePath);
     assert.equal(file, resolve(cwd, dirOf[type], `${type.toUpperCase()}-20260102T030405006Z.md`));
     assert.equal(saved.relativePath, `${dirOf[type]}/${type.toUpperCase()}-20260102T030405006Z.md`);
-    assert.deepEqual(saved, { relativePath: `${dirOf[type]}/${type.toUpperCase()}-20260102T030405006Z.md` }, "details expose only the relative path");
-    assert.deepEqual(Object.keys((noteTool.outputSchema as unknown as { properties: object }).properties), ["relativePath"]);
+    const bytes = await readFile(file);
+    assert.deepEqual(saved, { relativePath: `${dirOf[type]}/${type.toUpperCase()}-20260102T030405006Z.md`, sha256: createHash("sha256").update(bytes).digest("hex").slice(0, 32), bytes: bytes.length }, "details: relative path plus the same version token and size write reports");
+    assert.deepEqual(Object.keys((noteTool.outputSchema as unknown as { properties: object }).properties), ["relativePath", "sha256", "bytes"]);
     assert.equal(Check(noteTool.outputSchema!, { ...saved, type }), false, "output rejects extra metadata");
     assert.equal(Object.hasOwn((noteTool.outputSchema as unknown as { properties: object }).properties, "path"), false);
     assert.equal(JSON.stringify(result).includes(cwd), false, "result never exposes the absolute workspace path");
@@ -86,6 +89,7 @@ for (const type of types) {
     if (text.type !== "text") throw new Error("Expected text output");
     assert.match(text.text, /Saved note:/);
     assert.ok(text.text.includes(saved.relativePath));
+    assert.ok(text.text.includes(`sha256:${saved.sha256}`), "the model sees the token it needs for expectedHash");
     assert.equal(await readFile(file, "utf8"), content);
     assert.deepEqual(await readdir(cwd), [dirOf[type]]);
     assert.deepEqual(await readdir(join(cwd, dirOf[type])), [basename(file)]);
@@ -101,12 +105,12 @@ test("empty or whitespace-only content is rejected with NOTE_EMPTY and creates n
   assert.deepEqual(await readdir(cwd), []);
 });
 
-test("result text tells the model the path is relative to cwd and to use read/edit", async t => {
+test("result text tells the model the path is relative to cwd and that the sha256 is the edit expectedHash", async t => {
   const cwd = await workspace(t);
   const result = await execute(cwd, { type: "task", content: "# t" });
   const text = result.content[0];
   if (text.type !== "text") throw new Error("Expected text output");
-  assert.match(text.text, /relative to cwd; use read\/edit/);
+  assert.match(text.text, /relative to cwd; use edit on this path with this sha256 as expectedHash/);
 });
 
 test("collision never overwrites an existing file or touches PLAN.md", async t => {
@@ -354,4 +358,14 @@ test("raw filesystem errors are wrapped with operation, relative folder and hint
   assert.match(m, /ENOSPC/);
   assert.match(m, /disk space/);
   assert.ok(!m.includes(cwd), "no absolute path");
+});
+
+test("failures are ToolErrors: the code is readable from the error, and the message still starts with it once", async t => {
+  const cwd = await workspace(t);
+  for (const [params, code] of [[{ type: "task", content: "  " }, "NOTE_EMPTY"], [{ type: "nope", content: "x" }, "NOTE_INVALID_ARGUMENTS"], [{ type: "task", content: "x", extra: 1 }, "NOTE_INVALID_ARGUMENTS"]] as const) {
+    const error = await execute(cwd, params as never).then(() => undefined, (e: unknown) => e);
+    assert.ok(error instanceof ToolError, code);
+    assert.equal(toolErrorCode(error), code);
+    assert.equal((error as Error).message.startsWith(`${code}: `) && !(error as Error).message.startsWith(`${code}: ${code}`), true);
+  }
 });
