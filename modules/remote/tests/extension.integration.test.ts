@@ -213,7 +213,7 @@ test('a forced prompt from another extension keeps one current copy of the roste
   const { server } = await pair(t);
   await server.changes.until(() => (server.beforeStart({ forceSystemPrompt: 'FORCED', systemPrompt: 'FORCED' }).result?.systemPrompt ?? '').includes('cli'), 'forced prompt carries the roster');
   const first = server.beforeStart({ forceSystemPrompt: 'FORCED', systemPrompt: 'FORCED' }).result!.systemPrompt;
-  assert.match(first, /^FORCED\n\n### Remote network/);
+  assert.match(first, /^FORCED\n\nThis session is "/);
   assert.equal(server.beforeStart({ forceSystemPrompt: first, systemPrompt: first }).result, undefined, 'already current: unchanged');
   await server.shutdown();
   assert.equal(server.beforeStart({ forceSystemPrompt: first, systemPrompt: first }).result?.systemPrompt, 'FORCED');

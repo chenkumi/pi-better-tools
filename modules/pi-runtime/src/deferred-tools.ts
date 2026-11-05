@@ -27,7 +27,7 @@ export function registerDeferredTools(pi: ExtensionAPI): void {
     for (const tool of managed()) if (!active.has(tool.name) && tool.namespace && !groups.has(tool.namespace.name)) groups.set(tool.namespace.name, tool.namespace.description ?? '');
     if (!groups.size) return undefined;
     const lines = [...groups].map(([name, description]) => `- ${name}${description ? `: ${description}` : ''} (query "${name}")`);
-    return `### Deferred tools\nThese tool groups are not loaded yet. Call tool_search with the query shown to load a group before using it:\n${lines.join('\n')}`;
+    return `These tool groups are not loaded yet. Call tool_search with the query shown to load a group before using it:\n${lines.join('\n')}`;
   };
 
   pi.on('session_start', event => {

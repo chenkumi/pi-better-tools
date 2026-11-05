@@ -19,7 +19,7 @@ test('real Pi background guidance follows selection, forced prompts and reload w
       assert.equal(result.systemPromptOptions.sections.other, 'KEEP_OTHER');
       assert.equal(result.systemPromptOptions.customPrompt, 'KEEP_CUSTOM');
       assert.ok(result.systemPromptOptions.forceSystemPrompt.startsWith('KEEP_FORCED'));
-      assert.equal(result.systemPromptOptions.forceSystemPrompt.split('### Background job lifecycle').length - 1, enabled ? 1 : 0);
+      assert.equal(result.systemPromptOptions.forceSystemPrompt.split('Notifications may arrive after logs or newer results').length - 1, enabled ? 1 : 0);
       assert.deepEqual(session.agent.state.tools.map(tool => tool.name), before);
       await session.reload();
       const after = await emit();

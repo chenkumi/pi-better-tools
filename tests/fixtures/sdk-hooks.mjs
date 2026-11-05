@@ -257,9 +257,9 @@ try {
     assert.doesNotMatch(f.session.systemPrompt, /\n- subagent: Delegate tasks/);
     assert.doesNotMatch(f.session.systemPrompt, /\n- web_fetch: Retrieve rendered/);
     assert.equal(prompt.forceSystemPrompt, undefined, 'package guidance must not force the complete prompt');
-    assert.match(prompt.sections.subagent_catalog, /subagent agent catalog/);
+    assert.match(prompt.sections.subagent_catalog, /Use only the exact, case-sensitive agent names/);
     assert.match(prompt.sections.web_search, /OpenAI native web_search/);
-    assert.match(prompt.sections.background_jobs, /Background job lifecycle/);
+    assert.match(prompt.sections.background_jobs, /Notifications may arrive after logs or newer results/);
     // session.systemPrompt reverts to base options after settlement; inspect the actual request transcript.
     const requested = f.requestedPrompt();
     assert.match(requested, /<subagent_catalog>/);
@@ -275,7 +275,7 @@ try {
     assert.equal(disabled.sections.subagent_catalog, undefined);
     assert.equal(disabled.sections.background_jobs, undefined);
     assert.match(disabled.sections.web_search, /OpenAI native web_search/);
-    assert.doesNotMatch(f.requestedPrompt(), /### subagent agent catalog|### Background job lifecycle/);
+    assert.doesNotMatch(f.requestedPrompt(), /Use only the exact, case-sensitive agent names|Notifications may arrive after logs or newer results/);
     assert.match(f.requestedPrompt(), /OpenAI native web_search/);
     assert.equal(f.calls(), 2);
   });

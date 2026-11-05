@@ -1950,7 +1950,7 @@ ${JSON.stringify(slimReceipt(receipt))}` }], details: { ...makeDetails(dispatchM
 			const allAgents = trustedProject ? discoverAgents(ctx.cwd, "both").agents : [];
 			const projectCatalog = trustedProject ? formatAgentCatalog(projectAgents) : "  (not listed until the current project is trusted)";
 			const allCatalog = trustedProject ? formatAgentCatalog(allAgents) : "  (not listed until the current project is trusted)";
-			catalog = `### subagent agent catalog\nUse only the exact, case-sensitive agent names shown below when calling subagent. Do not make a trial subagent call to discover an agent name. The source shown is the resolved definition after precedence.\n\nagentScope: "user" (default)\n${formatAgentCatalog(userAgents)}\n\nagentScope: "project"\n${projectCatalog}\n\nagentScope: "both"\n${allCatalog}`;
+			catalog = `Use only the exact, case-sensitive agent names shown below when calling subagent. Do not make a trial subagent call to discover an agent name. The source shown is the resolved definition after precedence.\n\nagentScope: "user" (default)\n${formatAgentCatalog(userAgents)}\n\nagentScope: "project"\n${projectCatalog}\n\nagentScope: "both"\n${allCatalog}`;
 			options.sections[AGENT_CATALOG_SECTION] = catalog;
 		} else delete options.sections[AGENT_CATALOG_SECTION];
 		// Only an external full-prompt override needs text composition.

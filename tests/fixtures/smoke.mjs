@@ -288,12 +288,12 @@ try {
       assert.match(lifecycle, /log-based provisional conclusion/);
       assert.match(lifecycle, /Cancel owned jobs that are no longer needed/);
       if (result.systemPromptOptions.forceSystemPrompt !== undefined) {
-        assert.equal(result.systemPromptOptions.forceSystemPrompt.split('### Background job lifecycle').length - 1, 1, 'catalog forced prompt retains one shared lifecycle section');
+        assert.equal(result.systemPromptOptions.forceSystemPrompt.split('Notifications may arrive after logs or newer results').length - 1, 1, 'catalog forced prompt retains one shared lifecycle section');
       }
     }
     const combined = JSON.stringify(result.systemPromptOptions);
     if (active.includes('subagent')) for (const agent of ['planner', 'reviewer', 'scout', 'worker']) assert.ok(combined.includes(agent), `bundled agent ${agent}`);
-    else assert.ok(!combined.includes('### subagent agent catalog'));
+    else assert.ok(!combined.includes('Use only the exact, case-sensitive agent names'));
     if (!['brave', 'exa', 'invalid'].includes(mode)) {
       session.agent.state.model = { ...model, provider: 'openai' };
       const injected = await session.extensionRunner.emitBeforeProviderRequest({ tools: [] });

@@ -57,8 +57,8 @@ for (const order of ['subagent-first', 'web-first'] as const) {
       assert.equal(f.options.forceSystemPrompt, undefined);
       assert.equal(f.options.customPrompt, 'KEEP_CUSTOM');
       assert.equal(f.options.sections.other, 'KEEP_OTHER');
-      assert.match(f.options.sections[CATALOG]!, /### subagent agent catalog/);
-      assert.match(f.options.sections[BACKGROUND]!, /### Background job lifecycle/);
+      assert.match(f.options.sections[CATALOG]!, /Use only the exact, case-sensitive agent names/);
+      assert.match(f.options.sections[BACKGROUND]!, /Notifications may arrive after logs or newer results/);
       assert.match(f.options.sections[WEB]!, /Web tools/);
       assert.doesNotMatch(f.options.sections[CATALOG]!, /Project worker/);
       assert.match(f.options.sections[CATALOG]!, /not listed until the current project is trusted/);
@@ -84,13 +84,13 @@ for (const order of ['subagent-first', 'web-first'] as const) {
     f.run('custom');
     f.run('custom');
     assert.ok(f.options.forceSystemPrompt!.startsWith('KEEP_FORCED'));
-    assert.equal(f.options.forceSystemPrompt!.split('### subagent agent catalog').length - 1, 1);
-    assert.equal(f.options.forceSystemPrompt!.split('### Background job lifecycle').length - 1, 1);
+    assert.equal(f.options.forceSystemPrompt!.split('Use only the exact, case-sensitive agent names').length - 1, 1);
+    assert.equal(f.options.forceSystemPrompt!.split('Notifications may arrive after logs or newer results').length - 1, 1);
     assert.equal(f.options.forceSystemPrompt!.split(f.options.sections[WEB]!).length - 1, 1);
     f.ctx.isProjectTrusted = () => true;
     f.run();
     assert.match(f.options.forceSystemPrompt!, /Project worker/);
-    assert.equal(f.options.forceSystemPrompt!.split('### subagent agent catalog').length - 1, 1);
+    assert.equal(f.options.forceSystemPrompt!.split('Use only the exact, case-sensitive agent names').length - 1, 1);
     f.active.length = 0;
     f.ctx.model = { provider: 'anthropic', api: 'anthropic-messages', id: 'fixture' };
     f.run();

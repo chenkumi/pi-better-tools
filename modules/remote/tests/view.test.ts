@@ -10,7 +10,7 @@ const peers = [{ ...entry('srv', 'win32'), self: true as const }, entry('mac-tes
 
 test('the roster section lists other sessions by name and platform and tells the agent how to reach them', () => {
   const text = rosterSection(status(), peers)!;
-  assert.match(text, /^### Remote network\nThis session is "srv" in a network of Pi sessions \(server\)\. Other sessions you can message:/);
+  assert.match(text, /^This session is "srv" in a network of Pi sessions \(server\)\. Other sessions you can message:/);
   assert.match(text, /- mac-test \(macos arm64\)/);
   assert.match(text, /- lin-1 \(linux x64\)/);
   assert.doesNotMatch(text, /- srv /);

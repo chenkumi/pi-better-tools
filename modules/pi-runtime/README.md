@@ -14,7 +14,7 @@
 
 - **全新 session（`startup`／`new`）**：若已登記但未啟用 `tool_search`，以 `setActiveTools` 加入它，因此不需要 `defaultTools: "+tool_search"`。`resume`／`fork` 還原已記錄的工具集，`reload` 保留當前工具集，皆不變更。
 - **沒有登記的 `tool_search`**（例如 `--tools` allowlist 排除）：直接宣告本專案的 deferred 工具，與未延遲前相同；被 allowlist 排除的工具本來就不會註冊。
-- **提示**：`tool_search` 啟用時，系統提示加一段 `### Deferred tools`，每個仍未載入的 namespace 一行（含查詢字串）；全部載入後消失，並處理 `forceSystemPrompt`。
+- **提示**：`tool_search` 啟用時，系統提示加一段 `deferred_tools` section，每個仍未載入的 namespace 一行（含查詢字串）；全部載入後消失，並處理 `forceSystemPrompt`。
 - 只管理來源檔案位於本專案 `modules/` 的工具；第三方（如 MCP）的 deferred 工具不受影響，也不列入提示。
 - 這是有意的例外：Pi Runtime 會替使用者啟用 `tool_search`（不改使用者 settings 檔）。不要在各模組內重複這段程式。
 

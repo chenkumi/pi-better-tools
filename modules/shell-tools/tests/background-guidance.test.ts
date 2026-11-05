@@ -45,7 +45,7 @@ test('forced prompts preserve other text, avoid duplicates and remove only owned
   event.systemPromptOptions.forceSystemPrompt = 'FORCED KEEP';
   run(); run();
   assert.ok(event.systemPrompt.startsWith('FORCED KEEP'));
-  assert.equal(event.systemPrompt.split('### Background job lifecycle').length - 1, 1);
+  assert.equal(event.systemPrompt.split('Notifications may arrive after logs or newer results').length - 1, 1);
   active.length = 0; run();
   assert.equal(event.systemPrompt, 'FORCED KEEP');
   assert.equal(event.systemPromptOptions.sections.other, 'KEEP');

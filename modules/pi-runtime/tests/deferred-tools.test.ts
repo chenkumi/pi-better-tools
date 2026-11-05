@@ -59,7 +59,7 @@ test('one hint lists each unloaded group of this package until it loads; third-p
 test('a forced system prompt gets the section appended once, updated as groups load, and cleaned at the end', () => {
   const h = host([TS, PTY, SCHED], ['read', 'tool_search']);
   const forced = h.prompt({ forceSystemPrompt: 'FORCED' });
-  assert.match(forced.result.systemPrompt, /^FORCED\n\n### Deferred tools/);
+  assert.match(forced.result.systemPrompt, /^FORCED\n\nThese tool groups are not loaded yet/);
   assert.equal(h.prompt({ forceSystemPrompt: forced.result.systemPrompt }).result, undefined, 'idempotent');
   h.setActive(['read', 'tool_search', 'pty_spawn']);
   const updated = h.prompt({ forceSystemPrompt: forced.result.systemPrompt }).result.systemPrompt;

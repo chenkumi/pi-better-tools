@@ -10,8 +10,7 @@ export const AUTO_COMPACT_SECTION = 'context_compaction';
  * its beginning. The reporting line is limited to progress reports and final answers so it does not override how the user wants
  * ordinary replies written.
  */
-const GUIDANCE = `### Context compaction
-- When the conversation grows long, older messages are replaced by a deterministic summary at the start of the context; recent messages stay verbatim. No model writes it, so treat it as an index, not a transcript.
+const GUIDANCE = `- When the conversation grows long, older messages are replaced by a deterministic summary at the start of the context; recent messages stay verbatim. No model writes it, so treat it as an index, not a transcript.
 - A summary line ending in ⟦L<line>:<id>⟧ points at the original entry. User messages are kept whole (a pasted block is cut to its head and tail); your own long messages and tool output are shortened or folded. For the original, load the session tools with tool_search "session", then call session_read with the line and id, or session_grep for a keyword.
 - Check the summary before reading anything again: do not redo work it shows as done, and re-read a file only when you need its content and it is not visible. Keep going from the next unfinished step.
 - If you saved task notes to a file before a compaction (see the automatic notice that asks for it), read that file first to resume.
