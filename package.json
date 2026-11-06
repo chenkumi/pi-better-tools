@@ -49,6 +49,7 @@
         "modules/remote/package.json",
         "modules/gpt-speed/extensions",
         "modules/gpt-speed/src",
+        "modules/pi-custom-panel/src",
         "modules/json-schema/extensions",
         "modules/json-schema/src",
         "modules/sqlite-tools/src",
@@ -89,8 +90,8 @@
             "./modules/json-schema/src/index.ts",
             "./modules/pty-terminal/src/index.ts",
             "./modules/schedule-prompt/src/index.ts",
-            "./node_modules/pi-open-tui/extensions/open-tui/index.ts",
             "./modules/pi-auto-compact/src/index.ts",
+            "./modules/pi-custom-panel/src/index.ts",
             "./modules/file-tools/src/fff-override.mjs"
         ],
         "themes": [
@@ -131,7 +132,6 @@
         "nanoid": "6.0.2",
         "node-pty": "1.2.0-beta.15",
         "pg": "8.23.1",
-        "pi-open-tui": "0.3.13",
         "proper-lockfile": "4.1.2",
         "turndown": "7.2.4",
         "turndown-plugin-gfm": "1.0.2",

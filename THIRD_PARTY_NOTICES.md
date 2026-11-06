@@ -25,7 +25,7 @@ Import provenance (which project each module came from and under which license) 
 
 ## npm Pi extension dependencies (local-source suite)
 
-2026-10-08: at the user's request, the root declares `pi-open-tui` 0.3.11 (OldSuns, MIT) and `@ff-labs/pi-fff` 0.11.0 (FFF project, MIT) as pinned npm dependencies. Pi loads their original extension entries from the repository's installed node_modules; their source is not copied into modules, altered, or re-licensed. Preserve each installed package's LICENSE/copyright and all transitive dependency notices when redistributing copies. FFF's native/FFI dependencies retain their own licenses and platform distributions. These are external runtime dependencies, not newly owner-confirmed source snapshots or host Pi implementations. No npm/GitHub publication or automatic personal-settings migration is authorized by this integration.
+2026-10-08: at the user's request, the root declares `@ff-labs/pi-fff` 0.11.0 (FFF project, MIT) as a pinned npm dependency (an earlier `pi-open-tui` dependency was removed in favour of the native Pi Custom Panel module). Pi loads its original extension entry from the repository's installed node_modules; their source is not copied into modules, altered, or re-licensed. Preserve each installed package's LICENSE/copyright and all transitive dependency notices when redistributing copies. FFF's native/FFI dependencies retain their own licenses and platform distributions. These are external runtime dependencies, not newly owner-confirmed source snapshots or host Pi implementations. No npm/GitHub publication or automatic personal-settings migration is authorized by this integration.
 
 ## PTY dependencies
 

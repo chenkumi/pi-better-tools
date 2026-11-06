@@ -41,7 +41,7 @@ async function record(label, action) {
 const required = [
   'shared/README.md', 'shared/src/contracts/index.ts', 'shared/src/contracts/tool-names.ts', 'shared/src/prompt/index.ts', 'shared/src/prompt/forced-prompt.ts', 'shared/src/prompt/section.ts', 'shared/src/background/index.ts', 'shared/src/settings-panel/index.ts',
   'setup/cli.mjs', 'setup/commands.mjs', 'setup/commands.d.mts', 'setup/core.mjs',
-  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'note-tools', 'gpt-speed', 'json-schema', 'pty-terminal', 'schedule-prompt', 'pi-runtime', 'monitor', 'skill-tools', 'theme-tools', 'fork', 'remote', 'sqlite-tools', 'sql-connector', 'file-audit', 'pi-auto-compact'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
+  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'note-tools', 'gpt-speed', 'json-schema', 'pty-terminal', 'schedule-prompt', 'pi-runtime', 'monitor', 'skill-tools', 'theme-tools', 'fork', 'remote', 'sqlite-tools', 'sql-connector', 'file-audit', 'pi-auto-compact', 'pi-custom-panel'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
   ...['activity-window', 'events', 'paths', 'commands', 'presentation'].map(name => `modules/file-audit/src/${name}.ts`),
   'modules/sqlite-tools/src/sqlite-manager.ts',
   ...['config', 'runtime', 'tools', 'prompt', 'types', 'output', 'security/sql-policy'].map(name => `modules/sql-connector/src/${name}.ts`),
@@ -161,7 +161,7 @@ try {
         assert.equal(hostManifest.version, version);
         for (const peer of Object.keys(installed.peerDependencies)) assert.equal(installed.dependencies[peer], undefined);
         for (const dev of ['typescript', 'tsx']) for (const base of [temp, packageRoot]) await assert.rejects(stat(join(base, 'node_modules', dev)), { code: 'ENOENT' });
-        for (const [name, expected] of Object.entries({ 'pi-open-tui': '0.3.13', '@ff-labs/pi-fff': '0.11.0' })) {
+        for (const [name, expected] of Object.entries({ '@ff-labs/pi-fff': '0.11.0' })) {
           const dependencyRoot = join(packageRoot, 'node_modules', name);
           const dependency = JSON.parse(await readFile(join(dependencyRoot, 'package.json'), 'utf8'));
           assert.equal(dependency.version, expected);

@@ -20,7 +20,7 @@ npm run build             # 目前沒有需要編譯的產物（no-op）；Pi ex
 pi install D:/projects/pi-better-tools
 ```
 
-只在目前使用中的專案安裝：`pi install -l D:/projects/pi-better-tools`。先試用、不改設定：`pi --no-extensions -e D:/projects/pi-better-tools`。十九個本地 extensions 直接載入 `modules/<name>/src/index.ts`，另兩個 npm extensions 使用其原始入口；修改本機程式碼後 `/reload` 或重新啟動 Pi 即可，不必先 build。
+只在目前使用中的專案安裝：`pi install -l D:/projects/pi-better-tools`。先試用、不改設定：`pi --no-extensions -e D:/projects/pi-better-tools`。二十個本地 extensions 直接載入 `modules/<name>/src/index.ts`，另一個 npm extension（FFF）使用其原始入口；修改本機程式碼後 `/reload` 或重新啟動 Pi 即可，不必先 build。
 
 **若原五個 packages 或獨立 `pi-pty-terminal`／`pi-sqlite-tools`／`pi-sql-connector` 已啟用，請先停用其 extensions**，避免與整合包重複註冊相同工具。這些設定不會自動修改。完整步驟與回退見 [docs/migration.md](docs/migration.md)。
 
@@ -49,13 +49,13 @@ pi-better-tools pty setup
 
 ### 兩個 npm Pi packages（原始碼掛載）
 
-根 `dependencies` 固定包含 `pi-open-tui@0.3.13`、`@ff-labs/pi-fff@0.11.0`。`session_before_compact` 由 Pi Auto Compact 負責。`npm ci --ignore-scripts` 會安裝兩個 npm packages；manifest 為十九個本地入口加兩個 npm 入口，共二十一個。仍維持 `private: true`，不需要 npm 發布、bundledDependencies 或 postinstall 呼叫 pi install。
+根 `dependencies` 固定包含 `@ff-labs/pi-fff@0.11.0`。`session_before_compact` 由 Pi Auto Compact 負責。`npm ci --ignore-scripts` 會安裝 FFF；manifest 為二十個本地入口加 FFF 入口，共二十一個。仍維持 `private: true`，不需要 npm 發布、bundledDependencies 或 postinstall 呼叫 pi install。
 
 換機請下載／複製本專案原始碼及 lockfile，在新機重新執行上述安裝步驟，然後只掛載本專案目錄；不要跨 OS／CPU 複製 node_modules。**本機掛載不會自動執行 npm install**。Repository `.npmrc` 設 `legacy-peer-deps=true`，避免依賴 peers 自動安裝另一份 Pi SDK；整合基準為 Pi 1.5.0，不以此設定宣稱相容。
 
-啟用整合入口前，請手動停用原本 `npm:pi-open-tui`、`npm:@ff-labs/pi-fff` 的獨立 extension 資源，避免 hooks／commands／tools 重複載入。Repository 不會改寫真實 Pi settings 或卸載它們。`pi config` 的既有 extension filters 仍有效；只掛載單一 module 入口不會載入全部套件。
+啟用整合入口前，請手動停用原本 `npm:@ff-labs/pi-fff`（以及已不再需要的 `npm:pi-open-tui`）的獨立 extension 資源，避免 hooks／commands／tools 重複載入。Repository 不會改寫真實 Pi settings 或卸載它們。`pi config` 的既有 extension filters 仍有效；只掛載單一 module 入口不會載入全部套件。
 
-這不是個人設定備份：`~/.pi/agent/open-tui.json`、FFF 個人偏好及模型登入仍需另外搬移／配置，不在安裝時覆寫。FFF 有各平台原生 binary，必須在目標平台重新安裝與驗證；Nerd Font、系統函式庫也不因 Pi 掛載而自動安裝。
+這不是個人設定備份：`~/.pi/agent/open-tui.json` 已不再被讀取（`/open-tui` 已移除，可自行刪除）；FFF 個人偏好及模型登入仍需另外搬移／配置，不在安裝時覆寫。FFF 有各平台原生 binary，必須在目標平台重新安裝與驗證；Nerd Font、系統函式庫也不因 Pi 掛載而自動安裝。
 
 ### macOS 安裝（Apple Silicon／Intel）
 
@@ -331,7 +331,7 @@ pi -p "Extract company name: Acme" --json-schema $schema --json-output result.js
 }
 ```
 
-十九個模組（subagents、shell-tools、file-tools、web-tools、note-tools、file-audit、gpt-speed、json-schema、pty-terminal、schedule-prompt、pi-runtime、monitor、skill-tools、theme-tools、fork、sqlite-tools、sql-connector、remote、pi-auto-compact）的公開入口均為 `modules/<name>/src/index.ts`。薄入口轉接既有實作，內部資源位置不變。
+二十個模組（subagents、shell-tools、file-tools、web-tools、note-tools、file-audit、gpt-speed、json-schema、pty-terminal、schedule-prompt、pi-runtime、monitor、skill-tools、theme-tools、fork、sqlite-tools、sql-connector、remote、pi-auto-compact、pi-custom-panel）的公開入口均為 `modules/<name>/src/index.ts`。薄入口轉接既有實作，內部資源位置不變。
 
 Filters 以整合包 root 為基準；與 tool allowlist 不同，它們控制 extension 是否執行／是否啟動生命週期資源。既有 filters 若使用舊入口路徑，請手動更新為新路徑，見 [入口遷移](docs/migration.md#unified-typescript-entry-points)。
 

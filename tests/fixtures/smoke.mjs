@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'u
 const expectedExtensions = manifest.pi.extensions.length;
 assert.ok(manifest.pi.extensions.includes('./modules/note-tools/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/pi-runtime/src/index.ts'));
-assert.equal(expectedExtensions, 21, 'nineteen local entries plus two pinned dependency entries');
+assert.equal(expectedExtensions, 21, 'twenty local entries plus one pinned dependency entry');
 assert.ok(manifest.pi.extensions.includes('./modules/file-audit/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/sql-connector/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/sqlite-tools/src/index.ts'));
@@ -18,12 +18,11 @@ assert.ok(manifest.pi.extensions.includes('./modules/monitor/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/schedule-prompt/src/index.ts'));
 assert.ok(!manifest.pi.extensions.some(entry => entry.includes('/goal/')));
 const dependencyEntries = {
-  'pi-open-tui': { version: '0.3.13', entry: './extensions/open-tui/index.ts' },
   '@ff-labs/pi-fff': { version: '0.11.0', entry: './src/index.ts', manifestEntry: './modules/file-tools/src/fff-override.mjs' },
 };
 const localEntries = manifest.pi.extensions.filter(entry => entry.startsWith('./modules/') && entry !== dependencyEntries['@ff-labs/pi-fff'].manifestEntry);
 for (const entry of localEntries) assert.match(entry, /^\.\/modules\/[^/]+\/src\/index\.ts$/);
-assert.equal(localEntries.length, 19);
+assert.equal(localEntries.length, 20);
 for (const [name, expected] of Object.entries(dependencyEntries)) {
   assert.equal(manifest.dependencies[name], expected.version);
   const dependency = JSON.parse(await readFile(join(packageRoot, 'node_modules', name, 'package.json'), 'utf8'));
@@ -95,7 +94,6 @@ try {
   assert.ok(scheduleShell.parameters.properties.command && !scheduleShell.parameters.properties.prompt && !schedule.parameters.properties.command, 'prompt and shell tools keep separate parameters');
   assert.ok(loaded.extensions.some(e => e.commands.has('file-audit')), 'bounded file inspection command registered');
   assert.ok(loaded.extensions.some(e => e.commands.has('web-tools')));
-  assert.ok(loaded.extensions.some(e => e.commands.has('open-tui')), 'npm TUI dependency registered');
   // FFF pre-registers its own alias names at load for historical renderers; the override names appear at session_start.
   for (const name of ['fffind', 'ffgrep']) assert.ok(names.includes(name), `npm dependency tool ${name}`);
   assert.equal(names.includes('fff-multi-grep'), process.env.PI_FFF_MULTIGREP === '1', 'FFF multi-grep remains upstream opt-in');

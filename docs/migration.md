@@ -26,7 +26,7 @@ SQLite is included at `modules/sqlite-tools/src/index.ts`; disable the standalon
 
 ## Local-source extensions
 
-The root pins pi-open-tui and @ff-labs/pi-fff as npm dependencies. Run `npm ci --ignore-scripts` only at the repository root; no nested install, plugin manager or automatic Pi install is introduced. Upstream nested metadata/scripts are historical; the root Pi pin remains authoritative.
+The root pins @ff-labs/pi-fff as an npm dependency; pi-open-tui was removed and replaced by the native Pi Custom Panel module (prompt glyph editor and two-row footer; `/open-tui` and its telemetry, thinking peek and icon settings are not carried over). Run `npm ci --ignore-scripts` only at the repository root; no nested install, plugin manager or automatic Pi install is introduced. Upstream nested metadata/scripts are historical; the root Pi pin remains authoritative.
 
 For an existing pi-better-tools source mount, the root manifest change is sufficient. Reload/restart after current background work has settled. Existing standalone `npm:pi-open-tui` and pi-fff resources must be disabled manually if still selected. This repository does not edit real settings/auth or remove installed standalone packages.
 

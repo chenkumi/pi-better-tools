@@ -1,8 +1,8 @@
 # Architecture
 
-## One deployment unit, nineteen local modules
+## One deployment unit, twenty local modules
 
-The root `package.json` declares nineteen local TypeScript `pi.extensions` entries at `./modules/<name>/src/index.ts` (Pi Auto Compact owns `session_before_compact`), plus two explicit npm dependency entries (twenty-one total): eight current source snapshots (including SQL Connector, SQLite Tools, PTY Terminal and the third-party Schedule Prompt) and eleven native modules (Note Tools, File Audit, GPT Speed, the rewritten JSON Schema, Pi Runtime, Monitor, Skill Tools, Theme Tools, Fork, Remote and Pi Auto Compact). Thin default-export entries forward to existing implementations without moving guards, agents, prompts or workers. Web already uses this layout. There is no aggregator factory or plugin-manager abstraction. Pi controls discovery, ordering, resource filters, tool selection and lifecycle dispatch.
+The root `package.json` declares twenty local TypeScript `pi.extensions` entries at `./modules/<name>/src/index.ts` (Pi Auto Compact owns `session_before_compact`), plus one explicit npm dependency entry, the FFF wrapper (twenty-one total): eight current source snapshots (including SQL Connector, SQLite Tools, PTY Terminal and the third-party Schedule Prompt) and twelve native modules (Note Tools, File Audit, GPT Speed, the rewritten JSON Schema, Pi Runtime, Monitor, Skill Tools, Theme Tools, Fork, Remote, Pi Auto Compact and Pi Custom Panel). Thin default-export entries forward to existing implementations without moving guards, agents, prompts or workers. Web already uses this layout. There is no aggregator factory or plugin-manager abstraction. Pi controls discovery, ordering, resource filters, tool selection and lifecycle dispatch.
 
 - `modules/subagents/extensions/subagent/` retains the `../../agents` relationship and `child-guard.ts`; bundled agents/prompts ship with the package.
 - `modules/shell-tools/extensions/timeout-ms.ts` imports its adjacent MJS adapters and preserves host shell definitions.
@@ -70,7 +70,7 @@ Runtime dependency refresh: `diff` is pinned to 9.0.0 and `jsdom` to 30.1.3. The
 
 ## npm extension suite
 
-`pi-open-tui@0.3.13` and `@ff-labs/pi-fff@0.11.0` remain external npm dependencies loaded from their original entries; no source checkout, node_modules bundle or build step is required at runtime beyond the root `npm ci --ignore-scripts`.
+`@ff-labs/pi-fff@0.11.0` remains an external npm dependency loaded from its original entry (the former `pi-open-tui` dependency was replaced by the native Pi Custom Panel module); no source checkout, node_modules bundle or build step is required at runtime beyond the root `npm ci --ignore-scripts`.
 
 Repository legacy-peer-deps prevents an extra host SDK from peer auto-install; it is not a compatibility guarantee. FFF native binaries require per-platform installation. Disable existing standalone resource declarations manually; personal preferences, credentials and prior sessions remain untouched.
 

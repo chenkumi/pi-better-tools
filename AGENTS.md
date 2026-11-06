@@ -10,7 +10,7 @@
 
 ## 結構與依賴
 
-- 一個根 package、十九個本地模組：八個現存來源快照模組（Subagents／Shell／File／Web／SQLite／SQL Connector／PTY／第三方 Schedule Prompt），加上原生 Note／GPT Speed／重寫 JSON Schema／Pi Runtime／Monitor／Skill Tools／Theme Tools／Fork／File Audit／Remote／Pi Auto Compact。根 `package.json` 的 `pi.extensions` 共二十一個入口：十九個模組入口（由 Pi Auto Compact 負責 `session_before_compact`）、npm `pi-open-tui` 入口，以及 `modules/file-tools/src/fff-override.mjs`（npm `@ff-labs/pi-fff` 的薄包裝，預設 override）；不建立新的 plugin manager。
+- 一個根 package、二十個本地模組：八個現存來源快照模組（Subagents／Shell／File／Web／SQLite／SQL Connector／PTY／第三方 Schedule Prompt），加上原生 Note／GPT Speed／重寫 JSON Schema／Pi Runtime／Monitor／Skill Tools／Theme Tools／Fork／File Audit／Remote／Pi Auto Compact／Pi Custom Panel（自製 TUI：輸入框 `❯` 提示符與兩行 footer，取代已移除的 npm `pi-open-tui`；游標沿用 Pi 預設、不設樣式；`/open-tui` 與其 telemetry／peek／圖示設定不保留；修改前讀 `modules/pi-custom-panel/README.md` 與 `TUI_DESIGN.md`）。根 `package.json` 的 `pi.extensions` 共二十一個入口：二十個模組入口（由 Pi Auto Compact 負責 `session_before_compact`）以及 `modules/file-tools/src/fff-override.mjs`（npm `@ff-labs/pi-fff` 的薄包裝，預設 override）；不建立新的 plugin manager。
 - Node.js 需求以根 `package.json.engines` 為準，目前為 `^22.22.2 || ^24.15.0 || >=26.0.0`。原始碼掛載先在根目錄執行 `npm ci --ignore-scripts`；本機 Pi package 不會自動安裝依賴。Repository `.npmrc` 的 `legacy-peer-deps=true` 避免第三方 peer 自動安裝另一份 host SDK；不代表執行期相容性。三個套件設定仍由使用者管理，不在 install/reload 時改寫。
 - `shared/` 是根目錄函式庫（非模組、無 extension 入口、不在 manifest），單向被 `modules/*` import；規則見 `shared/README.md`：import 時不得註冊任何 tool／command／hook 或產生副作用，`shared/` 不得 import `modules/`，模組只能經 `shared/src/<area>/index.ts` 引用；隨套件發布（`files` 含 `shared/src`），檢查單位名為 `shared`（`npm run test:module -- shared`）。`modules/` 下每個目錄仍須是有入口的模組。
 - 根目錄管理依賴與唯一 lockfile。模組 metadata 保留來源身份與測試命令，不是獨立安裝單元；不要在 `modules/` 執行 `npm install`。
