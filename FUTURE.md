@@ -225,7 +225,22 @@ B 線（儲存換 SQLite）：fork Pi 改 SessionManager             ← 與 A �
 
 **`blocked` 路徑（已實測，7 項過）**：子代有 1 個未完成的巢狀 job，同時 provider 回 usage limit 錯誤。guard 送出 `blocked`（`MODEL_ERROR`、錯誤文字、`pending:{shell:1,subagents:0}`）；3 秒內不重送；job 未結束不送 `settled`；job 結束後依序送 `unblocked`、`settled quiet:true`。巢狀 job 是以 `publishCapability('shell_job', …)` 對同一個 registry 發布的替身計數，不是真的 Shell／Subagent job。
 
-未涵蓋：`x-opencode-session` header（guard 只改寫已存在者，離線 provider 不產生）、`CAPABILITY_MISMATCH`／`TRUST_REQUIRED` 等其他拒絕碼、Fork 四個工具定義逐字相同與 deferred 工具（只用單一工具 `nap`）、取消與 process tree 清理、真實 provider 請求。
+**取消與 process tree 清理（已實測，Windows，24/24 過）**：用 `spawn_bg`（生出長駐孫行程）與 `hang`（卡住直到被中止）兩個測試工具。
+
+| 情境 | 結果 |
+|---|---|
+| 側通道 `abort` 中止卡住的工具 | 工具收到 abort signal，run 結束，子代存活 |
+| 閒置時側通道 `shutdown`（`ctx.shutdown()`） | 觸發 `session_shutdown`，exit code 0；孫行程在子代結束後也不存在 |
+| 工具卡住時 `shutdown` | 3 秒後子代**未退出**、未見 `session_shutdown`；再送 `abort` 後才退出（與 RPC 語意相同：有進行中的 run 就等它結束） |
+| PTY 擁有者 `pty.kill()` | 子代與孫行程都被終止 |
+| 以 pid `taskkill /T /F`（現有 Subagent／Fork 在 Windows 的做法） | 子代與孫行程都被終止；孫行程的父行程確實是該 pid |
+
+- 取消階梯仍須是「先 `abort`、再 `shutdown`、最後強制終止」，不能只送 `shutdown`。
+- E2 與 `pty.kill` 後孫行程都消失，**原因未查明**（可能是 ConPTY 關閉時終止了附著同一 console 的行程），不可宣稱是 Pi 自己清掉孫行程。
+- **harness 教訓**：node-pty 的 `p.pid` 在 spawn 當下是 `0`，約數百 ms 後才有值。`taskkill /pid 0 /T /F` 會嘗試終止系統處理程序樹（本次因權限被拒而無傷害）。正式版 mux 在取得有效 pid 前不得呼叫任何 kill，並應拒絕 pid ≤ 4。
+- 未涵蓋：POSIX（PTY leader 結束通常只對前景行程群送 SIGHUP，背景孫行程不一定被清掉）、Shell 模組的真實 job／`detached`／雙重 fork 的孫行程、`abort` 後 `shutdown` 逾時階梯（grace 與 SIGKILL 對應）、父代先死時子代是否成為孤兒。
+
+未涵蓋：`x-opencode-session` header（guard 只改寫已存在者，離線 provider 不產生）、`CAPABILITY_MISMATCH`／`TRUST_REQUIRED` 等其他拒絕碼、Fork 四個工具定義逐字相同與 deferred 工具（只用 `nap`／`spawn_bg`／`hang` 等測試工具）、真實 provider 請求。
 
 ### 未驗證
 

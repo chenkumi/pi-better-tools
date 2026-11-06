@@ -1,4 +1,5 @@
 // Spike: interactive Pi child with stripped TUI + a side data channel. Offline provider, no network.
+import { spawn } from 'node:child_process';
 import { connect } from 'node:net';
 import { createAssistantMessageEventStream } from '@earendil-works/pi-ai';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
@@ -43,6 +44,13 @@ export default function (pi: ExtensionAPI) {
           stream.push({ type: 'error', reason: 'error', error: message }); stream.end(); return;
         }
         const lastMessage: any = context.messages.at(-1);
+        const single = lastMessage?.role === 'user' ? (asked.startsWith('spawnbg') ? 'spawn_bg' : asked.startsWith('hang') ? 'hang' : undefined) : undefined;
+        if (single) { // one tool call that spawns a grandchild / blocks until aborted
+          message.content = [{ type: 'toolCall', id: `${single}1`, name: single, arguments: {} }];
+          message.stopReason = 'toolUse';
+          stream.push({ type: 'toolcall_start', contentIndex: 0, partial: message }); stream.push({ type: 'toolcall_end', contentIndex: 0, toolCall: message.content[0], partial: message });
+          stream.push({ type: 'done', reason: 'toolUse', message }); stream.end(); return;
+        }
         if (asked.startsWith('tools') && lastMessage?.role === 'user') { // three tool calls in one assistant turn
           message.content = [1, 2, 3].map(i => ({ type: 'toolCall', id: `nap${i}`, name: 'nap', arguments: { label: `n${i}` } }));
           message.stopReason = 'toolUse';
@@ -67,6 +75,21 @@ export default function (pi: ExtensionAPI) {
       return stream;
     } });
 
+  // Starts a long-running grandchild of the Pi process (a stand-in for a tool's background process) and reports its pid.
+  pi.registerTool({ name: 'spawn_bg', label: 'Spawn', description: 'Start a background process (spike).', parameters: Type.Object({}),
+    async execute() {
+      const grandchild = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore', windowsHide: true });
+      send({ type: 'grandchild', pid: grandchild.pid });
+      return { content: [{ type: 'text', text: `started ${grandchild.pid}` }], details: {} };
+    } });
+  // Blocks until the tool's abort signal fires.
+  pi.registerTool({ name: 'hang', label: 'Hang', description: 'Block until aborted (spike).', parameters: Type.Object({}),
+    async execute(_id, _args, signal) {
+      send({ type: 'hang_started' });
+      await new Promise<void>(resolve => { if (signal?.aborted) resolve(); else signal?.addEventListener('abort', () => resolve(), { once: true }); });
+      send({ type: 'hang_aborted', aborted: !!signal?.aborted });
+      return { content: [{ type: 'text', text: 'hang released' }], details: {} };
+    } });
   pi.registerTool({ name: 'nap', label: 'Nap', executionMode: 'sequential', description: 'Sleep 700ms (spike).', parameters: Type.Object({ label: Type.String() }),
     async execute(_id, args: any) { await new Promise(r => setTimeout(r, 700)); return { content: [{ type: 'text', text: `napped ${args.label}` }], details: {} }; } });
 
@@ -112,6 +135,7 @@ export default function (pi: ExtensionAPI) {
           else if (m.type === 'followup') pi.sendUserMessage(m.text, { deliverAs: 'followUp' });
           else if (m.type === 'abort') { send({ type: 'abort_called', idle: ctx.isIdle() }); ctx.abort(); }
           else if (m.type === 'stats') send({ type: 'stats', ...stats() });
+          else if (m.type === 'shutdown') ctx.shutdown();
           else if (m.type === 'jobs') (globalThis as any).__spikeJobs = m.n; // pending nested jobs reported to the Fork guard (see fork-ext)
         } catch (e) { send({ type: 'error', message: String(e) }); }
       }
@@ -122,5 +146,5 @@ export default function (pi: ExtensionAPI) {
   for (const ev of ['agent_start', 'message_end', 'agent_settled'] as const)
     pi.on(ev as any, (e: any) => send({ type: ev, role: e?.message?.role, stop: e?.message?.stopReason, text: textOf(e?.message).slice(0, 80) }));
   pi.on('tool_execution_end' as any, (e: any) => send({ type: 'tool_end', id: e?.toolCallId, error: e?.isError, text: JSON.stringify(e?.result?.content ?? '').slice(0, 80) }));
-  pi.on('session_shutdown', () => { try { socket?.end(); } catch {} });
+  pi.on('session_shutdown', (e: any) => { send({ type: 'shutdown_event', reason: e?.reason }); try { socket?.end(); } catch {} });
 }

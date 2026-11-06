@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import pty from 'node-pty';
+import { spawnSync } from 'node:child_process';
 import { writeForkSession } from '../../modules/fork/src/snapshot.ts';
 import { CHANNEL } from '../../modules/fork/src/child-guard.ts';
 
@@ -39,7 +40,7 @@ async function runChild({ modelOverride, tools = ['nap'] } = {}) {
   const send = o => sock.write(JSON.stringify(o) + '\n');
   const ipc = type => m => m.ipc?.channel === CHANNEL && m.ipc?.token === token && m.ipc?.type === type;
   const stop = () => { try { p.kill(); } catch {} server.close(); };
-  return { written, childId, parentId, until, ipc, send, log, stop, get exited() { return exited; } };
+  return { written, childId, parentId, until, ipc, send, log, stop, get pid() { return p.pid; }, ptyKill: () => p.kill(), get exited() { return exited; } };
 }
 
 console.log('== A. accepted handshake');
@@ -120,6 +121,74 @@ console.log('\n== D. blocked path (model error while a nested job is still pendi
   check('settled quiet follows once the child is quiet', ipcs('settled')[0]?.ipc?.quiet === true);
   c.stop();
 }
+
+const alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
+const info = (name, value) => console.log(`  INFO  ${name}: ${value}`);
+const TOOLS = ['nap', 'spawn_bg', 'hang'];
+const ready = async c => { await c.until(c.ipc('verified')); await c.until(m => m.type === 'hello'); await sleep(500); };
+const leaked = [];
+
+console.log('\n== E. cancel and process-tree cleanup');
+console.log('-- E1 abort of a blocked tool (side-channel abort)');
+{
+  const c = await runChild({ tools: TOOLS }); await ready(c);
+  c.send({ type: 'prompt', text: 'hang please' }); await c.until(m => m.type === 'hang_started');
+  c.send({ type: 'abort' });
+  const released = await c.until(m => m.type === 'hang_aborted', 8000);
+  check('the blocked tool receives the abort signal', released?.aborted === true);
+  const before = c.log.filter(m => m.type === 'agent_settled').length;
+  await c.until(m => m.type === 'agent_settled' && c.log.filter(x => x.type === 'agent_settled').length > before - 1, 8000);
+  await sleep(500);
+  check('the run settles after the abort and the child stays alive', !c.exited && c.log.some(m => m.type === 'agent_settled'));
+  c.stop();
+}
+console.log('-- E2 orderly shutdown over the side channel while idle');
+{
+  const c = await runChild({ tools: TOOLS }); await ready(c);
+  c.send({ type: 'prompt', text: 'spawnbg now' }); const gc = await c.until(m => m.type === 'grandchild'); await c.until(c.ipc('settled'));
+  c.send({ type: 'shutdown' });
+  await c.until(m => m.type === 'shutdown_event', 8000); await sleep(1500);
+  check('session_shutdown fires and the child exits cleanly', !!c.exited && c.exited.exitCode === 0, JSON.stringify(c.exited));
+  info('grandchild alive after orderly shutdown', alive(gc.pid)); if (alive(gc.pid)) leaked.push(gc.pid);
+  c.stop();
+}
+console.log('-- E3 shutdown requested while a tool is blocked');
+{
+  const c = await runChild({ tools: TOOLS }); await ready(c);
+  c.send({ type: 'prompt', text: 'hang again' }); await c.until(m => m.type === 'hang_started');
+  c.send({ type: 'shutdown' }); await sleep(3000);
+  info('child exited 3 s after shutdown with the tool still blocked', !!c.exited);
+  info('shutdown_event seen', c.log.some(m => m.type === 'shutdown_event'));
+  if (!c.exited) { c.send({ type: 'abort' }); await sleep(3000); info('child exited after an additional abort', !!c.exited); }
+  c.stop();
+}
+console.log('-- E4 PTY owner kills the child (pty.kill)');
+{
+  const c = await runChild({ tools: TOOLS }); await ready(c);
+  c.send({ type: 'prompt', text: 'spawnbg now' }); const gc = await c.until(m => m.type === 'grandchild'); await c.until(c.ipc('settled'));
+  check('grandchild is running before the kill', alive(gc.pid));
+  c.ptyKill(); await sleep(2500);
+  info('child exited after pty.kill', !!c.exited);
+  info('grandchild alive after pty.kill', alive(gc.pid)); if (alive(gc.pid)) leaked.push(gc.pid);
+  c.stop();
+}
+console.log('-- E5 tree kill by pid (taskkill /T /F, what Subagent/Fork use on Windows)');
+{
+  const c = await runChild({ tools: TOOLS }); await ready(c);
+  c.send({ type: 'prompt', text: 'spawnbg now' }); const gc = await c.until(m => m.type === 'grandchild'); await c.until(c.ipc('settled'));
+  check('grandchild is running before the tree kill', alive(gc.pid));
+  // Never signal a pid that is not a real Pi process: pid 0 is the System Idle Process and would make taskkill walk the system tree.
+  if (!Number.isInteger(c.pid) || c.pid <= 4) throw new Error(`refusing to taskkill invalid pid ${c.pid}`);
+  const ppid = Number(spawnSync('powershell', ['-NoProfile', '-Command', `(Get-CimInstance Win32_Process -Filter "ProcessId=${gc.pid}").ParentProcessId`], { encoding: 'utf8' }).stdout.trim());
+  check('c.pid is the Pi process (it is the grandchild parent)', ppid === c.pid, `grandchild ppid=${ppid} c.pid=${c.pid}`);
+  spawnSync('taskkill', ['/pid', String(c.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true }); await sleep(2500);
+  check('tree kill stops the child', !!c.exited || !alive(c.pid));
+  check('tree kill also stops the grandchild', !alive(gc.pid));
+  if (alive(gc.pid)) leaked.push(gc.pid);
+  c.stop();
+}
+for (const pid of leaked) { try { process.kill(pid); } catch {} }
+info('leaked grandchildren cleaned up by the harness', leaked.length);
 
 console.log(`\n${checks.filter(Boolean).length}/${checks.length} checks passed`);
 process.exit(checks.every(Boolean) ? 0 : 1);
