@@ -212,6 +212,17 @@ B 線（儲存換 SQLite）：fork Pi 改 SessionManager             ← 與 A �
 | usage | `getSessionStats()` 只是對 session entries 加總；extension 用 `ctx.sessionManager.getEntries()` 以同樣算式得到 `tokens`／`cost`，另有 `ctx.getContextUsage()`。預期值吻合（5 次請求 total 90、cost 0.005） |
 | 按鍵 | Esc、Ctrl+C（單次與兩次）、Ctrl+D、Ctrl+Z、Ctrl+L、Shift+Tab 在串流中都不影響串流，行程仍在。基準（預設輸入框）下 Esc 確實中止串流，證明按鍵有送達。**光換掉輸入框就足夠**，快捷鍵處理器掛在預設輸入框上；`onTerminalInput` 在此測試沒有額外效果 |
 
+### 與 Fork 握手整合（已實測）
+
+`tools/mux-text-spike/fork-ext.ts` 在 PTY 內的互動式 Pi 載入**未修改**的 `modules/fork/src/child-guard.ts`；PTY 子行程沒有 node IPC fd，所以用 shim 把 `process.send`／`process.connected` 轉到 side socket。`fork-handshake.mjs` 扮演父代，依 `child.ts` 的順序驗證（`node --import tsx tools/mux-text-spike/fork-handshake.mjs`，需 `--import tsx` 才能解析 `.js`→`.ts`）。快照用 Fork 自己的 `writeForkSession` 產生。11 項檢查全過：
+
+- 接受路徑：`verified`（token 正確）、工具集與父代選擇相等、`sessionFile` 等於快照路徑、前後 usage 差值只含本次 Fork（繼承的 18 tokens 被排除，本次 2 次請求 36）、`agent_start` 取代 RPC `prompt` 的 `disposition:"started"`、`settled quiet:true` 送達、最後 assistant 文字可由 `message_end` 取得且看得到繼承上下文。
+- 拒絕路徑：model 與父代不符時子行程 exit 1，且 `rejected`／`MODEL_UNAVAILABLE` 送達父代。
+
+**傳輸層陷阱（已查明根因）**：guard 在 `session_start` 拒絕後立刻 `process.exit(1)`；此時 TCP socket 仍是 `connecting`（實測連線約 300 ms），`rejected` 還在佇列，行程退出就丟了，父代只會看到 `CHILD_CLOSED`。原本的 IPC fd 在 spawn 時已建立，沒有這個問題。接受路徑不受影響（行程會存活到連線完成）。實驗以「`process.exit` 等 socket 排空（上限 2 秒）再退出」驗證修法。正式設計須保證其一：控制通道在子行程啟動前已存在（父代預先建立 named pipe，並納入啟動握手），或 `reject` 在傳輸層確認送出後才退出。固定延遲不可靠（300 ms 剛好在連線時間邊緣）。
+
+未涵蓋：provider 快取身分覆寫（離線 provider 不走 `before_provider_headers`／`prompt_cache_key`）、`blocked`／`unblocked`、`CAPABILITY_MISMATCH`／`TRUST_REQUIRED` 等其他拒絕碼、Fork 四個工具定義逐字相同與 deferred 工具（只用單一工具 `nap`）、取消與 process tree 清理。
+
 ### 未驗證
 
 - 通道認證：目前是無認證的 loopback TCP。正式版要 named pipe 或 token，否則本機其他行程可送 prompt。

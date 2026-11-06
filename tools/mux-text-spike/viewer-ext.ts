@@ -60,6 +60,7 @@ export default function (pi: ExtensionAPI) {
 
   let socket: ReturnType<typeof connect> | undefined;
   const send = (o: unknown) => { try { socket?.write(JSON.stringify(o) + '\n'); } catch {} };
+  (globalThis as any).__spikeSend = send;
 
   pi.on('session_start', async (_e, ctx) => {
     if (ctx.mode === 'tui') {
@@ -86,6 +87,7 @@ export default function (pi: ExtensionAPI) {
     const port = Number(process.env.SPIKE_PORT);
     if (!port) return;
     socket = connect(port, '127.0.0.1');
+    (globalThis as any).__spikeSocketState = () => socket && { connecting: socket.connecting, destroyed: socket.destroyed, written: socket.bytesWritten, queued: socket.writableLength };
     let buf = '';
     socket.on('data', d => {
       buf += d;
