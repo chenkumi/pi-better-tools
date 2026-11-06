@@ -221,7 +221,11 @@ B 線（儲存換 SQLite）：fork Pi 改 SessionManager             ← 與 A �
 
 **傳輸層陷阱（已查明根因）**：guard 在 `session_start` 拒絕後立刻 `process.exit(1)`；此時 TCP socket 仍是 `connecting`（實測連線約 300 ms），`rejected` 還在佇列，行程退出就丟了，父代只會看到 `CHILD_CLOSED`。原本的 IPC fd 在 spawn 時已建立，沒有這個問題。接受路徑不受影響（行程會存活到連線完成）。實驗以「`process.exit` 等 socket 排空（上限 2 秒）再退出」驗證修法。正式設計須保證其一：控制通道在子行程啟動前已存在（父代預先建立 named pipe，並納入啟動握手），或 `reject` 在傳輸層確認送出後才退出。固定延遲不可靠（300 ms 剛好在連線時間邊緣）。
 
-未涵蓋：provider 快取身分覆寫（離線 provider 不走 `before_provider_headers`／`prompt_cache_key`）、`blocked`／`unblocked`、`CAPABILITY_MISMATCH`／`TRUST_REQUIRED` 等其他拒絕碼、Fork 四個工具定義逐字相同與 deferred 工具（只用單一工具 `nap`）、取消與 process tree 清理。
+**快取身分覆寫（已實測，7 項過）**：Pi 的 `Models.applyAuth` 在呼叫 provider 前就套用 `before_provider_headers` hook，provider 拿到的是處理後的 `options.headers`（不會收到 `transformHeaders`）；`onPayload` 則仍傳給 provider。離線 provider 照此模擬（預設值取 `options.sessionId` 放前面、hook headers 最後合併）。結果：provider 預設值是子代自己的 id（與父代不同，覆寫確實有作用）；最終 `session_id`、`x-client-request-id` 為父代 id；hook 只寫這兩個身分 header；payload 有 `prompt_cache_key` 時改成父代 id、沒有時不新增；第二輪請求仍為父代 id。這證明 Pi 的 hook runner 與 guard 的 hook 在此通道上運作，**不證明真實 provider 一定呼叫 hook，也不證明快取命中**。
+
+**`blocked` 路徑（已實測，7 項過）**：子代有 1 個未完成的巢狀 job，同時 provider 回 usage limit 錯誤。guard 送出 `blocked`（`MODEL_ERROR`、錯誤文字、`pending:{shell:1,subagents:0}`）；3 秒內不重送；job 未結束不送 `settled`；job 結束後依序送 `unblocked`、`settled quiet:true`。巢狀 job 是以 `publishCapability('shell_job', …)` 對同一個 registry 發布的替身計數，不是真的 Shell／Subagent job。
+
+未涵蓋：`x-opencode-session` header（guard 只改寫已存在者，離線 provider 不產生）、`CAPABILITY_MISMATCH`／`TRUST_REQUIRED` 等其他拒絕碼、Fork 四個工具定義逐字相同與 deferred 工具（只用單一工具 `nap`）、取消與 process tree 清理、真實 provider 請求。
 
 ### 未驗證
 

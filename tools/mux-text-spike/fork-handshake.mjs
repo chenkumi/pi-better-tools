@@ -79,5 +79,47 @@ console.log('\n== B. rejected handshake (model differs from the parent selection
   c.stop();
 }
 
+console.log('\n== C. provider cache identity (headers + payload hooks run by Pi)');
+{
+  const c = await runChild();
+  await c.until(c.ipc('verified')); await c.until(m => m.type === 'hello'); await sleep(500);
+  const probes = () => c.log.filter(m => m.type === 'probe');
+  c.send({ type: 'prompt', text: 'first turn' }); await c.until(c.ipc('settled'));
+  const first = probes()[0];
+  const h = first?.headers ?? {};
+  check('the provider default (options.sessionId) is the child own id, so the override matters', first?.ownSessionId === c.childId, `${first?.ownSessionId}`);
+  check('final session_id header is the parent session id', h.session_id === c.parentId, `${h.session_id}`);
+  check('final x-client-request-id header is the parent session id', h['x-client-request-id'] === c.parentId, `${h['x-client-request-id']}`);
+  check('the hook wrote only identity headers it owns', Object.keys(first?.hookHeaders ?? {}).sort().join() === 'session_id,x-client-request-id', Object.keys(first?.hookHeaders ?? {}).join());
+  check('payload prompt_cache_key is the parent session id', first?.payloadWithKey?.prompt_cache_key === c.parentId, `${first?.payloadWithKey?.prompt_cache_key}`);
+  check('payload without prompt_cache_key is not given one', !('prompt_cache_key' in (first?.payloadWithoutKey ?? {})));
+  c.send({ type: 'prompt', text: 'second turn' }); await c.until(c.ipc('settled')); await sleep(300);
+  const second = probes().at(-1);
+  check('a later turn also uses the parent identity', probes().length >= 2 && second?.headers?.session_id === c.parentId && second?.payloadWithKey?.prompt_cache_key === c.parentId, `probes=${probes().length}`);
+  c.stop();
+}
+
+console.log('\n== D. blocked path (model error while a nested job is still pending)');
+{
+  const c = await runChild();
+  await c.until(c.ipc('verified')); await c.until(m => m.type === 'hello'); await sleep(500);
+  const ipcs = type => c.log.filter(c.ipc(type));
+  c.send({ type: 'jobs', n: 1 });
+  c.send({ type: 'prompt', text: 'fail now' });
+  const blocked = (await c.until(c.ipc('blocked'), 15000))?.ipc;
+  check('guard reports blocked MODEL_ERROR', blocked?.reason === 'MODEL_ERROR', JSON.stringify(blocked));
+  check('blocked carries the provider error text', /usage limit/.test(blocked?.error ?? ''), blocked?.error);
+  check('blocked carries the pending job counts', blocked?.pending?.shell === 1 && blocked?.pending?.subagents === 0, JSON.stringify(blocked?.pending));
+  await sleep(3000);
+  check('blocked is not repeated for an unchanged signature', ipcs('blocked').length === 1, `count=${ipcs('blocked').length}`);
+  check('no settled while the nested job is pending (blocked never claims success)', ipcs('settled').length === 0);
+  c.send({ type: 'jobs', n: 0 });
+  await c.until(c.ipc('unblocked'), 8000);
+  check('unblocked is sent when the nested job ends', ipcs('unblocked').length === 1);
+  await c.until(c.ipc('settled'), 8000);
+  check('settled quiet follows once the child is quiet', ipcs('settled')[0]?.ipc?.quiet === true);
+  c.stop();
+}
+
 console.log(`\n${checks.filter(Boolean).length}/${checks.length} checks passed`);
 process.exit(checks.every(Boolean) ? 0 : 1);

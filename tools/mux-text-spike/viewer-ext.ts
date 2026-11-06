@@ -28,8 +28,20 @@ export default function (pi: ExtensionAPI) {
         else stream.push({ type: 'done', reason: 'stop', message });
         stream.end();
       };
-      setImmediate(() => {
+      setImmediate(async () => {
+        // Behave like an HTTP provider. Pi's Models layer has already run the before_provider_headers hooks and hands the result over as
+        // options.headers; a provider puts its own defaults (derived from options.sessionId) first and merges those headers last.
+        const own = (options as any)?.sessionId as string | undefined;
+        const hookHeaders: Record<string, string> = (options as any)?.headers ?? {};
+        const finalHeaders = { session_id: own, 'x-client-request-id': own, ...hookHeaders };
+        const withKey = await (options as any)?.onPayload?.({ model: model.id, prompt_cache_key: own }, model);
+        const withoutKey = await (options as any)?.onPayload?.({ model: model.id }, model);
+        send({ type: 'probe', ownSessionId: own, hookHeaders, headers: finalHeaders, payloadWithKey: withKey ?? { model: model.id, prompt_cache_key: own }, payloadWithoutKey: withoutKey ?? { model: model.id } });
         stream.push({ type: 'start', partial: message });
+        if (asked.startsWith('fail')) { // a provider failure the session records as an assistant error
+          message.stopReason = 'error'; message.errorMessage = 'The user has reached their usage limit';
+          stream.push({ type: 'error', reason: 'error', error: message }); stream.end(); return;
+        }
         const lastMessage: any = context.messages.at(-1);
         if (asked.startsWith('tools') && lastMessage?.role === 'user') { // three tool calls in one assistant turn
           message.content = [1, 2, 3].map(i => ({ type: 'toolCall', id: `nap${i}`, name: 'nap', arguments: { label: `n${i}` } }));
@@ -100,6 +112,7 @@ export default function (pi: ExtensionAPI) {
           else if (m.type === 'followup') pi.sendUserMessage(m.text, { deliverAs: 'followUp' });
           else if (m.type === 'abort') { send({ type: 'abort_called', idle: ctx.isIdle() }); ctx.abort(); }
           else if (m.type === 'stats') send({ type: 'stats', ...stats() });
+          else if (m.type === 'jobs') (globalThis as any).__spikeJobs = m.n; // pending nested jobs reported to the Fork guard (see fork-ext)
         } catch (e) { send({ type: 'error', message: String(e) }); }
       }
     });

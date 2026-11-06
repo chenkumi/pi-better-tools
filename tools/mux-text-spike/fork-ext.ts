@@ -2,6 +2,7 @@
 import { appendFileSync } from 'node:fs';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import guard from '../../modules/fork/src/child-guard.ts';
+import { canonicalMonitorCwd, publishCapability } from '../../shared/src/background/index.ts';
 import viewer from './viewer-ext.ts';
 
 // Optional synchronous diagnostics (SPIKE_LOG=<file>): what the child saw, in order, even if it dies right after.
@@ -34,4 +35,9 @@ export default function (pi: ExtensionAPI) {
   }
   viewer(pi); // registers first, so its session_start opens the socket before the guard's verified message is sent
   guard(pi);
+  // Stand-in for the child's own Shell module: publish a pending-job count into the same registry the guard reads (activeJobCounts).
+  // The harness changes the count with a {type:'jobs', n} command.
+  pi.on('session_start', (_event, ctx) => {
+    publishCapability('shell_job', { sessionId: ctx.sessionManager.getSessionId(), cwd: canonicalMonitorCwd(ctx.cwd) }, 1, () => ({}), () => true, () => (globalThis as any).__spikeJobs ?? 0);
+  });
 }
