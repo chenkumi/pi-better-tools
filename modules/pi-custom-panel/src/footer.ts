@@ -10,11 +10,11 @@ const BAR_CELLS = 12;
 
 /** Nerd Font glyphs used by TUI_DESIGN.md (private-use code points; each is followed by two spaces) and their theme colours. */
 const ICON = {
-  folder: ["", "accent"], context: ["", "dim"], model: ["", "accent"], thinking: ["", "warning"],
-  speed: ["", "success"], up: ["", "success"], down: ["", "accent"],
+  folder: ["", "accent"], context: ["", "accent"], model: ["", "accent"], thinking: ["", "accent"],
+  speed: ["", "accent"], up: ["", "accent"], down: ["", "accent"],
 } as const;
 
-/** Every text run is painted `dim` (one grey); only icons (the cache-hit bolt is warning/yellow), the `$` sign (the theme's plain text colour, white) and the context bar carry colour. */
+/** Every text run is painted `dim` (one grey); only icons (all of them the accent colour, whatever they stand for; the cache-hit bolt included), the `$` sign (accent, like the icons) and the context bar carry colour. */
 type Paint = (color: string, text: string) => string;
 export interface FooterModel {
   cwd: string; home?: string; branch?: string | null; sessionName?: string;
@@ -43,7 +43,6 @@ function gradientRgb(t: number): [number, number, number] {
 const rgb = ([r, g, b]: [number, number, number], text: string) => `\x1b[38;2;${r};${g};${b}m${text}\x1b[39m`;
 /** Without truecolor the three theme colours stand in for the gradient. */
 const stepColor = (t: number) => t < 0.55 ? "success" : t < 0.8 ? "warning" : "error";
-const urgencyColor = (percent: number) => percent > 90 ? "error" : percent > 70 ? "warning" : "success";
 
 /** `<icon>  [▓▓▓░░░░░░░░░] 12.3% 33k/272k (auto)`: filled cells are coloured by their position on the gradient (a full bar sweeps green to red). */
 export function contextSegment(model: FooterModel, paint: Paint, truecolor = false): string {
@@ -58,9 +57,14 @@ export function contextSegment(model: FooterModel, paint: Paint, truecolor = fal
   const shown = model.contextPercent === null ? "?" : percent.toFixed(1);
   const textColor = percent > 90 ? "error" : percent > 70 ? "warning" : "dim";
   const text = `${shown}% ${used}/${formatTokens(model.contextWindow)}${model.autoCompact ? " (auto)" : ""}`;
-  const iconColor = model.contextPercent === null ? "dim" : urgencyColor(percent);
-  return `${paint(iconColor, ICON.context[0])}  ${paint("dim", "[")}${cells.join("")}${paint("dim", "]")} ${paint(textColor, text)}`;
+  return `${paint(ICON.context[1], ICON.context[0])}  ${paint("dim", "[")}${cells.join("")}${paint("dim", "]")} ${paint(textColor, text)}`;
 }
+
+/** Theme colour per thinking level, the same ones Pi uses for the editor border; an unknown level reads as off, like Pi. */
+const THINKING_COLORS: Record<string, string> = {
+  off: "thinkingOff", minimal: "thinkingMinimal", low: "thinkingLow", medium: "thinkingMedium", high: "thinkingHigh", xhigh: "thinkingXhigh", max: "thinkingMax",
+};
+export const thinkingColor = (level: string) => THINKING_COLORS[level] ?? "thinkingOff";
 
 const withIcon = (kind: keyof typeof ICON, text: string, paint: Paint) => `${paint(ICON[kind][1], ICON[kind][0])}  ${paint("dim", text)}`;
 
@@ -70,8 +74,8 @@ function usageSegments(model: FooterModel, paint: Paint): string[] {
   // (the cumulative cache-read total is not shown).
   const parts = [withIcon("up", formatTokens(totals.input), paint), withIcon("down", formatTokens(totals.output), paint)];
   if (totals.cacheWrite) parts.push(paint("dim", `W${formatTokens(totals.cacheWrite)}`));
-  if ((totals.cacheRead > 0 || totals.cacheWrite > 0) && totals.cacheHitRate !== undefined) parts.push(`${paint("warning", "\u{1f5f2}")} ${paint("dim", `${totals.cacheHitRate.toFixed(1)}%`)}`);
-  parts.push(`${paint("text", "$")} ${paint("dim", `${totals.cost.toFixed(3)}${model.subscription ? " (sub)" : ""}`)}`);
+  if ((totals.cacheRead > 0 || totals.cacheWrite > 0) && totals.cacheHitRate !== undefined) parts.push(`${paint("accent", "\u{1f5f2}")} ${paint("dim", `${totals.cacheHitRate.toFixed(1)}%`)}`);
+  parts.push(`${paint("accent", "$")} ${paint("dim", `${totals.cost.toFixed(3)}${model.subscription ? " (sub)" : ""}`)}`);
   return parts;
 }
 
@@ -92,7 +96,7 @@ export function renderFooter(model: FooterModel, width: number, paint: Paint, tr
   if (model.sessionName) location += paint("dim", ` • ${model.sessionName}`);
   const thinking = model.reasoning ? (model.thinkingLevel || "off") : undefined;
   const modelText = [model.provider, model.modelId ?? "no-model"].filter(Boolean).join(" · ");
-  const left2 = `${paint(ICON.model[1], ICON.model[0])}  ${paint("dim", modelText)}${thinking ? `${paint("dim", " · ")}${withIcon("thinking", thinking, paint)}` : ""}`;
+  const left2 = `${paint(ICON.model[1], ICON.model[0])}  ${paint("dim", modelText)}${thinking ? `${paint("dim", " · ")}${paint(ICON.thinking[1], ICON.thinking[0])}  ${paint(thinkingColor(thinking), thinking)}` : ""}`;
   // GPT Speed's own label reads "Speed: Normal"; the footer shows just the mode, in the same grey as the rest.
   const speed = model.statuses.get(SPEED_STATUS_KEY);
   const right2 = [speed ? withIcon("speed", sanitize(speed).replace("Speed: ", ""), paint) : "", ...usageSegments(model, paint)].filter(Boolean).join(paint("dim", " | "));

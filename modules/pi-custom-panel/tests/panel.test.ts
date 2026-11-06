@@ -67,21 +67,35 @@ test('footer: context bar colours show urgency; unknown usage after compaction; 
   assert.equal(formatCwd('C:\\other', 'C:\\work'), 'C:\\other');
 });
 
-test('footer: every text run is painted dim (one grey); only icons, the branch, the cache bolt and the $ sign carry colour', () => {
+test('footer: every text run is painted dim (one grey); only icons, the branch, the thinking level, the cache bolt and the $ sign carry colour', () => {
   const entries = [{ type: 'message', message: { role: 'assistant', usage: usage(35000, 8900, 255000, 0.011) } }];
   const painted: Array<[string, string]> = [];
   const spy = (color: string, text: string) => { painted.push([color, text]); return text; };
   renderFooter(model({ provider: 'p', entries, statuses: new Map([['gpt-speed', '\x1b[36mSpeed: Fast\x1b[0m']]) }), 130, spy);
   const textRuns = painted.filter(([, text]) => /[0-9A-Za-z$]/.test(text) && !/^[\uf000-\uf8ff]$/.test(text));
   assert.ok(textRuns.length > 8);
-  for (const [color, text] of textRuns) if (!['░', '▓', '$', 'main'].includes(text)) assert.ok(color === 'dim' || /^[\d.?]+%/.test(text), 'text "' + text + '" is ' + color);
+  for (const [color, text] of textRuns) if (!['░', '▓', '$', 'main'].includes(text) && color !== 'thinkingHigh') assert.ok(color === 'dim' || /^[\d.?]+%/.test(text), 'text "' + text + '" is ' + color);
   assert.equal(painted.find(([, text]) => text === 'main')?.[0], 'accent', 'the branch name is the main colour');
-  assert.equal(painted.find(([, text]) => text === '$')?.[0], 'text', 'the dollar sign alone is plain white');
-  assert.equal(painted.find(([, text]) => text === '\u{1f5f2}')?.[0], 'warning', 'the cache-hit bolt is yellow');
+  assert.equal(painted.find(([, text]) => text === '$')?.[0], 'accent', 'the dollar sign is accent like the icons');
+  assert.equal(painted.find(([, text]) => text === '\u{1f5f2}')?.[0], 'accent', 'the cache-hit bolt is accent like every icon');
   assert.equal(painted.find(([, text]) => text === '0.011')?.[0], 'dim', 'the amount stays grey');
   const icons = painted.filter(([, text]) => /^[\uf000-\uf8ff]$/.test(text));
-  assert.ok(icons.length >= 6 && icons.every(([color]) => color !== 'dim' || icons.length > 0));
+  assert.ok(icons.length >= 6 && icons.every(([color]) => color === 'accent'));
   assert.equal(painted.find(([, text]) => text === 'Fast')?.[0], 'dim', 'the speed label is re-painted in the common grey, not its own colour');
+});
+
+test('footer: the thinking level word is painted in the level colour (the bulb stays accent like every icon)', () => {
+  const painted: Array<[string, string]> = [];
+  const spy = (color: string, text: string) => { painted.push([color, text]); return text; };
+  for (const [level, color] of [['off', 'thinkingOff'], ['minimal', 'thinkingMinimal'], ['low', 'thinkingLow'], ['medium', 'thinkingMedium'], ['high', 'thinkingHigh'], ['xhigh', 'thinkingXhigh'], ['max', 'thinkingMax'], ['surprise', 'thinkingOff']]) {
+    painted.length = 0;
+    renderFooter(model({ provider: 'p', thinkingLevel: level }), 100, spy);
+    const entry = painted.find(([, text]) => text === level);
+    assert.equal(entry?.[0], color, level);
+  }
+  painted.length = 0;
+  renderFooter(model({ reasoning: false }), 100, spy);
+  assert.ok(!painted.some(([color]) => color.startsWith('thinking')), 'no reasoning, no thinking part');
 });
 
 test('footer: provider · model · thinking; thinking off is shown as "off"; no reasoning drops the thinking part', () => {
@@ -103,9 +117,29 @@ test('editor: prompt glyph on the first text row only; borders, content and auto
   assert.ok(lines.every(line => visibleWidth(line) === 40));
 });
 
+test('editor: border and prompt use the accent colour, whatever the host assigns; bash mode keeps the host colour', () => {
+  const tui: any = { terminal: { rows: 40 }, requestRender() {} };
+  const theme: any = { borderColor: (s: string) => '<host>' + s, selectList: { selectedPrefix: (s: string) => s, selectedText: (s: string) => s, description: (s: string) => s, scrollInfo: (s: string) => s, noMatch: (s: string) => s } };
+  const editor = new PanelEditor(tui, theme, { matches: () => false, getKeys: () => [] } as any, {}, text => '<accent>' + text, text => '<white>' + text);
+  editor.setText('hello');
+  let lines = editor.render(20);
+  assert.ok(lines[0]!.startsWith('<accent>─') && lines[2]!.startsWith('<accent>─'), 'top and bottom borders are accent');
+  assert.ok(lines[1]!.startsWith('<white>' + PROMPT), 'the prompt glyph has its own colour');
+  editor.borderColor = (s: string) => '<thinking-purple>' + s; // what the host does whenever the thinking level changes
+  lines = editor.render(20);
+  assert.ok(lines[0]!.startsWith('<accent>'), 'the host colour is ignored');
+  editor.setText('!ls');
+  lines = editor.render(20);
+  assert.ok(lines[0]!.startsWith('<thinking-purple>'), 'a "!" command keeps the colour the host chose for bash mode');
+  const plainEditor = new PanelEditor(tui, theme, { matches: () => false, getKeys: () => [] } as any);
+  assert.ok(plainEditor.render(20)[0]!.startsWith('<host>'), 'without an accent painter the host colour is used');
+});
+
 test('extension: loading registers hooks only; tui mode installs footer and editor, shutdown restores both; other modes do nothing', () => {
   const handlers = new Map<string, (event: unknown, ctx: any) => void>();
-  panel({ on: (event: string, handler: any) => { handlers.set(event, handler); } } as any);
+  let toolRenderers = 0;
+  panel({ on: (event: string, handler: any) => { handlers.set(event, handler); }, registerToolRenderer: () => { toolRenderers++; } } as any);
+  assert.equal(toolRenderers, 1, 'one global tool renderer resolver is registered at load');
   assert.deepEqual([...handlers.keys()].sort(), ['session_shutdown', 'session_start']);
   const calls: string[] = [];
   const ui = { setFooter: (factory: unknown) => calls.push(`footer:${factory ? 'set' : 'clear'}`), setEditorComponent: (factory: unknown) => calls.push(`editor:${factory ? 'set' : 'clear'}`) };

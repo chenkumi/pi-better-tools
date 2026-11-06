@@ -1,14 +1,17 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { PanelEditor } from "./editor.js";
 import { footerComponent, type FooterModel } from "./footer.js";
+import { registerToolRenderer } from "./tool-render/renderer.js";
 
 const record = (value: unknown): Record<string, unknown> => typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
 
-/** Replaces the host footer and the editor frame. Loading registers hooks only; settings are never written. */
+/** Replaces the host footer and the editor frame and gives every tool call the common look. Loading registers hooks only; settings are never written. */
 export default function (pi: ExtensionAPI): void {
+  registerToolRenderer(pi);
   pi.on("session_start", (_event, ctx: ExtensionContext) => {
     if (ctx.mode !== "tui") return;
-    ctx.ui.setEditorComponent((tui, theme, keybindings) => new PanelEditor(tui, theme, keybindings));
+    // The accent colour is read from the live theme on every draw, so `/theme:<id>` changes it at once.
+    ctx.ui.setEditorComponent((tui, theme, keybindings) => new PanelEditor(tui, theme, keybindings, {}, text => ctx.ui.theme.fg("accent", text), text => ctx.ui.theme.fg("text", text)));
     ctx.ui.setFooter((tui, theme, footerData) => {
       const unsubscribe = footerData.onBranchChange(() => tui.requestRender());
       const read = (): FooterModel => {
