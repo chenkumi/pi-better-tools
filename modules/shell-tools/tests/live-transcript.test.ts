@@ -18,6 +18,79 @@ const feed = (t: LiveTranscript) => {
   t.ingest({ type: 'tool_execution_end', toolCallId: 'c1', toolName: 'bash', isError: false, result: { content: [{ type: 'text', text: 'a.txt' }] } });
 };
 
+// Pi's RPC wire format: `message_update` is delta-only (usage + assistantMessageEvent, no `message`, no `partial`).
+const wire = (t: LiveTranscript, assistantMessageEvent: unknown) => t.ingest({ type: 'message_update', usage: { input: 1, output: 1 }, assistantMessageEvent });
+const blocks = (t: LiveTranscript) => ((t.snapshot().items.at(-1) as any).message.content as any[]);
+
+test('delta-only message_update streams text into the assistant message, one notification per change', () => {
+  const t = new LiveTranscript(); let calls = 0; t.subscribe(() => calls++);
+  t.ingest({ type: 'message_start', message: { role: 'user', content: 'go' } });
+  t.ingest({ type: 'message_start', message: assistant([], { stopReason: 'pending' }) });
+  const before = calls;
+  wire(t, { type: 'text_start', contentIndex: 0 });
+  wire(t, { type: 'text_delta', contentIndex: 0, delta: 'Hello ' });
+  wire(t, { type: 'text_delta', contentIndex: 0, delta: 'world' });
+  assert.equal(calls, before + 3, 'every applied delta notifies, so a live view can redraw');
+  assert.equal(blocks(t)[0].text, 'Hello world');
+  assert.equal((t.snapshot().items.at(-1) as any).streaming, true);
+  assert.match(plain(new TranscriptView(t, tui, process.cwd()).render(80).join('\n')), /Hello world/, 'the partial text is visible before the message ends');
+  wire(t, { type: 'text_end', contentIndex: 0, content: 'Hello world!' });
+  assert.equal(blocks(t)[0].text, 'Hello world!', 'text_end carries the authoritative content');
+  t.ingest({ type: 'message_end', message: assistant([{ type: 'text', text: 'Final' }], { stopReason: 'stop' }) });
+  const { items } = t.snapshot();
+  assert.deepEqual(items.map(i => i.kind), ['user', 'assistant'], 'message_end replaces the streaming message in place');
+  assert.equal((items[1] as any).streaming, false);
+  assert.equal(blocks(t)[0].text, 'Final');
+});
+
+test('delta folding never writes into the producer event object', () => {
+  const t = new LiveTranscript();
+  const start = { type: 'message_start', message: assistant([{ type: 'text', text: 'kept' }]) };
+  t.ingest(start);
+  wire(t, { type: 'text_start', contentIndex: 1 });
+  wire(t, { type: 'text_delta', contentIndex: 1, delta: 'more' });
+  assert.equal(start.message.content.length, 1, 'the event the producer still holds is untouched');
+  assert.deepEqual(blocks(t).map(b => b.text), ['kept', 'more']);
+});
+
+test('thinking streams, a tool call appears only when complete, and start/delta of a tool call change nothing', () => {
+  const t = new LiveTranscript(); let calls = 0;
+  t.ingest({ type: 'message_start', message: assistant([], { stopReason: 'pending' }) }); t.subscribe(() => calls++);
+  wire(t, { type: 'thinking_start', contentIndex: 0 });
+  wire(t, { type: 'thinking_delta', contentIndex: 0, delta: 'hmm' });
+  assert.deepEqual(blocks(t)[0], { type: 'thinking', thinking: 'hmm' });
+  wire(t, { type: 'thinking_end', contentIndex: 0, content: 'hmm, ok' });
+  const settled = calls;
+  wire(t, { type: 'toolcall_start', contentIndex: 1 });
+  wire(t, { type: 'toolcall_delta', contentIndex: 1, delta: '{"command":' });
+  assert.equal(calls, settled, 'no id or name on the wire yet, so nothing to show');
+  wire(t, { type: 'toolcall_end', contentIndex: 1, toolCall: { type: 'toolCall', id: 'c9', name: 'bash', arguments: { command: 'ls' } } });
+  assert.equal(blocks(t)[0].thinking, 'hmm, ok');
+  assert.equal(blocks(t)[1].id, 'c9');
+  assert.match(plain(new TranscriptView(t, tui, process.cwd()).render(80).join('\n')), /ls/);
+});
+
+test('a delta without a seen message_start starts a streaming assistant message; bad or unknown updates are ignored', () => {
+  const t = new LiveTranscript(); let calls = 0; t.subscribe(() => calls++);
+  for (const update of [undefined, null, 'x', {}, { type: 'start' }, { type: 'done' }, { type: 'text_delta' }, { type: 'text_delta', contentIndex: 5, delta: 'gap' },
+    { type: 'text_delta', contentIndex: -1, delta: 'neg' }, { type: 'text_delta', contentIndex: 1.5, delta: 'frac' }, { type: 'toolcall_end', contentIndex: 0, toolCall: 'nope' }]) wire(t, update);
+  assert.equal(calls, 0); assert.equal(t.snapshot().items.length, 0);
+  wire(t, { type: 'text_delta', contentIndex: 0, delta: 'late join' });
+  assert.equal(calls, 1);
+  assert.equal((t.snapshot().items[0] as any).streaming, true);
+  assert.equal(blocks(t)[0].text, 'late join');
+  wire(t, { type: 'text_delta', contentIndex: 0, delta: 7 });
+  assert.equal(blocks(t)[0].text, 'late join', 'a non-string delta adds nothing');
+});
+
+test('the earlier event shape (message_update carrying a cumulative message) still replaces in place', () => {
+  const t = new LiveTranscript();
+  t.ingest({ type: 'message_start', message: assistant([]) });
+  t.ingest({ type: 'message_update', message: assistant([{ type: 'text', text: 'cumulative' }]) });
+  assert.deepEqual(t.snapshot().items.map(i => i.kind), ['assistant']);
+  assert.equal(blocks(t)[0].text, 'cumulative');
+});
+
 test('events become one conversation: streaming assistant message is replaced in place, never duplicated', () => {
   const t = new LiveTranscript(); feed(t);
   const { items, tools } = t.snapshot();

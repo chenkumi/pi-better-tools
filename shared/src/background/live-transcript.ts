@@ -36,6 +36,41 @@ function boundedResult(result: Rec, expanded: boolean): Rec {
 const textOf = (content: unknown): string => typeof content === "string" ? content
   : Array.isArray(content) ? content.map(part => isRec(part) && part.type === "text" && typeof part.text === "string" ? part.text : "").join("") : "";
 
+/** A content block index from an untrusted child event: an existing block or the next one, never a sparse jump. */
+const MAX_BLOCKS = 4096;
+const blockIndex = (value: unknown, length: number): number | undefined =>
+  typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= length && value < MAX_BLOCKS ? value : undefined;
+
+/**
+ * Folds one wire-format content-block update into `content` (replacing blocks, never mutating them).
+ * Pi's RPC `message_update` is delta-only: it carries `assistantMessageEvent` and no cumulative `message` or `partial`.
+ * `*_end` replaces what the deltas built; `message_end` later replaces the whole message.
+ * Tool-call start/delta have no id or name on the wire, so only `toolcall_end` (the complete call) is shown.
+ * Returns false for events that change nothing here.
+ */
+function foldBlockEvent(content: Rec[], update: Rec): boolean {
+  const type = typeof update.type === "string" ? update.type : "";
+  const kind = type.startsWith("text_") ? "text" : type.startsWith("thinking_") ? "thinking" : type === "toolcall_end" ? "toolCall" : undefined;
+  if (!kind) return false;
+  const index = blockIndex(update.contentIndex, content.length);
+  if (index === undefined) return false;
+  if (kind === "toolCall") {
+    if (!isRec(update.toolCall)) return false;
+    content[index] = update.toolCall;
+    return true;
+  }
+  const field = kind === "text" ? "text" : "thinking";
+  const current = isRec(content[index]) && content[index]!.type === kind ? content[index]! : { type: kind, [field]: "" };
+  if (type === `${kind}_start`) content[index] = { type: kind, [field]: "" };
+  else if (type === `${kind}_delta`) content[index] = { ...current, [field]: `${String(current[field] ?? "")}${typeof update.delta === "string" ? update.delta : ""}` };
+  else if (type === `${kind}_end`) content[index] = { ...current, [field]: typeof update.content === "string" ? update.content : String(current[field] ?? "") };
+  else return false;
+  return true;
+}
+
+/** The copy keeps its own content array: delta folding must never write into the producer's event object. */
+const ownedAssistant = (message: Rec): Rec => ({ ...message, content: Array.isArray(message.content) ? [...message.content] : [] });
+
 /** Listener set shared by both transcripts: observer failures are swallowed and never reach the producer. */
 class TranscriptObservers {
   private listeners = new Set<() => void>();
@@ -84,11 +119,12 @@ export class LiveTranscript {
     switch (event.type) {
       case "message_start":
         if (message?.role === "user") this.items.push({ kind: "user", text: textOf(message.content) });
-        else if (message?.role === "assistant") this.items.push({ kind: "assistant", message, streaming: true });
+        else if (message?.role === "assistant") this.items.push({ kind: "assistant", message: ownedAssistant(message), streaming: true });
         else changed = false;
         break;
       case "message_update":
       case "message_end": {
+        if (event.type === "message_update" && !message) { changed = this.foldDelta(event.assistantMessageEvent); break; }
         if (message?.role === "toolResult") {
           const id = String(message.toolCallId ?? "");
           const state = this.tool(id);
@@ -115,6 +151,17 @@ export class LiveTranscript {
     if (!changed) return;
     this.version++;
     this.observers.notify();
+  }
+  /** Delta-only `message_update`: applies to the assistant message that is streaming, or starts one if its `message_start` was never seen. */
+  private foldDelta(update: unknown): boolean {
+    if (!isRec(update)) return false;
+    const last = this.items[this.items.length - 1];
+    const streaming = last?.kind === "assistant" && last.streaming ? last : undefined;
+    const content = streaming && Array.isArray(streaming.message.content) ? [...streaming.message.content as Rec[]] : [];
+    if (!foldBlockEvent(content, update)) return false;
+    if (streaming) streaming.message = { ...streaming.message, content };
+    else this.items.push({ kind: "assistant", message: { role: "assistant", content }, streaming: true });
+    return true;
   }
   private tool(id: string): ToolState {
     let state = this.tools.get(id);
