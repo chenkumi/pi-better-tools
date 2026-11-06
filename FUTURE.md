@@ -238,7 +238,21 @@ B 線（儲存換 SQLite）：fork Pi 改 SessionManager             ← 與 A �
 - 取消階梯仍須是「先 `abort`、再 `shutdown`、最後強制終止」，不能只送 `shutdown`。
 - E2 與 `pty.kill` 後孫行程都消失，**原因未查明**（可能是 ConPTY 關閉時終止了附著同一 console 的行程），不可宣稱是 Pi 自己清掉孫行程。
 - **harness 教訓**：node-pty 的 `p.pid` 在 spawn 當下是 `0`，約數百 ms 後才有值。`taskkill /pid 0 /T /F` 會嘗試終止系統處理程序樹（本次因權限被拒而無傷害）。正式版 mux 在取得有效 pid 前不得呼叫任何 kill，並應拒絕 pid ≤ 4。
-- 未涵蓋：POSIX（PTY leader 結束通常只對前景行程群送 SIGHUP，背景孫行程不一定被清掉）、Shell 模組的真實 job／`detached`／雙重 fork 的孫行程、`abort` 後 `shutdown` 逾時階梯（grace 與 SIGKILL 對應）、父代先死時子代是否成為孤兒。
+- 未涵蓋：POSIX 下真實 Pi（核心語意見下方 POSIX 一段）、Shell 模組的真實 job／`detached`／雙重 fork 的孫行程、`abort` 後 `shutdown` 逾時階梯（grace 與 SIGKILL 對應）、父代先死時子代是否成為孤兒。
+
+**POSIX 的取消與清理（已實測核心語意，非 Pi 本身）**：`tools/mux-text-spike/posix_cleanup.py`，在 WSL2 Ubuntu（Linux 6.18）以 `pty.fork()` 讓 `sh` 當 session leader（模擬 mux 啟動的 Pi 子行程），底下兩個孫行程：同行程群一個（像一般 `spawn`）、`setsid` 另開 session 一個（像 `detached`）。執行：`wsl -d Ubuntu -- python3 <路徑>`（路徑用正斜線，反斜線會被 wsl.exe 吃掉）。
+
+| 終止方式 | 同群孫行程 | 獨立 session 孫行程 |
+|---|---|---|
+| leader 自己正常結束 | 死 | 活 |
+| mux 關閉 PTY master（hangup） | 死 | 活 |
+| 只對 leader pid 送 SIGTERM／SIGKILL／SIGHUP | 死 | 活 |
+| 對 leader 行程群送 SIGTERM（`kill -pgid`） | 死 | 活 |
+
+- 同群孫行程在所有情況都死（含 SIGKILL）：session leader 結束時核心對該終端的前景行程群送 SIGHUP。PTY 模型下 mux 不必自己對子樹送訊號。
+- 獨立 session 的孫行程全部存活，也躲過 `kill(-pgid)`。本專案 Shell job 在 POSIX 以 `detached: true` 啟動（`modules/shell-tools/src/monitor-exec.ts:41`）屬此類；現有 Subagent／Fork 子行程本身也是 `detached`，`kill(-pid)` 同樣碰不到其 Shell job。所以 PTY 模型在這點與現況等價，Shell job 仍需 `shell_job_cancel` 或自己的清理，與「取消要求不代表整棵 process tree 已停止」一致。
+- Windows 上 leader 結束後孫行程消失是 ConPTY 的機制，不可類推到 POSIX。
+- 限制：leader 是 `sh` 不是 Node 的 Pi（Pi 收到 SIGHUP／SIGTERM 會有序關閉，文件所載，Linux 上未實測）；只測 WSL2，未測 macOS；未測互動式 shell 的 job control、孫行程忽略 SIGHUP、雙重 fork。WSL 內沒有 Node，要跑完整 Pi 須先在 WSL 安裝 Node 並使用 node-pty 的 linux-x64 prebuild。
 
 未涵蓋：`x-opencode-session` header（guard 只改寫已存在者，離線 provider 不產生）、`CAPABILITY_MISMATCH`／`TRUST_REQUIRED` 等其他拒絕碼、Fork 四個工具定義逐字相同與 deferred 工具（只用 `nap`／`spawn_bg`／`hang` 等測試工具）、真實 provider 請求。
 
