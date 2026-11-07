@@ -1,7 +1,7 @@
 import { Type } from 'typebox';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { isManagedForegroundChild } from '../../../shared/src/background/index.js';
-import { AUTO_MONITOR_INTERVAL_MS, acquireCapability, canonicalMonitorCwd, publishActiveMonitorBriefs, publishAutoMonitor } from '../../../shared/src/background/index.js';
+import { AUTO_MONITOR_INTERVAL_MS, acquireCapability, canonicalMonitorCwd, publishActiveMonitorBriefs, publishAutoMonitor, publishScheduledMonitor, type ScheduledMonitorStarter } from '../../../shared/src/background/index.js';
 import { ToolError, toolErrorCode } from '../../../shared/src/tool-error/index.js';
 import { jsonResult as output } from '../../../shared/src/tool-result/index.js';
 import { MonitorRuntime, realClock, sameOwner, type Clock, type Owner } from './core.js';
@@ -33,7 +33,7 @@ export default function monitorExtension(pi: ExtensionAPI, seam: { clock?: Clock
   seam.onRuntime?.(runtime); // Internal offline test seam; no tool/configuration surface.
   const widget = new MonitorJobsWidget(clock, pi);
   runtime.onChange = () => widget.refresh();
-  let bound: Owner | undefined, revokeAuto: (() => void) | undefined, revokeBriefs: (() => void) | undefined;
+  let bound: Owner | undefined, revokeAuto: (() => void) | undefined, revokeBriefs: (() => void) | undefined, revokeScheduled: (() => void) | undefined;
   /** Every Monitor tool re-checks these at execution: a managed child never runs Monitor, and registration is not selection. */
   const assertExecutable = (tool: string) => {
     if (isManagedForegroundChild()) throw new Error(`${tool}: a managed child cannot execute Monitor; Monitor is only available to the main agent, so report the need to your parent`);
@@ -51,8 +51,51 @@ export default function monitorExtension(pi: ExtensionAPI, seam: { clock?: Clock
       return (runtime.start(input, jobLaunch(lease, jobId, AUTO_MONITOR_INTERVAL_MS, clock)) as { monitorId?: string }).monitorId;
     } catch { return undefined; }
   };
-  pi.on('session_start', async (_event, ctx) => { revokeAuto?.(); revokeBriefs?.(); widget.clear(); await runtime.shutdown(); bound = scope(ctx); runtime.bind(bound, () => scope(ctx)); widget.bind(ctx, () => runtime.panelRows()); revokeAuto = publishAutoMonitor(bound, autoMonitor(ctx)); revokeBriefs = publishActiveMonitorBriefs(bound, () => runtime.briefs()); });
-  pi.on('session_shutdown', async () => { revokeAuto?.(); revokeAuto = undefined; revokeBriefs?.(); revokeBriefs = undefined; bound = undefined; widget.clear(); await runtime.shutdown(); });
+  /** Builds the source for an accepted start. Throws before acceptance when the source cannot start (disabled shell tool, path outside the workspace, bad endpoint, unknown job). */
+  const buildLaunch = (input: ReturnType<typeof validateStart>, ctx: ExtensionContext, owner: Owner) => {
+      let launch;
+      const source = input.source;
+      // Command sources spawn their own backend, so the shell tool they name must be enabled, like the matching Shell tool call would need to be.
+      if (source.kind === 'command' && !pi.getActiveTools().includes(source.tool)) throw new ToolError('MONITOR_SHELL_DISABLED', `source.tool ${JSON.stringify(source.tool)} is not enabled for this session, so a command source cannot start; ask the user to enable the ${source.tool} tool, or use a file, system or job source.`);
+      if (source.kind === 'command') launch = commandLaunch(pi, ctx, source);
+      else if (source.kind === 'websocket') { parseEndpoint(source); launch = websocketLaunch(source, clock); }
+      else if (source.kind === 'file') launch = fileLaunch(owner.cwd, resolveFilePath(owner.cwd, source.path), source.intervalMs ?? FILE_INTERVAL.default, clock); // Rejects paths outside the canonical workspace before acceptance.
+      else if (source.kind === 'system') launch = systemLaunch(source, source.intervalMs ?? SYSTEM_INTERVAL.default, clock);
+      else {
+        const lease = acquireCapability(source.kind, owner);
+        // Reject missing/foreign jobs before acceptance; never query a model.
+        try { lease.snapshot(source.jobId); }
+        catch (error) { throw new Error(`${source.kind} source "jobId" ${JSON.stringify(source.jobId.slice(0, 128))} was not accepted: ${error instanceof Error ? error.message : String(error)}. Pass a jobId of this session/cwd exactly as returned when the job started (list them with ${JOB_LISTING[source.kind]})`); }
+        launch = jobLaunch(lease, source.jobId, source.intervalMs ?? JOB_INTERVAL.default, clock);
+      }
+      return launch;
+  };
+  /** Start requested by the schedule module: same checks as monitor_start, but only command/file/system sources and wakeAgent defaults to false. */
+  const scheduledStarter = (ctx: ExtensionContext): ScheduledMonitorStarter => ({
+    validate: params => {
+      try {
+        const input = validateStart({ wakeAgent: false, ...(params as object) });
+        if (!['command', 'file', 'system'].includes(input.source.kind)) throw new Error(`source kind ${input.source.kind} is not available to schedules: use command, file or system`);
+        if (input.source.kind === 'file') resolveFilePath(scope(ctx).cwd, input.source.path);
+        return undefined;
+      } catch (error) { return failureText(error, 'Scheduled monitor'); }
+    },
+    start: params => {
+      try {
+        assertExecutable('monitor_start');
+        const input = validateStart({ wakeAgent: false, ...(params as object) }), owner = scope(ctx);
+        if (!['command', 'file', 'system'].includes(input.source.kind)) throw new Error(`source kind ${input.source.kind} is not available to schedules: use command, file or system`);
+        if (!sameOwner(bound, owner)) throw new ToolError('MONITOR_OWNER_MISMATCH', 'Monitor not started: the bound owner no longer matches this session/canonical cwd');
+        const monitorId = (runtime.start(input, buildLaunch(input, ctx, owner)) as { monitorId?: string }).monitorId;
+        return monitorId ? { monitorId } : { error: 'Monitor did not return an id' };
+      } catch (error) { return { error: failureText(error, 'Scheduled monitor') }; }
+    },
+    isActive: monitorId => {
+      try { return ['starting', 'running', 'stopping'].includes((runtime.status(monitorId, scope(ctx)) as { state: string }).state); } catch { return false; }
+    },
+  });
+  pi.on('session_start', async (_event, ctx) => { revokeAuto?.(); revokeBriefs?.(); revokeScheduled?.(); widget.clear(); await runtime.shutdown(); bound = scope(ctx); runtime.bind(bound, () => scope(ctx)); widget.bind(ctx, () => runtime.panelRows()); revokeAuto = publishAutoMonitor(bound, autoMonitor(ctx)); revokeBriefs = publishActiveMonitorBriefs(bound, () => runtime.briefs()); revokeScheduled = publishScheduledMonitor(bound, scheduledStarter(ctx)); });
+  pi.on('session_shutdown', async () => { revokeAuto?.(); revokeAuto = undefined; revokeBriefs?.(); revokeBriefs = undefined; revokeScheduled?.(); revokeScheduled = undefined; bound = undefined; widget.clear(); await runtime.shutdown(); });
   const eventOwner = (ctx: ExtensionContext) => { try { return sameOwner(bound, scope(ctx)); } catch { return false; } };
   pi.on('session_compact', (_event, ctx) => { if (eventOwner(ctx)) runtime.opportunity(); });
   pi.on('session_compact_failed', (_event, ctx) => { if (eventOwner(ctx)) runtime.opportunity(); });
@@ -68,21 +111,7 @@ export default function monitorExtension(pi: ExtensionAPI, seam: { clock?: Clock
         const input = validateStart(value), owner = scope(ctx);
         if (!sameOwner(bound, owner)) throw new ToolError('MONITOR_OWNER_MISMATCH', 'Monitor not started: the bound owner no longer matches this session/canonical cwd (session replaced, reloaded, or cwd changed). Start the monitor again from the current session.');
         if (signal?.aborted) throw new Error('Monitor not started: the tool call was cancelled before acceptance. Retry if the monitor is still needed.');
-        let launch;
-        const source = input.source;
-        // Command sources spawn their own backend, so the shell tool they name must be enabled, like the matching Shell tool call would need to be.
-        if (source.kind === 'command' && !pi.getActiveTools().includes(source.tool)) throw new ToolError('MONITOR_SHELL_DISABLED', `source.tool ${JSON.stringify(source.tool)} is not enabled for this session, so a command source cannot start; ask the user to enable the ${source.tool} tool, or use a file, system or job source.`);
-        if (source.kind === 'command') launch = commandLaunch(pi, ctx, source);
-        else if (source.kind === 'websocket') { parseEndpoint(source); launch = websocketLaunch(source, clock); }
-        else if (source.kind === 'file') launch = fileLaunch(owner.cwd, resolveFilePath(owner.cwd, source.path), source.intervalMs ?? FILE_INTERVAL.default, clock); // Rejects paths outside the canonical workspace before acceptance.
-        else if (source.kind === 'system') launch = systemLaunch(source, source.intervalMs ?? SYSTEM_INTERVAL.default, clock);
-        else {
-          const lease = acquireCapability(source.kind, owner);
-          // Reject missing/foreign jobs before acceptance; never query a model.
-          try { lease.snapshot(source.jobId); }
-          catch (error) { throw new Error(`${source.kind} source "jobId" ${JSON.stringify(source.jobId.slice(0, 128))} was not accepted: ${error instanceof Error ? error.message : String(error)}. Pass a jobId of this session/cwd exactly as returned when the job started (list them with ${JOB_LISTING[source.kind]})`); }
-          launch = jobLaunch(lease, source.jobId, source.intervalMs ?? JOB_INTERVAL.default, clock);
-        }
+        const launch = buildLaunch(input, ctx, owner);
         return output(runtime.start(input, launch, signal));
       } catch (error) { return output(failureResult(error, 'Monitor startup'), true); }
     },

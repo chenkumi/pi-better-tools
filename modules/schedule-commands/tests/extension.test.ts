@@ -42,9 +42,9 @@ async function withDirs(fn: (cwd: string, agentDir: string) => Promise<void>) {
 	}
 }
 
-test("registers both tools as default-active, with renderers, and the marker renderer", () => {
+test("registers the three tools as default-active, with renderers, and the marker renderer", () => {
 	const h = host();
-	assert.deepEqual([...h.tools.keys()], ["schedule_prompt", "schedule_shell"]);
+	assert.deepEqual([...h.tools.keys()], ["schedule_prompt", "schedule_shell", "schedule_monitor"]);
 	assert.ok([...h.tools.values()].every((tool) => tool.defaultActive === true && typeof tool.renderCall === "function" && typeof tool.renderResult === "function" && tool.exposure === undefined));
 	assert.deepEqual(h.renderers, [MARKER_TYPE]);
 });

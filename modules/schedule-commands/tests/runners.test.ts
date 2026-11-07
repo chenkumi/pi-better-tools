@@ -236,21 +236,22 @@ test("agent: the 30 minute limit aborts the child and reports a timeout; shutdow
 	assert.deepEqual(cancelled.pi.phases(), ["start"]);
 });
 
-test("executor: dispatches by kind; monitor jobs report an honest error for now", async () => {
+test("executor: dispatches by kind; monitor jobs go through the injected Monitor starter", async () => {
 	const pi = fakePi();
 	const calls: string[] = [];
 	const executor = createExecutor({
 		pi: pi as never, context: () => ({ cwd: process.cwd() }) as never, trusted: () => true, clock: new ManualClock(),
 		exec: async (tool, command, _signal, events) => { calls.push(`${tool}:${command}`); events.started(); events.closed(0, null, false); },
 		createChild: async () => fakeChild({ text: "x" }).child,
+		monitorStarter: () => ({ validate: () => undefined, start: () => ({ monitorId: "m1" }), isActive: () => false }),
 	});
 	assert.equal((await executor.execute(makeJob({ prompt: "p" }), info).done).status, "success");
 	assert.equal((await executor.execute(makeJob({ kind: "agent", prompt: "p", model: "m" }), info).done).status, "success");
 	assert.equal((await executor.execute(makeJob({ kind: "shell", command: "echo", shell: "bash" }), info).done).status, "success");
 	assert.deepEqual(calls, ["bash:echo"]);
 	const monitor = executor.execute(makeJob({ kind: "monitor", start: { source: { kind: "system" } } }), info);
-	assert.equal(await monitor.started, false);
-	assert.match((await monitor.done).error!, /monitor jobs cannot run yet/);
+	assert.equal(await monitor.started, true);
+	assert.equal((await monitor.done).status, "success");
 	executor.abortAll();
 });
 

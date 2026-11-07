@@ -6,7 +6,7 @@ import { createChildFactory } from "./child-session.ts";
 import { realClock, type Clock } from "./clock.ts";
 import { CommandApprovals } from "./cwd.ts";
 import type { Executor } from "./engine.ts";
-import { postMarker } from "./markers.ts";
+import { runMonitorJob } from "./monitor-link.ts";
 import { runPromptJob } from "./prompt-run.ts";
 import { DEFAULT_TAIL_BYTES, runShellJob, type ExecFn } from "./shell-run.ts";
 
@@ -19,6 +19,7 @@ export interface ExecutorOptions {
 	/** Test seams; production uses Monitor's Shell helper and the Pi SDK. */
 	exec?: ExecFn;
 	createChild?: ChildFactory;
+	monitorStarter?: Parameters<typeof runMonitorJob>[0]["starter"];
 }
 
 export function createExecutor(o: ExecutorOptions) {
@@ -26,6 +27,7 @@ export function createExecutor(o: ExecutorOptions) {
 	const approvals = new CommandApprovals();
 	const active = new Set<AbortController>();
 	const exec: ExecFn = o.exec ?? ((tool, command, signal, events, options) => execMonitorCommand(o.pi, o.context(), tool, command, signal, events, {}, options));
+	const lastMonitor = new Map<string, string>();
 	const createChild = o.createChild ?? createChildFactory(o.context, o.trusted);
 
 	const execute: Executor = (job, info) => {
@@ -33,12 +35,7 @@ export function createExecutor(o: ExecutorOptions) {
 			case "prompt": return runPromptJob(o.pi, job, info);
 			case "agent": return runAgentJob({ pi: o.pi, clock, createChild, active }, job, info);
 			case "shell": return runShellJob({ pi: o.pi, clock, exec, projectCwd: () => o.context().cwd, activeTools: () => o.pi.getActiveTools(), approvals, tailBytes: o.tailBytes ?? DEFAULT_TAIL_BYTES, active }, job, info);
-			case "monitor": {
-				// Starting a Monitor from a schedule arrives with the Monitor linkage phase; until then the run is an honest error.
-				const error = "monitor jobs cannot run yet: the Monitor linkage is not available in this version";
-				postMarker(o.pi, { jobId: job.id, jobName: job.name, kind: "monitor", phase: "error", scheduledFor: info.scheduledFor, error });
-				return { started: Promise.resolve(false), done: Promise.resolve({ status: "error", error }) };
-			}
+			case "monitor": return runMonitorJob({ pi: o.pi, context: o.context, activeTools: () => o.pi.getActiveTools(), last: lastMonitor, ...(o.monitorStarter ? { starter: o.monitorStarter } : {}) }, job, info);
 		}
 	};
 

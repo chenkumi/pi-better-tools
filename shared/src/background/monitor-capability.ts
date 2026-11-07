@@ -116,3 +116,30 @@ export function activeJobBriefs(scope: MonitorScope): { briefs: ActiveJobBrief[]
   }
   return { briefs, partial };
 }
+
+/**
+ * Scheduled Monitor start: the schedule module asks the owner-matching Monitor to start one watch with `monitor_start`
+ * parameters at a scheduled time. Same rendezvous style as the auto-monitor above: functions only, no shared job handles,
+ * and Monitor stays the only place that validates and decides (selection, shell tools, capacity, owner).
+ */
+export interface ScheduledMonitorStarter {
+  /** Problem text for parameters Monitor would reject, or undefined. Never starts anything. */
+  validate(params: unknown): string | undefined;
+  /** Starts one monitor; the error text says why it was refused. */
+  start(params: unknown): { monitorId: string } | { error: string };
+  /** Whether a monitor started earlier is still running (starting, running or stopping). */
+  isActive(monitorId: string): boolean;
+}
+const scheduledKey = Symbol.for('pi-better-tools.monitor.scheduled-start.v1');
+const scheduledRegistry = () => globalRegistry<ScheduledMonitorStarter>(scheduledKey);
+const scheduledIdentity = (scope: MonitorScope) => JSON.stringify(['scheduled_monitor', scope.sessionId, scope.cwd]);
+export function publishScheduledMonitor(scope: MonitorScope, starter: ScheduledMonitorStarter): () => void {
+  const id = scheduledIdentity(scope), starters = scheduledRegistry();
+  if (!starters.has(id) && starters.size >= MAX_PUBLISHERS) throw new Error('Scheduled monitor capacity exceeded');
+  starters.set(id, starter);
+  return () => { if (starters.get(id) === starter) starters.delete(id); };
+}
+/** The starter published for exactly this session and canonical cwd, or undefined when no Monitor is loaded for it. */
+export function requestScheduledMonitor(scope: MonitorScope): ScheduledMonitorStarter | undefined {
+  return scheduledRegistry().get(scheduledIdentity(scope));
+}

@@ -85,3 +85,7 @@ Pi custom message：`customType:"monitor_event"`、`display` 與 `triggerTurn` �
 Failure responses name the parameter, the rule and the fix (2026-10-24 guidance pass; see plan/error-message-handoff.md). Agent-visible messages name only the tool's own arguments (including `allowPrivateNetwork` and `allowInsecure`), tool names and error codes; host allowlist flags and settings are not named.
 - A WebSocket that fails after being accepted records a bounded single-line reason (max 300 characters) in `cleanupEvidence.startupError`, readable from status and stop results. DNS pinning, private-network opt-in and TLS verification are unchanged, and resolved addresses are never echoed.
 - `stopAfterEvents` is a count (1-600), not milliseconds, and the message says so.
+
+## 排程啟動器（供 Schedule Commands）
+
+Monitor 在 `session_start` 經 `shared/src/background/monitor-capability.ts` 發布「排程啟動器」（`validate`／`start`／`isActive`），`session_shutdown` 撤銷。只有 owner（session id 與 canonical cwd）相符的請求者取得；不共享 job handle。`start` 與 `monitor_start` 共用同一套檢查（`monitor_start` 已啟用、`command` 來源的 shell 工具已啟用、檔案路徑留在 canonical cwd 內、名額），差別只有：來源限 `command`／`file`／`system`（`websocket` 與 job 來源拒絕），且 `wakeAgent` 缺省為 `false`。被拒絕時回傳錯誤文字，不丟例外。

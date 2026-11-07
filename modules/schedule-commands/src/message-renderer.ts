@@ -1,7 +1,7 @@
 /** Presentation of `scheduled_command` markers. Command output and agent results are untrusted display text. */
 import { stripVTControlCharacters } from "node:util";
 import type { MessageRenderer } from "@earendil-works/pi-coding-agent";
-import { Box, Text, truncateToWidth } from "@earendil-works/pi-tui";
+import { Box, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import type { MarkerDetails } from "./markers.ts";
 
 const clean = (value: unknown, limit: number): string =>
@@ -32,7 +32,30 @@ export const renderMarker: MessageRenderer = (message, { expanded }, theme) => {
 		rows.push({ text: expanded ? output : lines.slice(0, 3).map((line) => truncateToWidth(line, 200)).join("\n"), color: "dim" });
 	}
 	if (!expanded && (d.command || d.prompt || output)) rows.push({ text: "Expand for job id, directory and the full text", color: "dim" });
-	const box = new Box(1, 0, (text: string) => text);
-	box.addChild(new Text(rows.map((row) => theme.fg(row.color, row.text)).join("\n"), 0, 0));
-	return box;
+	const background = failed ? "toolErrorBg" : done ? "toolSuccessBg" : "toolPendingBg";
+	// Same card as the native tool calls: a full-width colored block that never exceeds the width and never lets a reset break the fill.
+	return {
+		render(width: number): string[] {
+			const outerWidth = Math.max(0, Math.floor(width));
+			const padding = outerWidth >= 3 ? 1 : 0;
+			const inner = outerWidth - padding * 2;
+			const bgAnsi = theme.getBgAnsi(background);
+			const finish = (lines: string[]) => {
+				const box = new Box(padding, 1, (text: string) => theme.bg(background, text.replace(/\x1b\[(?:0)?m/g, (reset) => reset + bgAnsi)));
+				box.addChild({ render: () => lines, invalidate() {} });
+				return box.render(outerWidth);
+			};
+			const limit = 298;
+			const lines: string[] = [];
+			for (const row of rows) {
+				const text = theme.fg(row.color, row.text);
+				for (const line of expanded ? wrapTextWithAnsi(text, Math.max(1, inner)) : text.split("\n")) {
+					if (lines.length >= limit - 1) { lines.push(truncateToWidth("… Display limit (message content unchanged)", Math.max(0, inner))); return finish(lines); }
+					lines.push(truncateToWidth(line, Math.max(0, inner)));
+				}
+			}
+			return finish(lines);
+		},
+		invalidate() {},
+	};
 };

@@ -17,7 +17,7 @@ export interface JobState {
 }
 
 /** Monitor start parameters are validated structurally here and fully by Monitor itself at start time. */
-export type MonitorStart = { source: { kind: "command" | "file" | "system"; [key: string]: unknown }; [key: string]: unknown };
+export type MonitorStart = { source: { kind: string; [key: string]: unknown }; [key: string]: unknown };
 
 export interface JobCommon {
 	id: string;

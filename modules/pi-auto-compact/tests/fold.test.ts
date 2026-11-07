@@ -219,7 +219,7 @@ test('the set of tools with a dedicated rule is exactly the documented one', () 
   const engines = ['mssql', 'mysql', 'pgsql'].flatMap(engine => ['state', 'query', 'update'].map(kind => `${engine}_${kind}`));
   const expected = [
     'read', 'write', 'edit', 'ls', 'grep', 'find', 'multi_grep', 'note', 'session_read', 'session_window', 'session_grep',
-    'bash', 'powershell', 'shell_job_status', 'shell_job_cancel', 'schedule_prompt', 'schedule_shell',
+    'bash', 'powershell', 'shell_job_status', 'shell_job_cancel', 'schedule_prompt', 'schedule_shell', 'schedule_monitor',
     'subagent', 'subagent_status', 'subagent_cancel', 'subagent_message',
     'fork', 'fork_status', 'fork_cancel', 'fork_message', 'monitor_start', 'monitor_status', 'monitor_stop',
     'pty_spawn', 'pty_list', 'pty_read', 'pty_write', 'pty_keyin', 'pty_resize', 'pty_wait_exit', 'pty_kill',

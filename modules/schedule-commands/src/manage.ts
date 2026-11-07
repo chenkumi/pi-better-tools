@@ -9,7 +9,7 @@ import { bottomConfirm, bottomInput, isBottomPanelOpen, openBottomPanel } from "
 import type { BottomBody, PanelStyle } from "../../../shared/src/bottom-panel/index.js";
 import { schedulePanelJob, type ScheduleRow } from "./panel.ts";
 import { SCHEDULE_HELP } from "./shorthand.ts";
-import { createPromptTool, createShellTool, type ToolDeps } from "./tool.ts";
+import { createMonitorTool, createPromptTool, createShellTool, type ToolDeps } from "./tool.ts";
 import type { Job } from "./types.ts";
 
 export type ManageAction = { type: "add-prompt" | "add-shell" | "cleanup" } | { type: "toggle" | "remove" | "run"; job: Job };
@@ -88,12 +88,12 @@ export interface ManageDeps extends ToolDeps {
 
 /** Runs one action through the tools; returns the text to show the user. */
 export async function performAction(action: ManageAction, deps: ManageDeps, ctx: ExtensionCommandContext): Promise<string | undefined> {
-	const prompt = createPromptTool(deps), shell = createShellTool(deps);
-	const run = async (tool: typeof prompt | typeof shell, params: Record<string, unknown>) => {
+	const prompt = createPromptTool(deps), shell = createShellTool(deps), monitor = createMonitorTool(deps);
+	const run = async (tool: typeof prompt | typeof shell | typeof monitor, params: Record<string, unknown>) => {
 		const result = await (tool.execute as (...args: unknown[]) => Promise<{ content: Array<{ text?: string }> }>)("panel", params, undefined, undefined, ctx);
 		return result.content.map((part) => part.text ?? "").join("\n").split("\n")[0];
 	};
-	const toolFor = (job: Job) => (job.kind === "shell" ? shell : prompt);
+	const toolFor = (job: Job) => (job.kind === "shell" ? shell : job.kind === "monitor" ? monitor : prompt);
 	switch (action.type) {
 		case "toggle": return run(toolFor(action.job), { action: action.job.enabled ? "disable" : "enable", jobId: action.job.id });
 		case "run": return run(toolFor(action.job), { action: "run_now", jobId: action.job.id });
@@ -101,7 +101,7 @@ export async function performAction(action: ManageAction, deps: ManageDeps, ctx:
 			if (!await bottomConfirm(ctx, "Delete schedule", `Delete "${action.job.name}" (${action.job.id})?`)) return undefined;
 			return run(toolFor(action.job), { action: "remove", jobId: action.job.id });
 		case "cleanup": {
-			const lines = [await run(prompt, { action: "cleanup" }), await run(shell, { action: "cleanup" })].filter(Boolean);
+			const lines = [await run(prompt, { action: "cleanup" }), await run(shell, { action: "cleanup" }), await run(monitor, { action: "cleanup" })].filter(Boolean);
 			return lines.join(" ");
 		}
 		case "add-prompt":

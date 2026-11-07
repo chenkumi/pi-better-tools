@@ -15,6 +15,7 @@ export class JobError extends Error {}
 export type Owns = (job: Job) => boolean;
 export const ownsPromptTool: Owns = (job) => job.kind === "prompt" || job.kind === "agent";
 export const ownsShellTool: Owns = (job) => job.kind === "shell";
+export const ownsMonitorTool: Owns = (job) => job.kind === "monitor";
 
 export interface NewJob {
 	name?: string;

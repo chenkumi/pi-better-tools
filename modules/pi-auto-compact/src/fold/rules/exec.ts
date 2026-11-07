@@ -52,6 +52,10 @@ export const execRules: Record<string, FoldRule> = {
     args: call => [str(call.args.action), str(call.args.name) ?? str(call.args.jobId), str(call.args.schedule)].filter(Boolean).map(item => oneLine(redact(item!), 80)).join(' '),
     ok: (_call, result) => scheduleOutcome(result),
   },
+  schedule_monitor: {
+    args: call => [str(call.args.action), str(call.args.name) ?? str(call.args.jobId), str(call.args.schedule)].filter(Boolean).map(item => oneLine(redact(item!), 80)).join(' '),
+    ok: (_call, result) => scheduleOutcome(result),
+  },
   schedule_shell: {
     args: call => [str(call.args.action), str(call.args.name) ?? str(call.args.jobId), str(call.args.schedule), str(call.args.command) ? JSON.stringify(oneLine(redact(String(call.args.command)), 160)) : undefined].filter(Boolean).join(' '),
     ok: (_call, result) => scheduleOutcome(result),

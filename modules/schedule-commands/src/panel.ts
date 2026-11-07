@@ -43,7 +43,8 @@ export function schedulePanelJob(row: ScheduleRow, nowMs: number): PanelJob {
 		...(job.state.lastError ? [`Last error: ${job.state.lastError}`] : []),
 		...(job.kind === "shell" ? [`Shell: ${job.shell ?? defaultShell()}`, `Command: ${job.command}`] : []),
 		...(job.kind === "prompt" || job.kind === "agent" ? [`Prompt: ${job.prompt}`] : []),
-		"Manage it with schedule_prompt / schedule_shell. Nothing runs while Pi is closed.",
+		...(job.kind === "monitor" ? [`Monitor source: ${job.start.source.kind}`, `Start: ${JSON.stringify(job.start)}`] : []),
+		"Manage it with schedule_prompt / schedule_shell / schedule_monitor. Nothing runs while Pi is closed.",
 	];
 	return {
 		kind: "schedule", jobId: job.id, label: job.name, title: kindLabel(job), state, active: job.enabled || running,
