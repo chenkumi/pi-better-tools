@@ -4,6 +4,7 @@
  * session next loads the jobs. Project schedules are read only for a trusted project.
  */
 import { getAgentDir, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { registerPromptSection } from "../../../shared/src/prompt/index.js";
 import { isManagedForegroundChild } from "../../../shared/src/background/index.js";
 import { realClock } from "./clock.ts";
 import { ScheduleEngine, type EngineEvent } from "./engine.ts";
@@ -12,6 +13,7 @@ import { JobError, JobService } from "./jobs.ts";
 import { MARKER_TYPE, postMarker } from "./markers.ts";
 import { registerManageCommand } from "./manage.ts";
 import { renderMarker } from "./message-renderer.ts";
+import { renderScheduleRules, SCHEDULE_RULES_SECTION } from "./prompt-rules.ts";
 import { orderRows, publishScheduleBriefs, SchedulePanel } from "./panel.ts";
 import { registerScheduleSettings } from "./settings-ui.ts";
 import { DEFAULT_SETTINGS, loadSettings, type ScheduleSettings } from "./settings.ts";
@@ -54,6 +56,7 @@ export default function (pi: ExtensionAPI): void {
 
 	registerManageCommand(pi, { ...deps, rows: () => { const l = need(); return orderRows(l.store.read().store.jobs.filter(l.jobs.visible).map((job) => ({ job, running: l.engine.runningJobs.has(job.id) }))); } });
 	registerScheduleSettings(pi);
+	registerPromptSection(pi, SCHEDULE_RULES_SECTION, renderScheduleRules);
 
 	const teardown = () => {
 		if (!live) return;
