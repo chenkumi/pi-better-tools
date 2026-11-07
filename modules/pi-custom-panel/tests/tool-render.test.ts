@@ -103,11 +103,31 @@ test('partial and error states', () => {
   assert.deepEqual(colours.filter(entry => entry.endsWith(':●')), ['error:●', 'warning:●', 'success:●']);
 });
 
+test('live-conversation tools keep their own content inside the common frame: no box, status dot on the first call row, indent for the rest', () => {
+  const inner = { renderCall: () => ({ render: (w: number) => ['Subagent chain', 'second row'] }), renderResult: () => ({ render: (w: number) => ['live progress', 'more'] }) };
+  for (const own of ['subagent', 'subagent_message', 'fork']) {
+    const r = renderers(own, () => inner);
+    assert.equal(r.renderShell, 'self', own);
+    const call = r.renderCall({}, theme, ctx()).render(40).map(plain);
+    assert.deepEqual(call, ['', '●  Subagent chain', '   second row']);
+    const res = r.renderResult({}, { expanded: false, isPartial: false }, theme, ctx()).render(40).map(plain);
+    assert.deepEqual(res, ['   live progress', '   more']);
+    for (const row of [...call, ...res]) assert.ok(visibleWidth(row) <= 40);
+  }
+  // a tool whose own renderer has nothing for a part gets the common component for it
+  const bare = renderers('fork', () => ({}));
+  assert.equal(bare.renderCall({ task: 'x' }, theme, ctx()).render(40).map(plain)[1], '● fork x');
+  assert.deepEqual(bare.renderResult({ content: [{ type: 'text', text: 'ok' }] }, {}, theme, ctx()).render(60).map(plain).length, 1);
+  // empty own output stays empty (the tool decided to draw nothing)
+  assert.deepEqual(renderers('fork', () => ({ renderResult: () => ({ render: () => [] }) })).renderResult({}, {}, theme, ctx()).render(40), []);
+  // narrow widths never overflow
+  for (const width of [1, 3, 10]) for (const row of renderers('fork', () => inner).renderCall({}, theme, ctx()).render(width)) assert.ok(visibleWidth(row) <= width);
+});
+
 test('resolver: common look without a background box for every tool, but live-conversation tools keep their own renderer', () => {
   const common = renderers('grep');
   assert.equal(common.renderShell, 'self');
   assert.equal(typeof common.renderCall, 'function'); assert.equal(typeof common.renderResult, 'function');
-  for (const own of ['subagent', 'subagent_message', 'fork']) assert.equal(renderers(own), 'NEXT', own);
   assert.notEqual(renderers('fork_status'), 'NEXT');
   assert.equal(renderers('not_registered_yet').renderShell, 'self', 'tools that are not registered yet are drawn too');
 });

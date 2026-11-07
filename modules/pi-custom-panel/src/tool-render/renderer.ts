@@ -4,7 +4,7 @@ import type { ExtensionAPI, ToolRendererResolver, ToolRenderers } from "@earendi
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { callTitle, formatDuration, resultView } from "./summary.js";
 
-/** Tools whose own renderer shows something richer than text output (live conversations); they keep it. */
+/** Tools whose own renderer shows something richer than text output (live conversations); they keep their content, in the common frame. */
 export const OWN_RENDERER_TOOLS: ReadonlySet<string> = new Set(["subagent", "subagent_message", "fork"]);
 /** Expanded bodies stop here; the full result stays in the session and in the model context. */
 export const MAX_EXPANDED_LINES = 200;
@@ -79,13 +79,43 @@ function resultComponent(toolName: string, result: unknown, theme: Paint, contex
   };
 }
 
+type Inner = { render(width: number): string[]; invalidate?(): void } | undefined;
+
 /**
- * Builds the resolver. `own` tools (live conversation views) fall through to whatever the remaining resolvers and the tool itself
- * provide; every other tool, builtin, project or third-party, gets the common look.
+ * The common frame around a tool's own components: no background box, the status dot before the first call row, a three-column
+ * indent for everything else. The content (live progress, detach hint, markdown) is the tool's own and is not changed.
+ */
+function ownFrame(inner: Inner, kind: "call" | "result", theme: Paint, context: Context): Component | undefined {
+  if (!inner) return undefined;
+  return {
+    invalidate() { inner.invalidate?.(); },
+    render(width: number) { return clamp(this.rows(width), width); },
+    rows(width: number) {
+      const rows = inner.render(Math.max(1, width - visibleWidth(INDENT)));
+      if (!rows.length) return [];
+      if (kind === "result") return rows.map(row => INDENT + row);
+      const dot = theme.fg(context.isError ? "error" : context.isPartial ? "warning" : "success", "●");
+      return ["", ...rows.map((row, index) => (index === 0 ? `${dot}  ` : INDENT) + row)];
+    },
+  };
+}
+
+/**
+ * Builds the resolver. `own` tools (live conversation views) keep the content their own renderer (or the remaining resolvers) provide,
+ * inside the common frame; every other tool, builtin, project or third-party, gets the full common look.
  */
 export function createToolRenderer(own: ReadonlySet<string> = OWN_RENDERER_TOOLS): ToolRendererResolver {
   return (toolName, next): ToolRenderers | undefined => {
-    if (own.has(toolName)) return next();
+    if (own.has(toolName)) {
+      const inner = next();
+      return {
+        renderShell: "self",
+        renderCall: (args: unknown, theme: unknown, context: unknown) =>
+          ownFrame(inner?.renderCall?.(args as never, theme as never, context as never) as Inner, "call", theme as Paint, context as Context) ?? callComponent(toolName, args, theme as Paint, context as Context),
+        renderResult: (result: unknown, options: unknown, theme: unknown, context: unknown) =>
+          ownFrame(inner?.renderResult?.(result as never, options as never, theme as never, context as never) as Inner, "result", theme as Paint, context as Context) ?? resultComponent(toolName, result, theme as Paint, context as Context),
+      } as ToolRenderers;
+    }
     return {
       renderShell: "self",
       renderCall: (args: unknown, theme: unknown, context: unknown) => callComponent(toolName, args, theme as Paint, context as Context),

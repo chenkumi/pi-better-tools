@@ -21,7 +21,7 @@
 - 標題：shell 工具顯示 `$ 指令`，`(timeout 20s)` 超寬時整段保留、只縮短指令；其他工具取最具體的參數（`command`、`pattern`、`query`、`path`……），都沒有就取第一個字串參數。圓點：執行中 warning、成功 success、錯誤 error。
 - 摘要：`write` → `N bytes written`；`edit` → `N edits applied`（展開顯示 diff）；`read` → `N lines`／`N images`；shell → `N lines of output`／`no output`；錯誤 → 第一行；其餘為第一個非空行加 `(+N lines)`。展開 `write` 時顯示 `Created／Updated 路徑` 與位元組數，不顯示給模型看的機器標記。
 - 輸出一律先淨化（去除跳脫序列、控制字元、bidi 覆寫），每列不超過視窗寬度；展開最多 200 列，其餘註明剩餘列數（完整結果仍在 session 與模型 context）。
-- 例外：`subagent`、`subagent_message`、`fork` 的內容是即時對話，仍交還 `next()` 使用自己的 renderer（暫時保有背景方塊，待它們的版型另行設計）。要改這份清單見 `OWN_RENDERER_TOOLS`。
+- 例外：`subagent`、`subagent_message`、`fork` 的內容是即時對話，沿用它們自己的 renderer（或後面 resolver 提供的）內容，但放進同一個外框：無背景方塊、呼叫第一列前加狀態圓點、其餘各列縮排三格；該部分沒有 renderer 時才用通用元件。內容（即時進度、Alt+J 脫離提示、Markdown）不改。要改這份清單見 `OWN_RENDERER_TOOLS`。
 - 其他 extension 若也註冊 resolver 且載入順序在本模組之前，會先於本模組生效。
 
 ## 游標
