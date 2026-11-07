@@ -156,6 +156,33 @@ export class ScheduleEngine {
 		this.#clearTimers();
 	}
 
+	/**
+	 * Run a job once now, outside its schedule: `nextDue` and the missed-run bookkeeping stay as they are. The same
+	 * limits apply as for a scheduled run (one run per job at a time, the agent and shell concurrency limits).
+	 */
+	runNow(id: string): { ok: true } | { ok: false; error: string } {
+		const nowMs = this.#o.clock.now();
+		const kinds = [...this.#running.values()];
+		let planned: PlannedRun | undefined, refusal: string | undefined;
+		this.#o.store.update((jobs) => {
+			const index = jobs.findIndex((j) => j.id === id && this.#owned(j));
+			if (index < 0) { refusal = `jobId: "${id}" was not found`; return { result: undefined }; }
+			const job = jobs[index];
+			if (this.#running.has(id)) refusal = "the previous run is still running";
+			else if (job.kind === "agent" && kinds.filter((k) => k === "agent").length >= this.#settings.maxConcurrentAgents) refusal = "too many agent jobs are running";
+			else if (job.kind === "shell" && kinds.filter((k) => k === "shell").length >= this.#settings.maxConcurrentCommands) refusal = "too many shell jobs are running";
+			if (refusal) return { result: undefined };
+			const { lastError: _cleared, ...state } = job.state;
+			const next = { ...job, state: { ...state, lastStatus: "running", lastRun: iso(nowMs) } } as Job;
+			planned = { job: next, infos: [{ scheduledFor: iso(nowMs) }] };
+			return { jobs: jobs.map((j, i) => (i === index ? next : j)), result: undefined };
+		});
+		if (refusal || !planned) return { ok: false, error: refusal ?? "the job could not be started" };
+		this.#launch(planned, this.#generation);
+		this.#o.onChange?.();
+		return { ok: true };
+	}
+
 	/** Re-read the store and re-arm; call after jobs were added, changed or removed. */
 	reload(): void {
 		this.#arm(this.#generation);

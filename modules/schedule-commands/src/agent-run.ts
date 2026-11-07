@@ -68,12 +68,12 @@ export function runAgentJob(d: AgentDeps, job: AgentJob, info: RunInfo): RunHand
 		const shown = text.length > SHOWN_CHARS ? `${text.slice(0, SHOWN_CHARS)}…` : text;
 		const note = cleanup ? ` (cleanup not confirmed: ${cleanup})` : "";
 		if (error === undefined) {
-			postMarker(d.pi, { ...base, phase: "done", output: shown },
+			postMarker(d.pi, { ...base, phase: "done", output: shown, ...(job.notify ? { notify: true } : {}) },
 				job.notify ? { content: `Scheduled agent job "${job.name}" finished:\n${text || "(no text)"}${note}`, wake: true } : {});
 			return { status: "success" };
 		}
 		const failed = `${error}${note}`;
-		postMarker(d.pi, { ...base, phase: "error", error: failed, output: shown },
+		postMarker(d.pi, { ...base, phase: "error", error: failed, output: shown, ...(job.notify ? { notify: true } : {}) },
 			job.notify ? { content: `Scheduled agent job "${job.name}" failed: ${failed}`, wake: true } : {});
 		return { status: "error", error: failed };
 	})();

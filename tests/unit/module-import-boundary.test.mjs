@@ -11,6 +11,7 @@ const ALLOWED = new Set([
   'monitor -> modules/web-tools/src/fetch/network',
   'pty-terminal -> setup/commands',
   'pty-terminal -> setup/core',
+  'schedule-commands -> modules/shell-tools/src/monitor-exec',
   'schedule-prompt -> modules/shell-tools/src/monitor-exec',
   'schedule-prompt -> modules/shell-tools/src/timeout-ms',
   'subagents -> modules/shell-tools/src/background-guidance',

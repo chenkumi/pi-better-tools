@@ -6,7 +6,7 @@ import type { Job } from "./types.ts";
 
 export function runPromptJob(pi: Pick<ExtensionAPI, "sendMessage" | "sendUserMessage">, job: Extract<Job, { kind: "prompt" }>, info: RunInfo): RunHandle {
 	try {
-		postMarker(pi, { jobId: job.id, jobName: job.name, kind: "prompt", phase: "start", scheduledFor: info.scheduledFor, ...(info.missed !== undefined ? { catchUp: info.missed } : {}) });
+		postMarker(pi, { jobId: job.id, jobName: job.name, kind: "prompt", phase: "start", prompt: job.prompt, scheduledFor: info.scheduledFor, ...(info.missed !== undefined ? { catchUp: info.missed } : {}) });
 		pi.sendUserMessage(job.prompt, { deliverAs: "followUp" });
 		return { started: Promise.resolve(true), done: Promise.resolve({ status: "success" }) };
 	} catch (error) {

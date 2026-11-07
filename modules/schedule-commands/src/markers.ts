@@ -14,6 +14,10 @@ export interface MarkerDetails {
 	shell?: string;
 	cwd?: string;
 	model?: string;
+	/** Prompt jobs: the text delivered to the conversation, so the scheduled-turn check can recognise that turn. */
+	prompt?: string;
+	/** Agent jobs: the result wakes the main agent. */
+	notify?: boolean;
 	exitCode?: number;
 	output?: string;
 	error?: string;
