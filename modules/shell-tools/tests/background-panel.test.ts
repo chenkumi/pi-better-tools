@@ -251,7 +251,7 @@ test('PTY sessions are a panel kind: PT heading, PTY count only when present, ow
   const hosts = hostPair(); acquireBackgroundPanel(hosts.create());
   const notices: string[] = [];
   await hosts.commands.get('background-jobs').handler('bogus', { ui: { notify: (text: string) => notices.push(text) }, mode: 'tui', hasUI: true });
-  assert.match(notices[0], /monitor\|pty\|all/);
+  assert.match(notices[0], /monitor\|pty\|schedule\|all/);
   const ui = view(), panel = new BackgroundPanel(), token = panel.attach('pty', ui.ctx)!;
   panel.update('pty', token, snapshot([pty]));
   assert.match(plain(ui.component().render(100).join(String.fromCharCode(10))), /PT pty/);

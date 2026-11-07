@@ -4,7 +4,7 @@ export interface MonitorScope { sessionId: string; cwd: string }
 export type JobKind = 'shell_job' | 'subagent_job' | 'fork_job';
 export interface ReadonlyJobLease { readonly generation: number; snapshot(jobId: string): Record<string, unknown> }
 /** Kinds that appear in the live background-jobs reminder. `pty_session` is brief-only: Monitor has no PTY source. */
-export type BriefKind = JobKind | 'pty_session';
+export type BriefKind = JobKind | 'pty_session' | 'schedule_job';
 /** Id and status only: no command, task text, output, usage or paths. */
 export interface ActiveJobBrief { kind: BriefKind; jobId: string; status: string }
 interface Provider { kind: JobKind; scope: MonitorScope; generation: number; read: (id: string) => Record<string, unknown>; valid: () => boolean; revoked: boolean; active?: () => number; briefs?: () => ActiveJobBrief[] }
@@ -88,7 +88,7 @@ interface BriefReader { read: () => Array<{ jobId: string; status: string }>; va
 const briefKey = Symbol.for('pi-better-tools.monitor.job-briefs.v1');
 const briefReaders = () => globalRegistry<BriefReader>(briefKey);
 /** Publishes this owner's unfinished jobs of a kind that Monitor cannot observe. Returns the revoke handle. */
-export function publishJobBriefs(kind: 'pty_session', scope: MonitorScope, read: BriefReader['read'], valid: BriefReader['valid']): () => void {
+export function publishJobBriefs(kind: 'pty_session' | 'schedule_job', scope: MonitorScope, read: BriefReader['read'], valid: BriefReader['valid']): () => void {
   const id = identity(kind, scope), readers = briefReaders();
   const old = readers.get(id); if (old) old.revoked = true;
   if (!old && readers.size >= MAX_PUBLISHERS) throw new Error('Job brief capacity exceeded');
@@ -110,7 +110,9 @@ export function activeJobBriefs(scope: MonitorScope): { briefs: ActiveJobBrief[]
     if (!provider || provider.revoked || !provider.briefs) continue;
     take(kind, () => provider.valid() ? provider.briefs!() : []);
   }
-  const pty = briefReaders().get(identity('pty_session', scope));
-  if (pty && !pty.revoked) take('pty_session', () => pty.valid() ? pty.read() : []);
+  for (const kind of ['pty_session', 'schedule_job'] as const) {
+    const reader = briefReaders().get(identity(kind, scope));
+    if (reader && !reader.revoked) take(kind, () => reader.valid() ? reader.read() : []);
+  }
   return { briefs, partial };
 }

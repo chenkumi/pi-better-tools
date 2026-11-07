@@ -11,7 +11,7 @@ const MAX_ROWS = 16;
 const SAFE_ID = /^[A-Za-z0-9_.:-]{1,128}$/;
 const SAFE_STATUS = /^[a-z_]{1,32}$/;
 const PTY_HINT = "PTY sessions are interactive programs that may be waiting for input: check them with pty_list or pty_read, and do not spawn a duplicate.";
-const LABEL: Record<ActiveJobBrief["kind"], string> = { shell_job: "Shell Job", subagent_job: "Subagent Job", fork_job: "Fork Job", pty_session: "PTY Session" };
+const LABEL: Record<ActiveJobBrief["kind"], string> = { shell_job: "Shell Job", subagent_job: "Subagent Job", fork_job: "Fork Job", pty_session: "PTY Session", schedule_job: "Schedule Job" };
 
 export function renderBackgroundJobs(briefs: readonly ActiveJobBrief[], partial: boolean): string {
   const rows: string[] = [];

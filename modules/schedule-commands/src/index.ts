@@ -11,6 +11,7 @@ import { createExecutor } from "./executor.ts";
 import { JobError, JobService } from "./jobs.ts";
 import { MARKER_TYPE, postMarker } from "./markers.ts";
 import { renderMarker } from "./message-renderer.ts";
+import { publishScheduleBriefs, SchedulePanel } from "./panel.ts";
 import { DEFAULT_SETTINGS, loadSettings, type ScheduleSettings } from "./settings.ts";
 import { ScheduleStore } from "./storage.ts";
 import { createPromptTool, createShellTool, type ToolDeps } from "./tool.ts";
@@ -31,6 +32,8 @@ export default function (pi: ExtensionAPI): void {
 	let settings: ScheduleSettings = DEFAULT_SETTINGS;
 	let current: ExtensionContext | undefined;
 	let legacyNoticeShown = false;
+	let revokeBriefs: (() => void) | undefined;
+	const panel = new SchedulePanel(realClock);
 
 	pi.registerMessageRenderer(MARKER_TYPE, renderMarker);
 
@@ -49,6 +52,9 @@ export default function (pi: ExtensionAPI): void {
 
 	const teardown = () => {
 		if (!live) return;
+		panel.clear();
+		revokeBriefs?.();
+		revokeBriefs = undefined;
 		live.engine.stop();
 		live.executor.abortAll();
 		live = undefined;
@@ -73,9 +79,13 @@ export default function (pi: ExtensionAPI): void {
 			if (event.type === "skipped" && event.job) postMarker(pi, { jobId: event.job.id, jobName: event.job.name, kind: event.job.kind, phase: "skipped", error: event.message });
 			else if ((event.type === "error" || event.type === "expired") && ctx.hasUI) ctx.ui.notify(event.message, event.type === "error" ? "warning" : "info");
 		};
-		const engine = new ScheduleEngine({ store, clock: realClock, sessionId: ctx.sessionManager.getSessionId(), settings, execute: executor.execute, onEvent });
-		const jobs = new JobService({ store, clock: realClock, sessionId: ctx.sessionManager.getSessionId(), scope: () => settings.defaultJobScope, changed: () => engine.reload() });
+		const engine = new ScheduleEngine({ store, clock: realClock, sessionId: ctx.sessionManager.getSessionId(), settings, execute: executor.execute, onEvent, onChange: () => panel.refresh() });
+		const jobs = new JobService({ store, clock: realClock, sessionId: ctx.sessionManager.getSessionId(), scope: () => settings.defaultJobScope, changed: () => { engine.reload(); panel.refresh(); } });
 		live = { store, jobs, engine, executor };
+		if (settings.panelVisible) {
+			panel.bind(ctx, () => store.read().store.jobs.filter(jobs.visible).map((job) => ({ job, running: engine.runningJobs.has(job.id) })));
+			try { revokeBriefs = publishScheduleBriefs(() => engine.runningJobs, ctx); } catch { /* briefs are a reminder aid only */ }
+		}
 		try { await engine.start(); }
 		catch (error) {
 			teardown();

@@ -4,7 +4,7 @@ import { TranscriptView, type TranscriptSource } from "./live-transcript.js";
 import { stripVTControlCharacters } from "node:util";
 import { frame, type PanelStyle } from "../bottom-panel/host.js";
 
-export const PANEL_KINDS = ["subagents", "shell", "fork", "monitor", "pty"] as const;
+export const PANEL_KINDS = ["subagents", "shell", "fork", "monitor", "pty", "schedule"] as const;
 export type PanelKind = typeof PANEL_KINDS[number];
 /** Hover target of the "More…" label; job rows use their {@link jobKey}. */
 export const MORE_HOVER = "more";
@@ -62,7 +62,7 @@ export function orderedJobs(jobs: readonly PanelJob[]): PanelJob[] {
   const rank = (j: PanelJob) => !j.active ? 4 : j.state === "cancelling" ? 0 : j.state === "running" ? 1 : j.state === "finalizing" ? 2 : 3;
   return [...jobs].sort((a, b) => rank(a) - rank(b) || (a.active ? (a.startedAt ?? 0) - (b.startedAt ?? 0) : (b.startedAt ?? 0) - (a.startedAt ?? 0)) || jobKey(a).localeCompare(jobKey(b)));
 }
-const HEADING_TAG: Record<PanelKind, string> = { subagents: "SA", shell: "SH", fork: "FK", monitor: "MN", pty: "PT" };
+const HEADING_TAG: Record<PanelKind, string> = { subagents: "SA", shell: "SH", fork: "FK", monitor: "MN", pty: "PT", schedule: "SC" };
 export function jobHeading(job: PanelJob): string {
   const icon = job.state === "queued" ? "◷" : job.state === "finalizing" || job.state === "cancelling" ? "◐" : job.active ? "●" : job.state === "completed" ? "✓" : "○";
   return `${icon} ${HEADING_TAG[job.kind]} ${safeJobText(job.label, 64)}${job.title ? ` · ${safeJobText(job.title, 256)}` : ""}`;
@@ -88,7 +88,7 @@ export const PANEL_HEAD_ROWS = 2;
 export const PANEL_TAIL_ROWS = 2;
 /** The label that opens the list; the only click target besides a job row. */
 export const OPEN_LABEL = "[Open]";
-const KIND_COUNTS: ReadonlyArray<readonly [PanelKind, string, string]> = [["shell", "\u2318", "Shell"], ["subagents", "\u25b7", "Subagents"], ["fork", "\u22d4", "Fork"], ["monitor", "\u2316", "Monitor"], ["pty", "\u2338", "PTY"]];
+const KIND_COUNTS: ReadonlyArray<readonly [PanelKind, string, string]> = [["shell", "\u2318", "Shell"], ["subagents", "\u25b7", "Subagents"], ["fork", "\u22d4", "Fork"], ["monitor", "\u2316", "Monitor"], ["pty", "\u2338", "PTY"], ["schedule", "\u23f1", "Schedule"]];
 /**
  * The passive panel (TUI_DESIGN.md "背景任務面板"): title rule, one counts row, one row per job (at most five), an Open row and a
  * dashed separator. No background box. `hover` is a {@link jobKey} or {@link MORE_HOVER}; it only recolours, never changes the layout.
@@ -101,7 +101,7 @@ export function renderJobs(jobs: readonly PanelJob[], theme: Theme, width: numbe
   const inner = Math.max(0, width - 1); // frame() adds the one-column gutter
   const count = (kind: PanelKind) => active.filter(j => j.kind === kind).length;
   const highlight = (line: string) => theme.bg("selectedBg", line);
-  const counts = KIND_COUNTS.filter(([kind]) => kind !== "pty" || count("pty") > 0)
+  const counts = KIND_COUNTS.filter(([kind]) => (kind !== "pty" && kind !== "schedule") || count(kind) > 0)
     .map(([kind, icon, name]) => `${theme.fg("accent", icon)} ${theme.fg("dim", `${name}: ${count(kind)}`)}`).join(theme.fg("dim", " \u00b7 "));
   const body = [truncateToWidth(counts, inner)];
   for (const job of active.slice(0, limit)) {
