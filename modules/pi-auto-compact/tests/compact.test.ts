@@ -431,3 +431,16 @@ test('secrets in tool output and the contents of files do not reach the summary'
   assert.ok(!summary.includes('SECRET_BODY') && !summary.includes('sk-live-abcdef123456') && !summary.includes('hunter2'));
   assert.ok(summary.includes('[read] a.ts → lines 1–1 of 1'));
 });
+
+test('a saved checkpoint note stays in L3 as a segment marker with its path and title; other notes and failed saves do not', () => {
+  const path = 'checkpoints/SID/CHECKPOINT-20261106T021536800Z.md';
+  const save = (id: string, type: string, content: string, isError = false) => [
+    say('', [{ id, name: 'note', args: { type, content } }]),
+    result(id, 'note', isError ? 'NOTE_EMPTY: x' : `Saved note: ${path}`, { isError, details: isError ? undefined : { relativePath: type === 'checkpoint' ? path : `reports/SID/REPORT-1.md`, sha256: 'h', bytes: 3 } }),
+  ];
+  const built = items([user('go'), ...save('c1', 'checkpoint', '# 進度快照 1\n\n## 任務\nx'), ...save('c2', 'report', '# Report'), ...save('c3', 'checkpoint', '# Fail', true)]);
+  const rendered = built.map(item => renderL3(item));
+  assert.deepEqual(rendered.filter(Boolean), ['U: go', `checkpoint: ${path} — 進度快照 1`]);
+  const withText = items([say('saving now', [{ id: 'c4', name: 'note', args: { type: 'checkpoint', content: 'plain first line' } }]), result('c4', 'note', 'ok', { details: { relativePath: path } })]);
+  assert.equal(renderL3(withText[0]!), `A: saving now\ncheckpoint: ${path} — plain first line`);
+});

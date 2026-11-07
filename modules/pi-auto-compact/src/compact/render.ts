@@ -2,6 +2,7 @@ import { DEFAULT_CONFIG } from '../config.ts';
 import { type EntryRef, formatRef } from '../fold/ref.ts';
 import { foldToolUse, foldUnpairedCall, foldUnpairedResult } from '../fold/registry.ts';
 import { asRecord, clip, num, oneLine, records, redact, str } from '../fold/util.ts';
+import { checkpointMark, checkpointPath, checkpointTitle, isCheckpointNoteCall } from '../checkpoint/note-mark.ts';
 import type { Item } from './items.ts';
 
 /**
@@ -61,11 +62,24 @@ export function noteText(text: string): string {
   return text;
 }
 
-/** Conversation only: what was said, no tool calls. Undefined when the item has nothing to say (a tool-call-only turn). */
+/** Checkpoint notes saved in this turn: the one tool call that stays in the conversation-only layers, as a segment marker with the path to read. */
+function checkpointMarks(item: Item): string[] {
+  const marks: string[] = [];
+  for (const { call, result } of item.calls) {
+    const path = isCheckpointNoteCall(call.name, call.args) && result && !result.isError ? checkpointPath(result.details) : undefined;
+    if (path) marks.push(`${refText(result?.ref)}${checkpointMark(path, checkpointTitle(call.args))}`);
+  }
+  return marks;
+}
+
+/** Conversation only: what was said, plus checkpoint notes, no other tool calls. Undefined when the item has nothing to say (a tool-call-only turn). */
 export function renderL3(item: Item, userMax = DEFAULT_USER_MAX_L3): string | undefined {
   switch (item.kind) {
     case 'user': return item.text.trim() ? `${refText(item.ref)}U: ${userSay(item.text, userMax)}` : undefined;
-    case 'assistant': return item.text.trim() ? `${refText(item.ref)}A: ${say(item.text, L3_TEXT_MAX)}` : undefined;
+    case 'assistant': {
+      const lines = [...(item.text.trim() ? [`${refText(item.ref)}A: ${say(item.text, L3_TEXT_MAX)}`] : []), ...checkpointMarks(item)];
+      return lines.length ? lines.join('\n') : undefined;
+    }
     case 'shell': return shellLine(item);
     case 'note': return item.text.trim() ? noteLine(item) : undefined;
     default: return undefined;

@@ -228,3 +228,39 @@ test('window and grep tools resolve the leaf and sessions from the host context 
     assert.equal(readable.length, 1);
   } finally { f.done(); }
 });
+
+test('window keeps a saved checkpoint note as a marker line (path and title) and still hides other tool calls', async () => {
+  const f = fixture();
+  try {
+    const path = 'checkpoints/SESS/CHECKPOINT-20261106T021536800Z.md';
+    const lines = [
+      JSON.stringify({ type: 'session', id: 'SESS' }),
+      entry('n0000001', null, { role: 'user', content: text('long task') }),
+      entry('n0000002', 'n0000001', { role: 'assistant', content: [{ type: 'toolCall', id: 'c1', name: 'note', arguments: { type: 'checkpoint', content: '# 進度快照 1\n\nbody' } }] }),
+      entry('n0000003', 'n0000002', { role: 'toolResult', toolCallId: 'c1', toolName: 'note', isError: false, content: text(`Saved note: ${path}`), details: { relativePath: path } }),
+      entry('n0000004', 'n0000003', { role: 'assistant', content: [{ type: 'toolCall', id: 'c2', name: 'note', arguments: { type: 'report', content: '# R' } }] }),
+      entry('n0000005', 'n0000004', { role: 'toolResult', toolCallId: 'c2', toolName: 'note', isError: false, content: text('Saved note: reports/SESS/REPORT-1.md'), details: { relativePath: 'reports/SESS/REPORT-1.md' } }),
+    ];
+    writeFileSync(f.file, `${lines.join(String.fromCharCode(10))}${String.fromCharCode(10)}`);
+    const out = (await readWindow(f.readable, { from: 2, to: 6 })).text;
+    assert.ok(out.includes(`⟦L4:n0000003⟧ checkpoint: ${path} — 進度快照 1`), out);
+    assert.ok(!out.includes('REPORT-1') && !out.includes('body'), out);
+  } finally { f.done(); }
+});
+
+test('window shows a saved checkpoint whose call lies before the window start', async () => {
+  const f = fixture();
+  try {
+    const path = 'checkpoints/SESS/CHECKPOINT-20261106T021536800Z.md';
+    const lines = [
+      JSON.stringify({ type: 'session', id: 'SESS' }),
+      entry('n0000001', null, { role: 'user', content: text('long task') }),
+      entry('n0000002', 'n0000001', { role: 'assistant', content: [{ type: 'toolCall', id: 'c1', name: 'note', arguments: { type: 'checkpoint', content: '# Snapshot A body' } }] }),
+      entry('n0000003', 'n0000002', { role: 'toolResult', toolCallId: 'c1', toolName: 'note', isError: false, content: text('Saved note: ' + path), details: { relativePath: path } }),
+    ];
+    writeFileSync(f.file, lines.join(String.fromCharCode(10)) + String.fromCharCode(10));
+    const out = (await readWindow(f.readable, { from: 4, to: 4 })).text;
+    assert.ok(out.includes('checkpoint: ' + path + ' — Snapshot A'), out);
+    assert.ok(!out.includes('long task'), 'lines before the window are only used to find the call');
+  } finally { f.done(); }
+});

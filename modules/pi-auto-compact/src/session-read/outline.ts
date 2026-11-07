@@ -1,5 +1,6 @@
 import { formatRef } from '../fold/ref.ts';
 import { ANCHOR_TOOL, isCheckpointType } from '../checkpoint/messages.ts';
+import { checkpointMark, checkpointPath, checkpointTitle, isCheckpointNoteCall } from '../checkpoint/note-mark.ts';
 import { DEFAULT_USER_MAX_L3, L3_TEXT_MAX, userSay } from '../compact/render.ts';
 import { asRecord, clip, list, num, oneLine, redact, str } from '../fold/util.ts';
 
@@ -44,6 +45,14 @@ const branchMark = (item: LineEntry, onBranch: ReadonlySet<string> | undefined) 
  */
 export function projectOutline(items: readonly LineEntry[], firstLine: number, lastLine: number, onBranch?: ReadonlySet<string>): OutlineGroup[] {
   const groups: OutlineGroup[] = [];
+  // Titles of checkpoint note calls, by call id: the saved path only arrives with the later tool result.
+  const titles = new Map<string, string>();
+  for (const item of items) {
+    if (item.line > lastLine) break;
+    const message = asRecord(item.entry?.message);
+    if (message?.role !== 'assistant') continue;
+    for (const block of list(message.content)) { const b = asRecord(block); if (b?.type === 'toolCall' && isCheckpointNoteCall(b.name, b.arguments)) titles.set(str(b.id) ?? '', checkpointTitle(b.arguments)); }
+  }
   for (const item of items) {
     if (item.line > lastLine) break;
     if (item.line < firstLine) continue;
@@ -57,6 +66,9 @@ export function projectOutline(items: readonly LineEntry[], firstLine: number, l
         const reports = list(message.content).map(asRecord).filter((b): b is Record<string, unknown> => b?.type === 'toolCall' && b.name === ANCHOR_TOOL).map(b => str(asRecord(b.arguments)?.summary)).filter((v): v is string => !!v);
         const text = [contentText(message.content).text, ...reports].filter(Boolean).join('\n');
         if (text.trim()) groups.push({ line: item.line, lines: [head('assistant', text)] });
+      } else if (role === 'toolResult' && message.isError !== true && titles.has(str(message.toolCallId) ?? '')) {
+        const path = checkpointPath(message.details);
+        if (path) groups.push({ line: item.line, lines: [`${refOf(item)} ${mark}${checkpointMark(path, titles.get(str(message.toolCallId) ?? "") ?? '')}`] });
       } else if (role === 'bashExecution') {
         groups.push({ line: item.line, lines: [head('user-shell', `${JSON.stringify(oneLine(redact(str(message.command) ?? ''), 120))} → ${message.cancelled === true ? 'cancelled' : `exit ${num(message.exitCode) ?? '?'}`}`)] });
       }
