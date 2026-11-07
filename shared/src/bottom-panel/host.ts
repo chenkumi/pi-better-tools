@@ -112,14 +112,14 @@ export function openBottomPanel<T>(ui: PanelUi, options: BottomPanelOptions<T>):
 }
 
 /** Title rule on top, one-column gutter, dashed separator below (the editor's own border follows). */
-export function frame(style: PanelStyle, title: string, body: readonly string[], width: number): string[] {
+export function frame(style: PanelStyle, title: string, body: readonly string[], width: number, clip = true): string[] {
   const w = Math.max(0, width);
   if (!body.length) return []; // a body that has closed (or has nothing to show) draws no empty frame
   const head = `── ${title} `;
   const top = style.fg('border', head.slice(0, Math.max(0, w - 1))) + style.fg('border', '─'.repeat(Math.max(0, w - visibleWidth(head))));
   return [
     truncateToWidth(top, w),
-    ...body.map(row => truncateToWidth(` ${row}`, w, '…', false)),
+    ...body.map(row => clip ? truncateToWidth(` ${row}`, w, '…', false) : ` ${row}`),
     style.fg('dim', '┄'.repeat(w)),
   ];
 }

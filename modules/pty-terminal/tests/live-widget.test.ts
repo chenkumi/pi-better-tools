@@ -68,7 +68,7 @@ test("the bottom panel shows running sessions, follows lifecycle changes and cle
 	widget.bind(ctx, () => manager.snapshot(ctx.cwd));
 	assert.equal(render(), "", "nothing to show without a session");
 	const { sessionId } = manager.spawn(process.execPath, ["-e", KEEP_ALIVE], {}, process.cwd());
-	assert.match(render(), /Jobs · 1 active/); assert.match(render(), /PTY 1/); assert.match(render(), /PT pty · local/);
+	assert.match(render(), /Jobs Panel/); assert.match(render(), /PTY: 1/); assert.match(render(), /PT pty · local/);
 	await manager.kill(sessionId);
 	assert.equal(render(), "", "a released session leaves the panel");
 	manager.spawn(process.execPath, ["-e", KEEP_ALIVE], {}, process.cwd());

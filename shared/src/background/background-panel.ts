@@ -1,7 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { MouseRegion, visibleWidth, type Component } from "@earendil-works/pi-tui";
 import { openBottomPanel } from "../bottom-panel/host.js";
-import { JobsOverlay, MORE_HOVER, PANEL_KINDS, displayedJobs, jobKey, renderJobs, safeJobText, type PanelJob, type PanelKind } from "./job-view.js";
+import { JobsOverlay, MORE_HOVER, OPEN_LABEL, PANEL_HEAD_ROWS, PANEL_KINDS, PANEL_TAIL_ROWS, displayedJobs, jobKey, renderJobs, safeJobText, type PanelJob, type PanelKind } from "./job-view.js";
 
 export { type PanelKind } from "./job-view.js";
 export const BACKGROUND_WIDGET_KEY = "pi-better-tools-background-jobs";
@@ -96,7 +96,7 @@ export class BackgroundPanel {
       // The above-editor panel owns its summary, not the host footer or other status keys.
       ctx.ui.setStatus(BACKGROUND_STATUS_KEY, undefined);
       ctx.ui.setWidget(BACKGROUND_WIDGET_KEY, (tui, theme) => {
-        let disposed = false, renderedWidth = -1, moreRow = -1, moreEnd = -1, jobRows: string[] = [];
+        let disposed = false, renderedWidth = -1, moreRow = -1, moreStart = -1, moreEnd = -1, jobRows: string[] = [];
         // Screen rectangle of this component, learned from the mouse events it receives.
         let rect: { x: number; y: number; width: number; height: number } | undefined;
         const clearHover = () => {
@@ -127,22 +127,24 @@ export class BackgroundPanel {
             const jobs = this.jobs();
             const rows = tui.terminal?.rows ?? 40;
             const lines = renderJobs(jobs, theme, width, rows, this.hover);
-            moreRow = lines.length - 1;
-            // Each displayed job owns one row between the heading and More; anything that does not line up is simply not clickable.
+            moreRow = lines.length - PANEL_TAIL_ROWS;
+            // Each displayed job owns one row between the counts row and Open; anything that does not line up is simply not clickable.
             const shown = displayedJobs(jobs, rows);
-            if (lines.length === shown.length + 2) jobRows = shown.map(jobKey);
-            moreEnd = width >= 3 ? 1 + visibleWidth("More…") : -1;
-            // Only the complete More label is a mouse target, not clipped text or row contents.
-            if (moreEnd > width - (width >= 3 ? 1 : 0) || !safeJobText(lines[moreRow] ?? "").startsWith(" More…")) moreRow = -1;
+            if (lines.length === shown.length + PANEL_HEAD_ROWS + PANEL_TAIL_ROWS) jobRows = shown.map(jobKey);
+            // Only the complete Open label is a mouse target, not clipped text or row contents.
+            const plain = safeJobText(lines[moreRow] ?? ""), at = plain.indexOf(OPEN_LABEL);
+            moreStart = at < 0 ? -1 : visibleWidth(plain.slice(0, at));
+            moreEnd = moreStart < 0 ? -1 : moreStart + visibleWidth(OPEN_LABEL);
+            if (moreStart < 0 || moreEnd > width) moreRow = -1;
             return lines;
           },
         };
         const mouse = new MouseRegion(child, event => {
           if (disposed || revision !== this.revision || event.width !== renderedWidth) return;
           rect = { x: event.screenX - event.x, y: event.screenY - event.y, width: event.width, height: event.height };
-          // Only the complete More label is a mouse target for the list; a job's row opens that job directly.
-          const more = moreRow >= 0 && event.y === moreRow && event.x >= 1 && event.x < moreEnd;
-          const key = more ? undefined : jobRows[event.y - 1];
+          // Only the complete Open label is a mouse target for the list; a job's row opens that job directly.
+          const more = moreRow >= 0 && event.y === moreRow && event.x >= moreStart && event.x < moreEnd;
+          const key = more ? undefined : jobRows[event.y - PANEL_HEAD_ROWS];
           if (event.type === "move") {
             const target = more ? MORE_HOVER : key;
             if (target === this.hover) return;

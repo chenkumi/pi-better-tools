@@ -23,11 +23,11 @@ test('real registry events show both shells, retain cancel requests, remove one 
     const a = jobs.submit(view.ctx, 'bash', 'one', undefined, async signal => { entered.resolve(); await first.promise; if (signal.aborted) throw new Error('cancelled'); return result; }, 'build alpha');
     const b = jobs.submit(view.ctx, 'powershell', 'two', undefined, async () => { await second.promise; return result; }, 'build beta');
     assert.deepEqual(Object.keys(a).sort(), ['jobId', 'liveLogPath', 'status']);
-    assert.match(view.text(), /Jobs · 2 active.*Shell 2/); assert.equal(view.text().split('\n').length, 4, 'title, one row per job, More'); assert.match(view.text(), /build alpha/); assert.match(view.text(), /build beta +N\/A/);
-    assert.match(view.text(), /2 active/); assert.match(view.text(), /bash.*build alpha/); assert.match(view.text(), /powershell.*build beta/);
+    assert.match(view.text(), /Shell: 2/); assert.equal(view.text().split('\n').length, 6, 'rule, counts, one row per job, Open, separator'); assert.match(view.text(), /build alpha/); assert.match(view.text(), /build beta +N\/A/);
+    assert.match(view.text(), /Shell: 2/); assert.match(view.text(), /bash.*build alpha/); assert.match(view.text(), /powershell.*build beta/);
     await entered.promise;
-    jobs.cancel(view.ctx, a.jobId); assert.match(view.text(), /build alpha +cancelling \| N\/A/); assert.match(view.text(), /2 active/);
-    first.resolve(); await endedOne.promise; assert.match(view.text(), /1 active/); assert.doesNotMatch(view.text(), /build alpha/); assert.match(view.text(), /build beta/);
+    jobs.cancel(view.ctx, a.jobId); assert.match(view.text(), /build alpha +cancelling \| N\/A/); assert.match(view.text(), /Shell: 2/);
+    first.resolve(); await endedOne.promise; assert.match(view.text(), /Shell: 1/); assert.doesNotMatch(view.text(), /build alpha/); assert.match(view.text(), /build beta/);
     second.resolve(); await endedTwo.promise; assert.equal(view.widgets.has(SHELL_WIDGET_KEY), false); assert.equal(view.widgets.has('unrelated-widget'), true);
   } finally { first.resolve(); second.resolve(); await jobs.shutdown(); }
 });
@@ -48,20 +48,17 @@ test('throwing UI cannot fail accepted work or suppress its completion', async (
 test('UI binder is TUI-only, deduplicates snapshots and drops stale owners', () => {
   for (const mode of ['rpc', 'json', 'print']) { const view = ui(mode), widget = new ShellJobsWidget(); widget.bind(view.ctx, () => []); widget.refresh(); widget.clear(); assert.equal(view.calls.length, 0); }
   const view = ui(), widget = new ShellJobsWidget(view.api); const rows: any[] = [{ jobId: 'abc', tool: 'bash', status: 'running', command: 'x' }];
-  widget.bind(view.ctx, () => rows); assert.equal(view.widgets.has(SHELL_WIDGET_KEY), true); assert.match(view.text(), /Shell 1/); assert.equal(view.calls.at(-1).options.placement, 'aboveEditor');
+  widget.bind(view.ctx, () => rows); assert.equal(view.widgets.has(SHELL_WIDGET_KEY), true); assert.match(view.text(), /Shell: 1/); assert.equal(view.calls.at(-1).options.placement, 'aboveEditor');
   const count = view.calls.length; widget.refresh(); widget.refresh(); assert.equal(view.calls.length, count, 'no polling/redraw on identical state');
   view.owner('new-owner'); widget.refresh(); assert.equal(view.widgets.has(SHELL_WIDGET_KEY), false); widget.clear();
 });
-test('bounded Unicode layout, controls, background continuity, resize and dynamic theme', () => {
+test('bounded Unicode layout, controls and resize', () => {
   const rows: any[] = Array.from({ length: 20 }, (_, i) => ({ jobId: `same-prefix-${i}`, tool: 'powershell', status: 'running', command: '\x1b]0;x\x07\x1b[2J\u202e界😀\n\t' + 'long'.repeat(500) }));
   const before = JSON.stringify(rows), component = renderShellWidget(rows, theme);
   for (const width of [0, 1, 2, 3, 6, 24, 80]) for (const line of component.render(width)) {
-    assert.equal(visibleWidth(line), width); assert.doesNotMatch(plain(line), /[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/);
-    for (const reset of line.matchAll(/\x1b\[(?:0)?m/g)) assert.ok(line.startsWith(theme.getBgAnsi(), reset.index! + reset[0].length));
+    assert.ok(visibleWidth(line) <= width); assert.doesNotMatch(plain(line), /[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/);
   }
-  assert.equal(component.render(80).length, 7); assert.match(plain(component.render(80).join('\n')), /More… \(\+15 active\)/); assert.equal(JSON.stringify(rows), before);
-  let ansi = '\x1b[48;5;58m'; const dynamic = { ...theme, getBgAnsi: () => ansi, bg: (_: string, s: string) => ansi + s + '\x1b[49m' };
-  const changing = renderShellWidget(rows, dynamic); changing.render(80); ansi = '\x1b[48;5;22m'; changing.invalidate(); assert.ok(changing.render(24).every(line => line.startsWith(ansi)));
+  assert.equal(component.render(80).length, 9); assert.match(plain(component.render(80).join('\n')), /… 15 more \[Open\]/); assert.equal(JSON.stringify(rows), before);
 });
 test('a shell row exposes its live output copy only while the job still runs', () => {
   const live = new OutputTranscript(); live.append(Buffer.from('partial output\n'));

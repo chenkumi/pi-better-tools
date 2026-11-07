@@ -60,7 +60,7 @@ for (const mode of ["single", "parallel", "chain", "resume"] as const) {
 			assert.equal(accepted.isError, undefined, JSON.stringify(accepted.content));
 			assert.equal(widgets.has(SUBAGENT_WIDGET_KEY), true);
 			assert.equal(statuses.has(SUBAGENT_WIDGET_KEY), false, 'no duplicate footer summary');
-			assert.match(panelHistory.at(-1)!, /Jobs · 1 active · Subagents 1/);
+			assert.match(panelHistory.at(-1)!, /Subagents: 1/);
 			assert.match(panelHistory.join("\n"), new RegExp(`Live panel ${mode}`));
 			const receipt = (accepted.details as any).background; assert.equal(receipt.status, "queued");
 			assert.ok(receipt.tasks.every((task: any) => task.logPending && !task.liveLogPath && !task.finalLogPath && /^[0-9A-HJKMNP-TV-Z]{26}$/.test(task.subagentSessionId)));

@@ -42,34 +42,34 @@ function hostPair() {
 test('automatic above-editor panel: five JOBS total, one row each, no duplicate footer; unrelated widgets/statuses preserved', () => {
   const { ui, panel, shell, sub } = setup(); ui.widgets.set('schedule', ['preserved']); ui.statuses.set('gpt-speed', 'Fast');
   const text = plain(ui.component().render(100).join('\n'));
-  assert.match(text, /6 active · Subagents 4 \/ Shell 2/); assert.match(text, /More… \(\+1 active\)/);
-  assert.equal(text.split('\n').length, 7); assert.equal((text.match(/[●◷◐] (?:SA|SH)/g) ?? []).length, 5);
+  assert.match(text, /Shell: 2 .*Subagents: 4/); assert.match(text, /… 1 more \[Open\]/);
+  assert.equal(text.split('\n').length, 9, 'rule, counts, five jobs, Open, separator'); assert.equal((text.match(/[●◷◐] (?:SA|SH)/g) ?? []).length, 5);
   assert.equal(ui.calls.at(-1).options.placement, 'aboveEditor'); assert.equal(ui.statuses.has(BACKGROUND_WIDGET_KEY), false);
   panel.toggle('collapse', ui.ctx); assert.equal(ui.widgets.has(BACKGROUND_WIDGET_KEY), false);
   panel.toggle('all', ui.ctx); assert.equal(ui.widgets.has(BACKGROUND_WIDGET_KEY), true);
-  panel.update('shell', shell, snapshot([])); assert.match(plain(ui.component().render(100).join('\n')), /4 active/);
+  panel.update('shell', shell, snapshot([])); assert.match(plain(ui.component().render(100).join('\n')), /Shell: 0 .*Subagents: 4/);
   panel.detach('subagents', sub); assert.equal(ui.widgets.has(BACKGROUND_WIDGET_KEY), false);
   assert.equal(ui.statuses.get('gpt-speed'), 'Fast'); assert.deepEqual(ui.widgets.get('schedule'), ['preserved']);
 });
-test('SDK Container routes fullscreen More click; passive updates never claim editor focus or alter text', async () => {
+test('SDK Container routes fullscreen Open click; passive updates never claim editor focus or alter text', async () => {
   const { ui } = setup(), container = new Container(); container.addChild(ui.component()); const lines = container.render(80);
-  assert.equal(ui.customCalls(), 0); const result = mouse(container, 2, lines.length - 1); assert.equal(result?.handled, true); assert.notEqual(result?.focus, true);
+  assert.equal(ui.customCalls(), 0); const result = mouse(container, plain(lines.at(-2)!).indexOf('[Open]') + 1, lines.length - 2); assert.equal(result?.handled, true); assert.notEqual(result?.focus, true);
   const overlay = ui.overlay(); overlay.render(72); assert.match(plain(overlay.render(72).join('\n')), /Jobs/);
   overlay.handleInput('\x1b'); await Promise.resolve(); assert.equal(ui.overlay(), undefined); assert.equal(ui.draft(), '保留輸入中的文字');
 });
-test('More ignores clipped label, row contents, modifiers, drag/press/wheel, double click and stale resize/dispose', () => {
-  const { ui } = setup(); const c = ui.component(), lines = c.render(80); const y = lines.length - 1;
-  for (const options of [{ y: 0 }, { button: 'right' }, { shift: true }, { alt: true }, { ctrl: true }, { type: 'wheel' }, { type: 'drag' }, { type: 'press' }, { clickCount: 2 }]) assert.equal(mouse(c, 2, y, 80, options), undefined);
-  assert.equal(mouse(c, 25, y), undefined); assert.equal(mouse(c, 2, y, 24), undefined);
-  c.invalidate(); assert.equal(mouse(c, 2, y), undefined); c.render(7); assert.equal(mouse(c, 2, y, 7), undefined);
-  c.dispose(); assert.equal(mouse(c, 2, y), undefined); assert.equal(ui.customCalls(), 0);
+test('Open ignores clipped label, row contents, modifiers, drag/press/wheel, double click and stale resize/dispose', () => {
+  const { ui } = setup(); const c = ui.component(), lines = c.render(80); const y = lines.length - 2, ox = plain(lines.at(-2)!).indexOf('[Open]') + 1; // a click inside the [Open] label
+  for (const options of [{ y: 0 }, { button: 'right' }, { shift: true }, { alt: true }, { ctrl: true }, { type: 'wheel' }, { type: 'drag' }, { type: 'press' }, { clickCount: 2 }]) assert.equal(mouse(c, ox, y, 80, options), undefined);
+  assert.equal(mouse(c, 40, y), undefined); assert.equal(mouse(c, ox, y, 24), undefined);
+  c.invalidate(); assert.equal(mouse(c, ox, y), undefined); c.render(7); assert.equal(mouse(c, ox, y, 7), undefined);
+  c.dispose(); assert.equal(mouse(c, ox, y), undefined); assert.equal(ui.customCalls(), 0);
 });
 test('replacement owner/leases fence old widgets and overlays; detach preserves other producer', async () => {
   const { ui, panel, shell, sub } = setup(); const stale = ui.component(); const lines = stale.render(80);
   const opened = panel.openMore(ui.ctx); ui.overlay().render(70); ui.owner('next'); const fresh = panel.attach('shell', ui.ctx)!; panel.update('shell', fresh, snapshot([job('9')])); await opened;
   const count = ui.calls.length; panel.update('subagents', sub, snapshot([job('8', 'subagents')])); panel.detach('shell', shell); assert.equal(ui.calls.length, count);
   assert.equal(mouse(stale, 2, lines.length - 1), undefined); assert.deepEqual(stale.render(80), []); assert.equal(ui.overlay(), undefined);
-  assert.match(plain(ui.component().render(100).join('\n')), /Shell 1/);
+  assert.match(plain(ui.component().render(100).join('\n')), /Shell: 1/);
   ui.owner('replaced'); assert.equal(panel.toggle('all'), false); assert.equal(ui.widgets.has(BACKGROUND_WIDGET_KEY), false);
 });
 test('finalizing stays visible as a job, not a running child; completion leaves only retained More history', async () => {
@@ -110,17 +110,16 @@ test('both real adapters use one key, aggregate batch tasks into one job; all di
     await entered;
     shell.bind(ui.ctx, () => [{ jobId: 'shell', tool: 'powershell', status: 'running', command: 'test command' }]);
     sub.bind(ui.ctx, () => jobs.panelJobs('owner', '/cwd'));
-    const text = plain(ui.component().render(120).join('\n')); assert.match(text, /2 active/); assert.match(text, /test command/); assert.match(text, /SA batch \(2 tasks\) · Build component/);
+    const text = plain(ui.component().render(120).join('\n')); assert.match(text, /Shell: 1 .*Subagents: 1/); assert.match(text, /test command/); assert.match(text, /SA batch \(2 tasks\) · Build component/);
     shell.clear(); assert.match(plain(ui.component().render(80).join('\n')), /Build component/); sub.clear(); assert.equal(ui.widgets.size, 0);
   } finally { release(); shell.clear(); sub.clear(); await jobs.shutdown(); }
 });
-test('width/height/Unicode/control caps and theme background continuity; resize invalidates hitbox', () => {
+test('width/height/Unicode/control caps and no background; resize invalidates hitbox', () => {
   const { ui, panel, shell, sub } = setup(); const malicious = job('1'); malicious.title = '\x1b]0;x\x07\x1b[2J\u202e界😀\n\t' + 'long'.repeat(500);
   panel.update('shell', shell, snapshot([malicious])); panel.update('subagents', sub, snapshot([])); const c = ui.component();
-  for (const width of [0, 1, 2, 3, 6, 12, 24, 80]) for (const line of c.render(width)) { assert.equal(visibleWidth(line), width); assert.doesNotMatch(plain(line), /[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/); }
-  ui.rows(12); assert.equal(c.render(80).length, 3); ui.rows(10); assert.equal(c.render(80).length, 2); assert.match(plain(c.render(80).at(-1)!), /\+1 active/);
-  let ansi = theme.getBgAnsi(); const dynamic = { ...theme, getBgAnsi: () => ansi, bg: (_: string, s: string) => ansi + s + '\x1b[49m' };
-  const changing = ui.factory()({ terminal: { rows: 40 }, requestRender() {} }, dynamic); changing.render(80); ansi = '\x1b[48;5;22m'; changing.invalidate(); assert.ok(changing.render(80).every((s: string) => s.startsWith(ansi)));
+  for (const width of [0, 1, 2, 3, 6, 12, 24, 80]) for (const line of c.render(width)) { assert.ok(visibleWidth(line) <= width); assert.doesNotMatch(plain(line), /[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/); }
+  ui.rows(12); assert.equal(c.render(80).length, 4, 'rule, counts, Open, separator: no room for a job row'); ui.rows(10); assert.equal(c.render(80).length, 4); assert.match(plain(c.render(80).at(-2)!), /… 1 more \[Open\]/);
+  ui.rows(40); assert.ok(c.render(80).every((line: string) => !/\x1b\[48;/.test(line)), 'the passive panel draws no background');
 });
 test('disposed getter/throwing UI isolated; transient removals retried and healthy updates recover', () => {
   for (const method of ['setStatus', 'setWidget'] as const) {
@@ -178,17 +177,17 @@ test('W1: long detail height budgets preserve footer on resize including tiny te
 
 test('clicking a job row opens the overlay directly on that job; title, modifiers and clipped rows do nothing', async () => {
   const { ui } = setup(); const c = ui.component(), lines = c.render(80);
-  assert.match(plain(lines.join('\n')), /click a job to open/);
-  for (const options of [{ button: 'right' }, { shift: true }, { alt: true }, { ctrl: true }, { type: 'wheel' }, { type: 'drag' }, { clickCount: 2 }]) assert.equal(mouse(c, 5, 1, 80, options), undefined);
-  assert.equal(mouse(c, 5, 0), undefined, 'title row is not a target'); assert.equal(ui.customCalls(), 0);
-  const result = mouse(c, 5, 1); assert.equal(result?.handled, true); assert.notEqual(result?.focus, true);
+  assert.match(plain(lines.join('\n')), /\[Open\]/);
+  for (const options of [{ button: 'right' }, { shift: true }, { alt: true }, { ctrl: true }, { type: 'wheel' }, { type: 'drag' }, { clickCount: 2 }]) assert.equal(mouse(c, 5, 2, 80, options), undefined);
+  assert.equal(mouse(c, 5, 0), undefined, 'title row is not a target'); assert.equal(mouse(c, 5, 1), undefined, 'counts row is not a target'); assert.equal(ui.customCalls(), 0);
+  const result = mouse(c, 5, 2); assert.equal(result?.handled, true); assert.notEqual(result?.focus, true);
   assert.equal(ui.customCalls(), 1);
   let text = plain(ui.overlay().render(72).join('\n'));
   assert.match(text, /Job details/); assert.match(text, /Detail 1/); assert.doesNotMatch(text, /Detail 2/);
   ui.overlay().handleInput('\x1b'); text = plain(ui.overlay().render(72).join('\n'));
   assert.match(text, /Active \/ Recent finished/, 'Esc returns to the list');
   ui.overlay().handleInput('\x1b'); await Promise.resolve(); assert.equal(ui.overlay(), undefined);
-  assert.equal(mouse(c, 5, 2)?.handled, true, 'second job row');
+  assert.equal(mouse(c, 5, 3)?.handled, true, 'second job row');
   assert.match(plain(ui.overlay().render(72).join('\n')), /Detail 2/);
   ui.overlay().handleInput('\x1b'); ui.overlay().handleInput('\x1b'); await Promise.resolve();
 });
@@ -196,45 +195,45 @@ test('clicking a job row opens the overlay directly on that job; title, modifier
 const hoverTheme: any = { fg: (_: string, s: string) => s, getBgAnsi: (name: string) => name === 'selectedBg' ? '\x1b[48;5;99m' : '\x1b[48;5;58m', bg: (name: string, s: string) => (name === 'selectedBg' ? '\x1b[48;5;99m' : '\x1b[48;5;58m') + s + '\x1b[49m' };
 const lit = (line: string) => line.includes('\x1b[48;5;99m');
 const move = (component: any, x: number, y: number) => mouse(component, x, y, 80, { type: 'move', button: 'none' });
-test('hover highlights the job row or the More label under the pointer, clears elsewhere, and never changes the layout', () => {
-  const { ui } = setup(); const c = ui.component(hoverTheme), base = c.render(80), last = base.length - 1;
+test('hover highlights the job row or the Open label under the pointer, clears elsewhere, and never changes the layout', () => {
+  const { ui } = setup(); const c = ui.component(hoverTheme), base = c.render(80), last = base.length - 2, ox = plain(base[last]).indexOf('[Open]') + 1;
   assert.equal(base.some(lit), false);
-  assert.deepEqual(move(c, 5, 1), { handled: true, render: true });
-  let lines = c.render(80); assert.deepEqual(lines.map(lit), base.map((_: string, i: number) => i === 1));
+  assert.deepEqual(move(c, 5, 2), { handled: true, render: true });
+  let lines = c.render(80); assert.deepEqual(lines.map(lit), base.map((_: string, i: number) => i === 2));
   assert.equal(plain(lines.join('\n')), plain(base.join('\n')), 'highlight only recolours'); assert.deepEqual(lines.map(visibleWidth), base.map(visibleWidth));
-  assert.equal(move(c, 9, 1), undefined, 'same row again needs no render');
-  assert.deepEqual(move(c, 5, 2), { handled: true, render: true }); assert.deepEqual(c.render(80).map(lit), base.map((_: string, i: number) => i === 2));
+  assert.equal(move(c, 9, 2), undefined, 'same row again needs no render');
+  assert.deepEqual(move(c, 5, 3), { handled: true, render: true }); assert.deepEqual(c.render(80).map(lit), base.map((_: string, i: number) => i === 3));
   assert.deepEqual(move(c, 5, 0), { handled: true, render: true }, 'title row is not a target: hover clears'); assert.equal(c.render(80).some(lit), false);
   assert.equal(move(c, 5, 0), undefined);
-  assert.deepEqual(move(c, 2, last), { handled: true, render: true }); lines = c.render(80);
+  assert.deepEqual(move(c, ox, last), { handled: true, render: true }); lines = c.render(80);
   assert.deepEqual(lines.map(lit), base.map((_: string, i: number) => i === last)); assert.equal(plain(lines.join('\n')), plain(base.join('\n')));
-  assert.deepEqual(move(c, 25, last), { handled: true, render: true }, 'outside the label is not a target'); assert.equal(c.render(80).some(lit), false);
-  move(c, 5, 1); assert.equal(c.render(80).some(lit), true); c.invalidate(); assert.equal(move(c, 5, 1), undefined, 'stale width after invalidate'); c.dispose();
-  assert.equal(move(c, 5, 1), undefined); assert.equal(ui.customCalls(), 0, 'hover never opens anything');
+  assert.deepEqual(move(c, 40, last), { handled: true, render: true }, 'outside the label is not a target'); assert.equal(c.render(80).some(lit), false);
+  move(c, 5, 2); assert.equal(c.render(80).some(lit), true); c.invalidate(); assert.equal(move(c, 5, 2), undefined, 'stale width after invalidate'); c.dispose();
+  assert.equal(move(c, 5, 2), undefined); assert.equal(ui.customCalls(), 0, 'hover never opens anything');
 });
 test('hover is cleared when the pointer leaves the panel or the terminal loses focus; the listener never consumes input', () => {
   const { ui } = setup(); const c = ui.component(hoverTheme); c.render(80); assert.equal(ui.listeners(), 1);
-  move(c, 5, 1); const before = ui.renders();
+  move(c, 5, 2); const before = ui.renders();
   assert.deepEqual(ui.input('\x1b[<35;6;3M'), [undefined], 'inside the panel'); assert.equal(ui.renders(), before); assert.equal(c.render(80).some(lit), true);
   assert.deepEqual(ui.input('a'), [undefined]); assert.equal(c.render(80).some(lit), true);
   assert.deepEqual(ui.input('\x1b[<35;6;40M'), [undefined], 'pointer left'); assert.equal(ui.renders(), before + 1); assert.equal(c.render(80).some(lit), false);
   assert.deepEqual(ui.input('\x1b[<35;6;40M'), [undefined]); assert.equal(ui.renders(), before + 1, 'nothing to clear');
-  move(c, 5, 1); assert.deepEqual(ui.input('\x1b[O'), [undefined]); assert.equal(c.render(80).some(lit), false);
-  move(c, 5, 1); c.dispose(); assert.equal(ui.listeners(), 0); assert.equal(c.render(80).length, 0);
+  move(c, 5, 2); assert.deepEqual(ui.input('\x1b[O'), [undefined]); assert.equal(c.render(80).some(lit), false);
+  move(c, 5, 2); c.dispose(); assert.equal(ui.listeners(), 0); assert.equal(c.render(80).length, 0);
 });
 test('one row per job: heading left, state | usage right, Monitor counted in the heading, narrow widths drop the summary', () => {
   const reported = { ...job('2', 'subagents'), usageState: 'reported' as const, usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 12400, cost: 0 } };
   const monitor: PanelJob = { ...job('7', 'monitor'), label: 'command', title: 'tail -f logs/app.log', usageState: 'na', summary: 'wake off | 剩 24m' };
   const jobs = [job('1'), reported, monitor, { ...job('8', 'monitor'), label: 'websocket', title: 'wss://api.example.com', usageState: 'na' as const, summary: 'wake on | 剩 1h 12m' }];
   const lines = renderJobs(jobs, theme, 80).map(plain);
-  assert.equal(lines.length, 6); assert.match(lines[0], /4 active · Subagents 1 \/ Shell 1 \/ Monitor 2/);
+  assert.equal(lines.length, 8); assert.match(lines[0], /^── Jobs Panel ─+$/); assert.match(lines[1], /Shell: 1 .*Subagents: 1 .*Fork: 0 .*Monitor: 2/);
   const text = lines.join('\n');
-  assert.match(text, /● SH bash · shell work 1 +N\/A \n/); assert.doesNotMatch(text, /running \| N\/A/);
-  assert.match(text, /● SA scout · subagents work 2 +running \| 12\.4k\* /);
-  assert.match(text, /● MN command · tail -f logs\/app\.log +wake off \| 剩 24m /); assert.match(text, /● MN websocket · wss:\/\/api\.example\.com +wake on \| 剩 1h 12m /);
-  for (const line of lines) assert.equal(visibleWidth(line), 80);
-  const narrow = renderJobs(jobs, theme, 30).map(plain); assert.equal(narrow.length, 6); assert.doesNotMatch(narrow.join('\n'), /wake|N\/A|running \|/);
-  assert.doesNotMatch(plain(renderJobs([job('1')], theme, 80).join('\n')), /Monitor/, 'Fork and Monitor counts appear only when present');
+  assert.match(text, /● SH bash · shell work 1 +N\/A\n/); assert.doesNotMatch(text, /running \| N\/A/);
+  assert.match(text, /● SA scout · subagents work 2 +running \| 12\.4k\*\n/);
+  assert.match(text, /● MN command · tail -f logs\/app\.log +wake off \| 剩 24m\n/); assert.match(text, /● MN websocket · wss:\/\/api\.example\.com +wake on \| 剩 1h 12m\n/);
+  for (const line of lines) assert.ok(visibleWidth(line) <= 80); assert.match(lines.at(-1)!, /^┄{80}$/);
+  const narrow = renderJobs(jobs, theme, 30).map(plain); assert.equal(narrow.length, 8); assert.doesNotMatch(narrow.join('\n'), /wake|N\/A|running \|/);
+  assert.doesNotMatch(plain(renderJobs([job('1')], theme, 80).join('\n')), /PTY/, 'the PTY count appears only when present');
 });
 test('row colors follow the Shell completion card: accent mark, plain label, muted summary; cancelling stays warning', () => {
   const tagged: any = { fg: (role: string, s: string) => `<${role}>${s}</${role}>`, getBgAnsi: () => '', bg: (_: string, s: string) => s };
@@ -246,8 +245,8 @@ test('row colors follow the Shell completion card: accent mark, plain label, mut
 test('PTY sessions are a panel kind: PT heading, PTY count only when present, own slash-command target', async () => {
   const pty: PanelJob = { ...job('pty-1-1', 'pty'), label: 'pty', title: 'build-host (ssh)', usageState: 'na', summary: 'running' };
   const lines = renderJobs([job('1'), pty], theme, 80).map(plain);
-  assert.match(lines[0], /2 active · Subagents 0 \/ Shell 1 \/ PTY 1/);
-  assert.match(lines.join(String.fromCharCode(10)), /● PT pty · build-host \(ssh\) +running /);
+  assert.match(lines[1], /Shell: 1 .*Subagents: 0 .*PTY: 1/);
+  assert.match(lines.join(String.fromCharCode(10)), /● PT pty · build-host \(ssh\) +running$/m);
   assert.doesNotMatch(plain(renderJobs([job('1')], theme, 80).join(String.fromCharCode(10))), /PTY/);
   const hosts = hostPair(); acquireBackgroundPanel(hosts.create());
   const notices: string[] = [];

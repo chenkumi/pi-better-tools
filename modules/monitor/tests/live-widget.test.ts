@@ -74,7 +74,7 @@ test('panel rows cover command / websocket / file only, with origin-only endpoin
   assert.equal(rows[1]!.target, 'wss://api.example.com');
   const dump = JSON.stringify(rows) + JSON.stringify(rows.map(row => monitorPanelJob(row, 0))) + f.ui.text();
   assert.doesNotMatch(dump, /SECRET_TOKEN|SECRET_EVENT_TEXT|SECRET_STDERR|\/stream/);
-  assert.match(f.ui.text(), /Jobs · 2 active · Subagents 0 \/ Shell 0 \/ Monitor 2/);
+  assert.match(f.ui.text(), /Monitor: 2/);
   assert.match(f.ui.text(), /● MN command · tail -f logs\/app\.log +wake on \| 剩 5m/); assert.match(f.ui.text(), /● MN websocket · wss:\/\/api\.example\.com +wake on \| 剩 5m/);
   assert.equal(rows[0]!.counts.adopted, 1);
 });

@@ -22,7 +22,7 @@ test('registry events show queue, admitted tasks, cancellation and finalizing, t
       finish(0, { output: 'SENSITIVE OUTPUT' }, 'completed'); finish(1, {}, 'skipped'); await last.promise;
     }, ['Build component', 'Review output']);
     const original = JSON.stringify(receipt);
-    assert.match(ui.text(), /Jobs · 1 active.*Subagents 1/); assert.equal(ui.text().split('\n').length, 3, 'title, one row, More'); assert.match(ui.text(), /Build component/);
+    assert.match(ui.text(), /Subagents: 1/); assert.equal(ui.text().split('\n').length, 5, 'rule, counts, one row, Open, separator'); assert.match(ui.text(), /Build component/);
     assert.match(ui.text(), /batch \(2 tasks\)/); assert.match(JSON.stringify(jobs.panelJobs('owner', '/cwd')), /Review output/);
     assert.doesNotMatch(JSON.stringify(receipt), /widgetTitles|Build component|Review output/); assert.doesNotMatch(JSON.stringify(slimReceipt(receipt)), /Build component/);
     assert.deepEqual(jobs.panelJobs('other', '/cwd'), []); assert.deepEqual(jobs.panelJobs('owner', '/other'), []);
@@ -66,9 +66,8 @@ test('running tasks have display priority; bounded, safe, full-width layout neve
   const rows: any[] = Array.from({ length: 32 }, (_, i) => ({ kind: 'subagents', jobId: 'same-prefix-' + i, label: i < 24 ? 'queued-agent' : 'active-agent', title: '\x1b]0;x\x07\u202e界😀\n\t' + 'long'.repeat(1000), state: i < 24 ? 'queued' : 'running', active: true, activity: 'Running', usageState: 'pending', details: [] }));
   const before = JSON.stringify(rows), component = { render: (width: number) => renderJobs(rows, theme, width) };
   for (const width of [0, 1, 2, 3, 6, 24, 80]) for (const line of component.render(width)) {
-    assert.equal(visibleWidth(line), width); assert.doesNotMatch(plain(line), /[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/);
-    for (const reset of line.matchAll(/\x1b\[(?:0)?m/g)) assert.ok(line.startsWith(theme.getBgAnsi(), reset.index! + reset[0].length));
+    assert.ok(visibleWidth(line) <= width); assert.doesNotMatch(plain(line), /[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/);
   }
-  const text = plain(component.render(80).join('\n')); assert.match(text, /32 active/); assert.match(text, /More… \(\+27 active\)/); assert.match(text, /active-agent/); assert.doesNotMatch(text, /queued-agent/);
-  assert.equal(component.render(80).length, 7); assert.equal(JSON.stringify(rows), before);
+  const text = plain(component.render(80).join('\n')); assert.match(text, /… 27 more \[Open\]/); assert.match(text, /active-agent/); assert.doesNotMatch(text, /queued-agent/);
+  assert.equal(component.render(80).length, 9); assert.equal(JSON.stringify(rows), before);
 });

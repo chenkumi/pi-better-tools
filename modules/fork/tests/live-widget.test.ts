@@ -65,7 +65,7 @@ test("cancelling and terminal-but-unconfirmed cleanup stay visible with honest t
 	await requestCancel(state().jobs.get(receipt.jobId)!); assert.match(A.text(), /cancelling \| awaiting child close/);
 	handles[0]!.finish({ status: "cancelled", output: undefined, childClosed: false }); await flush();
 	assert.equal(state().jobs.get(receipt.jobId)!.released, false);
-	assert.match(A.text(), /cancelled \| cleanup unconfirmed/); assert.match(A.text(), /Fork 1/); assert.doesNotMatch(A.text(), /running/);
+	assert.match(A.text(), /cancelled \| cleanup unconfirmed/); assert.match(A.text(), /Fork: 1/); assert.doesNotMatch(A.text(), /running/);
 });
 
 test("session A to B to A: B never shows A's Fork, returning to A rebuilds latest state, old lease cannot update", async () => {

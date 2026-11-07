@@ -1,7 +1,8 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { Box, SelectList, matchesKey, truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component, type TUI } from "@earendil-works/pi-tui";
+import { SelectList, matchesKey, truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component, type TUI } from "@earendil-works/pi-tui";
 import { TranscriptView, type TranscriptSource } from "./live-transcript.js";
 import { stripVTControlCharacters } from "node:util";
+import { frame, type PanelStyle } from "../bottom-panel/host.js";
 
 export const PANEL_KINDS = ["subagents", "shell", "fork", "monitor", "pty"] as const;
 export type PanelKind = typeof PANEL_KINDS[number];
@@ -76,28 +77,33 @@ export function jobSummary(job: PanelJob): string {
   return job.kind === "shell" && job.state === "running" ? usage : `${safeJobText(job.state, 32)} | ${usage}`;
 }
 const clampWidth = (width: number) => Number.isFinite(width) ? Math.max(0, Math.floor(width)) : 0;
-/** A style reset inside `text` would drop the surrounding background, so each reset is followed by the background again. */
-const keepBackground = (text: string, bg: string) => text.replace(/\x1b\[(?:0)?m/g, reset => reset + bg);
 /** One row per job, so the budget is rows left after editor/footer/chat, capped at five jobs. */
-const panelJobLimit = (terminalRows: number) => Math.min(5, Math.max(0, Math.floor(terminalRows - 10)));
+const panelJobLimit = (terminalRows: number) => Math.min(5, Math.max(0, Math.floor(terminalRows - 12)));
 /** The jobs renderJobs draws, in row order: job i owns physical row 1 + i, between the heading row and the More row. */
 export function displayedJobs(jobs: readonly PanelJob[], terminalRows = 40): PanelJob[] {
   return orderedJobs(jobs.filter(j => j.active)).slice(0, panelJobLimit(terminalRows));
 }
-/** Five JOBS total, one physical row each. `hover` is a {@link jobKey} or {@link MORE_HOVER}; it only recolours, never changes the row layout. */
+/** Rows above the first job (title rule, counts) and below the last (Open row, separator) in the passive panel. */
+export const PANEL_HEAD_ROWS = 2;
+export const PANEL_TAIL_ROWS = 2;
+/** The label that opens the list; the only click target besides a job row. */
+export const OPEN_LABEL = "[Open]";
+const KIND_COUNTS: ReadonlyArray<readonly [PanelKind, string, string]> = [["shell", "\u2318", "Shell"], ["subagents", "\u25b7", "Subagents"], ["fork", "\u22d4", "Fork"], ["monitor", "\u2316", "Monitor"], ["pty", "\u2338", "PTY"]];
+/**
+ * The passive panel (TUI_DESIGN.md "背景任務面板"): title rule, one counts row, one row per job (at most five), an Open row and a
+ * dashed separator. No background box. `hover` is a {@link jobKey} or {@link MORE_HOVER}; it only recolours, never changes the layout.
+ */
 export function renderJobs(jobs: readonly PanelJob[], theme: Theme, width: number, terminalRows = 40, hover?: string): string[] {
   width = clampWidth(width);
   const active = orderedJobs(jobs.filter(j => j.active));
   if (!active.length) return [];
   const limit = panelJobLimit(terminalRows);
-  const padding = width >= 3 ? 1 : 0, inner = width - padding * 2;
-  const count = (kind: PanelKind) => active.filter(j => j.kind === kind).length, fork = count("fork"), monitor = count("monitor"), pty = count("pty");
-  // The highlight ends in the default background, so the panel background is restored for the cells after it.
-  const highlight = (line: string) => {
-    const bg = theme.getBgAnsi("selectedBg");
-    return theme.bg("selectedBg", keepBackground(line, bg)) + theme.getBgAnsi("toolPendingBg");
-  };
-  const lines = [theme.fg("accent", truncateToWidth(`Jobs · ${active.length} active · Subagents ${count("subagents")} / Shell ${count("shell")}${fork ? ` / Fork ${fork}` : ""}${monitor ? ` / Monitor ${monitor}` : ""}${pty ? ` / PTY ${pty}` : ""}`, inner))];
+  const inner = Math.max(0, width - 1); // frame() adds the one-column gutter
+  const count = (kind: PanelKind) => active.filter(j => j.kind === kind).length;
+  const highlight = (line: string) => theme.bg("selectedBg", line);
+  const counts = KIND_COUNTS.filter(([kind]) => kind !== "pty" || count("pty") > 0)
+    .map(([kind, icon, name]) => `${theme.fg("accent", icon)} ${theme.fg("dim", `${name}: ${count(kind)}`)}`).join(theme.fg("dim", " \u00b7 "));
+  const body = [truncateToWidth(counts, inner)];
   for (const job of active.slice(0, limit)) {
     const summary = inner >= 40 ? truncateToWidth(jobSummary(job), Math.floor(inner / 2)) : "";
     const gap = summary ? 2 : 0;
@@ -111,16 +117,15 @@ export function renderJobs(jobs: readonly PanelJob[], theme: Theme, width: numbe
     const row = job.state === "cancelling"
       ? part("warning", mark + label + pad + summary)
       : part("accent", mark) + part("text", label + pad) + part("muted", summary);
-    lines.push(hover === jobKey(job) ? highlight(row) : row);
+    body.push(hover === jobKey(job) ? highlight(row) : row);
   }
   const omitted = Math.max(0, active.length - limit);
-  const more = truncateToWidth(`More…${omitted ? ` (+${omitted} active)` : ""} · click a job to open · /background-jobs more · * reported usage`, inner);
-  // Only the "More…" label is a click target, so only it lights up.
-  lines.push(hover === MORE_HOVER && more.startsWith("More…") ? highlight(theme.fg("accent", "More…")) + theme.fg("dim", more.slice("More…".length)) : theme.fg("dim", more));
-  const bg = theme.getBgAnsi("toolPendingBg");
-  const box = new Box(padding, 0, text => theme.bg("toolPendingBg", keepBackground(text, bg)));
-  box.addChild({ render: () => lines, invalidate() {} });
-  return box.render(width);
+  const lead = omitted ? `\u2026 ${omitted} more ` : "";
+  // Only the Open label is a click target, so only it lights up.
+  const open = hover === MORE_HOVER ? highlight(theme.fg("accent", OPEN_LABEL)) : theme.fg("accent", OPEN_LABEL);
+  body.push(truncateToWidth(`${theme.fg("dim", lead)}${open}${theme.fg("dim", "  * reported usage")}`, inner));
+  // Every row above is already budgeted to the width, so the frame only clips when the width is too small for the gutter.
+  return frame(theme as unknown as PanelStyle, "Jobs Panel", body, width, width < 12);
 }
 
 /** SDK selector supplies bounded keyboard/mouse selection; detail view is a bounded text viewport. */
