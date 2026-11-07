@@ -114,9 +114,39 @@ class MysqlAdapter implements Adapter {
     });
   }
 
-  private async withConnection<T>(signal: AbortSignal | undefined, operation: (connection: mysql.PoolConnection) => Promise<T>): Promise<T> {
+  /**
+   * Waits for a pooled connection, but stops waiting when `signal` aborts. mysql2 has no wait limit and no way to take
+   * a request out of its queue, so the abandoned request stays queued until a connection frees up; that connection
+   * then goes straight back to the pool (nothing ran on it) instead of being held by a caller that has left.
+   */
+  private acquire(signal: AbortSignal | undefined): Promise<mysql.PoolConnection> {
     aborted(signal);
-    const connection = await this.pool.getConnection();
+    const pending = this.pool.getConnection();
+    if (!signal) return pending;
+    return new Promise<mysql.PoolConnection>((resolve, reject) => {
+      let settled = false;
+      const onAbort = () => {
+        if (settled) return;
+        settled = true;
+        reject(new SqlConnectorError("TIMEOUT", "The database request was cancelled."));
+      };
+      signal.addEventListener("abort", onAbort, { once: true });
+      pending.then(
+        (connection) => {
+          signal.removeEventListener("abort", onAbort);
+          if (settled) connection.release();
+          else { settled = true; resolve(connection); }
+        },
+        (error: unknown) => {
+          signal.removeEventListener("abort", onAbort);
+          if (!settled) { settled = true; reject(error); }
+        },
+      );
+    });
+  }
+
+  private async withConnection<T>(signal: AbortSignal | undefined, operation: (connection: mysql.PoolConnection) => Promise<T>): Promise<T> {
+    const connection = await this.acquire(signal);
     let destroyed = false;
     const onAbort = () => {
       destroyed = true;

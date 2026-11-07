@@ -55,6 +55,7 @@ MSSQL Windows Authentication 另需 optional dependency `msnodesqlv8@6.2.1` 的�
 - 先用 `*_state` 確認連線，再用 `*_query` 查詢；MySQL／PostgreSQL SELECT／CTE 要有 literal `LIMIT 1..200`，MSSQL 要有 `TOP 1..200`；MSSQL 拒絕 `TOP … PERCENT` 與 `WITH TIES`，`UNION`／`INTERSECT`／`EXCEPT` 的每個分支都須有自己的 `TOP n`，且各分支 n 的總和不得超過 200（驅動會先把整個 recordset 載入記憶體，上限只靠政策擋下）。MySQL／PostgreSQL 的 `LIMIT` 語法上套用整個集合運算結果，未發現同類繞過，未變更。
 - `*_update` 只接受單一 INSERT／UPDATE／DELETE；UPDATE／DELETE 需要 top-level WHERE，每次寫入都需互動 UI 確認。非互動模式拒絕寫入，取消確認不執行。
 - 保留來源 SQL allowlist、單一 statement、參數 binding、取消與安全化 driver errors。結果最多 200 rows／約 48 KiB，常見敏感欄位名稱遮蔽；不是完整 DLP 或完整 SQL parser。
+- MySQL 連線池已滿時，排隊中的呼叫收到取消會立即結束（回報已取消，且尚未送出任何語句，所以不會附「可能已套用」的警告）。mysql2 無法把請求移出佇列，被放棄的請求仍占一個佇列名額（上限 32），直到有連線釋放；該連線取得後會原樣還給連線池，不執行任何語句。這只解決「排隊取消」：已送出的寫入仍無 client 端逾時，取消不代表伺服器端已停止。
 - SQL 檢查依各引擎的字串、識別字與註解語法切分：PostgreSQL dollar-quote（`$$…$$`、`$tag$…$tag$`）與巢狀 `/* */`、MSSQL `[...]`（`]]` 跳脫）與巢狀註解、MySQL backtick、`#` 註解及「`--` 後須接空白」規則。MySQL／PostgreSQL 字串字面值內的反斜線一律拒絕（其意義取決於伺服器設定），請改用參數 binding；未結束的字串、識別字或註解拒絕。
 - 每個引擎區塊只接受文件列出的十個欄位（`host`、`port`、`username`、`password`、`database`、`ssl`、`windowsAuth`、`instanceName`、`odbcDriver`、`trustServerCertificate`），未知鍵（例如打錯的 `ssl`）以 `CONFIG_INVALID` 拒絕，訊息只含鍵名、不含值，避免靜默退成明文或不同信任設定。
 - MSSQL 的 `SELECT … SELECT …` 是兩個 statement：括號外的 SELECT 數量不得超過「1＋集合運算數」（子查詢、CTE、EXISTS 在括號內不計），否則第二個查詢不受 TOP 上限約束；`*_update` 在 UPDATE／DELETE／`INSERT … VALUES` 之後不得再有括號外 SELECT（`INSERT … SELECT` 視為單一 statement）。

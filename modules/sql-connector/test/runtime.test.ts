@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const pg = vi.hoisted(() => ({ calls: [] as unknown[], fail: undefined as string | undefined, released: [] as unknown[] }));
-const mysql = vi.hoisted(() => ({ calls: [] as unknown[], fail: false, failCreate: false, hangEnd: false, destroyed: 0, releasedCount: 0, poolOptions: undefined as unknown }));
+const mysql = vi.hoisted(() => ({ calls: [] as unknown[], fail: false, failCreate: false, hangEnd: false, gate: undefined as Promise<void> | undefined, getFailure: undefined as Error | undefined, destroyed: 0, releasedCount: 0, poolOptions: undefined as unknown }));
 
 vi.mock("pg", async (importOriginal) => {
   const actual = await importOriginal<typeof import("pg")>();
@@ -28,7 +28,11 @@ vi.mock("mysql2/promise", () => {
     if (mysql.failCreate) throw new Error("synthetic driver construction failure");
     mysql.poolOptions = options;
     return {
-      getConnection: async () => ({
+      getConnection: async () => {
+        // A full pool: the request waits in the driver queue until the gate opens.
+        if (mysql.gate) await mysql.gate;
+        if (mysql.getFailure) throw mysql.getFailure;
+        return {
         query: async (sql: unknown) => { mysql.calls.push(["query", sql]); return [[], []]; },
         execute: async (options: unknown, values: unknown) => {
           mysql.calls.push(["execute", options, values]);
@@ -37,7 +41,8 @@ vi.mock("mysql2/promise", () => {
         },
         release: () => { mysql.releasedCount++; },
         destroy: () => { mysql.destroyed++; },
-      }),
+        };
+      },
       end: async () => { if (mysql.hangEnd) await new Promise(() => undefined); },
     };
   };
@@ -52,7 +57,7 @@ const base = { host: "127.0.0.1", username: "u", password: "p", database: "d", s
 
 beforeEach(() => {
   pg.calls = []; pg.fail = undefined; pg.released = [];
-  mysql.calls = []; mysql.fail = false; mysql.failCreate = false; mysql.hangEnd = false; mysql.destroyed = 0; mysql.releasedCount = 0;
+  mysql.calls = []; mysql.fail = false; mysql.failCreate = false; mysql.hangEnd = false; mysql.gate = undefined; mysql.getFailure = undefined; mysql.destroyed = 0; mysql.releasedCount = 0;
 });
 
 describe("PostgreSQL runtime", () => {
@@ -150,5 +155,63 @@ describe("MySQL runtime", () => {
     await expect(runtime.query("mysql", "SELECT id FROM t LIMIT 1", undefined)).rejects.toMatchObject({ code: "TIMEOUT" });
     expect(mysql.destroyed).toBe(1);
     expect(mysql.releasedCount).toBe(0);
+  });
+
+  describe("cancelling while the pool is full", () => {
+    const open = () => { let release!: () => void; mysql.gate = new Promise<void>((resolve) => { release = resolve; }); return release; };
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+    it("ends a queued read at once, runs nothing, and gives a late connection back unused", async () => {
+      const release = open();
+      const runtime = new SqlConnectorRuntime({ mysql: { ...base, port: 3306 } });
+      const controller = new AbortController();
+      const queued = runtime.query("mysql", "SELECT id FROM t LIMIT 1", undefined, controller.signal);
+      const outcome = queued.then(() => "resolved", (error: unknown) => error);
+      await settle();
+      controller.abort();
+      await expect(outcome).resolves.toMatchObject({ code: "TIMEOUT", message: "The database request was cancelled." });
+      release(); // the pool finally has a connection for the abandoned request
+      await settle();
+      expect(mysql.releasedCount).toBe(1);
+      expect(mysql.destroyed).toBe(0);
+      expect(mysql.calls).toEqual([]);
+    });
+
+    it("a queued update is cancelled without claiming the statement may have been applied", async () => {
+      const release = open();
+      const runtime = new SqlConnectorRuntime({ mysql: { ...base, port: 3306 } });
+      const controller = new AbortController();
+      const outcome = runtime.update("mysql", "UPDATE t SET a = ? WHERE id = ?", [1, 2], controller.signal).then(() => "resolved", (error: Error) => error);
+      await settle();
+      controller.abort();
+      const error = await outcome;
+      expect(error).toMatchObject({ code: "TIMEOUT" });
+      expect((error as Error).message).not.toMatch(/may or may not/);
+      release();
+      await settle();
+      expect(mysql.calls).toEqual([]);
+      expect(mysql.releasedCount).toBe(1);
+    });
+
+    it("without an abort the queued call still runs normally, and a pool failure is still reported", async () => {
+      const release = open();
+      const runtime = new SqlConnectorRuntime({ mysql: { ...base, port: 3306 } });
+      const controller = new AbortController();
+      const waiting = runtime.query("mysql", "SELECT id FROM t LIMIT 1", undefined, controller.signal);
+      release();
+      await expect(waiting).resolves.toMatchObject({ rowCount: 1 });
+      expect(mysql.releasedCount).toBe(1);
+      controller.abort(); // after completion: no effect
+      mysql.getFailure = new Error("Queue limit reached.");
+      await expect(runtime.query("mysql", "SELECT id FROM t LIMIT 1", undefined, new AbortController().signal)).rejects.toBeInstanceOf(Error);
+    });
+
+    it("an already aborted signal never reaches the pool", async () => {
+      const runtime = new SqlConnectorRuntime({ mysql: { ...base, port: 3306 } });
+      const controller = new AbortController();
+      controller.abort();
+      await expect(runtime.state("mysql", controller.signal)).rejects.toMatchObject({ code: "TIMEOUT" });
+      expect(mysql.calls).toEqual([]);
+    });
   });
 });
