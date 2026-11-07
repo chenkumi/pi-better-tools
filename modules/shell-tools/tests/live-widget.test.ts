@@ -23,7 +23,7 @@ test('real registry events show both shells, retain cancel requests, remove one 
     const a = jobs.submit(view.ctx, 'bash', 'one', undefined, async signal => { entered.resolve(); await first.promise; if (signal.aborted) throw new Error('cancelled'); return result; }, 'build alpha');
     const b = jobs.submit(view.ctx, 'powershell', 'two', undefined, async () => { await second.promise; return result; }, 'build beta');
     assert.deepEqual(Object.keys(a).sort(), ['jobId', 'liveLogPath', 'status']);
-    assert.match(view.text(), /Shell: 2/); assert.equal(view.text().split('\n').length, 6, 'rule, counts, one row per job, Open, separator'); assert.match(view.text(), /build alpha/); assert.match(view.text(), /build beta +N\/A/);
+    assert.match(view.text(), /Shell: 2/); assert.equal(view.text().split('\n').length, 5, 'rule, counts, one row per job, Open'); assert.match(view.text(), /build alpha/); assert.match(view.text(), /build beta +N\/A/);
     assert.match(view.text(), /Shell: 2/); assert.match(view.text(), /bash.*build alpha/); assert.match(view.text(), /powershell.*build beta/);
     await entered.promise;
     jobs.cancel(view.ctx, a.jobId); assert.match(view.text(), /build alpha +cancelling \| N\/A/); assert.match(view.text(), /Shell: 2/);
@@ -58,7 +58,7 @@ test('bounded Unicode layout, controls and resize', () => {
   for (const width of [0, 1, 2, 3, 6, 24, 80]) for (const line of component.render(width)) {
     assert.ok(visibleWidth(line) <= width); assert.doesNotMatch(plain(line), /[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/);
   }
-  assert.equal(component.render(80).length, 9); assert.match(plain(component.render(80).join('\n')), /… 15 more \[Open\]/); assert.equal(JSON.stringify(rows), before);
+  assert.equal(component.render(80).length, 8); assert.match(plain(component.render(80).join('\n')), /… 15 more \[Open\]/); assert.equal(JSON.stringify(rows), before);
 });
 test('a shell row exposes its live output copy only while the job still runs', () => {
   const live = new OutputTranscript(); live.append(Buffer.from('partial output\n'));

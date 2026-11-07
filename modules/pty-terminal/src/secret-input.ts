@@ -17,7 +17,7 @@ export interface SecretInputOptions {
 }
 
 /**
- * Single-line masked input, drawn as the body of a bottom panel (the host adds the title rule and separator). Deliberately not pi-tui's Input: no undo stack, kill ring or getValue(); the typed value
+ * Single-line masked input, drawn as the body of a bottom panel (the host adds the title rule). Deliberately not pi-tui's Input: no undo stack, kill ring or getValue(); the typed value
  * lives in one private field and leaves the component only through onSubmit. Rendering shows one `*` per code point
  * (bounded by the box width) and the exact count to the local user, but not the input itself.
  */

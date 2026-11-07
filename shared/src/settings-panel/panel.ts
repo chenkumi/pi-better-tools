@@ -202,7 +202,7 @@ export class SettingsPanel implements Component {
   get title(): string { return `${this.#o.title}${this.dirty.size ? ' ●' : ''}`; }
 
   /**
-   * Body rows for the bottom panel (the host draws the title rule and the separator). Fixed height: the body is as tall as the
+   * Body rows for the bottom panel (the host draws the title rule). Fixed height: the body is as tall as the
    * fullest layout (capped by the terminal) and the help/message line is always reserved, so switching a provider never
    * resizes the panel. Every line is one row, ellipsised if needed.
    */

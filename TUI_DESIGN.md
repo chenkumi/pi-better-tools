@@ -51,7 +51,6 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
  🞟 <shell|subagent|fork|monitor info>
  🞟 <shell|subagent|fork|monitor info>
   ... 3 more [Open]
-┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
  ❯  
 ──────────────────────────────────────────────────────────────────────────────────────────────────
   C:\GitHub\pi-better-tools (mux-text)                        [▓▓▓▓░░░░░░░░] 0.0% 0k/272k (auto)
@@ -76,7 +75,6 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
  ▌
  ▌
  ↑/↓ move  Enter/←/→ change  Tab page  Ctrl+S save  Esc close
-┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
  ❯  
 ──────────────────────────────────────────────────────────────────────────────────────────────────
   C:\GitHub\pi-better-tools (mux-text)                        [▓▓▓▓░░░░░░░░] 0.0% 0k/272k (auto)
@@ -103,7 +101,6 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
     API key                     ******** (configured; Enter to replace)
 
  ↑/↓ move  Enter/←/→ change  Tab page  Ctrl+S save  Esc close
-┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
  ❯  
 ──────────────────────────────────────────────────────────────────────────────────────────────────
   C:\GitHub\pi-better-tools (mux-text)                        [▓▓▓▓░░░░░░░░] 0.0% 0k/272k (auto)

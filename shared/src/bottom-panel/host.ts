@@ -4,7 +4,7 @@ import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui';
 
 export interface PanelStyle { fg(color: string, text: string): string; bold(text: string): string }
 
-/** What a panel body has to provide. The frame (title rule, separator) is drawn by the host. */
+/** What a panel body has to provide. The frame (the title rule) is drawn by the host. */
 export interface BottomBody {
   /** Content rows for `width` columns. Every row must fit; the host clips defensively. */
   render(width: number): string[];
@@ -111,7 +111,7 @@ export function openBottomPanel<T>(ui: PanelUi, options: BottomPanelOptions<T>):
   });
 }
 
-/** Title rule on top, one-column gutter, dashed separator below (the editor's own border follows). */
+/** Title rule on top and a one-column gutter (the editor's own border follows the body). */
 export function frame(style: PanelStyle, title: string, body: readonly string[], width: number, clip = true): string[] {
   const w = Math.max(0, width);
   if (!body.length) return []; // a body that has closed (or has nothing to show) draws no empty frame
@@ -120,6 +120,5 @@ export function frame(style: PanelStyle, title: string, body: readonly string[],
   return [
     truncateToWidth(top, w),
     ...body.map(row => clip ? truncateToWidth(` ${row}`, w, '…', false) : ` ${row}`),
-    style.fg('dim', '┄'.repeat(w)),
   ];
 }

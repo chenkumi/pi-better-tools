@@ -83,15 +83,14 @@ const panelJobLimit = (terminalRows: number) => Math.min(5, Math.max(0, Math.flo
 export function displayedJobs(jobs: readonly PanelJob[], terminalRows = 40): PanelJob[] {
   return orderedJobs(jobs.filter(j => j.active)).slice(0, panelJobLimit(terminalRows));
 }
-/** Rows above the first job (title rule, counts) and below the last (Open row, separator) in the passive panel. */
+/** Rows above the first job (title rule, counts) and below the last (the Open row) in the passive panel. */
 export const PANEL_HEAD_ROWS = 2;
-export const PANEL_TAIL_ROWS = 2;
+export const PANEL_TAIL_ROWS = 1;
 /** The label that opens the list; the only click target besides a job row. */
 export const OPEN_LABEL = "[Open]";
 const KIND_COUNTS: ReadonlyArray<readonly [PanelKind, string, string]> = [["shell", "\u2318", "Shell"], ["subagents", "\u25b7", "Subagents"], ["fork", "\u22d4", "Fork"], ["monitor", "\u2316", "Monitor"], ["pty", "\u2338", "PTY"], ["schedule", "\u23f1", "Schedule"]];
 /**
- * The passive panel (TUI_DESIGN.md "背景任務面板"): title rule, one counts row, one row per job (at most five), an Open row and a
- * dashed separator. No background box. `hover` is a {@link jobKey} or {@link MORE_HOVER}; it only recolours, never changes the layout.
+ * The passive panel (TUI_DESIGN.md "背景任務面板"): title rule, one counts row, one row per job (at most five), an Open row. No background box. `hover` is a {@link jobKey} or {@link MORE_HOVER}; it only recolours, never changes the layout.
  */
 export function renderJobs(jobs: readonly PanelJob[], theme: Theme, width: number, terminalRows = 40, hover?: string): string[] {
   width = clampWidth(width);
@@ -138,7 +137,7 @@ export class JobsOverlay implements Component {
   private pageRows = 5;
   private finishedOnly = false;
   private disposed = false;
-  /** Rendered inside the host's bottom panel: no box of its own, body capped at 8 rows (the host draws the title rule and separator). */
+  /** Rendered inside the host's bottom panel: no box of its own, body capped at 8 rows (the host draws the title rule). */
   plain = false;
   private metadata = false;
   private liveDetail = false;

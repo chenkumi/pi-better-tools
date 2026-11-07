@@ -6,7 +6,7 @@ import { fakeUi } from './fake-ui.ts';
 
 const KEY = { up: '\x1b[A', down: '\x1b[B', left: '\x1b[D', right: '\x1b[C', enter: '\r', esc: '\x1b' };
 
-test('a panel is drawn above the editor with a title rule and a dashed separator, and takes the keyboard until done', async () => {
+test('a panel is drawn above the editor with a title rule, and takes the keyboard until done', async () => {
   const f = fakeUi();
   const seen: string[] = [];
   let body: BottomBody | undefined;
@@ -19,9 +19,8 @@ test('a panel is drawn above the editor with a title rule and a dashed separator
   const lines = f.render('k', 40);
   assert.match(lines[0]!, /^── Demo ─+$/);
   assert.equal(lines[1], ' row');
-  assert.match(lines.at(-1)!, /^┄+$/);
   for (const line of lines) assert.ok(visibleWidth(line) <= 40);
-  assert.equal(visibleWidth(lines[0]!), 40); assert.equal(visibleWidth(lines.at(-1)!), 40);
+  assert.equal(visibleWidth(lines[0]!), 40);
   assert.equal(f.type('a'), true, 'keys are consumed so the editor never sees them');
   assert.equal(f.type('q'), true);
   assert.equal(await result, 'bye');
