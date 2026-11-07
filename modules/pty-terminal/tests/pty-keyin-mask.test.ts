@@ -1,3 +1,4 @@
+import { keyinUi as fakeUi } from "./keyin-ui.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import extension from "../src/index.ts";
@@ -16,14 +17,9 @@ function setup() {
 	extension({ registerTool(tool: { name: string }) { tools.set(tool.name, tool); }, on(event: string, handler: () => void) { if (event === "session_shutdown") shutdown = handler; } } as never);
 	return { tools, shutdown: () => shutdown?.() };
 }
-function fakeUi() {
-	const state: { component?: any } = {};
-	const ui = { custom: (factory: any) => new Promise((resolve) => { state.component = factory({ requestRender() {} }, {}, {}, (value: unknown) => resolve(value)); }) };
-	return { ui, type: (text: string) => state.component.handleInput(text) };
-}
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-const ctx = (ui: unknown) => ({ cwd: process.cwd(), hasUI: true, ui });
+const ctx = (ui: unknown) => ({ cwd: process.cwd(), hasUI: true, mode: "tui", ui });
 
 async function spawn(tools: Map<string, any>, script: string) {
 	const spawned = await tools.get("pty_spawn").execute("s", { command: process.execPath, args: ["-e", script] }, undefined, undefined, { cwd: process.cwd() });

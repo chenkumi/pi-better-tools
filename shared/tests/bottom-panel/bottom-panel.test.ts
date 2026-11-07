@@ -121,12 +121,34 @@ test('confirm: a message taller than the room scrolls so nothing is approved uns
   const answer = bottomConfirm({ mode: 'tui', hasUI: true, ui: Object.assign(f.ui, { confirm: async () => assert.fail(), select: async () => assert.fail() }) } as never, 'SQL', message);
   let text = f.render('pi-better-tools-ask', 60).join('\n');
   assert.match(text, /line 0/); assert.doesNotMatch(text, /line 39/);
-  assert.match(text, /↑\/↓ scroll\s+lines 1-\d+ of 40/);
+  assert.match(text, /↑\/↓ PgUp\/PgDn scroll\s+lines 1-\d+ of 40/);
   for (let i = 0; i < 60; i++) f.type('\x1b[B');
   text = f.render('pi-better-tools-ask', 60).join('\n');
   assert.match(text, /line 39/); assert.doesNotMatch(text, /line 0\b/);
   f.type('y');
   assert.equal(await answer, true);
+});
+
+test('PgUp/PgDn page the confirm message and the select list', async () => {
+  const ui = (f: ReturnType<typeof fakeUi>) => ({ mode: 'tui', hasUI: true, ui: Object.assign(f.ui, { confirm: async () => assert.fail(), select: async () => assert.fail() }) }) as never;
+  let f = fakeUi({ rows: 24 });
+  const answer = bottomConfirm(ui(f), 'SQL', Array.from({ length: 40 }, (_, i) => `line ${i}`).join('\n'));
+  f.render('pi-better-tools-ask', 60);
+  f.type('\x1b[6~');
+  let text = f.render('pi-better-tools-ask', 60).join('\n');
+  assert.doesNotMatch(text, /line 0\b/); assert.match(text, /lines (?!1-)\d+-/);
+  f.type('\x1b[5~');
+  assert.match(f.render('pi-better-tools-ask', 60).join('\n'), /lines 1-/);
+  f.type('n'); assert.equal(await answer, false);
+  f = fakeUi({ rows: 24 });
+  const options = Array.from({ length: 30 }, (_, i) => `option ${i}`);
+  const picked = bottomSelect(ui(f), 'Pick', options);
+  f.render('pi-better-tools-ask', 40);
+  f.type('\x1b[6~');
+  text = f.render('pi-better-tools-ask', 40).join('\n');
+  assert.doesNotMatch(text, /▸ option 0\b/); assert.match(text, /▸ option \d+/);
+  f.type('\x1b[5~'); f.type('\r');
+  assert.equal(await picked, 'option 0');
 });
 
 test('confirm and select close as No / cancelled when the signal aborts, even if it was already aborted', async () => {

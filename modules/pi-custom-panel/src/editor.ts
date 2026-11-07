@@ -1,4 +1,5 @@
 import { CustomEditor } from "@earendil-works/pi-coding-agent";
+import { isBottomPanelOpen } from "../../../shared/src/bottom-panel/index.ts";
 
 export const PROMPT = "❯ ";
 const PADDING = PROMPT.length;
@@ -10,6 +11,8 @@ type EditorArgs = ConstructorParameters<typeof CustomEditor>;
  * this class never touches cursor style.
  */
 export class PanelEditor extends CustomEditor {
+  /** Fullscreen scrolls the chat on PgUp/PgDn unless the focused component captures them; an open bottom panel pages itself. */
+  override get capturesViewportInput(): boolean { return super.capturesViewportInput || isBottomPanelOpen(); }
   constructor(tui: EditorArgs[0], theme: EditorArgs[1], keybindings: EditorArgs[2], options: EditorArgs[3] = {}, accent?: (text: string) => string, private readonly promptPaint?: (text: string) => string) {
     super(tui, theme, keybindings, { ...options, paddingX: Math.max(options?.paddingX ?? 0, PADDING) });
     // The host paints the border by thinking level (and a dedicated colour in `!` bash mode) by assigning `borderColor` after every

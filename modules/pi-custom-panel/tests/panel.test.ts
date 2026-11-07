@@ -6,6 +6,7 @@ import { PanelEditor, PROMPT } from '../src/editor.ts';
 import { contextSegment, formatCwd, renderFooter, type FooterModel } from '../src/footer.ts';
 import { formatTokens, sumUsage } from '../src/usage.ts';
 import panel from '../src/index.ts';
+import { closeBottomPanel, openBottomPanel } from '../../../shared/src/bottom-panel/index.ts';
 
 const paint = (_color: string, text: string) => text;
 const usage = (input: number, output: number, cacheRead: number, cost: number) => ({ input, output, cacheRead, cacheWrite: 0, cost: { total: cost } });
@@ -115,6 +116,18 @@ test('editor: prompt glyph on the first text row only; borders, content and auto
   assert.ok(lines[1]!.startsWith(`${PROMPT}hello`), lines[1]);
   assert.ok(lines[2]!.startsWith('  world'), lines[2]);
   assert.ok(lines.every(line => visibleWidth(line) === 40));
+});
+
+test('editor keeps PgUp/PgDn away from the fullscreen viewport while a bottom panel is open', async () => {
+  const tui: any = { terminal: { rows: 40 }, requestRender() {} };
+  const theme: any = { borderColor: (s: string) => s, selectList: { selectedPrefix: (s: string) => s, selectedText: (s: string) => s, description: (s: string) => s, scrollInfo: (s: string) => s, noMatch: (s: string) => s } };
+  const editor = new PanelEditor(tui, theme, { matches: () => false, getKeys: () => [] } as any);
+  assert.equal(editor.capturesViewportInput, false);
+  const ui = { setWidget() {}, onTerminalInput: () => () => {} } as any;
+  const open = openBottomPanel(ui, { key: 'k', title: 't', create: () => ({ render: () => [], handleInput() {} }) });
+  assert.equal(editor.capturesViewportInput, true);
+  closeBottomPanel(); await open;
+  assert.equal(editor.capturesViewportInput, false);
 });
 
 test('editor: border and prompt use the accent colour, whatever the host assigns; bash mode keeps the host colour', () => {

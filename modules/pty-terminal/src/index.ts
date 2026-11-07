@@ -10,6 +10,7 @@ import { resolveTarget } from "./targets.ts";
 import { ptyRenderers } from "./renderers.ts";
 import { SecretInput } from "./secret-input.ts";
 import { ToolError } from "../../../shared/src/tool-error/index.ts";
+import { isBottomPanelOpen, openBottomPanel, whenBottomPanelFree } from "../../../shared/src/bottom-panel/index.ts";
 import { MASK } from "./secret-mask.ts";
 import { PtySessionsWidget, publishPtyBriefs } from "./live-widget.ts";
 
@@ -208,7 +209,7 @@ export default function (pi: ExtensionAPI) {
 		outputSchema: keyinOutputSchema,
 		executionMode: "sequential",
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-			if (!ctx.hasUI) throw new Error("pty_keyin needs an interactive Pi UI, which this session does not have. Ask the user to run the program that needs the secret themselves; do not ask for the secret in chat.");
+			if (!ctx.hasUI || ctx.mode !== "tui") throw new Error("pty_keyin needs an interactive Pi UI, which this session does not have. Ask the user to run the program that needs the secret themselves; do not ask for the secret in chat.");
 			if (keyinActive) throw new Error("Another pty_keyin dialog is already open; wait for the user to finish it.");
 			if (signal?.aborted) throw new Error("pty_keyin aborted");
 			sessions.assertWritable(params.sessionId);
@@ -236,10 +237,16 @@ export default function (pi: ExtensionAPI) {
 							if (!exit) return;
 						}
 					})();
-					void ctx.ui.custom<string | undefined>((tui, _theme, _keybindings, done) => {
-						finish = (value) => { clearTimeout(timer); signal?.removeEventListener("abort", onAbort); resolve(value); done(value); };
-						return new SecretInput({ header, requestRender: () => tui.requestRender(), onSubmit: (value) => finish(value), onCancel: () => { reason = "cancelled"; finish(undefined); } });
-					}).then((value) => { if (value === undefined && !reason) reason = "cancelled"; clearTimeout(timer); signal?.removeEventListener("abort", onAbort); resolve(value); }, () => { reason = "cancelled"; clearTimeout(timer); signal?.removeEventListener("abort", onAbort); resolve(undefined); });
+					void (async () => { // another bottom panel (settings, Jobs) holds the keyboard: wait for it instead of failing
+						while (isBottomPanelOpen()) if (!await whenBottomPanelFree(stop.signal)) return undefined;
+						return openBottomPanel<string | undefined>(ctx.ui, {
+							key: "pi-better-tools-keyin", title: "PTY KeyIn",
+							create: ({ done, requestRender, theme }) => {
+								finish = (value) => { clearTimeout(timer); signal?.removeEventListener("abort", onAbort); resolve(value); done(value); };
+								return new SecretInput({ header, style: theme, requestRender, onSubmit: (value) => finish(value), onCancel: () => { reason = "cancelled"; finish(undefined); } });
+							},
+						});
+					})().then((value) => { if (value === undefined && !reason) reason = "cancelled"; clearTimeout(timer); signal?.removeEventListener("abort", onAbort); resolve(value); }, () => { reason = "cancelled"; clearTimeout(timer); signal?.removeEventListener("abort", onAbort); resolve(undefined); });
 				});
 				secret = input;
 			} finally {

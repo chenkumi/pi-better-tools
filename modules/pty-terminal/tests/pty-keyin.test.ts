@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import extension from "../src/index.ts";
 import { SecretInput } from "../src/secret-input.ts";
+import { keyinUi as fakeUi } from "./keyin-ui.ts";
 
 const SECRET = "p@ss\\x41w0rd\\n'\"é";
 /** Reads one line from the PTY and reports it, so delivery is observable through pty_read. */
@@ -12,18 +13,6 @@ function setup() {
 	let shutdown: (() => void) | undefined;
 	extension({ registerTool(tool: { name: string }) { tools.set(tool.name, tool); }, on(event: string, handler: () => void) { if (event === "session_shutdown") shutdown = handler; } } as never);
 	return { tools, shutdown: () => shutdown?.() };
-}
-
-/** UI whose custom() hands the component to the test and resolves when the component calls done(). */
-function fakeUi() {
-	const state: { component?: any; shown: number } = { shown: 0 };
-	const ui = {
-		custom: (factory: any) => new Promise((resolve) => {
-			state.shown++;
-			state.component = factory({ requestRender() {} }, {}, {}, (value: unknown) => resolve(value));
-		}),
-	};
-	return { ui, state, type: (text: string) => state.component.handleInput(text) };
 }
 
 async function spawn(tools: Map<string, any>, script: string) {
@@ -42,7 +31,7 @@ test("pty_keyin sends the typed secret verbatim plus Enter and never returns it"
 	t.after(shutdown);
 	const sessionId = await spawn(tools, reader);
 	const { ui, type } = fakeUi();
-	const pending = tools.get("pty_keyin").execute("k", { sessionId, prompt: "sudo password" }, undefined, undefined, { cwd: process.cwd(), hasUI: true, ui });
+	const pending = tools.get("pty_keyin").execute("k", { sessionId, prompt: "sudo password" }, undefined, undefined, { cwd: process.cwd(), hasUI: true, mode: "tui", ui });
 	await tick();
 	type(SECRET);
 	type("\r");
@@ -60,7 +49,7 @@ test("pty_keyin cancel sends nothing and reports it", async (t) => {
 	t.after(shutdown);
 	const sessionId = await spawn(tools, reader);
 	const { ui, type } = fakeUi();
-	const pending = tools.get("pty_keyin").execute("k", { sessionId }, undefined, undefined, { cwd: process.cwd(), hasUI: true, ui });
+	const pending = tools.get("pty_keyin").execute("k", { sessionId }, undefined, undefined, { cwd: process.cwd(), hasUI: true, mode: "tui", ui });
 	await tick();
 	type("hunter2");
 	type("\x1b");
@@ -77,13 +66,13 @@ test("pty_keyin refuses without UI, unknown or exited sessions, and a second dia
 	t.after(shutdown);
 	const sessionId = await spawn(tools, reader);
 	await assert.rejects(tools.get("pty_keyin").execute("k", { sessionId }, undefined, undefined, { cwd: process.cwd(), hasUI: false }), /interactive Pi UI/);
-	const { ui, state } = fakeUi();
-	await assert.rejects(tools.get("pty_keyin").execute("k", { sessionId: "pty-none" }, undefined, undefined, { cwd: process.cwd(), hasUI: true, ui }), /pty-none/);
+	const { ui, state, type } = fakeUi();
+	await assert.rejects(tools.get("pty_keyin").execute("k", { sessionId: "pty-none" }, undefined, undefined, { cwd: process.cwd(), hasUI: true, mode: "tui", ui }), /pty-none/);
 	assert.equal(state.shown, 0);
-	const first = tools.get("pty_keyin").execute("k", { sessionId }, undefined, undefined, { cwd: process.cwd(), hasUI: true, ui });
+	const first = tools.get("pty_keyin").execute("k", { sessionId }, undefined, undefined, { cwd: process.cwd(), hasUI: true, mode: "tui", ui });
 	await tick();
-	await assert.rejects(tools.get("pty_keyin").execute("k2", { sessionId }, undefined, undefined, { cwd: process.cwd(), hasUI: true, ui }), /already open/);
-	state.component.handleInput("\x1b");
+	await assert.rejects(tools.get("pty_keyin").execute("k2", { sessionId }, undefined, undefined, { cwd: process.cwd(), hasUI: true, mode: "tui", ui }), /already open/);
+	type("\x1b");
 	await first;
 });
 
@@ -93,7 +82,7 @@ test("pty_keyin aborts without writing when the tool call is aborted or the sess
 	const sessionId = await spawn(tools, reader);
 	const abort = new AbortController();
 	const { ui, type } = fakeUi();
-	const pending = tools.get("pty_keyin").execute("k", { sessionId }, abort.signal, undefined, { cwd: process.cwd(), hasUI: true, ui });
+	const pending = tools.get("pty_keyin").execute("k", { sessionId }, abort.signal, undefined, { cwd: process.cwd(), hasUI: true, mode: "tui", ui });
 	await tick();
 	type("abc");
 	abort.abort();
@@ -101,41 +90,41 @@ test("pty_keyin aborts without writing when the tool call is aborted or the sess
 	assert.equal(result.details.reason, "aborted");
 	// Make the program exit by itself, then a new dialog must refuse.
 	await tools.get("pty_kill").execute("kill", { sessionId });
-	await assert.rejects(tools.get("pty_keyin").execute("k", { sessionId }, undefined, undefined, { cwd: process.cwd(), hasUI: true, ui }), /pty-/);
+	await assert.rejects(tools.get("pty_keyin").execute("k", { sessionId }, undefined, undefined, { cwd: process.cwd(), hasUI: true, mode: "tui", ui }), /pty-/);
 });
 
-test("SecretInput renders a boxed mask with cursor and code-point count as input changes", () => {
+test("SecretInput renders a masked field with cursor and code-point count as input changes", () => {
 	let renders = 0;
 	const input = new SecretInput({ header: ["Prompt"], requestRender: () => { renders++; }, onSubmit() {}, onCancel() {} });
-	const field = (width: number) => input.render(width)[3];
-	const counter = (width: number) => input.render(width)[4];
+	const field = (width: number) => input.render(width)[2];
+	const counter = (width: number) => input.render(width)[3];
 	const empty = input.render(40);
 	assert.equal(empty.length, 6);
-	for (const i of [0, 2, 3, 4]) assert.equal(empty[i].length, 40);
-	assert.equal(empty[0], "─".repeat(40));
-	assert.equal(empty[1], " Prompt");
-	assert.equal(empty[2], `╭─ PTY KeyIn ${"─".repeat(26)}╮`);
-	assert.equal(field(40), `│ _${" ".repeat(35)} │`);
-	assert.equal(counter(40), `╰${"─".repeat(28)} 0 chars ─╯`);
-	assert.equal(input.render(100)[5], " The text you type goes straight to the session; the agent never sees it.");
+	assert.equal(empty[0], "");
+	assert.equal(empty[1], "Prompt");
+	assert.equal(field(40), "❯ _");
+	assert.equal(counter(40), "0 chars");
+	assert.equal(input.render(100)[4], "The text you type goes straight to the session; the agent never sees it.");
+	assert.match(empty[5], /Enter send.*Esc cancel/);
 	input.handleInput("a😀");
-	assert.equal(field(40), `│ **_${" ".repeat(33)} │`);
-	assert.match(counter(40), / 2 chars ─╯$/);
+	assert.equal(field(40), "❯ **_");
+	assert.equal(counter(40), "2 chars");
 	input.handleInput("\x1b[200~xy\r\n\x1b[201~");
-	assert.match(field(40), /^│ \*\*\*\*_ +│$/);
+	assert.equal(field(40), "❯ ****_");
 	input.handleInput("\x7f");
-	assert.match(field(40), /^│ \*\*\*_ +│$/);
-	assert.match(counter(40), / 3 chars ─╯$/);
+	assert.equal(field(40), "❯ ***_");
+	assert.equal(counter(40), "3 chars");
 	input.handleInput("\x15");
-	assert.match(field(40), /^│ _ +│$/);
+	assert.equal(field(40), "❯ _");
 	assert.equal(renders, 4);
 	input.handleInput("secret".repeat(30));
 	const narrow = input.render(30);
-	assert.equal(narrow[3], `│ ${"*".repeat(25)}_ │`);
-	assert.match(narrow[4], / 180 chars ─╯$/);
+	assert.equal(narrow[2], `❯ ${"*".repeat(27)}_`);
+	assert.equal(narrow[3], "180 chars");
 	assert.ok(!narrow.join("\n").includes("secret"));
+	for (const line of input.render(12)) assert.ok(line.replace(/[[0-9;]*m/g, "").length <= 12, line);
 	input.dispose();
-	assert.match(input.render(40)[4], / 0 chars ─╯$/);
+	assert.equal(input.render(40)[3], "0 chars");
 });
 
 test("SecretInput masks, keeps backslashes, handles paste, backspace and kitty/escape input", () => {

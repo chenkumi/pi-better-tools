@@ -69,7 +69,7 @@ class ConfirmBody implements BottomBody {
     const shown = text.slice(this.#scroll, this.#scroll + this.#pageRows);
     const scrolls = text.length > this.#pageRows;
     const choice = (label: string, on: boolean) => on ? s.bold(s.fg('accent', `[ ${label} ]`)) : s.fg('dim', `[ ${label} ]`);
-    const position = scrolls ? [s.fg('warning', `↑/↓ scroll  lines ${this.#scroll + 1}-${this.#scroll + shown.length} of ${text.length}`)] : [];
+    const position = scrolls ? [s.fg('warning', `↑/↓ PgUp/PgDn scroll  lines ${this.#scroll + 1}-${this.#scroll + shown.length} of ${text.length}`)] : [];
     return ['', ...shown, ...position, '', `${choice('Yes', this.#yes)} ${choice('No', !this.#yes)}`, '', s.fg('dim', '←/→ choose  Enter confirm  Y yes  N no  Esc cancel')];
   }
   handleInput(data: string): void {
@@ -78,26 +78,32 @@ class ConfirmBody implements BottomBody {
     if (matchesKey(data, 'enter')) return this.done(this.#yes);
     if (matchesKey(data, 'up')) this.#scroll = Math.max(0, this.#scroll - 1);
     else if (matchesKey(data, 'down')) this.#scroll++;
+    else if (matchesKey(data, 'pageUp')) this.#scroll = Math.max(0, this.#scroll - this.#pageRows);
+    else if (matchesKey(data, 'pageDown')) this.#scroll += this.#pageRows;
     else if (matchesKey(data, 'left') || matchesKey(data, 'right') || matchesKey(data, 'tab') || matchesKey(data, 'shift+tab')) this.#yes = !this.#yes;
   }
 }
 
 class SelectBody implements BottomBody {
   #at = 0;
+  #room = 3;
   constructor(private readonly options: readonly string[], private readonly style: PanelStyle, private readonly rows: () => number, private readonly done: (picked: string | null) => void) {}
   render(width: number): string[] {
     const s = this.style, room = Math.min(this.options.length, Math.max(3, this.rows() - 10));
+    this.#room = room;
     const from = Math.min(Math.max(0, this.#at - Math.floor(room / 2)), this.options.length - room);
     const lines = this.options.slice(from, from + room).map((option, i) => {
       const on = from + i === this.#at;
       return on ? s.fg('accent', `▸ ${truncateToWidth(option, width - 2)}`) : `  ${truncateToWidth(option, width - 2)}`;
     });
-    return ['', ...lines, '', s.fg('dim', `↑/↓ move  Enter select  Esc cancel${this.options.length > room ? `  (${this.#at + 1}/${this.options.length})` : ''}`)];
+    return ['', ...lines, '', s.fg('dim', `↑/↓ PgUp/PgDn move  Enter select  Esc cancel${this.options.length > room ? `  (${this.#at + 1}/${this.options.length})` : ''}`)];
   }
   handleInput(data: string): void {
     if (cancel(data)) return this.done(null);
     if (matchesKey(data, 'enter')) return this.done(this.options[this.#at]!);
     if (matchesKey(data, 'up')) this.#at = (this.#at - 1 + this.options.length) % this.options.length;
     else if (matchesKey(data, 'down')) this.#at = (this.#at + 1) % this.options.length;
+    else if (matchesKey(data, 'pageUp')) this.#at = Math.max(0, this.#at - this.#room);
+    else if (matchesKey(data, 'pageDown')) this.#at = Math.min(this.options.length - 1, this.#at + this.#room);
   }
 }

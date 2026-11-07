@@ -31,6 +31,7 @@ export class SettingsPanel implements Component {
   readonly #initial: Values;
   readonly #secrets = new Map<string, string>();
   #cursor = 0;
+  #page = 5;
   #tab: string | undefined;
   #edit: { key: string; buffer: string } | undefined;
   #paste: string | undefined;
@@ -91,6 +92,8 @@ export class SettingsPanel implements Component {
     if (!rows.length) return;
     if (matchesKey(data, 'up')) this.#cursor = (this.#cursor - 1 + rows.length) % rows.length;
     else if (matchesKey(data, 'down')) this.#cursor = (this.#cursor + 1) % rows.length;
+    else if (matchesKey(data, 'pageUp')) this.#cursor = Math.max(0, this.#cursor - this.#page);
+    else if (matchesKey(data, 'pageDown')) this.#cursor = Math.min(rows.length - 1, this.#cursor + this.#page);
     else {
       const field = rows[Math.min(this.#cursor, rows.length - 1)]!;
       const left = matchesKey(data, 'left'), right = matchesKey(data, 'right');
@@ -221,6 +224,7 @@ export class SettingsPanel implements Component {
     };
     const rows = this.#visible, { lines, rowLine } = layout(rows, this.#cursor);
     const room = Math.max(5, this.#o.rows() - 12);
+    this.#page = room;
     this.#height = Math.max(this.#height, this.#tallest(layout));
     const height = Math.min(room, this.#height);
     let from = 0;

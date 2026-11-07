@@ -1,3 +1,4 @@
+import { keyinUi } from "./keyin-ui.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Check, Errors } from "typebox/value";
@@ -42,17 +43,16 @@ test("every PTY tool declares an outputSchema and its structuredContent validate
 	assert.match(ready, /READY/);
 
 	// keyin: cancelled path, then delivered path; structuredContent carries only sessionId/delivered/reason.
-	let component: any;
-	const ui = { custom: (factory: any) => new Promise((resolve) => { component = factory({ requestRender() {} }, {}, {}, (value: unknown) => resolve(value)); }) };
-	const keyinCtx = { cwd: process.cwd(), hasUI: true, ui };
+	const { ui, type } = keyinUi();
+	const keyinCtx = { cwd: process.cwd(), hasUI: true, mode: "tui", ui };
 	let pending = run("pty_keyin", { sessionId, confirmPrompt: true }, keyinCtx);
 	await tick();
-	component.handleInput("\u001b");
+	type("\u001b");
 	assert.deepEqual((await pending).structuredContent, { sessionId, delivered: false, reason: "cancelled" });
 	pending = run("pty_keyin", { sessionId, confirmPrompt: true }, keyinCtx);
 	await tick();
-	component.handleInput(SECRET);
-	component.handleInput("\r");
+	type(SECRET);
+	type("\r");
 	const keyin = await pending;
 	assert.deepEqual(keyin.structuredContent, { sessionId, delivered: true });
 	assert.ok(!JSON.stringify(keyin).includes(SECRET));

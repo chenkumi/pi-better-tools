@@ -1,10 +1,10 @@
-import type { Component } from "@earendil-works/pi-tui";
 import { decodeKittyPrintable, matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
 
 const PASTE_START = "\x1b[200~";
 const PASTE_END = "\x1b[201~";
 
 const NOTICE = "The text you type goes straight to the session; the agent never sees it.";
+const HINT = "Enter send  Esc cancel  Ctrl+U clear";
 
 export interface SecretInputOptions {
 	/** Lines shown above the field (the agent's prompt, or the session facts when it gave none). */
@@ -12,14 +12,16 @@ export interface SecretInputOptions {
 	onSubmit(value: string): void;
 	onCancel(): void;
 	requestRender?(): void;
+	/** Colours for the dim lines; plain text when absent. */
+	style?: { fg(color: string, text: string): string };
 }
 
 /**
- * Single-line masked input. Deliberately not pi-tui's Input: no undo stack, kill ring or getValue(); the typed value
+ * Single-line masked input, drawn as the body of a bottom panel (the host adds the title rule and separator). Deliberately not pi-tui's Input: no undo stack, kill ring or getValue(); the typed value
  * lives in one private field and leaves the component only through onSubmit. Rendering shows one `*` per code point
  * (bounded by the box width) and the exact count to the local user, but not the input itself.
  */
-export class SecretInput implements Component {
+export class SecretInput {
 	#value = "";
 	#paste: string | undefined;
 	#done = false;
@@ -86,22 +88,18 @@ export class SecretInput implements Component {
 		this.#value = "";
 	}
 
-	invalidate(): void {}
-
 	render(width: number): string[] {
-		const w = Math.max(24, width);
+		const w = Math.max(1, width);
+		const dim = (text: string) => this.#options.style?.fg("dim", text) ?? text;
 		const count = Array.from(this.#value).length;
-		const title = "╭─ PTY KeyIn ";
-		const counter = ` ${count} chars ─`;
-		const room = w - 4; // "│ " + field + " │" borders
-		const field = ("*".repeat(Math.min(count, room - 1)) + "_").padEnd(room);
+		const mask = "*".repeat(Math.min(count, Math.max(0, w - 3))) + "_";
 		return [
-			"─".repeat(w),
-			...this.#options.header.map((line) => ` ${line}`),
-			`${title}${"─".repeat(w - title.length - 1)}╮`,
-			`│ ${field} │`,
-			`╰${"─".repeat(w - 2 - counter.length)}${counter}╯`,
-			` ${NOTICE}`,
-		].map((line) => truncateToWidth(line, Math.max(1, width)));
+			"",
+			...this.#options.header,
+			`❯ ${mask}`,
+			dim(`${count} chars`),
+			dim(NOTICE),
+			dim(HINT),
+		].map((line) => truncateToWidth(line, w));
 	}
 }
