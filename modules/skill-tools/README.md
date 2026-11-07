@@ -16,6 +16,8 @@ pi -e ./modules/skill-tools/src/index.ts
 
 `skills/test-suite-tidy/SKILL.md`（原生新增，2026-10-31）：整理既有測試套件——先量測耗時與覆蓋基準，先診斷時間花在案例或執行結構（案例加總 vs 整組牆鐘），提速手段含並行度驗證規程與量測衛生（對照組、殘留行程、負載 flake 單獨重跑），再依類型（跨層重複、可參數化、測實作細節、弱斷言、已移除功能、固定 sleep）盤點候選，靜態掃描結果須人工確認，零刪除為正當結論，刪除或合併前須有證據（另一案例以相同或更強斷言覆蓋、行為已不存在、無可觀察斷言，或變異驗證），禁止為變快而弱化斷言，並要求前後耗時對照與未執行分組明講。新增測試仍用 `test-case-creator`。使用 `/skill:test-suite-tidy <範圍>`。
 
+`skills/os-scheduling/SKILL.md`（原生新增，2026-11-07）：Pi 關閉後仍要執行時的 OS 層排程引導——何時不需要 OS 排程、無人值守 `pi -p` 的注意事項（cwd、憑證、PATH、日誌、失敗通知、`--approve` 的風險、費用）、Windows／cron／systemd／launchd 的建立、查詢、移除範本。純文件，不執行任何東西；範本指令未實跑，旗標已對照 `pi --help`（1.5.0）。專案不提供 `schedule_os` 工具。
+
 停用時，在 package 的 `extensions` filters 排除 `modules/skill-tools/src/index.ts`；不會刪除 skill 檔案。這是 extension 動態提供的資源，不是根 manifest 的 `pi.skills`：package `skills: []`／Pi `--no-skills` 只停用一般 skill discovery，不能停用已啟用 extension 的 `resources_discover`。需要完全停用本模組 skills，請停用這個 extension。既有 project trust 規則由 Pi 管理，不自動授權。
 
 ## pi-tools-config：模組指令與設定索引
