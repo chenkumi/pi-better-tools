@@ -40,6 +40,11 @@ function oneOf(key: string, values: string[]) { return (v: unknown) => { if (typ
 export function parseSettings(text: string): Partial<ScheduleSettings> {
 	let raw: unknown;
 	try { raw = JSON.parse(text); } catch { throw new SettingsError("the settings file is not valid JSON"); }
+	return parseSettingsObject(raw);
+}
+
+/** Same rules for an already parsed document (the settings panel validates what it is about to write). */
+export function parseSettingsObject(raw: unknown): Partial<ScheduleSettings> {
 	if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw new SettingsError("the settings file must be a JSON object");
 	const out: Record<string, unknown> = {};
 	for (const [key, value] of Object.entries(raw)) {

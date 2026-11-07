@@ -9,9 +9,11 @@ import { MARKER_TYPE } from "../src/markers.ts";
 function host(active = ["bash", "powershell", "schedule_prompt", "schedule_shell"]) {
 	const tools = new Map<string, any>(), handlers = new Map<string, (event: unknown, ctx: unknown) => Promise<void>>();
 	const renderers: string[] = [], sent: any[] = [];
+	const commands: string[] = [];
 	extension({
 		registerTool: (tool: any) => tools.set(tool.name, tool),
 		registerMessageRenderer: (type: string) => renderers.push(type),
+		registerCommand: (name: string) => commands.push(name),
 		on: (event: string, handler: any) => handlers.set(event, handler),
 		getActiveTools: () => active,
 		sendMessage: (message: unknown) => sent.push(message),

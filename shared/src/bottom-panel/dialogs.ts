@@ -107,3 +107,58 @@ class SelectBody implements BottomBody {
     else if (matchesKey(data, 'pageDown')) this.#at = Math.min(this.options.length - 1, this.#at + this.#room);
   }
 }
+
+const PASTE_START = '\x1b[200~';
+const PASTE_END = '\x1b[201~';
+
+/**
+ * One line of text in the bottom panel; `undefined` when cancelled. Enter submits (an empty line is a valid answer unless
+ * `required`), Esc and Ctrl+C cancel, Ctrl+U clears. Unlike the confirm/select dialogs there is no host fallback worth
+ * having for free text, so outside the TUI (or while another panel is open) it also returns `undefined`.
+ */
+export async function bottomInput(ctx: DialogContext, title: string, prompt: string, options: DialogOptions & { initial?: string; required?: boolean } = {}): Promise<string | undefined> {
+  if (!usable(ctx)) return undefined;
+  if (isBottomPanelOpen() && !await waitTurn(options)) return undefined;
+  let unwatch = () => undefined as void;
+  return openBottomPanel<string | null>(ctx.ui, {
+    key: 'pi-better-tools-ask', title,
+    create: ({ done, theme, requestRender }) => { unwatch = watch(options.signal, () => done(null)); return new InputBody(prompt, options.initial ?? '', options.required === true, theme, requestRender, done); },
+  }).finally(() => unwatch()).then(value => value ?? undefined);
+}
+
+class InputBody implements BottomBody {
+  #value: string;
+  #paste: string | undefined;
+  constructor(private readonly prompt: string, initial: string, private readonly required: boolean, private readonly style: PanelStyle, private readonly requestRender: () => void, private readonly done: (value: string | null) => void) { this.#value = initial; }
+  render(width: number): string[] {
+    const s = this.style;
+    const text = this.prompt.split('\n').flatMap(line => wrapTextWithAnsi(line, Math.max(10, width - 1))).map(line => truncateToWidth(line, width, '…', false));
+    const room = Math.max(1, width - 3);
+    const chars = Array.from(this.#value);
+    const shown = chars.length >= room ? `…${chars.slice(chars.length - room + 2).join('')}` : this.#value;
+    return ['', ...text, `❯ ${shown}_`, '', s.fg('dim', `Enter ${this.required ? 'submit (text required)' : 'submit'}  Esc cancel  Ctrl+U clear`)];
+  }
+  handleInput(data: string): void {
+    if (this.#paste !== undefined || data.includes(PASTE_START)) return this.#handlePaste(data);
+    if (cancel(data)) return this.done(null);
+    if (matchesKey(data, 'enter')) { if (this.required && !this.#value.trim()) return; return this.done(this.#value); }
+    if (matchesKey(data, 'backspace')) this.#value = Array.from(this.#value).slice(0, -1).join('');
+    else if (matchesKey(data, 'ctrl+u')) this.#value = '';
+    else if (!data.startsWith('\x1b')) this.#append(data);
+    this.requestRender();
+  }
+  #handlePaste(data: string): void {
+    let chunk = data;
+    if (this.#paste === undefined) { this.#paste = ''; chunk = data.slice(data.indexOf(PASTE_START) + PASTE_START.length); }
+    this.#paste += chunk;
+    const end = this.#paste.indexOf(PASTE_END);
+    if (end === -1) return;
+    const pasted = this.#paste.slice(0, end);
+    this.#paste = undefined;
+    this.#append(pasted.replace(/[\r\n]+/g, ' '));
+    this.requestRender();
+  }
+  #append(text: string): void {
+    this.#value += Array.from(text).filter(char => { const code = char.codePointAt(0)!; return code >= 0x20 && code !== 0x7f && !(code >= 0x80 && code <= 0x9f); }).join('');
+  }
+}

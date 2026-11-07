@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { visibleWidth } from '@earendil-works/pi-tui';
-import { bottomConfirm, bottomSelect, closeBottomPanel, isBottomPanelOpen, openBottomPanel, type BottomBody } from '../../src/bottom-panel/index.ts';
+import { bottomConfirm, bottomInput, bottomSelect, closeBottomPanel, isBottomPanelOpen, openBottomPanel, type BottomBody } from '../../src/bottom-panel/index.ts';
 import { fakeUi } from './fake-ui.ts';
 
 const KEY = { up: '\x1b[A', down: '\x1b[B', left: '\x1b[D', right: '\x1b[C', enter: '\r', esc: '\x1b' };
@@ -198,4 +198,23 @@ test('a question raised while another panel is open waits for it instead of fall
   controller.abort();
   assert.equal(await waiting, false);
   f2.type('x'); await blocker;
+});
+
+test('input: typing, paste, backspace and Ctrl+U edit one line; Enter submits, Esc cancels, required refuses empty text', async () => {
+  const ctx = (f: ReturnType<typeof fakeUi>) => ({ mode: 'tui', hasUI: true, ui: f.ui }) as never;
+  let f = fakeUi();
+  let answer = bottomInput(ctx(f), 'Name', 'Job name?', { initial: 'x' });
+  for (const key of ['a', 'b', 'c']) f.type(key);
+  f.type('\x7f');
+  f.type('\x1b[200~ d\ne\x1b[201~');
+  assert.match(f.render('pi-better-tools-ask', 40).join('\n'), /❯ xab d e_/);
+  f.type(KEY.enter);
+  assert.equal(await answer, 'xab d e');
+  f = fakeUi(); answer = bottomInput(ctx(f), 'Name', 'Job name?'); f.type('z'); f.type('\x15'); f.type(KEY.enter);
+  assert.equal(await answer, '', 'an empty line is a valid answer');
+  f = fakeUi(); answer = bottomInput(ctx(f), 'Name', 'Job name?', { required: true }); f.type(KEY.enter); f.type('k'); f.type(KEY.enter);
+  assert.equal(await answer, 'k', 'Enter on empty required text does nothing');
+  f = fakeUi(); answer = bottomInput(ctx(f), 'Name', 'Job name?'); f.type('q'); f.type(KEY.esc);
+  assert.equal(await answer, undefined);
+  assert.equal(await bottomInput({ mode: 'rpc', hasUI: true, ui: fakeUi().ui } as never, 'T', 'p'), undefined, 'no host fallback outside the TUI');
 });

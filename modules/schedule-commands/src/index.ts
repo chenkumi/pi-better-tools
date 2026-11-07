@@ -10,8 +10,10 @@ import { ScheduleEngine, type EngineEvent } from "./engine.ts";
 import { createExecutor } from "./executor.ts";
 import { JobError, JobService } from "./jobs.ts";
 import { MARKER_TYPE, postMarker } from "./markers.ts";
+import { registerManageCommand } from "./manage.ts";
 import { renderMarker } from "./message-renderer.ts";
-import { publishScheduleBriefs, SchedulePanel } from "./panel.ts";
+import { orderRows, publishScheduleBriefs, SchedulePanel } from "./panel.ts";
+import { registerScheduleSettings } from "./settings-ui.ts";
 import { DEFAULT_SETTINGS, loadSettings, type ScheduleSettings } from "./settings.ts";
 import { ScheduleStore } from "./storage.ts";
 import { createPromptTool, createShellTool, type ToolDeps } from "./tool.ts";
@@ -49,6 +51,9 @@ export default function (pi: ExtensionAPI): void {
 	// allowlist and exclusions still decide whether each one is active.
 	pi.registerTool({ ...createPromptTool(deps), defaultActive: true } as never);
 	pi.registerTool({ ...createShellTool(deps), defaultActive: true } as never);
+
+	registerManageCommand(pi, { ...deps, rows: () => { const l = need(); return orderRows(l.store.read().store.jobs.filter(l.jobs.visible).map((job) => ({ job, running: l.engine.runningJobs.has(job.id) }))); } });
+	registerScheduleSettings(pi);
 
 	const teardown = () => {
 		if (!live) return;
