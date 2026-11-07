@@ -66,7 +66,7 @@ export function registerCheckpoint(pi: ExtensionAPI): void {
       marginMinTokens,
     }, ratio, minTokens);
     if (action === 'none') return undefined;
-    const entry = action === 'deadline' ? draft(DEADLINE_TYPE, deadlineText(active.includes(NOTE_TOOL))) : draft(CHECKPOINT_TYPE, checkpointText(active.includes(ANCHOR_TOOL)));
+    const entry = action === 'deadline' ? draft(DEADLINE_TYPE, deadlineText(WRITE_TOOLS.filter(name => active.includes(name)))) : draft(CHECKPOINT_TYPE, checkpointText(active.includes(ANCHOR_TOOL)));
     return { entries: [...event.entries, entry], continue: true };
   });
   pi.on('agent_before_settle', event => {

@@ -20,10 +20,11 @@ export const NOTE_TOOL = 'note';
 export const WRITE_TOOLS: readonly string[] = [NOTE_TOOL, 'write', 'edit'];
 
 /** Behavior guidance, not a demand for a tool: the agent decides what to write, and updates a notes file that already exists. */
-export const deadlineText = (hasNoteTool: boolean): string =>
+export const deadlineText = (writeTools: readonly string[]): string =>
   'Automatic notice (not a user request): the context is almost full, and compaction will happen soon. '
   + 'Save your task progress to a notes file now, so you can resume after compaction. '
-  + `If a notes file for this task already exists, update it. Otherwise, create one${hasNoteTool ? ` with the ${NOTE_TOOL} tool` : ''}. `
-  + 'Record what is done, what is next, and key facts. Mention the file path in your reply. Then continue the task.';
+  + `Your very next action must be the call that saves the notes (use one of the enabled file-writing tools: ${writeTools.join(", ")}): do not read files or think at length first, everything you need is already in this conversation. `
+  + `If a notes file for this task already exists, update it. Otherwise, create one${writeTools.includes(NOTE_TOOL) ? ` with the ${NOTE_TOOL} tool (type checkpoint)` : ''}. `
+  + 'Record what is done, what is next, and key facts, in about 1500 characters at most. Mention the file path in your reply. Then continue the task.';
 
 export const CONTINUE_TEXT = 'Continue the task if it is unfinished; if it is already complete, reply with one line saying so.';
