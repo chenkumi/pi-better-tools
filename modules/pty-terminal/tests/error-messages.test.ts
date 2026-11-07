@@ -99,7 +99,7 @@ test("resize on an exited session says so instead of surfacing a native error", 
 
 test("tool descriptions and schemas never name settings keys or environment variables", () => {
 	const tools: unknown[] = [];
-	extension({ registerTool: (tool: unknown) => tools.push(tool), on() {}, getSettings: () => ({}) } as never);
+	extension({ getActiveTools: () => ["bash"], registerTool: (tool: unknown) => tools.push(tool), on() {}, getSettings: () => ({}) } as never);
 	assert.ok(tools.length >= 7);
 	assert.doesNotMatch(JSON.stringify(tools), FORBIDDEN);
 });

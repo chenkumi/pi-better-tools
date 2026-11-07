@@ -19,6 +19,10 @@
 
 只有 spawn 指定 target；後續使用 sessionId。不改其他 shell/file 工具的執行位置。PTY 合併終端輸出並可能有 ANSI 控制碼，不提供逐指令結構化 stdout/stderr/exit code；互動 shell 的 exitCode 是 shell 結束碼。
 
+## 前提：bash／powershell 工具已啟用（2026-11-07 新增）
+
+PTY 能啟動任何程式並對 shell 輸入指令，因此 `pty_spawn`、`pty_write`、`pty_keyin` 每次呼叫都檢查 `bash` 或 `powershell` 至少一個在 `pi.getActiveTools()` 內，否則以 `PTY_SHELL_DISABLED` 拒絕。`pty_read`、`pty_list`、`pty_wait_exit`、`pty_kill`、`pty_resize` 不受影響，停用 shell 後仍可檢視與清理既有 session。這是執行時拒絕而非不註冊（`tool_search` 仍可載入）；檢查的是工具是否啟用，不是政策層的允許。
+
 ## 動態載入（tool_search）
 
 八個 PTY 工具以 `exposure: "deferred"` 註冊並歸入同一個 `pty` namespace，不隨每次請求送給模型（約 1,400 tokens）。本模組只宣告 exposure 與 namespace；啟用 `tool_search`、無 `tool_search` 時的直接宣告、以及系統提示的載入提示，全部由 **Pi Runtime** 統一處理（見 `modules/pi-runtime/README.md`「Deferred 工具」），不需要任何 `defaultTools` 設定。

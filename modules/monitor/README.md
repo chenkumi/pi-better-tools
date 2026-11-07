@@ -21,6 +21,8 @@
 
 ### 命令授權範圍（設計決策）
 
+**工具啟用檢查（2026-11-07 新增）**：`source.kind:"command"` 啟動前，`source.tool` 指名的 `bash`／`powershell` 工具必須在 `pi.getActiveTools()` 內，否則以 `MONITOR_SHELL_DISABLED` 拒絕（不建立 receipt、不回退另一個 shell）。這讓 `--tools` allowlist、`--exclude-tools`、`--no-tools` 與手動停用對 command source 與對應 Shell 工具一致；檢查的是「工具是否啟用」，**不是**政策層的允許——下列 `tool_call` 政策範圍的設計決策不變。file／system／websocket／job 來源不需要 shell 工具。
+
 `monitor_start` 的 `source.kind:"command"` 由 Monitor 自行啟動 backend，不經巢狀 `bash` 的 `tool_call` hooks；因此只拒絕 `bash` 的 policy **不會**阻止 Monitor command source，policy 必須針對 `monitor_start`（可檢查 `input.source.command`）。這是目前明訂的授權範圍，不是已證實的權限漏洞，也不會偷偷啟用 `bash`；若產品要求兩者同範圍，需另行決定（例如 `ctx.executeTool`）。`tests/command-authorization.integration.test.mjs` 鎖定：直接 bash 被拒、可針對 `monitor_start` 攔截；「bash-deny 也涵蓋 Monitor」以 `todo` 記錄。
 共通 `durationMs` 預設300000、1000–1800000整數，包含 startup；不是 Shell idle `timeoutMs`。`wakeAgent` 預設true；false 的 display custom message 不要求模型回合。`stopAfterEvents` 可選1–600，計採納資料事件；`label` 可選80字、清控制碼。Start 立即回 pending receipt；acceptance 後 runtime 接管，不跟著原工具 call 的晚到 abort 停止。Status `{monitorId?}` 唯讀，省略列最多32；Stop `{monitorId}` 冪等、可能先回 stopping/cleanupPending。
 

@@ -6,7 +6,7 @@ import extension, { PTY_TOOL_NAMES } from "../src/index.ts";
 test("every PTY tool is deferred in one pty namespace and the name list matches the registrations", async () => {
 	const tools: any[] = [];
 	const handlers = new Map<string, (event: any, ctx: any) => any>();
-	extension({ registerTool: (tool: unknown) => { tools.push(tool); }, on: (event: string, handler: any) => { handlers.set(event, handler); } } as never);
+	extension({ getActiveTools: () => ["bash"], registerTool: (tool: unknown) => { tools.push(tool); }, on: (event: string, handler: any) => { handlers.set(event, handler); } } as never);
 	assert.deepEqual(tools.map(tool => tool.name), [...PTY_TOOL_NAMES]);
 	for (const tool of tools) {
 		assert.equal(tool.exposure, "deferred", tool.name);

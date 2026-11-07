@@ -28,6 +28,7 @@ test("the registered tools control a real PTY session", async (t) => {
 	const tools = new Map<string, any>();
 	let shutdownHandler: (() => void) | undefined;
 	extension({
+		getActiveTools: () => ["bash"],
 		registerTool(tool: { name: string }) {
 			tools.set(tool.name, tool);
 		},
@@ -72,7 +73,7 @@ test("the registered tools control a real PTY session", async (t) => {
 test("write keys + waitFor/format/since work end to end on a real PTY, with slim text and cancel keeps the session", async (t) => {
 	const tools = new Map<string, any>();
 	let shutdownHandler: (() => void) | undefined;
-	extension({ registerTool: (tool: { name: string }) => tools.set(tool.name, tool), on: (event: string, handler: () => void) => { if (event === "session_shutdown") shutdownHandler = handler; } } as never);
+	extension({ getActiveTools: () => ["bash"], registerTool: (tool: { name: string }) => tools.set(tool.name, tool), on: (event: string, handler: () => void) => { if (event === "session_shutdown") shutdownHandler = handler; } } as never);
 	t.after(() => shutdownHandler?.());
 	const context = { cwd: process.cwd() };
 	const spawned = await tools.get("pty_spawn").execute("s", { command: process.execPath, args: ["-e", interactive] }, undefined, undefined, context);
@@ -115,7 +116,7 @@ test("local spawn applies pi-pty-terminal.env allow/deny from effective settings
 	const tools = new Map<string, any>();
 	let shutdownHandler: (() => void) | undefined;
 	let settings: unknown = {};
-	extension({ registerTool: (tool: { name: string }) => tools.set(tool.name, tool), on: (event: string, handler: () => void) => { if (event === "session_shutdown") shutdownHandler = handler; }, getSettings: () => settings } as never);
+	extension({ getActiveTools: () => ["bash"], registerTool: (tool: { name: string }) => tools.set(tool.name, tool), on: (event: string, handler: () => void) => { if (event === "session_shutdown") shutdownHandler = handler; }, getSettings: () => settings } as never);
 	t.after(() => shutdownHandler?.());
 	process.env.PTY_TEST_SECRET = "leak";
 	t.after(() => { delete process.env.PTY_TEST_SECRET; });
@@ -130,4 +131,30 @@ test("local spawn applies pi-pty-terminal.env allow/deny from effective settings
 	assert.match(await run({ env: { deny: ["PTY_TEST_*"] } }), /V=none;X=yes;/);
 	assert.match(await run({ env: { allow: ["PATH", "SystemRoot", "SYSTEMROOT", "PATHEXT", "TEMP", "TMP", "windir"] } }), /V=none;X=yes;/);
 	await assert.rejects(run({ env: { allow: "PATH" } }), /allowed-variables list/);
+});
+
+test("pty_spawn, pty_write and pty_keyin are refused unless bash or powershell is enabled; inspecting and cleaning up stays possible", async (t) => {
+	for (const [active, allowed] of [[[], false], [["read", "monitor_start"], false], [["bash"], true], [["powershell"], true]] as const) {
+		const tools = new Map<string, any>();
+		let shutdownHandler: (() => void) | undefined;
+		extension({
+			getActiveTools: () => [...active],
+			registerTool(tool: { name: string }) { tools.set(tool.name, tool); },
+			on(event: string, handler: () => void) { if (event === "session_shutdown") shutdownHandler = handler; },
+		} as never);
+		t.after(() => shutdownHandler?.());
+		const context = { cwd: process.cwd(), hasUI: true, mode: "tui", ui: {} };
+		const calls = [
+			() => tools.get("pty_spawn").execute("s", { command: process.execPath, args: ["-e", "setTimeout(()=>{},2000)"] }, undefined, undefined, context),
+			() => tools.get("pty_write").execute("w", { sessionId: "pty-none", data: "x" }, undefined, undefined, context),
+			() => tools.get("pty_keyin").execute("k", { sessionId: "pty-none" }, undefined, undefined, context),
+		];
+		for (const call of calls) {
+			if (allowed) { try { const result = await call(); if (result?.details?.sessionId) tools.get("pty_kill").execute("x", { sessionId: result.details.sessionId }); } catch (error) { assert.doesNotMatch(String((error as Error).message), /neither the bash nor the powershell/); } }
+			else await assert.rejects(call(), /PTY_SHELL_DISABLED.*neither the bash nor the powershell/);
+		}
+		// Read-only and cleanup tools do not need a shell tool.
+		await tools.get("pty_list").execute("l", {}, undefined, undefined, context); // does not throw
+		await assert.rejects(tools.get("pty_kill").execute("k", { sessionId: "pty-none" }, undefined, undefined, context), (error: Error) => !/neither the bash nor the powershell/.test(error.message));
+	}
 });

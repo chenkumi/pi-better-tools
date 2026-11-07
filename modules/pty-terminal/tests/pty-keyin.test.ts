@@ -11,7 +11,7 @@ const reader = `process.stdout.write('READY\\n'); process.stdin.setRawMode(true)
 function setup() {
 	const tools = new Map<string, any>();
 	let shutdown: (() => void) | undefined;
-	extension({ registerTool(tool: { name: string }) { tools.set(tool.name, tool); }, on(event: string, handler: () => void) { if (event === "session_shutdown") shutdown = handler; } } as never);
+	extension({ getActiveTools: () => ["bash"], registerTool(tool: { name: string }) { tools.set(tool.name, tool); }, on(event: string, handler: () => void) { if (event === "session_shutdown") shutdown = handler; } } as never);
 	return { tools, shutdown: () => shutdown?.() };
 }
 

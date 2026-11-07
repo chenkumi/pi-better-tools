@@ -100,7 +100,15 @@ const PTY_EXPOSURE = {
 	namespace: { name: "pty", description: "Persistent pseudo-terminal sessions for interactive programs and TUIs on local, WSL or SSH targets." },
 } as const;
 
+/** PTY can start any program and type into any shell, so it is only available while the user allows shell execution at all. */
+const SHELL_TOOL_NAMES = ["bash", "powershell"] as const;
+
 export default function (pi: ExtensionAPI) {
+	/** Checked on every call: the user can change the enabled tools at any time. Reading, listing, waiting and killing stay available so sessions can always be inspected and cleaned up. */
+	const assertShellEnabled = (tool: string) => {
+		const active = typeof pi.getActiveTools === "function" ? pi.getActiveTools() : [];
+		if (!SHELL_TOOL_NAMES.some((name) => active.includes(name))) throw new ToolError("PTY_SHELL_DISABLED", `${tool} is not available because neither the bash nor the powershell tool is enabled. Ask the user to enable one of them, or do not start or write to PTY sessions.`);
+	};
 	const sessions = new PtySessionManager({ orphans: sharedOrphanRegistry() });
 	const widget = new PtySessionsWidget(pi);
 	sessions.onChange = () => widget.refresh();
@@ -118,6 +126,7 @@ export default function (pi: ExtensionAPI) {
 		outputSchema: spawnOutputSchema,
 		executionMode: "sequential",
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+			assertShellEnabled("pty_spawn");
 			if (signal?.aborted) throw new Error("PTY spawn aborted");
 			// Effective (host trust-filtered) settings: project-level values only apply when the project is trusted.
 			const settings = typeof pi.getSettings === "function" ? (pi.getSettings() as unknown as Record<string, unknown>)["pi-pty-terminal"] : undefined;
@@ -177,6 +186,7 @@ export default function (pi: ExtensionAPI) {
 		outputSchema: writeOutputSchema,
 		executionMode: "sequential",
 		async execute(_toolCallId, params, signal) {
+			assertShellEnabled("pty_write");
 			const keys = params.keys?.length ? resolveKeys(params.keys) : "";
 			if (params.data === undefined && !keys) throw new ToolError("PTY_INVALID_ARGUMENT", `pty_write needs data and/or keys. Supported keys: ${KEY_NAMES.join(", ")}.`);
 			sessions.write(params.sessionId, (params.data === undefined ? "" : decodeControlEscapes(params.data)) + keys);
@@ -209,6 +219,7 @@ export default function (pi: ExtensionAPI) {
 		outputSchema: keyinOutputSchema,
 		executionMode: "sequential",
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+			assertShellEnabled("pty_keyin");
 			if (!ctx.hasUI || ctx.mode !== "tui") throw new Error("pty_keyin needs an interactive Pi UI, which this session does not have. Ask the user to run the program that needs the secret themselves; do not ask for the secret in chat.");
 			if (keyinActive) throw new Error("Another pty_keyin dialog is already open; wait for the user to finish it.");
 			if (signal?.aborted) throw new Error("pty_keyin aborted");

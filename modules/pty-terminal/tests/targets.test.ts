@@ -50,7 +50,7 @@ test("SSH never disables or overrides host-key verification", () => {
 });
 test("extension reads effective settings for spawn, resolves targets only for remote, and rejects pre-aborted spawn", async () => {
 	const tools = new Map<string, any>(); let reads = 0;
-	extension({ registerTool: (tool: any) => tools.set(tool.name, tool), on: () => {}, getSettings: () => { reads++; return {}; } } as never);
+	extension({ getActiveTools: () => ["bash"], registerTool: (tool: any) => tools.set(tool.name, tool), on: () => {}, getSettings: () => { reads++; return {}; } } as never);
 	const spawn = tools.get("pty_spawn");
 	await assert.rejects(spawn.execute("id", { target: "missing", command: "bash" }, undefined, undefined, { cwd: process.cwd() }), /Unknown/);
 	assert.equal(reads, 1);

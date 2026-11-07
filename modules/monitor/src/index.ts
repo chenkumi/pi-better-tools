@@ -70,6 +70,8 @@ export default function monitorExtension(pi: ExtensionAPI, seam: { clock?: Clock
         if (signal?.aborted) throw new Error('Monitor not started: the tool call was cancelled before acceptance. Retry if the monitor is still needed.');
         let launch;
         const source = input.source;
+        // Command sources spawn their own backend, so the shell tool they name must be enabled, like the matching Shell tool call would need to be.
+        if (source.kind === 'command' && !pi.getActiveTools().includes(source.tool)) throw new ToolError('MONITOR_SHELL_DISABLED', `source.tool ${JSON.stringify(source.tool)} is not enabled for this session, so a command source cannot start; ask the user to enable the ${source.tool} tool, or use a file, system or job source.`);
         if (source.kind === 'command') launch = commandLaunch(pi, ctx, source);
         else if (source.kind === 'websocket') { parseEndpoint(source); launch = websocketLaunch(source, clock); }
         else if (source.kind === 'file') launch = fileLaunch(owner.cwd, resolveFilePath(owner.cwd, source.path), source.intervalMs ?? FILE_INTERVAL.default, clock); // Rejects paths outside the canonical workspace before acceptance.

@@ -151,3 +151,23 @@ test('monitor_start accepts a file inside the workspace and rejects one outside 
     assert.equal(runtime.status(accepted.structuredContent.monitorId).cleanupEvidence.sourceClosed, true);
   } finally { await handlers.get('session_shutdown')({}, ctx); w.done(); outside.done(); }
 });
+
+test('monitor_start refuses a command source whose shell tool is not enabled, while file sources are unaffected', async () => {
+  const w = workspace(); writeFileSync(join(w.root, 'a.txt'), 'x');
+  for (const [active, tool, allowed] of [[['monitor_start', 'monitor_status', 'monitor_stop'], 'bash', false], [['monitor_start', 'bash'], 'powershell', false], [['monitor_start', 'bash'], 'bash', true]] as const) {
+    const tools = new Map<string, any>(), handlers = new Map<string, any>(); let runtime!: MonitorRuntime;
+    const { clock } = manual();
+    monitorExtension({ registerMessageRenderer() {}, registerTool: (t: any) => tools.set(t.name, t), on: (name: string, fn: any) => handlers.set(name, fn), getActiveTools: () => [...active], sendMessage() {} } as any, { clock, onRuntime: (r: MonitorRuntime) => { runtime = r; } } as any);
+    const ctx = { cwd: w.root, sessionManager: { getSessionId: () => 'shell-gate' } };
+    try {
+      await handlers.get('session_start')({}, ctx);
+      const start = (source: object) => tools.get('monitor_start').execute('direct', { source, wakeAgent: false }, undefined, undefined, ctx);
+      const command = await start({ kind: 'command', tool, command: 'printf x' });
+      if (allowed) assert.doesNotMatch(String(command.structuredContent?.error ?? ''), /not enabled for this session/);
+      else { assert.equal(command.isError, true); assert.match(command.structuredContent.error, /MONITOR_SHELL_DISABLED[\s\S]*not enabled for this session/); }
+      const file = await start({ kind: 'file', path: 'a.txt' });
+      assert.equal(file.isError, undefined, 'a file source never needs a shell tool');
+    } finally { await handlers.get('session_shutdown')({}, ctx); }
+  }
+  w.done();
+});
