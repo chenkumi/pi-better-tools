@@ -1,6 +1,8 @@
 import type { ExtensionAPI, ExtensionCommandContext } from '@earendil-works/pi-coding-agent';
+import { bottomConfirm } from '../bottom-panel/dialogs.js';
+import { isBottomPanelOpen, openBottomPanel } from '../bottom-panel/host.js';
 import { SettingsInputError } from './errors.js';
-import { SettingsPanel, type PanelStyle } from './panel.js';
+import { SettingsPanel } from './panel.js';
 import type { SettingsSchema, Values } from './schema.js';
 import { applyPatches, readRaw, removeFile, writeJsonAtomic } from './store.js';
 
@@ -28,13 +30,13 @@ async function open<C>(schema: SettingsSchema<C>, ctx: ExtensionCommandContext):
   const first = readRaw(schema.path);
   let startFresh = false;
   if (first.state === 'invalid') {
-    startFresh = await ctx.ui.confirm(`${schema.title} settings`, `The existing file is unusable (${first.reason}). Start from defaults? Saving replaces the file.`);
+    startFresh = await bottomConfirm(ctx, `${schema.title} settings`, `The existing file is unusable (${first.reason}). Start from defaults? Saving replaces the file.`);
     if (!startFresh) return;
   }
   let current: C;
   try { current = schema.parse(first.state === 'invalid' ? {} : first.raw); }
   catch (error) {
-    startFresh = await ctx.ui.confirm(`${schema.title} settings`, `${message(error)}. Start from defaults? Saving replaces the file.`);
+    startFresh = await bottomConfirm(ctx, `${schema.title} settings`, `${message(error)}. Start from defaults? Saving replaces the file.`);
     if (!startFresh) return;
     current = schema.parse({});
   }
@@ -42,18 +44,23 @@ async function open<C>(schema: SettingsSchema<C>, ctx: ExtensionCommandContext):
 
   const save = (edited: Values, dirty: ReadonlySet<string>) => saveSettings(schema, edited, dirty, startFresh);
 
-  const saved = await ctx.ui.custom<boolean>((tui, theme, _keys, done) => new SettingsPanel({
-    title: schema.title, notice: schema.notice,
-    fields: schema.fields, values, style: theme as unknown as PanelStyle, ...(schema.unsaved ? { unsaved: schema.unsaved } : {}),
-    rows: () => tui.terminal?.rows ?? 24,
-    requestRender: () => tui.requestRender(),
-    onSave: save,
-    onClose: done,
-  }), { overlay: true, overlayOptions: { anchor: 'center', width: '90%', maxHeight: '90%', margin: 1 } });
-  if (!saved) return;
+  if (isBottomPanelOpen()) { ctx.ui.notify('Another panel is open. Close it first, then run this command again.', 'warning'); return; }
+  let panel: SettingsPanel | undefined;
+  const saved = await openBottomPanel<boolean>(ctx.ui, {
+    key: 'pi-better-tools-settings',
+    title: () => panel?.title ?? schema.title,
+    create: ({ done, theme, rows, requestRender }) => panel = new SettingsPanel({
+      title: schema.title, notice: schema.notice,
+      fields: schema.fields, values, style: theme, ...(schema.unsaved ? { unsaved: schema.unsaved } : {}),
+      rows, requestRender,
+      onSave: save,
+      onClose: done,
+    }),
+  });
+  if (!saved) return; // cancelled, or closed from outside (reload, session switch)
   ctx.ui.notify(`Saved ${schema.path}.${schema.afterSave ? ` ${schema.afterSave}` : ''}`, 'info');
   if (schema.appliesWithoutReload) return;
-  if (await ctx.ui.confirm(`${schema.title} settings`, 'Settings are read when extensions load. Reload now?')) await ctx.reload();
+  if (await bottomConfirm(ctx, `${schema.title} settings`, 'Settings are read when extensions load. Reload now?')) await ctx.reload();
   else ctx.ui.notify('Run /reload to apply the new settings.', 'info');
 }
 

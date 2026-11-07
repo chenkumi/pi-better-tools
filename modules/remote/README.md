@@ -71,7 +71,7 @@ JSON frame，`ws(s)://host:port/remote`。server → client：`challenge`、`wel
 
 ## 設定面板（M3）
 
-`/settings:remote`（僅互動 TUI、僅受信任專案；沿用共用 settings-panel，圓角固定高度框）。頁面：**Connection**（Mode：off／server／client；Name、Wake、Wake only for、Allow plain ws）、**Server**（Port、Bind、憑證／私鑰 PEM 路徑、Pairing code）、**Client**（Host、Port、Encrypted、Pairing code）。只在按存檔時寫入。
+`/settings:remote`（僅互動 TUI、僅受信任專案；沿用共用 settings-panel，顯示在輸入框上方的底部面板（固定高度））。頁面：**Connection**（Mode：off／server／client；Name、Wake、Wake only for、Allow plain ws）、**Server**（Port、Bind、憑證／私鑰 PEM 路徑、Pairing code）、**Client**（Host、Port、Encrypted、Pairing code）。只在按存檔時寫入。
 
 - **Server 配對碼**：Server 頁的「Pairing code」欄位直接顯示碼。使用者層還沒有碼時，開面板就即時產生一組顯示（不需先存檔、不需 `/reload`）；此時它視為「尚未儲存」，按存檔才寫入（只是開著看、Esc 離開不會存）。已存過的碼則顯示已存的那組。游標移到該欄位按 Enter 即時換一組新碼（Esc 放棄），存檔後新碼生效，並撤銷所有已配對的 client。面板顯示的碼就是存檔後生效的碼。
 - **Client 配對碼**：遮罩輸入、不載入既有值，只顯示「已設定／未設定」；存檔時寫入使用者層 `<agentDir>/pi-remote.json` 的 `clients["host:port"]`，**不寫進專案 `remote.json`**。格式不符（需 12 碼）或沒有 Host 時拒絕存檔。只改配對碼時 `remote.json` 完全不動。

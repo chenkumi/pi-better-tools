@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
+import { fakeUi } from '../bottom-panel/fake-ui.ts';
 import { registerSettingsCommand, type SettingsSchema } from '../../src/settings-panel/index.ts';
 
 function schema(path: string, extra: Partial<SettingsSchema<{ n: number }>> = {}): SettingsSchema<{ n: number }> {
@@ -19,10 +20,22 @@ async function run(source: SettingsSchema<{ n: number }>, answer = false): Promi
   let handler: ((args: string, ctx: unknown) => Promise<void>) | undefined;
   registerSettingsCommand({ registerCommand: (_name: string, spec: { handler: typeof handler }) => { handler = spec.handler; } } as unknown as ExtensionAPI, source);
   const log: string[] = [];
-  await handler!('', {
+  const f = fakeUi();
+  const done = handler!('', {
     hasUI: true, mode: 'tui', reload: async () => { log.push('reload'); },
-    ui: { notify: (text: string) => log.push(`notify:${text}`), confirm: async (title: string, text: string) => { log.push(`confirm:${title}:${text}`); return answer; }, custom: async () => true },
+    ui: Object.assign(f.ui, { notify: (text: string) => log.push(`notify:${text}`), confirm: async (title: string, text: string) => { log.push(`confirm:${title}:${text}`); return answer; } }),
   });
+  // The panel is open now: change N and save, like a user would.
+  for (const key of ['\r', '5', '\r', '\x13']) f.type(key);
+  // The reload question is a bottom question too: read it off the screen, then answer it.
+  await new Promise(resolve => setTimeout(resolve, 20));
+  const ask = f.render('pi-better-tools-ask', 200);
+  if (ask.length) {
+    const title = /^── (.*?) ─+$/.exec(ask[0]!)?.[1];
+    log.push(`confirm:${title}:${ask.slice(1).map(row => row.trim()).filter(Boolean).join(' ')}`);
+    f.type(answer ? 'y' : 'n');
+  }
+  await done;
   return log;
 }
 

@@ -10,17 +10,21 @@ import { BackgroundJobs } from '../../subagents/extensions/subagent/background.t
 const theme: any = { fg: (_: string, s: string) => `\x1b[32m${s}\x1b[0m`, getBgAnsi: () => '\x1b[48;5;58m', bg: (_: string, s: string) => '\x1b[48;5;58m' + s + '\x1b[49m' };
 function view() {
   let owner = 'owner', renders = 0, customCalls = 0, overlay: any, draft = '保留輸入中的文字', rows = 40;
-  const listeners = new Set<(data: string) => unknown>();
+  const listeners = new Set<(data: string) => unknown>(), termListeners = new Set<(data: string) => unknown>();
   const widgets = new Map<string, any>(), statuses = new Map<string, string>(), calls: any[] = [];
   const tui = { terminal: { get rows() { return rows; } }, requestRender: () => renders++, addInputListener: (listener: (data: string) => unknown) => { listeners.add(listener); return () => { listeners.delete(listener); }; } };
   const ctx: any = { cwd: '/cwd', mode: 'tui', hasUI: true, sessionManager: { getSessionId: () => owner }, ui: {
     setStatus(key: string, value: string | undefined) { if (value) statuses.set(key, value); else statuses.delete(key); },
-    setWidget(key: string, value: any, options: any) { calls.push({ key, value, options }); if (value) widgets.set(key, value); else widgets.delete(key); }, notify() {},
+    setWidget(key: string, value: any, options: any) {
+      if (key === 'pi-better-tools-jobs-panel') { // the expanded panel is a bottom-panel widget that takes the keyboard
+        if (value) { customCalls++; assert.equal(options.placement, 'aboveEditor'); const widget = value(tui, theme); overlay = { render: (w: number) => widget.render(w), handleInput: (data: string) => [...termListeners].forEach(listener => listener(data)), dispose() {} }; }
+        else overlay = undefined;
+        return;
+      }
+      calls.push({ key, value, options }); if (value) widgets.set(key, value); else widgets.delete(key);
+    }, notify() {},
     getEditorText: () => draft, setEditorText: (s: string) => { draft = s; },
-    custom(factory: any, options: any) { customCalls++; assert.equal(options.overlay, true); return new Promise<void>(resolve => {
-      const done = () => { overlay?.dispose?.(); overlay = undefined; resolve(); };
-      overlay = factory(tui, theme, {}, done);
-    }); },
+    onTerminalInput(handler: (data: string) => unknown) { termListeners.add(handler); return () => { termListeners.delete(handler); }; },
   } };
   return { ctx, widgets, statuses, calls, owner: (id: string) => owner = id, rows: (n: number) => rows = n,
     factory: () => widgets.get(BACKGROUND_WIDGET_KEY), component: (t: any = theme) => widgets.get(BACKGROUND_WIDGET_KEY)(tui, t),

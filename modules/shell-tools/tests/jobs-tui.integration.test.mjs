@@ -65,7 +65,7 @@ for (const mode of ['regular', 'fullscreen']) {
       assert.match(updated.overlayLines.join('\n'), /reported 1\.2k tok\*/); assert.equal((await read()).filter(r => r.event === 'opening').length, 1, 'background render does not reopen overlay');
       await resize(40, 12);
       const smallDetail = await snapshot(); assert.equal(smallDetail.overlay, true); assert.ok(smallDetail.overlayLines.length <= 10); assert.match(smallDetail.overlayLines.join('\n'), /Esc Back/);
-      terminal.write('\x1b[6~'); const scrolled = await snapshot(); assert.match(scrolled.overlayLines.join('\n'), /Long detail/);
+      /* a 12-row terminal leaves the bottom panel a short page: scroll down until the long details show (fullscreen keeps PgUp/PgDn for the chat viewport, so use the arrow key) */ let scrolled = smallDetail; for (let i = 0; i < 30 && !/Long detail/.test(scrolled.overlayLines.join('\n')); i++) { terminal.write('\x1b[B'); scrolled = await snapshot(); } assert.match(scrolled.overlayLines.join('\n'), /Long detail/);
       await resize(120, 40);
       const largeDetail = await snapshot(); assert.equal(largeDetail.overlay, true); assert.ok(largeDetail.overlayLines.length <= 20); assert.equal(largeDetail.draft, 'draft_keep');
       terminal.write('\x1b[27u'); const back = await snapshot(); assert.equal(back.overlay, true); assert.match(back.overlayLines.join('\n'), /Active \/ Recent finished/);

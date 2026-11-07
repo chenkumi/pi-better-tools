@@ -195,13 +195,17 @@ export class SettingsPanel implements Component {
 
   invalidate(): void {}
 
+  /** Title for the panel's top rule: the settings name, with a mark while there are unsaved changes. */
+  get title(): string { return `${this.#o.title}${this.dirty.size ? ' ●' : ''}`; }
+
   /**
-   * Fixed-height rounded frame: the body is as tall as the fullest layout (capped by the terminal) and the help/message
-   * line is always reserved, so switching a provider never resizes the dialog. Every line is one row, ellipsised if needed.
+   * Body rows for the bottom panel (the host draws the title rule and the separator). Fixed height: the body is as tall as the
+   * fullest layout (capped by the terminal) and the help/message line is always reserved, so switching a provider never
+   * resizes the panel. Every line is one row, ellipsised if needed.
    */
   render(width: number): string[] {
-    const w = Math.max(30, width), inner = w - 4, s = this.#o.style, edge = (t: string) => s.fg('dim', t);
-    const line = (text: string) => `${edge('│')} ${truncateToWidth(text, inner, '…', true)} ${edge('│')}`;
+    const w = Math.max(30, width), inner = w, s = this.#o.style;
+    const line = (text: string) => truncateToWidth(text, inner, '…', true);
     const layout = (fields: readonly Field[], cursor?: number) => {
       const lines: string[] = [], rowLine: number[] = [];
       let group: string | undefined;
@@ -216,7 +220,7 @@ export class SettingsPanel implements Component {
       return { lines, rowLine };
     };
     const rows = this.#visible, { lines, rowLine } = layout(rows, this.#cursor);
-    const room = Math.max(5, this.#o.rows() - 8);
+    const room = Math.max(5, this.#o.rows() - 12);
     this.#height = Math.max(this.#height, this.#tallest(layout));
     const height = Math.min(room, this.#height);
     let from = 0;
@@ -228,18 +232,13 @@ export class SettingsPanel implements Component {
     const tabBar = this.#tabs.map(t => (t === active ? s.bold(s.fg('accent', `[ ${t} ]`)) : s.fg('dim', `  ${t}  `))).join(' ');
     if (from > 0 && height) body[0] = `${truncateToWidth(body[0]!, inner - 2, '…', true)} ▲`;
     if (from + height < lines.length && height) body[height - 1] = `${truncateToWidth(body[height - 1]!, inner - 2, '…', true)} ▼`;
-    const mark = this.dirty.size ? ' ●' : '';
-    const head = ` ${this.#o.title}${mark} `;
-    const top = `${edge('╭──')}${s.bold(head)}${edge(`${'─'.repeat(Math.max(0, w - 4 - head.length))}╮`)}`;
     const focus = rows[this.#cursor];
     const help = this.#message ? s.fg(this.#message.error ? 'error' : 'warning', this.#message.text) : s.fg('dim', focus?.help ?? '');
     const hint = s.fg('dim', this.#edit ? 'Enter confirm  Esc cancel edit  Ctrl+U clear' : `↑/↓ move  Enter/←/→ change  ${pages ? 'Tab page  ' : ''}Ctrl+S save  Esc close`);
     return [
-      truncateToWidth(top, w),
       ...(this.#o.notice ? [line(s.fg('warning', this.#o.notice))] : []),
       ...(pages ? [line(tabBar), line('')] : []),
       ...body.map(line), line(''), line(help), line(hint),
-      edge(`╰${'─'.repeat(w - 2)}╯`),
     ];
   }
 

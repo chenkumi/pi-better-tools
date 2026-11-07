@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { MouseRegion, visibleWidth, type Component } from "@earendil-works/pi-tui";
+import { openBottomPanel } from "../bottom-panel/host.js";
 import { JobsOverlay, MORE_HOVER, PANEL_KINDS, displayedJobs, jobKey, renderJobs, safeJobText, type PanelJob, type PanelKind } from "./job-view.js";
 
 export { type PanelKind } from "./job-view.js";
@@ -172,20 +173,26 @@ export class BackgroundPanel {
     const lease = { ctx, owner: this.owner!, cancelled: false } as NonNullable<BackgroundPanel["overlay"]>;
     this.overlay = lease;
     try {
-      await ctx.ui.custom<void>((tui, theme, _keys, done) => {
-        let closed = false;
-        lease.close = () => { if (closed) return; closed = true; lease.cancelled = true; lease.component?.dispose(); done(); };
-        if (lease.cancelled || !this.isOwner(ctx, lease.owner) || !this.validEntries().length) {
-          queueMicrotask(lease.close); return { render: () => [], invalidate() {} };
-        }
-        lease.component = new JobsOverlay(() => {
-          if (lease.cancelled) return [];
-          if (!this.isOwner(ctx, lease.owner)) { this.closeOverlay(); this.validEntries(); return []; }
-          return this.jobs(kind);
-        }, theme, () => tui.requestRender(), lease.close, () => tui.terminal?.rows ?? 24, tui, ctx.cwd, detailKey);
-        return lease.component;
-      }, { overlay: true, overlayOptions: { anchor: "center", width: "90%", maxHeight: 20, margin: 1 } });
-      return true;
+      // The panel sits above the editor (bottom panel) and holds the keyboard until it closes; the collapsed list stays visible.
+      const shown = await openBottomPanel<void>(ctx.ui, {
+        key: "pi-better-tools-jobs-panel", title: "Jobs Panel",
+        create: ({ tui, theme, done, requestRender }) => {
+          let closed = false;
+          lease.close = () => { if (closed) return; closed = true; lease.cancelled = true; lease.component?.dispose(); done(); };
+          if (lease.cancelled || !this.isOwner(ctx, lease.owner) || !this.validEntries().length) {
+            queueMicrotask(lease.close); return { render: () => [], handleInput() {} };
+          }
+          const overlay = new JobsOverlay(() => {
+            if (lease.cancelled) return [];
+            if (!this.isOwner(ctx, lease.owner)) { this.closeOverlay(); this.validEntries(); return []; }
+            return this.jobs(kind);
+          }, theme as never, requestRender, lease.close, () => tui.terminal?.rows ?? 24, tui, ctx.cwd, detailKey);
+          overlay.plain = true;
+          lease.component = overlay;
+          return overlay;
+        },
+      });
+      return shown !== undefined || lease.cancelled;
     } catch { return false; }
     finally { lease.component?.dispose(); if (this.overlay === lease) this.overlay = undefined; }
   }

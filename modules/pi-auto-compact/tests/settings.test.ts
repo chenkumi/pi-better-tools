@@ -110,7 +110,12 @@ test('Save in the panel does not ask to reload, because every part reads the fil
   const commands = command(), log: string[] = [];
   const ctx = {
     hasUI: true, mode: 'tui', model: { contextWindow: 200_000 }, reload: async () => { log.push('reload'); },
-    ui: { notify: (text: string) => log.push(`notify:${text}`), confirm: async (title: string) => { log.push(`confirm:${title}`); return false; }, custom: async () => true },
+    ui: {
+      notify: (text: string) => log.push(`notify:${text}`), confirm: async (title: string) => { log.push(`confirm:${title}`); return false; },
+      // The panel is a bottom widget: once the host holds the keyboard, change the first field and save, like a user.
+      setWidget: (_key: string, factory?: (...args: unknown[]) => unknown) => { factory?.({ terminal: { rows: 40 }, requestRender() {} }, { fg: (_c: string, text: string) => text, bold: (text: string) => text }); },
+      onTerminalInput: (handler: (data: string) => unknown) => { for (const key of ['\r', '0.02', '\r', '\x13']) handler(key); return () => undefined; },
+    },
   };
   await commands.get('settings:auto-compact')!.handler('', ctx);
   assert.equal(log.filter(line => line.startsWith('confirm:')).length, 0, 'no reload question');

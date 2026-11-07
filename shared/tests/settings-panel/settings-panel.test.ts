@@ -114,12 +114,12 @@ test('panel: Esc asks once before discarding unsaved changes', () => {
   assert.deepEqual(closed, [false]);
 });
 
-test('panel: framed, fixed-height render; one row per line, help always reserved, long help ellipsised', async () => {
+test('panel: fixed-height body (the host draws the frame); one row per line, help always reserved, long help ellipsised', async () => {
   const { visibleWidth } = await import('@earendil-works/pi-tui');
   const long = 'x'.repeat(200);
   const { panel } = make({ fields: [...fields.slice(0, 3).map((f, i) => (i === 0 ? { ...f, help: long } : f)), fields[3]!] });
   const before = panel.render(60);
-  assert.match(before[0]!, /^.*╭──.* T .*╮/); assert.match(before.at(-1)!, /╰─+╯/);
+  assert.equal(panel.title, 'T');
   for (const line of before) assert.equal(visibleWidth(line), 60);
   assert.ok(before.some(l => l.includes('…')), 'long help is ellipsised on one row');
   panel.handleInput(KEY.right); // reveals the hidden Token row

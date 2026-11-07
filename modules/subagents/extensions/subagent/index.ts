@@ -38,6 +38,7 @@ import { createForegroundHandoff } from "./foreground-handoff.ts";
 import { SubagentJobsWidget } from "./live-widget.ts";
 import { publishSubagentMonitor } from "./monitor-capability.ts";
 import { isManagedForegroundChild } from "../../../../shared/src/background/index.js";
+import { bottomConfirm } from "../../../../shared/src/bottom-panel/index.js";
 import { BackgroundRecovery } from "../../../shell-tools/src/recovery.js";
 import { registerBackgroundLifecycleGuidance } from "../../../shell-tools/src/background-guidance.js";
 import { ensureDetachShortcut, trackForeground } from "../../../shell-tools/src/manual-detach.js";
@@ -1672,7 +1673,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 					return { content: [{ type: "text", text: codedText("SUBAGENT_PROJECT_AGENT_REFUSED", `Refused: project-local agents (${projectAgents.map((agent) => agent.name).join(", ")}) are repo-controlled and this project is not trusted; without a UI they cannot be approved. Next: trust the project in Pi or use agentScope "user".`) }], details: makeDetails(dispatchMode)([]), isError: true };
 				}
 				if (projectAgents.length > 0) {
-					const approved = await ctx.ui.confirm("Run project-local agents?", `Agents: ${projectAgents.map((agent) => agent.name).join(", ")}\nSource: ${discovery.projectAgentsDir ?? "(unknown)"}\n\nProject agents are repo-controlled. Only continue for trusted repositories.`, { signal });
+					const approved = await bottomConfirm(ctx, "Run project-local agents?", `Agents: ${projectAgents.map((agent) => agent.name).join(", ")}\nSource: ${discovery.projectAgentsDir ?? "(unknown)"}\n\nProject agents are repo-controlled. Only continue for trusted repositories.`, { signal });
 					// A late approval after the tool was aborted must never dispatch.
 					if (!approved || signal?.aborted) {
 						const canceled = new AbortController();

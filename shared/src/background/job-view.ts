@@ -133,6 +133,8 @@ export class JobsOverlay implements Component {
   private pageRows = 5;
   private finishedOnly = false;
   private disposed = false;
+  /** Rendered inside the host's bottom panel: no box of its own, body capped at 8 rows (the host draws the title rule and separator). */
+  plain = false;
   private metadata = false;
   private liveDetail = false;
   private liveLabel = "Live conversation (memory copy)";
@@ -237,8 +239,8 @@ export class JobsOverlay implements Component {
   render(width: number): string[] {
     if (this.disposed) return [];
     width = clampWidth(width);
-    const height = Math.max(1, Math.min(20, this.height() - 2));
-    const bordered = width >= 3 && height >= 4, inner = Math.max(0, width - (bordered ? 2 : 0));
+    const height = this.plain ? Math.max(4, Math.min(10, this.height() - 12)) : Math.max(1, Math.min(20, this.height() - 2));
+    const bordered = !this.plain && width >= 3 && height >= 4, inner = Math.max(0, width - (bordered ? 2 : 0));
     const contentRows = height - (bordered ? 2 : 0), bodyRows = Math.max(0, contentRows - 2);
     this.pageRows = Math.max(1, bodyRows - 1); // Detail scroll-info row is part of the height budget.
     const jobs = orderedJobs(this.source());

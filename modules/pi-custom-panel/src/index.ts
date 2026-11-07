@@ -1,4 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { closeBottomPanel } from "../../../shared/src/bottom-panel/index.js";
 import { PanelEditor } from "./editor.js";
 import { footerComponent, type FooterModel } from "./footer.js";
 import { registerToolRenderer } from "./tool-render/renderer.js";
@@ -32,6 +33,9 @@ export default function (pi: ExtensionAPI): void {
     });
   });
   pi.on("session_shutdown", (_event, ctx: ExtensionContext) => {
+    // A bottom panel left open across /reload or a session switch would keep the registry busy for good: the host drops its widget
+    // and keyboard listener without telling the panel.
+    closeBottomPanel();
     if (ctx.mode !== "tui") return;
     ctx.ui.setFooter(undefined);
     ctx.ui.setEditorComponent(undefined);

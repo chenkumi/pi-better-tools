@@ -1,6 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { JsonValue } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
+import { bottomConfirm } from "../../../shared/src/bottom-panel/index.js";
 import { describeUnexpectedError } from "./driver-errors.js";
 import { formatRows, MAX_BYTES, MAX_STRING_CHARS } from "./output.js";
 import { assertReadOnlySql, assertUpdateSql, MAX_READ_ROWS } from "./security/sql-policy.js";
@@ -59,7 +60,8 @@ async function confirmUpdate(
   const parameterNames = Array.isArray(params)
     ? params.map((_value, index) => `$${index + 1}`).join(", ") || "none"
     : Object.keys(params ?? {}).join(", ") || "none";
-  const confirmed = await ctx.ui.confirm(
+  const confirmed = await bottomConfirm(
+    ctx,
     `Confirm ${engineLabel(engine)} update`,
     `Reason: ${reason}\n\nSQL:\n${sql}\n\nParameter names: ${parameterNames}`,
     { signal: ctx.signal },

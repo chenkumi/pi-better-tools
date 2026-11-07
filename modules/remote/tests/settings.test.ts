@@ -145,15 +145,20 @@ test('/settings:remote refuses an untrusted project; a trusted server panel show
   const notes: string[] = [];
   const screens: string[] = [];
   let nextPage = false;
+  let shown: { render(width: number): string[] } | undefined;
   const ctx =(trusted: boolean) => ({
     cwd: p.dir, hasUI: true, mode: 'tui', isProjectTrusted: () => trusted,
     ui: {
       notify: (message: string) => notes.push(message),
-      custom: async (factory: (...args: unknown[]) => { render(width: number): string[]; handleInput(data: string): void }) => {
-        const panel = factory({ terminal: { rows: 40 }, requestRender() {} }, { fg: (_c: string, text: string) => text, bold: (text: string) => text }, undefined, () => undefined);
-        if (nextPage) panel.handleInput('\t');
-        screens.push(panel.render(100).join('\n'));
-        return false;
+      // The panel lives in the bottom area: once the host has the widget and the keyboard, press Tab if asked, take a screenshot, then Esc closes it.
+      setWidget: (_key: string, factory: ((...args: unknown[]) => { render(width: number): string[] }) | undefined) => {
+        shown = factory ? factory({ terminal: { rows: 40 }, requestRender() {} }, { fg: (_c: string, text: string) => text, bold: (text: string) => text }) : undefined;
+      },
+      onTerminalInput: (handler: (data: string) => unknown) => {
+        if (nextPage) handler('\t');
+        screens.push(shown!.render(100).join('\n'));
+        handler('\x1b'); handler('\x1b'); // unsaved changes (the candidate pairing code) ask before discarding
+        return () => undefined;
       },
       confirm: async () => false,
     },

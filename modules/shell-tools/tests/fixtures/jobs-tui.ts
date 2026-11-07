@@ -14,26 +14,26 @@ export default function (pi: ExtensionAPI) {
   let jobs: PanelJob[] = [], disposedOwner = false;
   pi.on('session_start', (_event, context) => {
     ctx = context;
-    const actualSetWidget = ctx.ui.setWidget.bind(ctx.ui), actualCustom = ctx.ui.custom.bind(ctx.ui);
+    const actualSetWidget = ctx.ui.setWidget.bind(ctx.ui);
     const observed = { ...ctx, sessionManager: { ...ctx.sessionManager, getSessionId() { if (disposedOwner) throw new Error('Injected disposed owner'); return ctx.sessionManager.getSessionId(); } }, ui: { ...ctx.ui,
       setWidget(key: string, value: any, options: any) {
+        if (key === 'pi-better-tools-jobs-panel') {
+          // The expanded panel sits above the editor and holds the keyboard; there is no host overlay any more.
+          if (typeof value === 'function') {
+            record({ event: 'opening', draft: ctx.ui.getEditorText() });
+            actualSetWidget(key, (runtime: any, theme: any) => { tui = runtime; overlayComponent = value(runtime, theme); return overlayComponent; }, options);
+          } else {
+            actualSetWidget(key, value, options);
+            if (overlayComponent) { overlayComponent = undefined; record({ event: 'closed', draft: ctx.ui.getEditorText(), overlay: false, focus: tui.getFocusedComponent?.()?.constructor.name }); }
+          }
+          return;
+        }
         actualSetWidget(key, typeof value === 'function' ? (runtime: any, theme: any) => {
           tui = runtime;
           const component = value(runtime, theme), render = component.render.bind(component);
           component.render = (width: number) => { const lines = render(width); record({ event: 'widget', key, placement: options?.placement, width, rows: runtime.terminal.rows, lines: lines.map(stripVTControlCharacters) }); return lines; };
           return component;
         } : value, options);
-      },
-      custom(factory: any, options: any) {
-        record({ event: 'opening', draft: ctx.ui.getEditorText() });
-        return actualCustom((runtime, theme, keys, done) => {
-          const component = factory(runtime, theme, keys, (result: any) => {
-            done(result); overlayComponent = undefined;
-            record({ event: 'closed', draft: ctx.ui.getEditorText(), overlay: tui.hasOverlay(), focus: tui.getFocusedComponent?.()?.constructor.name });
-          });
-          overlayComponent = component;
-          return component;
-        }, options);
       },
     } } as ExtensionContext;
     token = panel.attach('shell', observed);
@@ -47,19 +47,19 @@ export default function (pi: ExtensionAPI) {
       if (data === '\x19') {
         tui.renderNow(true);
         record({ event: 'snapshot', mode: tui.mode, columns: tui.terminal.columns, rows: tui.terminal.rows,
-          draft: ctx.ui.getEditorText(), overlay: tui.hasOverlay(), focus: tui.getFocusedComponent?.()?.constructor.name,
+          draft: ctx.ui.getEditorText(), overlay: !!overlayComponent, focus: tui.getFocusedComponent?.()?.constructor.name,
           screenLines: tui.getScreenLines?.().map(stripVTControlCharacters), lines: tui.render(tui.terminal.columns).map(stripVTControlCharacters), overlayLines: overlayComponent?.render(Math.max(1, Math.floor(tui.terminal.columns * 0.9))).map(stripVTControlCharacters) });
         return { consume: true };
       }
       if (data === '\x02') {
         jobs = jobs.map(j => j.usage ? { ...j, usage: { ...j.usage, totalTokens: 1234 }, activity: 'Generating reply' } : j);
         panel.update('shell', token!, { jobs, signature: JSON.stringify(jobs) });
-        record({ event: 'updated', draft: ctx.ui.getEditorText(), overlay: tui.hasOverlay() });
+        record({ event: 'updated', draft: ctx.ui.getEditorText(), overlay: !!overlayComponent });
         return { consume: true };
       }
       if (data === '\x07') {
         disposedOwner = true; overlayComponent?.render(tui.terminal.columns);
-        record({ event: 'disposed-owner', overlay: tui.hasOverlay(), draft: ctx.ui.getEditorText() });
+        record({ event: 'disposed-owner', overlay: !!overlayComponent, draft: ctx.ui.getEditorText() });
         return { consume: true };
       }
       if (data === '\x04') { ctx.shutdown(); return { consume: true }; }

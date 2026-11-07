@@ -1,4 +1,5 @@
 import type { ExtensionAPI, ExtensionCommandContext } from '@earendil-works/pi-coding-agent';
+import { bottomSelect } from '../../../shared/src/bottom-panel/index.js';
 
 /**
  * `/theme:<id>` switches the Pi theme. The shipped themes live in ../themes/ and are declared as package theme resources
@@ -46,7 +47,7 @@ export default function themeTools(pi: ExtensionAPI) {
       if (!ctx.hasUI) return;
       const current = ctx.ui.theme?.name;
       const labels = THEMES.map(entry => `${entry.id}${entry.theme === current ? ' (current)' : ''} — ${entry.summary}`);
-      const picked = await ctx.ui.select('Theme', labels);
+      const picked = await bottomSelect(ctx, 'Theme', labels);
       const entry = picked === undefined ? undefined : THEMES[labels.indexOf(picked)];
       if (entry) apply(ctx, entry);
     },

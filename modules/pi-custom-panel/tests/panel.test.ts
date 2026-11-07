@@ -150,3 +150,16 @@ test('extension: loading registers hooks only; tui mode installs footer and edit
   handlers.get('session_shutdown')!({}, { mode: 'tui', ui });
   assert.deepEqual(calls, ['editor:set', 'footer:set', 'footer:clear', 'editor:clear']);
 });
+
+test('extension: shutdown closes a bottom panel the host dropped (reload or session switch), so panels can open again', async () => {
+  const { openBottomPanel, isBottomPanelOpen } = await import('../../../shared/src/bottom-panel/index.ts');
+  const handlers = new Map<string, any>();
+  panel({ on: (event: string, handler: any) => { handlers.set(event, handler); }, registerToolRenderer() {} } as any);
+  const widgets: unknown[] = [];
+  const ui: any = { setWidget: (_key: string, content: unknown) => { widgets.push(content); }, onTerminalInput: () => () => undefined, setFooter() {}, setEditorComponent() {} };
+  const result = openBottomPanel<number>(ui, { key: 'k', title: 't', create: () => ({ render: () => [], handleInput() {} }) });
+  assert.ok(isBottomPanelOpen());
+  handlers.get('session_shutdown')!({}, { mode: 'rpc', ui });
+  assert.equal(await result, undefined);
+  assert.equal(isBottomPanelOpen(), false);
+});
