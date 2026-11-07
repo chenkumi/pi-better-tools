@@ -15,7 +15,7 @@ assert.ok(manifest.pi.extensions.includes('./modules/file-audit/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/sql-connector/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/sqlite-tools/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/monitor/src/index.ts'));
-assert.ok(manifest.pi.extensions.includes('./modules/schedule-prompt/src/index.ts'));
+assert.ok(manifest.pi.extensions.includes('./modules/schedule-commands/src/index.ts'));
 assert.ok(!manifest.pi.extensions.some(entry => entry.includes('/goal/')));
 const dependencyEntries = {
   '@ff-labs/pi-fff': { version: '0.11.0', entry: './src/index.ts', manifestEntry: './modules/file-tools/src/fff-override.mjs' },
@@ -54,7 +54,7 @@ try {
   const sqliteNames = ['sqlite_open', 'sqlite_close', 'sqlite_status', 'sqlite_query', 'sqlite_execute', 'sqlite_list_tables', 'sqlite_describe_table', 'sqlite_manual'];
   const monitorNames = ['monitor_start', 'monitor_status', 'monitor_stop'];
   const backgroundNames = ['subagent_status', 'subagent_cancel', 'subagent_message', 'shell_job_status', 'shell_job_cancel'];
-  const selection = readOnly ? ['read'] : [...monitorNames, ...backgroundNames, 'read', 'write', 'edit', 'grep', 'find', 'ls', 'bash', ...(process.platform === 'win32' ? ['powershell'] : []), 'subagent', 'note', 'schedule_prompt', 'schedule_shell', ...ptyNames, ...sqliteNames, 'web_fetch', ...(['brave', 'exa'].includes(mode) ? ['web_search'] : [])];
+  const selection = readOnly ? ['read'] : [...monitorNames, ...backgroundNames, 'read', 'write', 'edit', 'grep', 'find', 'ls', 'bash', ...(process.platform === 'win32' ? ['powershell'] : []), 'subagent', 'note', 'schedule_prompt', 'schedule_shell', 'schedule_monitor', ...ptyNames, ...sqliteNames, 'web_fetch', ...(['brave', 'exa'].includes(mode) ? ['web_search'] : [])];
   const settings = sdk.SettingsManager.inMemory({ defaultTools: selection, retry: { enabled: false }, compaction: { enabled: false }, cacheWarming: 'off', enableInstallTelemetry: false });
   loader = new sdk.DefaultResourceLoader({ cwd, agentDir, settingsManager: settings,
     additionalExtensionPaths: [packageRoot], noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true });
@@ -80,16 +80,16 @@ try {
   assert.ok(note);
   assert.deepEqual(Object.keys(note.parameters.properties).sort(), ['content', 'type']);
   assert.equal(note.parameters.additionalProperties, false);
-  assert.deepEqual(Object.keys(note.outputSchema.properties), ['relativePath']);
+  assert.deepEqual(Object.keys(note.outputSchema.properties), ['relativePath', 'sha256', 'bytes']);
   assert.equal(note.outputSchema.additionalProperties, false);
-  assert.deepEqual(note.parameters.properties.type.enum, ['plan', 'design', 'issue', 'research', 'report', 'task']);
+  assert.deepEqual(note.parameters.properties.type.enum, ['plan', 'design', 'issue', 'research', 'report', 'task', 'checkpoint']);
   assert.equal(names.includes('web_search'), ['brave', 'exa'].includes(mode));
   assert.deepEqual(loader.getPrompts().prompts.map(p => p.name).sort(), ['implement', 'implement-and-review', 'scout-and-plan']);
-  assert.deepEqual(names.filter(name => name.startsWith('schedule_')), ['schedule_prompt', 'schedule_shell'], 'only Schedule Prompt registers schedule_* tools (prompt and shell); removed Scheduler tools must not');
+  assert.deepEqual(names.filter(name => name.startsWith('schedule_')), ['schedule_prompt', 'schedule_shell', 'schedule_monitor'], 'only Schedule Commands registers schedule_* tools (prompt, shell and monitor); removed Scheduler tools must not');
   assert.equal(loaded.extensions.some(e => e.commands.has('schedule')), false, 'removed Scheduler command must not register');
-  assert.ok(loaded.extensions.some(e => e.commands.has('schedule-prompt')));
+  assert.ok(loaded.extensions.some(e => e.commands.has('schedule-commands')));
   const schedule = definitions.find(d => d.name === 'schedule_prompt');
-  assert.deepEqual(schedule.parameters.properties.action.enum, ['add', 'remove', 'list', 'enable', 'disable', 'update', 'cleanup']);
+  assert.deepEqual(schedule.parameters.properties.action.enum, ['add', 'remove', 'list', 'status', 'enable', 'disable', 'update', 'cleanup', 'run_now']);
   const scheduleShell = definitions.find(d => d.name === 'schedule_shell');
   assert.ok(scheduleShell.parameters.properties.command && !scheduleShell.parameters.properties.prompt && !schedule.parameters.properties.command, 'prompt and shell tools keep separate parameters');
   assert.ok(loaded.extensions.some(e => e.commands.has('file-audit')), 'bounded file inspection command registered');
@@ -126,7 +126,7 @@ try {
   const model = { ...modelRuntime.getModels()[0], id: 'offline-fixture', provider: 'offline-fixture', api: 'openai-responses' };
   ({ session } = await sdk.createAgentSession({ cwd, agentDir, settingsManager: settings, resourceLoader: loader, modelRuntime, model,
     sessionManager: sdk.SessionManager.inMemory(cwd), ...(noTools ? { noTools: 'all' } : { tools: selection }),
-    ...(mode === 'exclude' ? { excludeTools: ['subagent', 'bash', 'powershell', 'note', 'schedule_prompt', 'schedule_shell', ...ptyNames, ...sqliteNames, ...backgroundNames, ...monitorNames] } : {}) }));
+    ...(mode === 'exclude' ? { excludeTools: ['subagent', 'bash', 'powershell', 'note', 'schedule_prompt', 'schedule_shell', 'schedule_monitor', ...ptyNames, ...sqliteNames, ...backgroundNames, ...monitorNames] } : {}) }));
   await session.bindExtensions({ mode: 'json', onError: e => errors.push(e.error) });
   const checkSkills = () => {
     assert.deepEqual(loader.getSkills().diagnostics, []);
@@ -165,7 +165,7 @@ try {
     assert.ok(active.includes(name), `explicit background activation ${name}`);
     assert.ok(callable.includes(name), `background callable ${name}`);
   }
-  if (mode === 'exclude') for (const name of ['subagent', 'bash', 'powershell', 'note', 'schedule_prompt', 'schedule_shell', ...ptyNames, ...sqliteNames, ...backgroundNames, ...monitorNames]) { assert.ok(!active.includes(name)); assert.ok(!callable.includes(name)); }
+  if (mode === 'exclude') for (const name of ['subagent', 'bash', 'powershell', 'note', 'schedule_prompt', 'schedule_shell', 'schedule_monitor', ...ptyNames, ...sqliteNames, ...backgroundNames, ...monitorNames]) { assert.ok(!active.includes(name)); assert.ok(!callable.includes(name)); }
   const text = result => result.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
   const execute = async (name, args, signal) => {
     const tool = session.agent.state.tools.find(t => t.name === name); assert.ok(tool, `active tool ${name}`);
@@ -218,10 +218,10 @@ try {
     const contents = ['# Plan\nalpha\n', '# Design\nstructure', '# Issue\nUTF-8: 中文 😀', '\n# Research\nleading blank line', '# Report\r\nexact', '# Task'];
     for (const [i, type] of ['plan', 'design', 'issue', 'research', 'report', 'task'].entries()) {
       const created = await execute('note', { type, content: contents[i] });
-      assert.deepEqual(Object.keys(created.details), ['relativePath'], 'note result exposes only the single relative path');
+      assert.deepEqual(Object.keys(created.details), ['relativePath', 'sha256', 'bytes'], 'note result exposes the relative path, version token and size');
       const file = join(cwd, created.details.relativePath);
       assert.equal(created.details.path, undefined, 'note result carries no absolute path');
-      assert.match(created.details.relativePath, new RegExp(`^${noteDirs[type]}/${type.toUpperCase()}-\\d{8}T\\d{9}Z(-[^/]+)?\\.md$`));
+      assert.match(created.details.relativePath, new RegExp(`^${noteDirs[type]}/([^/]+/)?${type.toUpperCase()}-\\d{8}T\\d{9}Z\\.md$`));
       assert.equal(await readFile(file, 'utf8'), contents[i]);
       assert.deepEqual(created.structuredContent, created.details);
       assert.ok(text(created).includes(created.details.relativePath)); assert.ok(!text(created).includes(cwd));
@@ -241,14 +241,14 @@ try {
     // session_start created storage under the isolated workspace; a one-hour once-job never fires during the probe and shutdown stops its timer.
     const added = await execute('schedule_prompt', { action: 'add', name: 'smoke-job', type: 'once', schedule: '+1h', prompt: 'SMOKE_SCHEDULED' });
     assert.equal(added.details.action, 'add');
-    const stored = JSON.parse(await readFile(join(cwd, '.pi', 'schedule-prompts.json'), 'utf8')).jobs;
+    const stored = JSON.parse(await readFile(join(cwd, '.pi', 'schedule-commands.json'), 'utf8')).jobs;
     assert.deepEqual(stored.map(job => job.name), ['smoke-job']);
-    assert.equal(stored[0].type, 'once'); assert.equal(stored[0].runCount, 0);
+    assert.equal(stored[0].schedule.type, 'once'); assert.equal(stored[0].state.runCount, 0);
     assert.match(text(await execute('schedule_prompt', { action: 'list' })), /smoke-job/);
     await execute('schedule_prompt', { action: 'remove', jobId: stored[0].id });
-    assert.deepEqual(JSON.parse(await readFile(join(cwd, '.pi', 'schedule-prompts.json'), 'utf8')).jobs, []);
+    assert.deepEqual(JSON.parse(await readFile(join(cwd, '.pi', 'schedule-commands.json'), 'utf8')).jobs, []);
   } else {
-    await assert.rejects(stat(join(cwd, '.pi', 'schedule-prompts.json')), { code: 'ENOENT' });
+    await assert.rejects(stat(join(cwd, '.pi', 'schedule-commands.json')), { code: 'ENOENT' });
   }
   if (!readOnly && !noTools) {
     await execute('write', { path: 'test.txt', content: 'alpha\nbeta\n', expectedHash: 'missing' });

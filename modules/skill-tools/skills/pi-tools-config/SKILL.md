@@ -69,8 +69,9 @@ description: >-
 | GPT Speed：normal／fast／ultrafast | [gpt-speed](references/gpt-speed.md) |
 | JSON Schema：print 模式的結構化結果 | [json-schema](references/json-schema.md) |
 | PTY：native setup、local／WSL／SSH 與環境過濾 | [pty-terminal](references/pty-terminal.md) |
-| Schedule Prompt：排程、作用域、shell command job | [schedule-prompt](references/schedule-prompt.md) |
+| Schedule Commands：排程、作用域、shell command job | [schedule-commands](references/schedule-commands.md) |
 | Pi Auto Compact：確定性壓縮的參數檔 | [pi-auto-compact](references/pi-auto-compact.md) |
+| Pi Custom Panel：輸入框、footer、工具外觀（無設定檔） | [pi-custom-panel](references/pi-custom-panel.md) |
 | SQLite：manual／fixed 資料庫掛載 | [sqlite-tools](references/sqlite-tools.md) |
 | SQL Connector：MySQL／MSSQL／PostgreSQL | [sql-connector](references/sql-connector.md) |
 

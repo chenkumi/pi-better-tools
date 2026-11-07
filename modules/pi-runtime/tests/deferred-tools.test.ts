@@ -8,7 +8,7 @@ const own = (rel: string) => join(fileURLToPath(new URL('../../', import.meta.ur
 const tool = (name: string, ns: string | undefined, path: string, exposure = 'deferred') =>
   ({ name, exposure, namespace: ns ? { name: ns, description: `${ns} group` } : undefined, sourceInfo: { path } });
 const PTY = tool('pty_spawn', 'pty', own('pty-terminal/src/index.ts'));
-const SCHED = tool('schedule_prompt', 'schedule', own('schedule-prompt/src/index.ts'));
+const SCHED = tool('schedule_prompt', 'schedule', own('schedule-commands/src/index.ts'));
 const THIRD = tool('mcp_thing', 'mcp', 'D:/elsewhere/node_modules/x/index.js');
 
 function host(all: any[], active: string[]) {

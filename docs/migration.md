@@ -202,3 +202,5 @@ Reload after current work settles to load the new `monitor_event` renderer. Exis
 ## Pi 1.2.0 development upgrade (historical)
 
 根四個 Pi devDependencies／唯一 lockfile 現固定為 1.2.0（`@earendil-works/chord` 不再是依賴）。`emitBeforeAgentStart(trigger, options)` 簽章更新，Shell 的 Monitor 執行閘門改為 "requires Pi 1.2.0"。不再維護 1.1.0 或更早版本；上方 1.1.0 章節保留為歷史。
+
+- **Schedule Prompt removed (replaced by Schedule Commands):** `modules/schedule-prompt` (tintinweb/pi-schedule-prompt 0.4.1 snapshot) was replaced by the native `modules/schedule-commands`. Tool names `schedule_prompt` and `schedule_shell` stay; `/schedule-prompt` becomes `/schedule-commands`; the message type `scheduled_prompt` becomes `scheduled_command`. Storage moves to `.pi/schedule-commands.json` (version 2) and settings to `schedule-commands-settings.json`; old `schedule-prompts*.json` files are not read or migrated, so recreate jobs with the tools. `endAt` is kept and is now part of the schema.

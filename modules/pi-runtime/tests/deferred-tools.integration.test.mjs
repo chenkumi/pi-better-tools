@@ -12,7 +12,7 @@ async function host(prefix, { withToolSearch }) {
   const sdk = await import('@earendil-works/pi-coding-agent');
   const env = await isolate(prefix);
   const created = await createHost({ env, defaultTools: ['read'],
-    extensionPaths: ['pi-runtime', 'pty-terminal', 'schedule-prompt'].map(name => entry(`modules/${name}/src/index.ts`)),
+    extensionPaths: ['pi-runtime', 'pty-terminal', 'schedule-commands'].map(name => entry(`modules/${name}/src/index.ts`)),
     extensionFactories: withToolSearch ? [sdk.createToolSearchExtension()] : [] });
   await created.bind();
   assert.deepEqual(created.loadErrors(), []);

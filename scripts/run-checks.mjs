@@ -38,9 +38,7 @@ const sourceTests = [directTests('sqlite-tools:test', 'modules/sqlite-tools/test
   directTests('shell-tools:test:unit', 'modules/shell-tools/tests', name => !isIntegration(name), unitParallel),
   moduleTask('file-tools', 'test'), moduleTask('file-tools', 'test:tooling'),
   directTests('web-tools:test', 'modules/web-tools/tests/unit', () => true, { concurrency: 4 }),
-  // Schedule Prompt keeps its source vitest runner (heavy vi.mock use); modules/schedule-prompt/test is therefore not scanned by node --test.
-  { label: 'sql-connector:test', args: ['node_modules/vitest/vitest.mjs', 'run', '--root', 'modules/sql-connector', '--exclude', '**/tests/**'] },
-  { label: 'schedule-prompt:test', args: ['node_modules/vitest/vitest.mjs', 'run', '--root', 'modules/schedule-prompt'] }];
+  { label: 'sql-connector:test', args: ['node_modules/vitest/vitest.mjs', 'run', '--root', 'modules/sql-connector', '--exclude', '**/tests/**'] }];
 const groups = {
   // No module ships compiled artifacts any more; the group stays so `npm run build` / prepack remain valid no-ops.
   build: [],
@@ -56,7 +54,6 @@ const groups = {
     { label: 'skill-tools:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/skill-tools/tsconfig.json'] },
     { label: 'note-tools:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/note-tools/tsconfig.json'] },
     { label: 'gpt-speed:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/gpt-speed/tsconfig.json'] },
-    { label: 'schedule-prompt:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/schedule-prompt/tsconfig.json'] },
     { label: 'json-schema:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/json-schema/tsconfig.json'] },
     { label: 'schedule-commands:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/schedule-commands/tsconfig.json'] },
     { label: 'pi-auto-compact:typecheck', args: ['node_modules/typescript/bin/tsc', '-p', 'modules/pi-auto-compact/tsconfig.json'] },
@@ -71,8 +68,6 @@ const groups = {
     directTests('note-tools:real-host', 'modules/note-tools/tests', isIntegration),
     // Real sockets and TLS for the static fetch path; the file does not follow the *.integration.test naming, so keep everything in the directory.
     directTests('web-tools:integration', 'modules/web-tools/tests/integration', () => true),
-    directTests('schedule-prompt:integration', 'modules/schedule-prompt/tests', isIntegration, { concurrency: 3 }),
-    { label: 'schedule-prompt:real-host', args: ['--test', 'tests/integration/schedule-deadline.test.mjs'] },
     directTests('shell-tools:test:integration', 'modules/shell-tools/tests', isIntegration), moduleTask('file-tools', 'test:integration'),
     directTests('subagents:test:integration', 'modules/subagents/tests', isIntegration, { concurrency: 3 }),
     { label: 'all-modules:integration', args: ['--import', import.meta.resolve('tsx'), '--test', '--test-concurrency=1', 'tests/integration/package.test.mjs'] }],

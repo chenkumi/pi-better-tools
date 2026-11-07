@@ -14,7 +14,7 @@ process.env.PI_CODING_AGENT_DIR = join(home, 'agent');
 process.env.HOME = process.env.USERPROFILE = home;
 
 const manifest = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8')).pi.extensions;
-const OWNERS = ['shell-tools', 'file-tools', 'subagents', 'web-tools', 'pi-runtime', 'fork'];
+const OWNERS = ['shell-tools', 'file-tools', 'subagents', 'web-tools', 'pi-runtime', 'fork', 'schedule-commands'];
 const handlers = [];
 let active = [];
 const noop = () => undefined;
@@ -36,6 +36,7 @@ const SETS = {
   'shell + file + web': ['powershell', 'read', 'grep', 'find', 'ls', 'edit', 'write', 'web_fetch', 'web_search'],
   'shell + file + subagent': ['bash', 'read', 'edit', 'subagent'],
   'shell + file + subagent + fork': ['bash', 'read', 'edit', 'write', 'subagent', 'fork'],
+  'shell + schedule': ['bash', 'schedule_prompt', 'schedule_shell'],
 };
 
 /** Runs every before_agent_start handler like Pi does (each sees the sections and forced prompt left by the previous). */

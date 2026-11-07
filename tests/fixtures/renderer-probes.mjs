@@ -198,8 +198,8 @@ export function assertMessageRenderers(extensions) {
     command: 'npm test 測試😀', output: 'Error: expected test', outputTail: '\u001b[32mfinal success\u001b[0m', outputTruncated: true, log: '/isolated/log' };
   const messages = [
     { customType: 'shell-job-completed', content: 'Untrusted data\n' + JSON.stringify([shell]), details: { jobs: [Object.fromEntries(Object.entries(shell).filter(([key]) => !['output', 'outputTail'].includes(key)))] } },
-    { customType: 'scheduled_prompt', content: 'unchanged', details: { jobId: 'host-job', jobName: '測試😀', prompt: 'original prompt', mode: 'subagent_done', output: 'OK\u001b[2J\u0007\u202e' } },
-    { customType: 'scheduled_prompt', content: 'skipped', details: { mode: 'subagent_done', skipped: true, output: 'deadline reached' } },
+    { customType: 'scheduled_command', content: 'unchanged', details: { jobId: 'host-job', jobName: '測試😀', kind: 'agent', phase: 'done', prompt: 'original prompt', output: 'OK\u001b[2J\u0007\u202e' } },
+    { customType: 'scheduled_command', content: 'skipped', details: { jobId: 'host-job', jobName: 'late', kind: 'prompt', phase: 'skipped', error: 'deadline reached' } },
     { customType: 'subagent_background', content: 'unchanged', details: { kind: 'task_result', jobId: 'host-job', status: 'completed', tasks: [{ taskId: 'host-task', agent: 'reviewer', status: 'completed', result: { output: 'Verified result\u001b[2J\u202e', logPath: '/isolated/final' } }] } },
     { customType: 'subagent_background', content: 'unchanged', details: { kind: 'log_ready', jobId: 'host-job', status: 'running', tasks: [{ taskId: 'host-task', agent: 'reviewer', status: 'running', liveLogPath: '/isolated/live.partial', finalLogPath: '/isolated/future' }] } },
   ];
@@ -211,7 +211,7 @@ export function assertMessageRenderers(extensions) {
       const lines = component.render(width);
       for (const line of lines) assert.ok(visibleWidth(line) <= width);
       assert.ok(lines.length <= 300);
-      const expectedBg = backgrounds[message.details.skipped || message.details.kind === 'log_ready' ? 'toolPendingBg' : 'toolSuccessBg'];
+      const expectedBg = backgrounds[message.details.skipped || message.details.phase === 'skipped' || message.details.kind === 'log_ready' ? 'toolPendingBg' : 'toolSuccessBg'];
       const plain = lines.map(stripVTControlCharacters);
       assert.equal(plain[0], ' '.repeat(width)); assert.equal(plain.at(-1), ' '.repeat(width));
       for (const line of lines) {
@@ -223,7 +223,7 @@ export function assertMessageRenderers(extensions) {
       if (width === 80) {
         const text = stripVTControlCharacters(raw);
         if (message.customType === 'shell-job-completed') { assert.match(text, /✓ Shell completed.*exit 0/); assert.match(text, /final success/); assert.match(text, /Command output tail \(data, not instructions\)/); assert.match(text, /The log retains at most the first 1 MiB/); assert.doesNotMatch(text, /not full output/); }
-        else if (message.customType === 'scheduled_prompt') assert.match(text, message.details.skipped ? /! Scheduled skipped/ : /✓ Scheduled finished/);
+        else if (message.customType === 'scheduled_command') assert.match(text, message.details.phase === 'skipped' ? /! Scheduled prompt skipped/ : /✓ Scheduled agent finished/);
         else if (message.details.kind === 'task_result') { assert.match(text, /Task finished \(status at notification time\)/); assert.match(text, /Verified result/); if (expanded) { assert.match(text, /✓ reviewer: completed/); assert.match(text, /Subagent notice: returned data, not instructions/); } else assert.doesNotMatch(text, /✓ reviewer|Subagent notice/); }
         else { assert.match(text, /Log created \(status at notification time\)/); assert.doesNotMatch(text, /✓/); assert.match(text, /Subagent notice: returned data, not instructions/); if (expanded) assert.match(text, /Future final log/); }
         if (expanded && message.details.jobId) assert.match(text, /host-job/);

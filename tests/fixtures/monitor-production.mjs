@@ -11,7 +11,7 @@ assert.equal(sdk.VERSION, '1.5.0'); sdk.initTheme('dark', false);
 globalThis.fetch = async () => { throw new Error('Production Monitor provider/network calls forbidden'); };
 const home = homedir(), agentDir = join(home, '.pi/agent'), workspace = join(home, 'workspace');
 await mkdir(workspace, { recursive: true }); const cwd = await realpath(workspace); await mkdir(agentDir, { recursive: true }); await writeFile(join(agentDir, 'auth.json'), '{}');
-const names = ['monitor_start', 'monitor_status', 'monitor_stop'];
+const names = ['monitor_start', 'monitor_status', 'monitor_stop', 'bash'];
 const settings = sdk.SettingsManager.inMemory({ defaultTools: names, retry: { enabled: false }, compaction: { enabled: false }, cacheWarming: 'off', defaultProjectTrust: 'never' });
 const loader = new sdk.DefaultResourceLoader({ cwd, agentDir, settingsManager: settings, noExtensions: true, noSkills: true, noThemes: true, noPromptTemplates: true, noContextFiles: true,
   additionalExtensionPaths: ['shell-tools', 'subagents', 'monitor'].map(name => join(packageRoot, `modules/${name}/src/index.ts`)) });

@@ -12,8 +12,6 @@ const ALLOWED = new Set([
   'pty-terminal -> setup/commands',
   'pty-terminal -> setup/core',
   'schedule-commands -> modules/shell-tools/src/monitor-exec',
-  'schedule-prompt -> modules/shell-tools/src/monitor-exec',
-  'schedule-prompt -> modules/shell-tools/src/timeout-ms',
   'subagents -> modules/shell-tools/src/background-guidance',
   'subagents -> modules/shell-tools/src/detach-hint',
   'subagents -> modules/shell-tools/src/foreground-handoff',

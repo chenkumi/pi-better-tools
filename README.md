@@ -1,6 +1,6 @@
 # Pi Better Tools
 
-單一 Pi extensions package，整合 Subagents、Shell Tools、Precise File Tools、Web Tools、SQLite Tools、SQL Connector、PTY Terminal 與 Schedule Prompt（第三方 pi-schedule-prompt 快照），加上 JSON Schema structured delivery，並提供本專案原生 Note Tools、File Audit、GPT Speed、Pi Runtime、Monitor、Skill Tools 與 Fork extensions。必要程式碼與資源已納入 `modules/`，不依賴來源專案的本機路徑。
+單一 Pi extensions package，整合 Subagents、Shell Tools、Precise File Tools、Web Tools、SQLite Tools、SQL Connector、PTY Terminal，加上原生 Schedule Commands 與 JSON Schema structured delivery，並提供本專案原生 Note Tools、File Audit、GPT Speed、Pi Runtime、Monitor、Skill Tools 與 Fork extensions。必要程式碼與資源已納入 `modules/`，不依賴來源專案的本機路徑。
 
 > 本專案採用 [MIT License](LICENSE)。使用者已確認五個來源專案均為其所有，並授權本整合專案採 MIT；封裝測試以根目錄 `LICENSE` 為必要授權檔，不要求重複模組 LICENSE；原有模組授權聲明仍保留，來源與相依套件說明見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。`private: true` 僅用於避免誤發布 npm，不限制未來公開至 GitHub；目前未執行任何遠端發布。
 
@@ -101,7 +101,7 @@ Shell 與 Subagents 會在 `startup`／`resume`／`reload` 載入 session 時，
 | SQL Connector | `mysql_state/query/update`、`mssql_state/query/update`、`pgsql_state/query/update`；`/sql-connector-reload` | trusted 專案 `.pi/agent/sql-connector.json` 掛載；僅配置的引擎註冊 deferred 工具，以 `tool_search` 搜尋對應引擎。每次寫入需 UI 確認；Windows Authentication 另需原生 driver／ODBC。詳見 `modules/sql-connector/README.md` |
 | SQLite Tools | `sqlite_open/close/status/query/execute/list_tables/describe_table/manual` | deferred `sqlite` namespace；讀取資料庫前以 `tool_search` 搜尋 `sqlite`。保留 manual／fixed mode、專案 trust 與 shutdown 關閉連線；詳見 `modules/sqlite-tools/README.md` |
 | PTY Terminal | `pty_spawn/write/read/resize/wait_exit/kill/list` | `target` 預設 local；named WSL／SSH targets；session 綁定 target，關閉 transport 不保證遠端背景程序停止 |
-| Schedule Prompt | `schedule_prompt`（prompt job）、`schedule_shell`（shell command job）；`/schedule-prompt` | 排程週期／一次性 prompt（cron、ISO、`+10s`、`5m`）；可指定 `model` 以 in-process 背景 session 執行。資料存於 `<cwd>/.pi/schedule-prompts.json`，設定於 `<cwd>/.pi/schedule-prompts-settings.json`（全域 `<agentDir>/schedule-prompts-settings.json` 為手動預設）；預設綁定建立它的 session。僅 session 存活期間觸發，不是 OS 排程或 daemon |
+| Schedule Commands | `schedule_prompt`（prompt／agent job）、`schedule_shell`（shell command job）、`schedule_monitor`（到點啟動 Monitor）；`/schedule-commands`、`/settings:schedule-commands` | 排程週期／一次性 prompt、獨立 agent session 或 shell 指令（cron、ISO、`+10s`、`5m`）。資料存於 `<cwd>/.pi/schedule-commands.json`（舊 `schedule-prompts*.json` 不讀取），設定於 `<cwd>/.pi/schedule-commands-settings.json`（使用者層 `<agentDir>/schedule-commands-settings.json` 為預設）。僅 session 存活期間觸發，不是 OS 排程或 daemon |
 | Shell Tools | 覆寫 `bash`、`powershell`；`shell_job_status/cancel` | 同步預設；`background:true` 立即回 jobId／liveLogPath；`timeoutMs` 為自啟動起算的總時限（前景／背景相同）；背景 job 未設 `timeoutMs` 時自動啟動 180 秒 display-only Monitor；前景無 `timeoutMs` 指令滿 300 秒自動轉背景（同一 process，兜底防無限迴圈，可由 `pi-shell-tools.autoBackgroundMs` 調整或設 0 停用）；管理工具需額外選取；PowerShell 僅原生 Windows |
 | File Tools | 覆寫 `read`、`write`、`edit`、`ls` | 絕對行號、32 字元 hash、精準 literal／regex、原子寫入、diff worker；`grep/find` 不再由本模組註冊，可由 FFF override 提供 |
 | Web Tools | `web_fetch`；條件式 REST `web_search`；`/web-tools status`、`/web-tools sources` | OpenAI／Codex 原生搜尋預設啟用、無實驗開關或警告，不註冊同名 function tool；Brave／Exa 要明確設定；無登入／CAPTCHA bypass／PDF |
@@ -259,14 +259,14 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 
 獨立入口：`modules/note-tools/src/index.ts`。若使用 `--tools` 明確 allowlist，請加入 `note` 才能啟用；exclusions／no-tools 仍優先。`defaultTools` 不是 extension tools 的全域 allowlist。完整契約見 [Note Tools README](modules/note-tools/README.md)。
 
-### Schedule Prompt
+### Schedule Commands
 
-入口：`modules/schedule-prompt/src/index.ts`（來源 [tintinweb/pi-schedule-prompt](https://github.com/tintinweb/pi-schedule-prompt) 0.4.1，MIT，保留原 LICENSE；非使用者擁有的來源）。若使用 `--tools` 明確 allowlist，請加入 `schedule_prompt`／`schedule_shell` 才能啟用；exclusions／no-tools 仍優先。指令與儲存路徑沿用來源，另有本地 `endAt` 截止擴充，完整說明見 [Schedule Prompt README](modules/schedule-prompt/README.md)。
+入口：`modules/schedule-commands/src/index.ts`（原生模組，取代已移除的第三方 Schedule Prompt 快照）。若使用 `--tools` 明確 allowlist，請加入 `schedule_prompt`／`schedule_shell`／`schedule_monitor` 才能啟用；exclusions／no-tools 仍優先。完整契約、設定鍵與執行語意見 [Schedule Commands README](modules/schedule-commands/README.md)。
 
-- Pi 1.0.0 適配：in-process subagent 改傳 `modelRuntime`（取代已移除的 `modelRegistry` 選項），其餘行為不變。
-- 帶 `model` 的 job 以 `createAgentSession` 在行程內執行，**不經** Subagents 模組的 argument builder／`--exclude-tools subagent` 保障；預設 `noExtensions`、僅內建工具，`extensions: true` 才載入其他 extensions。這不是 OS sandbox，取消只呼叫 `session.abort()`，不代表底層 process tree 已停止。
-- 排程在 `session_start` 啟動、`session_shutdown` 停止；Pi 關閉後不會觸發，沒有補跑。排定觸發的 job 可能呼叫模型並產生費用，請自行確認 prompt 與 model。
-- 本地擴充 `endAt`：含秒與時區的 ISO 截止時間（如 `2030-01-01T18:00:00+08:00`，請改成預期未來時間），到達後拒絕新觸發並自動停用；不是強制結束已啟動工作。`update` 省略欄位保留原截止、`endAt: null` 清除，過期工作須先延長／清除再明確 `enable`。舊資料未設截止者不變；舊版或新舊混跑不保證截止生效。測試分組 `npm run test:module -- schedule-prompt` 包含專屬離線 Pi 1.1.0 host probe。
+- 舊 `.pi/schedule-prompts*.json` 不讀取、不遷移，載入時只提示一次；請以工具重建 job。工具名稱 `schedule_prompt`／`schedule_shell` 不變，`/schedule-prompt` 指令由 `/schedule-commands` 取代。
+- 帶 `model` 的 agent job 以 `createAgentSession` 在行程內執行，**不經** Subagents 模組的 argument builder／`--exclude-tools subagent` 保障；這不是 OS sandbox，取消只呼叫 `session.abort()`，不代表底層 process tree 已停止。排定觸發的 job 可能呼叫模型並產生費用。
+- 排程在 `session_start` 啟動、`session_shutdown` 停止；Pi 關閉後不會觸發，錯過的執行依 `skip`／`run-once`／`run-all` 在下次載入時處理。
+- shell job 須在互動 session 確認確切指令，不啟動模型也不喚醒 parent；不是 sandbox。
 
 ### GPT 速度切換
 
@@ -290,7 +290,7 @@ pi -p "Extract company name: Acme" --json-schema $schema --json-output result.js
 
 - JSON Schema 啟動時拒絕深層／非 definition `$ref`，只支援 `#` 與直接 `$defs`／`definitions` 引用，避免 converter 漏驗。
 - Subagents metadata／aggregate writer close 拒絕亦保留 managed ownership；ready-query stdout 故障後只 drain、不持續保留 payload。Mandatory readable log 單筆序列化 JSONL 上限 **1 MiB**，與 wire／retained output cap 不同，超限使 run failed；長內容應寫檔回傳路徑。
-- Web REST snippets 使用線性 tag scanner；Schedule list 重用已讀 job snapshot，不改真正 fire 的 fresh admission；PTY `waitFor` 搜尋完整 retained unread output，仍保留 worker 計算期限／容量上限。
+- Web REST snippets 使用線性 tag scanner；PTY `waitFor` 搜尋完整 retained unread output，仍保留 worker 計算期限／容量上限。
 
 以上不改工具 schema、settings/auth、儲存格式、依賴或 trust。POSIX PTY input queue 候選尚待 Linux/native 實機驗證，未因模型探針而修改產品。驗證範圍與剩餘限制另於本輪工作紀錄保存，非全 release／付費 provider／跨平台安全宣告。
 
@@ -303,16 +303,14 @@ pi -p "Extract company name: Acme" --json-schema $schema --json-output result.js
 - 已確認退出的POSIX PTY不再signal舊PID；Windows保留native handle release。這項POSIX回歸是fake backend，不是實機PIDreuse驗證。
 - Subagents writer／query acquisition共同遵守 `writer.acquire/` 短期election fence；故障留fence時fail closed，須確認無writer後人工檢查。Background allocation取消可結束caller等待，但實際晚到I/O仍持有capacity至settlement，不在取消後啟動runner。
 - Shell receipt不等待tmpdir sweep／eviction清理；async sweep最多檢查1024 entries、最多32筆pending housekeeping，未確認清理可能留下orphan，不承諾全量清掃。
-- Schedule一次性callback使用generation fence，startup共用snapshot、disabled cleanup一次locked batch；interval每次由schedule重新derive，拒絕不一致或非法cached delay，legacy valid jobs保留。
 - Recall空／失敗lineage不擴至all history；advanced unsafe regex採literal fallback，有限安全regex與常見ASCII `prefix.*suffix`仍可用。Generic scanner／cache有上述byte admission。正值worker attempt timeout另涵蓋auth／endpoint resolution等待；late結果不啟動worker，不代表底層provider I/O已停止。
 
-- Schedule store 只有 ENOENT 才視為空；讀取或損壞隔離失敗拒絕修改，不覆蓋既有資料。持久化清理故障不跳過 scheduler/widget teardown，cron 驗證不建立 timer。
 - PTY `waitFor` 用可終止 worker（單次最多1秒、最多16個）；完整 escape 序列超過單次50KiB限制時明示丟棄並推進 cursor。Shutdown 確認 transport exit 才釋放 ownership，失敗保留並回報，不虛構退出。
 - JSON Schema 拒絕會漏驗的 enum/const 同層約束與型別衝突；pattern 限保守線性子集以保護 Pi 同步工具驗證，含 pattern 的本地驗證另用可終止且可重用的 worker pool（計算預算2秒、最多4個 worker，最多256筆等待；取消或故障的 worker 確認終止才釋放名額）。這會拒絕部分先前接受的 schema，詳見模組 README。
 - Web HTML 擷取移到可終止 worker，避免 JSDOM 同步解析阻塞 TUI／abort；不下載 image／stylesheet 等不必要資源。URL/DNS 檢查仍未釘住實際連線 IP，無法根治 DNS rebinding；有敏感內網的環境需另以網路出口政策隔離，不得把 Fetch 當 SSRF sandbox。
 - Subagents 暫存 prompt/task I/O 與清理套用取消／期限；已開始的 OS I/O 不保證可中斷，晚到操作自行清理，不在取消後啟動 child。晚到 query terminal/close 更新 retained cleanup 狀態，不復活答案或重複用量。
 
-以上不改 trust、工具 activation、儲存位置或 provider credentials，也不提供 OS sandbox、exactly-once 或強制取消遠端工作。Schedule mutation 與損毀隔離都必須取得鎖；遇到 contention 立即拒絕，不按鎖齡接管、不無鎖寫入。Crash 遺留鎖須確認沒有 writer 後手動移除；inline follow-up 排隊語意仍保留。
+以上不改 trust、工具 activation、儲存位置或 provider credentials，也不提供 OS sandbox、exactly-once 或強制取消遠端工作。排程 store 的修改與損毀隔離都必須取得目錄鎖，不按鎖齡接管、不無鎖寫入；crash 遺留鎖須確認沒有 writer 後手動移除。
 
 ## 選擇載入模組
 
@@ -331,7 +329,7 @@ pi -p "Extract company name: Acme" --json-schema $schema --json-output result.js
 }
 ```
 
-二十個模組（subagents、shell-tools、file-tools、web-tools、note-tools、file-audit、gpt-speed、json-schema、pty-terminal、schedule-prompt、pi-runtime、monitor、skill-tools、theme-tools、fork、sqlite-tools、sql-connector、remote、pi-auto-compact、pi-custom-panel）的公開入口均為 `modules/<name>/src/index.ts`。薄入口轉接既有實作，內部資源位置不變。
+二十個模組（subagents、shell-tools、file-tools、web-tools、note-tools、file-audit、gpt-speed、json-schema、pty-terminal、schedule-commands、pi-runtime、monitor、skill-tools、theme-tools、fork、sqlite-tools、sql-connector、remote、pi-auto-compact、pi-custom-panel）的公開入口均為 `modules/<name>/src/index.ts`。薄入口轉接既有實作，內部資源位置不變。
 
 Filters 以整合包 root 為基準；與 tool allowlist 不同，它們控制 extension 是否執行／是否啟動生命週期資源。既有 filters 若使用舊入口路徑，請手動更新為新路徑，見 [入口遷移](docs/migration.md#unified-typescript-entry-points)。
 
