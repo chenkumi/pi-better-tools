@@ -11,6 +11,7 @@ import {
 	type AgentSession, type ExtensionContext, type ModelRuntime,
 } from "@earendil-works/pi-coding-agent";
 import type { AgentJob, ChildFactory, ChildResult, ChildSession } from "./agent-run.ts";
+import { LiveTranscript } from "../../../shared/src/background/index.js";
 
 const OWN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..").toLowerCase();
 const BASE_TOOLS = ["bash", "read", "edit", "write", "grep", "find", "ls"];
@@ -101,10 +102,13 @@ export function createChildFactory(context: () => ExtensionContext, trusted: () 
 			tools: enabled(job.extensions) ? undefined : BASE_TOOLS, resourceLoader: loader,
 		});
 		if (enabled(job.extensions)) await session.bindExtensions({});
+		const transcript = new LiveTranscript();
 		return {
+			transcript,
 			async run(prompt: string): Promise<ChildResult> {
 				let streamed = "";
 				const unsubscribe = session.subscribe((event) => {
+					transcript.ingest(event);
 					if (event.type === "message_start") streamed = "";
 					else if (event.type === "message_update" && event.assistantMessageEvent.type === "text_delta") streamed += event.assistantMessageEvent.delta;
 				});

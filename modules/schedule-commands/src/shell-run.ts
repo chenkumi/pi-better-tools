@@ -4,10 +4,12 @@
  * agent; output only reaches the display marker. `timeoutMs` is an output-stall limit, not a total time limit.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { OutputTranscript } from "../../../shared/src/background/index.js";
 import type { Clock } from "./clock.ts";
 import { CommandApprovals, resolveCwd } from "./cwd.ts";
 import type { RunHandle, RunInfo, RunOutcome } from "./engine.ts";
 import { defaultShell, shellProblem } from "./guard.ts";
+import type { LiveRuns } from "./live-runs.ts";
 import { postMarker, type MarkerDetails } from "./markers.ts";
 import { TailBuffer } from "./tail.ts";
 import type { Job } from "./types.ts";
@@ -37,6 +39,8 @@ export interface ShellDeps {
 	tailBytes: number;
 	/** Controllers of runs in flight, so a shutdown can request cancellation of all of them. */
 	active: Set<AbortController>;
+	/** Where a running job's output copy is shown (Jobs overlay); released when the run ends. */
+	live?: LiveRuns;
 }
 
 export function runShellJob(d: ShellDeps, job: Extract<Job, { kind: "shell" }>, info: RunInfo): RunHandle {
@@ -72,7 +76,9 @@ export function runShellJob(d: ShellDeps, job: Extract<Job, { kind: "shell" }>, 
 			if (stallTimer !== undefined) d.clock.clearTimeout(stallTimer);
 			stallTimer = d.clock.setTimeout(() => { stalled = true; controller.abort(); }, stallMs);
 		};
-		const onData = (data: Buffer) => { armStall(); tail.push(data); };
+		const copy = new OutputTranscript();
+		d.live?.set(job.id, copy);
+		const onData = (data: Buffer) => { armStall(); tail.push(data); copy.append(data); };
 		armStall();
 		// After an abort, stop waiting for the pipes when a surviving descendant keeps them open.
 		const abortedWait = new Promise<void>((resolve) => {
@@ -92,6 +98,7 @@ export function runShellJob(d: ShellDeps, job: Extract<Job, { kind: "shell" }>, 
 			if (stallTimer !== undefined) d.clock.clearTimeout(stallTimer);
 			if (closeTimer !== undefined) d.clock.clearTimeout(closeTimer);
 			d.active.delete(controller);
+			if (d.live) d.live.release(job.id, copy); else copy.release();
 		}
 		// Aborted by a shutdown: the host may already be gone, so touch neither chat nor storage.
 		if (controller.signal.aborted && !stalled) return { status: "error", error: "cancelled because the session ended; cancellation was only requested, descendant processes may still be running" };

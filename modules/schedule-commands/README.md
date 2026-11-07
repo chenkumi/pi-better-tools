@@ -61,13 +61,14 @@
 ## 與其他模組
 
 - Jobs 面板：種類 `schedule`（標籤 `SC`，計數 `⏱ Schedule`）；執行中顯示 `running`，閒置顯示 `in 12m | every 1h`，停用的只出現在 `/schedule-commands`。每 60 秒更新相對時間。被動列不含 prompt 或指令文字。
+- 執行中的 job 在 Jobs 面板展開（點列或 `/background-jobs schedule`）可看即時內容：shell job 是輸出尾端（最多 128 KiB 記憶體副本），agent job 是子 session 的對話。副本只存在記憶體、只供顯示，不寫檔、不進模型；run 結束（成功、失敗、取消或 session 結束）即釋放，關閉面板後無法回看。prompt／monitor job 沒有即時內容，展開只顯示中繼資料。
 - Pi Auto Compact：壓縮摘要的 `[Background Jobs]` 列出執行中的排程 run（`Schedule Job: <id> (running)`），只有 id 與狀態。
 - system prompt：結構化 section `schedule_rules`（短規則，只提已啟用的工具）。
 - File Audit 的 git 提醒排除 `.pi/schedule-commands*`。
 
 ## 尚未完成
 
-- 面板中執行中 job 的輸出尾端／transcript 展開；面板新增流程只問名稱、時間、內容，進階欄位（agent、cwd、timeout、missed）只能用工具設定。
+- 面板新增流程只問名稱、時間、內容，進階欄位（agent、cwd、timeout、missed）只能用工具設定。
 - 未做真實 Pi／真實模型／真實 Monitor 的端對端驗證。特別是 `session_start` 內的補跑發生時，宿主的啟用工具集（`getActiveTools`）是否已定案尚未在真實 host 驗證，這影響 `schedule_shell` 與 monitor 的 shell 檢查。
 
 ## 測試

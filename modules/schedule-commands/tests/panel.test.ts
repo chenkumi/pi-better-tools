@@ -94,3 +94,13 @@ test("briefs: running jobs are published as ids and statuses only, and the compa
 	} finally { revoke(); }
 	assert.deepEqual(activeJobBriefs({ sessionId: "S9", cwd: canonicalMonitorCwd(ctx.cwd) }).briefs, []);
 });
+
+test("a running row carries its live copy to the Jobs overlay; idle and released rows do not", async () => {
+	const { OutputTranscript } = await import("../../../shared/src/background/index.ts");
+	const copy = new OutputTranscript();
+	const running = schedulePanelJob({ ...row({ kind: "shell", name: "build", command: "make", shell: "bash" }, true), live: copy }, T0);
+	assert.deepEqual(running.transcripts?.map((t) => [t.label, t.transcript]), [["build", copy]]);
+	assert.equal(schedulePanelJob({ ...row({}), live: copy }, T0).transcripts, undefined, "an idle job shows no live detail");
+	copy.release();
+	assert.equal(schedulePanelJob({ ...row({}, true), live: copy }, T0).transcripts, undefined, "a released copy is not shown");
+});

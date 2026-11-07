@@ -4,7 +4,7 @@
  */
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { canonicalMonitorCwd, JobsWidgetBinding, publishJobBriefs, safeJobText } from "../../../shared/src/background/index.js";
-import type { PanelHost, PanelJob } from "../../../shared/src/background/index.js";
+import type { PanelHost, PanelJob, TranscriptSource } from "../../../shared/src/background/index.js";
 import type { Clock } from "./clock.ts";
 import { defaultShell } from "./guard.ts";
 import { describeSchedule } from "./shorthand.ts";
@@ -14,7 +14,7 @@ const MAX_ROWS = 32;
 /** Relative times in the rows go stale, so the owner refreshes the view this often while something is scheduled. */
 export const REFRESH_MS = 60_000;
 
-export interface ScheduleRow { job: Job; running: boolean }
+export interface ScheduleRow { job: Job; running: boolean; /** Memory copy of the run in flight (output tail or conversation); shown in the Jobs overlay. */ live?: TranscriptSource }
 
 /** "in 12m", "in 3h", "in 2d", or "due" when the time has come. */
 export function relativeTime(targetMs: number, nowMs: number): string {
@@ -29,7 +29,7 @@ export function relativeTime(targetMs: number, nowMs: number): string {
 const kindLabel = (job: Job) => (job.kind === "agent" ? `agent ${job.model}` : job.kind);
 
 export function schedulePanelJob(row: ScheduleRow, nowMs: number): PanelJob {
-	const { job, running } = row;
+	const { job, running, live } = row;
 	const next = job.enabled && job.state.nextDue ? Date.parse(job.state.nextDue) : undefined;
 	const state = running ? "running" : job.enabled ? "scheduled" : "disabled";
 	const details = [
@@ -53,6 +53,7 @@ export function schedulePanelJob(row: ScheduleRow, nowMs: number): PanelJob {
 		...(job.state.lastRun ? { startedAt: Date.parse(job.state.lastRun) } : {}),
 		summary: running ? "running" : job.enabled ? `${next !== undefined ? relativeTime(next, nowMs) : "—"} | ${describeSchedule(job.schedule)}` : "disabled",
 		details: details.map((line) => safeJobText(line, 512)),
+		...(running && live && !live.isReleased ? { transcripts: [{ label: job.name, transcript: live }] } : {}),
 	};
 }
 

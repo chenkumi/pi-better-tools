@@ -4,8 +4,10 @@
  * so the orchestration (start, time limit, cancellation, outcome, cleanup) is testable without a model.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { LiveTranscript } from "../../../shared/src/background/index.js";
 import type { Clock } from "./clock.ts";
 import type { RunHandle, RunInfo, RunOutcome } from "./engine.ts";
+import type { LiveRuns } from "./live-runs.ts";
 import { postMarker, type MarkerDetails } from "./markers.ts";
 import type { Job } from "./types.ts";
 
@@ -16,6 +18,8 @@ export interface ChildSession {
 	/** Runs the prompt to completion. */
 	run(prompt: string): Promise<ChildResult>;
 	abort(): void;
+	/** Memory copy of the child conversation for the Jobs overlay; fed while the run goes on. */
+	readonly transcript?: LiveTranscript;
 	/** Awaited teardown; returns the cleanup failure text, if any, instead of throwing. */
 	dispose(): Promise<string | undefined>;
 }
@@ -31,6 +35,7 @@ export interface AgentDeps {
 	createChild: ChildFactory;
 	timeoutMs?: number;
 	active: Set<AbortController>;
+	live?: LiveRuns;
 }
 
 export function runAgentJob(d: AgentDeps, job: AgentJob, info: RunInfo): RunHandle {
@@ -48,6 +53,7 @@ export function runAgentJob(d: AgentDeps, job: AgentJob, info: RunInfo): RunHand
 		let result: ChildResult | undefined, error: string | undefined, cleanup: string | undefined;
 		try {
 			child = await d.createChild(job);
+			if (child.transcript) d.live?.set(job.id, child.transcript);
 			resolveStarted(true);
 			const abort = () => child?.abort();
 			if (controller.signal.aborted) abort();
@@ -60,6 +66,7 @@ export function runAgentJob(d: AgentDeps, job: AgentJob, info: RunInfo): RunHand
 			if (timer !== undefined) d.clock.clearTimeout(timer);
 			cleanup = child ? await child.dispose().catch((e: unknown) => (e instanceof Error ? e.message : String(e))) : undefined;
 			d.active.delete(controller);
+			if (child?.transcript) { if (d.live) d.live.release(job.id, child.transcript); else child.transcript.release(); }
 		}
 		if (controller.signal.aborted && !timedOut) return { status: "error", error: "cancelled because the session ended" };
 		if (timedOut) error = `timed out after ${Math.round(limit / 60000)} minutes`;

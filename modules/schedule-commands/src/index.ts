@@ -69,6 +69,7 @@ export default function (pi: ExtensionAPI): void {
 		revokeBriefs = undefined;
 		live.engine.stop();
 		live.executor.abortAll();
+		live.executor.live.releaseAll();
 		live = undefined;
 	};
 
@@ -86,7 +87,7 @@ export default function (pi: ExtensionAPI): void {
 			legacyNoticeShown = true;
 			if (ctx.hasUI) ctx.ui.notify("The old Schedule Prompt file is no longer read; recreate jobs with schedule_prompt or schedule_shell.", "info");
 		}
-		const executor = createExecutor({ pi, context: () => current ?? ctx, trusted: () => isProjectTrusted(current ?? ctx), tailBytes: settings.commandOutputTailBytes });
+		const executor = createExecutor({ pi, context: () => current ?? ctx, trusted: () => isProjectTrusted(current ?? ctx), tailBytes: settings.commandOutputTailBytes, onLiveChange: () => panel.refresh() });
 		const onEvent = (event: EngineEvent) => {
 			if (event.type === "skipped" && event.job) postMarker(pi, { jobId: event.job.id, jobName: event.job.name, kind: event.job.kind, phase: "skipped", error: event.message });
 			else if ((event.type === "error" || event.type === "expired") && ctx.hasUI) ctx.ui.notify(event.message, event.type === "error" ? "warning" : "info");
@@ -95,7 +96,7 @@ export default function (pi: ExtensionAPI): void {
 		const jobs = new JobService({ store, clock: realClock, sessionId: ctx.sessionManager.getSessionId(), scope: () => settings.defaultJobScope, changed: () => { engine.reload(); panel.refresh(); } });
 		live = { store, jobs, engine, executor };
 		if (settings.panelVisible) {
-			panel.bind(ctx, () => store.read().store.jobs.filter(jobs.visible).map((job) => ({ job, running: engine.runningJobs.has(job.id) })));
+			panel.bind(ctx, () => store.read().store.jobs.filter(jobs.visible).map((job) => ({ job, running: engine.runningJobs.has(job.id), live: executor.live.get(job.id) })));
 			try { revokeBriefs = publishScheduleBriefs(() => engine.runningJobs, ctx); } catch { /* briefs are a reminder aid only */ }
 		}
 		try { await engine.start(); }

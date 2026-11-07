@@ -281,3 +281,63 @@ test("resolveCwd: relative paths resolve inside the project; a link out of it co
 		assert.equal(resolveCwd(project.root, "missing").ok, false);
 	} finally { project.done(); outside.done(); }
 });
+
+test("live copies: a running shell job exposes its output, and the copy is released with the run", async () => {
+	const { LiveRuns } = await import("../src/live-runs.ts");
+	const s = shellSetup();
+	const changes: string[] = [];
+	const live = new LiveRuns(() => changes.push("change"));
+	try {
+		const run = runShellJob({ ...s.deps, live }, makeJob({ kind: "shell", id: "J1", command: "echo hi", shell: "bash" }) as never, info);
+		await s.clock.settle();
+		const copy = live.get("J1")!;
+		assert.ok(copy, "a copy exists while the command runs");
+		s.control.state.events!.started();
+		s.control.state.events!.stdout(Buffer.from("line one\n"));
+		s.control.state.events!.stderr(Buffer.from("line two\n"));
+		assert.equal((copy as { snapshot(): { text: string } }).snapshot().text, "line one\nline two\n");
+		s.control.state.events!.closed(0, null, false);
+		s.control.state.finish!();
+		await run.done;
+		assert.equal(live.get("J1"), undefined, "released at the end of the run");
+		assert.equal(copy.isReleased, true);
+		assert.equal(changes.length, 2, "appearing and going away both notify the panel");
+		assert.equal(s.pi.messages[1].message.details.output, "line one\nline two", "the marker output is unchanged");
+	} finally { s.d.done(); }
+});
+
+test("live copies: a newer run of the same job is not released by an older run", async () => {
+	const { LiveRuns } = await import("../src/live-runs.ts");
+	const { OutputTranscript } = await import("../../../shared/src/background/index.ts");
+	const live = new LiveRuns();
+	const first = new OutputTranscript(), second = new OutputTranscript();
+	live.set("J", first);
+	live.set("J", second);
+	assert.equal(first.isReleased, true, "replacing a copy releases the old one");
+	live.release("J", first);
+	assert.equal(live.get("J"), second);
+	live.releaseAll();
+	assert.equal(second.isReleased, true);
+	assert.equal(live.get("J"), undefined);
+});
+
+test("live copies: a running agent job exposes the child's conversation and releases it on every ending", async () => {
+	const { LiveRuns } = await import("../src/live-runs.ts");
+	const { LiveTranscript } = await import("../../../shared/src/background/index.ts");
+	for (const throws of [undefined, "boom"]) {
+		const pi = fakePi(), clock = new ManualClock(), live = new LiveRuns();
+		const transcript = new LiveTranscript();
+		let seen: unknown;
+		const child: ChildSession = {
+			transcript,
+			async run() { seen = live.get("A1"); if (throws) throw new Error(throws); return { text: "done" }; },
+			abort() {},
+			async dispose() { return undefined; },
+		};
+		const run = runAgentJob({ pi, clock, createChild: async () => child, active: new Set(), live }, makeJob({ kind: "agent", id: "A1", prompt: "p", model: "m1" }) as never, info);
+		await run.done;
+		assert.equal(seen, transcript, "visible while the child runs");
+		assert.equal(live.get("A1"), undefined);
+		assert.equal(transcript.isReleased, true);
+	}
+});

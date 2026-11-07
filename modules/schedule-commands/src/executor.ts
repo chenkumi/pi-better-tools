@@ -5,6 +5,7 @@ import { runAgentJob, type ChildFactory } from "./agent-run.ts";
 import { createChildFactory } from "./child-session.ts";
 import { realClock, type Clock } from "./clock.ts";
 import { CommandApprovals } from "./cwd.ts";
+import { LiveRuns } from "./live-runs.ts";
 import type { Executor } from "./engine.ts";
 import { runMonitorJob } from "./monitor-link.ts";
 import { runPromptJob } from "./prompt-run.ts";
@@ -20,12 +21,15 @@ export interface ExecutorOptions {
 	exec?: ExecFn;
 	createChild?: ChildFactory;
 	monitorStarter?: Parameters<typeof runMonitorJob>[0]["starter"];
+	/** Called when a running job gains or loses its live copy, so the panel can refresh. */
+	onLiveChange?: () => void;
 }
 
 export function createExecutor(o: ExecutorOptions) {
 	const clock = o.clock ?? realClock;
 	const approvals = new CommandApprovals();
 	const active = new Set<AbortController>();
+	const live = new LiveRuns(o.onLiveChange);
 	const exec: ExecFn = o.exec ?? ((tool, command, signal, events, options) => execMonitorCommand(o.pi, o.context(), tool, command, signal, events, {}, options));
 	const lastMonitor = new Map<string, string>();
 	const createChild = o.createChild ?? createChildFactory(o.context, o.trusted);
@@ -33,8 +37,8 @@ export function createExecutor(o: ExecutorOptions) {
 	const execute: Executor = (job, info) => {
 		switch (job.kind) {
 			case "prompt": return runPromptJob(o.pi, job, info);
-			case "agent": return runAgentJob({ pi: o.pi, clock, createChild, active }, job, info);
-			case "shell": return runShellJob({ pi: o.pi, clock, exec, projectCwd: () => o.context().cwd, activeTools: () => o.pi.getActiveTools(), approvals, tailBytes: o.tailBytes ?? DEFAULT_TAIL_BYTES, active }, job, info);
+			case "agent": return runAgentJob({ pi: o.pi, clock, createChild, active, live }, job, info);
+			case "shell": return runShellJob({ pi: o.pi, clock, exec, projectCwd: () => o.context().cwd, activeTools: () => o.pi.getActiveTools(), approvals, tailBytes: o.tailBytes ?? DEFAULT_TAIL_BYTES, active, live }, job, info);
 			case "monitor": return runMonitorJob({ pi: o.pi, context: o.context, activeTools: () => o.pi.getActiveTools(), last: lastMonitor, ...(o.monitorStarter ? { starter: o.monitorStarter } : {}) }, job, info);
 		}
 	};
@@ -42,6 +46,7 @@ export function createExecutor(o: ExecutorOptions) {
 	return {
 		execute,
 		approvals,
+		live,
 		/** Requests cancellation of every run in flight; it does not prove that any process tree has stopped. */
 		abortAll(): void { for (const controller of [...active]) controller.abort(); },
 	};
