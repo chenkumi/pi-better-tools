@@ -5,7 +5,7 @@ import { consumerRoot, discoverNpm, ptyInvocation } from '../../../setup/core.mj
 
 const owner = resolve('consumer project');
 const root = join(owner, 'node_modules', 'node-pty');
-const version = '1.2.0-beta.15';
+const version = '1.2.0-beta.18';
 const dependencies = {
   resolve: name => { assert.equal(name, 'node-pty'); return { root, version }; },
   readJson: path => { assert.equal(path, join(owner, 'package.json')); return { allowScripts: { [`node-pty@${version}`]: true } }; },

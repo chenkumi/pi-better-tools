@@ -200,6 +200,10 @@ interface PtySession {
 	reportChange: () => void;
 	exitedAt?: number;
 	exitInfo?: ExitInfo;
+	/** Windows only: a native kill() is in flight. Concurrent kills share it instead of calling node-pty again (older node-pty closed the ConPTY handle per call and corrupted the heap). */
+	nativeKillInFlight?: true;
+	/** Windows only: a native kill() already released the handle, so releasing an exited session needs no second call. */
+	nativeKillSent?: true;
 	dataWaiters: Set<() => void>;
 	exitWaiters: Set<() => void>;
 	/** Secrets typed through pty_keyin; masked in everything handed out until the session is released. */
@@ -264,8 +268,8 @@ export class PtySessionManager {
 		const session = this.sessions.get(id);
 		this.sessions.delete(id);
 		session?.masker.clear();
-		if (process.platform === "win32") {
-			try { session?.pty.kill(); } catch { /* already gone */ }
+		if (session && process.platform === "win32" && !session.nativeKillSent && !session.nativeKillInFlight) {
+			try { session.pty.kill(); } catch { /* already gone */ }
 		}
 		this.changed();
 	}
@@ -558,17 +562,27 @@ export class PtySessionManager {
 		let escalated = false;
 		const result = (released: boolean): KillResult => ({ sessionId, released, exited: session.state === "exited", signal: windows ? "n/a (Windows)" : signal, escalatedToSigkill: escalated, note });
 		if (session.state === "running") {
+			let issued = false;
 			try {
-				session.pty.kill(windows ? undefined : signal);
+				if (!windows) session.pty.kill(signal);
+				else if (!session.nativeKillInFlight) {
+					session.nativeKillInFlight = true;
+					issued = true;
+					session.pty.kill();
+					session.nativeKillSent = true;
+				}
 			} catch (error) {
+				if (issued) session.nativeKillInFlight = undefined;
 				if (session.state === "running") throw new Error(`PTY kill failed; session ${sessionId} retained: ${errorText(error)}`);
 			}
-			await this.waitForExitOrTimeout(session, this.killWaitMs);
-			if (session.state === "running" && !windows && signal !== "SIGKILL") {
-				escalated = true;
-				try { session.pty.kill("SIGKILL"); } catch { /* reported below if still running */ }
+			try {
 				await this.waitForExitOrTimeout(session, this.killWaitMs);
-			}
+				if (session.state === "running" && !windows && signal !== "SIGKILL") {
+					escalated = true;
+					try { session.pty.kill("SIGKILL"); } catch { /* reported below if still running */ }
+					await this.waitForExitOrTimeout(session, this.killWaitMs);
+				}
+			} finally { if (issued) session.nativeKillInFlight = undefined; }
 		}
 		if (session.state !== "exited") return result(false);
 		this.dispose(sessionId); // also frees node-pty native handles, which keep the host alive on Windows
