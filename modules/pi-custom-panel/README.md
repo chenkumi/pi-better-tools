@@ -1,6 +1,6 @@
 # Pi Custom Panel
 
-自製 TUI 模組，取代已移除的 npm `pi-open-tui`。設計依據是根目錄的 `TUI_DESIGN.md`。目前完成階段 1（主畫面）與階段 2（Tool call 外觀）；背景任務面板、Settings／詢問框樣式、Thinking 預設收合是後續階段。
+自製 TUI 模組，取代已移除的 npm `pi-open-tui`。設計依據是根目錄的 `TUI_DESIGN.md`。目前本模組完成階段 1（主畫面）與階段 2（Tool call 外觀）；背景任務面板、Settings 面板與詢問框已由共用的底部面板實作（`shared/src/bottom-panel`、`shared/src/background`、`shared/src/settings-panel`），本模組只在面板開啟時讓輸入框把 PgUp／PgDn 留給面板；Thinking 預設收合尚未實作。
 
 ## 階段 1：主畫面
 
