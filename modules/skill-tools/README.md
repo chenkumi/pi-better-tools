@@ -18,6 +18,8 @@ pi -e ./modules/skill-tools/src/index.ts
 
 `skills/os-scheduling/SKILL.md`（原生新增，2026-11-07）：Pi 關閉後仍要執行時的 OS 層排程引導——何時不需要 OS 排程、無人值守 `pi -p` 的注意事項（cwd、憑證、PATH、日誌、失敗通知、`--approve` 的風險、費用）、Windows／cron／systemd／launchd 的建立、查詢、移除範本。純文件，不執行任何東西；範本指令未實跑，旗標已對照 `pi --help`（1.5.0）。專案不提供 `schedule_os` 工具。
 
+規劃與除錯類的其餘 skills 隨 Pi 1.3.0 整合一併加入，內容見各自 `SKILL.md`：`skills/thinking-plan/`（想法模糊時先釐清目標、範圍與核心流程）、`skills/research-plan/`（有未解事實影響做法時，先調查技術可行性與環境限制）、`skills/audit-plan/`（檢查既有計畫的假設、相依與驗證步驟是否可行）、`skills/reproduce-bug/`（間歇或難觸發的失敗，建立可重播的案例）、`skills/software-reliability/`（審查資源生命週期、取消、容量、重試、並行與失敗復原的可靠性風險）。
+
 停用時，在 package 的 `extensions` filters 排除 `modules/skill-tools/src/index.ts`；不會刪除 skill 檔案。這是 extension 動態提供的資源，不是根 manifest 的 `pi.skills`：package `skills: []`／Pi `--no-skills` 只停用一般 skill discovery，不能停用已啟用 extension 的 `resources_discover`。需要完全停用本模組 skills，請停用這個 extension。既有 project trust 規則由 Pi 管理，不自動授權。
 
 ## pi-tools-config：模組指令與設定索引

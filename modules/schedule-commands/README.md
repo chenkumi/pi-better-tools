@@ -11,7 +11,7 @@
 | `schedule_prompt` | prompt job（送入目前對話）與 agent job（指定 `model`，獨立 in-process session）。`defaultActive: true`，直接宣告、不經 deferred。 |
 | `schedule_shell` | shell command job（`command`／`shell`／`cwd`／`timeoutMs`）。`defaultActive: true`。 |
 | `schedule_monitor` | monitor job：到點時請同一 session 的 Monitor 啟動一個監看（`start` 即 `monitor_start` 參數）。`defaultActive: true`。 |
-| `/schedule-commands` | 底部面板清單：↑↓／PgUp／PgDn、Enter 詳細、`a` 新增 prompt、`m` 新增 shell、`t` 啟用／停用、`r` 立即執行、`x` 刪除、`c` 清理。動作一律經上面兩個工具的 `execute`，驗證與確認不另寫一份。 |
+| `/schedule-commands` | 底部面板清單：↑↓／PgUp／PgDn、Enter 詳細、`a` 新增 prompt、`m` 新增 shell、`t` 啟用／停用、`r` 立即執行、`x` 刪除、`c` 清理。動作一律經上面三個工具（依 job 種類）的 `execute`，驗證與確認不另寫一份；新增只有 prompt（`a`）與 shell（`m`），monitor job 只能用 `schedule_monitor` 建立。 |
 | `/settings:schedule-commands` | 共用 settings-panel，寫入專案層設定檔，只在存檔時寫；設定於 session 開始時讀取，存檔後需 reload。 |
 
 三個工具共用儲存，但各自只列出與變更自己種類的 job（`schedule_prompt`：prompt／agent；`schedule_shell`：shell；`schedule_monitor`：monitor），所以 `--tools`／`--exclude-tools` 可分開允許或禁止。actions：`add`、`remove`、`list`、`status`、`enable`、`disable`、`update`、`cleanup`、`run_now`。
@@ -29,11 +29,11 @@
 | `panelVisible` | `true` | 在 Jobs 面板顯示排程列 |
 | `defaultJobScope` | `session` | 新 job 綁定 session，或 `workdir`（同目錄所有 session 可見） |
 | `defaultMissed` | `skip` | `skip`／`run-once`／`run-all` |
-| `defaultMaxLateMs` | 見程式 | 晚於此值的錯過執行不補跑 |
-| `maxCatchUp` | 見程式 | `run-all` 的上限 |
+| `defaultMaxLateMs` | `3600000`（1 小時） | 晚於此值的錯過執行不補跑；`0`–604800000 |
+| `maxCatchUp` | `10` | `run-all` 的上限；1–100 |
 | `allowShellRunAll` | `false` | shell job 才可使用 `run-all` |
-| `maxConcurrentAgents`／`maxConcurrentCommands` | 見程式 | 同時執行上限 |
-| `commandOutputTailBytes` | 見程式 | 每次 run 保留的輸出尾端 |
+| `maxConcurrentAgents`／`maxConcurrentCommands` | `4`／`4` | 同時執行上限；各 1–16 |
+| `commandOutputTailBytes` | `8192` | 每次 run 保留於顯示標記的輸出尾端；1024–1048576（Jobs 面板的即時副本另有 128 KiB 上限，與此無關） |
 
 ## 執行語意
 

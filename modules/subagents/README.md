@@ -164,7 +164,7 @@ startup/resume/reload 時 bounded 核對同 owner/cwd 的 session-wide inventory
 
 Subagent `reported … tok*` 為本次 invocation **已回報累計 usage**，不是逐 token 精確計數。詳細 metadata 有 input／output／cache read/write／total／cost，未報為 pending，終結仍無資料為 unknown；部分 tasks 未報時標 usage partial。已確認終結 result 優先於早期 snapshot；live query 用量不加入主 task，ready query 以自己的 job 顯示，query 的模型回覆不冒充 worker／lease settlement。背景用量不加到 host totals，不改任何 result/schema/accounting。
 
-`/background-jobs` 或 `more`／`all` 開啟有界浮層；`subagents`／`shell`／`fork`／`monitor` 篩選清單，`collapse` 明確隱藏常駐面板，之後 more／all 可恢復。↑↓ 選取、Enter 詳細、Tab 最近完成／全部、Esc 返回清單／關閉回 editor；只有主動開啟才取焦點，背景更新不重開或改草稿。Fullscreen 可點 job 列或完整 More 標籤，滑鼠停在其上會高亮；一般模式不接管 terminal mouse。終結 jobs 移出常駐面板，More 可查看當前 retained metadata，不復原已淘汰或跨 reload job。無 active job 不占面板空間。標題／agent 顯示先有界清理 ANSI／控制碼／bidi，按 Unicode 欄寬截短不折行；窄／矮終端減少細節／行數。
+`/background-jobs` 或 `more`／`all` 開啟輸入框上方的底部面板；`subagents`／`shell`／`fork`／`monitor`／`pty`／`schedule` 篩選清單，`collapse` 明確隱藏常駐面板，之後 more／all 可恢復。↑↓ 選取、Enter 詳細、Tab 最近完成／全部、Esc 返回清單／關閉回 editor；只有主動開啟才取焦點，背景更新不重開或改草稿。Fullscreen 可點 job 列或完整 More 標籤，滑鼠停在其上會高亮；一般模式不接管 terminal mouse。終結 jobs 移出常駐面板，More 可查看當前 retained metadata，不復原已淘汰或跨 reload job。無 active job 不占面板空間。標題／agent 顯示先有界清理 ANSI／控制碼／bidi，按 Unicode 欄寬截短不折行；窄／矮終端減少細節／行數。
 
 共用 key `pi-better-tools-background-jobs`；Shell `background-panel.ts`／`job-view.ts` 是純 presentation helper，公開 pi.events rendezvous 分享顯示、不分享 registry／權限／操作，不替換 footer／其他 widget、不啟用未選 tools。僅 TUI+hasUI，RPC／JSON／print 不掛面板，不列同步／其他 session/workspace。UI progress 由既有 child events signature 去重，無 polling／新 ticker／模型請求／log 讀取；owner、epoch、producer lease、disposed component／shutdown 防護保留，private progress／title 不進 receipt／模型內容，UI 例外不改工作結果。等待背景工作結束後 `/reload` 載入。取消或移除面板不證明 provider/process tree 已停止。
 

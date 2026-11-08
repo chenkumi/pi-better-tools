@@ -41,7 +41,7 @@
   - 共享狀態：Node 模組快取共用，模組層單例（registry、tracker、快取）需逐一檢查。
   - 前綴一致：Fork 要求子代工具定義與父代逐字相同才能延續 provider 快取，行程內要保證兩個 session 的 resource loader 產出完全一致。
   - 保障要重寫：`--exclude-tools subagent` 防遞迴、32 submitted／8 active 上限、串流背壓、guard 握手，現在靠行程邊界與參數，要換成物件層實作。
-- **先例**：第三方 Schedule Prompt 已是行程內 in-process subagent，AGENTS.md 規定不得與 Subagents 的行程保障混為一談。
+- **先例**：原生 Schedule Commands 的 agent job 已是行程內 in-process session，AGENTS.md 規定不得與 Subagents 的行程保障混為一談。
 
 ### 建議順序
 

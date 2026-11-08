@@ -27,7 +27,7 @@ write-prompt
   @lordekeen/pi-navigator, fff-override.mjs, file-audit/src, file-tools/src, fork/src,
 gpt-speed/src, json-schema/src, monitor/src, note-tools/src, orca-agent-status.ts,
 orca-prefill.ts, orca-titlebar-spinner.ts, pi-auto-compact/src, pi-runtime/src, pty-terminal/src,
-remote/src, schedule-prompt/src, shell-tools/src, skill-tools/src, sql-connector/src,
+remote/src, schedule-commands/src, shell-tools/src, skill-tools/src, sql-connector/src,
 sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
 
 

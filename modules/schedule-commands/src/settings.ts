@@ -1,7 +1,7 @@
 /**
  * Settings: user level `<agentDir>/schedule-commands-settings.json` as defaults, project level
  * `<cwd>/.pi/schedule-commands-settings.json` on top (read only for a trusted project). Strict: unknown keys and bad
- * values are errors, and a bad file never falls back to defaults silently. Only the settings panel writes (later phase).
+ * values are errors, and a bad file never falls back to defaults silently. Only `/settings:schedule-commands` writes.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

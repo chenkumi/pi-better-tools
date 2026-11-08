@@ -25,7 +25,7 @@ Pure library code used by several modules under `modules/`. It is not a Pi exten
 | `tool-error/` | `ToolError`: agent-facing failure whose message starts with a stable `CODE: ` (only `content` and `isError` reach the model, not `details`) | — |
 | `git/` | `runGit`: read-only git runner (no optional locks, no fsmonitor, bounded time and output; `undefined` on any failure) | — |
 | `tool-result/` | `jsonResult`: a result whose text, `details` and `structuredContent` are one JSON-clean value | — |
-| `bottom-panel/` | `openBottomPanel`：在輸入框上方（`setWidget` aboveEditor）顯示面板並以 `onTerminalInput` 接管鍵盤，編輯器與 footer 保持可見；全域同時只開一個（`closeBottomPanel` 在 `session_shutdown` 由 Pi Custom Panel 呼叫，避免 reload 後卡住）。`bottomConfirm`／`bottomSelect`：Yes/No 與單選提問框（訊息過高可捲動，支援 AbortSignal；非 TUI 或已有面板時退回宿主 `ui.confirm`／`ui.select`）。滑鼠與焦點事件不被攔截；fullscreen 下 PgUp／PgDn 仍由宿主捲動聊天視窗，面板內請用方向鍵 | — |
+| `bottom-panel/` | `openBottomPanel`：在輸入框上方（`setWidget` aboveEditor）顯示面板並以 `onTerminalInput` 接管鍵盤，編輯器與 footer 保持可見；全域同時只開一個（`closeBottomPanel` 在 `session_shutdown` 由 Pi Custom Panel 呼叫，避免 reload 後卡住）。面板外框只有主題 `accent` 色的標題線（沒有下方分隔線）。`bottomConfirm`／`bottomSelect`／`bottomInput`：Yes/No、單選與單行文字提問框（訊息過高可捲動，支援 AbortSignal；非 TUI 或已有面板時退回宿主 `ui.confirm`／`ui.select`）。滑鼠與焦點事件不被攔截；fullscreen 下 PgUp／PgDn 仍由宿主捲動聊天視窗，面板內請用方向鍵 | — |
 | `settings-panel/` | `/settings:<id>` panel library (shown through `bottom-panel/`, no floating overlay). A validation message the user should see must be thrown as `SettingsInputError`; any other `Error` shows the generic "could not be validated" text | P5b |
 
 Checks: `npm run test:module -- shared` (typecheck + unit tests).

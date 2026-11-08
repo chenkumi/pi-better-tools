@@ -115,11 +115,11 @@ Shell／Subagents／Fork／Monitor／PTY 的 owner-bound `bind`／`refresh`／`c
 
 Jobs 面板自動掛在輸入欄上方 `aboveEditor`，Shell／Subagents／Fork／Monitor／PTY **合計最多五個 job，每個一行**，最多7行（標題＋5 job＋More）：左側 `● SH|SA|FK|MN|PT 標籤 · 標題`，右側狀態欄 `狀態 | 用量`（Shell 執行中只顯示 `N/A`；Monitor 為 `wake on|off | 剩 24m`；取消中仍在 finalize、Fork 清理未確認、blocked 這類不能看起來健康的狀態直接寫在狀態欄）；標題列依實際數量顯示 `Subagents n / Shell n`，Fork／Monitor／PTY 只在大於 0 時出現。短 ID 與活動摘要（Running／output received 或 no output observed 等）移到 More 詳細；寬度不足 40 欄時省略狀態欄；窄欄截短不折行，高度不足減少列數，More 顯示省略數。只列目前 owner/runtime 的背景 Bash／PowerShell，running／cancelling 直到 registry settlement；取消要求不冒充程序樹已停止。Shell 顯示 Running／output received 或 no output observed，沒有輸出不自行推斷卡住；工具本身沒有模型用量帳本，固定顯示 `tokens N/A`，不推算命令內呼叫 AI 的 token。
 
-`/background-jobs`／`more`／`all` 開有界浮層；`shell`／`subagents`／`fork`／`monitor` 篩選，`collapse` 明確隱藏常駐面板，more／all 恢復。↑↓ 選取、Enter 詳細、Tab 最近完成／全部、Esc 返回／關閉回 editor，保持輸入草稿；只有主動開啟才取焦點，背景事件不重開浮層。Fullscreen 可左鍵點 job 列直接開該 job 詳細，或點完整 More 標籤；滑鼠停在這些可點擊項目上會高亮（hover，只改底色、不改版面、不開任何東西）。Hover 依賴終端回報無按鍵移動（any-motion）：tmux／zellij／screen 內 Pi 只啟用按鍵移動追蹤，因此沒有 hover，點擊不受影響；TUI 沒有「滑鼠離開」事件，面板以輸入監聽器偵測指標移出面板範圍或終端失焦並清除高亮，監聽器從不消耗輸入。一般模式保留 terminal mouse。完成逐項移出常駐面板，但 More 可查看目前 retained registry 的完整ID、命令預覽、開始／結束時間、exit、取消要求與既有 log 路徑／輸出 byte 統計；不讀 log／输出、不恢復跨 reload 或已淘汰工作。命令／ID 只做顯示層 ANSI／控制碼／bidi 清理，Unicode 按欄寬截短，不重寫原參數。
+`/background-jobs`／`more`／`all` 開輸入框上方的底部面板（最多 8 列）；`shell`／`subagents`／`fork`／`monitor`／`pty`／`schedule` 篩選，`collapse` 明確隱藏常駐面板，more／all 恢復。↑↓ 選取、Enter 詳細、Tab 最近完成／全部、Esc 返回／關閉回 editor，保持輸入草稿；只有主動開啟才取焦點，背景事件不重開浮層。Fullscreen 可左鍵點 job 列直接開該 job 詳細，或點完整 More 標籤；滑鼠停在這些可點擊項目上會高亮（hover，只改底色、不改版面、不開任何東西）。Hover 依賴終端回報無按鍵移動（any-motion）：tmux／zellij／screen 內 Pi 只啟用按鍵移動追蹤，因此沒有 hover，點擊不受影響；TUI 沒有「滑鼠離開」事件，面板以輸入監聽器偵測指標移出面板範圍或終端失焦並清除高亮，監聽器從不消耗輸入。一般模式保留 terminal mouse。完成逐項移出常駐面板，但 More 可查看目前 retained registry 的完整ID、命令預覽、開始／結束時間、exit、取消要求與既有 log 路徑／輸出 byte 統計；不讀 log／输出、不恢復跨 reload 或已淘汰工作。命令／ID 只做顯示層 ANSI／控制碼／bidi 清理，Unicode 按欄寬截短，不重寫原參數。
 
 詳細頁（Enter）對**執行中**的 job 顯示記憶體副本：Subagent／Fork 為子行程的對話（沿用主 TUI 的 message／tool components），Shell 為該 job 自身輸出的有界尾端（上限 128 KiB，較早內容省略並標示）。`Ctrl+O` 展開／收合工具結果（與宿主 `app.tools.expand` 同鍵），`m` 切回既有 metadata（log 路徑、byte 統計、exit 等），`↑↓`／`PgUp`／`PgDn` 捲動、`End` 回到跟隨尾端，`Esc` 返回。副本只在記憶體，job 進終態（或淘汰／containment failure／shutdown）即釋放並退回 metadata；不寫 log、不進模型 context、不進 receipt／structuredContent，也不是第二份結果；面板變更指紋只取副本版本號，不含內容。非 TUI 模式沒有面板，因此不會建立副本。
 
-共用 key `pi-better-tools-background-jobs`，純 UI helper 透過公開 pi.events rendezvous 協調；不共用 job registry，不替換 footer／Schedule Prompt 或移除其他狀態／widgets，footer 不重複 Jobs 摘要，不啟用未選 tools。僅 TUI+hasUI，RPC／JSON／print 不掛面板；單模組與兩種載入順序均支援。沿用 stdout／stderr、取消／完成事件更新（同一 event-loop 回合內的連續輸出 chunk 合併為一次重繪），無 polling／ticker／模型請求，owner／generation／producer lease／disposed pointer／shutdown 防護保留，UI 例外不改執行、通知或結果。只列背景工作，不列前景、其他 owner/runtime 或 OS 行程。等待背景工作結束後 `/reload` 載入。
+共用 key `pi-better-tools-background-jobs`，純 UI helper 透過公開 pi.events rendezvous 協調；不共用 job registry，不替換 footer 或移除其他狀態／widgets，footer 不重複 Jobs 摘要，不啟用未選 tools。僅 TUI+hasUI，RPC／JSON／print 不掛面板；單模組與兩種載入順序均支援。沿用 stdout／stderr、取消／完成事件更新（同一 event-loop 回合內的連續輸出 chunk 合併為一次重繪），無 polling／ticker／模型請求，owner／generation／producer lease／disposed pointer／shutdown 防護保留，UI 例外不改執行、通知或結果。只列背景工作，不列前景、其他 owner/runtime 或 OS 行程。等待背景工作結束後 `/reload` 載入。
 
 ```javascript
 const receipt = await tools.bash({ command: "npm test", background: true });
@@ -215,4 +215,4 @@ Failure responses name the parameter, the rule, a bounded received value and the
 
 ## 背景共用層
 
-Jobs 面板、job view、widget 綁定、live transcript、Monitor capability 會合與 managed-child 檢查在 `shared/src/background/`（原在本模組 `src/`），Shell、Subagents、Fork、Monitor、PTY、Remote、Schedule Prompt、Pi Auto Compact 共用；`Symbol.for` 鍵名與匯出名稱不變，只經 `index.ts` 引用。
+Jobs 面板、job view、widget 綁定、live transcript、Monitor capability 會合與 managed-child 檢查在 `shared/src/background/`（原在本模組 `src/`），Shell、Subagents、Fork、Monitor、PTY、Remote、Schedule Commands、Pi Auto Compact 共用；`Symbol.for` 鍵名與匯出名稱不變，只經 `index.ts` 引用。
