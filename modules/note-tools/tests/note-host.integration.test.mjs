@@ -26,9 +26,11 @@ test('D18 internal ..archive junction behind <cwd>/plans is accepted by note', {
     const result = toolResult(run.requests);
     assert.ok(result, 'note tool result must be present');
     assert.notEqual(result.isError, true, `note must succeed for a junction that stays inside the workspace, got: ${text(result)}`);
-    const files = await readdir(archive);
-    assert.equal(files.filter(f => /^PLAN-\d{8}T\d{9}Z\.md$/.test(f)).length, 1, `note file must exist in ..archive; found ${files}`);
-    assert.equal(await readFile(join(archive, files[0]), 'utf8'), '# Plan\n\nbody\n');
+    const sessions = await readdir(archive);
+    assert.equal(sessions.length, 1, `one session folder in ..archive; found ${sessions}`);
+    const files = await readdir(join(archive, sessions[0]));
+    assert.equal(files.filter(f => /^PLAN-\d{8}T\d{9}Z\.md$/.test(f)).length, 1, `note file must exist in ..archive/<session>; found ${files}`);
+    assert.equal(await readFile(join(archive, sessions[0], files[0]), 'utf8'), '# Plan\n\nbody\n');
   } finally { await sb.cleanup(); }
 });
 

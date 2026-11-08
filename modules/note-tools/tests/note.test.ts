@@ -13,8 +13,8 @@ import noteExtension, { MAX_NOTE_BYTES, noteTool } from "../extensions/note.ts";
 
 const timestamp = Date.UTC(2026, 0, 2, 3, 4, 5, 6);
 const firstName = "PLAN-20260102T030405006Z.md";
-const types = ["plan", "design", "issue", "research", "report", "task"] as const;
-const dirOf = { plan: "plans", design: "designs", issue: "issues", research: "research", report: "reports", task: "tasks" } as const;
+const types = ["plan", "design", "issue", "research", "report", "task", "checkpoint"] as const;
+const dirOf = { plan: "plans", design: "designs", issue: "issues", research: "research", report: "reports", task: "tasks", checkpoint: "checkpoints" } as const;
 const execute = (cwd: string, args: Static<typeof noteTool.parameters>, signal?: AbortSignal) =>
   noteTool.execute("test-note", args, signal, undefined, { cwd } as ExtensionToolContext);
 async function workspace(t: TestContext) {
@@ -56,7 +56,7 @@ test("call renderer updates streaming UTF-8 counts without changing arguments or
   for (const width of [12, 40]) assert.ok(component.render(width).length > 0);
 });
 
-test("schema accepts exactly type/content and the six categories", () => {
+test("schema accepts exactly type/content and the seven categories", () => {
   for (const type of types) assert.equal(Check(noteTool.parameters, { type, content: "" }), true); // schema stays permissive; execute rejects blank content
   for (const args of [
     { type: "../outside", content: "x" }, { type: "PLAN", content: "x" },
@@ -368,4 +368,19 @@ test("failures are ToolErrors: the code is readable from the error, and the mess
     assert.equal(toolErrorCode(error), code);
     assert.equal((error as Error).message.startsWith(`${code}: `) && !(error as Error).message.startsWith(`${code}: ${code}`), true);
   }
+});
+
+test("with a session id the note goes into a folder named after it; an unusable id means no subfolder", async t => {
+  const cwd = await workspace(t);
+  t.mock.method(Date, "now", () => timestamp);
+  const run = async (id: unknown) => (await noteTool.execute("n", { type: "checkpoint", content: "x" }, undefined, undefined, { cwd, sessionManager: { getSessionId: () => id } } as unknown as ExtensionToolContext)).details as { relativePath: string };
+  const ok = await run("01a1ae59-1540-71e7-a56e-c392e3220b0e");
+  assert.equal(ok.relativePath, "checkpoints/01a1ae59-1540-71e7-a56e-c392e3220b0e/CHECKPOINT-20260102T030405006Z.md");
+  assert.equal(await readFile(join(cwd, ok.relativePath), "utf8"), "x");
+  for (const bad of ["../escape", "a/b", "..", "", undefined, 7]) {
+    const r = await run(bad);
+    assert.match(r.relativePath, /^checkpoints\/CHECKPOINT-/, String(bad));
+    await rm(join(cwd, r.relativePath));
+  }
+  assert.deepEqual(await readdir(join(cwd, "checkpoints")), ["01a1ae59-1540-71e7-a56e-c392e3220b0e"]);
 });

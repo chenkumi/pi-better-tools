@@ -18,6 +18,7 @@ claude-work.ps1
 plan/
 plans/
 reports/
+checkpoints/
 issues/
 
 # Local environment files (keep example templates)

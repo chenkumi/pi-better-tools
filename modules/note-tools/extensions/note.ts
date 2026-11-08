@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, open, realpath, rm } from "node:fs/promises";
+import { mkdir, open, realpath, rm, rmdir } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { defineTool, withFileMutationQueue, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
@@ -17,9 +17,9 @@ const displayText = (value: unknown, max = 2000) => typeof value === "string"
 /** Generous UTF-8 byte cap for one note (a note is a document, not a data dump). */
 export const MAX_NOTE_BYTES = 8 * 1024 * 1024;
 
-const noteTypes = ["plan", "design", "issue", "research", "report", "task"] as const;
+const noteTypes = ["plan", "design", "issue", "research", "report", "task", "checkpoint"] as const;
 type NoteType = (typeof noteTypes)[number];
-const noteDirectories = { plan: "plans", design: "designs", issue: "issues", research: "research", report: "reports", task: "tasks" } as const satisfies Record<NoteType, string>;
+const noteDirectories = { plan: "plans", design: "designs", issue: "issues", research: "research", report: "reports", task: "tasks", checkpoint: "checkpoints" } as const satisfies Record<NoteType, string>;
 
 /**
  * Compare whole path segments: a directory literally named "..archive" is inside the workspace, "../x" is not.
@@ -87,18 +87,36 @@ function validateNote(params: { type: NoteType; content: string }): void {
   }
 }
 
-/** <cwd>/<folder>, created if needed. It may be a pre-existing symlink/junction; refuse one that leads outside the workspace. */
-async function prepareNoteDirectory(cwd: string, folder: string): Promise<string> {
-  const directory = resolve(cwd, folder);
-  let realDirectory: string, realCwd: string;
-  try {
-    await mkdir(directory, { recursive: true });
-    [realCwd, realDirectory] = await Promise.all([realpath(cwd), realpath(directory)]);
-  } catch (error) { throw writeFailure(error, "creating folder", folder, cwd); }
-  if (isOutsideWorkspace(realCwd, realDirectory)) {
-    throw new NoteDirectoryEscapeError(escapeMessage(folder, "is a symlink or junction that resolves outside the workspace; refusing to write."));
-  }
-  return directory;
+/** The session id as a folder name, or undefined when none is available or it is not a plain name (then notes go directly under the type folder). */
+const sessionFolder = (ctx: { sessionManager?: { getSessionId?: () => unknown } }): string | undefined => {
+  let id: unknown;
+  try { id = ctx.sessionManager?.getSessionId?.(); } catch { return undefined; }
+  return typeof id === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id) ? id : undefined;
+};
+
+/** <cwd>/<folder>[/<session id>], created if needed. It may be a pre-existing symlink/junction; refuse one that leads outside the workspace. */
+async function prepareNoteDirectory(cwd: string, folder: string, session?: string): Promise<string> {
+  // Each level is created and checked against the real workspace path. The session folder is created under the *resolved* type folder,
+  // so a link swapped in after the first check cannot make mkdir create anything outside the workspace.
+  const check = async (directory: string, label: string): Promise<string> => {
+    let realDirectory: string, realCwd: string, created: string | undefined;
+    try {
+      created = await mkdir(directory, { recursive: true });
+      [realCwd, realDirectory] = await Promise.all([realpath(cwd), realpath(directory)]);
+    } catch (error) { throw writeFailure(error, "creating folder", folder, cwd); }
+    if (isOutsideWorkspace(realCwd, realDirectory)) {
+      // A folder this call just created is ours and empty: take it back instead of leaving it behind outside the workspace.
+      if (created !== undefined) await rmdir(directory).catch(() => {});
+      throw new NoteDirectoryEscapeError(escapeMessage(label, "is a symlink or junction that resolves outside the workspace; refusing to write."));
+    }
+    return realDirectory;
+  };
+  const typeDirectory = resolve(cwd, folder);
+  const realType = await check(typeDirectory, folder);
+  if (!session) return typeDirectory;
+  const sessionDirectory = join(realType, session);
+  await check(sessionDirectory, `${folder}/${session}`);
+  return sessionDirectory;
 }
 
 /** TYPE-YYYYMMDDTHHmmssSSSZ.md (UTC). */
@@ -149,16 +167,16 @@ export const noteTool = defineTool({
   name: "note",
   label: "Note",
   description:
-    "Save a NEW Markdown document as plan, design, issue, research, report or task. Required for such documents: do NOT use write and do NOT choose a file name or folder. " +
-    "The tool picks <cwd>/<folder>/TYPE-YYYYMMDDTHHmmssSSSZ.md (UTC; no title suffix), never overwrites, and returns the path with its sha256 version token and byte size (like write); send the complete document in one call. " +
+    "Save a NEW Markdown document as plan, design, issue, research, report, task or checkpoint. Required for such documents: do NOT use write and do NOT choose a file name or folder. " +
+    "The tool picks <cwd>/<folder>/<session id>/TYPE-YYYYMMDDTHHmmssSSSZ.md (UTC; no title suffix), never overwrites, and returns the path with its sha256 version token and byte size (like write); send the complete document in one call. " +
     "Use it when asked to write down, record, save or log such a document, or when finished work deserves a record. Not for source code or existing files: to change a note afterwards use edit on the returned path with the returned sha256 as expectedHash.",
-  promptSnippet: "Save a new plan/design/issue/research/report/task Markdown document; file name is auto-generated and the saved path is returned.",
+  promptSnippet: "Save a new plan/design/issue/research/report/task/checkpoint Markdown document; file name is auto-generated and the saved path is returned.",
   promptGuidelines: [
-    "Create plan/design/issue/research/report/task documents with note { type, content }, not write.",
+    "Create plan/design/issue/research/report/task/checkpoint documents with note { type, content }, not write.",
   ],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   parameters: Type.Object({
-    type: StringEnum(noteTypes, { description: "Category (saved under its plural folder: plans/designs/issues/research/reports/tasks): plan = approach/steps/roadmap; design = design document (architecture, interfaces, decisions); issue = bug/problem/risk; research = findings; report = results/summary/review; task = to-do." }),
+    type: StringEnum(noteTypes, { description: "Category (saved under its plural folder: plans/designs/issues/research/reports/tasks/checkpoints, inside a folder named after the current session): plan = approach/steps/roadmap; design = design document (architecture, interfaces, decisions); issue = bug/problem/risk; research = findings; report = results/summary/review; task = to-do; checkpoint = progress snapshot of the current work (done, next, key facts) so it can resume after context compaction." }),
     content: Type.String({ description: "The full Markdown document, including a title heading, written verbatim. Do not include a file name." }),
   }, { additionalProperties: false }),
   outputSchema: Type.Object({
@@ -186,7 +204,8 @@ export const noteTool = defineTool({
     validateNote(params);
     signal?.throwIfAborted();
     const folder = noteDirectories[params.type];
-    const directory = await prepareNoteDirectory(ctx.cwd, folder);
+    const session = sessionFolder(ctx);
+    const directory = await prepareNoteDirectory(ctx.cwd, folder, session);
     const timestamp = Date.now();
     for (let attempt = 0; attempt < MAX_FILENAME_ATTEMPTS; attempt++) {
       const filename = noteFilename(params.type, timestamp + attempt);
@@ -197,7 +216,7 @@ export const noteTool = defineTool({
         if (error instanceof NoteError || signal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
         throw writeFailure(error, "writing a note in", folder, ctx.cwd);
       }
-      const saved = { relativePath: `${folder}/${filename}`, sha256: versionToken(params.content), bytes: Buffer.byteLength(params.content, "utf8") };
+      const saved = { relativePath: `${folder}/${session ? session + "/" : ""}${filename}`, sha256: versionToken(params.content), bytes: Buffer.byteLength(params.content, "utf8") };
       return {
         content: [{ type: "text", text: `Saved note: ${saved.relativePath} sha256:${saved.sha256} bytes:${saved.bytes} (relative to cwd; use edit on this path with this sha256 as expectedHash)` }],
         details: saved,
