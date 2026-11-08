@@ -66,7 +66,7 @@ Monitor registers a themed `monitor_event` message renderer alongside its tool r
 
 Root dependencies/lockfile are authoritative: the four Pi development packages are fixed at **1.5.0**. Nested manifests preserve source identity/test commands only; do not install their dependencies independently. Host Pi/AI/Agent Core/TUI/TypeBox remain wildcard peers, not runtime dependencies; fixed dev versions are test baselines only.
 
-Runtime dependency refresh: `diff` is pinned to 9.0.0 and `jsdom` to 30.1.3. The root Node.js engine range is `^22.22.2 || ^24.15.0 || >=26.0.0`, matching jsdom 30; older module README engine claims are historical source metadata, not the integrated package requirement. Source imports remain immutable; the development baseline is now Pi 1.4.0. TypeScript 6.0.3 stays within typescript-eslint's <6.1 supported range; Node types stay on the lowest supported Node 22 line. Vitest 5 requires an explicit root Vite peer under legacy-peer-deps. node-pty keeps the existing beta channel (beta.15); native PTY and matching Playwright Chromium setup remain explicit.
+Runtime dependency refresh: `diff` is pinned to 9.0.0 and `jsdom` to 30.1.3. The root Node.js engine range is `^22.22.2 || ^24.15.0 || >=26.0.0`, matching jsdom 30; older module README engine claims are historical source metadata, not the integrated package requirement. Source imports remain immutable; the development baseline is now Pi 1.4.0. TypeScript 6.0.3 stays within typescript-eslint's <6.1 supported range; Node types stay on the lowest supported Node 22 line. Vitest 5 requires an explicit root Vite peer under legacy-peer-deps. node-pty keeps the existing beta channel (beta.18); native PTY and matching Playwright Chromium setup remain explicit.
 
 ## npm extension suite
 

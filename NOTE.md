@@ -34,3 +34,6 @@
 - **Minimal Changes**: Modify only what is necessary and clean up only issues introduced by your own changes. Do not refactor working code or modify adjacent code, comments, or formatting without permission.
 - **Limited Testing**: Restrict testing to the parts modified by the current task. Do not unnecessarily expand test coverage or add test cases. Do not run the full project test suite without permission.
 - **Clean UI Design**: Avoid unnecessary secondary labels and descriptions. Let the layout do the explaining.
+
+
+https://arxiv.org/html/2611.05306v1
