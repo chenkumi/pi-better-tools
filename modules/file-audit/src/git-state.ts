@@ -4,7 +4,8 @@ import { safeText } from "./presentation.js";
 
 const TIMEOUT_MS = 2000;
 const MAX_STATUS_BYTES = 4 * 1024 * 1024;
-/** Pi's own bookkeeping under `<cwd>/.pi` (Fork transcripts, schedules) is left out of the digest: it moves without the user or the agent touching the project. */
+/** Pi's own bookkeeping under `<cwd>/.pi` (Fork records and transcripts, schedule files) is left out of the digest: it moves without the user or the agent touching the project. Other `.pi` files (settings, agent configs, skills) are project files and still count. */
+const PI_BOOKKEEPING = [":(exclude).pi/forks", ":(exclude,glob).pi/schedule-prompts*.json", ":(exclude,glob).pi/agent/schedule-prompts*.json", ":(exclude,glob).pi/schedule-commands*", ":(exclude,glob).pi/agent/schedule-commands*"];
 /** What a reply left behind: the commit, the branch (none when detached) and a digest of `git status`. No paths, no content. */
 export interface GitState { head: string; branch?: string; tree: string }
 export interface GitChange { branch?: { from?: string; to?: string }; head?: { from: string; to: string }; tree?: true }
@@ -16,7 +17,7 @@ export async function captureGitState(cwd: string, signal?: AbortSignal): Promis
   const [head, branch, status] = await Promise.all([
     git(cwd, ["rev-parse", "HEAD"], signal),
     git(cwd, ["symbolic-ref", "--short", "-q", "HEAD"], signal),
-    git(cwd, ["status", "--porcelain=v1", "-z", "--untracked-files=normal", "--", ":/", ":(exclude).pi"], signal),
+    git(cwd, ["status", "--porcelain=v1", "-z", "--untracked-files=normal", "--", ":/", ...PI_BOOKKEEPING], signal),
   ]);
   const sha = head?.trim();
   if (!sha || !/^[0-9a-f]{40,64}$/.test(sha) || status === undefined) return undefined;

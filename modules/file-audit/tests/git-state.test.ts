@@ -104,3 +104,22 @@ test("files under .pi (Fork transcripts, schedules) do not change the working tr
     assert.deepEqual(diffGitState(before, (await captureGitState(r.dir))!), { tree: true });
   } finally { r.done(); }
 });
+
+test("only Pi's own bookkeeping under .pi is left out; project files there still change the digest, also from a subdirectory", async () => {
+  const r = repo();
+  try {
+    mkdirSync(join(r.dir, ".pi", "agent"), { recursive: true });
+    mkdirSync(join(r.dir, "sub"));
+    writeFileSync(join(r.dir, "sub", "keep.txt"), "x\n");
+    const before = (await captureGitState(r.dir))!;
+    writeFileSync(join(r.dir, ".pi", "schedule-prompts.json"), "{}\n");
+    writeFileSync(join(r.dir, ".pi", "agent", "schedule-prompts-settings.json"), "{}\n");
+    assert.equal(diffGitState(before, (await captureGitState(r.dir))!), undefined, "schedule files are bookkeeping");
+    writeFileSync(join(r.dir, ".pi", "settings.json"), "{}\n");
+    assert.deepEqual(diffGitState(before, (await captureGitState(r.dir))!), { tree: true }, "project settings under .pi count");
+    const inSub = (await captureGitState(join(r.dir, "sub")))!;
+    mkdirSync(join(r.dir, "sub", ".pi", "forks", "j"), { recursive: true });
+    writeFileSync(join(r.dir, "sub", ".pi", "forks", "j", "t.jsonl"), "{}\n");
+    assert.equal(diffGitState(inSub, (await captureGitState(join(r.dir, "sub")))!), undefined, "cwd-relative .pi/forks is excluded from a subdirectory");
+  } finally { r.done(); }
+});

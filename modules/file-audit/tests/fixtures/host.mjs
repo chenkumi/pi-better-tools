@@ -95,7 +95,7 @@ try {
     const note = session.messages.findLast(x => x.role === 'toolResult' && x.toolName === 'note');
     assert.equal(note.isError, false);
     const path = note.structuredContent?.relativePath ?? note.details?.relativePath;
-    assert.ok(path?.startsWith('plans/PLAN-')); assert.equal(await readFile(join(cwd, path), 'utf8'), '# Actual note');
+    assert.ok(/^plans\/[A-Za-z0-9._-]+\/PLAN-/.test(path ?? '')); assert.equal(await readFile(join(cwd, path), 'utf8'), '# Actual note');
     const replacement = { oldText: '# Actual note', newText: '# Updated note' };
     await run([['read', { path }], ['edit', mode === 'files' ? { path, edits: [replacement] } : { path, ...replacement }]]);
     assert.equal(await readFile(join(cwd, path), 'utf8'), '# Updated note');
