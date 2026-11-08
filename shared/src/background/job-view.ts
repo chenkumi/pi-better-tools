@@ -142,6 +142,8 @@ export class JobsOverlay implements Component {
   private metadata = false;
   private liveDetail = false;
   private liveLabel = "Live conversation (memory copy)";
+  /** The live view is a terminal screen: it has no tool cards to expand. */
+  private screenLabel = false;
   private expanded = false;
   private fromEnd = 0;
   private views = new Map<TranscriptSource, TranscriptView>();
@@ -178,7 +180,8 @@ export class JobsOverlay implements Component {
   private conversation(job: PanelJob, width: number, task?: PanelTask): string[] | undefined {
     const live = (task ? (task.transcript ? [{ label: task.label, transcript: task.transcript }] : []) : job.transcripts ?? []).filter(t => !t.transcript.isReleased);
     if (!this.tui || !live.length) { if (this.subscribed) this.dropViews(); return; }
-    this.liveLabel = live.every(t => t.transcript.mode === "output") ? "Live output (memory copy)" : "Live conversation (memory copy)";
+    this.screenLabel = live.every(t => t.transcript.mode === "screen");
+    this.liveLabel = this.screenLabel ? "Live screen (display only)" : live.every(t => t.transcript.mode === "output") ? "Live output (memory copy)" : "Live conversation (memory copy)";
     // Identity, not list position: the panel list is compacted, so a different task's copy can sit at the same index.
     const sources = live.map(t => t.transcript), key = jobKey(job) + (task ? `/${task.id}` : "");
     if (this.subscribed !== key || sources.length !== this.subscribedSources.length || sources.some((source, i) => source !== this.subscribedSources[i])) {
@@ -243,7 +246,9 @@ export class JobsOverlay implements Component {
   render(width: number): string[] {
     if (this.disposed) return [];
     width = clampWidth(width);
-    const height = this.plain ? Math.max(4, Math.min(10, this.height() - 12)) : Math.max(1, Math.min(20, this.height() - 2));
+    // A terminal screen is a grid people read as a whole, so it may use all the room the editor and footer leave.
+    const screenOpen = this.plain && !!this.detailKey && !this.metadata && !!this.source().find(j => jobKey(j) === this.detailKey)?.transcripts?.some(t => t.transcript.mode === "screen" && !t.transcript.isReleased);
+    const height = this.plain ? Math.max(4, Math.min(screenOpen ? 60 : 10, this.height() - 12)) : Math.max(1, Math.min(20, this.height() - 2));
     const bordered = !this.plain && width >= 3 && height >= 4, inner = Math.max(0, width - (bordered ? 2 : 0));
     const contentRows = height - (bordered ? 2 : 0), bodyRows = Math.max(0, contentRows - 2);
     this.pageRows = Math.max(1, bodyRows - 1); // Detail scroll-info row is part of the height budget.
@@ -269,7 +274,7 @@ export class JobsOverlay implements Component {
         this.fromEnd = Math.min(this.fromEnd, maxFromEnd);
         const end = chat.length - this.fromEnd;
         lines.push(...chat.slice(Math.max(0, end - this.pageRows), end));
-        lines.push(this.theme.fg("dim", `${this.liveLabel} · Ctrl+O Expand · ↑↓ PgUp PgDn Scroll · End Follow · ${this.fromEnd ? `${this.fromEnd} rows above end` : "following"}`));
+        lines.push(this.theme.fg("dim", `${this.liveLabel}${this.screenLabel ? "" : " · Ctrl+O Expand"} · ↑↓ PgUp PgDn Scroll · End Follow · ${this.fromEnd ? `${this.fromEnd} rows above end` : "following"}`));
       } else for (const line of raw) {
         wrapped.push(...wrapTextWithAnsi(safeJobText(line), Math.max(1, inner)).slice(0, 300 - wrapped.length));
         if (wrapped.length === 300) break;
@@ -297,7 +302,7 @@ export class JobsOverlay implements Component {
       }
       lines.push(...this.list!.render(inner));
     }
-    const footer = this.theme.fg("dim", this.detailKey ? [!this.taskKey && this.detailHasLive() ? "Esc Close" : "Esc Back", ...(listing ? ["↑↓ Select", "Enter Open"] : []), ...(this.liveDetail || this.metadata ? ["m Conversation/Metadata"] : []), ...(this.liveDetail ? ["Ctrl+O Expand"] : []), "Ctrl+C Close"].join(" · ") : "↑↓ Select · Enter Details · Tab Finished/All · Esc Close");
+    const footer = this.theme.fg("dim", this.detailKey ? [!this.taskKey && this.detailHasLive() ? "Esc Close" : "Esc Back", ...(listing ? ["↑↓ Select", "Enter Open"] : []), ...(this.liveDetail || this.metadata ? [this.screenLabel ? "m Screen/Metadata" : "m Conversation/Metadata"] : []), ...(this.liveDetail && !this.screenLabel ? ["Ctrl+O Expand"] : []), "Ctrl+C Close"].join(" · ") : "↑↓ Select · Enter Details · Tab Finished/All · Esc Close");
     const content = (contentRows === 1 ? [footer] : [this.theme.fg("accent", title), ...lines.slice(0, bodyRows), footer]).map(s => truncateToWidth(s, inner, "…", true));
     if (!bordered) return content.map(s => truncateToWidth(s, width));
     const border = (s: string) => this.theme.fg("border", s);

@@ -17,6 +17,7 @@ export function ptyPanelJob(session: PtySessionSummary): PanelJob {
 		kind: "pty", jobId: session.sessionId, label: "pty", title: safeJobText(title, 256), state: session.state, active,
 		activity: active ? "Running · local transport alive" : `Exited · ${exit} · unread output may remain`,
 		usageState: "na", startedAt: session.startedAt,
+		...(session.screen && !session.screen.isReleased ? { transcripts: [{ label: "screen", transcript: session.screen }] } : {}),
 		summary: active ? "running" : `exited | ${session.exitCode ?? "?"}`,
 		details: [
 			`Session ID: ${session.sessionId}`,
@@ -24,7 +25,7 @@ export function ptyPanelJob(session: PtySessionSummary): PanelJob {
 			`Started: ${new Date(session.startedAt).toISOString()}`,
 			active ? "State: running" : `State: exited (${exit}); the session stays listed until released or reclaimed`,
 			...(session.recovered ? ["Recovered after a failed shutdown: local transport exit is unconfirmed. Use pty_kill to retry."] : []),
-			"Use pty_list, pty_read or pty_kill (load them with tool_search if needed). Output is not shown here.",
+			"Use pty_list, pty_read or pty_kill (load them with tool_search if needed). Open the details to see the live screen.",
 			"Closing the local transport does not prove a remote/WSL process tree stopped. Tokens N/A: PTY has no model usage ledger.",
 		].map(line => safeJobText(line, 512)),
 	};

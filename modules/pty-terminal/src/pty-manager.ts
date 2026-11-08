@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import type { IPty, spawn } from "node-pty";
 import { setupCommand } from "../../../setup/commands.mjs";
+import { ScreenTranscript, type ScreenSource } from "../../../shared/src/background/index.ts";
 import { ToolError } from "../../../shared/src/tool-error/index.ts";
 import { filterEnv, type EnvPolicy } from "./env.ts";
 import { matchPattern, MATCH_BUDGET_MS } from "./matcher.ts";
@@ -174,6 +175,8 @@ export interface PtySessionSummary {
 	exitCode?: number;
 	/** True when this session survived a failed shutdown and was re-adopted; local transport exit is still unconfirmed. */
 	recovered?: true;
+	/** Display-only copy of the terminal screen (not masked, never read by a tool); present while the session is retained. */
+	screen?: ScreenSource;
 }
 
 interface PtySession {
@@ -208,6 +211,8 @@ interface PtySession {
 	exitWaiters: Set<() => void>;
 	/** Secrets typed through pty_keyin; masked in everything handed out until the session is released. */
 	masker: SecretMasker;
+	/** Display-only screen fed from the same output; the panel shows it, tools and the model never read it. */
+	screen: ScreenTranscript;
 }
 
 export interface SpawnOptions {
@@ -268,6 +273,7 @@ export class PtySessionManager {
 		const session = this.sessions.get(id);
 		this.sessions.delete(id);
 		session?.masker.clear();
+		session?.screen.release();
 		if (session && process.platform === "win32" && !session.nativeKillSent && !session.nativeKillInFlight) {
 			try { session.pty.kill(); } catch { /* already gone */ }
 		}
@@ -339,9 +345,10 @@ export class PtySessionManager {
 			dataWaiters: new Set(),
 			exitWaiters: new Set(),
 			masker: new SecretMasker(),
+			screen: new ScreenTranscript(options.cols ?? DEFAULT_COLS, options.rows ?? DEFAULT_ROWS),
 		};
 
-		pty.onData((data) => this.append(session, data));
+		pty.onData((data) => { session.screen.write(data); this.append(session, data); });
 		pty.onExit(({ exitCode, signal }) => {
 			session.state = "exited";
 			session.exitedAt = this.now();
@@ -533,7 +540,7 @@ export class PtySessionManager {
 		checkSize(rows, MAX_ROWS, "rows");
 		const session = this.requireSession(sessionId);
 		if (session.state === "exited") throw new ToolError("PTY_SESSION_EXITED", `PTY session ${sessionId} has exited${session.exitInfo ? ` (exitCode ${session.exitInfo.exitCode})` : ""}; resize was not applied. Use pty_read to drain remaining output, pty_kill to release it, or pty_spawn a new session.`);
-		try { session.pty.resize(cols, rows); }
+		try { session.pty.resize(cols, rows); session.screen.resize(cols, rows); }
 		catch (error) { throw new Error(`PTY resize to ${cols}x${rows} failed for session ${sessionId}: ${errorText(error)}; resize not applied. Use pty_list to check whether the session is still running.`); }
 	}
 
@@ -609,6 +616,7 @@ export class PtySessionManager {
 			startedAt: session.startedAt,
 			...(session.exitInfo ? { exitCode: session.exitInfo.exitCode } : {}),
 			...(session.recovered ? { recovered: true as const } : {}),
+			screen: session.screen,
 		}));
 	}
 

@@ -4,5 +4,7 @@ export * from './background-panel.js';
 export * from './job-view.js';
 export * from './widget-binding.js';
 export * from './live-transcript.js';
+export * from './screen-transcript.js';
+export * from './terminal-width.js';
 export * from './monitor-capability.js';
 export * from './managed-child.js';

@@ -29,7 +29,7 @@ test("a running session is an active PT row with identity and lifecycle only", (
 	const text = JSON.stringify(job);
 	assert.ok(!/99|bufferedBytes|cursor/.test(job.details.join("\n")), "no per-byte counters, which would go stale");
 	assert.match(text, /not a remote process ID/); assert.match(text, /does not prove a remote\/WSL process tree stopped/);
-	assert.equal(job.transcripts, undefined, "output is never exposed");
+	assert.equal(job.transcripts, undefined, "a summary without a screen carries no live view");
 });
 test("an exited session is inactive and reports its exit code; recovered sessions say the exit is unconfirmed", () => {
 	const exited = ptyPanelJob(summary({ state: "exited", exitCode: 3 }));
@@ -112,4 +112,43 @@ test("a session re-adopted after a failed shutdown reports its later exit to the
 	for (let i = 0; i < 100 && second.snapshot()[0].state === "running"; i++) await new Promise(resolve => setTimeout(resolve, 50));
 	assert.equal(second.snapshot()[0].state, "exited");
 	assert.ok(changes >= 2, "the exit reaches the manager that now owns the session, so its panel can refresh");
+});
+
+const screenOf = (manager: PtySessionManager) => manager.snapshot()[0]!.screen!;
+async function until(check: () => boolean, what: string) {
+	for (let i = 0; i < 100 && !check(); i++) await new Promise(resolve => setTimeout(resolve, 50));
+	assert.ok(check(), what);
+}
+
+test("the panel job of a live session carries its screen, and the user sees what the terminal shows", async t => {
+	const manager = new PtySessionManager(); t.after(() => manager.shutdown());
+	// No backslashes in the child program: Windows passes it through a command line.
+	const program = "const e=String.fromCharCode(27);process.stdout.write('first'+String.fromCharCode(13,10)+e+'[32msecond'+e+'[0m');setInterval(()=>{},1000)";
+	manager.spawn(process.execPath, ["-e", program], { cols: 40, rows: 6 }, process.cwd());
+	const job = ptyPanelJob(manager.snapshot()[0]!);
+	assert.equal(job.transcripts?.length, 1); assert.equal(job.transcripts![0]!.transcript.mode, "screen");
+	await until(() => screenOf(manager).lines().map(plain).join("|").includes("second"), "output reaches the screen");
+	assert.deepEqual(screenOf(manager).lines().map(plain).filter(Boolean), ["first", "second"]);
+});
+
+test("the screen is not masked while pty_read still masks the same secret", async t => {
+	const manager = new PtySessionManager(); t.after(() => manager.shutdown());
+	const { sessionId } = manager.spawn(process.execPath, ["-e", "process.stdin.on('data',d=>process.stdout.write('typed:'+d));setInterval(()=>{},1000)"], {}, process.cwd());
+	manager.addSecret(sessionId, "hunter2");
+	manager.write(sessionId, "hunter2\r");
+	await until(() => screenOf(manager).lines().map(plain).join("|").includes("typed:hunter2"), "echo reaches the screen");
+	const read = await manager.readEx(sessionId, { timeoutMs: 500, format: "text" });
+	assert.doesNotMatch(read.text, /hunter2/, "the model-facing read stays masked");
+});
+
+test("pty_resize resizes the screen, and releasing the session frees it", async t => {
+	const manager = new PtySessionManager(); t.after(() => manager.shutdown());
+	const { sessionId } = manager.spawn(process.execPath, ["-e", KEEP_ALIVE], { cols: 20, rows: 4 }, process.cwd());
+	const screen = screenOf(manager);
+	manager.resize(sessionId, 60, 10);
+	const terminal = (screen as unknown as { terminal: { cols: number; rows: number } }).terminal;
+	assert.deepEqual([terminal.cols, terminal.rows], [60, 10]);
+	assert.equal(screen.isReleased, false);
+	assert.equal((await manager.kill(sessionId, "SIGKILL")).released, true);
+	assert.equal(screen.isReleased, true, "the screen lives exactly as long as the retained session");
 });

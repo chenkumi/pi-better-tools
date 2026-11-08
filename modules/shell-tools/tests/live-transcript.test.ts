@@ -477,3 +477,22 @@ test('subagent registry: a finished task of a running batch shows its status, no
     assert.equal(tasks[1]!.state, 'running'); assert.equal(tasks[1]!.activity, 'reading files');
   } finally { hold(); await jobs.shutdown(50); }
 });
+
+test('a terminal screen opens in the bottom panel with far more rows than the 8-row cap and follows the end', async () => {
+  const { ScreenTranscript } = await import('../../../shared/src/background/index.js');
+  const screen = new ScreenTranscript(80, 40);
+  await new Promise<void>(resolve => { const off = screen.subscribe(() => { off(); resolve(); }); screen.write(Array.from({ length: 30 }, (_, i) => `row ${i + 1}`).join('\r\n')); });
+  const job: PanelJob = { kind: 'pty', jobId: 'P1', label: 'pty', title: 'local', state: 'running', active: true, activity: 'Running', usageState: 'na', details: ['Session ID: P1'], transcripts: [{ label: 'screen', transcript: screen }] };
+  const rows = (height: number) => {
+    const overlay = new JobsOverlay(() => [job], theme, () => {}, () => {}, () => height, tui, process.cwd());
+    overlay.plain = true; overlay.render(100); overlay.handleInput('\r');
+    return { overlay, lines: overlay.render(100).map(plain) };
+  };
+  const tall = rows(50);
+  assert.ok(tall.lines.length > 20, `uses the room the terminal gives it, got ${tall.lines.length} rows`);
+  assert.ok(tall.lines.some(l => l.includes('row 30')) && tall.lines.some(l => l.includes('row 12')), 'the last rows of the screen are shown');
+  assert.ok(tall.lines.some(l => /Live screen/.test(l)), 'labelled as a screen');
+  const small = rows(20).lines;
+  assert.ok(small.length <= 9 && small.some(l => l.includes('row 30')) && !small.some(l => l.includes('row 12')), 'a short terminal shows only the last rows that fit');
+  tall.overlay.dispose(); screen.release();
+});

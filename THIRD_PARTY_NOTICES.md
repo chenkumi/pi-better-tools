@@ -31,6 +31,8 @@ Import provenance (which project each module came from and under which license) 
 
 2026-10-03: imported the owner's `C:/GitHub/pi-pty-terminal` snapshot without modifying its repository. Source README describes a port from `opencode-pty-mcp`; the source MIT notice is preserved. Root runtime dependency `node-pty` 1.2.0-beta.14 (MIT, Microsoft Corporation) and its `node-addon-api` dependency keep their own package licenses and third-party notices (including native backend resources); they are not relicensed by this integration. Native dependency setup is explicitly rebuildable with `npm run pty:install`; no host Pi code is bundled.
 
+2026-11-09: the root package added the runtime dependency `@xterm/headless` 6.0.0 (MIT, Copyright (c) The xterm.js authors; no transitive dependencies) to keep a display-only copy of each PTY session's screen for the Jobs panel. It keeps its own MIT license; it is not re-licensed.
+
 ## Schedule Commands dependencies
 
 Schedule Commands is project-native MIT code. Root runtime dependency `croner` (MIT) keeps its own license and is not re-licensed. The earlier third-party Schedule Prompt snapshot (pi-schedule-prompt 0.4.1, tintinweb, MIT) was removed; no code from it remains in the package.

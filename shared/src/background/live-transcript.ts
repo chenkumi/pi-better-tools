@@ -1,5 +1,5 @@
 import { AssistantMessageComponent, ToolExecutionComponent, UserMessageComponent, getMarkdownTheme } from "@earendil-works/pi-coding-agent";
-import { Container, Spacer, Text, type TUI } from "@earendil-works/pi-tui";
+import { Container, Spacer, Text, truncateToWidth, type TUI } from "@earendil-works/pi-tui";
 import { stripVTControlCharacters } from "node:util";
 
 /**
@@ -72,7 +72,7 @@ function foldBlockEvent(content: Rec[], update: Rec): boolean {
 const ownedAssistant = (message: Rec): Rec => ({ ...message, content: Array.isArray(message.content) ? [...message.content] : [] });
 
 /** Listener set shared by both transcripts: observer failures are swallowed and never reach the producer. */
-class TranscriptObservers {
+export class TranscriptObservers {
   private listeners = new Set<() => void>();
   private released = false;
   get isReleased() { return this.released; }
@@ -209,7 +209,20 @@ export class OutputTranscript {
 }
 
 /** Anything the jobs overlay can show as live detail for a running job. */
-export type TranscriptSource = LiveTranscript | OutputTranscript;
+export type TranscriptSource = LiveTranscript | OutputTranscript | ScreenSource;
+
+/**
+ * A fixed-size terminal screen kept in memory (implemented by ScreenTranscript). `lines()` is the current screen as ready-to-print
+ * rows with only SGR color codes; trailing blank rows are dropped, so the last row is the one the cursor or the output ends on.
+ */
+export interface ScreenSource {
+  readonly mode: "screen";
+  readonly version: number;
+  readonly isReleased: boolean;
+  subscribe(listener: () => void): () => void;
+  lines(): string[];
+  release(): void;
+}
 
 /** Renders a live copy with the host's own message components so it matches the main conversation view. */
 export class TranscriptView extends Container {
@@ -219,6 +232,7 @@ export class TranscriptView extends Container {
   setExpanded(expanded: boolean) { this.expanded = expanded; }
   private rebuild() {
     this.clear();
+    if (this.source.mode === "screen") return;
     if (this.source.mode === "output") {
       const { text, truncated } = this.source.snapshot();
       const body = safeOutputText(text);
@@ -248,6 +262,8 @@ export class TranscriptView extends Container {
     this.builtVersion = this.source.version; this.builtExpanded = this.expanded;
   }
   render(width: number): string[] {
+    // A screen is a grid: wrapping would shift its rows, so every row is cut at the panel width instead.
+    if (this.source.mode === "screen") return this.source.lines().map(line => truncateToWidth(line, width, "", false));
     if (this.builtVersion !== this.source.version || this.builtExpanded !== this.expanded) this.rebuild();
     return super.render(width);
   }

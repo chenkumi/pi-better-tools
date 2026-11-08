@@ -75,7 +75,7 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
 ## Subagent / Fork / Shell / Monitor / PTY / Schedule 展開
 * 點工作列或 `[Open]`（或輸入 `/background-jobs`）開啟，顯示在輸入框上方的底部面板，內容最多 8 列，握有鍵盤直到 Esc；編輯器與 footer 保持可見
 * 三層：清單 → 詳細 → （批次工作）任務清單。`/background-jobs [more|all|subagents|shell|fork|monitor|pty|schedule|collapse]` 可直接篩選
-* 執行中的工作可以看串流內容（記憶體副本，只供顯示，工作結束即釋放）：Subagent／Fork 為子行程的對話，Shell 與排程 shell 為輸出尾端（上限 128 KiB），排程 agent 為子 session 的對話。Monitor、PTY 與其他排程沒有即時內容，只顯示中繼資料
+* 執行中的工作可以看串流內容（記憶體副本，只供顯示，工作結束即釋放）：Subagent／Fork 為子行程的對話，Shell 與排程 shell 為輸出尾端（上限 128 KiB），排程 agent 為子 session 的對話。PTY 的即時內容是終端畫面（固定大小的模擬畫面，取最後 n 列、n 依終端高度，不受 8 列限制，不遮罩、只給使用者看）；Monitor 與其他排程沒有即時內容，只顯示中繼資料
 * 按鍵：清單 ↑↓ 選取、Enter 詳細、Tab 切換最近完成／全部；詳細 ↑↓／PgUp／PgDn 捲動、End 回到跟隨尾端、Ctrl+O 展開工具結果、m 切換對話與中繼資料。Esc：執行中且有即時內容的工作（包含切到中繼資料時）直接關閉面板；已結束或沒有即時內容的工作返回清單；在批次工作的單一任務內返回任務清單
 * fullscreen 下宿主預設用 PgUp／PgDn 捲動聊天；載入 Pi Custom Panel 時，面板開啟期間改由面板翻頁（沒載入時請用方向鍵）
 

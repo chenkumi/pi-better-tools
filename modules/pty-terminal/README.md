@@ -40,7 +40,10 @@ PTY 能啟動任何程式並對 shell 輸入指令，因此 `pty_spawn`、`pty_w
 有 PTY session 時，TUI 輸入欄上方的共用 Jobs 面板（與 Shell／Subagents／Fork／Monitor 同一個）會列出 `● PT pty · <target>`，標題列出現 `PTY n`；`/background-jobs pty` 開啟只含 PTY 的清單。
 
 - 只列本 workspace（canonical cwd）的 session；執行中才算 active 並出現在底部，已 exit 但未釋放的只在清單內以非 active 顯示（含 exit code），不是「仍連線」。
-- 只顯示 session ID、target／transport、本機 PID、起始時間與生命週期，不顯示輸出、指令或 `pty_keyin` 輸入；不含隨輸出變動的位元組計數（面板只在 spawn／exit／釋放／recover／shutdown 時更新，沒有輪詢與計時器）。
+- 列與中繼資料只有 session ID、target／transport、本機 PID、起始時間與生命週期，不含指令或隨輸出變動的位元組計數（列只在 spawn／exit／釋放／recover／shutdown 時更新）。
+- **終端畫面**：展開該 session 的詳細（Enter，或點該列）會看到即時畫面。每個 session 在 spawn 時建立一份 `@xterm/headless` 模擬器（大小等於 `cols×rows`，預設 100×30，`pty_resize` 同步調整，不留 scrollback），與 agent 用的輸出緩衝吃同一份 `onData`。面板顯示以游標列或最後有字的列為底的最後 n 列，n 依終端高度（上限 60，不受其他種類 8 列限制）；比面板寬的列在右側截斷。只輸出 16 色前景與粗體，其餘跳脫序列（含 OSC 標題、剪貼簿）與控制字元丟棄。`m` 切換中繼資料，Esc 關閉面板。
+- 畫面是給使用者看的，**不遮罩** `pty_keyin` 的機密：遮罩只作用於 `pty_read`／`pty_write`／`waitFor` 等模型可見的路徑；畫面只存記憶體、不進模型與對話紀錄、不寫檔，session 被釋放（`pty_kill` 成功、回收）或 shutdown 時一併釋放。已 exit 但未釋放的 session 仍可看到最後一屏。重畫只在面板開啟時以 100 ms 節流發生；沒有人看時只有模擬器的解析成本。
+- 限制：這是畫面的快照，不是歷史（要看歷史用 `pty_read`）；reload 後被重新接手（recovered）的 session 沿用原有畫面；模擬器不是完整終端（不處理滑鼠、圖片協定），過度複雜的全螢幕程式可能與真實終端略有差異。
 - `recovered` 的 session 明示「exit 未確認」；細節固定註明關閉 local transport 不代表遠端／WSL process tree 已停止。
 - 底部面板與其他背景工作共用「合計五列」，按啟動時間由舊到新排序；長時間閒置的 PTY（REPL、SSH）會佔位，較新的 job 可能被擠到 More，需用 `/background-jobs` 查看。
 - 顯示純為觀察：`PtySessionManager.onChange` 的例外一律吞掉，不影響 session；非 TUI／managed child 不綁定。`snapshot()` 為唯讀（不 reclaim），`list()` 行為不變。
