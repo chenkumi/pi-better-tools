@@ -14,7 +14,8 @@ const UNSAFE = /[\x00-\x1f\x7f-\x9f؜‎‏‪-‮⁦-⁩]/g;
  * In-memory copy of one terminal's screen, fed with the same bytes the terminal already produced. Presentation only:
  * not a record, never sent to a model, and not masked (the person at the keyboard sees what any terminal would show).
  * The grid keeps the terminal's own size; no scrollback is kept, so memory stays at cols × rows cells.
- * Only color SGR codes are generated here; nothing from the stream is passed through as an escape sequence.
+ * Only SGR styling (bold, dim, italic, underline, inverse, strikethrough, 16/256/true colors) is generated here; nothing from
+ * the stream is passed through as an escape sequence.
  */
 export class ScreenTranscript implements ScreenSource {
   readonly mode = "screen" as const;
@@ -94,20 +95,49 @@ const windowsBuild = (): number => { const match = /^d+.d+.(d+)/.exec(osRelease(
 
 type Line = NonNullable<ReturnType<InstanceType<typeof Terminal>["buffer"]["active"]["getLine"]>>;
 
-/** One row as text with 16-color foreground and bold. Other attributes and 256/true colors are dropped. */
+type Cell = NonNullable<ReturnType<Line["getCell"]>>;
+
+/** SGR parameters of a color: palette 0-15 use the classic codes, 16-255 and RGB the extended forms. */
+function colorCodes(base: 30 | 40, palette: boolean, rgb: boolean, value: number): number[] {
+  if (rgb) return [base + 8, 2, (value >> 16) & 255, (value >> 8) & 255, value & 255];
+  if (!palette) return [];
+  if (value < 8) return [base + value];
+  if (value < 16) return [base + 60 + value - 8];
+  return [base + 8, 5, value & 255];
+}
+
+/** The SGR parameters that reproduce a cell's look (empty for the default look). The only escape sequences this module ever emits. */
+function styleOf(c: Cell): string {
+  const codes: number[] = [];
+  if (c.isBold()) codes.push(1);
+  if (c.isDim()) codes.push(2);
+  if (c.isItalic()) codes.push(3);
+  if (c.isUnderline()) codes.push(4);
+  if (c.isInverse()) codes.push(7);
+  if (c.isStrikethrough()) codes.push(9);
+  codes.push(...colorCodes(30, c.isFgPalette(), c.isFgRGB(), c.getFgColor()));
+  codes.push(...colorCodes(40, c.isBgPalette(), c.isBgRGB(), c.getBgColor()));
+  return codes.join(";");
+}
+
+/** One row as text with bold, dim, italic, underline, inverse, strikethrough and 16/256/true colors. Nothing else survives. */
 function render(line: Line, cols: number): string {
-  let out = "", active = "";
+  const cells: Array<{ text: string; style: string; blank: boolean }> = [];
   const cell = line.getCell(0);
   for (let x = 0; x < Math.min(cols, line.length) && cell; x++) {
     const c = line.getCell(x, cell);
-    if (!c || c.getWidth() === 0) continue;
-    const codes: number[] = [];
-    if (c.isBold()) codes.push(1);
-    if (c.isFgPalette()) { const color = c.getFgColor(); if (color < 8) codes.push(30 + color); else if (color < 16) codes.push(82 + color); }
-    const next = codes.length ? `\x1b[${codes.join(";")}m` : "";
-    if (next !== active) { out += next || "\x1b[0m"; active = next; }
-    out += (c.getChars() || " ").replace(UNSAFE, "");
+    if (!c || c.getWidth() === 0) continue; // the right half of a wide glyph
+    const style = styleOf(c);
+    // Hidden text (a password prompt) stays hidden; a blank cell only counts when it is visibly painted.
+    const text = c.isInvisible() ? " " : (c.getChars() || " ").replace(UNSAFE, "");
+    cells.push({ text, style, blank: text.trim() === "" && !c.isInverse() && !c.isBgPalette() && !c.isBgRGB() });
   }
-  out = out.trimEnd(); // a stripped control character can leave a blank cell behind
-  return active ? `${out}\x1b[0m` : out;
+  let end = cells.length;
+  while (end > 0 && cells[end - 1]!.blank) end--;
+  let out = "", active = "";
+  for (const { text, style } of cells.slice(0, end)) {
+    if (style !== active) { out += style ? `[0;${style}m` : "[0m"; active = style; }
+    out += text;
+  }
+  return active ? `${out}[0m` : out;
 }

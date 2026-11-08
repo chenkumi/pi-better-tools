@@ -41,7 +41,7 @@ PTY 能啟動任何程式並對 shell 輸入指令，因此 `pty_spawn`、`pty_w
 
 - 只列本 workspace（canonical cwd）的 session；執行中才算 active 並出現在底部，已 exit 但未釋放的只在清單內以非 active 顯示（含 exit code），不是「仍連線」。
 - 列與中繼資料只有 session ID、target／transport、本機 PID、起始時間與生命週期，不含指令或隨輸出變動的位元組計數（列只在 spawn／exit／釋放／recover／shutdown 時更新）。
-- **終端畫面**：展開該 session 的詳細（Enter，或點該列）會看到即時畫面。每個 session 在 spawn 時建立一份 `@xterm/headless` 模擬器（大小等於 `cols×rows`，預設 100×30，`pty_resize` 同步調整，不留 scrollback），與 agent 用的輸出緩衝吃同一份 `onData`。面板顯示以游標列或最後有字的列為底的最後 n 列，n 依終端高度（上限 60，不受其他種類 8 列限制）；比面板寬的列在右側截斷。只輸出 16 色前景與粗體，其餘跳脫序列（含 OSC 標題、剪貼簿）與控制字元丟棄。`m` 切換中繼資料，Esc 關閉面板。
+- **終端畫面**：展開該 session 的詳細（Enter，或點該列）會看到即時畫面。每個 session 在 spawn 時建立一份 `@xterm/headless` 模擬器（大小等於 `cols×rows`，預設 100×30，`pty_resize` 同步調整，不留 scrollback），與 agent 用的輸出緩衝吃同一份 `onData`。面板顯示以游標列或最後有字的列為底的最後 n 列，n 依終端高度（上限 60，不受其他種類 8 列限制）；比面板寬的列在右側截斷。只輸出 SGR 樣式（粗體、暗淡、斜體、底線、反白、刪除線，16／256／真彩色的前景與背景；被設為隱藏的文字以空白顯示），其餘跳脫序列（含 OSC 標題、剪貼簿）與控制字元丟棄。寬度表（`shared/src/background/terminal-width.ts`，移植自 pi-mux）讓 emoji、CJK、ZWJ 序列、旗幟與終端機一樣佔 2 格，Windows 上並啟用 xterm 的 ConPTY 模式。`m` 切換中繼資料，Esc 關閉面板。
 - 畫面是給使用者看的，**不遮罩** `pty_keyin` 的機密：遮罩只作用於 `pty_read`／`pty_write`／`waitFor` 等模型可見的路徑；畫面只存記憶體、不進模型與對話紀錄、不寫檔，session 被釋放（`pty_kill` 成功、回收）或 shutdown 時一併釋放。已 exit 但未釋放的 session 仍可看到最後一屏。重畫只在面板開啟時以 100 ms 節流發生；沒有人看時只有模擬器的解析成本。
 - 限制：這是畫面的快照，不是歷史（要看歷史用 `pty_read`）；reload 後被重新接手（recovered）的 session 沿用原有畫面；模擬器不是完整終端（不處理滑鼠、圖片協定），過度複雜的全螢幕程式可能與真實終端略有差異。
 - `recovered` 的 session 明示「exit 未確認」；細節固定註明關閉 local transport 不代表遠端／WSL process tree 已停止。

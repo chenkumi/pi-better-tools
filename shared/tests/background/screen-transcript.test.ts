@@ -28,13 +28,13 @@ test("a full-screen program leaves only the current screen, with no scrollback",
 	screen.release();
 });
 
-test("only color codes come out; every other escape and control character is dropped", async () => {
+test("only styling comes out; every other escape and control character is dropped", async () => {
 	const screen = new ScreenTranscript(40, 4);
 	await flush(screen, "\x1b[31mred\x1b[0m \x1b[1;92mbold\x1b[0m \x1b[38;5;200mpink\x1b[0m\x1b]0;title\x07\x1b]52;c;ZXZpbA==\x07 ok‮\u0007");
 	const [row] = screen.lines();
 	assert.equal(plain(row!), "red bold pink ok");
-	assert.match(row!, /\x1b\[31mred/); assert.match(row!, /\x1b\[1;92mbold/);
-	assert.doesNotMatch(row!.replace(/\x1b\[[0-9;]*m/g, ""), /[\x00-\x1f\x7f-\x9f‮]|\x1b/, "nothing but SGR color survives");
+	assert.match(row!, /\x1b\[0;31mred/); assert.match(row!, /\x1b\[0;1;92mbold/); assert.match(row!, /\x1b\[0;38;5;200mpink/);
+	assert.doesNotMatch(row!.replace(/\x1b\[[0-9;]*m/g, ""), /[\x00-\x1f\x7f-\x9f‮]|\x1b/, "nothing but SGR styling survives");
 	screen.release();
 });
 
@@ -111,5 +111,22 @@ test("the screen lays out emoji, flags, joined sequences and CJK like the termin
 		x += stringWidth(sample) + 1;
 	}
 	assert.equal(plain(screen.lines()[0]!), samples.join("|"));
+	screen.release();
+});
+
+test("backgrounds, inverse, dim, italic, underline and true color are kept; painted blanks are not trimmed", async () => {
+	const screen = new ScreenTranscript(12, 3);
+	await flush(screen, "\x1b[44m menu \x1b[0m\r\n\x1b[7mpick\x1b[0m  \x1b[2;3;4mfaint\x1b[0m\r\n\x1b[38;2;10;20;30mrgb\x1b[0m");
+	const [menu, pick, rgb] = screen.lines();
+	assert.equal(menu, "\x1b[0;44m menu \x1b[0m", "background-painted blanks stay; unpainted trailing blanks go");
+	assert.match(pick!, /^\x1b\[0;7mpick\x1b\[0m {2}\x1b\[0;2;3;4mfaint\x1b\[0m$/);
+	assert.equal(rgb, "\x1b[0;38;2;10;20;30mrgb\x1b[0m");
+	screen.release();
+});
+
+test("hidden text stays hidden", async () => {
+	const screen = new ScreenTranscript(20, 2);
+	await flush(screen, "pass: \x1b[8mhunter2\x1b[0m");
+	assert.equal(plain(screen.lines()[0]!), "pass:");
 	screen.release();
 });
