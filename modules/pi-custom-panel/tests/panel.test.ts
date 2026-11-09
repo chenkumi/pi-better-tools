@@ -35,7 +35,7 @@ test('footer: location and context bar on row one, model and usage on row two, s
   const lines = renderFooter(model({ provider: 'opencode-go', entries, home: 'C:\\work', statuses: new Map([['gpt-speed', '\x1b[36mSpeed: Fast\x1b[0m']]) }), 130, paint).map(plain);
   assert.equal(lines.length, 2);
   assert.ok(lines.every(line => visibleWidth(line) === 130), 'both rows fill the full width, as in the design');
-  assert.match(lines[0]!, /^\uf07c {2}~\\proj · main +\uf0c9 {2}\[▓▓░░░░░░░░░░\] 12\.5% 34k\/272k \(auto\)$/);
+  assert.match(lines[0]!, /^\uf07c {2}~\\proj · main +\uf0c9 {2}\[██░░░░░░░░░░\] 12\.5% 34k\/272k \(auto\)$/);
   assert.match(lines[1]!, /^\uf121 {2}opencode-go · deepseek-v4\.1-flash · \uf0eb {2}high +\uf1e6 {2}Fast \| \uf093 {2}35k \| \uf019 {2}8\.9k \| \u{1f5f2} 87\.9% \| \$ 0\.011$/u);
 });
 
@@ -61,7 +61,7 @@ test('footer: context bar colours show urgency; unknown usage after compaction; 
   assert.ok(mid.colours.includes('warning') && !mid.colours.includes('error'), 'text and icon turn warning above 70');
   assert.deepEqual(high.colours.filter(c => c === 'error').length > 0 && high.colours.includes('success') && high.colours.includes('warning'), true, 'a full bar sweeps green to red');
   // Truecolor draws a real gradient: first filled cell green-ish, last filled cell red-ish.
-  const rgbs = [...used(100, true).out.matchAll(/\x1b\[38;2;(\d+);(\d+);(\d+)m▓/g)].map(m => m.slice(1).map(Number));
+  const rgbs = [...used(100, true).out.matchAll(/\x1b\[38;2;(\d+);(\d+);(\d+)m█/g)].map(m => m.slice(1).map(Number));
   assert.equal(rgbs.length, 12);
   assert.ok(rgbs[0]![1]! > rgbs[0]![0]! && rgbs[11]![0]! > rgbs[11]![1]!, 'green at the start, red at the end');
   assert.equal(contextSegment(model({ contextPercent: null, contextTokens: null, autoCompact: false }), paint), '\uf0c9  [░░░░░░░░░░░░] ?% ?/272k');
@@ -75,7 +75,7 @@ test('footer: every text run is painted dim (one grey); only icons, the branch, 
   renderFooter(model({ provider: 'p', entries, statuses: new Map([['gpt-speed', '\x1b[36mSpeed: Fast\x1b[0m']]) }), 130, spy);
   const textRuns = painted.filter(([, text]) => /[0-9A-Za-z$]/.test(text) && !/^[\uf000-\uf8ff]$/.test(text));
   assert.ok(textRuns.length > 8);
-  for (const [color, text] of textRuns) if (!['░', '▓', '$', 'main'].includes(text) && color !== 'thinkingHigh') assert.ok(color === 'dim' || /^[\d.?]+%/.test(text), 'text "' + text + '" is ' + color);
+  for (const [color, text] of textRuns) if (!['░', '█', '$', 'main'].includes(text) && color !== 'thinkingHigh') assert.ok(color === 'dim' || /^[\d.?]+%/.test(text), 'text "' + text + '" is ' + color);
   assert.equal(painted.find(([, text]) => text === 'main')?.[0], 'accent', 'the branch name is the main colour');
   assert.equal(painted.find(([, text]) => text === '$')?.[0], 'accent', 'the dollar sign is accent like the icons');
   assert.equal(painted.find(([, text]) => text === '\u{1f5f2}')?.[0], 'accent', 'the cache-hit bolt is accent like every icon');
@@ -128,6 +128,22 @@ test('editor keeps PgUp/PgDn away from the fullscreen viewport while a bottom pa
   assert.equal(editor.capturesViewportInput, true);
   closeBottomPanel(); await open;
   assert.equal(editor.capturesViewportInput, false);
+});
+
+test('editor is replaced by the panel only while a panel that asked to hide it is open', async () => {
+  const tui: any = { terminal: { rows: 40 }, requestRender() {} };
+  const theme: any = { borderColor: (s: string) => s, selectList: { selectedPrefix: (s: string) => s, selectedText: (s: string) => s, description: (s: string) => s, scrollInfo: (s: string) => s, noMatch: (s: string) => s } };
+  const editor = new PanelEditor(tui, theme, { matches: () => false, getKeys: () => [] } as any);
+  const style = { fg: (_c: string, t: string) => t, bold: (t: string) => t };
+  const ui = { setWidget: (_k: string, factory: any) => { if (factory) factory(tui, style); }, onTerminalInput: () => () => {} } as any;
+  const plain = openBottomPanel(ui, { key: 'k', title: 't', create: () => ({ render: () => [], handleInput() {} }) });
+  assert.ok(editor.render(20).length > 0);
+  closeBottomPanel(); await plain;
+  const hiding = openBottomPanel(ui, { key: 'k', title: 't', hideEditor: true, create: () => ({ render: () => ['body'], handleInput() {} }) });
+  const shown = editor.render(20);
+  assert.equal(shown.length, 3); assert.ok(shown[1]!.includes('body'));
+  closeBottomPanel(); await hiding;
+  assert.ok(editor.render(20).length > 0);
 });
 
 test('editor: border and prompt use the accent colour, whatever the host assigns; bash mode keeps the host colour', () => {

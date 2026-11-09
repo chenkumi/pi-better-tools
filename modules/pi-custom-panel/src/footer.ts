@@ -44,14 +44,14 @@ const rgb = ([r, g, b]: [number, number, number], text: string) => `\x1b[38;2;${
 /** Without truecolor the three theme colours stand in for the gradient. */
 const stepColor = (t: number) => t < 0.55 ? "success" : t < 0.8 ? "warning" : "error";
 
-/** `<icon>  [▓▓▓░░░░░░░░░] 12.3% 33k/272k (auto)`: filled cells are coloured by their position on the gradient (a full bar sweeps green to red). */
+/** `<icon>  [███░░░░░░░░░] 12.3% 33k/272k (auto)`: filled cells are coloured by their position on the gradient (a full bar sweeps green to red). */
 export function contextSegment(model: FooterModel, paint: Paint, truecolor = false): string {
   const percent = model.contextPercent ?? 0;
   const filled = Math.max(0, Math.min(BAR_CELLS, Math.round(percent / 100 * BAR_CELLS)));
   const cells: string[] = [];
   for (let index = 0; index < BAR_CELLS; index++) {
     const t = index / (BAR_CELLS - 1);
-    cells.push(index >= filled ? paint("dim", "░") : truecolor ? rgb(gradientRgb(t), "▓") : paint(stepColor(t), "▓"));
+    cells.push(index >= filled ? paint("dim", "░") : truecolor ? rgb(gradientRgb(t), "█") : paint(stepColor(t), "█"));
   }
   const used = model.contextTokens === null ? "?" : formatTokens(model.contextTokens);
   const shown = model.contextPercent === null ? "?" : percent.toFixed(1);

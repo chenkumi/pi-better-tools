@@ -155,6 +155,15 @@ export class JobsOverlay implements Component {
   private taskCursor?: string;
   constructor(private source: () => PanelJob[], private theme: Theme, private requestRender: () => void, private done: () => void, private height: () => number, private tui?: TUI, private cwd = process.cwd(), initialDetail?: string) { this.detailKey = initialDetail; }
   invalidate() { this.list?.invalidate(); }
+  /** Jump straight to another job's details (a click on its row in the list underneath); false when this overlay does not list it. */
+  showDetail(key: string): boolean {
+    if (this.disposed || !this.source().some(j => jobKey(j) === key)) return false;
+    if (this.detailKey !== key) {
+      this.detailKey = key; this.taskKey = undefined; this.taskCursor = undefined; this.offset = 0; this.fromEnd = 0;
+      this.metadata = false; this.liveDetail = false; this.expanded = false; this.dropViews();
+    }
+    this.refresh(); return true;
+  }
   refresh() { if (!this.disposed) this.requestRender(); }
   dispose() { this.disposed = true; this.dropViews(); }
   private dropViews() { for (const off of this.unsubscribe.splice(0)) off(); this.views.clear(); this.subscribed = undefined; this.subscribedSources = []; }
@@ -262,7 +271,7 @@ export class JobsOverlay implements Component {
       const batch = this.isBatch(job), task = batch && this.taskKey ? job.tasks.find(t => t.id === this.taskKey) : undefined;
       if (this.taskKey && !task) this.taskKey = undefined; // that task is no longer retained: fall back to the list
       listing = batch && !task;
-      title = !job ? "Job no longer retained" : task ? `Task · ${safeJobText(task.label, 64)}` : batch ? `Job details · ${safeJobText(job.label, 64)} · ${job.tasks.length} concurrent tasks` : `Job details · ${safeJobText(job.label, 64)}`;
+      title = !job ? "Job no longer retained" : task ? `Task · ${safeJobText(task.label, 64)}` : batch ? `Job details · ${safeJobText(job.label, 64)} · ${job.tasks.length} concurrent tasks · ${safeJobText(job.state)}` : `Job details · ${safeJobText(job.label, 64)} · ${safeJobText(job.state)}`;
       const raw = task ? [`${task.label} · ${task.state}`, `Activity: ${task.activity}`, ...task.details.slice(0, 256), ...(task.details.length > 256 ? ["… metadata fields omitted (256-field limit)"] : []), ...(job?.state === "cancelling" ? ["Job cancel requested; that is not proof the task or its process tree has exited."] : []), "Retained metadata only; no logs read."] : job ? [jobHeading(job), `Job ID: ${safeJobText(job.jobId)}`, `State: ${safeJobText(job.state)} · ${safeJobText(job.activity)}`, usageLabel(job), ...job.details.slice(0, 256), ...(job.details.length > 256 ? ["… metadata fields omitted (256-field limit)"] : []), "Retained metadata only; no logs read. Cancel requested is not proof of process-tree exit."] : ["This job is no longer retained in this session/runtime."];
       const chat = job && !this.metadata && !listing ? this.conversation(job, Math.max(1, inner), task) : undefined;
       this.liveDetail = !!chat;

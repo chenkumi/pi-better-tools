@@ -46,7 +46,7 @@ describe("Pi extension lifecycle", () => {
       "mysql_state", "mysql_query", "mysql_update",
       "pgsql_state", "pgsql_query", "pgsql_update",
     ]);
-    expect(statuses.at(-1)).toBe("SQL: mysql, pgsql");
+    expect(statuses).toEqual([]); // no footer status is published
     for (const tool of tools) {
       expect(tool.exposure).toBe("deferred");
       expect(tool.namespace.name).toBe(tool.name.split("_")[0]);

@@ -251,7 +251,7 @@ export default function (pi: ExtensionAPI) {
 					void (async () => { // another bottom panel (settings, Jobs) holds the keyboard: wait for it instead of failing
 						while (isBottomPanelOpen()) if (!await whenBottomPanelFree(stop.signal)) return undefined;
 						return openBottomPanel<string | undefined>(ctx.ui, {
-							key: "pi-better-tools-keyin", title: "PTY KeyIn",
+							key: "pi-better-tools-keyin", title: "PTY KeyIn", hideEditor: true,
 							create: ({ done, requestRender, theme }) => {
 								finish = (value) => { clearTimeout(timer); signal?.removeEventListener("abort", onAbort); resolve(value); done(value); };
 								return new SecretInput({ header, style: theme, requestRender, onSubmit: (value) => finish(value), onCancel: () => { reason = "cancelled"; finish(undefined); } });

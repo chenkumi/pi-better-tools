@@ -96,16 +96,15 @@ test("pty_keyin aborts without writing when the tool call is aborted or the sess
 test("SecretInput renders a masked field with cursor and code-point count as input changes", () => {
 	let renders = 0;
 	const input = new SecretInput({ header: ["Prompt"], requestRender: () => { renders++; }, onSubmit() {}, onCancel() {} });
-	const field = (width: number) => input.render(width)[2];
-	const counter = (width: number) => input.render(width)[3];
+	const field = (width: number) => input.render(width)[1];
+	const counter = (width: number) => input.render(width)[2];
 	const empty = input.render(40);
-	assert.equal(empty.length, 6);
-	assert.equal(empty[0], "");
-	assert.equal(empty[1], "Prompt");
+	assert.equal(empty.length, 5);
+	assert.equal(empty[0], "Prompt");
 	assert.equal(field(40), "❯ _");
 	assert.equal(counter(40), "0 chars");
-	assert.equal(input.render(100)[4], "The text you type goes straight to the session; the agent never sees it.");
-	assert.match(empty[5], /Enter send.*Esc cancel/);
+	assert.equal(input.render(100)[3], "The text you type goes straight to the session; the agent never sees it.");
+	assert.match(empty[4], /Enter send.*Esc cancel/);
 	input.handleInput("a😀");
 	assert.equal(field(40), "❯ **_");
 	assert.equal(counter(40), "2 chars");
@@ -119,12 +118,12 @@ test("SecretInput renders a masked field with cursor and code-point count as inp
 	assert.equal(renders, 4);
 	input.handleInput("secret".repeat(30));
 	const narrow = input.render(30);
-	assert.equal(narrow[2], `❯ ${"*".repeat(27)}_`);
-	assert.equal(narrow[3], "180 chars");
+	assert.equal(narrow[1], `❯ ${"*".repeat(27)}_`);
+	assert.equal(narrow[2], "180 chars");
 	assert.ok(!narrow.join("\n").includes("secret"));
 	for (const line of input.render(12)) assert.ok(line.replace(/[[0-9;]*m/g, "").length <= 12, line);
 	input.dispose();
-	assert.equal(input.render(40)[3], "0 chars");
+	assert.equal(input.render(40)[2], "0 chars");
 });
 
 test("SecretInput masks, keeps backslashes, handles paste, backspace and kitty/escape input", () => {
@@ -149,7 +148,10 @@ test("SecretInput masks, keeps backslashes, handles paste, backspace and kitty/e
 	sent = undefined;
 	const other = make();
 	other.handleInput("x");
-	other.handleInput("\x03");
+	other.handleInput(""); // typed text: Ctrl+C clears it and keeps the dialog open
+	assert.equal(cancelled, false);
+	assert.equal(other.render(40)[2], "0 chars");
+	other.handleInput(""); // empty field: Ctrl+C cancels
 	assert.equal(cancelled, true);
 	assert.equal(sent, undefined);
 });

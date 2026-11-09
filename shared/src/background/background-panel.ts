@@ -171,6 +171,7 @@ export class BackgroundPanel {
     this.last = undefined; this.redraw(); return true;
   }
   async openMore(ctx: ExtensionContext, kind?: PanelKind, detailKey?: string): Promise<boolean> {
+    if (this.overlay && detailKey && this.isOwner(ctx, this.overlay.owner) && this.overlay.component instanceof JobsOverlay) return this.overlay.component.showDetail(detailKey); // already open: switch to that job at once
     if (!hasTui(ctx) || !this.isOwner(ctx) || !this.jobs(kind).length || this.overlay) return false;
     const lease = { ctx, owner: this.owner!, cancelled: false } as NonNullable<BackgroundPanel["overlay"]>;
     this.overlay = lease;

@@ -26,6 +26,8 @@ export interface BottomPanelOptions<T> {
   key: string;
   /** Text in the top rule. A function is re-read on every draw (for example to show an unsaved mark). */
   title: string | (() => string);
+  /** Hide the editor while this panel is open (it cannot receive keys anyway) and close the panel with its own bottom rule. */
+  hideEditor?: boolean;
   create(context: BottomPanelContext<T>): BottomBody;
 }
 
@@ -36,8 +38,9 @@ export type PanelUi = Pick<ExtensionUIContext, 'setWidget' | 'onTerminalInput'>;
 const PASSTHROUGH = /^(?:\x1b\[<\d+;\d+;\d+[Mm]|\x1b\[[IO])$/;
 
 const ACTIVE = Symbol.for('pi-better-tools:bottom-panel:active');
-type Registry = { [ACTIVE]?: { close(): void } };
-const registry = globalThis as unknown as Registry;
+type Registry = { [ACTIVE]?: { close(): void; hideEditor: boolean; render?: (width: number) => string[] } };
+const EDITOR_HOST = Symbol.for('pi-better-tools:bottom-panel:editor-host');
+const registry = globalThis as unknown as Registry & { [EDITOR_HOST]?: true };
 
 const waiters = new Set<() => void>();
 
@@ -59,6 +62,16 @@ export function whenBottomPanelFree(signal?: AbortSignal): Promise<boolean> {
 /** True while a bottom panel owns the keyboard. */
 export function isBottomPanelOpen(): boolean { return registry[ACTIVE] !== undefined; }
 
+/**
+ * Rows of the open panel when it asked to hide the editor, else `undefined`. The fullscreen dock reserves at least three rows for the
+ * editor slot, so a hidden editor would leave blank lines; the editor draws the panel in that slot instead of the widget area.
+ */
+export function renderHiddenEditorPanel(width: number): string[] | undefined {
+  registry[EDITOR_HOST] = true; // an editor that can draw the panel exists; panels asking to hide it may rely on that
+  const active = registry[ACTIVE];
+  return active?.hideEditor && active.render ? active.render(width) : undefined;
+}
+
 /** Closes whatever bottom panel is open (session switch, shutdown). Safe when none is open. */
 export function closeBottomPanel(): void { registry[ACTIVE]?.close(); }
 
@@ -74,7 +87,7 @@ export function openBottomPanel<T>(ui: PanelUi, options: BottomPanelOptions<T>):
     let body: BottomBody | undefined;
     let unsubscribe: (() => void) | undefined;
     let tui: TUI | undefined;
-    const handle = { close: () => finish(undefined) };
+    const handle: NonNullable<Registry[typeof ACTIVE]> = { close: () => finish(undefined), hideEditor: options.hideEditor === true && registry[EDITOR_HOST] === true }; // without the custom editor nothing would draw the panel: show it as a normal widget
     function finish(result: T | undefined): void {
       if (finished) return;
       finished = true;
@@ -91,9 +104,15 @@ export function openBottomPanel<T>(ui: PanelUi, options: BottomPanelOptions<T>):
         tui = host;
         const style = theme as unknown as PanelStyle;
         body = options.create({ done: result => finish(result), requestRender: () => { try { host.requestRender(); } catch { /* disposed terminal */ } }, rows: () => host.terminal?.rows ?? 24, theme: style, tui: host });
+        const draw = (width: number): string[] => {
+          const lines = frame(style, typeof options.title === 'function' ? options.title() : options.title, body!.render(Math.max(1, width - 2)), width);
+          if (handle.hideEditor && lines.length) lines.push(style.fg('accent', '─'.repeat(Math.max(0, width)))); // the editor's border is gone, so close the panel here
+          return lines;
+        };
+        if (handle.hideEditor) handle.render = draw;
         const component: Component & { dispose(): void } = {
           invalidate() {},
-          render: width => frame(style, typeof options.title === 'function' ? options.title() : options.title, body!.render(Math.max(1, width - 2)), width),
+          render: width => (handle.hideEditor ? [] : draw(width)), // a hiding panel is drawn by the editor slot (renderHiddenEditorPanel)
           dispose() { /* the body is disposed by finish(), after the widget is gone */ },
         };
         return component;

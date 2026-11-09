@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { visibleWidth } from '@earendil-works/pi-tui';
-import { bottomConfirm, bottomInput, bottomSelect, closeBottomPanel, isBottomPanelOpen, openBottomPanel, type BottomBody } from '../../src/bottom-panel/index.ts';
+import { bottomConfirm, bottomInput, bottomSelect, closeBottomPanel, isBottomPanelOpen, openBottomPanel, renderHiddenEditorPanel, type BottomBody } from '../../src/bottom-panel/index.ts';
 import { fakeUi } from './fake-ui.ts';
 
 const KEY = { up: '\x1b[A', down: '\x1b[B', left: '\x1b[D', right: '\x1b[C', enter: '\r', esc: '\x1b' };
@@ -216,4 +216,18 @@ test('input: typing, paste, backspace and Ctrl+U edit one line; Enter submits, E
   f = fakeUi(); answer = bottomInput(ctx(f), 'Name', 'Job name?'); f.type('q'); f.type(KEY.esc);
   assert.equal(await answer, undefined);
   assert.equal(await bottomInput({ mode: 'rpc', hasUI: true, ui: fakeUi().ui } as never, 'T', 'p'), undefined, 'no host fallback outside the TUI');
+});
+
+test('hideEditor only takes effect once an editor that can draw the panel exists; otherwise the panel is a normal widget', async () => {
+  const body = { render: () => ['row'], handleInput(_data: string) {} };
+  const first = fakeUi();
+  const shown = openBottomPanel<string>(first.ui, { key: 'k', title: 'T', hideEditor: true, create: () => body });
+  assert.equal(renderHiddenEditorPanel(20), undefined, 'no hidden panel while nothing has asked as an editor');
+  assert.ok(first.render('k', 20).length > 0, 'the widget draws it, so the prompt is never invisible');
+  closeBottomPanel(); await shown;
+  const second = fakeUi();
+  const hidden = openBottomPanel<string>(second.ui, { key: 'k', title: 'T', hideEditor: true, create: () => body });
+  assert.equal(renderHiddenEditorPanel(20)?.length, 3, 'with an editor present the editor slot draws it');
+  assert.equal(second.render('k', 20).length, 0);
+  closeBottomPanel(); await hidden;
 });

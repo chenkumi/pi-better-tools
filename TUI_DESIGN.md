@@ -41,7 +41,7 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
 ──────────────────────────────────────────────────────────────────────────────────────────────────
 ❯ 
 ──────────────────────────────────────────────────────────────────────────────────────────────────
-  C:\GitHub\pi-better-tools (mux-text)                        [▓▓▓▓░░░░░░░░] 0.0% 0k/272k (auto)
+  C:\GitHub\pi-better-tools (mux-text)                        [████░░░░░░░░] 0.0% 0k/272k (auto)
   opencode-go · deepseek-v4.1-flash ·  high                     Normal |   0 |   0 |  $0.000
 ```
 ---
@@ -65,7 +65,7 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
  … 2 more [Open]  * reported usage
  ❯  
 ──────────────────────────────────────────────────────────────────────────────────────────────────
-  C:\GitHub\pi-better-tools (mux-text)                        [▓▓▓▓░░░░░░░░] 0.0% 0k/272k (auto)
+  C:\GitHub\pi-better-tools (mux-text)                        [████░░░░░░░░] 0.0% 0k/272k (auto)
   opencode-go · deepseek-v4.1-flash ·  high                     Normal |   0 |   0 |  $0.000
 
 ```
@@ -90,7 +90,7 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
  ↑↓ Select · Enter Details · Tab Finished/All · Esc Close
  ❯  
 ──────────────────────────────────────────────────────────────────────────────────────────────────
-  C:\GitHub\pi-better-tools (mux-text)                        [▓▓▓▓░░░░░░░░] 0.0% 0k/272k (auto)
+  C:\GitHub\pi-better-tools (mux-text)                        [████░░░░░░░░] 0.0% 0k/272k (auto)
   opencode-go · deepseek-v4.1-flash ·  high                     Normal |   0 |   0 |  $0.000
 
 ```
@@ -107,7 +107,7 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
  Esc Close · m Conversation/Metadata · Ctrl+O Expand · Ctrl+C Close
  ❯  
 ──────────────────────────────────────────────────────────────────────────────────────────────────
-  C:\GitHub\pi-better-tools (mux-text)                        [▓▓▓▓░░░░░░░░] 0.0% 0k/272k (auto)
+  C:\GitHub\pi-better-tools (mux-text)                        [████░░░░░░░░] 0.0% 0k/272k (auto)
   opencode-go · deepseek-v4.1-flash ·  high                     Normal |   0 |   0 |  $0.000
 
 ```
@@ -123,7 +123,7 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
  Esc Back · m Conversation/Metadata · Ctrl+C Close
  ❯  
 ──────────────────────────────────────────────────────────────────────────────────────────────────
-  C:\GitHub\pi-better-tools (mux-text)                        [▓▓▓▓░░░░░░░░] 0.0% 0k/272k (auto)
+  C:\GitHub\pi-better-tools (mux-text)                        [████░░░░░░░░] 0.0% 0k/272k (auto)
   opencode-go · deepseek-v4.1-flash ·  high                     Normal |   0 |   0 |  $0.000
 
 ```
@@ -140,7 +140,7 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
  Esc Back · ↑↓ Select · Enter Open · Ctrl+C Close
  ❯  
 ──────────────────────────────────────────────────────────────────────────────────────────────────
-  C:\GitHub\pi-better-tools (mux-text)                        [▓▓▓▓░░░░░░░░] 0.0% 0k/272k (auto)
+  C:\GitHub\pi-better-tools (mux-text)                        [████░░░░░░░░] 0.0% 0k/272k (auto)
   opencode-go · deepseek-v4.1-flash ·  high                     Normal |   0 |   0 |  $0.000
 
 ```
@@ -171,7 +171,7 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
  ↑/↓ move  Enter/←/→ change  Tab page  Ctrl+S save  Esc close
  ❯  
 ──────────────────────────────────────────────────────────────────────────────────────────────────
-  C:\GitHub\pi-better-tools (mux-text)                        [▓▓▓▓░░░░░░░░] 0.0% 0k/272k (auto)
+  C:\GitHub\pi-better-tools (mux-text)                        [████░░░░░░░░] 0.0% 0k/272k (auto)
   opencode-go · deepseek-v4.1-flash ·  high                     Normal |   0 |   0 |  $0.000
 
 ```
@@ -198,7 +198,7 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
  ↑/↓ move  Enter/←/→ change  Ctrl+S save  Esc close
  ❯  
 ──────────────────────────────────────────────────────────────────────────────────────────────────
-  C:\GitHub\pi-better-tools (mux-text)                        [▓▓▓▓░░░░░░░░] 0.0% 0k/272k (auto)
+  C:\GitHub\pi-better-tools (mux-text)                        [████░░░░░░░░] 0.0% 0k/272k (auto)
   opencode-go · deepseek-v4.1-flash ·  high                     Normal |   0 |   0 |  $0.000
 
 ```
@@ -218,7 +218,7 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
 
  ←/→ choose  Enter confirm  Y yes  N no  Esc cancel
 ──────────────────────────────────────────────────────────────────────────────────────────────────
-  C:\GitHub\pi-better-tools (mux-text)                        [▓▓▓▓░░░░░░░░] 0.0% 0k/272k (auto)
+  C:\GitHub\pi-better-tools (mux-text)                        [████░░░░░░░░] 0.0% 0k/272k (auto)
   opencode-go · deepseek-v4.1-flash ·  high                     Normal |   0 |   0 |  $0.000
 
 ```
@@ -234,7 +234,7 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
 
  ↑/↓ PgUp/PgDn move  Enter select  Esc cancel
 ──────────────────────────────────────────────────────────────────────────────────────────────────
-  C:\GitHub\pi-better-tools (mux-text)                        [▓▓▓▓░░░░░░░░] 0.0% 0k/272k (auto)
+  C:\GitHub\pi-better-tools (mux-text)                        [████░░░░░░░░] 0.0% 0k/272k (auto)
   opencode-go · deepseek-v4.1-flash ·  high                     Normal |   0 |   0 |  $0.000
 
 ```
@@ -249,7 +249,7 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
 
  Enter submit  Esc cancel  Ctrl+U clear
 ──────────────────────────────────────────────────────────────────────────────────────────────────
-  C:\GitHub\pi-better-tools (mux-text)                        [▓▓▓▓░░░░░░░░] 0.0% 0k/272k (auto)
+  C:\GitHub\pi-better-tools (mux-text)                        [████░░░░░░░░] 0.0% 0k/272k (auto)
   opencode-go · deepseek-v4.1-flash ·  high                     Normal |   0 |   0 |  $0.000
 
 ```
@@ -263,9 +263,9 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
  ❯ ********_
  8 chars
  The text you type goes straight to the session; the agent never sees it.
- Enter send  Esc cancel  Ctrl+U clear
+ Enter send  Esc cancel  Ctrl+C/Ctrl+U clear
 ──────────────────────────────────────────────────────────────────────────────────────────────────
-  C:\GitHub\pi-better-tools (mux-text)                        [▓▓▓▓░░░░░░░░] 0.0% 0k/272k (auto)
+  C:\GitHub\pi-better-tools (mux-text)                        [████░░░░░░░░] 0.0% 0k/272k (auto)
   opencode-go · deepseek-v4.1-flash ·  high                     Normal |   0 |   0 |  $0.000
 
 ```
@@ -285,7 +285,7 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
 
  ↑/↓ PgUp/PgDn move  Enter details  a prompt  m shell  t on/off  r run  x delete  c clean  Esc close
 ──────────────────────────────────────────────────────────────────────────────────────────────────
-  C:\GitHub\pi-better-tools (mux-text)                        [▓▓▓▓░░░░░░░░] 0.0% 0k/272k (auto)
+  C:\GitHub\pi-better-tools (mux-text)                        [████░░░░░░░░] 0.0% 0k/272k (auto)
   opencode-go · deepseek-v4.1-flash ·  high                     Normal |   0 |   0 |  $0.000
 
 ```
@@ -299,7 +299,7 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
 
  a add a prompt job   m add a shell job   Esc close
 ──────────────────────────────────────────────────────────────────────────────────────────────────
-  C:\GitHub\pi-better-tools (mux-text)                        [▓▓▓▓░░░░░░░░] 0.0% 0k/272k (auto)
+  C:\GitHub\pi-better-tools (mux-text)                        [████░░░░░░░░] 0.0% 0k/272k (auto)
   opencode-go · deepseek-v4.1-flash ·  high                     Normal |   0 |   0 |  $0.000
 
 ```
@@ -339,7 +339,7 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
 ──────────────────────────────────────────────────────────────────────────────────────────────────
 ❯ 
 ──────────────────────────────────────────────────────────────────────────────────────────────────
-  C:\GitHub\pi-better-tools (mux-text)                        [▓▓▓▓░░░░░░░░] 0.0% 0k/272k (auto)
+  C:\GitHub\pi-better-tools (mux-text)                        [████░░░░░░░░] 0.0% 0k/272k (auto)
   opencode-go · deepseek-v4.1-flash ·  high                     Normal |   0 |   0 |  $0.000
 ```
 
@@ -366,7 +366,7 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
 ──────────────────────────────────────────────────────────────────────────────────────────────────
 ❯ 
 ──────────────────────────────────────────────────────────────────────────────────────────────────
-  C:\GitHub\pi-better-tools (mux-text)                        [▓▓▓▓░░░░░░░░] 0.0% 0k/272k (auto)
+  C:\GitHub\pi-better-tools (mux-text)                        [████░░░░░░░░] 0.0% 0k/272k (auto)
   opencode-go · deepseek-v4.1-flash ·  high                     Normal |   0 |   0 |  $0.000
 ```
 

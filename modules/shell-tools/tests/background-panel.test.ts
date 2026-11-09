@@ -192,6 +192,25 @@ test('clicking a job row opens the overlay directly on that job; title, modifier
   ui.overlay().handleInput('\x1b'); ui.overlay().handleInput('\x1b'); await Promise.resolve();
 });
 
+test('with a job already expanded, clicking another job row switches to it at once; the detail title shows the job state', async () => {
+  const { ui } = setup(); const c = ui.component(); c.render(80);
+  assert.equal(mouse(c, 5, 2)?.handled, true);
+  assert.match(plain(ui.overlay().render(72).join('\n')), /Detail 1/);
+  assert.equal(mouse(c, 5, 3)?.handled, true, 'second job row while the first is open');
+  assert.equal(ui.customCalls(), 1, 'no second panel is opened');
+  const text = plain(ui.overlay().render(72).join('\n'));
+  assert.match(text, /Detail 2/); assert.doesNotMatch(text, /Detail 1/);
+  assert.match(text, /Job details · bash · running/, 'title carries the state');
+  ui.overlay().handleInput('\x1b'); ui.overlay().handleInput('\x1b'); await Promise.resolve();
+});
+
+test('detail title shows an exited PTY job state', () => {
+  const item = { ...job('1', 'pty', 'exited', false), label: 'pty' };
+  const c = new JobsOverlay(() => [item], theme, () => {}, () => {}, () => 40); c.render(80);
+  assert.equal(c.showDetail('pty:1'), true); assert.equal(c.showDetail('pty:404'), false);
+  assert.match(plain(c.render(80).join('\n')), /Job details · pty · exited/);
+});
+
 const hoverTheme: any = { fg: (_: string, s: string) => s, getBgAnsi: (name: string) => name === 'selectedBg' ? '\x1b[48;5;99m' : '\x1b[48;5;58m', bg: (name: string, s: string) => (name === 'selectedBg' ? '\x1b[48;5;99m' : '\x1b[48;5;58m') + s + '\x1b[49m' };
 const lit = (line: string) => line.includes('\x1b[48;5;99m');
 const move = (component: any, x: number, y: number) => mouse(component, x, y, 80, { type: 'move', button: 'none' });

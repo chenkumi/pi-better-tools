@@ -1,5 +1,5 @@
 import { CustomEditor } from "@earendil-works/pi-coding-agent";
-import { isBottomPanelOpen } from "../../../shared/src/bottom-panel/index.ts";
+import { isBottomPanelOpen, renderHiddenEditorPanel } from "../../../shared/src/bottom-panel/index.ts";
 
 export const PROMPT = "❯ ";
 const PADDING = PROMPT.length;
@@ -29,6 +29,8 @@ export class PanelEditor extends CustomEditor {
     super.setPaddingX(Math.max(padding, PADDING));
   }
   override render(width: number): string[] {
+    const hidden = renderHiddenEditorPanel(width); // e.g. pty_keyin: the panel owns the keyboard and the editor slot shows it
+    if (hidden) return hidden;
     const lines = super.render(width);
     // Line 0 is the top border; line 1 is the first text row and starts with the left padding.
     const first = lines[1];

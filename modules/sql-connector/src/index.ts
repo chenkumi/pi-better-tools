@@ -39,14 +39,12 @@ export default function sqlConnectorExtension(pi: ExtensionAPI): void {
     configError = undefined;
 
     if (!ctx.isProjectTrusted()) {
-      ctx.ui.setStatus("sql-connector", undefined);
       return;
     }
 
     try {
       const config = await loadSqlConnectorConfig(ctx.cwd);
       if (!config) {
-        ctx.ui.setStatus("sql-connector", undefined);
         return;
       }
 
@@ -58,13 +56,11 @@ export default function sqlConnectorExtension(pi: ExtensionAPI): void {
           registeredEngines.add(engine);
         }
       }
-      ctx.ui.setStatus("sql-connector", engines.length > 0 ? `SQL: ${engines.join(", ")}` : "SQL: no databases configured");
     } catch (error) {
       // The agent sees the neutral wording; the human UI notice keeps the exact field, file and variable names.
       const agentMessage = error instanceof SqlConnectorError ? `${error.code}: ${error.message}` : "Unable to load the database connection settings (unexpected error; ask the user to check them).";
       const humanMessage = error instanceof SqlConnectorError ? `${error.code}: ${error.humanMessage ?? error.message}` : "Unable to load SQL connector configuration (unexpected error; ask the user to check .pi/agent/sql-connector.json).";
       configError = agentMessage;
-      ctx.ui.setStatus("sql-connector", "SQL: configuration error");
       if (ctx.hasUI) ctx.ui.notify(humanMessage, "error");
     }
   });
@@ -73,7 +69,6 @@ export default function sqlConnectorExtension(pi: ExtensionAPI): void {
     const unconfirmed = await runtime?.close() ?? 0;
     runtime = undefined;
     if (unconfirmed > 0 && ctx.hasUI) ctx.ui.notify(`SQL connector: ${unconfirmed} database pool(s) did not confirm closing within the deadline; their connections may still be open.`, "warning");
-    ctx.ui.setStatus("sql-connector", undefined);
   });
 
   pi.registerCommand("sql-connector-reload", {

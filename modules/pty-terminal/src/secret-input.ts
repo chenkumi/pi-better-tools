@@ -4,7 +4,7 @@ const PASTE_START = "\x1b[200~";
 const PASTE_END = "\x1b[201~";
 
 const NOTICE = "The text you type goes straight to the session; the agent never sees it.";
-const HINT = "Enter send  Esc cancel  Ctrl+U clear";
+const HINT = "Enter send  Esc cancel  Ctrl+C/Ctrl+U clear";
 
 export interface SecretInputOptions {
 	/** Lines shown above the field (the agent's prompt, or the session facts when it gave none). */
@@ -35,6 +35,11 @@ export class SecretInput {
 	handleInput(data: string): void {
 		if (this.#done) return;
 		if (this.#paste !== undefined || data.includes(PASTE_START)) return this.#handlePaste(data);
+		if (matchesKey(data, "ctrl+c") && this.#value) { // with typed text Ctrl+C only clears it; on an empty field it cancels
+			this.#value = "";
+			this.#options.requestRender?.();
+			return;
+		}
 		if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) return this.#finish(() => this.#options.onCancel());
 		if (matchesKey(data, "enter")) {
 			const value = this.#value;
@@ -94,7 +99,6 @@ export class SecretInput {
 		const count = Array.from(this.#value).length;
 		const mask = "*".repeat(Math.min(count, Math.max(0, w - 3))) + "_";
 		return [
-			"",
 			...this.#options.header,
 			`❯ ${mask}`,
 			dim(`${count} chars`),
