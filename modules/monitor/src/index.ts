@@ -1,16 +1,16 @@
 import { Type } from 'typebox';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { isManagedForegroundChild } from '../../../shared/src/background/index.js';
-import { AUTO_MONITOR_INTERVAL_MS, acquireCapability, canonicalMonitorCwd, publishActiveMonitorBriefs, publishAutoMonitor, publishScheduledMonitor, type ScheduledMonitorStarter } from '../../../shared/src/background/index.js';
-import { ToolError, toolErrorCode } from '../../../shared/src/tool-error/index.js';
-import { jsonResult as output } from '../../../shared/src/tool-result/index.js';
-import { MonitorRuntime, realClock, sameOwner, type Clock, type Owner } from './core.js';
-import { MonitorJobsWidget } from './live-widget.js';
-import { monitorRenderers, renderMonitorEvent } from './renderers.js';
-import { FILE_INTERVAL, JOB_INTERVAL, SYSTEM_INTERVAL, startSchema, validateMonitorId, validateStart } from './schema.js';
-import { commandLaunch, fileLaunch, jobLaunch, resolveFilePath, systemLaunch, websocketLaunch } from './sources.js';
-import { parseEndpoint } from './network.js';
-import { receiptOutputSchema, statusOutputSchema } from './output-schema.js';
+import { isManagedForegroundChild } from '../../../shared/src/background/index.ts';
+import { AUTO_MONITOR_INTERVAL_MS, acquireCapability, canonicalMonitorCwd, publishActiveMonitorBriefs, publishAutoMonitor, publishScheduledMonitor, type ScheduledMonitorStarter } from '../../../shared/src/background/index.ts';
+import { ToolError, toolErrorCode } from '../../../shared/src/tool-error/index.ts';
+import { jsonResult as output } from '../../../shared/src/tool-result/index.ts';
+import { MonitorRuntime, realClock, sameOwner, type Clock, type Owner } from './core.ts';
+import { MonitorJobsWidget } from './live-widget.ts';
+import { monitorRenderers, renderMonitorEvent } from './renderers.ts';
+import { FILE_INTERVAL, JOB_INTERVAL, SYSTEM_INTERVAL, startSchema, validateMonitorId, validateStart } from './schema.ts';
+import { commandLaunch, fileLaunch, jobLaunch, resolveFilePath, systemLaunch, websocketLaunch } from './sources.ts';
+import { parseEndpoint } from './network.ts';
+import { receiptOutputSchema, statusOutputSchema } from './output-schema.ts';
 const strict = { additionalProperties: false };
 function scope(ctx: ExtensionContext): Owner { return { sessionId: ctx.sessionManager.getSessionId(), cwd: canonicalMonitorCwd(ctx.cwd) }; }
 /** Error text for a tool result: the thrown message, or a retry hint naming `label` when something unexpected was thrown. */

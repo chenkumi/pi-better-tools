@@ -4,14 +4,14 @@
  * session next loads the jobs. Project schedules are read only for a trusted project.
  */
 import { getAgentDir, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { registerPromptSection } from "../../../shared/src/prompt/index.js";
-import { isManagedForegroundChild } from "../../../shared/src/background/index.js";
+import { registerPromptSection } from "../../../shared/src/prompt/index.ts";
+import { isManagedForegroundChild } from "../../../shared/src/background/index.ts";
 import { realClock } from "./clock.ts";
 import { ScheduleEngine, type EngineEvent } from "./engine.ts";
 import { createExecutor } from "./executor.ts";
 import { JobError, JobService } from "./jobs.ts";
 import { MARKER_TYPE, postMarker } from "./markers.ts";
-import { requestScheduledMonitor } from "../../../shared/src/background/index.js";
+import { requestScheduledMonitor } from "../../../shared/src/background/index.ts";
 import { scopeOf } from "./monitor-link.ts";
 import { registerManageCommand } from "./manage.ts";
 import { renderMarker } from "./message-renderer.ts";

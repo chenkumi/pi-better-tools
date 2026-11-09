@@ -1,9 +1,9 @@
 import { join } from "node:path";
 import { CONFIG_DIR_NAME, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { SettingsInputError, registerSettingsCommand } from "../../../shared/src/settings-panel/index.js";
-import type { Field, Patch, SettingsSchema, Values } from "../../../shared/src/settings-panel/index.js";
-import { DEFAULT_ODBC_DRIVER, DEFAULT_PORT, ENV_REFERENCE, parseDatabaseConfig } from "./config.js";
-import { ENGINES, ENGINE_LABEL, SqlConnectorError, type Engine } from "./types.js";
+import { SettingsInputError, registerSettingsCommand } from "../../../shared/src/settings-panel/index.ts";
+import type { Field, Patch, SettingsSchema, Values } from "../../../shared/src/settings-panel/index.ts";
+import { DEFAULT_ODBC_DRIVER, DEFAULT_PORT, ENV_REFERENCE, parseDatabaseConfig } from "./config.ts";
+import { ENGINES, ENGINE_LABEL, SqlConnectorError, type Engine } from "./types.ts";
 
 type Block = Record<string, unknown>;
 type Document = Partial<Record<Engine, Block>>;

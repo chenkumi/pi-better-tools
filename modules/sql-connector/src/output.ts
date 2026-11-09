@@ -1,4 +1,4 @@
-import { MAX_READ_ROWS } from "./security/sql-policy.js";
+import { MAX_READ_ROWS } from "./security/sql-policy.ts";
 
 /** A result never carries more rows than a read may request, so the two caps are one number. */
 const MAX_ROWS = MAX_READ_ROWS;

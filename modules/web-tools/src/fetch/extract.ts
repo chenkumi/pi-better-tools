@@ -1,5 +1,5 @@
 import { Worker } from 'node:worker_threads';
-import { abortReason } from './bounded.js';
+import { abortReason } from './bounded.ts';
 import { extractHtml, MAX_EXTRACTED_BYTES, MAX_HTML_BYTES, type ContentFormat, type ExtractionMode, type ExtractionResult } from './extract-core.mjs';
 
 export { extractHtml, MAX_EXTRACTED_BYTES, MAX_HTML_BYTES };

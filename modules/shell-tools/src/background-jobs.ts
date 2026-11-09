@@ -1,9 +1,9 @@
 import { ulid } from "ulid";
-import { canonicalMonitorCwd } from "../../../shared/src/background/index.js";
-import { ToolError } from "../../../shared/src/tool-error/index.js";
-import { ShellJobsWidget } from "./live-widget.js";
-import { OutputTranscript } from "../../../shared/src/background/index.js";
-import { BackgroundRecovery, type RecoveryWriter } from "./recovery.js";
+import { canonicalMonitorCwd } from "../../../shared/src/background/index.ts";
+import { ToolError } from "../../../shared/src/tool-error/index.ts";
+import { ShellJobsWidget } from "./live-widget.ts";
+import { OutputTranscript } from "../../../shared/src/background/index.ts";
+import { BackgroundRecovery, type RecoveryWriter } from "./recovery.ts";
 import { closeSync, mkdtempSync, openSync, promises as asyncFs, writeFileSync, writeSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

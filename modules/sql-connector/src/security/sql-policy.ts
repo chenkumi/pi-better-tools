@@ -1,5 +1,5 @@
-import type { Engine } from "../types.js";
-import { SqlConnectorError } from "../types.js";
+import type { Engine } from "../types.ts";
+import { SqlConnectorError } from "../types.ts";
 
 function denied(message: string): never {
   throw new SqlConnectorError("POLICY_DENIED", message);

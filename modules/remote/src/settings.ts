@@ -1,9 +1,9 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import { SettingsInputError, registerSettingsCommand } from '../../../shared/src/settings-panel/index.js';
-import type { Field, Patch, SettingsSchema, Values } from '../../../shared/src/settings-panel/index.js';
-import { loadRemoteConfig, parseRemoteConfig, remoteConfigPath, type WakeMode } from './config.js';
-import type { CredentialStore } from './credentials.js';
-import { generateCode, normalizeCode, normalizeName } from './protocol.js';
+import { SettingsInputError, registerSettingsCommand } from '../../../shared/src/settings-panel/index.ts';
+import type { Field, Patch, SettingsSchema, Values } from '../../../shared/src/settings-panel/index.ts';
+import { loadRemoteConfig, parseRemoteConfig, remoteConfigPath, type WakeMode } from './config.ts';
+import type { CredentialStore } from './credentials.ts';
+import { generateCode, normalizeCode, normalizeName } from './protocol.ts';
 
 /** The panel's flat view of `remote.json`; every key is also the key in the panel `Values`. */
 export interface PanelConfig {

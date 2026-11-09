@@ -4,8 +4,8 @@ import { Container, Text, type Component } from "@earendil-works/pi-tui";
 import { readFile, stat } from "node:fs/promises";
 import { stripVTControlCharacters } from "node:util";
 import { Type } from "typebox";
-import { FileToolError, UNSAFE_DISPLAY_CHARACTERS, classifyFsError, describeReceived, formatFileToolErrorForDisplay, typeName } from "../src/errors.js";
-import { executeWithFailureLogging, loadFileToolsGlobalConfig, prepareWithFailureLogging } from "../src/debug-logging.js";
+import { FileToolError, UNSAFE_DISPLAY_CHARACTERS, classifyFsError, describeReceived, formatFileToolErrorForDisplay, typeName } from "../src/errors.ts";
+import { executeWithFailureLogging, loadFileToolsGlobalConfig, prepareWithFailureLogging } from "../src/debug-logging.ts";
 import {
   assertInputSize,
   assertRegularReadableFile,
@@ -21,13 +21,13 @@ import {
   SHA256_TOKEN_LENGTH,
   type EditResult,
   type RangeEdit,
-} from "../src/file-operations.js";
-import { resolveToolPath } from "../src/path-utils.js";
-import { findUniqueSkillFallbackPath } from "../src/skill-paths.js";
-import { hintMissingSubagentLog } from "../src/subagent-log-paths.js";
-import { registerLsTool } from "../src/search-tools.js";
-import { FILE_RULES_SECTION, renderFileRules } from "../src/prompt-rules.js";
-import { registerPromptSection } from "../../../shared/src/prompt/index.js";
+} from "../src/file-operations.ts";
+import { resolveToolPath } from "../src/path-utils.ts";
+import { findUniqueSkillFallbackPath } from "../src/skill-paths.ts";
+import { hintMissingSubagentLog } from "../src/subagent-log-paths.ts";
+import { registerLsTool } from "../src/search-tools.ts";
+import { FILE_RULES_SECTION, renderFileRules } from "../src/prompt-rules.ts";
+import { registerPromptSection } from "../../../shared/src/prompt/index.ts";
 
 class WriteCallWithCount extends Container {
   preview?: Component;

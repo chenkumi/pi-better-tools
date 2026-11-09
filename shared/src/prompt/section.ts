@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import { createForcedPromptAppender } from './forced-prompt.js';
+import { createForcedPromptAppender } from './forced-prompt.ts';
 
 /**
  * Owns one structured system-prompt section. `render` receives the active tool names for this run and returns the

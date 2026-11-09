@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { getAgentDir } from '@earendil-works/pi-coding-agent';
-import { generateCode, normalizeCode } from './protocol.js';
+import { generateCode, normalizeCode } from './protocol.ts';
 
 interface Stored { version: 1; serverCode?: string; clients?: Record<string, string> }
 export const credentialsPath = () => join(getAgentDir(), 'pi-remote.json');

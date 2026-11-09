@@ -1,8 +1,8 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { SelectList, matchesKey, truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component, type TUI } from "@earendil-works/pi-tui";
-import { TranscriptView, type TranscriptSource } from "./live-transcript.js";
+import { TranscriptView, type TranscriptSource } from "./live-transcript.ts";
 import { stripVTControlCharacters } from "node:util";
-import { frame, type PanelStyle } from "../bottom-panel/host.js";
+import { frame, type PanelStyle } from "../bottom-panel/host.ts";
 
 export const PANEL_KINDS = ["subagents", "shell", "fork", "monitor", "pty", "schedule"] as const;
 export type PanelKind = typeof PANEL_KINDS[number];

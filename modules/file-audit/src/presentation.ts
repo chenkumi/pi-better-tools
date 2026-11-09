@@ -1,6 +1,6 @@
 import { stripVTControlCharacters } from "node:util";
 import { relative } from "node:path";
-import type { ActivityWindow } from "./activity-window.js";
+import type { ActivityWindow } from "./activity-window.ts";
 
 export const MAX_OUTPUT_BYTES = 8192;
 const MAX_DETAIL_LINES = 10;

@@ -4,7 +4,7 @@
  * decides; this module adds the gates that belong to schedules (shell tools for command sources, one watch per job).
  */
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { canonicalMonitorCwd, requestScheduledMonitor, type ScheduledMonitorStarter } from "../../../shared/src/background/index.js";
+import { canonicalMonitorCwd, requestScheduledMonitor, type ScheduledMonitorStarter } from "../../../shared/src/background/index.ts";
 import type { RunHandle, RunInfo } from "./engine.ts";
 import { shellProblem, type ShellName } from "./guard.ts";
 import { postMarker, type MarkerDetails } from "./markers.ts";

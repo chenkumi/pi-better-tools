@@ -1,11 +1,11 @@
-import { registerSqlConnectorSettings } from "./settings.js";
+import { registerSqlConnectorSettings } from "./settings.ts";
 import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { configuredEngines, loadSqlConnectorConfig } from "./config.js";
-import { buildSqlConnectorPrompt } from "./prompt.js";
-import { SqlConnectorRuntime } from "./runtime.js";
-import { registerEngineTools } from "./tools.js";
-import { SqlConnectorError } from "./types.js";
-import { createForcedPromptAppender } from "../../../shared/src/prompt/index.js";
+import { configuredEngines, loadSqlConnectorConfig } from "./config.ts";
+import { buildSqlConnectorPrompt } from "./prompt.ts";
+import { SqlConnectorRuntime } from "./runtime.ts";
+import { registerEngineTools } from "./tools.ts";
+import { SqlConnectorError } from "./types.ts";
+import { createForcedPromptAppender } from "../../../shared/src/prompt/index.ts";
 
 const NOTICE_SECTION = "sql_connector_error";
 

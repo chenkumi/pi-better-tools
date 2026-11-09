@@ -1,4 +1,4 @@
-import { FILE_EDIT_TOOLS, FILE_INSPECT_TOOLS, SHELL_TOOLS } from '../../../shared/src/contracts/index.js';
+import { FILE_EDIT_TOOLS, FILE_INSPECT_TOOLS, SHELL_TOOLS } from '../../../shared/src/contracts/index.ts';
 
 export const FILE_RULES_SECTION = 'file_rules';
 

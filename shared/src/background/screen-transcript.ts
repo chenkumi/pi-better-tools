@@ -1,7 +1,7 @@
 import { release as osRelease } from "node:os";
 import xterm from "@xterm/headless";
-import { TranscriptObservers, type ScreenSource } from "./live-transcript.js";
-import { terminalUnicode } from "./terminal-width.js";
+import { TranscriptObservers, type ScreenSource } from "./live-transcript.ts";
+import { terminalUnicode } from "./terminal-width.ts";
 
 const { Terminal } = xterm;
 

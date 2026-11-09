@@ -1,9 +1,9 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
-import { BACKGROUND_WIDGET_KEY, type PanelHost } from "../../../shared/src/background/index.js";
-import { JobsWidgetBinding } from "../../../shared/src/background/index.js";
-import { renderJobs, safeJobText, type PanelJob } from "../../../shared/src/background/index.js";
-import type { OutputTranscript } from "../../../shared/src/background/index.js";
+import { BACKGROUND_WIDGET_KEY, type PanelHost } from "../../../shared/src/background/index.ts";
+import { JobsWidgetBinding } from "../../../shared/src/background/index.ts";
+import { renderJobs, safeJobText, type PanelJob } from "../../../shared/src/background/index.ts";
+import type { OutputTranscript } from "../../../shared/src/background/index.ts";
 export const SHELL_WIDGET_KEY = BACKGROUND_WIDGET_KEY;
 export interface ShellWidgetRow {
   jobId: string; tool: string; status: string; command: string;

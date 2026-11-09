@@ -1,7 +1,7 @@
 import { CONFIG_DIR_NAME } from "@earendil-works/pi-coding-agent";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { ENGINES, ENGINE_LABEL, type DatabaseConfig, type Engine, type SqlConnectorConfig, SqlConnectorError } from "./types.js";
+import { ENGINES, ENGINE_LABEL, type DatabaseConfig, type Engine, type SqlConnectorConfig, SqlConnectorError } from "./types.ts";
 
 /** The documented per-engine fields; engine-specific ones are still validated below. */
 const ENGINE_KEYS = ["host", "port", "username", "password", "database", "ssl", "windowsAuth", "instanceName", "odbcDriver", "trustServerCertificate"];

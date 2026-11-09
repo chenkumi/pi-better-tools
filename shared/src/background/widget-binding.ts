@@ -1,6 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { acquireBackgroundPanel, type BackgroundPanel, type PanelHost } from "./background-panel.js";
-import { panelSignature, type PanelJob, type PanelKind } from "./job-view.js";
+import { acquireBackgroundPanel, type BackgroundPanel, type PanelHost } from "./background-panel.ts";
+import { panelSignature, type PanelJob, type PanelKind } from "./job-view.ts";
 
 /** Owner-bound presentation only. Each producer still owns its projection and job lifecycle. */
 export class JobsWidgetBinding<Row> {

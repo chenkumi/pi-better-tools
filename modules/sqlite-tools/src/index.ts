@@ -13,11 +13,11 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { JsonValue } from "@earendil-works/pi-ai";
 import { Type, type Static, type TSchema } from "typebox";
-import { ToolError } from "../../../shared/src/tool-error/index.js";
-import { SqliteStartupError } from "./node-runtime.js";
-import { SqliteClient } from "./sqlite-client.js";
-import { registerSqliteSettings } from "./settings.js";
-import { errorMessage, MAX_BLOB_BYTES, MAX_QUERY_BYTES, MAX_QUERY_ROWS, type SqlParams } from "./sqlite-manager.js";
+import { ToolError } from "../../../shared/src/tool-error/index.ts";
+import { SqliteStartupError } from "./node-runtime.ts";
+import { SqliteClient } from "./sqlite-client.ts";
+import { registerSqliteSettings } from "./settings.ts";
+import { errorMessage, MAX_BLOB_BYTES, MAX_QUERY_BYTES, MAX_QUERY_ROWS, type SqlParams } from "./sqlite-manager.ts";
 
 const MAX_OUTPUT_LINES_TEXT = DEFAULT_MAX_LINES.toLocaleString("en-US");
 const MAX_QUERY_ROWS_TEXT = MAX_QUERY_ROWS.toLocaleString("en-US");

@@ -1,9 +1,9 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
-import { ToolError } from '../../../shared/src/tool-error/index.js';
-import { jsonResult as output } from '../../../shared/src/tool-result/index.js';
-import { LIMITS } from './protocol.js';
-import type { RemoteRuntime } from './runtime.js';
+import { ToolError } from '../../../shared/src/tool-error/index.ts';
+import { jsonResult as output } from '../../../shared/src/tool-result/index.ts';
+import { LIMITS } from './protocol.ts';
+import type { RemoteRuntime } from './runtime.ts';
 
 const strict = { additionalProperties: false };
 export const remoteNamespace = {

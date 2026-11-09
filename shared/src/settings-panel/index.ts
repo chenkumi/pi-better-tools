@@ -1,8 +1,8 @@
-export { registerSettingsCommand, saveSettings } from './register.js';
-export type { SchemaSource } from './register.js';
-export { SettingsInputError } from './errors.js';
-export { SettingsPanel } from './panel.js';
-export type { PanelOptions, PanelStyle } from './panel.js';
-export { applyPatches, readRaw, removeFile, writeJsonAtomic } from './store.js';
-export type { RawState } from './store.js';
-export type { Field, Patch, SettingsSchema, Values } from './schema.js';
+export { registerSettingsCommand, saveSettings } from './register.ts';
+export type { SchemaSource } from './register.ts';
+export { SettingsInputError } from './errors.ts';
+export { SettingsPanel } from './panel.ts';
+export type { PanelOptions, PanelStyle } from './panel.ts';
+export { applyPatches, readRaw, removeFile, writeJsonAtomic } from './store.ts';
+export type { RawState } from './store.ts';
+export type { Field, Patch, SettingsSchema, Values } from './schema.ts';

@@ -1,6 +1,6 @@
 import { getAgentDir, type ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { loadConfig } from './config.ts';
-import { createForcedPromptAppender } from '../../../shared/src/prompt/index.js';
+import { createForcedPromptAppender } from '../../../shared/src/prompt/index.ts';
 
 export const AUTO_COMPACT_SECTION = 'context_compaction';
 

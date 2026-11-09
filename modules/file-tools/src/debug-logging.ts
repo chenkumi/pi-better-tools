@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { FileToolError, errnoCode } from "./errors.js";
+import { FileToolError, errnoCode } from "./errors.ts";
 
 export const FILE_TOOLS_PROJECT_NAME = "pi-file-tools";
 

@@ -11,7 +11,7 @@ import {
 	type AgentSession, type ExtensionContext, type ModelRuntime,
 } from "@earendil-works/pi-coding-agent";
 import type { AgentJob, ChildFactory, ChildResult, ChildSession } from "./agent-run.ts";
-import { LiveTranscript } from "../../../shared/src/background/index.js";
+import { LiveTranscript } from "../../../shared/src/background/index.ts";
 
 const OWN_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..").toLowerCase();
 const BASE_TOOLS = ["bash", "read", "edit", "write", "grep", "find", "ls"];

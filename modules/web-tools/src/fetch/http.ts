@@ -4,10 +4,10 @@ import { isIP } from 'node:net';
 import { Transform, Writable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createBrotliDecompress, createGunzip, createInflate } from 'node:zlib';
-import { awaitResponse } from './bounded.js';
-import { MAX_HTML_BYTES } from './extract.js';
-import { describeNetworkFailure, httpStatusAdvice } from './failure.js';
-import { NetworkPolicy } from './network.js';
+import { awaitResponse } from './bounded.ts';
+import { MAX_HTML_BYTES } from './extract.ts';
+import { describeNetworkFailure, httpStatusAdvice } from './failure.ts';
+import { NetworkPolicy } from './network.ts';
 
 /** Media types accepted as a page document, for the static fetch. */
 export const DOCUMENT_CONTENT_TYPES = ['text/html', 'application/xhtml+xml', 'text/plain'];

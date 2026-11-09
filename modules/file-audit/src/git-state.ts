@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { runGit } from "../../../shared/src/git/index.js";
-import { safeText } from "./presentation.js";
+import { runGit } from "../../../shared/src/git/index.ts";
+import { safeText } from "./presentation.ts";
 
 const TIMEOUT_MS = 2000;
 const MAX_STATUS_BYTES = 4 * 1024 * 1024;

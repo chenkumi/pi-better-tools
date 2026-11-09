@@ -1,6 +1,6 @@
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { matchesKey, truncateToWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui';
-import { isBottomPanelOpen, openBottomPanel, whenBottomPanelFree, type BottomBody, type PanelStyle } from './host.js';
+import { isBottomPanelOpen, openBottomPanel, whenBottomPanelFree, type BottomBody, type PanelStyle } from './host.ts';
 
 type DialogContext = Pick<ExtensionContext, 'mode' | 'hasUI'> & { ui: ExtensionContext['ui'] };
 export interface DialogOptions { signal?: AbortSignal }

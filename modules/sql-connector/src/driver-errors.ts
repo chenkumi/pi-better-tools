@@ -1,5 +1,5 @@
-import type { DatabaseConfig, Engine } from "./types.js";
-import { SqlConnectorError } from "./types.js";
+import type { DatabaseConfig, Engine } from "./types.ts";
+import { SqlConnectorError } from "./types.ts";
 
 /** Longest driver message surfaced to the agent after redaction. */
 const MAX_DRIVER_MESSAGE_CHARS = 300;

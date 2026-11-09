@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { CONFIG_DIR_NAME } from '@earendil-works/pi-coding-agent';
-import { normalizeName } from './protocol.js';
+import { normalizeName } from './protocol.ts';
 
 export type WakeMode = 'on' | 'off' | 'allowlist';
 export interface RemoteConfig {

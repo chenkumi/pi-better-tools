@@ -1,4 +1,4 @@
-import { FILE_INSPECT_TOOLS, SHELL_TOOLS, WEB_TOOLS } from '../../../shared/src/contracts/index.js';
+import { FILE_INSPECT_TOOLS, SHELL_TOOLS, WEB_TOOLS } from '../../../shared/src/contracts/index.ts';
 
 export const SHELL_RULES_SECTION = 'shell_rules';
 

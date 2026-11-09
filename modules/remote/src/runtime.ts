@@ -2,11 +2,11 @@ import { readFile } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import { basename, resolve } from 'node:path';
 import { ulid } from 'ulid';
-import type { RemoteClient, ClientState } from './client.js';
-import type { RemoteConfig } from './config.js';
-import type { CredentialStore } from './credentials.js';
-import type { RemoteHub, Inbound, SendFrame } from './hub.js';
-import { LIMITS, cleanText, normalizeName, type AckStatus, type GitInfo, type Kind, type PeerInfo, type RosterEntry } from './protocol.js';
+import type { RemoteClient, ClientState } from './client.ts';
+import type { RemoteConfig } from './config.ts';
+import type { CredentialStore } from './credentials.ts';
+import type { RemoteHub, Inbound, SendFrame } from './hub.ts';
+import { LIMITS, cleanText, normalizeName, type AckStatus, type GitInfo, type Kind, type PeerInfo, type RosterEntry } from './protocol.ts';
 
 export type RemoteState = 'starting' | 'listening' | 'connecting' | 'connected' | 'reconnecting' | 'auth_failed' | 'needs_code' | 'fault' | 'stopped';
 export interface RemoteStatus { role: 'server' | 'client'; state: RemoteState; name: string; address?: string; peers: number; secure: boolean; detail?: string }
@@ -64,7 +64,7 @@ export class RemoteRuntime {
     const code = await this.deps.credentials.serverCode();
     const tls = server.tls ? { cert: await readFile(resolve(this.deps.cwd, server.tls.cert)), key: await readFile(resolve(this.deps.cwd, server.tls.key)) } : undefined;
     // `ws` and the hub/client code load only for a configured role; a project without Remote never pays for them.
-    const { RemoteHub } = await import('./hub.js');
+    const { RemoteHub } = await import('./hub.ts');
     const hub = new RemoteHub({
       self: this.self, code, port: server.port, bind: server.bind, ...(tls ? { tls } : {}),
       onMessage: message => this.deps.onMessage(message),
@@ -85,7 +85,7 @@ export class RemoteRuntime {
     this.secure = client.tls;
     this.address = `${client.tls ? 'wss' : 'ws'}://${client.host}:${client.port}`;
     if (!code) { this.set('needs_code', 'No pairing code for this server yet. Enter the code shown on the server.'); return; }
-    const { RemoteClient } = await import('./client.js');
+    const { RemoteClient } = await import('./client.ts');
     this.client = new RemoteClient({
       host: client.host, port: client.port, tls: client.tls, code, self: this.self,
       onMessage: message => this.deps.onMessage(message),

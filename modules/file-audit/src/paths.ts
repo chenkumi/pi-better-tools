@@ -2,7 +2,7 @@ import { existsSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, relative, resolve, sep, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
-import { boundedString } from "./activity-window.js";
+import { boundedString } from "./activity-window.ts";
 
 export function inside(root: string, path: string): boolean {
   const rel = relative(root, path);

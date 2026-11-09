@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import { registerPromptSection } from '../../../shared/src/prompt/index.js';
+import { registerPromptSection } from '../../../shared/src/prompt/index.ts';
 
 /**
  * Rules that name no tool of a particular module. Rules about one module's tools are injected by that module

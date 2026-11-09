@@ -1,8 +1,8 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { ActivityWindow, boundedString, FILE_ACTIONS, MAX_ID_BYTES, MAX_PENDING, type FileAction } from "./activity-window.js";
-import { ChangeNotice } from "./change-notice.js";
-import { GitWatch } from "./git-state.js";
-import { asRecord, canonicalPath, notePath } from "./paths.js";
+import { ActivityWindow, boundedString, FILE_ACTIONS, MAX_ID_BYTES, MAX_PENDING, type FileAction } from "./activity-window.ts";
+import { ChangeNotice } from "./change-notice.ts";
+import { GitWatch } from "./git-state.ts";
+import { asRecord, canonicalPath, notePath } from "./paths.ts";
 
 /** Activity belongs to one session in one cwd; a change of either starts a new owner. */
 export const ownerOf = (ctx: Pick<ExtensionContext, "sessionManager" | "cwd">): string => `${ctx.sessionManager.getSessionId()}\0${ctx.cwd}`;

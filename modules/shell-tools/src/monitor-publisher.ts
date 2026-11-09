@@ -1,6 +1,6 @@
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { isActiveJobStatus, type ShellJobs } from './background-jobs.js';
-import { canonicalMonitorCwd, publishCapability } from '../../../shared/src/background/index.js';
+import { isActiveJobStatus, type ShellJobs } from './background-jobs.ts';
+import { canonicalMonitorCwd, publishCapability } from '../../../shared/src/background/index.ts';
 /** Composed into existing Shell lifecycle handlers: no extra execution/lifecycle dispatcher. */
 export function createShellMonitorPublisher(jobs: ShellJobs) {
   let revoke: (() => void) | undefined;

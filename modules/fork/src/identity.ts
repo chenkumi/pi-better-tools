@@ -2,7 +2,7 @@ import { consumeManagedChildGuard } from "../../../shared/src/background/index.t
 
 /** Persisted in every Fork conversation so a cold /resume still knows its origin. Not an OS boundary. */
 export const FORK_MARKER_TYPE = "pi-better-tools.fork-origin";
-import { FORK_TOOLS } from "../../../shared/src/contracts/index.js";
+import { FORK_TOOLS } from "../../../shared/src/contracts/index.ts";
 export { FORK_TOOLS };
 export const isForkTool = (name: string) => (FORK_TOOLS as readonly string[]).includes(name);
 /** Every Fork tool call inside a Fork child (execute and tool_call guard) fails with this. */

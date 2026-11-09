@@ -1,8 +1,8 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { decode, encode } from "./ipc-codec.mjs";
-import { resolveNodeExecutable, SqliteStartupError } from "./node-runtime.js";
-import type { ExecuteResult, QueryResult, SqlParams, SqliteManager, SqliteStatus } from "./sqlite-manager.js";
+import { resolveNodeExecutable, SqliteStartupError } from "./node-runtime.ts";
+import type { ExecuteResult, QueryResult, SqlParams, SqliteManager, SqliteStatus } from "./sqlite-manager.ts";
 
 type Reply = { ready: true } | { id: number; ok: true; value: unknown } | { id: number; ok: false; message: string };
 type Pending = { resolve: (value: unknown) => void; reject: (error: Error) => void };

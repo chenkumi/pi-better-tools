@@ -2,7 +2,7 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import type { Component } from "@earendil-works/pi-tui";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { formatTokens, sumUsage } from "./usage.js";
+import { formatTokens, sumUsage } from "./usage.ts";
 
 /** The speed label is published by GPT Speed through setStatus; the footer places it itself. */
 const SPEED_STATUS_KEY = "gpt-speed";

@@ -1,5 +1,5 @@
-import { MAX_READ_ROWS } from "./security/sql-policy.js";
-import type { SqlConnectorConfig } from "./types.js";
+import { MAX_READ_ROWS } from "./security/sql-policy.ts";
+import type { SqlConnectorConfig } from "./types.ts";
 
 export function buildSqlConnectorPrompt(config: SqlConnectorConfig): string | undefined {
   const sections: string[] = [];

@@ -3,7 +3,7 @@
  * overlay. Presentation only: nothing is written, parsed for state or sent to a model, and a copy is released the
  * moment its run ends, so it lives exactly as long as the run.
  */
-import type { TranscriptSource } from "../../../shared/src/background/index.js";
+import type { TranscriptSource } from "../../../shared/src/background/index.ts";
 
 export class LiveRuns {
 	readonly #copies = new Map<string, TranscriptSource>();

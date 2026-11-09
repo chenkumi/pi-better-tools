@@ -1,10 +1,10 @@
 import type { ExtensionAPI, ExtensionCommandContext } from '@earendil-works/pi-coding-agent';
-import { bottomConfirm } from '../bottom-panel/dialogs.js';
-import { isBottomPanelOpen, openBottomPanel } from '../bottom-panel/host.js';
-import { SettingsInputError } from './errors.js';
-import { SettingsPanel } from './panel.js';
-import type { SettingsSchema, Values } from './schema.js';
-import { applyPatches, readRaw, removeFile, writeJsonAtomic } from './store.js';
+import { bottomConfirm } from '../bottom-panel/dialogs.ts';
+import { isBottomPanelOpen, openBottomPanel } from '../bottom-panel/host.ts';
+import { SettingsInputError } from './errors.ts';
+import { SettingsPanel } from './panel.ts';
+import type { SettingsSchema, Values } from './schema.ts';
+import { applyPatches, readRaw, removeFile, writeJsonAtomic } from './store.ts';
 
 /** A schema, or a function that picks one per invocation. A returned string refuses with that message (for example untrusted project). */
 export type SchemaSource<C> = SettingsSchema<C> | ((ctx: ExtensionCommandContext) => SettingsSchema<C> | string | Promise<SettingsSchema<C> | string>);

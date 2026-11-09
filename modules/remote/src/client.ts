@@ -1,10 +1,10 @@
 import type { TLSSocket } from 'node:tls';
 import WebSocket from 'ws';
-import type { Inbound, SendFrame } from './hub.js';
+import type { Inbound, SendFrame } from './hub.ts';
 import {
   LIMITS, PROTOCOL_VERSION, REMOTE_PATH, authProof, frame, parseServerFrame, toInbound,
   type AckStatus, type PeerInfo, type RosterEntry, type ServerFrame,
-} from './protocol.js';
+} from './protocol.ts';
 
 export type ClientState = 'connecting' | 'connected' | 'reconnecting' | 'auth_failed' | 'stopped';
 export interface ClientOptions {

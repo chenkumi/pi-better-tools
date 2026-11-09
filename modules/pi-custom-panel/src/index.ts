@@ -1,8 +1,8 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { closeBottomPanel } from "../../../shared/src/bottom-panel/index.js";
-import { PanelEditor } from "./editor.js";
-import { footerComponent, type FooterModel } from "./footer.js";
-import { registerToolRenderer } from "./tool-render/renderer.js";
+import { closeBottomPanel } from "../../../shared/src/bottom-panel/index.ts";
+import { PanelEditor } from "./editor.ts";
+import { footerComponent, type FooterModel } from "./footer.ts";
+import { registerToolRenderer } from "./tool-render/renderer.ts";
 
 const record = (value: unknown): Record<string, unknown> => typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
 

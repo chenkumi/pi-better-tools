@@ -1,7 +1,7 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { AuditTracker, ownerOf } from "./events.js";
-import { validateLimits, type Limits } from "./activity-window.js";
-import { safeText, statusText } from "./presentation.js";
+import { AuditTracker, ownerOf } from "./events.ts";
+import { validateLimits, type Limits } from "./activity-window.ts";
+import { safeText, statusText } from "./presentation.ts";
 
 const USAGE = "/file-audit [status|clear|limits --window <1–30> --max-files <1–500>]";
 const MAX_ARGS_LENGTH = 1024;

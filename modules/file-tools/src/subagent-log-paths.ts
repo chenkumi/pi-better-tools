@@ -1,6 +1,6 @@
 import { lstat } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { FileToolError, errnoCode } from "./errors.js";
+import { FileToolError, errnoCode } from "./errors.ts";
 
 const id = "(?:[0-9A-HJKMNP-TV-Z]{26}|[0-9a-hjkmnp-tv-z]{26}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})";
 const managedRun = new RegExp(`(?:^|/)subagent-sessions/${id}/runs/${id}/transcript\\.jsonl\\.partial$`);

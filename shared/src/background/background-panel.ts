@@ -1,9 +1,9 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { MouseRegion, visibleWidth, type Component } from "@earendil-works/pi-tui";
-import { openBottomPanel } from "../bottom-panel/host.js";
-import { JobsOverlay, MORE_HOVER, OPEN_LABEL, PANEL_HEAD_ROWS, PANEL_KINDS, PANEL_TAIL_ROWS, displayedJobs, jobKey, renderJobs, safeJobText, type PanelJob, type PanelKind } from "./job-view.js";
+import { openBottomPanel } from "../bottom-panel/host.ts";
+import { JobsOverlay, MORE_HOVER, OPEN_LABEL, PANEL_HEAD_ROWS, PANEL_KINDS, PANEL_TAIL_ROWS, displayedJobs, jobKey, renderJobs, safeJobText, type PanelJob, type PanelKind } from "./job-view.ts";
 
-export { type PanelKind } from "./job-view.js";
+export { type PanelKind } from "./job-view.ts";
 export const BACKGROUND_WIDGET_KEY = "pi-better-tools-background-jobs";
 export const BACKGROUND_STATUS_KEY = "pi-better-tools-background-jobs";
 const RENDEZVOUS = "pi-better-tools:background-panel:v2";

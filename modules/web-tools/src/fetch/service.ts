@@ -1,8 +1,8 @@
 import { performance } from 'node:perf_hooks';
-import { abortReason } from './bounded.js';
-import { fetchStatic } from './http.js';
-import { extractHtmlIsolated, prewarmExtractionWorker, shutdownExtractionWorkers, type ContentFormat, type ExtractionMode } from './extract.js';
-import { NetworkPolicy, parseWebUrl } from './network.js';
+import { abortReason } from './bounded.ts';
+import { fetchStatic } from './http.ts';
+import { extractHtmlIsolated, prewarmExtractionWorker, shutdownExtractionWorkers, type ContentFormat, type ExtractionMode } from './extract.ts';
+import { NetworkPolicy, parseWebUrl } from './network.ts';
 
 export type FetchOptions = {
   timeoutMs: number;

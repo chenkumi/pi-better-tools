@@ -1,7 +1,7 @@
 import { ulid } from 'ulid';
-import type { Start } from './schema.js';
-import { preview } from './lines.js';
-import { FILE_INTERVAL, SYSTEM_INTERVAL, plainText } from './schema.js';
+import type { Start } from './schema.ts';
+import { preview } from './lines.ts';
+import { FILE_INTERVAL, SYSTEM_INTERVAL, plainText } from './schema.ts';
 export const LIMITS = Object.freeze({ active: 4, retained: 32, rollingEvents: 60, rollingMs: 60000, totalEvents: 600, eventBytes: 16384, pendingEvents: 128, pendingBytes: 262144, ownerPendingBytes: 524288, stderrBytes: 8192, previewBytes: 2048, batchEvents: 32, batchBytes: 32768, progressMs: 30000 });
 /** `now` is wall-clock (display/records, may step); optional `mono` is monotonic (throttle/elapsed), falling back to `now`. */
 export interface Clock { now(): number; mono?(): number; set(fn: () => void, ms: number): unknown; clear(handle: unknown): void }

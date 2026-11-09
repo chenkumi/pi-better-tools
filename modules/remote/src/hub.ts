@@ -6,7 +6,7 @@ import WebSocket, { WebSocketServer } from 'ws';
 import {
   LIMITS, PROTOCOL_VERSION, REMOTE_PATH, authProof, cleanBody, frame, normalizeName, parseClientFrame, proofMatches, toInbound,
   type AckStatus, type ClientFrame, type Inbound, type PeerInfo, type RosterEntry, type ServerFrame,
-} from './protocol.js';
+} from './protocol.ts';
 
 export type { Inbound };
 export type SendFrame = Extract<ClientFrame, { t: 'send' }>;

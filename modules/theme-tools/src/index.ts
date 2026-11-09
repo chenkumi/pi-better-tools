@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionCommandContext } from '@earendil-works/pi-coding-agent';
-import { bottomSelect } from '../../../shared/src/bottom-panel/index.js';
+import { bottomSelect } from '../../../shared/src/bottom-panel/index.ts';
 
 /**
  * `/theme:<id>` switches the Pi theme. The shipped themes live in ../themes/ and are declared as package theme resources

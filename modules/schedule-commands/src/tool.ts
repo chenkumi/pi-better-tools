@@ -5,8 +5,8 @@
 import { Type } from "typebox";
 import type { ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import type { ScheduledMonitorStarter } from "../../../shared/src/background/index.js";
-import { bottomConfirm } from "../../../shared/src/bottom-panel/index.js";
+import type { ScheduledMonitorStarter } from "../../../shared/src/background/index.ts";
+import { bottomConfirm } from "../../../shared/src/bottom-panel/index.ts";
 import type { Clock } from "./clock.ts";
 import { CommandApprovals, resolveCwd } from "./cwd.ts";
 import type { ScheduleEngine } from "./engine.ts";

@@ -9,23 +9,23 @@ import {
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { ToolError } from "../../../shared/src/tool-error/index.js";
+import { ToolError } from "../../../shared/src/tool-error/index.ts";
 import { Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { stripVTControlCharacters } from "node:util";
 
-import { ShellJobs, compactJob, isActiveJobStatus, timeoutMessage } from "../src/background-jobs.js";
-import { registerBackgroundLifecycleGuidance } from "../src/background-guidance.js";
-import { SHELL_RULES_SECTION, renderShellRules } from "../src/prompt-rules.js";
-import { registerPromptSection } from "../../../shared/src/prompt/index.js";
-import { registerApiInterruptionRenderer } from "../src/api-interruption-renderer.js";
-import { isManagedForegroundChild } from "../../../shared/src/background/index.js";
-import { AUTO_MONITOR_INTERVAL_MS, canonicalMonitorCwd, requestAutoMonitor } from "../../../shared/src/background/index.js";
-import { createForegroundHandoff, resolveAutoBackgroundMs } from "../src/foreground-handoff.js";
-import { DETACH_HINT, ensureDetachShortcut, forgetToolRow, isForegroundDetachable, rememberToolRow, trackForeground } from "../src/manual-detach.js";
-import { addDetachHint } from "../src/detach-hint.js";
-import { createShellMonitorPublisher } from "../src/monitor-publisher.js";
-import { renderShellCompletion, renderShellJobResult } from "../src/completion-renderer.js";
-import { renderShellOutput } from "../src/output-renderer.js";
+import { ShellJobs, compactJob, isActiveJobStatus, timeoutMessage } from "../src/background-jobs.ts";
+import { registerBackgroundLifecycleGuidance } from "../src/background-guidance.ts";
+import { SHELL_RULES_SECTION, renderShellRules } from "../src/prompt-rules.ts";
+import { registerPromptSection } from "../../../shared/src/prompt/index.ts";
+import { registerApiInterruptionRenderer } from "../src/api-interruption-renderer.ts";
+import { isManagedForegroundChild } from "../../../shared/src/background/index.ts";
+import { AUTO_MONITOR_INTERVAL_MS, canonicalMonitorCwd, requestAutoMonitor } from "../../../shared/src/background/index.ts";
+import { createForegroundHandoff, resolveAutoBackgroundMs } from "../src/foreground-handoff.ts";
+import { DETACH_HINT, ensureDetachShortcut, forgetToolRow, isForegroundDetachable, rememberToolRow, trackForeground } from "../src/manual-detach.ts";
+import { addDetachHint } from "../src/detach-hint.ts";
+import { createShellMonitorPublisher } from "../src/monitor-publisher.ts";
+import { renderShellCompletion, renderShellJobResult } from "../src/completion-renderer.ts";
+import { renderShellOutput } from "../src/output-renderer.ts";
 import { writeFailureDebugLog, type FailureDetails } from "../src/debug-log.mjs";
 import {
   MAX_TIMEOUT_MS,

@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import { SettingsInputError, registerSettingsCommand } from '../../../shared/src/settings-panel/index.js';
-import type { Field, Patch, SettingsSchema, Values } from '../../../shared/src/settings-panel/index.js';
+import { SettingsInputError, registerSettingsCommand } from '../../../shared/src/settings-panel/index.ts';
+import type { Field, Patch, SettingsSchema, Values } from '../../../shared/src/settings-panel/index.ts';
 import { CONFIG_PATH, MAX_CONCURRENCY_RANGE, NUM_RESULTS_RANGE, PROVIDERS, PROVIDER_LABELS, REST_PROVIDERS, TIMEOUT_MS_RANGE, parseConfig, type Config, type Provider, type RestProvider } from './config.ts';
 
 type CredentialName = RestProvider;

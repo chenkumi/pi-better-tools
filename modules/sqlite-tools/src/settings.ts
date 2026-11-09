@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { CONFIG_DIR_NAME, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { SettingsInputError, registerSettingsCommand } from "../../../shared/src/settings-panel/index.js";
-import type { Patch, SettingsSchema, Values } from "../../../shared/src/settings-panel/index.js";
+import { SettingsInputError, registerSettingsCommand } from "../../../shared/src/settings-panel/index.ts";
+import type { Patch, SettingsSchema, Values } from "../../../shared/src/settings-panel/index.ts";
 
 interface SqliteConfig { databasePath: string }
 

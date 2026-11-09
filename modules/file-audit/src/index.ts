@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { AuditTracker, ownerOf } from "./events.js";
-import { AuditCommands } from "./commands.js";
-import { changeMessage } from "./change-notice.js";
+import { AuditTracker, ownerOf } from "./events.ts";
+import { AuditCommands } from "./commands.ts";
+import { changeMessage } from "./change-notice.ts";
 
 export { ownerOf };
 export default function fileAudit(pi: ExtensionAPI): void {

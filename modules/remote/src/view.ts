@@ -1,5 +1,5 @@
-import type { RosterEntry } from './protocol.js';
-import type { RemoteStatus } from './runtime.js';
+import type { RosterEntry } from './protocol.ts';
+import type { RemoteStatus } from './runtime.ts';
 
 /** The system prompt may only carry values from these sets: peer-controlled text never reaches it verbatim. */
 const PLATFORMS: Record<string, string> = { win32: 'windows', darwin: 'macos', linux: 'linux', freebsd: 'freebsd', openbsd: 'openbsd', android: 'android', aix: 'aix', sunos: 'sunos' };

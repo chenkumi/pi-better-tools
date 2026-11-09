@@ -4,7 +4,7 @@
  * so the orchestration (start, time limit, cancellation, outcome, cleanup) is testable without a model.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { LiveTranscript } from "../../../shared/src/background/index.js";
+import type { LiveTranscript } from "../../../shared/src/background/index.ts";
 import type { Clock } from "./clock.ts";
 import type { RunHandle, RunInfo, RunOutcome } from "./engine.ts";
 import type { LiveRuns } from "./live-runs.ts";

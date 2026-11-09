@@ -1,7 +1,7 @@
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import type { ClientOptions } from 'ws';
-import { isPublicAddress } from '../../web-tools/src/fetch/network.js';
+import { isPublicAddress } from '../../web-tools/src/fetch/network.ts';
 export interface Endpoint { url: URL; hostname: string; addresses: readonly { address: string; family: number }[] }
 export interface NetworkSource { url: string; allowPrivateNetwork?: boolean; allowInsecure?: boolean }
 const FORM = 'use ws:// or wss://host[:port]/path without userinfo';

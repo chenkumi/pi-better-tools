@@ -1,4 +1,4 @@
-import { runGit } from '../../../../shared/src/git/index.js';
+import { runGit } from '../../../../shared/src/git/index.ts';
 
 const MAX_FILES = 20;
 const CONTROL = /[\x00-\x1f\x7f-\x9f‪-‮⁦-⁩]/g;

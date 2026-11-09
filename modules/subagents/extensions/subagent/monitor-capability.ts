@@ -1,7 +1,7 @@
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent';
 import type { BackgroundJobs } from './background.ts';
 import { resultSummary } from './result.ts';
-import { canonicalMonitorCwd, publishCapability } from '../../../../shared/src/background/index.js';
+import { canonicalMonitorCwd, publishCapability } from '../../../../shared/src/background/index.ts';
 function record(v: unknown): Record<string, unknown> { return v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : {}; }
 function bounded(value: unknown, bytes = 200) { if (typeof value !== 'string') return undefined; const raw = Buffer.from(value.slice(0, bytes)); let end = Math.min(raw.length, bytes); while (end > 0 && (raw[end]! & 0xc0) === 0x80) end--; return raw.subarray(0, end).toString('utf8'); }
 function cleanup(value: unknown) { const v = record(value), out: Record<string, unknown> = {}; for (const key of ['childClosed', 'ioSettled', 'temporaryRemoved', 'originalLeaseReleased']) if (typeof v[key] === 'boolean') out[key] = v[key]; return out; }

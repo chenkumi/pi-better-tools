@@ -1,7 +1,7 @@
-import type { PanelHost } from '../../../shared/src/background/index.js';
-import { safeJobText, type PanelJob } from '../../../shared/src/background/index.js';
-import { JobsWidgetBinding } from '../../../shared/src/background/index.js';
-import type { Clock, MonitorPanelRow } from './core.js';
+import type { PanelHost } from '../../../shared/src/background/index.ts';
+import { safeJobText, type PanelJob } from '../../../shared/src/background/index.ts';
+import { JobsWidgetBinding } from '../../../shared/src/background/index.ts';
+import type { Clock, MonitorPanelRow } from './core.ts';
 
 /** The remaining-time column only changes by the minute; twice a minute keeps it within 30 s of the truth. */
 export const PANEL_REFRESH_MS = 30_000;

@@ -3,11 +3,11 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 import os from 'node:os';
 import type WebSocket from 'ws';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { execMonitorCommand } from '../../shell-tools/src/monitor-exec.js';
-import type { ReadonlyJobLease } from '../../../shared/src/background/index.js';
-import { LineParser, preview } from './lines.js';
-import { prepareEndpoint, pinnedOptions, type Endpoint, type NetworkSource } from './network.js';
-import { LIMITS, realClock, type Clock, type Launch, type SourceSink } from './core.js';
+import { execMonitorCommand } from '../../shell-tools/src/monitor-exec.ts';
+import type { ReadonlyJobLease } from '../../../shared/src/background/index.ts';
+import { LineParser, preview } from './lines.ts';
+import { prepareEndpoint, pinnedOptions, type Endpoint, type NetworkSource } from './network.ts';
+import { LIMITS, realClock, type Clock, type Launch, type SourceSink } from './core.ts';
 /** Bounded settle for commands whose shell exits while a descendant keeps the pipes open (same values as Schedule Prompt).
  * exitIdleMs: shell exited and stdout/stderr stayed silent this long => report source closed (descendants may still run).
  * abortGraceMs: an abort before any output waits at most this long before the host kills the tree. */

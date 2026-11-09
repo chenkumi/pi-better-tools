@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { VERSION, getShellConfig, getPowerShellConfig, SettingsManager, type ExtensionAPI, type ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { isManagedForegroundChild } from '../../../shared/src/background/index.js';
+import { isManagedForegroundChild } from '../../../shared/src/background/index.ts';
 export function requireMonitorArgvConfig(config: { shell: string; args: string[]; commandTransport?: string }) {
   if (config.commandTransport === 'stdin') throw new Error('Monitor does not support legacy stdin command transport; configure a local argv-capable shell explicitly');
 }

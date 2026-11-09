@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer";
 import { performance } from "node:perf_hooks";
 import { Worker, type WorkerOptions } from "node:worker_threads";
-import { FileToolError, type FileToolErrorCode } from "./errors.js";
+import { FileToolError, type FileToolErrorCode } from "./errors.ts";
 
 /** Base compute budget and the separate worker startup/module-load deadline. */
 export const DIFF_TIMEOUT_MS = 2_000;

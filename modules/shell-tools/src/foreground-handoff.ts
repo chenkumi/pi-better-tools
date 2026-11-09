@@ -1,5 +1,5 @@
 import type { BashOperations } from "@earendil-works/pi-coding-agent";
-import { MAX_LOG_BYTES, appendTail } from "./background-jobs.js";
+import { MAX_LOG_BYTES, appendTail } from "./background-jobs.ts";
 
 /** Safety net: a foreground command without timeoutMs moves to a background job after this long. */
 export const DEFAULT_AUTO_BACKGROUND_MS = 300_000;

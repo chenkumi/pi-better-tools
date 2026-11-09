@@ -1,6 +1,6 @@
 import type { Component } from '@earendil-works/pi-tui';
 import { decodeKittyPrintable, matchesKey, truncateToWidth } from '@earendil-works/pi-tui';
-import type { Field, Values } from './schema.js';
+import type { Field, Values } from './schema.ts';
 
 const PASTE_START = '\x1b[200~';
 const PASTE_END = '\x1b[201~';

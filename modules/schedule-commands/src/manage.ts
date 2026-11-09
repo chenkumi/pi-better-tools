@@ -5,8 +5,8 @@
  */
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { matchesKey, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { bottomConfirm, bottomInput, isBottomPanelOpen, openBottomPanel } from "../../../shared/src/bottom-panel/index.js";
-import type { BottomBody, PanelStyle } from "../../../shared/src/bottom-panel/index.js";
+import { bottomConfirm, bottomInput, isBottomPanelOpen, openBottomPanel } from "../../../shared/src/bottom-panel/index.ts";
+import type { BottomBody, PanelStyle } from "../../../shared/src/bottom-panel/index.ts";
 import { schedulePanelJob, type ScheduleRow } from "./panel.ts";
 import { SCHEDULE_HELP } from "./shorthand.ts";
 import { createMonitorTool, createPromptTool, createShellTool, type ToolDeps } from "./tool.ts";

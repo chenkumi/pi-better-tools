@@ -1,6 +1,6 @@
 import { getAgentDir, type ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import { registerSettingsCommand } from '../../../shared/src/settings-panel/index.js';
-import type { Field, Patch, SettingsSchema, Values } from '../../../shared/src/settings-panel/index.js';
+import { registerSettingsCommand } from '../../../shared/src/settings-panel/index.ts';
+import type { Field, Patch, SettingsSchema, Values } from '../../../shared/src/settings-panel/index.ts';
 import { budgetsFor } from './compact/layout.ts';
 import { configPath, DEFAULT_CONFIG, loadConfig, parseConfig, type AutoCompactConfig } from './config.ts';
 

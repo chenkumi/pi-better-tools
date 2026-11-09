@@ -5,8 +5,8 @@
  */
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { registerSettingsCommand, SettingsInputError } from "../../../shared/src/settings-panel/index.js";
-import type { Field, SettingsSchema, Values } from "../../../shared/src/settings-panel/index.js";
+import { registerSettingsCommand, SettingsInputError } from "../../../shared/src/settings-panel/index.ts";
+import type { Field, SettingsSchema, Values } from "../../../shared/src/settings-panel/index.ts";
 import { DEFAULT_SETTINGS, parseSettingsObject, SettingsError, USER_SETTINGS_NAME, type ScheduleSettings } from "./settings.ts";
 import { isProjectTrusted } from "./trust.ts";
 

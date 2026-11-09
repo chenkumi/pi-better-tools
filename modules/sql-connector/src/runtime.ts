@@ -2,9 +2,9 @@ import type mssql from "mssql";
 import { createRequire } from "node:module";
 import type mysql from "mysql2/promise";
 import type { Pool as PgPool, PoolClient, QueryConfig } from "pg";
-import { classifyDriverError } from "./driver-errors.js";
-import type { DatabaseConfig, Engine, QueryExecution, SqlConnectorConfig, SqlScalar, StateExecution, UpdateExecution } from "./types.js";
-import { SqlConnectorError } from "./types.js";
+import { classifyDriverError } from "./driver-errors.ts";
+import type { DatabaseConfig, Engine, QueryExecution, SqlConnectorConfig, SqlScalar, StateExecution, UpdateExecution } from "./types.ts";
+import { SqlConnectorError } from "./types.ts";
 
 const QUERY_TIMEOUT_MS = 30_000;
 /** Pool sizing and connection timing shared by every engine's driver pool. */

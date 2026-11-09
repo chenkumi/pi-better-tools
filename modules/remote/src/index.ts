@@ -1,15 +1,15 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { ulid } from 'ulid';
-import { createForcedPromptAppender } from '../../../shared/src/prompt/index.js';
-import { isManagedForegroundChild } from '../../../shared/src/background/index.js';
-import { loadRemoteConfig, remoteConfigPath, type RemoteConfig } from './config.js';
-import { CredentialStore } from './credentials.js';
-import type { Inbound } from './hub.js';
-import { randomName } from './protocol.js';
-import { RemoteRuntime, type RemoteState } from './runtime.js';
-import { registerRemoteSettings } from './settings.js';
-import { registerRemoteTools } from './tools.js';
-import { REMOTE_SECTION, describeRemote, rosterSection, statusLine } from './view.js';
+import { createForcedPromptAppender } from '../../../shared/src/prompt/index.ts';
+import { isManagedForegroundChild } from '../../../shared/src/background/index.ts';
+import { loadRemoteConfig, remoteConfigPath, type RemoteConfig } from './config.ts';
+import { CredentialStore } from './credentials.ts';
+import type { Inbound } from './hub.ts';
+import { randomName } from './protocol.ts';
+import { RemoteRuntime, type RemoteState } from './runtime.ts';
+import { registerRemoteSettings } from './settings.ts';
+import { registerRemoteTools } from './tools.ts';
+import { REMOTE_SECTION, describeRemote, rosterSection, statusLine } from './view.ts';
 
 /** A peer may wake the agent at most this often; further messages are still delivered, without starting a turn. */
 const WAKE_BURST = 3, WAKE_WINDOW_MS = 60000;

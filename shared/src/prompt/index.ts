@@ -1,2 +1,2 @@
-export { createForcedPromptAppender } from './forced-prompt.js';
-export { registerPromptSection } from './section.js';
+export { createForcedPromptAppender } from './forced-prompt.ts';
+export { registerPromptSection } from './section.ts';

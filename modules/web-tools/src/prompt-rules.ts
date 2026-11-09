@@ -1,4 +1,4 @@
-import { SHELL_TOOLS, WEB_TOOLS } from '../../../shared/src/contracts/index.js';
+import { SHELL_TOOLS, WEB_TOOLS } from '../../../shared/src/contracts/index.ts';
 
 export const WEB_RULES_SECTION = 'web_rules';
 

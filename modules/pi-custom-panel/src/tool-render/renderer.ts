@@ -2,7 +2,7 @@
 // Click-to-expand and Ctrl+O are the host's own (every returned component is already wrapped in a click region).
 import type { ExtensionAPI, ToolRendererResolver, ToolRenderers } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { callTitle, formatDuration, resultView } from "./summary.js";
+import { callTitle, formatDuration, resultView } from "./summary.ts";
 
 /** Tools whose own renderer shows something richer than text output (live conversations); they keep their content, in the common frame. */
 export const OWN_RENDERER_TOOLS: ReadonlySet<string> = new Set(["subagent", "subagent_message", "fork"]);

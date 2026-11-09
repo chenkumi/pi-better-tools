@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import { createForcedPromptAppender } from '../../../shared/src/prompt/index.js';
+import { createForcedPromptAppender } from '../../../shared/src/prompt/index.ts';
 
 /**
  * Shared handling for this package's deferred tools. A module only declares `exposure: "deferred"` and a `namespace`

@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
-import type { Patch } from './schema.js';
+import type { Patch } from './schema.ts';
 
 export type RawState =
   | { state: 'missing'; raw: Record<string, unknown> }

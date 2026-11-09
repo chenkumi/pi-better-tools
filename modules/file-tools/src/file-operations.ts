@@ -4,8 +4,8 @@ import { constants as fsConstants } from "node:fs";
 import { access, link, lstat, mkdir, open, readFile, rename, rmdir, stat, unlink, type FileHandle } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { Worker } from "node:worker_threads";
-import { createDiffFeedback } from "./diff-runner.js";
-import { FileToolError, abortIfRequested, classifyFsError, errnoCode } from "./errors.js";
+import { createDiffFeedback } from "./diff-runner.ts";
+import { FileToolError, abortIfRequested, classifyFsError, errnoCode } from "./errors.ts";
 
 export const MAX_OUTPUT_LINES = 2000;
 export const MAX_OUTPUT_BYTES = 50 * 1024;

@@ -1,8 +1,8 @@
 import { ulid } from "ulid";
-import { panelUsage, safeJobText, usageDetails, type PanelJob, type PanelUsage } from "../../../../shared/src/background/index.js";
-import { LiveTranscript } from "../../../../shared/src/background/index.js";
+import { panelUsage, safeJobText, usageDetails, type PanelJob, type PanelUsage } from "../../../../shared/src/background/index.ts";
+import { LiveTranscript } from "../../../../shared/src/background/index.ts";
 export interface TaskPresentation { activity: string; usage?: PanelUsage; usageReported: boolean }
-import type { RecoverySnapshot, RecoveryWriter } from "../../../shell-tools/src/recovery.js";
+import type { RecoverySnapshot, RecoveryWriter } from "../../../shell-tools/src/recovery.ts";
 import { copyResultSummary, resultSummary } from "./result.ts";
 import { errorToString, isRecord as isPlainRecord } from "./values.ts";
 import { MAX_CONCURRENCY } from "./concurrency.ts";

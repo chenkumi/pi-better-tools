@@ -4,7 +4,7 @@
  * agent; output only reaches the display marker. `timeoutMs` is an output-stall limit, not a total time limit.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { OutputTranscript } from "../../../shared/src/background/index.js";
+import { OutputTranscript } from "../../../shared/src/background/index.ts";
 import type { Clock } from "./clock.ts";
 import { CommandApprovals, resolveCwd } from "./cwd.ts";
 import type { RunHandle, RunInfo, RunOutcome } from "./engine.ts";

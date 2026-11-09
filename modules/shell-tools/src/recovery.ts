@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { SHELL_JOB_TOOLS, SHELL_TOOLS, SUBAGENT_TOOLS } from "../../../shared/src/contracts/index.js";
+import { SHELL_JOB_TOOLS, SHELL_TOOLS, SUBAGENT_TOOLS } from "../../../shared/src/contracts/index.ts";
 import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";

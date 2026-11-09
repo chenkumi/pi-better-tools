@@ -1,7 +1,7 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Container, Spacer, Text } from "@earendil-works/pi-tui";
 import type { Component } from "@earendil-works/pi-tui";
-import { DETACH_HINT, forgetToolRow, isForegroundDetachable, rememberToolRow } from "./manual-detach.js";
+import { DETACH_HINT, forgetToolRow, isForegroundDetachable, rememberToolRow } from "./manual-detach.ts";
 
 export interface DetachHintOptions {
   toolCallId: string;

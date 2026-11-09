@@ -2,9 +2,9 @@ import { createHash } from "node:crypto";
 import { createReadStream, statSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import { relative } from "node:path";
-import { credentialPath } from "./paths.js";
-import { gitNotice, type GitChange } from "./git-state.js";
-import { safeText } from "./presentation.js";
+import { credentialPath } from "./paths.ts";
+import { gitNotice, type GitChange } from "./git-state.ts";
+import { safeText } from "./presentation.ts";
 
 export const CHANGE_MESSAGE_TYPE = "file-audit-changes";
 const MAX_HASH_BYTES = 8 * 1024 * 1024;

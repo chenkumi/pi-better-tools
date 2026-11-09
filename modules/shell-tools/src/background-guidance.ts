@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import { isManagedForegroundChild } from '../../../shared/src/background/index.js';
-import { createForcedPromptAppender } from '../../../shared/src/prompt/index.js';
-import { SHELL_JOB_TOOLS, SHELL_TOOLS, SUBAGENT_TOOLS } from '../../../shared/src/contracts/index.js';
+import { isManagedForegroundChild } from '../../../shared/src/background/index.ts';
+import { createForcedPromptAppender } from '../../../shared/src/prompt/index.ts';
+import { SHELL_JOB_TOOLS, SHELL_TOOLS, SUBAGENT_TOOLS } from '../../../shared/src/contracts/index.ts';
 
 export const BACKGROUND_LIFECYCLE_SECTION = 'background_jobs';
 const BACKGROUND_TOOLS = new Set<string>([...SHELL_TOOLS, ...SHELL_JOB_TOOLS, ...SUBAGENT_TOOLS]);

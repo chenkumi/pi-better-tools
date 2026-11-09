@@ -3,8 +3,8 @@
  * no prompt or command text on the passive row, and nothing here starts, stops or changes a job.
  */
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { canonicalMonitorCwd, JobsWidgetBinding, publishJobBriefs, safeJobText } from "../../../shared/src/background/index.js";
-import type { PanelHost, PanelJob, TranscriptSource } from "../../../shared/src/background/index.js";
+import { canonicalMonitorCwd, JobsWidgetBinding, publishJobBriefs, safeJobText } from "../../../shared/src/background/index.ts";
+import type { PanelHost, PanelJob, TranscriptSource } from "../../../shared/src/background/index.ts";
 import type { Clock } from "./clock.ts";
 import { defaultShell } from "./guard.ts";
 import { describeSchedule } from "./shorthand.ts";

@@ -1,12 +1,12 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { JsonValue } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
-import { bottomConfirm } from "../../../shared/src/bottom-panel/index.js";
-import { describeUnexpectedError } from "./driver-errors.js";
-import { formatRows, MAX_BYTES, MAX_STRING_CHARS } from "./output.js";
-import { assertReadOnlySql, assertUpdateSql, MAX_READ_ROWS } from "./security/sql-policy.js";
-import { SqlConnectorRuntime } from "./runtime.js";
-import { ENGINE_LABEL, SqlConnectorError, type Engine, type SqlScalar } from "./types.js";
+import { bottomConfirm } from "../../../shared/src/bottom-panel/index.ts";
+import { describeUnexpectedError } from "./driver-errors.ts";
+import { formatRows, MAX_BYTES, MAX_STRING_CHARS } from "./output.ts";
+import { assertReadOnlySql, assertUpdateSql, MAX_READ_ROWS } from "./security/sql-policy.ts";
+import { SqlConnectorRuntime } from "./runtime.ts";
+import { ENGINE_LABEL, SqlConnectorError, type Engine, type SqlScalar } from "./types.ts";
 
 const scalarSchema = Type.Union([Type.Null(), Type.Boolean(), Type.Number(), Type.String()]);
 const positionalParamsSchema = () => Type.Optional(Type.Array(scalarSchema));
