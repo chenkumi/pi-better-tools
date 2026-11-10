@@ -2,7 +2,7 @@ import { DEFAULT_CONFIG } from '../config.ts';
 import { type EntryRef, formatRef } from '../fold/ref.ts';
 import { foldToolUse, foldUnpairedCall, foldUnpairedResult } from '../fold/registry.ts';
 import { asRecord, clip, num, oneLine, records, redact, str } from '../fold/util.ts';
-import { checkpointMark, checkpointPath, checkpointTitle, isCheckpointNoteCall } from '../checkpoint/note-mark.ts';
+import { checkpointBody, checkpointMark, checkpointTitle, isCheckpointCall } from '../checkpoint/mark.ts';
 import type { Item } from './items.ts';
 
 /**
@@ -62,17 +62,16 @@ export function noteText(text: string): string {
   return text;
 }
 
-/** Checkpoint notes saved in this turn: the one tool call that stays in the conversation-only layers, as a segment marker with the path to read. */
+/** Checkpoints saved in this turn: the one tool call that stays in the conversation-only layers, as a titled segment marker (the entry reference reads the full text). */
 function checkpointMarks(item: Item): string[] {
   const marks: string[] = [];
   for (const { call, result } of item.calls) {
-    const path = isCheckpointNoteCall(call.name, call.args) && result && !result.isError ? checkpointPath(result.details) : undefined;
-    if (path) marks.push(`${refText(result?.ref)}${checkpointMark(path, checkpointTitle(call.args))}`);
+    if (isCheckpointCall(call.name) && result && !result.isError && checkpointBody(call.args).trim()) marks.push(`${refText(item.ref)}${checkpointMark(checkpointTitle(call.args))}`);
   }
   return marks;
 }
 
-/** Conversation only: what was said, plus checkpoint notes, no other tool calls. Undefined when the item has nothing to say (a tool-call-only turn). */
+/** Conversation only: what was said, plus checkpoints, no other tool calls. Undefined when the item has nothing to say (a tool-call-only turn). */
 export function renderL3(item: Item, userMax = DEFAULT_USER_MAX_L3): string | undefined {
   switch (item.kind) {
     case 'user': return item.text.trim() ? `${refText(item.ref)}U: ${userSay(item.text, userMax)}` : undefined;
@@ -98,7 +97,10 @@ export function renderL2(item: Item, userMax = DEFAULT_USER_MAX_L2): string[] {
       const head = item.text.trim() ? say(item.text, L2_TEXT_MAX) : calls ? `→ ${calls} tool call${calls === 1 ? '' : 's'}` : '';
       if (!head && !calls) return [];
       const lines = [`${refText(item.ref)}A: ${head}`.trimEnd()];
-      for (const pair of item.calls.slice(0, MAX_CALLS_PER_ITEM)) lines.push(`  ${pair.result ? foldToolUse(pair.call, pair.result) : foldUnpairedCall(pair.call, item.ref)}`);
+      for (const pair of item.calls.slice(0, MAX_CALLS_PER_ITEM)) {
+        if (isCheckpointCall(pair.call.name) && pair.result && !pair.result.isError && checkpointBody(pair.call.args).trim()) lines.push(`  ${checkpointMark(checkpointTitle(pair.call.args))}`);
+        else lines.push(`  ${pair.result ? foldToolUse(pair.call, pair.result) : foldUnpairedCall(pair.call, item.ref)}`);
+      }
       if (calls > MAX_CALLS_PER_ITEM) lines.push(`  … +${calls - MAX_CALLS_PER_ITEM} more tool calls`);
       return lines;
     }

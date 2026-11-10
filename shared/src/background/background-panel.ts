@@ -178,7 +178,10 @@ export class BackgroundPanel {
     try {
       // The panel sits above the editor (bottom panel) and holds the keyboard until it closes; the collapsed list stays visible.
       const shown = await openBottomPanel<void>(ctx.ui, {
-        key: "pi-better-tools-jobs-panel", title: "Jobs Panel",
+        key: "pi-better-tools-jobs-panel",
+        hideEditor: true, // the panel holds the keyboard, so a visible editor would only look typeable
+        // The collapsed list above already carries the "Jobs Panel" title; this panel then starts with a plain rule so the title is not drawn twice.
+        title: () => (!this.collapsed && this.jobs().some(job => job.active) ? "" : "Jobs Panel"),
         create: ({ tui, theme, done, requestRender }) => {
           let closed = false;
           lease.close = () => { if (closed) return; closed = true; lease.cancelled = true; lease.component?.dispose(); done(); };

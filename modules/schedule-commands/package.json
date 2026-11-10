@@ -4,6 +4,6 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "Project-native in-session scheduler for prompts, agents, shell commands and Monitors; root dependencies and Pi 1.5.0 are authoritative.",
+  "description": "Project-native in-session scheduler for prompts, agents, shell commands and Monitors; root dependencies and Pi 1.5.2 are authoritative.",
   "pi": { "extensions": ["./src/index.ts"] }
 }

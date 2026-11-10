@@ -17,9 +17,9 @@ const displayText = (value: unknown, max = 2000) => typeof value === "string"
 /** Generous UTF-8 byte cap for one note (a note is a document, not a data dump). */
 export const MAX_NOTE_BYTES = 8 * 1024 * 1024;
 
-const noteTypes = ["plan", "design", "issue", "research", "report", "task", "checkpoint"] as const;
+const noteTypes = ["plan", "design", "issue", "research", "report", "task"] as const;
 type NoteType = (typeof noteTypes)[number];
-const noteDirectories = { plan: "plans", design: "designs", issue: "issues", research: "research", report: "reports", task: "tasks", checkpoint: "checkpoints" } as const satisfies Record<NoteType, string>;
+const noteDirectories = { plan: "plans", design: "designs", issue: "issues", research: "research", report: "reports", task: "tasks" } as const satisfies Record<NoteType, string>;
 
 /**
  * Compare whole path segments: a directory literally named "..archive" is inside the workspace, "../x" is not.
@@ -167,16 +167,16 @@ export const noteTool = defineTool({
   name: "note",
   label: "Note",
   description:
-    "Save a NEW Markdown document as plan, design, issue, research, report, task or checkpoint. Required for such documents: do NOT use write and do NOT choose a file name or folder. " +
+    "Save a NEW Markdown document as plan, design, issue, research, report or task. Required for such documents: do NOT use write and do NOT choose a file name or folder. " +
     "The tool picks <cwd>/<folder>/<session id>/TYPE-YYYYMMDDTHHmmssSSSZ.md (UTC; no title suffix), never overwrites, and returns the path with its sha256 version token and byte size (like write); send the complete document in one call. " +
     "Use it when asked to write down, record, save or log such a document, or when finished work deserves a record. Not for source code or existing files: to change a note afterwards use edit on the returned path with the returned sha256 as expectedHash.",
-  promptSnippet: "Save a new plan/design/issue/research/report/task/checkpoint Markdown document; file name is auto-generated and the saved path is returned.",
+  promptSnippet: "Save a new plan/design/issue/research/report/task Markdown document; file name is auto-generated and the saved path is returned.",
   promptGuidelines: [
-    "Create plan/design/issue/research/report/task/checkpoint documents with note { type, content }, not write.",
+    "Create plan/design/issue/research/report/task documents with note { type, content }, not write.",
   ],
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   parameters: Type.Object({
-    type: StringEnum(noteTypes, { description: "Category (saved under its plural folder: plans/designs/issues/research/reports/tasks/checkpoints, inside a folder named after the current session): plan = approach/steps/roadmap; design = design document (architecture, interfaces, decisions); issue = bug/problem/risk; research = findings; report = results/summary/review; task = to-do; checkpoint = progress snapshot of the current work (done, next, key facts) so it can resume after context compaction." }),
+    type: StringEnum(noteTypes, { description: "Category (saved under its plural folder: plans/designs/issues/research/reports/tasks, inside a folder named after the current session): plan = approach/steps/roadmap; design = design document (architecture, interfaces, decisions); issue = bug/problem/risk; research = findings; report = results/summary/review; task = to-do." }),
     content: Type.String({ description: "The full Markdown document, including a title heading, written verbatim. Do not include a file name." }),
   }, { additionalProperties: false }),
   outputSchema: Type.Object({

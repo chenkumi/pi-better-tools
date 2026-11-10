@@ -28,9 +28,6 @@ export interface WindowResult {
   details: { sessionId: string; from: number; to: number; entries: number; truncated: boolean; nextFrom?: number };
 }
 
-/** How far before the window to look for the call a result belongs to. */
-const CALL_LOOKBACK_LINES = 100;
-
 export async function readWindow(readable: readonly SessionFile[], request: WindowRequest): Promise<WindowResult> {
   const target = pickSession(readable, request.sessionId);
   let from: number, to: number;
@@ -49,8 +46,7 @@ export async function readWindow(readable: readonly SessionFile[], request: Wind
   const maxChars = Math.min(MAX_WINDOW_CHARS, request.maxChars === undefined ? DEFAULT_WINDOW_CHARS : integer(request.maxChars, 'max_chars', 1000));
 
   const items: LineEntry[] = [];
-  // Tool calls just before the window are read too (never shown): a checkpoint result inside the window finds its call there.
-  for await (const raw of scanLines(target.file, Math.max(1, from - CALL_LOOKBACK_LINES), to)) {
+  for await (const raw of scanLines(target.file, from, to)) {
     let entry: Record<string, unknown> | undefined;
     if (raw.text !== undefined && raw.bytes <= MAX_PARSE_BYTES) {
       try { entry = asRecord(JSON.parse(raw.text)); } catch { /* shown as unreadable */ }

@@ -8,7 +8,7 @@ import { ToolError } from "../../../shared/src/tool-error/index.ts";
 import { filterEnv, type EnvPolicy } from "./env.ts";
 import { matchPattern, MATCH_BUDGET_MS } from "./matcher.ts";
 import { stripEscapes, truncatePtyOutput, type OutputFormat } from "./output.ts";
-import { SecretMasker, type MaskedView } from "./secret-mask.ts";
+import { MASK, SecretMasker, type MaskedView } from "./secret-mask.ts";
 import type { Transport } from "./targets.ts";
 
 /** node-pty is a native addon; load it on first spawn so Pi startup does not pay for it. */
@@ -122,6 +122,35 @@ export interface ReadSnapshot {
 	/** Present when waitFor was requested. */
 	wait?: "matched" | "timeout" | "exited";
 	exited: boolean;
+	/** The program is showing its own full screen (alternate screen): this stream is mostly cursor movement, `format: "screen"` reads the rendered screen. */
+	fullscreen?: true;
+}
+
+export interface ScreenReadOptions {
+	timeoutMs: number;
+	signal?: AbortSignal;
+	/** Return as soon as the screen text matches. */
+	waitFor?: RegExp;
+	/** Return once no new output arrived for this long (after waitFor matched, if given). Bounded by timeoutMs. */
+	settleMs?: number;
+}
+
+export interface ScreenSnapshot {
+	/** The screen as plain text (masked); no styling, no control characters. */
+	text: string;
+	/** Complete pty_keyin secrets replaced by a mask in `text`. */
+	masked: number;
+	cols: number;
+	rows: number;
+	alternate: boolean;
+	/** 1-based line and column of the cursor in `text`'s lines. */
+	cursor: { line: number; column: number };
+	/** The screen differs from the one the previous screen read returned (always true for the first read). */
+	changed: boolean;
+	/** Stream cursor up to which the read counts as delivered. */
+	end: number;
+	wait?: "matched" | "timeout" | "exited";
+	exited: boolean;
 }
 
 export function droppedNotice(range: DroppedRange): string {
@@ -175,7 +204,7 @@ export interface PtySessionSummary {
 	exitCode?: number;
 	/** True when this session survived a failed shutdown and was re-adopted; local transport exit is still unconfirmed. */
 	recovered?: true;
-	/** Display-only copy of the terminal screen (not masked, never read by a tool); present while the session is retained. */
+	/** Copy of the terminal screen for the panel (not masked; a model reads it only through readScreen, which masks); present while the session is retained. */
 	screen?: ScreenSource;
 }
 
@@ -211,8 +240,10 @@ interface PtySession {
 	exitWaiters: Set<() => void>;
 	/** Secrets typed through pty_keyin; masked in everything handed out until the session is released. */
 	masker: SecretMasker;
-	/** Display-only screen fed from the same output; the panel shows it, tools and the model never read it. */
+	/** Screen fed from the same output. The panel shows it as it is; a model only gets it through readScreen, which masks it. */
 	screen: ScreenTranscript;
+	/** Screen version the last screen read returned. */
+	screenRead?: number;
 }
 
 export interface SpawnOptions {
@@ -458,7 +489,56 @@ export class PtySessionManager {
 			dropped: options.since !== undefined ? (options.since < session.bufStart ? { from: options.since, to: session.bufStart } : undefined) : session.drop,
 			wait,
 			exited: session.state === "exited",
+			...(session.screen.alternate ? { fullscreen: true as const } : {}),
 		};
+	}
+
+	/**
+	 * Reads the rendered terminal screen as plain text instead of the output stream. The screen is masked like the stream (it is
+	 * the same terminal), then counts as having delivered everything up to now. Without waitFor/settleMs it waits until the screen
+	 * differs from the one the previous screen read returned (at most timeoutMs), and returns the screen either way.
+	 */
+	async readScreen(sessionId: string, options: ScreenReadOptions): Promise<ScreenSnapshot> {
+		const session = this.requireSession(sessionId);
+		const signal = options.signal ? AbortSignal.any([options.signal, this.readAbort.signal]) : this.readAbort.signal;
+		if (signal.aborted) throw abortError(signal);
+		const started = this.now();
+		const deadline = started + Math.min(Math.max(options.timeoutMs, 0), MAX_WAIT_MS);
+		let wait: ScreenSnapshot["wait"];
+		if (options.waitFor) {
+			const matched = await this.waitMatch(session, options.waitFor, 0, deadline, signal, async () => { await session.screen.flush(); return this.maskedScreen(session).text; });
+			wait = matched ? "matched" : session.state === "exited" ? "exited" : "timeout";
+			if (matched && options.settleMs) await this.waitSettle(session, options.settleMs, started, deadline, signal);
+		} else if (options.settleMs) {
+			await this.waitSettle(session, options.settleMs, started, deadline, signal);
+		} else {
+			for (;;) {
+				await session.screen.flush();
+				if (session.screenRead !== session.screen.version || session.state !== "running") break;
+				const remaining = deadline - this.now();
+				if (remaining <= 0) break;
+				await this.waitFor(session, remaining, signal, session.dataWaiters, session.exitWaiters);
+				if (signal.aborted) throw abortError(signal);
+			}
+		}
+		await session.screen.flush();
+		const shot = this.maskedScreen(session);
+		const changed = session.screenRead !== session.screen.version;
+		session.screenRead = session.screen.version;
+		const end = endCursor(session);
+		this.consume(sessionId, end);
+		return { text: shot.text, masked: shot.count, cols: shot.cols, rows: shot.rows, alternate: shot.alternate, cursor: shot.cursor, changed, end, ...(wait ? { wait } : {}), exited: session.state === "exited" };
+	}
+
+	/** The screen as plain text with pty_keyin secrets masked (never hand out an unmasked screen text). */
+	private maskedScreen(session: PtySession): { text: string; count: number; cols: number; rows: number; alternate: boolean; cursor: { line: number; column: number } } {
+		const shot = session.screen.plainText();
+		if (!shot) throw new ToolError("PTY_SCREEN_UNAVAILABLE", "The screen of this PTY session was released. Use pty_read without format screen.");
+		// A screen is a state: nothing later completes a trailing partial secret, and dropping it would shift the cursor. The text a
+		// stream read would hold back is shown as a mask instead (a few characters that could begin a secret are hidden, never leaked).
+		const view = session.masker.view(shot.text);
+		const held = shot.text.length - view.rawLength;
+		return { text: held > 0 ? view.text + MASK : view.text, count: view.count, cols: shot.cols, rows: shot.rows, alternate: shot.alternate, cursor: shot.cursor };
 	}
 
 	/** What a reader sees from absolute cursor `from` on: masked over the whole retained buffer, then cut (never cut first). */
@@ -490,7 +570,7 @@ export class PtySessionManager {
 		await this.waitFor(session, Math.min(Math.max(ms, 0), MAX_WAIT_MS), signal, undefined, session.exitWaiters);
 	}
 
-	private async waitMatch(session: PtySession, pattern: RegExp, from: number, deadline: number, signal?: AbortSignal): Promise<boolean> {
+	private async waitMatch(session: PtySession, pattern: RegExp, from: number, deadline: number, signal?: AbortSignal, textOf?: () => Promise<string>): Promise<boolean> {
 		let retryAt = 0;
 		for (;;) {
 			if (retryAt !== 0 && deadline <= this.now()) return false;
@@ -504,7 +584,7 @@ export class PtySessionManager {
 			// The retained ring already bounds input size; worker capacity/time limits
 			// bound regex cost. Dropping a search-only prefix silently changes matches.
 			// Match against what a reader would see: a pattern must not become an oracle for a masked secret.
-			const window = this.maskedView(session, from).text;
+			const window = textOf ? await textOf() : this.maskedView(session, from).text;
 			const generation = endCursor(session);
 			const remainingBudget = deadline - this.now();
 			const pending = this.matcher(pattern, stripEscapes(window), signal, remainingBudget > 0 ? remainingBudget : MATCH_BUDGET_MS);

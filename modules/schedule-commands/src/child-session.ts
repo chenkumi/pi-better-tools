@@ -1,7 +1,7 @@
 /**
  * The real child session for agent jobs, built on the Pi SDK: one in-memory AgentSession per run, no persistence.
  * This extension is never loaded into the child (its own scheduler would re-fire the shared jobs), and extensions
- * and skills are opt-in per job. Verified against Pi 1.5.0 types only; a run against a real model is not part of the offline tests.
+ * and skills are opt-in per job. Verified against Pi 1.5.2 types only; a run against a real model is not part of the offline tests.
  */
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";

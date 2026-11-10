@@ -78,7 +78,7 @@ export const sessionWindowTool = defineTool({
   name: SESSION_WINDOW_TOOL,
   label: 'Session Window',
   description:
-    'Outline a range of this conversation by line number: user and assistant text clipped (a progress checkpoint counts as assistant text), compaction boundaries marked, each with a ⟦L<line>:<id>⟧ reference for session_read. Tool calls and results are not listed: find them with session_grep, or read an entry with session_read. ' +
+    'Outline a range of this conversation by line number: user and assistant text clipped (a progress checkpoint is listed by its title), compaction boundaries marked, each with a ⟦L<line>:<id>⟧ reference for session_read. Tool calls and results are not listed: find them with session_grep, or read an entry with session_read. ' +
     'After a compaction the visible history may start late; use before=<first line you can see> to look further back. Entries on abandoned branches are marked.',
   promptSnippet: 'Outline a range of earlier conversation lines (use before=<line> to look further back).',
   parameters: Type.Object({

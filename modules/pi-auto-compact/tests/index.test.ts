@@ -26,7 +26,7 @@ async function withAgentDir<T>(file: string | undefined, run: () => Promise<T>):
   }
 }
 
-test('registers the compaction and checkpoint hooks, the three deferred read-only session tools and the anchor tool, the one settings command and no messages', () => {
+test('registers the compaction and checkpoint hooks, the three deferred read-only session tools and the checkpoint tool, the one settings command and no messages', () => {
   const { handlers, other, tools, commands } = load();
   assert.deepEqual([...handlers.keys()].sort(), ['agent_before_settle', 'before_agent_start', 'context', 'session_before_compact', 'session_compact', 'session_start', 'turn_end']);
   assert.deepEqual(other, []);

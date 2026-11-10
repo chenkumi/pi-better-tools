@@ -68,7 +68,13 @@ test("every provider request carries the parent's session id as its cache identi
 		// Pi gives this hook an empty header set (its provider adds defaults afterwards), so the identity must be written, not patched.
 		const empty: Record<string, string> = {};
 		h.handlers.get("before_provider_headers")!({ headers: empty });
-		assert.deepEqual(empty, { session_id: "PARENT", "x-client-request-id": "PARENT" });
+		assert.deepEqual(empty, { session_id: "PARENT", "session-id": "PARENT", "x-session-id": "PARENT", "x-session-affinity": "PARENT", "x-client-request-id": "PARENT" });
+		const anthropic: Record<string, string> = {};
+		h.handlers.get("before_provider_headers")!({ headers: anthropic }, { model: { api: "anthropic-messages" } });
+		assert.deepEqual(anthropic, { "x-session-affinity": "PARENT", "x-session-id": "PARENT" }, "only the names that API uses");
+		const codex: Record<string, string> = {};
+		h.handlers.get("before_provider_headers")!({ headers: codex }, { model: { api: "openai-codex-responses" } });
+		assert.deepEqual(codex, { "session-id": "PARENT", "x-client-request-id": "PARENT" });
 		const opencode: Record<string, string> = { "x-opencode-session": "S1", "x-opencode-client": "pi" };
 		h.handlers.get("before_provider_headers")!({ headers: opencode });
 		assert.equal(opencode["x-opencode-session"], "PARENT");

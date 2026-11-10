@@ -4,7 +4,7 @@ import { decodeControlEscapes } from "./escape.ts";
 import { parseEnvPolicy } from "./env.ts";
 import { KEY_NAMES, resolveKeys } from "./keys.ts";
 import { MAX_OUTPUT_BYTES, MAX_OUTPUT_LINES, truncatePtyOutput, type OutputFormat } from "./output.ts";
-import { DEFAULT_COLS, DEFAULT_ROWS, droppedNotice, errorText, KILL_SIGNALS, MAX_COLS, MAX_ROWS, MAX_WAIT_MS, PtySessionManager, sharedOrphanRegistry, SSH_CONNECTION_ERROR_EXIT, type ReadSnapshot } from "./pty-manager.ts";
+import { DEFAULT_COLS, DEFAULT_ROWS, droppedNotice, errorText, KILL_SIGNALS, MAX_COLS, MAX_ROWS, MAX_WAIT_MS, PtySessionManager, sharedOrphanRegistry, SSH_CONNECTION_ERROR_EXIT, type ReadSnapshot, type ScreenSnapshot } from "./pty-manager.ts";
 import { compileWaitFor, MAX_WAIT_FOR_LENGTH } from "./wait-for.ts";
 import { resolveTarget } from "./targets.ts";
 import { ptyRenderers } from "./renderers.ts";
@@ -29,11 +29,14 @@ const AMBIGUOUS_PROMPT_END = /[>»❯➜]$/;
 const promptProblem = (line: string): string | undefined => SHELL_PROMPT_END.test(line) || (AMBIGUOUS_PROMPT_END.test(line) && !SECRET_WORDS.test(line))
 	? `the last line of the session looks like a shell prompt, not a request for a secret: "${line.slice(-120)}". The program probably left its password prompt (timeout or error)`
 	: undefined;
+/** Appended to raw/text reads while the program draws its own full screen: the stream is then mostly cursor movement. */
+const FULLSCREEN_HINT = "[pty-terminal: the program is using the full screen, so this stream is mostly cursor movement and repainting; read with format \"screen\" to see the rendered screen]";
 const oneLineText = (value: string) => value.replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]+/g, " ").trim();
 
 const positiveInteger = (description: string, maximum?: number) => Type.Integer({ minimum: 1, ...(maximum ? { maximum } : {}), description });
 
-const formatParameter = Type.Optional(Type.Union([Type.Literal("raw"), Type.Literal("text")], { description: "raw (default) keeps control sequences; text strips ANSI codes (no screen emulation)." }));
+type ReadFormat = OutputFormat | "screen";
+const formatParameter = Type.Optional(Type.Union([Type.Literal("raw"), Type.Literal("text"), Type.Literal("screen")], { description: "raw (default) keeps control sequences; text strips ANSI codes (no screen emulation); screen returns the rendered terminal screen as plain text (what a person sees now, no scrollback; for full-screen programs and TUIs). A screen read ignores `since`, counts everything up to now as read, and matches waitFor against the screen text." }));
 
 const spawnParameters = Type.Object({
 	target: Type.Optional(Type.String({ description: "Named PTY target defined in the user's settings. Defaults to local; unknown targets fail." })),
@@ -57,7 +60,13 @@ const readOutputSchema = Type.Object({
 	dropped: Type.Optional(cursorRange),
 	waitFor: Type.Optional(Type.Union([Type.Literal("matched"), Type.Literal("timeout"), Type.Literal("exited")])),
 	exited: Type.Optional(Type.Literal(true)),
-	format: Type.Optional(Type.Literal("text")),
+	format: Type.Optional(Type.Union([Type.Literal("text"), Type.Literal("screen")])),
+	fullscreen: Type.Optional(Type.Literal(true)),
+	screen: Type.Optional(Type.Object({
+		cols: Type.Integer(), rows: Type.Integer(), alternate: Type.Boolean(),
+		cursor: Type.Object({ line: Type.Integer(), column: Type.Integer() }),
+		changed: Type.Boolean(),
+	})),
 });
 const spawnOutputSchema = Type.Object({ sessionId: sessionIdField, target: Type.Optional(Type.String()) });
 /** pty_write without readAfterMs only reports the id; with readAfterMs it returns the pty_read shape. */
@@ -151,6 +160,7 @@ export default function (pi: ExtensionAPI) {
 		if (snapshot.wait === "timeout") notes.push("waitFor not matched before timeout");
 		if (snapshot.exited) notes.push("session exited");
 		if (notes.length) parts.push(`[${notes.join("; ")}]`);
+		if (snapshot.fullscreen) parts.push(FULLSCREEN_HINT);
 		const details = {
 			sessionId,
 			truncated: truncated.truncated,
@@ -159,9 +169,43 @@ export default function (pi: ExtensionAPI) {
 			...(snapshot.dropped ? { dropped: snapshot.dropped } : {}),
 			...(snapshot.wait ? { waitFor: snapshot.wait } : {}),
 			...(snapshot.exited ? { exited: true as const } : {}),
+			...(snapshot.fullscreen ? { fullscreen: true as const } : {}),
 			...(format === "text" ? { format } : {}),
 		};
 		// truncated.content derives from snapshot.text, which the manager has already masked; the raw buffer never reaches here.
+		return {
+			content: [{ type: "text" as const, text: parts.join("\n") }],
+			details,
+			structuredContent: plain({ ...details, output: truncated.content }),
+		};
+	}
+
+	/** pty_read / pty_write with format screen: the rendered screen as plain text, masked by the manager. */
+	function deliverScreen(sessionId: string, snapshot: ScreenSnapshot) {
+		const cut = truncatePtyOutput(snapshot.text, { format: "text" });
+		// A screen has no buffer to continue from, so the stream's "read again" hint would be false.
+		const truncated = cut.truncated
+			? { truncated: true, content: `${snapshot.text.slice(0, snapshot.text.length - cut.remainder.length)}\n[pty-terminal: the screen text exceeds ${MAX_OUTPUT_LINES} lines or ${MAX_OUTPUT_BYTES} bytes; the rest is not shown. Resize the terminal or read the stream with format text]` }
+			: cut;
+		const parts: string[] = [];
+		if (snapshot.masked) parts.push(`[pty-terminal: the screen contained text typed through pty_keyin (${snapshot.masked} occurrence${snapshot.masked === 1 ? "" : "s"}); it was masked as ${MASK}. The program probably did not take it as a secret: check the prompt before retrying]`);
+		if (truncated.content) parts.push(truncated.content);
+		const notes = [`screen ${snapshot.cols}x${snapshot.rows}${snapshot.alternate ? " full screen" : ""}; cursor line ${snapshot.cursor.line} column ${snapshot.cursor.column}`];
+		if (!snapshot.changed) notes.push("screen unchanged since the last screen read");
+		if (!snapshot.text) notes.push("screen is empty");
+		if (snapshot.wait === "timeout") notes.push("waitFor not matched before timeout");
+		if (snapshot.exited) notes.push("session exited");
+		parts.push(`[${notes.join("; ")}]`);
+		const details = {
+			sessionId,
+			truncated: truncated.truncated,
+			cursor: { from: snapshot.end, to: snapshot.end },
+			...(snapshot.masked ? { masked: snapshot.masked } : {}),
+			...(snapshot.wait ? { waitFor: snapshot.wait } : {}),
+			...(snapshot.exited ? { exited: true as const } : {}),
+			format: "screen" as const,
+			screen: { cols: snapshot.cols, rows: snapshot.rows, alternate: snapshot.alternate, cursor: snapshot.cursor, changed: snapshot.changed },
+		};
 		return {
 			content: [{ type: "text" as const, text: parts.join("\n") }],
 			details,
@@ -196,6 +240,7 @@ export default function (pi: ExtensionAPI) {
 			} catch (error) {
 				throw new Error(`${errorText(error)} (input was already written; the session is retained, use pty_read to collect output)`);
 			}
+			if (params.format === "screen") return deliverScreen(params.sessionId, await sessions.readScreen(params.sessionId, { timeoutMs: 0, signal }));
 			const result = deliver(params.sessionId, await sessions.readEx(params.sessionId, { timeoutMs: 0 }), params.format ?? "raw", true);
 			if (!result.content[0].text) result.content[0].text = "ok";
 			return result;
@@ -298,7 +343,7 @@ export default function (pi: ExtensionAPI) {
 		...PTY_EXPOSURE,
 		...ptyRenderers("read"),
 		label: "PTY read",
-		description: `Read and drain accumulated PTY output (capped at ${MAX_OUTPUT_LINES.toLocaleString("en-US")} lines/${MAX_OUTPUT_BYTES / 1024} KiB; the rest stays buffered). If nothing is pending, waits up to timeoutMs (default ${DEFAULT_READ_TIMEOUT_MS}; ${CONDITIONAL_READ_TIMEOUT_MS} when waitFor or settleMs is set). Cancelling only stops the wait; the session stays.`,
+		description: `Read and drain accumulated PTY output, or with format screen the rendered terminal screen (capped at ${MAX_OUTPUT_LINES.toLocaleString("en-US")} lines/${MAX_OUTPUT_BYTES / 1024} KiB; the rest stays buffered). If nothing is pending, waits up to timeoutMs (default ${DEFAULT_READ_TIMEOUT_MS}; ${CONDITIONAL_READ_TIMEOUT_MS} when waitFor or settleMs is set). Cancelling only stops the wait; the session stays.`,
 		promptSnippet: "pty_read: collect output from a PTY session, optionally waiting for a pattern or quiet period",
 		parameters: Type.Object({
 			sessionId: Type.String({ description: "PTY session id." }),
@@ -312,6 +357,13 @@ export default function (pi: ExtensionAPI) {
 		executionMode: "sequential",
 		async execute(_toolCallId, params, signal) {
 			const waitFor = params.waitFor === undefined ? undefined : compileWaitFor(params.waitFor);
+			if (params.format === "screen") {
+				if (params.since !== undefined) throw new ToolError("PTY_INVALID_ARGUMENT", "since does not apply to format screen: the screen is a state, not a stream. Omit since, or read with format raw or text.");
+				return deliverScreen(params.sessionId, await sessions.readScreen(params.sessionId, {
+					timeoutMs: params.timeoutMs ?? (waitFor || params.settleMs ? CONDITIONAL_READ_TIMEOUT_MS : DEFAULT_READ_TIMEOUT_MS),
+					signal, waitFor, settleMs: params.settleMs,
+				}));
+			}
 			const snapshot = await sessions.readEx(params.sessionId, {
 				timeoutMs: params.timeoutMs ?? (waitFor || params.settleMs ? CONDITIONAL_READ_TIMEOUT_MS : DEFAULT_READ_TIMEOUT_MS),
 				signal, waitFor, settleMs: params.settleMs, since: params.since, format: params.format,
@@ -392,7 +444,9 @@ export default function (pi: ExtensionAPI) {
 			const text = result.map(({ sessionId, state, target, transport, bufferedBytes, droppedChars, recovered }) => ({
 				sessionId, state, target, ...(recovered ? { recovered, note: "survived a failed shutdown; local transport exit unconfirmed, remote tree unknown; use pty_kill to retry" } : {}), ...(transport !== "local" ? { transport } : {}), ...(bufferedBytes ? { unreadBytes: bufferedBytes } : {}), ...(droppedChars ? { droppedChars } : {}),
 			}));
-			return { content: [{ type: "text", text: JSON.stringify(text) }], details: result, structuredContent: text };
+			// The live screen belongs to the panel: it wraps a terminal (functions, large state) that Pi must neither clone nor persist as a result.
+			const details = result.map(({ screen: _screen, ...summary }) => summary);
+			return { content: [{ type: "text", text: JSON.stringify(text) }], details, structuredContent: text };
 		},
 	});
 

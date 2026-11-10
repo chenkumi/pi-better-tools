@@ -82,7 +82,7 @@ try {
   assert.equal(note.parameters.additionalProperties, false);
   assert.deepEqual(Object.keys(note.outputSchema.properties), ['relativePath', 'sha256', 'bytes']);
   assert.equal(note.outputSchema.additionalProperties, false);
-  assert.deepEqual(note.parameters.properties.type.enum, ['plan', 'design', 'issue', 'research', 'report', 'task', 'checkpoint']);
+  assert.deepEqual(note.parameters.properties.type.enum, ['plan', 'design', 'issue', 'research', 'report', 'task']);
   assert.equal(names.includes('web_search'), ['brave', 'exa'].includes(mode));
   assert.deepEqual(loader.getPrompts().prompts.map(p => p.name).sort(), ['implement', 'implement-and-review', 'scout-and-plan']);
   assert.deepEqual(names.filter(name => name.startsWith('schedule_')), ['schedule_prompt', 'schedule_shell', 'schedule_monitor'], 'only Schedule Commands registers schedule_* tools (prompt, shell and monitor); removed Scheduler tools must not');

@@ -11,7 +11,7 @@ function agentDir() {
 }
 
 test('defaults match the plan and the file lives directly under the agent dir', () => {
-  assert.deepEqual({ ...DEFAULT_CONFIG }, { l1Ratio: 0.01, l1MinChars: 30000, l2Ratio: 0.01, l2MinChars: 20000, l3Ratio: 0.01, l3MinChars: 6000, l4Ratio: 0.01, l4MinChars: 6000, charsPerToken: 2.2, maxTotalRatio: 0.5, checkpointRatio: 0.5, checkpointMinTokens: 200000, deadlineMarginMinTokens: 20000 });
+  assert.deepEqual({ ...DEFAULT_CONFIG }, { l1Ratio: 0.01, l1MinChars: 30000, l2Ratio: 0.01, l2MinChars: 20000, l3Ratio: 0.01, l3MinChars: 6000, l4Ratio: 0.01, l4MinChars: 6000, charsPerToken: 2.2, maxTotalRatio: 0.5, deadlineMarginMinTokens: 20000 });
   assert.equal(configPath('/a/b'), join('/a/b', 'auto-compact.json'));
 });
 
@@ -49,9 +49,6 @@ test('unknown keys, wrong types and out-of-range values are errors, not fallback
     [{ l3MinChars: 1.5 }, /l3MinChars must be a positive integer/],
     [{ l1MinChars: -1 }, /l1MinChars must be a positive integer/],
     [{ charsPerToken: 0.5 }, /charsPerToken must be between 1 and 8/],
-    [{ checkpointMinTokens: -1 }, /checkpointMinTokens must be a non-negative integer/],
-    [{ checkpointMinTokens: 1.5 }, /checkpointMinTokens must be a non-negative integer/],
-    [{ checkpointMinTokens: '200000' }, /checkpointMinTokens must be a finite number/],
     [{ deadlineMarginMinTokens: -1 }, /deadlineMarginMinTokens must be a non-negative integer/],
     [{ deadlineMarginMinTokens: 2.5 }, /deadlineMarginMinTokens must be a non-negative integer/],
     [[], /one JSON object/],
@@ -61,13 +58,6 @@ test('unknown keys, wrong types and out-of-range values are errors, not fallback
     const result = parseConfig(raw);
     assert.ok(!result.ok, JSON.stringify(raw));
     if (!result.ok) assert.match(result.error, pattern);
-  }
-});
-
-test('checkpointMinTokens accepts 0 (interval checkpoint off) and any positive integer', () => {
-  for (const value of [0, 1, 200000, 1_000_000]) {
-    const result = parseConfig({ checkpointMinTokens: value });
-    assert.ok(result.ok && result.config.checkpointMinTokens === value, String(value));
   }
 });
 

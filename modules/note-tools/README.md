@@ -6,7 +6,7 @@
 
 | 參數 | 說明 |
 | --- | --- |
-| `type` | 分類：`plan`、`design`（設計文件）、`issue`、`research`、`report`、`task`、`checkpoint`（進度快照：已完成／下一步／關鍵事實，供壓縮後接續）|
+| `type` | 分類：`plan`、`design`（設計文件）、`issue`、`research`、`report`、`task` |
 | `content` | 完整檔案內容（UTF-8，原樣寫入；空字串或僅空白會被拒絕） |
 
 只接受這兩個參數。
@@ -18,7 +18,7 @@
 ## 行為
 
 - 以 Pi 的 `ctx.cwd` 為根，必要時建立複數形目錄，新增 `<資料夾>/<TYPE>-<UTC 時間戳>.md`，例如 `plans/PLAN-20261008T060625729Z.md`（緊湊 UTC 格式 `YYYYMMDDTHHmmssSSSZ`，保留毫秒、固定寬度及時間排序；既有筆記不更名）。
-- 分類與資料夾對應：`plan`→`plans/`、`design`→`designs/`、`issue`→`issues/`、`research`→`research/`（不可數名詞，維持原名）、`report`→`reports/`、`task`→`tasks/`、`checkpoint`→`checkpoints/`；有 session id（`ctx.sessionManager.getSessionId()`，限 `[A-Za-z0-9._-]` 的單純名稱）時再多一層 `<資料夾>/<session id>/`，例如 `checkpoints/01a1…/CHECKPOINT-….md`，取不到或不是單純名稱則直接放資料夾。session 目錄建立在已 realpath 驗證的類別目錄之下並再次驗證；逃出工作區時移除本次建立的空目錄並回報 `NOTE_DIRECTORY_ESCAPE`。檔名前綴仍為單數大寫 `TYPE`。舊版單數資料夾（如 `plan/`）內的既有筆記不搬移、不更名。
+- 分類與資料夾對應：`plan`→`plans/`、`design`→`designs/`、`issue`→`issues/`、`research`→`research/`（不可數名詞，維持原名）、`report`→`reports/`、`task`→`tasks/`；有 session id（`ctx.sessionManager.getSessionId()`，限 `[A-Za-z0-9._-]` 的單純名稱）時再多一層 `<資料夾>/<session id>/`，例如 `tasks/01a1…/TASK-….md`，取不到或不是單純名稱則直接放資料夾。session 目錄建立在已 realpath 驗證的類別目錄之下並再次驗證；逃出工作區時移除本次建立的空目錄並回報 `NOTE_DIRECTORY_ESCAPE`。檔名前綴仍為單數大寫 `TYPE`。舊版單數資料夾（如 `plan/`）內的既有筆記不搬移、不更名。
 - 檔名由系統自動產生，只含分類及時間戳，不附加內容標題或 slug，也不接受使用者指定路徑或檔名。
 - 內容原樣寫入，不加標題、frontmatter 或模板；含孤立 UTF-16 surrogate 的內容會被拒絕。
 - 以 exclusive-create 建立，不覆寫既有檔案；檔名碰撞時時間戳加 1 毫秒重試，最多 1000 次（刻意保留此規則；僅碰撞時可能比呼叫時刻晚最多 999 毫秒，檔名時間戳不是精確的寫入時間證明），超過則回報 `NOTE_FILENAME_COLLISION`。

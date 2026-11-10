@@ -96,7 +96,12 @@ test("write keys + waitFor/format/since work end to end on a real PTY, with slim
 	const pending = read({ waitFor: "never-appears", timeoutMs: 30_000 }, controller.signal);
 	controller.abort(new Error("cancelled"));
 	await assert.rejects(pending, /cancelled/);
-	assert.equal(JSON.parse((await tools.get("pty_list").execute("l", {})).content[0].text)[0].sessionId, sessionId);
+	const listed = await tools.get("pty_list").execute("l", {});
+	assert.equal(JSON.parse(listed.content[0].text)[0].sessionId, sessionId);
+	// Pi clones and persists `details`: the live screen (a terminal with functions) must not be in it.
+	assert.equal(listed.details.length, 1);
+	assert.ok(!("screen" in listed.details[0]), "pty_list details must not carry the live screen object");
+	assert.doesNotThrow(() => structuredClone(listed.details), "pty_list details must be cloneable");
 
 	const written = await tools.get("pty_write").execute("w", { sessionId, data: "hi", keys: ["Enter"], readAfterMs: 0 });
 	// A zero-delay drain may contain the terminal's input echo before the

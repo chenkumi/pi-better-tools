@@ -1,6 +1,6 @@
 # Monitor v1（原生）
 
-入口 `modules/monitor/src/index.ts`；僅支援 Pi **1.5.0**。三個工具均 `defaultActive:true`，一般 session 載入即預設啟用 `monitor_start`、`monitor_status`、`monitor_stop`，不需加入 `defaultTools`；explicit `--tools`、`--exclude-tools`、`--no-tools` 及手動停用仍由宿主控制，不強制改 loadout；載入不建立來源、timer 或模型請求。Explicit managed-child marker 下完全不註冊，直接 execute 同樣拒絕。不是 OS daemon、排程器、PTY 或 sandbox。
+入口 `modules/monitor/src/index.ts`；僅支援 Pi **1.5.2**。三個工具均 `defaultActive:true`，一般 session 載入即預設啟用 `monitor_start`、`monitor_status`、`monitor_stop`，不需加入 `defaultTools`；explicit `--tools`、`--exclude-tools`、`--no-tools` 及手動停用仍由宿主控制，不強制改 loadout；載入不建立來源、timer 或模型請求。Explicit managed-child marker 下完全不註冊，直接 execute 同樣拒絕。不是 OS daemon、排程器、PTY 或 sandbox。
 
 ## 使用
 

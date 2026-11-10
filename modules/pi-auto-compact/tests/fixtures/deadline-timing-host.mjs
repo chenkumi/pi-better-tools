@@ -1,7 +1,7 @@
 // Timing check for the planned pre-compaction savepoint (plan/pi-auto-compact-plan.md §13): a real Pi AgentSession, Pi's own
 // threshold compaction and a scripted offline provider whose reported usage is chosen per request. A probe-only extension appends a
 // request draft at turn_end, exactly where the planned deadline trigger would. It does not load Pi Auto Compact, so it pins down
-// Pi 1.5.0 behaviour that the design relies on, not the module itself.
+// Pi 1.5.2 behaviour that the design relies on, not the module itself.
 // Scenarios: fits | overshoot | baseline | edge-over | edge-under. The last stdout line is the JSON result.
 import assert from 'node:assert/strict';
 import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
@@ -11,7 +11,7 @@ import { createAssistantMessageEventStream } from '@earendil-works/pi-ai';
 import * as sdk from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
 
-assert.equal(sdk.VERSION, '1.5.0'); sdk.initTheme('dark', false);
+assert.equal(sdk.VERSION, '1.5.2'); sdk.initTheme('dark', false);
 const scenario = process.argv[2] ?? 'fits';
 const home = homedir(), agentDir = join(home, '.pi/agent'), cwd = join(home, 'workspace');
 await mkdir(agentDir, { recursive: true }); await mkdir(cwd, { recursive: true }); await writeFile(join(agentDir, 'auth.json'), '{}');

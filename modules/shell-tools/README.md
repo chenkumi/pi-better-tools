@@ -35,7 +35,7 @@
 
 `bash`／`powershell` 的終端輸出每個實際顯示行（含空白行與折行）以 `▌` 標示。收合保留最後 **5 個實際終端行**；省略提示改為 `65 earlier lines, ctrl+o to expand`，位於輸出區塊下方、宿主警告／`Took …`（執行中為 `Elapsed …`）上方，前後以空白行分隔。快捷鍵由目前 keybindings 產生，窄欄提示會截短；行數先扣除 `▌` 寬度再依折行計算，resize 時重新計算。展開顯示已保留的完整輸出並保留 `▌`，不顯示 earlier-lines 提示。
 
-這是 Pi 1.5.0 宿主元件排列的顯示層適配：保留宿主的 ANSI／binary 清理、image fallback、full-output／truncation 警告、計時 state 與元件 reuse，不解析命令輸出判斷 UI 狀態。警告與耗時不加 `▌`。背景接受 receipt／完成通知、模型結果、session、命令執行與 timeout／取消語意不變；不影響 `!`／`!!` 使用者 shell。極窄欄下宿主警告／計時 Text 的既有最小寬度行為不在此適配範圍。
+這是 Pi 1.5.2 宿主元件排列的顯示層適配：保留宿主的 ANSI／binary 清理、image fallback、full-output／truncation 警告、計時 state 與元件 reuse，不解析命令輸出判斷 UI 狀態。警告與耗時不加 `▌`。背景接受 receipt／完成通知、模型結果、session、命令執行與 timeout／取消語意不變；不影響 `!`／`!!` 使用者 shell。極窄欄下宿主警告／計時 Text 的既有最小寬度行為不在此適配範圍。
 
 ## API 中斷工具卡片
 

@@ -4,6 +4,6 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "Project-native Remote: connects several Pi sessions over WebSocket (LAN) to exchange messages; root dependencies and Pi 1.5.0 are authoritative.",
+  "description": "Project-native Remote: connects several Pi sessions over WebSocket (LAN) to exchange messages; root dependencies and Pi 1.5.2 are authoritative.",
   "pi": { "extensions": ["./src/index.ts"] }
 }

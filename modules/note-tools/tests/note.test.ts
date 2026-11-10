@@ -13,8 +13,8 @@ import noteExtension, { MAX_NOTE_BYTES, noteTool } from "../extensions/note.ts";
 
 const timestamp = Date.UTC(2026, 0, 2, 3, 4, 5, 6);
 const firstName = "PLAN-20260102T030405006Z.md";
-const types = ["plan", "design", "issue", "research", "report", "task", "checkpoint"] as const;
-const dirOf = { plan: "plans", design: "designs", issue: "issues", research: "research", report: "reports", task: "tasks", checkpoint: "checkpoints" } as const;
+const types = ["plan", "design", "issue", "research", "report", "task"] as const;
+const dirOf = { plan: "plans", design: "designs", issue: "issues", research: "research", report: "reports", task: "tasks" } as const;
 const execute = (cwd: string, args: Static<typeof noteTool.parameters>, signal?: AbortSignal) =>
   noteTool.execute("test-note", args, signal, undefined, { cwd } as ExtensionToolContext);
 async function workspace(t: TestContext) {
@@ -373,14 +373,14 @@ test("failures are ToolErrors: the code is readable from the error, and the mess
 test("with a session id the note goes into a folder named after it; an unusable id means no subfolder", async t => {
   const cwd = await workspace(t);
   t.mock.method(Date, "now", () => timestamp);
-  const run = async (id: unknown) => (await noteTool.execute("n", { type: "checkpoint", content: "x" }, undefined, undefined, { cwd, sessionManager: { getSessionId: () => id } } as unknown as ExtensionToolContext)).details as { relativePath: string };
+  const run = async (id: unknown) => (await noteTool.execute("n", { type: "task", content: "x" }, undefined, undefined, { cwd, sessionManager: { getSessionId: () => id } } as unknown as ExtensionToolContext)).details as { relativePath: string };
   const ok = await run("01a1ae59-1540-71e7-a56e-c392e3220b0e");
-  assert.equal(ok.relativePath, "checkpoints/01a1ae59-1540-71e7-a56e-c392e3220b0e/CHECKPOINT-20260102T030405006Z.md");
+  assert.equal(ok.relativePath, "tasks/01a1ae59-1540-71e7-a56e-c392e3220b0e/TASK-20260102T030405006Z.md");
   assert.equal(await readFile(join(cwd, ok.relativePath), "utf8"), "x");
   for (const bad of ["../escape", "a/b", "..", "", undefined, 7]) {
     const r = await run(bad);
-    assert.match(r.relativePath, /^checkpoints\/CHECKPOINT-/, String(bad));
+    assert.match(r.relativePath, /^tasks\/TASK-/, String(bad));
     await rm(join(cwd, r.relativePath));
   }
-  assert.deepEqual(await readdir(join(cwd, "checkpoints")), ["01a1ae59-1540-71e7-a56e-c392e3220b0e"]);
+  assert.deepEqual(await readdir(join(cwd, "tasks")), ["01a1ae59-1540-71e7-a56e-c392e3220b0e"]);
 });

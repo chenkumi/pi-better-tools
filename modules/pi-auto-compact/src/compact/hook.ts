@@ -1,6 +1,7 @@
 import type { SessionBeforeCompactEvent, SessionBeforeCompactResult } from '@earendil-works/pi-coding-agent';
 import type { AutoCompactConfig } from '../config.ts';
 import type { EntryRef } from '../fold/ref.ts';
+import { hasSavedCheckpoint } from '../checkpoint/mark.ts';
 import { asRecord, list, str } from '../fold/util.ts';
 import { MAX_ID_PARSE_BYTES, scanLines } from '../session-read/lines.ts';
 import { backgroundJobsSection } from '../state/jobs.ts';
@@ -100,6 +101,7 @@ export async function autoCompact(event: SessionBeforeCompactEvent, ctx: HookCon
     volatile,
     cwd,
     cutMoved: cut - piCut,
+    checkpointInTail: hasSavedCheckpoint(entries.slice(cut)),
   });
   return { compaction: { summary, firstKeptEntryId: entries[cut]!.id as string, tokensBefore: event.preparation.tokensBefore, details } };
 }

@@ -1,6 +1,6 @@
 # File Audit
 
-原生 Pi 1.5.0 extension。追蹤本 session 成功的 `read`／`write`／`edit`／`note`，顯示有界限的近期檔案活動，並在 user input 時通知檔案被外部改動；它不是驗證器，本專案沒有檔案雜湊基準，也沒有 provenance 檢查（`/file-audit check` 已移除）。
+原生 Pi 1.5.2 extension。追蹤本 session 成功的 `read`／`write`／`edit`／`note`，顯示有界限的近期檔案活動，並在 user input 時通知檔案被外部改動；它不是驗證器，本專案沒有檔案雜湊基準，也沒有 provenance 檢查（`/file-audit check` 已移除）。
 
 ## 載入與拆裝
 

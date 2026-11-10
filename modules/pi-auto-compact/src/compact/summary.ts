@@ -1,4 +1,5 @@
 import type { AutoCompactConfig } from '../config.ts';
+import { checkpointBody, isCheckpointCall } from '../checkpoint/mark.ts';
 import { formatRef } from '../fold/ref.ts';
 import { asRecord, str } from '../fold/util.ts';
 import type { Entry, Item } from './items.ts';
@@ -49,6 +50,8 @@ export interface SummaryInput {
   volatile?: readonly string[];
   /** How many entries the cut was moved later than Pi's cut. */
   cutMoved?: number;
+  /** A checkpoint call lies after the cut (Pi keeps it as a raw message), so an older one is not shown as the latest. */
+  checkpointInTail?: boolean;
 }
 
 export interface SummaryResult { summary: string; details: CompactionDetails }
@@ -81,6 +84,30 @@ const HEADER_RESERVE = 600;
 const STATE_TITLE_CHARS = 24;
 const EARLIER_TITLE_CHARS = 28;
 const RECENT_TITLE_CHARS = 24;
+/** The latest checkpoint before the cut: its full text and the item that holds the call. */
+function latestCheckpoint(items: readonly Item[]): { body: string; item: Item } | undefined {
+  for (let i = items.length - 1; i >= 0; i--) {
+    for (const { call, result } of [...items[i]!.calls].reverse()) {
+      const body = isCheckpointCall(call.name) && result && !result.isError ? checkpointBody(call.args).trim() : '';
+      if (body) return { body, item: items[i]! };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * The latest checkpoint in full, as its own section (older ones are single titled lines in the conversation sections). A text
+ * longer than `max` keeps its head and its tail with the omitted size in between; the original stays readable with session_read.
+ */
+function checkpointSection(found: { body: string; item: Item }, max: number): string[] {
+  const ref = found.item.ref ? formatRef(found.item.ref) : undefined;
+  const { body } = found;
+  const text = body.length <= max ? body : `${body.slice(0, Math.floor(max * 0.6))}
+[… ${body.length - max} chars omitted${ref ? `; the whole text: session_read ${ref}` : ''} …]
+${body.slice(body.length - (max - Math.floor(max * 0.6)))}`;
+  return [`## Latest checkpoint${ref ? ` ${ref}` : ''}`, text];
+}
+
 /** A volatile block is preceded by one blank line. */
 const BLOCK_SEPARATOR_CHARS = 2;
 
@@ -103,8 +130,8 @@ function enforceCeiling(layout: Layout, lens3: readonly number[], n: number, lim
 /**
  * Builds the compaction summary from the items before Pi's cut. Pure: the same input gives the same bytes.
  *
- * Layout, oldest first: header, goal, earlier conversation (L3 plus its L4 slack), recent activity (L2), then the volatile
- * state block at the very end. Whatever Pi keeps after the cut (L1) stays as raw messages and is not part of the summary.
+ * Layout, oldest first: header, goal, earlier conversation (L3 plus its L4 slack), recent activity (L2), the latest checkpoint,
+ * the state block, then the volatile blocks at the very end. Whatever Pi keeps after the cut (L1) stays as raw messages and is not part of the summary.
  */
 export function composeSummary(input: SummaryInput): SummaryResult {
   const { items, config, contextWindow } = input;
@@ -123,8 +150,10 @@ export function composeSummary(input: SummaryInput): SummaryResult {
   const layout = chooseLayout(lens2, lens3, { ...budgets, l2: budgets.l2 + l2Lent }, previousIdx);
 
   const goal = goalLine(items), state = stateLines(items, input.cwd);
+  const found = input.checkpointInTail ? undefined : latestCheckpoint(items);
+  const checkpoint = found ? checkpointSection(found, budgets.l2) : [];
   const volatile = (input.volatile ?? []).filter(block => block.length > 0);
-  const fixed = HEADER_RESERVE + (goal ? goal.length + 1 : 0) + length(state) + (state.length ? STATE_TITLE_CHARS : 0) + volatile.reduce((sum, block) => sum + block.length + BLOCK_SEPARATOR_CHARS, 0);
+  const fixed = HEADER_RESERVE + length(checkpoint) + (checkpoint.length ? BLOCK_SEPARATOR_CHARS : 0) + (goal ? goal.length + 1 : 0) + length(state) + (state.length ? STATE_TITLE_CHARS : 0) + volatile.reduce((sum, block) => sum + block.length + BLOCK_SEPARATOR_CHARS, 0);
   const sectionTitles = (l3: boolean, l2: boolean) => (l3 ? EARLIER_TITLE_CHARS : 0) + (l2 ? RECENT_TITLE_CHARS : 0);
   const prefix = (lens: readonly number[]) => { const out = [0]; for (const value of lens) out.push(out[out.length - 1]! + value); return out; };
   const pre2 = prefix(lens2), pre3 = prefix(lens3);
@@ -138,6 +167,7 @@ export function composeSummary(input: SummaryInput): SummaryResult {
   if (goal) out.push('', goal);
   if (l3Start < l2Start) { out.push('', '## Earlier conversation'); for (let i = l3Start; i < l2Start; i++) if (rendered3[i] !== undefined) out.push(rendered3[i]!); }
   if (l2Start < n) { out.push('', '## Recent activity'); for (let i = l2Start; i < n; i++) out.push(...rendered2[i]!); }
+  if (checkpoint.length) out.push('', ...checkpoint);
   if (state.length) out.push('', '## State at compaction', ...state);
   for (const block of volatile) out.push('', block);
 

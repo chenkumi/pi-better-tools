@@ -24,7 +24,7 @@ export interface BottomPanelContext<T> {
 export interface BottomPanelOptions<T> {
   /** Widget key; only one bottom panel is open at a time, whatever the key. */
   key: string;
-  /** Text in the top rule. A function is re-read on every draw (for example to show an unsaved mark). */
+  /** Text in the top rule; an empty string draws a plain rule. A function is re-read on every draw (for example to show an unsaved mark). */
   title: string | (() => string);
   /** Hide the editor while this panel is open (it cannot receive keys anyway) and close the panel with its own bottom rule. */
   hideEditor?: boolean;
@@ -134,6 +134,7 @@ export function openBottomPanel<T>(ui: PanelUi, options: BottomPanelOptions<T>):
 export function frame(style: PanelStyle, title: string, body: readonly string[], width: number, clip = true): string[] {
   const w = Math.max(0, width);
   if (!body.length) return []; // a body that has closed (or has nothing to show) draws no empty frame
+  if (title === '') return [style.fg('accent', '─'.repeat(w)), ...body.map(row => clip ? truncateToWidth(` ${row}`, w, '…', false) : ` ${row}`)];
   const head = `── ${title} `;
   const top = style.fg('accent', head.slice(0, Math.max(0, w - 1))) + style.fg('accent', '─'.repeat(Math.max(0, w - visibleWidth(head))));
   return [

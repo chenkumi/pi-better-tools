@@ -6,6 +6,14 @@ import { FORK_CHILD_REFUSAL, FORK_MARKER_TYPE, consumeForkChildGuard, hasForkMar
 export const CHANNEL = "pi-fork";
 export const POLL_MS = 1000;
 const LOADED = Symbol.for("pi-better-tools.fork.child-guard.loaded.v1");
+/** Session-affinity header names Pi 1.5.2 derives from the session id, per provider API (the compat flags then pick among them). An API not listed gets all of them. */
+const AFFINITY_BY_API: Record<string, readonly string[]> = {
+	"openai-codex-responses": ["session-id", "x-client-request-id"],
+	"openai-responses": ["session-id", "x-session-id", "x-client-request-id"],
+	"openai-completions": ["session_id", "x-session-id", "x-session-affinity", "x-client-request-id"],
+	"anthropic-messages": ["x-session-affinity", "x-session-id"],
+};
+const ALL_AFFINITY_HEADERS = ["session_id", "session-id", "x-session-id", "x-session-affinity", "x-client-request-id"] as const;
 
 /** Loaded by `-e` in the Fork child only. Verifies the startup contract before the parent may send the first prompt,
  *  and reports settlement together with the child's own unfinished Shell/Subagent job counts over private IPC.
@@ -102,9 +110,10 @@ export default function (pi: ExtensionAPI) {
 	// afterwards, with hook headers merged last. Only a Fork child process loads this; a cold /resume of a Fork is an ordinary session.
 	const cacheId = expected.parentSessionId;
 	if (typeof cacheId === "string" && cacheId) {
-		pi.on("before_provider_headers", event => {
-			event.headers["session_id"] = cacheId;
-			event.headers["x-client-request-id"] = cacheId;
+		pi.on("before_provider_headers", (event, ctx) => {
+			// Only the names the current API uses (Pi 1.5.2 sets them per API and compat flag; the hook cannot see the flag, so a name
+			// the model's compat leaves out is still an ignored extra header, but names of other APIs are not sent).
+			for (const name of AFFINITY_BY_API[(ctx?.model as { api?: string } | undefined)?.api ?? ""] ?? ALL_AFFINITY_HEADERS) event.headers[name] = cacheId;
 			for (const name of Object.keys(event.headers)) if (name.toLowerCase() === "x-opencode-session") event.headers[name] = cacheId;
 		});
 		pi.on("before_provider_request", event => {

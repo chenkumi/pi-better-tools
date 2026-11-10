@@ -2,7 +2,7 @@
 
 原生模組：以**確定性純函式**壓縮歷史，**不呼叫任何模型**。把歷史由新到舊分成 L1（原樣）、L2（工具呼叫折成一行並附 session 檔行號參照）、L3（只留對話）三層，各有字元預算，溢出者滑動丟棄。完整設計見本機計畫 `plan/pi-auto-compact-plan.md`（`plan/` 不進版控）。
 
-## 目前狀態：M5＋進度錨點（真實 host 整合測試已加入；比較腳本為 M6）
+## 目前狀態：M5＋進度檢查點（真實 host 整合測試已加入；比較腳本為 M6）
 
 - `session_before_compact` hook 現在會產生確定性摘要：Pi 決定何時壓縮；切點預設取 `preparation.firstKeptEntryId`，但 Pi 保留的尾端超過 L1 預算時，本模組回傳的 `firstKeptEntryId` 會被移到後面的合法切點（見下；預設 L1 為 30000 字元，小於 Pi 預設保留量，所以**預設設定下切點常會被移動**）。切點之後是 L1 原樣訊息，只替換切點之前的摘要，不呼叫任何模型。
 - 以下情況一律回傳 `undefined`，把壓縮交還 Pi：設定檔無效（有 UI 時警告一次）、`ctx.model.contextWindow` 未知、切點不在分支上或切點之前沒有內容、任何非預期例外（警告一次，壓縮不會因此遺失）。
@@ -15,16 +15,18 @@
 - 系統狀態（`src/state/`）：`jobs.ts`、`monitors.ts` 資料來自 `shared/src/background/monitor-capability.ts` 的唯讀 briefs（相對 import，需 owner sessionId＋canonical cwd 相符；只有 ID、狀態、時限、label，無指令／輸出／路徑；讀取失敗回空字串，不阻擋壓縮）。`worktree.ts` 以有時限、有輸出上限的 `git`（移除 `GIT_DIR` 等重導向變數）取 HEAD、分支與異動檔路徑＋單字標籤（new／unstaged／staged／deleted／renamed／conflicted），最多 20 筆，不含 diff 或內容；非 git 目錄、逾時、中止都回空。這三塊不 carry forward：摘要每次從原始分支重建，不會 carry forward。
 - 真實 host 測試（`tests/real-host.integration.test.mjs`＋`tests/fixtures/real-host.mjs`，約 12 秒，屬一般整合組、非重型組）：以真實 Pi 1.5.0 SDK 建隔離 session（隔離 home／agentDir／workspace、離線假 provider、`fetch` 一律拒絕），直接用 `SessionManager` 灌入含工具呼叫、`write`、`git commit` 的歷史，再呼叫 `session.compact()` 走真實壓縮流程。三個情境：`full`（壓縮持久化、`firstKeptEntryId` 與 `tokensBefore` 沿用 Pi、摘要中每個 `⟦L行:id⟧` 都指到該行真實 entry、重新 `SessionManager.open` 後 context 恰為「摘要＋Pi 保留的尾端」、第二次壓縮保留視窗起點且摘要開頭逐位元組不變、`[Background Jobs]`／`[Active Monitors]` 在最末、檔案內容不進摘要、三個 session 工具在真實 host 啟用並讀到壓縮掉的內容、全程 `providerCalls: 0`）、`invalid-config` 與 `unknown-window`（交還 Pi，Pi 自己產生並持久化摘要）。只驗證手動 `session.compact()`（`reason: "manual"`）；自動 threshold／overflow 路徑尚未以真實 host 驗證。
 - 儲存點時序測試（`tests/deadline-timing.integration.test.mjs`＋`tests/fixtures/deadline-timing-host.mjs`，約 22 秒，一般整合組）：真實 Pi 1.5.0 `AgentSession`、Pi 原生門檻壓縮（自動 threshold 路徑）、離線 provider（usage 由腳本決定）。**不載入本模組**，只固定設計依賴的 Pi 時序（計畫 §13）：`turn_end` 追加的草稿在下一次回應前被計入門檻估算、請求在壓縮先發生時仍會留下並於壓縮後被回答、壓縮前已回答的回答會留在保留尾端。它只固定 Pi 的時序；本模組的死線觸發由下方的 `tests/deadline-host.integration.test.mjs` 驗證。
-- 進度錨點（長任務的斷點）：單一超大回合（同一個請求下連續大量工具呼叫、沒有任何 assistant 文字）會讓摘要的對話層是空的、L1 切點也沒有清楚的位置。因此 context 用量（`ctx.getContextUsage()`）自上次 assistant 文字或錨點呼叫起增加 `checkpointRatio × contextWindow`（預設 0.5）、**且 context 大於 `checkpointMinTokens`**（預設 200000，只在大 context 才啟用；`0` 完全停用間隔觸發）時，在 `turn_end` 邊界追加一則標記過的 `custom_message`（`pi-auto-compact:checkpoint`，`display:false`）並要求繼續，請模型回報 2 到 4 句進度後繼續；每累積一次門檻只要求一次（要求後基準前移，未回應也不重複）。
-  - 回報優先用錨點工具 `progress_checkpoint({ summary })`（`defaultActive:true`，仍受宿主 allowlist／exclusions 控制；AGENTS.md 已記錄為例外）：工具呼叫一定會回到模型，所以不會像純文字回覆那樣讓 run 結束。工具不在 active 清單時改要求文字回報；文字回報後若 run 就要結束，會在 `agent_before_settle` 追加**一則**繼續訊息（`pi-auto-compact:continue`）。每次繼續都綁定恰好一次檢查點要求，不會自行重複，因此不設上限。
-  - **死線觸發**（與上面的間隔觸發並存，訊息與回應處理分開）：壓縮是確定性的、不呼叫模型，所以模型的決策與進度只能在壓縮之前自行記錄。這是行為引導、不是要求工具：追加一則固定英文短句訊息（`pi-auto-compact:deadline`，`display:false`），說明壓縮即將發生，請把任務進度寫入筆記檔（該任務已有筆記檔就更新，否則建立；`note` 工具啟用時用它建立並取得路徑，後續以 edit 更新），回覆中寫出路徑後繼續任務。寫什麼由模型決定，不要求 `progress_checkpoint`。`turn_end` 時用 `ctx.getContextUsage()`（與 Pi 回應前的門檻檢查是同一個估算）與 Pi 壓縮門檻 `T = contextWindow − reserveTokens` 比較，`reserveTokens` 由 `pi.getSettings()` 依 `compaction.modelOverrides["<provider>/<id>"].reserveTokens` → `compaction.reserveTokens` → 16384 解析（`src/checkpoint/threshold.ts`；解析函式未暴露給擴充，所以重現一份，並由 `tests/threshold.test.ts` 以真實 `SettingsManager` 對照，Pi 拋錯的輸入這裡回「未知」）。五個條件同時成立才送出：`T` 已知（壓縮啟用、設定有效、視窗已知）、API 回報用量 ≥ `T − max(0.1 × contextWindow, 20000)`、回報用量 < `T`、本壓縮週期還沒送過、agent 有可寫檔工具（`note`／`write`／`edit` 任一在 active 清單；唯讀 agent 無法照做，所以略過）。用量取該回合 assistant 回應的 `usage`（`totalTokens`，缺席則四項相加，與 Pi 的 `calculateContextTokens` 相同），這正是 Pi 在回應後判斷是否壓縮所用的數字；不用 `ctx.getContextUsage()`，因為它是「上一次回報用量 + 其後訊息（本回合的工具結果、追加的通知）以約 4 字元一 token 估算」，中文與程式碼的工具結果會被低估（實測一次 `read` 批次真實增加約 13.4k、估算只有約 11.7k，通知在估算還低於門檻時送出，下一個回應卻已超過）。回報缺席（回應錯誤、被中止、零用量、provider 不回報）才退回 Pi 的估算。用量已達 `T` 時 Pi 在該回應後立刻壓縮，所以不送；用量在 `T` 之下但下一個回應越過時，該回應仍會發生並可寫筆記，壓縮接在其後。每個壓縮週期只送一次，不論模型是否照做，也不看先前有沒有 `progress_checkpoint` 或文字回報（筆記檔是另一種紀錄，不由回報取代）；壓縮或新 session（`session_start`）才重置，新的使用者訊息不重置（context 沒有縮小）；回合同時帶文字與工具呼叫也照送。通知要求下一個動作就是寫檔（不先讀檔、不長篇思考、約 1500 字元內）。壓縮後不補送：壓縮已發生，事後補寫沒有用途。通知後第一個沒有工具呼叫的回合（即使前面已有幾個工具回合，例如先用 `note` 寫筆記）只回文字、run 就要結束時，沿用同一則繼續訊息，每則通知只補一次；壓縮、新的使用者請求或新 session 會關閉尚未回答的通知；帶工具呼叫的回合不追加（結果本來就會回到模型）。摘要不含筆記內容，所以 system prompt section 提示壓縮後先讀筆記檔。比例 `0.1` 是內部常數、不是設定鍵，下限是設定鍵 `deadlineMarginMinTokens`（預設 20000）；依據是三輪實測共 296 個回合的每回合 context 增量（中位數 848、p90 3.6k、p95 8.8k、p99 17k token，重尾來自一次寫入大檔案）估算「被單一回合跳過」的比例：margin 取 3.7k 約 30%、10k 約 8%、15k 約 2%；樣本只有一種任務與一個模型。下限 20000 來自後續真實執行：100k 視窗下單回合一次讀三個大檔增加約 15k，比例邊際（10k）跨過去而漏掉通知，所以小視窗以下限為準（100k 視窗為 20k，200k 視窗恰好等於 0.1 × 視窗）。想關掉間隔觸發、只留死線，把 `checkpointMinTokens` 設為 0。
-  - **不設固定區塊**：曾實作過把最新回報釘在摘要「State at compaction」之前，已移除——它會讓往前幾步的狀態看起來像壓縮當下的狀態，也與時間線重複一份；回報只出現在時間線（L1 原樣、L2／L3 的對話行）上它發生的位置。代價：回報若很長或早已被預算擠出視窗，摘要裡只剩截短版或沒有（L3 把 assistant 文字截到 400 字元，可用 `session_read` 讀全文）；死線的進度紀錄寫在筆記檔，不依賴摘要。
-  - 錨點對壓縮等同 assistant 文字訊息：計數器歸零（任何 assistant 文字亦同）；摘要把 `summary` 當作該 assistant 訊息的文字（進 L3 對話層），錨點呼叫與其 tool result 不再另列；**L1 切點與 L2／L3 交界都純看預算**（L1：最早能放進預算的合法切點；L2：能放進預算的最新一段），不受錨點影響。錨點的唯一作用是被當作 assistant 文字，所以交界落在長 turn 中間時，交界之前的錨點會以文字出現在 L3（工具行已被 L3 規則去掉）。
+- 進度檢查點（`progress_checkpoint`）：壓縮是確定性的、不呼叫模型，所以模型自己的進度只能在壓縮之前記錄。**檢查點就是對話的一部分**：工具 `progress_checkpoint({ summary })`（`defaultActive:true`，仍受宿主 allowlist／exclusions 控制；AGENTS.md 已記錄為例外）不寫任何檔案，`summary`（無長度上限）是工具呼叫參數，留在 session 檔裡；工具結果固定為 `Checkpoint saved. Continue the task.`。
+  - **死線觸發**（唯一的自動觸發）：行為引導、不強制任何工具。在 Pi 壓縮之前追加一則固定英文短句訊息（`pi-auto-compact:deadline`，`display:false`）並要求繼續，說明壓縮即將發生，要求**下一個動作就是呼叫 `progress_checkpoint`**（不先讀檔、不長篇思考），`summary` 寫已完成、下一步與關鍵事實（決策、檔案路徑、指令、未解問題），寫到沒有先前訊息也能接續即可。`turn_end` 時以 Pi 壓縮門檻 `T = contextWindow − reserveTokens` 比較，`reserveTokens` 由 `pi.getSettings()` 依 `compaction.modelOverrides["<provider>/<id>"].reserveTokens` → `compaction.reserveTokens` → 16384 解析（`src/checkpoint/threshold.ts`；解析函式未暴露給擴充，所以重現一份，並由 `tests/threshold.test.ts` 以真實 `SettingsManager` 對照，Pi 拋錯的輸入這裡回「未知」）。五個條件同時成立才送出：`T` 已知（壓縮啟用、設定有效、視窗已知）、API 回報用量 ≥ `T − max(0.1 × contextWindow, 20000)`、回報用量 < `T`、本壓縮週期還沒送過、`progress_checkpoint` 在 active 清單（被宿主排除則略過；不再需要可寫檔工具，唯讀 agent 也能寫檢查點）。該回合自己已呼叫 `progress_checkpoint` 時不送，並視為本週期已送。用量取該回合 assistant 回應的 `usage`（`totalTokens`，缺席則四項相加，與 Pi 的 `calculateContextTokens` 相同），這正是 Pi 在回應後判斷是否壓縮所用的數字；不用 `ctx.getContextUsage()`，因為它是「上一次回報用量 + 其後訊息（本回合的工具結果、追加的通知）以約 4 字元一 token 估算」，中文與程式碼的工具結果會被低估（實測一次 `read` 批次真實增加約 13.4k、估算只有約 11.7k，通知在估算還低於門檻時送出，下一個回應卻已超過）。回報缺席（回應錯誤、被中止、零用量、provider 不回報）才退回 Pi 的估算。用量已達 `T` 時 Pi 在該回應後立刻壓縮，所以不送；用量在 `T` 之下但下一個回應越過時，該回應仍會發生並可寫檢查點，壓縮接在其後。每個壓縮週期只送一次，不論模型是否照做；壓縮或新 session（`session_start`）才重置，新的使用者訊息不重置（context 沒有縮小）；回合同時帶文字與工具呼叫也照送。壓縮後不補送：壓縮已發生，事後補寫沒有用途。通知後第一個沒有工具呼叫的回合（即使前面已有幾個工具回合）只回文字、run 就要結束時，追加**一則**繼續訊息（`pi-auto-compact:continue`），每則通知只補一次；呼叫 `progress_checkpoint`（或任何工具）的回合不追加，因為結果本來就會回到模型；壓縮、新的使用者請求或新 session 會關閉尚未回答的通知。比例 `0.1` 是內部常數、不是設定鍵，下限是設定鍵 `deadlineMarginMinTokens`（預設 20000）；依據是三輪實測共 296 個回合的每回合 context 增量（中位數 848、p90 3.6k、p95 8.8k、p99 17k token，重尾來自一次寫入大檔案）估算「被單一回合跳過」的比例：margin 取 3.7k 約 30%、10k 約 8%、15k 約 2%；樣本只有一種任務與一個模型。下限 20000 來自後續真實執行：100k 視窗下單回合一次讀三個大檔增加約 15k，比例邊際（10k）跨過去而漏掉通知，所以小視窗以下限為準（100k 視窗為 20k，200k 視窗恰好等於 0.1 × 視窗）。
+  - **摘要如何呈現檢查點**：
+    - L3／L4 與 `session_window` 大綱裡，檢查點是唯一保留的工具呼叫，渲染為一行 `⟦L…⟧ checkpoint: <標題>`（標題取 `summary` 第一個非空行、去掉開頭的 `#`、截 80 字元；參照指向呼叫所在的 assistant entry，`session_read` 可讀全文）。L2 以同一標題行取代一般折疊行。失敗的呼叫與其他工具不顯示（L2 仍是一般折疊行）。渲染仍是單一項目的純函式，不影響摘要前綴的逐位元組穩定。實作在 `src/checkpoint/mark.ts`。
+    - **`## Latest checkpoint` 區塊**：摘要在 Recent activity 之後、State at compaction 之前，放切點之前最新一則成功檢查點的 `summary` 全文，標題附該 entry 的 `⟦L…⟧`。超過 L2 預算（`max(視窗 × l2Ratio, l2MinChars)`，不含借用）時保留前 60% 與後 40%，中間註明省略字元數與 `session_read` 參照。比它更新的檢查點若落在切點之後（L1 原樣保留，模型直接看得到），就不顯示此區塊。區塊長度計入總量上限（先縮 L3／L2，不縮 L1）；它放在 L2 之後，所以不影響摘要開頭的快取穩定度。舊的檢查點只剩標題行。
+    - 這與先前被移除的「把最新回報釘在 State 之前」不同：那是模型順口寫的進度文字，會讓往前幾步的狀態看起來像壓縮當下的狀態；這裡是模型在壓縮前被明確要求寫給自己的交接內容，並標示它所在的位置。
+    - **L1 切點與 L2／L3 交界都純看預算**（L1：最早能放進預算的合法切點；L2：能放進預算的最新一段），不受檢查點影響。
   - 提示訊息只是觸發器：不進摘要，且一旦分支內已有 compaction，已被回答的提示會由 `context` 事件自模型 context 移除（session 檔保留原樣，`session_grep` 仍查得到）。
   - 主對話、Fork、Subagent 各自獨立計數，同一個 extension 掛載即生效；Subagent 子行程若有明確的 `--tools` 清單，argument builder 會附上 `progress_checkpoint`（`+name`／`-name` 清單附 `+progress_checkpoint`）。
-  - 真實 host 測試（`tests/fixtures/checkpoint-host.mjs`）以離線 provider 驗證錨點與文字兩種路徑；Fork 與 Subagent 子行程的實際載入尚未以真實子行程驗證。死線觸發有 `tests/deadline-host.integration.test.mjs`＋`tests/fixtures/deadline-host.mjs`（約 12 秒，一般整合組）：真實 Pi 1.5.0 `AgentSession`、載入本模組、Pi 原生門檻壓縮由本模組的確定性摘要回應（`providerCalls` 等於腳本請求數，沒有摘要呼叫）、usage 由腳本決定、間隔觸發關閉（`checkpointMinTokens: 0`）。兩個情境：`reported`（進入區間後下一個請求才收到通知、以 `note` 工具回答、之後壓縮、壓縮後模型看得到摘要）與 `missed`（單一回應回報的用量直接越過門檻，不追加通知）。限制：usage 是腳本值、沒有 thinking、單一模型尺寸；fixture 的 `note` 是離線替身、不含真實 Note Tools 模組；模型是否照通知寫筆記無法由離線腳本驗證，只固定通知的條件與時機；文字回覆路徑只有單元測試。
+  - 測試：`tests/deadline-host.integration.test.mjs`＋`tests/fixtures/deadline-host.mjs`（約 12 秒，一般整合組）：真實 Pi 1.5.0 `AgentSession`、載入本模組、Pi 原生門檻壓縮由本模組的確定性摘要回應（`providerCalls` 等於腳本請求數，沒有摘要呼叫）、usage 由腳本決定。兩個情境：`reported`（進入區間後下一個請求才收到通知、以 `progress_checkpoint` 回答、之後壓縮、壓縮後模型看得到摘要且摘要含檢查點全文）與 `missed`（單一回應回報的用量直接越過門檻，不追加通知）。`tests/children.integration.test.mjs` 以真實 Fork／Subagent 子行程驗證子行程載入本模組、收到通知並以工具回答。限制：usage 是腳本值、沒有 thinking、單一模型尺寸；模型是否照通知寫出好的內容無法由離線腳本驗證，只固定通知的條件與時機；文字回覆路徑只有單元測試。
 - System prompt：`before_agent_start` 寫入結構化 section `context_compaction`（`src/guidance.ts`，固定文字約 170 token，不影響快取；設定檔無效、壓縮交還 Pi 時移除；與 forced／custom prompt 並存的處理同 Shell 的背景生命週期 section，不整份覆蓋）。內容：舊訊息被確定性摘要取代、`⟦L<行>:<id>⟧` 與回溯工具（`tool_search "session"` 載入、`session_read`／`session_grep`）、先看摘要再決定是否重讀、**回報進度或完成任務時第一句先講結論**（assistant 文字被截短時保留開頭）。風格指示只限進度回報與完成回報，不改變一般回覆。實際效果以任務試驗（`tools/pi-auto-compact-bench/`）量測，不假設有效。
-- 設定面板：`/settings:auto-compact`（`src/settings.ts`，共用層 `shared/src/settings-panel/`）。兩頁：Budgets（L1～L4 各自的比例與最小字元數）、Limits（總量上限、每 token 字元數、錨點間隔）；數值欄位為文字輸入，**留空＝使用預設值**（預設值以淡色佔位顯示），存檔時刪除該鍵。驗證與錯誤訊息直接用 `parseConfig` 的規則（錯誤不回顯輸入值）。面板頂端顯示目前模型的有效預算（`max(視窗 × 比例, 最小值)`，取自磁碟上的檔案，不含未存檔的編輯）。不需 trust（使用者層檔案）；非 TUI 拒絕並說明檔案位置；檔案無效（含未知鍵）時詢問是否從預設值重來，存檔會取代該檔。只有按存檔才寫入（保留未改的鍵、原子寫入、沒有鍵時刪檔）；存檔後**不問 reload**（`SettingsSchema.appliesWithoutReload`）。
+- 設定面板：`/settings:auto-compact`（`src/settings.ts`，共用層 `shared/src/settings-panel/`）。兩頁：Budgets（L1～L4 各自的比例與最小字元數）、Limits（總量上限、每 token 字元數、檢查點通知邊際）；數值欄位為文字輸入，**留空＝使用預設值**（預設值以淡色佔位顯示），存檔時刪除該鍵。驗證與錯誤訊息直接用 `parseConfig` 的規則（錯誤不回顯輸入值）。面板頂端顯示目前模型的有效預算（`max(視窗 × 比例, 最小值)`，取自磁碟上的檔案，不含未存檔的編輯）。不需 trust（使用者層檔案）；非 TUI 拒絕並說明檔案位置；檔案無效（含未知鍵）時詢問是否從預設值重來，存檔會取代該檔。只有按存檔才寫入（保留未改的鍵、原子寫入、沒有鍵時刪檔）；存檔後**不問 reload**（`SettingsSchema.appliesWithoutReload`）。
 - 尚未做：跨壓縮共同前綴比較（M6）。
 - 只註冊三個唯讀、deferred 的 session 工具（`session_grep`／`session_window`／`session_read`，命名空間 `session`，由 `tool_search` 載入，註冊時不會被啟用）；不註冊命令或訊息。
 
@@ -59,7 +61,7 @@
 
 ### `session_window({ from?, to?, before?, count?, session_id?, max_chars? })`
 
-範圍大綱：**與摘要的 L3 規則相同**：只列 user／assistant 文字（截短），進度錨點（`progress_checkpoint`）的報告算 assistant 文字，所以長任務依然看得出脈絡、也能以錨點為段落邊界；shell 指令、備註與 compaction 邊界照列；**不列任何工具呼叫或結果**（只呼叫工具的 assistant 訊息不顯示）。要看工具細節用 `session_read`，要找工具內容用 `session_grep`。`before=<行>` 專門往前讀（壓縮後起點不是第 1 行時用）。session 檔含所有分支，**被放棄分支的 entry 標 `(other branch)`**（以目前 leaf 沿 `parentId` 判定；連結不完整時不過濾，寧可多顯示也不隱藏歷史）。每次最多 400 行、預設 8000 字元，輸出末尾給下一次的 `from` 與往前的 `before`。
+範圍大綱：**與摘要的 L3 規則相同**：只列 user／assistant 文字（截短），進度檢查點（`progress_checkpoint`）以標題行 `checkpoint: <標題>` 列出，作為任務的段落邊界；shell 指令、備註與 compaction 邊界照列；**不列任何工具呼叫或結果**（只呼叫工具的 assistant 訊息不顯示）。要看工具細節用 `session_read`，要找工具內容用 `session_grep`。`before=<行>` 專門往前讀（壓縮後起點不是第 1 行時用）。session 檔含所有分支，**被放棄分支的 entry 標 `(other branch)`**（以目前 leaf 沿 `parentId` 判定；連結不完整時不過濾，寧可多顯示也不隱藏歷史）。每次最多 400 行、預設 8000 字元，輸出末尾給下一次的 `from` 與往前的 `before`。
 
 ### `session_grep({ pattern, role?, tool?, from?, to?, include_other_branches?, limit?, session_id? })`
 
@@ -69,7 +71,7 @@
 
 是否啟用由 extension 入口是否掛載決定（預設 manifest 已掛載；排除 `./modules/pi-auto-compact/src/index.ts` 即回到 Pi 原生壓縮），不是設定鍵。
 
-**checkpoint note 是任務分段標記**：成功儲存的 `note`（type `checkpoint`，路徑在 `checkpoints/` 下）是 L3／L4 與 `session_window` 大綱裡唯一保留的工具呼叫，渲染為 `checkpoint: <路徑> — <標題>`（標題取筆記第一行，並附結果 entry 的 `⟦L…⟧` 參照）。筆記內容不進摘要，要時用 `read` 讀該路徑；其他 `note` 類型與失敗的儲存不顯示（L2 仍是一般折疊行）。實作在 `src/checkpoint/note-mark.ts`，渲染仍是單一項目的純函式，不影響摘要前綴的逐位元組穩定。
+**檢查點是任務分段標記**：見上「摘要如何呈現檢查點」。
 
 ## L3 視窗起點與 L4 緩衝（M3 已實作）
 
@@ -86,7 +88,7 @@
 
 ## 使用邊界與真實模型實測
 
-**邊界：只存在於工具輸出裡的資訊，在 L3 視窗起點滑動後會掉。** L3 保留的是 user／assistant 文字（與進度錨點報告），不保留工具輸出；L2 只留折疊行，也不含內容。所以：
+**邊界：只存在於工具輸出裡的資訊，在 L3 視窗起點滑動後會掉。** L3 保留的是 user／assistant 文字（與檢查點標題行；最新檢查點全文在 Latest checkpoint 區塊），不保留工具輸出；L2 只留折疊行，也不含內容。所以：
 
 - 規則、需求、約束寫在**使用者訊息**裡 → 安全。使用者訊息完整保留，而且「Goal (first request)」一行放的是第一個請求的完整文字，視窗起點滑過它之後仍在摘要開頭。
 - 寫在 `AGENTS.md` 或 system prompt → 安全（每輪由宿主注入，不經壓縮）。
@@ -116,7 +118,7 @@
 
 ## 設定
 
-使用者層 `<agentDir>/auto-compact.json`（預設 `~/.pi/agent/auto-compact.json`，路徑由 Pi 的 agentDir 解析）。檔案可省略；省略的鍵使用預設值。唯一的寫入者是 `/settings:auto-compact` 面板（見下），且只在按存檔時寫入；載入 extension 不改任何 settings。**沒有開關鍵**，也沒有專案層設定。也可以直接編輯檔案；壓縮、錨點與 system prompt section 每次使用都重讀，所以兩種方式都不需要 `/reload`。
+使用者層 `<agentDir>/auto-compact.json`（預設 `~/.pi/agent/auto-compact.json`，路徑由 Pi 的 agentDir 解析）。檔案可省略；省略的鍵使用預設值。唯一的寫入者是 `/settings:auto-compact` 面板（見下），且只在按存檔時寫入；載入 extension 不改任何 settings。**沒有開關鍵**，也沒有專案層設定。也可以直接編輯檔案；壓縮、死線通知與 system prompt section 每次使用都重讀，所以兩種方式都不需要 `/reload`。
 
 | 鍵 | 預設 | 範圍 | 說明 |
 |---|---|---|---|
@@ -125,9 +127,7 @@
 | `l3Ratio`／`l3MinChars` | 0.01／6000 | 同上 | L3 預算 |
 | `l4Ratio`／`l4MinChars` | 0.01／6000 | 同上 | L4 = L3 視窗的**溢出緩衝**（見下節）。摘要的 L3 區段大小在 `L3` 到 `L3+L4` 之間浮動 |
 | `charsPerToken` | 2.2 | 1～8 | 估算 token 用；Pi 內建為 4，中文為主的 session 實測約 2.2 |
-| `checkpointRatio` | 0.5 | (0,1] | 進度錨點：context 自上次 assistant 文字／錨點呼叫起增加此比例的 context window 時要求一次進度回報（見上） |
-| `checkpointMinTokens` | 200000 | 非負整數 | 進度錨點只在 context 大於此 token 數時啟用；`0` 停用間隔觸發（死線通知不受影響） |
-| `deadlineMarginMinTokens` | 20000 | 非負整數 | 壓縮前死線通知的邊際下限：通知在 Pi 壓縮門檻之前 `max(0.1 × contextWindow, 此值)` token 送出；視窗低於 200k 時以此值為準，`0` 只留 10% 比例；通知最早不會早於 Pi 壓縮門檻的一半（小視窗或過大的值不會讓通知在第一回合就送出） |
+| `deadlineMarginMinTokens` | 20000 | 非負整數 | 壓縮前檢查點通知的邊際下限：通知在 Pi 壓縮門檻之前 `max(0.1 × contextWindow, 此值)` token 送出；視窗低於 200k 時以此值為準，`0` 只留 10% 比例；通知最早不會早於 Pi 壓縮門檻的一半（小視窗或過大的值不會讓通知在第一回合就送出） |
 | `maxTotalRatio` | 0.5 | (0,1] | 估算總量（最壞情況 L2＋L3＋L4）占 context window 的硬上限；超過時先重設視窗起點、再縮 L3、再縮 L2，不縮 L1 |
 
 - **比例預設都是 0.01，實際生效的幾乎都是最小字元數**：`ctx × 0.01` 要超過最小值才會生效，門檻是 L1 約 300 萬、L2 約 200 萬、L3／L4 約 60 萬 token 的 context window。例：200k 窗口的預算為 L1 30000、L2 20000、L3 6000、L4 6000 字元；1M 窗口為 L1 30000、L2 20000、L3 10000、L4 10000 字元。要讓預算隨窗口成長，須自行調高比例或最小值。

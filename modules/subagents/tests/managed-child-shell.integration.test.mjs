@@ -14,7 +14,7 @@ test("offline managed CLI new/resume/ready-query loads foreground Shell in eithe
   const progress = setInterval(() => console.log("Managed child CLI verification in progress..."), 5000);
   try {
     const sdk = await import("@earendil-works/pi-coding-agent");
-    assert.equal(sdk.VERSION, "1.5.0");
+    assert.equal(sdk.VERSION, "1.5.2");
     const agentDir = path.join(root, "agent"), home = path.join(root, "home"), cwd = fs.realpathSync(root);
     fs.mkdirSync(agentDir); fs.mkdirSync(home);
     // childTrusted:false must not depend on where tmpdir lives (on Windows it sits under the real home's .agents/skills, on macOS/Linux it

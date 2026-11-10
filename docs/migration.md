@@ -168,6 +168,18 @@ The Scheduler module was removed (2026-10-06; unrelated to the later Schedule Pr
 
 Do not delete shared schedules/native sessions/logs as part of rollback. No rollback can undo completed tool side effects, and cancellation does not establish arbitrary descendant-process termination.
 
+## Pi 1.5.2 upgrade (2026-11-10)
+
+The four root Pi development packages, the lockfile and every real-host version assertion now target only 1.5.2; 1.5.0 is no longer verified. Runtime peers remain host-provided. Run root `npm ci --ignore-scripts` after pulling.
+
+Changes in this repository caused by 1.5.1/1.5.2:
+
+- **Session-affinity headers:** Pi 1.5.1 renamed them per provider API (`session-id` for OpenAI Responses and Codex, `session_id`/`x-session-affinity` for OpenAI-compatible completions, `x-session-id` for OpenRouter, `x-session-affinity` for Anthropic). The Fork child guard writes the names of the current `ctx.model.api` (all of them for an unknown API) as the parent session id; see Fork README 4a/4b.
+- Measured on 1.5.2 (opencode-go/deepseek-v4.1-flash, one sample): the Fork child's first request read 46080 of 46308 tokens from cache.
+- Verification run: typecheck, lint, unit, cross, integration and the heavy group. The only failing integration stage is the known-upstream `@ff-labs/pi-fff` 0.11.0 aux-finder capacity defect (D14, not caused by 1.5.2).
+
+Separate change of the same day (not host-caused): the `note` tool lost its `checkpoint` type, and Pi Auto Compact lost its interval checkpoint (the deadline notice now asks for `progress_checkpoint`).
+
 ## Pi 1.5.0 upgrade (2026-11-03)
 
 The four root Pi development packages, the lockfile (which adds `@earendil-works/pi-schema`) and every real-host version assertion now target only 1.5.0; 1.4.0 is no longer verified. Runtime peers remain host-provided. Run root `npm ci --ignore-scripts` after pulling.

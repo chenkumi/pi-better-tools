@@ -21,9 +21,8 @@ async function run(kind) {
   try {
     for (const dir of [config, ws, sessions]) await mkdir(dir, { recursive: true });
     await writeFile(join(config, 'auth.json'), '{}');
-    // The 100k-token offline window never reaches the default 200k minimum of the interval checkpoint.
-    await writeFile(join(config, 'auto-compact.json'), JSON.stringify({ checkpointMinTokens: 1 }));
-    await writeFile(join(config, 'settings.json'), JSON.stringify({ extensions, compaction: { enabled: false }, retry: { enabled: false }, cacheWarming: 'off', defaultProjectTrust: 'never' }));
+    // A 5k reserve puts Pi's threshold at 95k of the 100k offline window, and the notice zone at 75k to 95k.
+    await writeFile(join(config, 'settings.json'), JSON.stringify({ extensions, compaction: { enabled: true, reserveTokens: 5000 }, retry: { enabled: false }, cacheWarming: 'off', defaultProjectTrust: 'never' }));
     await writeFile(join(ws, 'probe.txt'), 'probe');
     const env = {};
     for (const key of ['PATH', 'Path', 'PATHEXT', 'SystemRoot', 'SYSTEMROOT', 'WINDIR', 'COMSPEC', 'TEMP', 'TMP']) if (process.env[key]) env[key] = process.env[key];
@@ -62,20 +61,20 @@ async function run(kind) {
 }
 
 for (const [kind, marker] of [['fork', 'FORK_CHECKPOINT_TASK'], ['subagent', 'SUBAGENT_CHECKPOINT_TASK']]) {
-  test(`Pi 1.5.0 Pi Auto Compact checkpoint in a real ${kind} child process: the child loads the extension and answers through the anchor tool`, { timeout: DEADLINE_MS + 60_000 }, async () => {
+  test(`Pi 1.5.2 Pi Auto Compact checkpoint in a real ${kind} child process: the child loads the extension and answers the notice through the checkpoint tool`, { timeout: DEADLINE_MS + 60_000 }, async () => {
     const { sessions, stderr } = await run(kind);
     // The root session holds the call that carries the marker too; the child's own session is the other file that contains it as a user message.
     const candidates = sessions.filter(({ entries }) => JSON.stringify(entries).includes(marker));
-    const child = candidates.find(({ entries }) => entries.some(e => e.type === 'custom_message' && e.customType === 'pi-auto-compact:checkpoint'));
-    assert.ok(child, `a ${kind} child session with a checkpoint request (sessions seen: ${candidates.length}, files: ${sessions.length})${newline}${stderr}`);
-    const checkpoints = child.entries.filter(e => e.type === 'custom_message' && e.customType === 'pi-auto-compact:checkpoint');
-    assert.equal(checkpoints.length, 1, 'exactly one request for one threshold');
-    assert.match(String(checkpoints[0].content), /Call progress_checkpoint now/, 'the anchor tool was active in the child, so the request names it');
+    const child = candidates.find(({ entries }) => entries.some(e => e.type === 'custom_message' && e.customType === 'pi-auto-compact:deadline'));
+    assert.ok(child, `a ${kind} child session with a compaction notice (sessions seen: ${candidates.length}, files: ${sessions.length})${newline}${stderr}`);
+    const notices = child.entries.filter(e => e.type === 'custom_message' && e.customType === 'pi-auto-compact:deadline');
+    assert.equal(notices.length, 1, 'exactly one notice for one compaction cycle');
+    assert.match(String(notices[0].content), /calling progress_checkpoint/, 'the notice names the checkpoint tool');
     const anchors = child.entries.filter(e => e.type === 'message' && e.message.role === 'assistant' && e.message.content.some(b => b.type === 'toolCall' && b.name === 'progress_checkpoint'));
     assert.equal(anchors.length, 1);
     const result = child.entries.find(e => e.type === 'message' && e.message.role === 'toolResult' && e.message.toolName === 'progress_checkpoint');
-    assert.ok(result && !result.message.isError, 'the anchor tool ran in the child');
-    assert.ok(!child.entries.some(e => e.type === 'custom_message' && e.customType === 'pi-auto-compact:continue'), 'an anchor report needs no continuation');
+    assert.ok(result && !result.message.isError, 'the checkpoint tool ran in the child');
+    assert.ok(!child.entries.some(e => e.type === 'custom_message' && e.customType === 'pi-auto-compact:continue'), 'a checkpoint call needs no continuation');
     const last = child.entries.filter(e => e.type === 'message' && e.message.role === 'assistant').at(-1).message;
     assert.match(JSON.stringify(last.content), /CHILD_DONE/, 'the child went on to finish its work');
   });

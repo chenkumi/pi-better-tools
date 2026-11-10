@@ -7,13 +7,13 @@ import { Type } from 'typebox';
 
 const packageRoot = resolve(process.argv[2]);
 const expectedVersion = process.argv[3];
-assert.equal(expectedVersion, '1.5.0', 'only the pinned Pi 1.5.0 host is supported');
+assert.equal(expectedVersion, '1.5.2', 'only the pinned Pi 1.5.2 host is supported');
 const host = process.env.PI_BETTER_TOOLS_HOST;
 const sdk = await import(host ? pathToFileURL(join(host, 'dist/index.js')).href : '@earendil-works/pi-coding-agent');
 const ai = await import(host ? pathToFileURL(join(host, '../pi-ai/dist/index.js')).href : '@earendil-works/pi-ai');
 assert.equal(sdk.VERSION, expectedVersion);
 sdk.initTheme('dark', false);
-// Pi 1.5.0 contract: reload applies defaultTools, restores pending tool names and hides declaration snippets.
+// Pi 1.5.2 contract: reload applies defaultTools, restores pending tool names and hides declaration snippets.
 const contracts = { reloadDefaults: true, pendingTools: true, hiddenSnippets: true };
 const manifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
 const home = homedir(), agentDir = join(home, '.pi/agent'), cwd = join(home, 'workspace');
@@ -120,7 +120,7 @@ async function fixture(options = {}) {
         toolsAdded: options.restored.map(declaration), timestamp: Date.now() });
       sessionManager.appendCustomEntry('fixture-restoration-boundary', {});
       assert.equal((await session.navigateTree(restoredLeaf, { summarize: false })).cancelled, false);
-      // Pi 1.5.0 (#11062): extension tools the branch never mentioned are activated like newly registered
+      // Pi 1.5.2 (#11062): extension tools the branch never mentioned are activated like newly registered
       // tools — declarable exposure and defaultActive !== false. Built-in names follow defaultTools instead.
       const unmentioned = loader.getExtensions().extensions.flatMap(extension => [...extension.tools.values()].map(tool => tool.definition))
         .filter(definition => definition.defaultActive !== false && [undefined, 'direct', 'model-only'].includes(definition.exposure)

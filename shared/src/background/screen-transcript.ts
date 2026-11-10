@@ -10,9 +10,23 @@ const NOTIFY_INTERVAL_MS = 100;
 /** Characters that must never reach a text row: C0/C1 controls and bidi overrides/isolates. */
 const UNSAFE = /[\x00-\x1f\x7f-\x9f؜‎‏‪-‮⁦-⁩]/g;
 
+/** `flush()` gives up after this long (a terminal disposed underneath it never calls back). */
+const FLUSH_LIMIT_MS = 1000;
+
+/** What `plainText()` returns. */
+export interface ScreenText {
+  text: string;
+  cols: number;
+  rows: number;
+  alternate: boolean;
+  /** 1-based line and column of the cursor in `text`'s lines. */
+  cursor: { line: number; column: number };
+}
+
 /**
  * In-memory copy of one terminal's screen, fed with the same bytes the terminal already produced. Presentation only:
- * not a record, never sent to a model, and not masked (the person at the keyboard sees what any terminal would show).
+ * not a record, and not masked here (the person at the keyboard sees what any terminal would show). `plainText()` is the one
+ * model-facing view; its owner must mask the result before handing it out (the PTY manager does).
  * The grid keeps the terminal's own size; no scrollback is kept, so memory stays at cols × rows cells.
  * Only SGR styling (bold, dim, italic, underline, inverse, strikethrough, 16/256/true colors) is generated here; nothing from
  * the stream is passed through as an escape sequence.
@@ -71,6 +85,48 @@ export class ScreenTranscript implements ScreenSource {
     this.timer.unref?.();
   }
 
+  /** Resolves once every byte written so far has been applied to the grid (the parser works asynchronously). Never rejects, never waits long. */
+  flush(): Promise<void> {
+    const terminal = this.terminal;
+    if (!terminal) return Promise.resolve();
+    return new Promise<void>(resolve => {
+      const timer = setTimeout(resolve, FLUSH_LIMIT_MS);
+      timer.unref?.();
+      try { terminal.write("", () => { clearTimeout(timer); resolve(); }); } catch { clearTimeout(timer); resolve(); }
+    });
+  }
+
+  /** True while the program shows its own full screen (alternate screen: editors, pagers, dashboards). */
+  get alternate(): boolean {
+    try { return this.terminal?.buffer.active.type === "alternate"; } catch { return false; }
+  }
+
+  /**
+   * The screen as plain text for a reader that is not a terminal: no styling and nothing from the stream passes through.
+   * Rows the terminal wrapped itself are joined into one line, so a long line is not cut in two and text that wrapped (a typed
+   * secret, for example) stays contiguous. Text up to the last row that has content or holds the cursor; trailing blanks trimmed.
+   * `cursor` is 1-based, counted in these lines. Undefined once released.
+   */
+  plainText(): ScreenText | undefined {
+    const terminal = this.terminal;
+    if (!terminal) return undefined;
+    const buffer = terminal.buffer.active;
+    const joined: string[] = [];
+    let cursorLine = 0, cursorColumn = 0, rowsInLine = 0;
+    for (let y = 0; y < terminal.rows; y++) {
+      const line = buffer.getLine(buffer.baseY + y);
+      const row = line ? plainRow(line, terminal.cols) : "";
+      if (line?.isWrapped && joined.length > 0) { joined[joined.length - 1] += row; rowsInLine++; }
+      else { joined.push(row); rowsInLine = 1; }
+      if (y === buffer.cursorY) { cursorLine = joined.length - 1; cursorColumn = (rowsInLine - 1) * terminal.cols + buffer.cursorX; }
+    }
+    const lines = joined.map(row => row.replace(/\s+$/, ""));
+    let end = lines.length;
+    while (end > 0 && lines[end - 1] === "") end--;
+    const shown = lines.slice(0, Math.max(end, cursorLine + 1));
+    return { text: shown.join("\n"), cols: terminal.cols, rows: terminal.rows, alternate: this.alternate, cursor: { line: cursorLine + 1, column: cursorColumn + 1 } };
+  }
+
   /** Current screen rows up to the last row that has text or holds the cursor. */
   lines(): string[] {
     const terminal = this.terminal;
@@ -118,6 +174,18 @@ function styleOf(c: Cell): string {
   codes.push(...colorCodes(30, c.isFgPalette(), c.isFgRGB(), c.getFgColor()));
   codes.push(...colorCodes(40, c.isBgPalette(), c.isBgRGB(), c.getBgColor()));
   return codes.join(";");
+}
+
+/** One row as plain text, untrimmed (a wrapped row must keep its full width when the next row is joined to it). Hidden text stays hidden. */
+function plainRow(line: Line, cols: number): string {
+  let out = "";
+  const cell = line.getCell(0);
+  for (let x = 0; x < Math.min(cols, line.length) && cell; x++) {
+    const c = line.getCell(x, cell);
+    if (!c || c.getWidth() === 0) continue; // the right half of a wide glyph
+    out += c.isInvisible() ? " " : (c.getChars() || " ").replace(UNSAFE, "");
+  }
+  return out;
 }
 
 /** One row as text with bold, dim, italic, underline, inverse, strikethrough and 16/256/true colors. Nothing else survives. */

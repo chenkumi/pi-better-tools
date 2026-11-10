@@ -24,11 +24,7 @@ export interface AutoCompactConfig {
   charsPerToken: number;
   /** Hard ceiling on the estimated summary size (worst case L2 + L3 + L4) as a fraction of the context window; the window start resets first, then L3 shrinks, then L2, never L1. */
   maxTotalRatio: number;
-  /** Progress checkpoint: when the context has grown by this fraction of the window since the last assistant text, the run is asked for a short report. */
-  checkpointRatio: number;
-  /** The interval checkpoint only applies while the context is larger than this many tokens; 0 turns the interval checkpoint off. The pre-compaction deadline notice is separate. */
-  checkpointMinTokens: number;
-  /** The pre-compaction deadline notice is sent max(0.1 × window, this) tokens before Pi's compaction threshold; 0 leaves just the 0.1 share. */
+  /** The pre-compaction checkpoint notice is sent max(0.1 × window, this) tokens before Pi's compaction threshold; 0 leaves just the 0.1 share. */
   deadlineMarginMinTokens: number;
 }
 
@@ -39,8 +35,6 @@ export const DEFAULT_CONFIG: Readonly<AutoCompactConfig> = Object.freeze({
   l4Ratio: 0.01, l4MinChars: 6_000,
   charsPerToken: 2.2,
   maxTotalRatio: 0.5,
-  checkpointRatio: 0.5,
-  checkpointMinTokens: 200_000,
   deadlineMarginMinTokens: 20_000,
 });
 
@@ -49,9 +43,9 @@ export const configPath = (agentDir: string) => join(agentDir, CONFIG_FILE_NAME)
 
 type Rule = { kind: 'ratio' } | { kind: 'chars' } | { kind: 'tokens' } | { kind: 'range'; min: number; max: number };
 const RULES: Record<keyof AutoCompactConfig, Rule> = {
-  l1Ratio: { kind: 'ratio' }, l2Ratio: { kind: 'ratio' }, l3Ratio: { kind: 'ratio' }, l4Ratio: { kind: 'ratio' }, maxTotalRatio: { kind: 'ratio' }, checkpointRatio: { kind: 'ratio' },
+  l1Ratio: { kind: 'ratio' }, l2Ratio: { kind: 'ratio' }, l3Ratio: { kind: 'ratio' }, l4Ratio: { kind: 'ratio' }, maxTotalRatio: { kind: 'ratio' },
   l1MinChars: { kind: 'chars' }, l2MinChars: { kind: 'chars' }, l3MinChars: { kind: 'chars' }, l4MinChars: { kind: 'chars' },
-  checkpointMinTokens: { kind: 'tokens' }, deadlineMarginMinTokens: { kind: 'tokens' },
+  deadlineMarginMinTokens: { kind: 'tokens' },
   charsPerToken: { kind: 'range', min: 1, max: 8 },
 };
 

@@ -9,7 +9,7 @@ import { chooseLayout } from '../src/compact/layout.ts';
 import { displayPath } from '../src/compact/state.ts';
 import { noteText, renderL2, renderL3 } from '../src/compact/render.ts';
 import { composeSummary, previousWindowStart } from '../src/compact/summary.ts';
-import { ANCHOR_TOOL } from '../src/checkpoint/messages.ts';
+import { CHECKPOINT_TOOL } from '../src/checkpoint/messages.ts';
 import { DEFAULT_CONFIG, type AutoCompactConfig } from '../src/config.ts';
 import { readSessionLines } from '../src/session-read/read.ts';
 import { resolveReadableSessions } from '../src/session-read/sessions.ts';
@@ -157,9 +157,9 @@ test('layout: the recorded start is kept while L3 plus the L4 slack fits, and re
   assert.equal(chooseLayout(lens2(11), lens3(11), budgets, 11).keptStart, false, 'a start at or after L2 is not kept');
 });
 
-test('a long turn that fits neither L1 nor L2: the L2/L3 border is the budget border, and savepoints are plain assistant text that L3 shows', () => {
+test('a long turn that fits neither L1 nor L2: the L2/L3 border is the budget border, and checkpoints are titled lines that L3 shows', () => {
   const tool = (label: string): Entry[] => [say('', [{ id: `c-${label}`, name: 'bash', args: { command: label } }]), result(`c-${label}`, 'bash', 'ok')];
-  const save = (label: string): Entry[] => [say('', [{ id: `p-${label}`, name: ANCHOR_TOOL, args: { summary: label } }]), result(`p-${label}`, ANCHOR_TOOL, 'Progress recorded.')];
+  const save = (label: string): Entry[] => [say('', [{ id: `p-${label}`, name: CHECKPOINT_TOOL, args: { summary: label } }]), result(`p-${label}`, CHECKPOINT_TOOL, 'Checkpoint saved.')];
   const tools = (from: number, to: number): Entry[] => Array.from({ length: to - from + 1 }, (_, i) => tool(`TOOL_3_${from + i}`)).flat();
   // L1 would start at TOOL_3_14, so the history handed to the summary ends with TOOL_3_13.
   const entries: Entry[] = [user('USER_1'), ...tool('TOOL_1_1'), say('ASSISTANT_1'), user('USER_2'), ...tool('TOOL_2_1'), ...tool('TOOL_2_2'), say('ASSISTANT_2'), user('USER_3'),
@@ -171,9 +171,9 @@ test('a long turn that fits neither L1 nor L2: the L2/L3 border is the budget bo
   const l2 = lens2.slice(border).reduce((n, value) => n + value, 0);
   const { summary } = composeSummary({ items: built, config: cfg({ ...noLoan, l2Ratio: 0, l2MinChars: l2, l3Ratio: 0, l3MinChars: 100_000, l4Ratio: 0, l4MinChars: 1, maxTotalRatio: 1 }), contextWindow: 200_000, keptChars: 0 });
   const [l3Text, l2Text] = summary.split('## Earlier conversation')[1]!.split('## Recent activity') as [string, string];
-  const lines = (block: string) => block.split(String.fromCharCode(10)).map(line => line.trim()).filter(line => /^(U|A): |^\[bash\]/.test(line));
-  assert.deepEqual(lines(l3Text), ['U: USER_1', 'A: ASSISTANT_1', 'U: USER_2', 'A: ASSISTANT_2', 'U: USER_3', 'A: SAVEPOINT_3_1'], 'L3 is conversation only; the savepoint counts as assistant text; no tool line, so TOOL_3_4 is gone');
-  const seen = lines(l2Text).filter(line => !line.startsWith('A: →')).map(line => line.replace(/^A: /, '').replace(/^\[bash\] "([^"]+)".*$/, '$1'));
+  const lines = (block: string) => block.split(String.fromCharCode(10)).map(line => line.trim()).filter(line => /^(U|A): |^checkpoint: |^\[bash\]/.test(line));
+  assert.deepEqual(lines(l3Text), ['U: USER_1', 'A: ASSISTANT_1', 'U: USER_2', 'A: ASSISTANT_2', 'U: USER_3', 'checkpoint: SAVEPOINT_3_1'], 'L3 is conversation only; a checkpoint is a titled line; no tool line, so TOOL_3_4 is gone');
+  const seen = lines(l2Text).filter(line => !line.startsWith('A: →')).map(line => line.replace(/^A: /, '').replace(/^checkpoint: /, '').replace(/^\[bash\] "([^"]+)".*$/, '$1'));
   assert.deepEqual(seen, ['TOOL_3_5', 'TOOL_3_6', 'SAVEPOINT_3_2', 'TOOL_3_7', 'TOOL_3_8', 'TOOL_3_9', 'SAVEPOINT_3_3', 'TOOL_3_10', 'TOOL_3_11', 'TOOL_3_12', 'SAVEPOINT_3_4', 'TOOL_3_13'], 'L2 starts exactly at the budget border, not at the nearest savepoint');
 });
 
@@ -432,15 +432,41 @@ test('secrets in tool output and the contents of files do not reach the summary'
   assert.ok(summary.includes('[read] a.ts → lines 1–1 of 1'));
 });
 
-test('a saved checkpoint note stays in L3 as a segment marker with its path and title; other notes and failed saves do not', () => {
-  const path = 'checkpoints/SID/CHECKPOINT-20261106T021536800Z.md';
-  const save = (id: string, type: string, content: string, isError = false) => [
-    say('', [{ id, name: 'note', args: { type, content } }]),
-    result(id, 'note', isError ? 'NOTE_EMPTY: x' : `Saved note: ${path}`, { isError, details: isError ? undefined : { relativePath: type === 'checkpoint' ? path : `reports/SID/REPORT-1.md`, sha256: 'h', bytes: 3 } }),
-  ];
-  const built = items([user('go'), ...save('c1', 'checkpoint', '# 進度快照 1\n\n## 任務\nx'), ...save('c2', 'report', '# Report'), ...save('c3', 'checkpoint', '# Fail', true)]);
-  const rendered = built.map(item => renderL3(item));
-  assert.deepEqual(rendered.filter(Boolean), ['U: go', `checkpoint: ${path} — 進度快照 1`]);
-  const withText = items([say('saving now', [{ id: 'c4', name: 'note', args: { type: 'checkpoint', content: 'plain first line' } }]), result('c4', 'note', 'ok', { details: { relativePath: path } })]);
-  assert.equal(renderL3(withText[0]!), `A: saving now\ncheckpoint: ${path} — plain first line`);
+const checkpoint = (id: string, summary: string, isError = false): Entry[] => [
+  say('', [{ id, name: CHECKPOINT_TOOL, args: { summary } }]),
+  result(id, CHECKPOINT_TOOL, isError ? 'invalid' : 'Checkpoint saved. Continue the task.', { isError }),
+];
+
+test('a checkpoint stays in L3 and L2 as a titled line; failed calls and other tools do not', () => {
+  const built = items([user('go'), ...checkpoint('c1', '# 進度快照 1\n\n## 任務\nx'), ...checkpoint('c3', '# Fail', true), say('', [{ id: 'n1', name: 'note', args: { type: 'report', content: '# R' } }]), result('n1', 'note', 'Saved note: reports/R.md')]);
+  assert.deepEqual(built.map(item => renderL3(item)).filter(Boolean), ['U: go', 'checkpoint: 進度快照 1']);
+  const withText = items([say('saving now', [{ id: 'c4', name: CHECKPOINT_TOOL, args: { summary: 'plain first line\nsecond' } }]), result('c4', CHECKPOINT_TOOL, 'ok')]);
+  assert.equal(renderL3(withText[0]!), 'A: saving now\ncheckpoint: plain first line');
+  assert.deepEqual(renderL2(withText[0]!), ['A: saving now', '  checkpoint: plain first line']);
+  assert.ok(!renderL2(built[1]!).join('\n').includes('second'), 'only the title, not the whole text');
 });
+
+test('the summary shows the latest checkpoint in full as its own section; older ones stay titled lines; none is shown when a newer one is kept raw', () => {
+  const entries = [user('go'), ...checkpoint('c1', '# First\nOLD BODY'), user('more'), ...checkpoint('c2', '# Second\nline A\nline B'), user('tail')];
+  const out = summarize(entries).summary;
+  const section = out.slice(out.indexOf('## Latest checkpoint'));
+  assert.ok(out.includes('## Latest checkpoint'), out);
+  assert.match(section, /^## Latest checkpoint\n# Second\nline A\nline B/);
+  assert.ok(!out.includes('OLD BODY'), 'the older checkpoint is only its title');
+  assert.ok(out.includes('checkpoint: First') && out.includes('checkpoint: Second'));
+  assert.ok(out.indexOf('## Recent activity') < out.indexOf('## Latest checkpoint'), 'after the conversation sections');
+  assert.ok(!summarize(entries, cfg(), { checkpointInTail: true }).summary.includes('## Latest checkpoint'));
+  assert.ok(!summarize([user('go'), ...checkpoint('c9', 'bad', true)]).summary.includes('## Latest checkpoint'), 'a failed call is not a checkpoint');
+  assert.equal(summarize(entries).summary, summarize(entries).summary, 'pure');
+});
+
+test('a huge checkpoint keeps its head and tail up to the L2 budget, and the ceiling still holds', () => {
+  const body = `HEAD-${'x'.repeat(50_000)}-TAIL`;
+  const config = cfg({ l2MinChars: 2000 });
+  const { summary, details } = summarize([user('go'), ...checkpoint('c1', body), user('tail')], config);
+  const section = summary.slice(summary.indexOf('## Latest checkpoint'));
+  assert.ok(section.includes('HEAD-') && section.includes('-TAIL') && /\[… \d+ chars omitted/.test(section), section.slice(0, 200));
+  assert.ok(section.length < 2000 + 400, `${section.length}`);
+  assert.ok(details.stats.estimatedTokens > 0);
+});
+

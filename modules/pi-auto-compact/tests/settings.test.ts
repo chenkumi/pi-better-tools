@@ -35,9 +35,9 @@ test('values show only what the file sets; everything else is blank so the defau
 
 test('Save writes only the changed key, keeps the others, and the module loader reads the result', async () => withDir('{ "l1MinChars": 25000 }', async dir => {
   const schema = autoCompactSettings(dir);
-  const error = await saveSettings(schema, { ...schema.toValues(schema.parse(onDisk(dir))), l3MinChars: '3000', checkpointRatio: ' 0.25 ' }, new Set(['l3MinChars', 'checkpointRatio']));
+  const error = await saveSettings(schema, { ...schema.toValues(schema.parse(onDisk(dir))), l3MinChars: '3000', maxTotalRatio: ' 0.25 ' }, new Set(['l3MinChars', 'maxTotalRatio']));
   assert.equal(error, undefined);
-  assert.deepEqual(onDisk(dir), { l1MinChars: 25000, l3MinChars: 3000, checkpointRatio: 0.25 });
+  assert.deepEqual(onDisk(dir), { l1MinChars: 25000, l3MinChars: 3000, maxTotalRatio: 0.25 });
   const loaded = loadConfig(dir);
   assert.ok(loaded.ok);
   assert.equal(loaded.config.l3MinChars, 3000);

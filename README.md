@@ -10,7 +10,7 @@
 
 ## 本機安裝
 
-需要 Node.js **`^22.22.2 || ^24.15.0 || >=26.0.0`**（與 jsdom 30 的 runtime 需求一致） 與 `@earendil-works/*` namespace 的 Pi。只支援 Pi **1.5.0**（開發基準與 production smoke 皆為 1.5.0；不維護 1.3.0 或更早版本），不代表其他 Pi 版本相容。
+需要 Node.js **`^22.22.2 || ^24.15.0 || >=26.0.0`**（與 jsdom 30 的 runtime 需求一致） 與 `@earendil-works/*` namespace 的 Pi。只支援 Pi **1.5.2**（開發基準與 production smoke 皆為 1.5.2；不維護 1.5.1 或更早版本），不代表其他 Pi 版本相容。
 
 ```powershell
 cd D:\projects\pi-better-tools
@@ -51,7 +51,7 @@ pi-better-tools pty setup
 
 根 `dependencies` 固定包含 `@ff-labs/pi-fff@0.11.0`。`session_before_compact` 由 Pi Auto Compact 負責。`npm ci --ignore-scripts` 會安裝 FFF；manifest 為二十個本地入口加 FFF 入口，共二十一個。仍維持 `private: true`，不需要 npm 發布、bundledDependencies 或 postinstall 呼叫 pi install。
 
-換機請下載／複製本專案原始碼及 lockfile，在新機重新執行上述安裝步驟，然後只掛載本專案目錄；不要跨 OS／CPU 複製 node_modules。**本機掛載不會自動執行 npm install**。Repository `.npmrc` 設 `legacy-peer-deps=true`，避免依賴 peers 自動安裝另一份 Pi SDK；整合基準為 Pi 1.5.0，不以此設定宣稱相容。
+換機請下載／複製本專案原始碼及 lockfile，在新機重新執行上述安裝步驟，然後只掛載本專案目錄；不要跨 OS／CPU 複製 node_modules。**本機掛載不會自動執行 npm install**。Repository `.npmrc` 設 `legacy-peer-deps=true`，避免依賴 peers 自動安裝另一份 Pi SDK；整合基準為 Pi 1.5.2，不以此設定宣稱相容。
 
 啟用整合入口前，請手動停用原本 `npm:@ff-labs/pi-fff`（以及已不再需要的 `npm:pi-open-tui`）的獨立 extension 資源，避免 hooks／commands／tools 重複載入。Repository 不會改寫真實 Pi settings 或卸載它們。`pi config` 的既有 extension filters 仍有效；只掛載單一 module 入口不會載入全部套件。
 
@@ -110,7 +110,7 @@ Shell 與 Subagents 會在 `startup`／`resume`／`reload` 載入 session 時，
 | Remote | `remote_list/send/status`（deferred，`tool_search remote`） | 以 WebSocket 把數個 Pi session 連成區網內的網路互傳訊息／任務（例如 push 後通知他平台 pull 測試）；`.pi/agent/remote.json`（受信任專案）設 server 或 client；12 碼配對碼 challenge-response（碼不上線）＋ wss；收到的訊息標示為不受信任資料、預設喚醒 agent（`wake` 可關閉／allowlist）；at-most-once、不排隊；不是遠端執行或 sandbox。`/remote` 與 footer 顯示狀態、system prompt 列出線上 peer；`/settings:remote` 面板設定角色／wake／憑證路徑，server 頁直接顯示配對碼（沒有就即時產生，存檔才寫入）並可 Enter 換新碼，client 遮罩輸入配對碼（存使用者層，不進專案檔） |
 | Skill Tools | `/skill:create-plan`、`/skill:pi-tools-config` 等隨包技能 | 原生 resource discovery、按需讀取；pi-tools-config 以 SKILL.md 索引 18 份逐模組指令／config references，不修改使用者 home |
 | Theme Tools | `/theme:<id>`（deep-sea／warm-charcoal／moss／quiet／signal／paper／dark／light）、`/theme:menu` | 切換 Pi 主題並寫入 settings（使用者明確要求）；詳見 [Theme Tools](modules/theme-tools/README.md) |
-| Pi Auto Compact | `session_grep`／`session_window`／`session_read`（唯讀、deferred）、`progress_checkpoint`；`/settings:auto-compact` 設定面板；`session_before_compact` hook | 確定性壓縮、不呼叫模型；hook 已產生摘要（讀 `<agentDir>/auto-compact.json`；失敗或不適用時交還 Pi），摘要含背景 job／monitor 狀態與工作樹資訊，真實 host 整合尚未完成。詳見 [Pi Auto Compact](modules/pi-auto-compact/README.md) |
+| Pi Auto Compact | `session_grep`／`session_window`／`session_read`（唯讀、deferred）、`progress_checkpoint`（進度檢查點，內容只留在對話中、不寫檔）；`/settings:auto-compact` 設定面板；`session_before_compact` hook | 確定性壓縮、不呼叫模型；hook 已產生摘要（讀 `<agentDir>/auto-compact.json`；失敗或不適用時交還 Pi），摘要含背景 job／monitor 狀態與工作樹資訊，真實 host 整合尚未完成。詳見 [Pi Auto Compact](modules/pi-auto-compact/README.md) |
 | File Audit | `/file-audit [status\|clear\|limits]` | 成功 read/write/edit/note 的近期活動；預設 4 runs／50 個不同檔案，並在使用者輸入時通知檔案被外部改動；不掃完整歷史。詳見 [File Audit](modules/file-audit/README.md) |
 | Note Tools | `note` | `{ type, content }`；自動分類、產生純時間戳檔名（`TYPE-<UTC 時間戳>.md`，不附加標題），只新增 Markdown 檔案並回報單一相對路徑，不覆寫 |
 | GPT Speed | `/fast`、`/ultrafast`、`/normal` | GPT >= 5.6 的 luna／terra／sol／astra pattern；Ultrafast 在 luna／terra 降為 Fast；`/cache-ttl-short`／`/cache-ttl-long` 目前停用（不註冊、不送 `prompt_cache_options`）；TUI 只顯示實際速度 |
@@ -224,6 +224,10 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 ### 2026-11-04 移除 Blackhole 與 `/fork:delegate`
 
 `modules/blackhole/`（0.5.12 快照）、其測試與重型組（`test:heavy:blackhole`、`scripts/blackhole-tests.mjs`）、Blackhole 專屬 fixtures、`pi-tools-config` 的 blackhole 參考頁與所有切換說明一併移除；壓縮只剩 Pi Auto Compact（確定性、不呼叫模型）。使用者個人的 `~/.pi/agent/pi-blackhole/` 設定與記憶檔不由本專案處理、不會被刪除，若 Pi 設定仍列有 `modules/blackhole/src/index.ts` 需自行移除。Fork 的 `/fork:delegate`（委派引導）經測試效果不如預期，已移除；Fork 快取延續不變。
+
+### 2026-11-10 Pi 1.5.2 升級
+
+根四個 Pi devDependencies 與 lockfile 升為 1.5.2，真實 host 斷言改為只接受 1.5.2，不再驗證 1.5.0。Fork child 的 guard 依 `ctx.model.api` 寫入 Pi 1.5.1 起改名的 session 親和標頭（見 [Fork README](modules/fork/README.md) 4a）。同日 Pi Auto Compact 移除間隔式檢查點、`note` 移除 `checkpoint` 類型，改由死線通知要求呼叫 `progress_checkpoint`。細節見 [docs/migration.md](docs/migration.md)。
 
 ### 2026-11-03 Pi 1.5.0 升級
 

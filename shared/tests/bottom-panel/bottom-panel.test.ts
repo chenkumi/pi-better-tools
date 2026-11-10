@@ -231,3 +231,16 @@ test('hideEditor only takes effect once an editor that can draw the panel exists
   assert.equal(second.render('k', 20).length, 0);
   closeBottomPanel(); await hidden;
 });
+
+test('an empty title draws a plain rule instead of a titled one, and a title function can switch between them', async () => {
+  const f = fakeUi();
+  let titled = false;
+  const result = openBottomPanel<string>(f.ui, { key: 'k', title: () => (titled ? 'Demo' : ''), create: ({ done }) => ({ render: () => ['row'], handleInput: () => done('x') }) });
+  const plain = f.render('k', 30);
+  assert.equal(plain[0], '─'.repeat(30));
+  assert.equal(plain[1], ' row');
+  titled = true;
+  assert.match(f.render('k', 30)[0]!, /^── Demo ─+$/);
+  f.type('a');
+  await result;
+});
