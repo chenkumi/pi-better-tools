@@ -1,0 +1,9 @@
+{
+  "name": "pi-better-tools-image-generation",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Project-native Image Generation: one deferred image_generate tool over the OpenAI Images API, the Gemini API and the local Codex CLI; root dependencies and Pi 1.5.2 are authoritative.",
+  "pi": { "extensions": ["./src/index.ts"] }
+}

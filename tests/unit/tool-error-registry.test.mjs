@@ -53,7 +53,7 @@ test('every registered code is still used, and no code is registered twice', () 
 });
 
 test('codes are prefixed with the owning module name', () => {
-  const prefixes = { 'pty-terminal': 'PTY_', 'shell-tools': 'SHELL_', 'sqlite-tools': 'SQLITE_', monitor: 'MONITOR_', remote: 'REMOTE_' };
+  const prefixes = { 'pty-terminal': 'PTY_', 'shell-tools': 'SHELL_', 'sqlite-tools': 'SQLITE_', monitor: 'MONITOR_', remote: 'REMOTE_', 'image-generation': 'IMAGE_' };
   for (const [code, files] of usedCodes()) {
     for (const file of files) {
       const module = Object.keys(prefixes).find(name => file.replace(/\\/g, '/').includes(`/modules/${name}/`));

@@ -65,6 +65,7 @@ description: >-
 | Monitor：監看 command／WebSocket／背景工作 | [monitor](references/monitor.md) |
 | Fork：繼承對話的獨立 Pi 工作 | [fork](references/fork.md) |
 | Remote：區網 Pi 互傳訊息、配對碼 | [remote](references/remote.md) |
+| Image Generation：文字生圖（OpenAI／Gemini／Codex CLI） | [image-generation](references/image-generation.md) |
 | Theme Tools：配色主題與 `/theme:<id>` 切換 | [theme-tools](references/theme-tools.md) |
 | GPT Speed：normal／fast／ultrafast | [gpt-speed](references/gpt-speed.md) |
 | JSON Schema：print 模式的結構化結果 | [json-schema](references/json-schema.md) |

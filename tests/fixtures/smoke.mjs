@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'u
 const expectedExtensions = manifest.pi.extensions.length;
 assert.ok(manifest.pi.extensions.includes('./modules/note-tools/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/pi-runtime/src/index.ts'));
-assert.equal(expectedExtensions, 21, 'twenty local entries plus one pinned dependency entry');
+assert.equal(expectedExtensions, 22, 'twenty-one local entries plus one pinned dependency entry');
 assert.ok(manifest.pi.extensions.includes('./modules/file-audit/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/sql-connector/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/sqlite-tools/src/index.ts'));
@@ -22,7 +22,7 @@ const dependencyEntries = {
 };
 const localEntries = manifest.pi.extensions.filter(entry => entry.startsWith('./modules/') && entry !== dependencyEntries['@ff-labs/pi-fff'].manifestEntry);
 for (const entry of localEntries) assert.match(entry, /^\.\/modules\/[^/]+\/src\/index\.ts$/);
-assert.equal(localEntries.length, 20);
+assert.equal(localEntries.length, 21);
 for (const [name, expected] of Object.entries(dependencyEntries)) {
   assert.equal(manifest.dependencies[name], expected.version);
   const dependency = JSON.parse(await readFile(join(packageRoot, 'node_modules', name, 'package.json'), 'utf8'));

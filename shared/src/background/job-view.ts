@@ -153,6 +153,8 @@ export class JobsOverlay implements Component {
   /** Second level for concurrent batches: the opened task, and the cursor while the task list is shown. */
   private taskKey?: string;
   private taskCursor?: string;
+  /** Last live view of the opened job. When that job disappears (its process closed and the entry was released) the panel keeps showing it as a snapshot until the user closes the panel; memory only. */
+  private lastLive?: { key: string; lines: string[]; screen: boolean; title: string };
   constructor(private source: () => PanelJob[], private theme: Theme, private requestRender: () => void, private done: () => void, private height: () => number, private tui?: TUI, private cwd = process.cwd(), initialDetail?: string) { this.detailKey = initialDetail; }
   invalidate() { this.list?.invalidate(); }
   /** Jump straight to another job's details (a click on its row in the list underneath); false when this overlay does not list it. */
@@ -183,14 +185,18 @@ export class JobsOverlay implements Component {
   }
   private detailHasLive() {
     const job = this.source().find(j => jobKey(j) === this.detailKey);
-    return !!this.tui && !!job?.transcripts?.some(t => !t.transcript.isReleased);
+    return this.snapshotOf(job) !== undefined || (!!this.tui && !!job?.transcripts?.some(t => !t.transcript.isReleased));
+  }
+  /** The kept last live view of the opened job, once that job is no longer listed. Derived from the current key, so it never goes stale. */
+  private snapshotOf(job: PanelJob | undefined) {
+    return !job && !this.taskKey && !this.metadata && this.lastLive?.key === this.detailKey ? this.lastLive : undefined;
   }
   /** Live lines for a running job; undefined when there is no live copy (use metadata). */
   private conversation(job: PanelJob, width: number, task?: PanelTask): string[] | undefined {
     const live = (task ? (task.transcript ? [{ label: task.label, transcript: task.transcript }] : []) : job.transcripts ?? []).filter(t => !t.transcript.isReleased);
     if (!this.tui || !live.length) { if (this.subscribed) this.dropViews(); return; }
     this.screenLabel = live.every(t => t.transcript.mode === "screen");
-    this.liveLabel = this.screenLabel ? "Live screen (display only)" : live.every(t => t.transcript.mode === "output") ? "Live output (memory copy)" : "Live conversation (memory copy)";
+    this.liveLabel = this.screenLabel ? (job.active ? "Live screen (display only)" : "Connection closed · final screen (display only)") : live.every(t => t.transcript.mode === "output") ? "Live output (memory copy)" : "Live conversation (memory copy)";
     // Identity, not list position: the panel list is compacted, so a different task's copy can sit at the same index.
     const sources = live.map(t => t.transcript), key = jobKey(job) + (task ? `/${task.id}` : "");
     if (this.subscribed !== key || sources.length !== this.subscribedSources.length || sources.some((source, i) => source !== this.subscribedSources[i])) {
@@ -257,7 +263,8 @@ export class JobsOverlay implements Component {
     width = clampWidth(width);
     // A terminal screen is a grid people read as a whole, so it may use all the room the editor and footer leave.
     const screenOpen = this.plain && !!this.detailKey && !this.metadata && !!this.source().find(j => jobKey(j) === this.detailKey)?.transcripts?.some(t => t.transcript.mode === "screen" && !t.transcript.isReleased);
-    const height = this.plain ? Math.max(4, Math.min(screenOpen ? 60 : 10, this.height() - 12)) : Math.max(1, Math.min(20, this.height() - 2));
+    const snapshotScreen = this.plain && !!this.detailKey && !this.source().some(j => jobKey(j) === this.detailKey) && !!this.snapshotOf(undefined)?.screen;
+    const height = this.plain ? Math.max(4, Math.min(screenOpen || snapshotScreen ? 60 : 10, this.height() - 12)) : Math.max(1, Math.min(20, this.height() - 2));
     const bordered = !this.plain && width >= 3 && height >= 4, inner = Math.max(0, width - (bordered ? 2 : 0));
     const contentRows = height - (bordered ? 2 : 0), bodyRows = Math.max(0, contentRows - 2);
     this.pageRows = Math.max(1, bodyRows - 1); // Detail scroll-info row is part of the height budget.
@@ -273,7 +280,15 @@ export class JobsOverlay implements Component {
       listing = batch && !task;
       title = !job ? "Job no longer retained" : task ? `Task · ${safeJobText(task.label, 64)}` : batch ? `Job details · ${safeJobText(job.label, 64)} · ${job.tasks.length} concurrent tasks · ${safeJobText(job.state)}` : `Job details · ${safeJobText(job.label, 64)} · ${safeJobText(job.state)}`;
       const raw = task ? [`${task.label} · ${task.state}`, `Activity: ${task.activity}`, ...task.details.slice(0, 256), ...(task.details.length > 256 ? ["… metadata fields omitted (256-field limit)"] : []), ...(job?.state === "cancelling" ? ["Job cancel requested; that is not proof the task or its process tree has exited."] : []), "Retained metadata only; no logs read."] : job ? [jobHeading(job), `Job ID: ${safeJobText(job.jobId)}`, `State: ${safeJobText(job.state)} · ${safeJobText(job.activity)}`, usageLabel(job), ...job.details.slice(0, 256), ...(job.details.length > 256 ? ["… metadata fields omitted (256-field limit)"] : []), "Retained metadata only; no logs read. Cancel requested is not proof of process-tree exit."] : ["This job is no longer retained in this session/runtime."];
-      const chat = job && !this.metadata && !listing ? this.conversation(job, Math.max(1, inner), task) : undefined;
+      let chat = job && !this.metadata && !listing ? this.conversation(job, Math.max(1, inner), task) : undefined;
+      if (job && chat && !task) this.lastLive = { key: this.detailKey, lines: chat, screen: this.screenLabel, title: jobHeading(job) };
+      // The job is gone but its last live view was seen: keep it on screen as a snapshot (the program closed; the panel is the user's to close).
+      const snapshot = task ? undefined : this.snapshotOf(job);
+      if (snapshot) {
+        chat = snapshot.lines; this.screenLabel = snapshot.screen;
+        this.liveLabel = snapshot.screen ? "Connection closed · snapshot (display only)" : "Closed · snapshot (memory copy)";
+        title = `Closed · ${snapshot.title}`;
+      }
       this.liveDetail = !!chat;
       if (!job) this.dropViews();
       const wrapped: string[] = [];

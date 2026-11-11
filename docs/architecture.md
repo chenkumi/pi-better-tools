@@ -1,8 +1,8 @@
 # Architecture
 
-## One deployment unit, twenty local modules
+## One deployment unit, twenty-one local modules
 
-The root `package.json` declares twenty local TypeScript `pi.extensions` entries at `./modules/<name>/src/index.ts` (Pi Auto Compact owns `session_before_compact`), plus one explicit npm dependency entry, the FFF wrapper (twenty-one total): seven current source snapshots (Subagents, Shell, File, Web, SQLite Tools, SQL Connector and PTY Terminal) and thirteen native modules (Schedule Commands, Note Tools, File Audit, GPT Speed, the rewritten JSON Schema, Pi Runtime, Monitor, Skill Tools, Theme Tools, Fork, Remote, Pi Auto Compact and Pi Custom Panel). Thin default-export entries forward to existing implementations without moving guards, agents, prompts or workers. Web already uses this layout. There is no aggregator factory or plugin-manager abstraction. Pi controls discovery, ordering, resource filters, tool selection and lifecycle dispatch.
+The root `package.json` declares twenty-one local TypeScript `pi.extensions` entries at `./modules/<name>/src/index.ts` (Pi Auto Compact owns `session_before_compact`), plus one explicit npm dependency entry, the FFF wrapper (twenty-two total): seven current source snapshots (Subagents, Shell, File, Web, SQLite Tools, SQL Connector and PTY Terminal) and fourteen native modules (Schedule Commands, Note Tools, File Audit, GPT Speed, the rewritten JSON Schema, Pi Runtime, Monitor, Skill Tools, Theme Tools, Fork, Remote, Image Generation, Pi Auto Compact and Pi Custom Panel). Thin default-export entries forward to existing implementations without moving guards, agents, prompts or workers. Web already uses this layout. There is no aggregator factory or plugin-manager abstraction. Pi controls discovery, ordering, resource filters, tool selection and lifecycle dispatch.
 
 - `modules/subagents/extensions/subagent/` retains the `../../agents` relationship and `child-guard.ts`; bundled agents/prompts ship with the package.
 - `modules/shell-tools/extensions/timeout-ms.ts` imports its adjacent MJS adapters and preserves host shell definitions.
@@ -39,6 +39,10 @@ The built-in pi-tools-config skill routes installation/diagnostics to its Web an
 ## Background notification delivery default
 
 Background services (Shell, Subagents, Fork, Monitor) submit their notifications with `sendMessage(..., { deliverAs: "steer" })` by default, so a result produced while the parent runs is queued in Pi's steering queue and inserted at the next safe turn boundary instead of waiting for the run to end. `followUp` is used only when steer is not workable or has a documented stability concern, and the owning module README must say why. With `triggerTurn:false` Pi ignores `deliverAs` (while streaming the message is appended after the turn), so the value there is a convention only. Submission is still not host acknowledgement.
+
+## Image Generation (native)
+
+`modules/image-generation/src/index.ts` registers one deferred tool `image_generate` and `/settings:image-generation`. Backends: OpenAI Images API, Gemini Interactions API, local Codex CLI (`codex exec`, read-only, empty temp cwd, key env withheld). Keys come only from Pi's login via `ctx.modelRegistry` (OAuth is refused); no key field in its user-level config. Paid requests are confirmed once per session and backend by default; no automatic retry or backend fallback; images are add-only files under the project (`outputDir`). Subagent children do not get it; a Fork has no UI to confirm, so it needs `confirm: "never"`. See the module README.
 
 ## Remote (native)
 

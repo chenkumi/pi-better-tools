@@ -25,7 +25,7 @@ const settled = () => new Promise<void>(resolve => setImmediate(resolve));
 test("a running session is an active PT row with identity and lifecycle only", () => {
 	const job = ptyPanelJob(summary({ target: "build-host", transport: "ssh" }));
 	assert.equal(job.kind, "pty"); assert.equal(job.active, true); assert.equal(job.state, "running");
-	assert.equal(job.jobId, "pty-1-1"); assert.equal(job.title, "build-host (ssh)"); assert.equal(job.usageState, "na");
+	assert.equal(job.jobId, "pty-1-1"); assert.equal(job.label, "pty-1-1", "the row heading carries the session id"); assert.equal(job.title, "build-host (ssh)"); assert.equal(job.usageState, "na");
 	const text = JSON.stringify(job);
 	assert.ok(!/99|bufferedBytes|cursor/.test(job.details.join("\n")), "no per-byte counters, which would go stale");
 	assert.match(text, /not a remote process ID/); assert.match(text, /does not prove a remote\/WSL process tree stopped/);
@@ -68,11 +68,11 @@ test("the bottom panel shows running sessions, follows lifecycle changes and cle
 	widget.bind(ctx, () => manager.snapshot(ctx.cwd));
 	assert.equal(render(), "", "nothing to show without a session");
 	const { sessionId } = manager.spawn(process.execPath, ["-e", KEEP_ALIVE], {}, process.cwd());
-	assert.match(render(), /Jobs Panel/); assert.match(render(), /PTY: 1/); assert.match(render(), /PT pty · local/);
+	assert.match(render(), /Jobs Panel/); assert.match(render(), /PTY: 1/); assert.match(render(), /PT pty-[0-9]+-[0-9]+ · local/);
 	await manager.kill(sessionId);
 	assert.equal(render(), "", "a released session leaves the panel");
 	manager.spawn(process.execPath, ["-e", KEEP_ALIVE], {}, process.cwd());
-	assert.match(render(), /PT pty/);
+	assert.match(render(), /PT pty-[0-9]+-[0-9]+/);
 	widget.clear(); assert.equal(render(), "");
 });
 test("compaction briefs list running sessions by id and status, and are revocable and owner-scoped", async t => {

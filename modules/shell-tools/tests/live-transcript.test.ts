@@ -496,3 +496,27 @@ test('a terminal screen opens in the bottom panel with far more rows than the 8-
   assert.ok(small.length <= 9 && small.some(l => l.includes('row 30')) && !small.some(l => l.includes('row 12')), 'a short terminal shows only the last rows that fit');
   tall.overlay.dispose(); screen.release();
 });
+
+test('a closed terminal stays open as a snapshot with a closed notice until the user closes the panel', async () => {
+  const { ScreenTranscript } = await import('../../../shared/src/background/index.js');
+  const screen = new ScreenTranscript(80, 30);
+  await new Promise<void>(resolve => { const off = screen.subscribe(() => { off(); resolve(); }); screen.write(Array.from({ length: 20 }, (_, i) => `filler ${i}`).join('\r\n') + '\r\nfinal line one\r\nfinal line two'); });
+  const base: PanelJob = { kind: 'pty', jobId: 'P1', label: 'pty-1-1', title: 'local', state: 'running', active: true, activity: 'Running', usageState: 'na', details: ['Session ID: P1'], transcripts: [{ label: 'screen', transcript: screen }] };
+  let jobs: PanelJob[] = [base], closed = 0;
+  const overlay = new JobsOverlay(() => jobs, theme, () => {}, () => { closed++; }, () => 50, tui, process.cwd(), 'pty:P1');
+  overlay.plain = true;
+  const liveRows = overlay.render(100).length;
+  assert.ok(overlay.render(100).map(plain).some(l => /Live screen/.test(l)), 'live while running');
+  jobs = [{ ...base, state: 'exited', active: false }];
+  let text = overlay.render(100).map(plain).join('\n');
+  assert.match(text, /Connection closed · final screen/); assert.match(text, /final line two/);
+  jobs = []; screen.release(); // the entry was released: the transcript is gone, the job is no longer listed
+  text = overlay.render(100).map(plain).join('\n');
+  assert.match(text, /Closed · .*pty-1-1/); assert.match(text, /Connection closed · snapshot/);
+  assert.match(text, /final line one/); assert.match(text, /final line two/); assert.doesNotMatch(text, /no longer retained/);
+  assert.match(text, /Esc Close/);
+  assert.equal(overlay.render(100).length, liveRows, 'a tall screen keeps its height after the close');
+  overlay.handleInput('\u001b');
+  assert.equal(closed, 1, 'Esc closes the panel instead of going back to a list without the job');
+  overlay.dispose();
+});

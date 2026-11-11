@@ -14,7 +14,7 @@ export function ptyPanelJob(session: PtySessionSummary): PanelJob {
 	const title = session.transport === "local" ? session.target : `${session.target} (${session.transport})`;
 	const exit = session.exitCode === undefined ? "exit code not observed" : `exit code ${session.exitCode}`;
 	return {
-		kind: "pty", jobId: session.sessionId, label: "pty", title: safeJobText(title, 256), state: session.state, active,
+		kind: "pty", jobId: session.sessionId, label: session.sessionId, title: safeJobText(title, 256), state: session.state, active,
 		activity: active ? "Running · local transport alive" : `Exited · ${exit} · unread output may remain`,
 		usageState: "na", startedAt: session.startedAt,
 		...(session.screen && !session.screen.isReleased ? { transcripts: [{ label: "screen", transcript: session.screen }] } : {}),

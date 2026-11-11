@@ -20,7 +20,7 @@ npm run build             # 目前沒有需要編譯的產物（no-op）；Pi ex
 pi install D:/projects/pi-better-tools
 ```
 
-只在目前使用中的專案安裝：`pi install -l D:/projects/pi-better-tools`。先試用、不改設定：`pi --no-extensions -e D:/projects/pi-better-tools`。二十個本地 extensions 直接載入 `modules/<name>/src/index.ts`，另一個 npm extension（FFF）使用其原始入口；修改本機程式碼後 `/reload` 或重新啟動 Pi 即可，不必先 build。
+只在目前使用中的專案安裝：`pi install -l D:/projects/pi-better-tools`。先試用、不改設定：`pi --no-extensions -e D:/projects/pi-better-tools`。二十一個本地 extensions 直接載入 `modules/<name>/src/index.ts`，另一個 npm extension（FFF）使用其原始入口；修改本機程式碼後 `/reload` 或重新啟動 Pi 即可，不必先 build。
 
 **若原五個 packages 或獨立 `pi-pty-terminal`／`pi-sqlite-tools`／`pi-sql-connector` 已啟用，請先停用其 extensions**，避免與整合包重複註冊相同工具。這些設定不會自動修改。完整步驟與回退見 [docs/migration.md](docs/migration.md)。
 
@@ -49,7 +49,7 @@ pi-better-tools pty setup
 
 ### 兩個 npm Pi packages（原始碼掛載）
 
-根 `dependencies` 固定包含 `@ff-labs/pi-fff@0.11.0`。`session_before_compact` 由 Pi Auto Compact 負責。`npm ci --ignore-scripts` 會安裝 FFF；manifest 為二十個本地入口加 FFF 入口，共二十一個。仍維持 `private: true`，不需要 npm 發布、bundledDependencies 或 postinstall 呼叫 pi install。
+根 `dependencies` 固定包含 `@ff-labs/pi-fff@0.11.0`。`session_before_compact` 由 Pi Auto Compact 負責。`npm ci --ignore-scripts` 會安裝 FFF；manifest 為二十一個本地入口加 FFF 入口，共二十二個。仍維持 `private: true`，不需要 npm 發布、bundledDependencies 或 postinstall 呼叫 pi install。
 
 換機請下載／複製本專案原始碼及 lockfile，在新機重新執行上述安裝步驟，然後只掛載本專案目錄；不要跨 OS／CPU 複製 node_modules。**本機掛載不會自動執行 npm install**。Repository `.npmrc` 設 `legacy-peer-deps=true`，避免依賴 peers 自動安裝另一份 Pi SDK；整合基準為 Pi 1.5.2，不以此設定宣稱相容。
 
@@ -107,8 +107,9 @@ Shell 與 Subagents 會在 `startup`／`resume`／`reload` 載入 session 時，
 | Web Tools | `web_fetch`；條件式 REST `web_search`；`/web-tools status`、`/web-tools sources` | OpenAI／Codex 原生搜尋預設啟用、無實驗開關或警告，不註冊同名 function tool；Brave／Exa 要明確設定；無登入／CAPTCHA bypass／PDF |
 | Fork | `fork`／`fork_status`／`fork_cancel`／`fork_message`（皆預設啟用，仍受宿主工具限制） | 以獨立 Pi 行程繼承來源對話與能力接手任務，跨 session 切換仍續行，完成後只回報原 session；`fork_message` 可對執行中的 Fork 追加指示（受理不等於套用）；Fork 可用 `subagent`、不可再 Fork，所有 Subagent 不可 Fork；quit／`/reload` 取消全部；完成後以原生 `/resume` 繼續。詳見 `modules/fork/README.md`；不是 OS sandbox |
 | Monitor | `monitor_start/status/stop` | 七來源：command stdout、WS text、cwd 內單一檔案的 metadata 變更（file，不讀內容）、整機 CPU／RAM 持續達閾值（system）、readonly shell_job／subagent_job／fork_job；三工具預設啟用（仍受宿主工具限制），總期限預設5分鐘；不是daemon／PTY／sandbox |
+| Image Generation | `image_generate`（deferred，`tool_search image`）、`/settings:image-generation` | 文字生圖：OpenAI Images API／Gemini API／本機 Codex CLI 三後端，圖片存成專案內新檔案；金鑰只走 Pi 登入、付費請求預設每 session 每後端確認一次；詳見 [Image Generation](modules/image-generation/README.md) |
 | Remote | `remote_list/send/status`（deferred，`tool_search remote`） | 以 WebSocket 把數個 Pi session 連成區網內的網路互傳訊息／任務（例如 push 後通知他平台 pull 測試）；`.pi/agent/remote.json`（受信任專案）設 server 或 client；12 碼配對碼 challenge-response（碼不上線）＋ wss；收到的訊息標示為不受信任資料、預設喚醒 agent（`wake` 可關閉／allowlist）；at-most-once、不排隊；不是遠端執行或 sandbox。`/remote` 與 footer 顯示狀態、system prompt 列出線上 peer；`/settings:remote` 面板設定角色／wake／憑證路徑，server 頁直接顯示配對碼（沒有就即時產生，存檔才寫入）並可 Enter 換新碼，client 遮罩輸入配對碼（存使用者層，不進專案檔） |
-| Skill Tools | `/skill:create-plan`、`/skill:pi-tools-config` 等隨包技能 | 原生 resource discovery、按需讀取；pi-tools-config 以 SKILL.md 索引 18 份逐模組指令／config references，不修改使用者 home |
+| Skill Tools | `/skill:create-plan`、`/skill:pi-tools-config` 等隨包技能 | 原生 resource discovery、按需讀取；pi-tools-config 以 SKILL.md 索引 19 份逐模組指令／config references，不修改使用者 home |
 | Theme Tools | `/theme:<id>`（deep-sea／warm-charcoal／moss／quiet／signal／paper／dark／light）、`/theme:menu` | 切換 Pi 主題並寫入 settings（使用者明確要求）；詳見 [Theme Tools](modules/theme-tools/README.md) |
 | Pi Auto Compact | `session_grep`／`session_window`／`session_read`（唯讀、deferred）、`progress_checkpoint`（進度檢查點，內容只留在對話中、不寫檔）；`/settings:auto-compact` 設定面板；`session_before_compact` hook | 確定性壓縮、不呼叫模型；hook 已產生摘要（讀 `<agentDir>/auto-compact.json`；失敗或不適用時交還 Pi），摘要含背景 job／monitor 狀態與工作樹資訊，真實 host 整合尚未完成。詳見 [Pi Auto Compact](modules/pi-auto-compact/README.md) |
 | File Audit | `/file-audit [status\|clear\|limits]` | 成功 read/write/edit/note 的近期活動；預設 4 runs／50 個不同檔案，並在使用者輸入時通知檔案被外部改動；不掃完整歷史。詳見 [File Audit](modules/file-audit/README.md) |
@@ -333,7 +334,7 @@ pi -p "Extract company name: Acme" --json-schema $schema --json-output result.js
 }
 ```
 
-二十個模組（subagents、shell-tools、file-tools、web-tools、note-tools、file-audit、gpt-speed、json-schema、pty-terminal、schedule-commands、pi-runtime、monitor、skill-tools、theme-tools、fork、sqlite-tools、sql-connector、remote、pi-auto-compact、pi-custom-panel）的公開入口均為 `modules/<name>/src/index.ts`。薄入口轉接既有實作，內部資源位置不變。
+二十一個模組（subagents、shell-tools、file-tools、web-tools、note-tools、file-audit、gpt-speed、json-schema、pty-terminal、schedule-commands、pi-runtime、monitor、skill-tools、theme-tools、fork、sqlite-tools、sql-connector、remote、image-generation、pi-auto-compact、pi-custom-panel）的公開入口均為 `modules/<name>/src/index.ts`。薄入口轉接既有實作，內部資源位置不變。
 
 Filters 以整合包 root 為基準；與 tool allowlist 不同，它們控制 extension 是否執行／是否啟動生命週期資源。既有 filters 若使用舊入口路徑，請手動更新為新路徑，見 [入口遷移](docs/migration.md#unified-typescript-entry-points)。
 
