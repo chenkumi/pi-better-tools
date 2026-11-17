@@ -10,19 +10,19 @@ const manifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'u
 const expectedExtensions = manifest.pi.extensions.length;
 assert.ok(manifest.pi.extensions.includes('./modules/note-tools/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/pi-runtime/src/index.ts'));
-assert.equal(expectedExtensions, 21, 'twenty local entries plus one pinned dependency entry');
+assert.equal(expectedExtensions, 22, 'twenty-one local entries plus one pinned dependency entry');
 assert.ok(manifest.pi.extensions.includes('./modules/file-audit/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/sql-connector/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/sqlite-tools/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/monitor/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/schedule-commands/src/index.ts'));
-assert.ok(!manifest.pi.extensions.some(entry => entry.includes('/goal/')));
+assert.ok(manifest.pi.extensions.includes('./modules/goal/src/index.ts'));
 const dependencyEntries = {
   '@ff-labs/pi-fff': { version: '0.11.0', entry: './src/index.ts', manifestEntry: './modules/file-tools/src/fff-override.mjs' },
 };
 const localEntries = manifest.pi.extensions.filter(entry => entry.startsWith('./modules/') && entry !== dependencyEntries['@ff-labs/pi-fff'].manifestEntry);
 for (const entry of localEntries) assert.match(entry, /^\.\/modules\/[^/]+\/src\/index\.ts$/);
-assert.equal(localEntries.length, 20);
+assert.equal(localEntries.length, 21);
 for (const [name, expected] of Object.entries(dependencyEntries)) {
   assert.equal(manifest.dependencies[name], expected.version);
   const dependency = JSON.parse(await readFile(join(packageRoot, 'node_modules', name, 'package.json'), 'utf8'));
@@ -84,7 +84,7 @@ try {
   assert.equal(note.outputSchema.additionalProperties, false);
   assert.deepEqual(note.parameters.properties.type.enum, ['plan', 'design', 'issue', 'research', 'report', 'task']);
   assert.equal(names.includes('web_search'), ['brave', 'exa'].includes(mode));
-  assert.deepEqual(loader.getPrompts().prompts.map(p => p.name).sort(), ['implement', 'implement-and-review', 'scout-and-plan']);
+  assert.deepEqual(loader.getPrompts().prompts.map(p => p.name).sort(), ['goal', 'implement', 'implement-and-review', 'scout-and-plan']);
   assert.deepEqual(names.filter(name => name.startsWith('schedule_')), ['schedule_prompt', 'schedule_shell', 'schedule_monitor'], 'only Schedule Commands registers schedule_* tools (prompt, shell and monitor); removed Scheduler tools must not');
   assert.equal(loaded.extensions.some(e => e.commands.has('schedule')), false, 'removed Scheduler command must not register');
   assert.ok(loaded.extensions.some(e => e.commands.has('schedule-commands')));
@@ -306,7 +306,7 @@ try {
   }
   assert.deepEqual(errors, [], 'extension event failures');
   await session.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' });
-  console.log(JSON.stringify({ loaded: true, hostVersion: sdk.VERSION, mode, extensions: loaded.extensions.length, tools: names, active, prompts: 3 }));
+  console.log(JSON.stringify({ loaded: true, hostVersion: sdk.VERSION, mode, extensions: loaded.extensions.length, tools: names, active, prompts: 4 }));
 } finally {
   try { if (session) { await session.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' }); session.dispose(); } }
   finally { clearInterval(heartbeat); }

@@ -1,0 +1,56 @@
+{
+  "title": "Word transformations and stdin CLI",
+  "goal": "Add tested word transformations to src/words.js, then provide a tested CLI that reads standard input and reports all three results.",
+  "references": [
+    "src/words.js",
+    "src/words.test.js",
+    "package.json (npm test runs node --test)"
+  ],
+  "rules": [
+    "Use `npm test` to run the tests; add no dependency.",
+    "Do not change what countWords returns."
+  ],
+  "decisions": [
+    {
+      "question": "What is a word?",
+      "decision": "A nonempty sequence separated by whitespace, as countWords does.",
+      "reason": "Consistency with the existing function."
+    },
+    {
+      "question": "What does the CLI print?",
+      "decision": "Exactly three labeled lines: Word count, Reversed, Capitalized.",
+      "reason": "A fixed format can be asserted in a test."
+    }
+  ],
+  "checkpoints": [
+    {
+      "title": "Add word transformations and unit tests",
+      "dependsOn": [],
+      "todos": [
+        "Export reverseWords(text) and capitalizeWords(text) from src/words.js, preserving the existing countWords behavior.",
+        "Extend src/words.test.js to cover ordinary input, repeated and surrounding whitespace, empty and whitespace-only input, punctuation, mixed case and a non-ASCII initial character."
+      ],
+      "verify": {
+        "tier": 1,
+        "maxAttempts": 3,
+        "command": "npm test",
+        "expected": "Existing count test and new transformation tests pass."
+      }
+    },
+    {
+      "title": "Add and test the stdin CLI",
+      "dependsOn": [
+        1
+      ],
+      "todos": [
+        "Add src/cli.js to read stdin through EOF as UTF-8 and print the three results using the stated labels and line format.",
+        "Add CLI integration tests that spawn `node src/cli.js`, supply stdin, and assert exit status and exact stdout."
+      ],
+      "verify": {
+        "tier": 1,
+        "command": "npm test",
+        "expected": "Unit and CLI integration tests pass; each CLI case exits successfully and produces exactly the specified output."
+      }
+    }
+  ]
+}

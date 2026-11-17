@@ -23,7 +23,7 @@ Create trusted session-cwd `.pi/agent/sql-connector.json` with only needed `mysq
 
 ## External npm Pi extensions
 
-The suite loads twenty local TS entries and one npm extension entry (@ff-labs/pi-fff 0.11.0). Root npm ci remains required for runtime dependencies, with no automatic personal settings edits.
+The suite loads twenty-one local TS entries and one npm extension entry (@ff-labs/pi-fff 0.11.0). Root npm ci remains required for runtime dependencies, with no automatic personal settings edits.
 
 Personal settings remain independent: `~/.pi/agent/open-tui.json` is no longer read (the `/open-tui` command was removed with the pi-open-tui dependency); FFF retains its own configuration/environment/native data. Credentials and old sessions are not copied, overwritten, migrated or backfilled. Review filters to disable standalone copies and avoid duplicate hooks. FFF native dependencies must be installed per target platform; fonts/browsers/OS libraries remain user-managed.
 

@@ -1,0 +1,26 @@
+{
+  "title": "Rename countWords to wordCount",
+  "goal": "Rename the exported function and its test references without changing word-counting behavior. The old export is replaced, not kept as an alias.",
+  "references": [
+    "src/words.js",
+    "src/words.test.js",
+    "package.json"
+  ],
+  "rules": [],
+  "decisions": [],
+  "checkpoints": [
+    {
+      "title": "Rename countWords to wordCount",
+      "dependsOn": [],
+      "todos": [
+        "Rename the countWords export to wordCount in src/words.js, leaving its implementation unchanged.",
+        "Update the import and invocation in src/words.test.js to use wordCount; preserve the existing assertion."
+      ],
+      "verify": {
+        "tier": 1,
+        "command": "npm test",
+        "expected": "The test passes; a search of the project finds no countWords left."
+      }
+    }
+  ]
+}

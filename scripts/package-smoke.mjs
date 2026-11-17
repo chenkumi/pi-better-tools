@@ -41,7 +41,7 @@ async function record(label, action) {
 const required = [
   'shared/README.md', 'shared/src/contracts/index.ts', 'shared/src/contracts/tool-names.ts', 'shared/src/prompt/index.ts', 'shared/src/prompt/forced-prompt.ts', 'shared/src/prompt/section.ts', 'shared/src/background/index.ts', 'shared/src/settings-panel/index.ts',
   'setup/cli.mjs', 'setup/commands.mjs', 'setup/commands.d.mts', 'setup/core.mjs',
-  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'note-tools', 'gpt-speed', 'json-schema', 'pty-terminal', 'schedule-commands', 'pi-runtime', 'monitor', 'skill-tools', 'theme-tools', 'remote', 'sqlite-tools', 'sql-connector', 'file-audit', 'pi-auto-compact', 'pi-custom-panel'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
+  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'note-tools', 'gpt-speed', 'json-schema', 'pty-terminal', 'schedule-commands', 'pi-runtime', 'monitor', 'skill-tools', 'theme-tools', 'remote', 'sqlite-tools', 'sql-connector', 'file-audit', 'pi-auto-compact', 'pi-custom-panel', 'goal'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
   ...['activity-window', 'events', 'paths', 'commands', 'presentation'].map(name => `modules/file-audit/src/${name}.ts`),
   'modules/sqlite-tools/src/sqlite-manager.ts',
   ...['config', 'runtime', 'tools', 'prompt', 'types', 'output', 'security/sql-policy'].map(name => `modules/sql-connector/src/${name}.ts`),
@@ -74,12 +74,11 @@ const required = [
   // The integrated package is licensed by the root LICENSE. Original module
   // notices remain preserved, but duplicate module LICENSE files are not required.
   'modules/pty-terminal/src/targets.ts', 'modules/pty-terminal/src/pty-manager.ts', 'modules/pty-terminal/src/renderers.ts', 'modules/pty-terminal/src/install.mjs', 'modules/pty-terminal/README.md', 'modules/pty-terminal/LICENSE',
-  'modules/schedule-commands/src/engine.ts', 'modules/schedule-commands/src/tool.ts', 'modules/schedule-commands/src/panel.ts', 'modules/schedule-commands/package.json',
+  'modules/goal/src/runner.ts', 'modules/goal/prompts/goal.md', 'modules/goal/package.json', 'modules/schedule-commands/src/engine.ts', 'modules/schedule-commands/src/tool.ts', 'modules/schedule-commands/src/panel.ts', 'modules/schedule-commands/package.json',
   'LICENSE', 'THIRD_PARTY_NOTICES.md', 'docs/configuration.md',
 ];
 function checkContents(pack) {
   const paths = pack.files.map(f => f.path);
-  assert.ok(!paths.some(path => path.startsWith('modules/goal/')), 'removed Goal module must not ship');
   assert.ok(!paths.some(path => path.startsWith('modules/scheduler/')), 'removed Scheduler module must not ship');
   for (const path of required) assert.ok(paths.includes(path), `missing tarball resource ${path}`);
   for (const path of paths) {

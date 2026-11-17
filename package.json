@@ -63,6 +63,10 @@
         "modules/pi-auto-compact/src",
         "modules/pi-auto-compact/package.json",
         "modules/schedule-commands/README.md",
+        "modules/goal/src",
+        "modules/goal/prompts",
+        "modules/goal/package.json",
+        "modules/goal/README.md",
         "README.md",
         "LICENSE",
         "THIRD_PARTY_NOTICES.md",
@@ -91,6 +95,7 @@
             "./modules/pty-terminal/src/index.ts",
             "./modules/schedule-commands/src/index.ts",
             "./modules/pi-auto-compact/src/index.ts",
+            "./modules/goal/src/index.ts",
             "./modules/pi-custom-panel/src/index.ts",
             "./modules/file-tools/src/fff-override.mjs"
         ],
@@ -98,7 +103,8 @@
             "./modules/theme-tools/themes"
         ],
         "prompts": [
-            "./modules/subagents/prompts"
+            "./modules/subagents/prompts",
+            "./modules/goal/prompts"
         ]
     },
     "scripts": {

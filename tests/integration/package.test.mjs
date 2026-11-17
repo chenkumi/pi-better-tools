@@ -17,7 +17,7 @@ const dependencyEntries = [
   './modules/file-tools/src/fff-override.mjs',
 ];
 assert.deepEqual([...manifest.pi.extensions].sort(), [...modules.map(name => `./modules/${name}/src/index.ts`), ...dependencyEntries].sort());
-assert.equal(expectedExtensions, 21, 'twenty local entries plus one pinned dependency entry');
+assert.equal(expectedExtensions, 22, 'twenty-one local entries plus one pinned dependency entry');
 assert.ok(manifest.pi.extensions.includes('./modules/file-audit/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/sql-connector/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/sqlite-tools/src/index.ts'));
@@ -31,7 +31,7 @@ for (const mode of ['full', 'read-only', 'no-tools', 'exclude', 'brave', 'exa', 
       if (!['read-only', 'no-tools'].includes(mode)) await provisionRipgrep(home);
       const output = await runCommand(`all-modules ${mode}`, process.execPath, [join(root, 'tests/fixtures/smoke.mjs'), root, mode], { cwd: home, env: isolatedEnv(home), timeoutMs: 150000 });
       const result = JSON.parse(output.trim().split('\n').at(-1));
-      assert.equal(result.loaded, true); assert.equal(result.extensions, expectedExtensions); assert.equal(result.prompts, 3);
+      assert.equal(result.loaded, true); assert.equal(result.extensions, expectedExtensions); assert.equal(result.prompts, 4);
     } finally { await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
   });
 }

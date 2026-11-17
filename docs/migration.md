@@ -114,6 +114,8 @@ Existing managed sessions retain their format and guards, but old ephemeral logs
 
 既有 sessions 的 `pi-better-goal-state` entries 與歷史工具結果保留，不遷移、重播或刪除；移除模組不會還原既有專案修改。
 
+之後新增的 `modules/goal` 是另一個功能（`/goal` prompt 範本、`plan_submit` 與 `goal_*` 工具、背景執行已確認的計畫，見 `modules/goal/README.md`）：不續跑對話、不讀 `pi-better-goal-state`，也沒有舊的 `goal` 工具或指令。
+
 ## JSON Schema integration
 
 Disable the standalone `@nqbao/pi-json-schema` before loading `modules/json-schema/src/index.ts`; the same tool and flag names are not safe to load twice. No source-project, settings or auth files are edited automatically.
