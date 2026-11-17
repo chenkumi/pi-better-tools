@@ -93,13 +93,13 @@ test("detach shortcut moves a running single foreground dispatch to a background
 			assert.equal(done.tasks[0].taskId, receipt.tasks[0].taskId, "the adopted task keeps its identity");
 			assert.equal(done.tasks[0].result.output, "done");
 			assert.equal(readFileSync(join(root, "hold-started"), "utf8").length, 1, "the child was started exactly once");
-			const status = await host.execute("subagent_status", { jobId: receipt.jobId });
+			const status = await host.execute("agent_status", { jobId: receipt.jobId });
 			assert.equal((status.details as any).status, "completed");
 		} finally { await host.shutdown(); }
 	});
 });
 
-test("detached parallel dispatch reports each task and subagent_cancel stops the adopted children", { skip, timeout: 90000 }, async () => {
+test("detached parallel dispatch reports each task and agent_cancel stops the adopted children", { skip, timeout: 90000 }, async () => {
 	await withRoot(async root => {
 		const host = await rig(root);
 		try {
@@ -109,7 +109,7 @@ test("detached parallel dispatch reports each task and subagent_cancel stops the
 			const detached = await pending;
 			const receipt = (detached.details as any).background;
 			assert.equal(receipt.tasks.length, 2);
-			await host.execute("subagent_cancel", { jobId: receipt.jobId });
+			await host.execute("agent_cancel", { jobId: receipt.jobId });
 			const final = await host.notice(notice => notice.jobId === receipt.jobId && notice.kind === "job_result");
 			assert.ok(["aborted", "failed"].includes(final.status), JSON.stringify(final));
 			assert.deepEqual(final.tasks.map((t: any) => t.taskId), receipt.tasks.map((t: any) => t.taskId));

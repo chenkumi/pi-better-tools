@@ -93,12 +93,12 @@ test("a git-only change makes the audit message; with file changes the line is a
   assert.equal(changeMessage([{ path: join(process.cwd(), "x.txt"), change: "modified" }], process.cwd()).content.includes("Git state"), false);
 });
 
-test("files under .pi (Fork transcripts, schedules) do not change the working tree digest", async () => {
+test("files under .pi (Spinoff transcripts, schedules) do not change the working tree digest", async () => {
   const r = repo();
   try {
     const before = (await captureGitState(r.dir))!;
-    mkdirSync(join(r.dir, ".pi", "forks", "job"), { recursive: true });
-    writeFileSync(join(r.dir, ".pi", "forks", "job", "transcript.jsonl"), "{}\n");
+    mkdirSync(join(r.dir, ".pi", "spinoffs", "job"), { recursive: true });
+    writeFileSync(join(r.dir, ".pi", "spinoffs", "job", "transcript.jsonl"), "{}\n");
     assert.equal(diffGitState(before, (await captureGitState(r.dir))!), undefined);
     writeFileSync(join(r.dir, "b.txt"), "new\n");
     assert.deepEqual(diffGitState(before, (await captureGitState(r.dir))!), { tree: true });
@@ -118,8 +118,8 @@ test("only Pi's own bookkeeping under .pi is left out; project files there still
     writeFileSync(join(r.dir, ".pi", "settings.json"), "{}\n");
     assert.deepEqual(diffGitState(before, (await captureGitState(r.dir))!), { tree: true }, "project settings under .pi count");
     const inSub = (await captureGitState(join(r.dir, "sub")))!;
-    mkdirSync(join(r.dir, "sub", ".pi", "forks", "j"), { recursive: true });
-    writeFileSync(join(r.dir, "sub", ".pi", "forks", "j", "t.jsonl"), "{}\n");
-    assert.equal(diffGitState(inSub, (await captureGitState(join(r.dir, "sub")))!), undefined, "cwd-relative .pi/forks is excluded from a subdirectory");
+    mkdirSync(join(r.dir, "sub", ".pi", "spinoffs", "j"), { recursive: true });
+    writeFileSync(join(r.dir, "sub", ".pi", "spinoffs", "j", "t.jsonl"), "{}\n");
+    assert.equal(diffGitState(inSub, (await captureGitState(join(r.dir, "sub")))!), undefined, "cwd-relative .pi/spinoffs is excluded from a subdirectory");
   } finally { r.done(); }
 });

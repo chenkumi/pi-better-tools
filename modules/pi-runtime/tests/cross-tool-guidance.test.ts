@@ -5,7 +5,7 @@ import { CROSS_TOOL_SECTION, registerCrossToolGuidance, renderCrossToolRules } f
 test('the general rules name no module tool and stay small', () => {
   const rules = renderCrossToolRules();
   assert.match(rules, /Run independent tool calls/); assert.match(rules, /When something fails/);
-  for (const name of ['bash', 'powershell', 'read', 'edit', 'write', 'web_', 'subagent', 'fork', 'note', 'sqlite', 'monitor_', 'pty_']) assert.ok(!rules.includes(`\`${name}`), name);
+  for (const name of ['bash', 'powershell', 'read', 'edit', 'write', 'web_', 'subagent', 'spinoff', 'note', 'sqlite', 'monitor_', 'pty_']) assert.ok(!rules.includes(`\`${name}`), name);
   assert.ok(rules.length / 4 < 150, `~${Math.round(rules.length / 4)} tokens`);
 });
 

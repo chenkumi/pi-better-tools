@@ -24,7 +24,7 @@ const toolCallNames = (message: unknown) => list(asRecord(message)?.content).map
  * progress checkpoint, a call of the checkpoint tool whose `summary` stays in the conversation (the compaction summary shows the
  * latest one in full); that is guidance, not a forced call. A text-only answer that ends the run is asked once to continue. Both
  * messages are session entries appended through Pi's own boundary hooks (no steering queue, no timers), so they behave the same in
- * the TUI, RPC children (Fork, Subagent) and print mode. Once a compaction exists they are dropped from the model context; the
+ * the TUI, RPC children (Spinoff, Subagent) and print mode. Once a compaction exists they are dropped from the model context; the
  * session file keeps them.
  */
 export function registerCheckpoint(pi: ExtensionAPI): void {

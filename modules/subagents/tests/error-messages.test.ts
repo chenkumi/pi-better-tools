@@ -22,7 +22,7 @@ test("normalizeDispatch names the failing array, index and key", () => {
 	assert.match(message(() => normalizeDispatch({ tasks: [ok, "x" as any] })), /tasks\[1\] must be an object/);
 	const extra = message(() => normalizeDispatch({ tasks: [{ ...ok, model: "m" }] }));
 	assert.match(extra, /tasks\[0\]: unsupported key "model".*allowed: agent, task, title, cwd/); assert.match(extra, /top-level/);
-	assert.match(message(() => normalizeDispatch({ chain: [{ ...ok, resume: "X" }] })), /chain\[0\]: unsupported key "resume".*subagent_message/);
+	assert.match(message(() => normalizeDispatch({ chain: [{ ...ok, resume: "X" }] })), /chain\[0\]: unsupported key "resume".*agent_message/);
 });
 test("normalizeDispatch explains mode, single, background and title failures", () => {
 	assert.match(message(() => normalizeDispatch({})), /exactly one of.*agent \+ task.*tasks.*chain.*received none/);
@@ -30,7 +30,7 @@ test("normalizeDispatch explains mode, single, background and title failures", (
 	assert.match(message(() => normalizeDispatch({ agent: "w", task: " " })), /task is blank/);
 	assert.match(message(() => normalizeDispatch({ agent: "", task: "t" })), /agent is blank/);
 	assert.match(message(() => normalizeDispatch({ agent: "w" })), /task is missing/);
-	assert.match(message(() => normalizeDispatch({ task: "t" })), /task was given without agent.*subagent_message/);
+	assert.match(message(() => normalizeDispatch({ task: "t" })), /task was given without agent.*agent_message/);
 	assert.match(message(() => normalizeDispatch({ ...ok, background: "yes" as any })), /background must be true or false.*"yes"/);
 	assert.match(message(() => normalizeDispatch({ ...ok, title: "x".repeat(63) })), /title must be 1-50.*received 63 characters/);
 	assert.match(message(() => normalizeDispatch({ tasks: [{ ...ok, title: "   " }] })), /tasks\[0\]\.title.*blank/);
@@ -43,7 +43,7 @@ test("unknown agent message lists names, scope and the project-agent hint", () =
 	assert.match(unknownAgentMessage("x", [], "both"), /none/);
 });
 test("agent-facing text names tool args only, never settings, config directories or environment variables", () => {
-	const forbidden = /\.pi\/agents|\/agents\b|settings|pi-subagents|pi-fork|pi-monitor|\bPI_[A-Z]|agentDir|--tools|--exclude-tools|allowlist|exclusion/i;
+	const forbidden = /\.pi\/agents|\/agents\b|settings|pi-subagents|pi-spinoff|pi-monitor|\bPI_[A-Z]|agentDir|--tools|--exclude-tools|allowlist|exclusion/i;
 	assert.doesNotMatch(unknownAgentMessage("x", [], "user"), forbidden);
 	assert.match(unknownAgentMessage("x", [], "user"), /Project-only agents are not visible in this scope; pass agentScope "project" or "both"/);
 	const tools: any[] = [];
@@ -77,20 +77,20 @@ test("session resolve errors name subagentSessionId and how to find valid IDs", 
 	try {
 		const owner = { parentSessionId: "p", parentCwd: root };
 		const bad = await ManagedSession.resolve(root, "abc", owner).catch(e => e);
-		assert.match(bad.message, /subagentSessionId "abc" is not a complete session ID/); assert.match(bad.message, /subagent_status/);
+		assert.match(bad.message, /subagentSessionId "abc" is not a complete session ID/); assert.match(bad.message, /agent_status/);
 		assert.doesNotMatch(bad.message, /resume/);
 		const id = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
 		const missing = await ManagedSession.resolve(root, id, owner).catch(e => e);
 		assert.equal(missing.code, "SESSION_NOT_FOUND");
-		assert.match(missing.message, new RegExp(`subagentSessionId "${id}"`)); assert.match(missing.message, /subagent_status/);
+		assert.match(missing.message, new RegExp(`subagentSessionId "${id}"`)); assert.match(missing.message, /agent_status/);
 	} finally { await rm(root, { recursive: true, force: true }); }
 });
-test("job-not-found names jobId, hints at taskId/session IDs and points to subagent_status", async () => {
+test("job-not-found names jobId, hints at taskId/session IDs and points to agent_status", async () => {
 	const jobs = new BackgroundJobs(() => {});
 	let release = () => {};
 	try {
 		const none = message(() => jobs.get("NOPE", "o", "/c"));
-		assert.match(none, /^BACKGROUND_JOB_NOT_FOUND: jobId "NOPE"/); assert.match(none, /subagent_status/);
+		assert.match(none, /^BACKGROUND_JOB_NOT_FOUND: jobId "NOPE"/); assert.match(none, /agent_status/);
 		const gate = new Promise<void>(r => { release = r; });
 		let liveReady!: () => void; const liveSeen = new Promise<void>(r => { liveReady = r; });
 		const receipt = jobs.submit("o", "/c", jobs.epoch, ["w"], async (_s, _ids, live) => { live(0, "01ARZ3NDEKTSV4RRFFQ69G5FAV", "/log"); liveReady(); await gate; });
@@ -102,7 +102,7 @@ test("job-not-found names jobId, hints at taskId/session IDs and points to subag
 		assert.match(message(() => jobs.get(receipt.jobId, "other", "/c")), /^BACKGROUND_JOB_NOT_FOUND: jobId/);
 	} finally { release(); await jobs.shutdown(); }
 });
-test("subagent_message routing errors use subagent_message vocabulary", async () => {
+test("agent_message routing errors use agent_message vocabulary", async () => {
 	const jobs = new BackgroundJobs(() => {});
 	let release = () => {};
 	try {
@@ -124,7 +124,7 @@ test("message rejection receipts carry a code-specific nextAction and a clean er
 	assert.match(messageNextAction("CONFIG_CHANGED"), /start a new subagent/i);
 	assert.match(messageNextAction("MODEL_UNAVAILABLE"), /model/);
 	assert.match(messageNextAction("SNAPSHOT_CAPACITY"), /mode "control"/);
-	assert.match(messageNextAction("SESSION_NOT_FOUND"), /subagent_status/);
+	assert.match(messageNextAction("SESSION_NOT_FOUND"), /agent_status/);
 	assert.match(messageNextAction("INVALID_MESSAGE"), /fix the named parameter/i);
 	assert.match(messageNextAction("SESSION_BUSY"), /task_result/);
 	assert.equal(messageRejectionCode(new Error("INVALID_MESSAGE: x")), "INVALID_MESSAGE");

@@ -56,7 +56,7 @@ for (const mode of ["single", "parallel", "chain", "resume"] as const) {
 				args = { subagentSessionId: (initial.details as any).results[0].subagentSessionId, message: "Continue in background", title: `Live panel ${mode}` };
 			}
 			const turn = new AbortController();
-			const accepted = await execute(mode === "resume" ? "subagent_message" : "subagent", mode === "resume" ? args : { ...args, background: true }, turn.signal);
+			const accepted = await execute(mode === "resume" ? "agent_message" : "subagent", mode === "resume" ? args : { ...args, background: true }, turn.signal);
 			assert.equal(accepted.isError, undefined, JSON.stringify(accepted.content));
 			assert.equal(widgets.has(SUBAGENT_WIDGET_KEY), true);
 			assert.equal(statuses.has(SUBAGENT_WIDGET_KEY), false, 'no duplicate footer summary');
@@ -84,12 +84,12 @@ for (const mode of ["single", "parallel", "chain", "resume"] as const) {
 			assert.ok(notifications.some(entry => entry.message.details.kind === "log_ready"), "log-ready events still reach the model without chat bubbles");
 			const notice = notifications.find(entry => entry.message.details.kind === "task_result");
 			assert.deepEqual(notice.options, { triggerTurn: true, deliverAs: "steer" });
-			const status = await execute("subagent_status", { jobId: receipt.jobId }); assert.equal(status.usage, undefined);
+			const status = await execute("agent_status", { jobId: receipt.jobId }); assert.equal(status.usage, undefined);
 			assert.equal((status.details as any).status, "completed");
-			const listed = await execute("subagent_status", {}); assert.equal(listed.isError, undefined);
+			const listed = await execute("agent_status", {}); assert.equal(listed.isError, undefined);
 			const listedJob = (listed.structuredContent as any).jobs.find((job: any) => job.jobId === receipt.jobId);
 			assert.equal(listedJob.status, "completed"); assert.equal(listedJob.tasks[0].summary, "done");
-			const denied = await tools.get("subagent_status")!.execute("wrong-owner", { jobId: receipt.jobId }, undefined, undefined,
+			const denied = await tools.get("agent_status")!.execute("wrong-owner", { jobId: receipt.jobId }, undefined, undefined,
 				{ ...ctx, sessionManager: { getSessionId: () => "another-owner" } } as any);
 			assert.equal(denied.isError, true);
 		} finally { await handlers.get("session_shutdown")?.({}, ctx); await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }); }

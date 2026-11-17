@@ -100,18 +100,18 @@ test('subagent: foreground results keep per-agent state, background keeps only t
 });
 
 test('subagent management tools never claim more than the receipt says', () => {
-  assert.equal(fold('subagent_status', {}, '{}', { details: { jobs: [{ jobId: 'B1', status: 'running' }] } }), `[subagent_status] → 1 job: B1=running${recall}`);
-  assert.equal(fold('subagent_status', { jobId: 'B1' }, '{}', { details: { status: 'running', cancelRequested: true } }), `[subagent_status] B1 → running (cancel requested)${recall}`);
-  assert.match(fold('subagent_cancel', { jobId: 'B1' }, '{}', { details: { status: 'running' } }), /not confirmed stopped/);
-  assert.match(fold('subagent_message', { jobId: 'B1', mode: 'steer' }, '{}', { details: { status: 'accepted' } }), /accepted \(accepted is not applied\)/);
+  assert.equal(fold('agent_status', {}, '{}', { details: { jobs: [{ jobId: 'B1', status: 'running' }] } }), `[agent_status] → 1 job: B1=running${recall}`);
+  assert.equal(fold('agent_status', { jobId: 'B1' }, '{}', { details: { status: 'running', cancelRequested: true } }), `[agent_status] B1 → running (cancel requested)${recall}`);
+  assert.match(fold('agent_cancel', { jobId: 'B1' }, '{}', { details: { status: 'running' } }), /not confirmed stopped/);
+  assert.match(fold('agent_message', { jobId: 'B1', mode: 'steer' }, '{}', { details: { status: 'accepted' } }), /accepted \(accepted is not applied\)/);
 });
 
-test('fork tools keep identity and state, with requested and accepted kept distinct from done', () => {
-  assert.equal(fold('fork', { title: 'try approach B' }, 'Fork accepted: F1 (try approach B). It starts at the end of this turn.'), `[fork] "try approach B" → Fork accepted: F1 (try approach B).${recall}`);
-  assert.equal(fold('fork_status', { jobId: 'F1' }, '{}', { details: { status: 'failed', errorCode: 'CHILD_EXIT', delivery: 'pending' } }), `[fork_status] F1 → failed CHILD_EXIT, delivery pending${recall}`);
-  assert.equal(fold('fork_status', {}, '{}', { details: { forks: [{ jobId: 'F1', status: 'running' }] } }), `[fork_status] → 1 job: F1=running${recall}`);
-  assert.match(fold('fork_cancel', { jobId: 'F1' }, '{}', { details: { status: 'cancelling' } }), /cancelling \(cancellation is a request; not confirmed exited\)/);
-  assert.match(fold('fork_message', { jobId: 'F1' }, '{}', { details: { status: 'accepted' } }), /accepted is not applied/);
+test('spinoff tools keep identity and state, with requested and accepted kept distinct from done', () => {
+  assert.equal(fold('spinoff', { title: 'try approach B' }, 'Spinoff accepted: F1 (try approach B). It starts at the end of this turn.'), `[spinoff] "try approach B" → Spinoff accepted: F1 (try approach B).${recall}`);
+  assert.equal(fold('agent_status', { jobId: 'F1' }, '{}', { details: { status: 'failed', errorCode: 'CHILD_EXIT', delivery: 'pending' } }), `[agent_status] F1 → failed CHILD_EXIT, delivery pending${recall}`);
+  assert.equal(fold('agent_status', {}, '{}', { details: { spinoffs: [{ jobId: 'F1', status: 'running' }] } }), `[agent_status] → spinoffs: 1 job: F1=running${recall}`);
+  assert.match(fold('agent_cancel', { jobId: 'F1' }, '{}', { details: { status: 'cancelling' } }), /cancelling \(cancellation is a request; not confirmed stopped\)/);
+  assert.match(fold('agent_message', { jobId: 'F1' }, '{}', { details: { status: 'accepted' } }), /accepted is not applied/);
 });
 
 test('monitor tools use the receipt preview, never the raw command', () => {
@@ -220,8 +220,8 @@ test('the set of tools with a dedicated rule is exactly the documented one', () 
   const expected = [
     'read', 'write', 'edit', 'ls', 'grep', 'find', 'multi_grep', 'note', 'session_read', 'session_window', 'session_grep',
     'bash', 'powershell', 'shell_job_status', 'shell_job_cancel', 'schedule_prompt', 'schedule_shell', 'schedule_monitor',
-    'subagent', 'subagent_status', 'subagent_cancel', 'subagent_message',
-    'fork', 'fork_status', 'fork_cancel', 'fork_message', 'monitor_start', 'monitor_status', 'monitor_stop',
+    'subagent', 'agent_status', 'agent_cancel', 'agent_message',
+    'spinoff', 'subagent_status', 'subagent_cancel', 'subagent_message', 'fork', 'fork_status', 'fork_cancel', 'fork_message', 'monitor_start', 'monitor_status', 'monitor_stop',
     'pty_spawn', 'pty_list', 'pty_read', 'pty_write', 'pty_keyin', 'pty_resize', 'pty_wait_exit', 'pty_kill',
     'sqlite_open', 'sqlite_close', 'sqlite_status', 'sqlite_query', 'sqlite_execute', 'sqlite_list_tables', 'sqlite_describe_table', 'sqlite_manual',
     'web_fetch', 'web_search', 'remote_list', 'remote_send', 'remote_status', 'tool_search', 'json_output', ...engines,

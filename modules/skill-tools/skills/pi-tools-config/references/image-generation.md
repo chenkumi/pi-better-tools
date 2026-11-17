@@ -2,7 +2,7 @@
 
 ## 工具與載入
 
-單一工具 `image_generate`，deferred：先 `tool_search` 搜尋 `image` 載入。不是預設啟用。Subagent 內沒有此工具；Fork 內有，但沒有互動 UI 時需 `confirm: "never"` 才能執行（否則回 `IMAGE_CONFIRM_UNAVAILABLE`）。
+單一工具 `image_generate`，deferred：先 `tool_search` 搜尋 `image` 載入。不是預設啟用。Subagent 內沒有此工具；Spinoff 內有，但沒有互動 UI 時需 `confirm: "never"` 才能執行（否則回 `IMAGE_CONFIRM_UNAVAILABLE`）。
 
 參數：`prompt`（必填）、`backend`（`openai`／`gemini`／`codex`）、`aspectRatio`（如 `16:9`）、`resolution`（`1K`／`2K`／`4K`）、`quality`（只有 OpenAI）、`format`（`png`／`jpeg`／`webp`）、`transparentBackground`、`count`（1–10，受 `maxImages` 限制）。後端無法套用的選項會列在結果的 `ignored`。圖片存成專案內的新檔案（預設 `.pi/generated-images/IMG-<UTC 時間戳>-<序號>.<副檔名>`），只新增、不覆寫，不接受參考圖或指定路徑。
 

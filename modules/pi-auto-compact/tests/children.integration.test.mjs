@@ -6,11 +6,11 @@ import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-// Real Pi CLI processes (a root and its Fork / Subagent child), an offline provider and isolated HOME / agentDir / workspace.
+// Real Pi CLI processes (a root and its Spinoff / Subagent child), an offline provider and isolated HOME / agentDir / workspace.
 // The three extensions are loaded from the agent directory's settings, so every child loads them the way a user's Pi would.
 const here = dirname(fileURLToPath(import.meta.url));
 const entry = relative => fileURLToPath(new URL(relative, import.meta.url));
-const extensions = [entry('../../fork/src/index.ts'), entry('../../subagents/extensions/subagent/index.ts'), entry('../src/index.ts'), join(here, 'fixtures/children-provider.ts')];
+const extensions = [entry('../../spinoff/src/index.ts'), entry('../../subagents/extensions/subagent/index.ts'), entry('../src/index.ts'), join(here, 'fixtures/children-provider.ts')];
 const cli = join(dirname(fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))), 'bundle/cli.js');
 const DEADLINE_MS = 150_000;
 const newline = String.fromCharCode(10);
@@ -39,9 +39,9 @@ async function run(kind) {
       for (let at = buffer.indexOf(newline); at >= 0; at = buffer.indexOf(newline)) { const line = buffer.slice(0, at); buffer = buffer.slice(at + 1); try { events.push(JSON.parse(line)); } catch { /* not an event */ } }
     });
     const deadline = setTimeout(() => proc.kill('SIGKILL'), DEADLINE_MS);
-    proc.stdin.write(JSON.stringify({ id: 'p1', type: 'prompt', message: kind === 'fork' ? 'DO_FORK please' : 'DO_SUBAGENT please' }) + newline);
+    proc.stdin.write(JSON.stringify({ id: 'p1', type: 'prompt', message: kind === 'spinoff' ? 'DO_SPINOFF please' : 'DO_SUBAGENT please' }) + newline);
     // The child's result reaches the root as a message of its own; wait for it and for the root to settle after it.
-    const isResult = e => e.type === 'message_end' && (kind === 'fork' ? e.message?.customType === 'fork-result' : e.message?.role === 'toolResult' && e.message.toolName === 'subagent');
+    const isResult = e => e.type === 'message_end' && (kind === 'spinoff' ? e.message?.customType === 'spinoff-result' : e.message?.role === 'toolResult' && e.message.toolName === 'subagent');
     const done = () => { const at = events.findIndex(isResult); return at >= 0 && events.slice(at).some(e => e.type === 'agent_settled'); };
     await new Promise((resolve, reject) => {
       const timer = setInterval(() => { if (done()) { clearInterval(timer); resolve(); } }, 100);
@@ -60,7 +60,7 @@ async function run(kind) {
   } finally { await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }).catch(() => {}); }
 }
 
-for (const [kind, marker] of [['fork', 'FORK_CHECKPOINT_TASK'], ['subagent', 'SUBAGENT_CHECKPOINT_TASK']]) {
+for (const [kind, marker] of [['spinoff', 'SPINOFF_CHECKPOINT_TASK'], ['subagent', 'SUBAGENT_CHECKPOINT_TASK']]) {
   test(`Pi 1.5.2 Pi Auto Compact checkpoint in a real ${kind} child process: the child loads the extension and answers the notice through the checkpoint tool`, { timeout: DEADLINE_MS + 60_000 }, async () => {
     const { sessions, stderr } = await run(kind);
     // The root session holds the call that carries the marker too; the child's own session is the other file that contains it as a user message.

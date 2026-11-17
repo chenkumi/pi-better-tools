@@ -10,7 +10,7 @@ const GENERAL = 'General';
 const baseFields: readonly Field[] = [
   { key: 'enabled', type: 'boolean', group: GENERAL, tab: GENERAL, label: 'Enabled', help: 'Master switch. Off: image_generate is refused and, after /reload, no longer registered. Turning it on again after a start with it off needs /reload.' },
   { key: 'backend', type: 'enum', group: GENERAL, tab: GENERAL, label: 'Default backend', options: BACKENDS, help: 'Used when image_generate is called without a backend. There is no automatic fallback between backends.' },
-  { key: 'confirm', type: 'enum', group: GENERAL, tab: GENERAL, label: 'Confirm paid requests', options: CONFIRM_MODES, help: 'first: ask once per session and backend. always: ask every time. never: do not ask (also the only way a Fork, which has no UI, can generate).' },
+  { key: 'confirm', type: 'enum', group: GENERAL, tab: GENERAL, label: 'Confirm paid requests', options: CONFIRM_MODES, help: 'first: ask once per session and backend. always: ask every time. never: do not ask (also the only way a Spinoff, which has no UI, can generate).' },
   { key: 'outputDir', type: 'string', group: GENERAL, tab: GENERAL, label: 'Output directory', placeholder: '.pi/generated-images', help: 'Inside the project, relative. Images are only added here, never replaced.' },
   { key: 'maxImages', type: 'int', group: GENERAL, tab: GENERAL, label: 'Max images per call', ...MAX_IMAGES_RANGE },
   { key: 'inlinePreview', type: 'boolean', group: GENERAL, tab: GENERAL, label: 'Return a preview to the model', help: 'Attach the first image (up to 4 MiB) to the tool result. Costs image tokens.' },

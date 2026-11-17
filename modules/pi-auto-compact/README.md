@@ -23,8 +23,8 @@
     - 這與先前被移除的「把最新回報釘在 State 之前」不同：那是模型順口寫的進度文字，會讓往前幾步的狀態看起來像壓縮當下的狀態；這裡是模型在壓縮前被明確要求寫給自己的交接內容，並標示它所在的位置。
     - **L1 切點與 L2／L3 交界都純看預算**（L1：最早能放進預算的合法切點；L2：能放進預算的最新一段），不受檢查點影響。
   - 提示訊息只是觸發器：不進摘要，且一旦分支內已有 compaction，已被回答的提示會由 `context` 事件自模型 context 移除（session 檔保留原樣，`session_grep` 仍查得到）。
-  - 主對話、Fork、Subagent 各自獨立計數，同一個 extension 掛載即生效；Subagent 子行程若有明確的 `--tools` 清單，argument builder 會附上 `progress_checkpoint`（`+name`／`-name` 清單附 `+progress_checkpoint`）。
-  - 測試：`tests/deadline-host.integration.test.mjs`＋`tests/fixtures/deadline-host.mjs`（約 12 秒，一般整合組）：真實 Pi 1.5.0 `AgentSession`、載入本模組、Pi 原生門檻壓縮由本模組的確定性摘要回應（`providerCalls` 等於腳本請求數，沒有摘要呼叫）、usage 由腳本決定。兩個情境：`reported`（進入區間後下一個請求才收到通知、以 `progress_checkpoint` 回答、之後壓縮、壓縮後模型看得到摘要且摘要含檢查點全文）與 `missed`（單一回應回報的用量直接越過門檻，不追加通知）。`tests/children.integration.test.mjs` 以真實 Fork／Subagent 子行程驗證子行程載入本模組、收到通知並以工具回答。限制：usage 是腳本值、沒有 thinking、單一模型尺寸；模型是否照通知寫出好的內容無法由離線腳本驗證，只固定通知的條件與時機；文字回覆路徑只有單元測試。
+  - 主對話、Spinoff、Subagent 各自獨立計數，同一個 extension 掛載即生效；Subagent 子行程若有明確的 `--tools` 清單，argument builder 會附上 `progress_checkpoint`（`+name`／`-name` 清單附 `+progress_checkpoint`）。
+  - 測試：`tests/deadline-host.integration.test.mjs`＋`tests/fixtures/deadline-host.mjs`（約 12 秒，一般整合組）：真實 Pi 1.5.0 `AgentSession`、載入本模組、Pi 原生門檻壓縮由本模組的確定性摘要回應（`providerCalls` 等於腳本請求數，沒有摘要呼叫）、usage 由腳本決定。兩個情境：`reported`（進入區間後下一個請求才收到通知、以 `progress_checkpoint` 回答、之後壓縮、壓縮後模型看得到摘要且摘要含檢查點全文）與 `missed`（單一回應回報的用量直接越過門檻，不追加通知）。`tests/children.integration.test.mjs` 以真實 Spinoff／Subagent 子行程驗證子行程載入本模組、收到通知並以工具回答。限制：usage 是腳本值、沒有 thinking、單一模型尺寸；模型是否照通知寫出好的內容無法由離線腳本驗證，只固定通知的條件與時機；文字回覆路徑只有單元測試。
 - System prompt：`before_agent_start` 寫入結構化 section `context_compaction`（`src/guidance.ts`，固定文字約 170 token，不影響快取；設定檔無效、壓縮交還 Pi 時移除；與 forced／custom prompt 並存的處理同 Shell 的背景生命週期 section，不整份覆蓋）。內容：舊訊息被確定性摘要取代、`⟦L<行>:<id>⟧` 與回溯工具（`tool_search "session"` 載入、`session_read`／`session_grep`）、先看摘要再決定是否重讀、**回報進度或完成任務時第一句先講結論**（assistant 文字被截短時保留開頭）。風格指示只限進度回報與完成回報，不改變一般回覆。實際效果以任務試驗（`tools/pi-auto-compact-bench/`）量測，不假設有效。
 - 設定面板：`/settings:auto-compact`（`src/settings.ts`，共用層 `shared/src/settings-panel/`）。兩頁：Budgets（L1～L4 各自的比例與最小字元數）、Limits（總量上限、每 token 字元數、檢查點通知邊際）；數值欄位為文字輸入，**留空＝使用預設值**（預設值以淡色佔位顯示），存檔時刪除該鍵。驗證與錯誤訊息直接用 `parseConfig` 的規則（錯誤不回顯輸入值）。面板頂端顯示目前模型的有效預算（`max(視窗 × 比例, 最小值)`，取自磁碟上的檔案，不含未存檔的編輯）。不需 trust（使用者層檔案）；非 TUI 拒絕並說明檔案位置；檔案無效（含未知鍵）時詢問是否從預設值重來，存檔會取代該檔。只有按存檔才寫入（保留未改的鍵、原子寫入、沒有鍵時刪檔）；存檔後**不問 reload**（`SettingsSchema.appliesWithoutReload`）。
 - 尚未做：跨壓縮共同前綴比較（M6）。
@@ -42,7 +42,7 @@
 - **未登記工具**走通用後備：參數摘要（含 `password`／`token`／`apiKey` 等鍵一律 `***`）＋輸出頭 200／尾 100 字元＋總字元數。規則拋例外時也退回通用後備，不退回原文。
 - **配對**：`foldUnpairedCall`（沒有結果）與 `foldUnpairedResult`（找不到呼叫）都明確標記，不當成成功。
 - 新增工具時：`tests/registry-coverage.test.ts` 會掃描各模組以字面名稱註冊的工具，未登記規則也未列入「通用後備白名單」就會失敗。動態命名的工具（如 `shell_job_*`、`mysql_*`）掃不到，由 `tests/fold.test.ts` 的明確清單把關。
-- 通知訊息（`fork-result`、`monitor_event`、`remote_message` 等 custom_message）在摘要中只保留識別欄位（見上）；各類專屬折疊規則仍屬計畫 §4.3。
+- 通知訊息（`spinoff-result`、`monitor_event`、`remote_message` 等 custom_message）在摘要中只保留識別欄位（見上）；各類專屬折疊規則仍屬計畫 §4.3。
 
 ## 回溯：session 工具（`src/session-read/`）
 
@@ -50,7 +50,7 @@
 
 共同規則：
 
-- **範圍**：只讀目前 session，以及沿各檔 header `parentSession` 往上的祖先鏈（Fork 讀得到自己的來源，讀不到兄弟 session）。只跟隨首行是 session header 的 `.jsonl`，深度上限 16、遇環即停，所以被竄改的 `parentSession` 不能把它變成通用讀檔工具。`session_id` 不在鏈上時報錯並列出可讀的 id。
+- **範圍**：只讀目前 session，以及沿各檔 header `parentSession` 往上的祖先鏈（Spinoff 讀得到自己的來源，讀不到兄弟 session）。只跟隨首行是 session header 的 `.jsonl`，深度上限 16、遇環即停，所以被竄改的 `parentSession` 不能把它變成通用讀檔工具。`session_id` 不在鏈上時報錯並列出可讀的 id。
 - **防爆量**：逐行串流讀取，不整檔載入；單行超過 64MB 只回報大小；圖片、thinking 區塊與長 base64 一律換成佔位文字或略過；輸出去除控制字元與雙向字元。
 - 內容是同一 session 的原始資料（含當時的工具輸出），不是新的外洩面，但仍屬不受信任的歷史資料。
 - 這些工具自己的結果日後被折疊時只留「查了哪裡、多少筆」，不把內容再折進去。
@@ -79,7 +79,7 @@
 
 - 摘要從 S 顯示到 L2 邊界。每次壓縮先算 S 到邊界的大小：不超過 `L3+L4` 就**不動 S**（摘要只在尾端增長，前段逐位元組相同）；超過就一次重設，S 改為「從邊界往回數剛好 `L3`」的位置，L4 清空。起點變動頻率降為原本的 `L4 ÷ 每次壓縮的增量`。
 - L4 的內容**必須顯示**在摘要裡（隱藏的話摘要仍會位移，沒有快取效益）；它只是 L3 的溢出空間，不是獨立的一層。
-- **起點記錄**：以 compaction entry 的 `details` 為準（機器讀、不送進模型；以 entry id 為準，行號只用來顯示，因為 Fork 複製的 entry id 不變、行號會變）；摘要第一行寫成固定句式 `History shown from ⟦L<行>:<id>⟧; earlier: session_window before=<行>` 供模型看。只有重設時這行才變，而重設時本來就整份失效，沒有額外成本。
+- **起點記錄**：以 compaction entry 的 `details` 為準（機器讀、不送進模型；以 entry id 為準，行號只用來顯示，因為 Spinoff 複製的 entry id 不變、行號會變）；摘要第一行寫成固定句式 `History shown from ⟦L<行>:<id>⟧; earlier: session_window before=<行>` 供模型看。只有重設時這行才變，而重設時本來就整份失效，沒有額外成本。
 - 下一次壓縮沿目前分支找最近一個 compaction entry 讀 `details`；找不到（entry 已不在分支、上次是 Pi 自己壓的、`details` 缺失）就從 L3 名目起點重算，只破壞一次快取。
 - **逐位元組穩定**：每個項目的呈現只能依自己的內容，不依預算或位置；摘要第一行與 L3 區段不放會變動的東西（計數、壓縮次數、時間、總字數）；會變動的固定狀態區塊放在摘要**最尾端**。
 - 已知限制：L2 預算含 L1 借來的部分，所以連續**手動**壓縮（兩次之間歷史幾乎沒增加）時，L2/L3 交界可能比上次靠前，交界之後的前綴快取會失效一次；自動壓縮兩次之間歷史會前進很大一段，借用量折成 L2 後遠小於它，實際上不會倒退，因此不另外記錄交界做單調限制。
@@ -102,7 +102,7 @@
 |---|---|
 | 手動 `/compact`、8 項 | 摘要約 1.6k 字元；壓縮後 agent 如實說明哪些原文已不在畫面中，並以重讀取回 |
 | 自動壓縮、30／60 項（預設設定） | 各壓縮 1～2 次，30／60 項全過；壓縮後直接接續下一項，重讀僅 0～2 個檔、共約 2k 字元 |
-| 120 項、縮小預算（L1 20k、L2 4k、L3 0.8k、L4 3k）、排除 `subagent`／`fork` | 壓縮 4 次，120 項全過；L3 單調累積（約 8→48 項）、起點固定在第一則使用者訊息；摘要每次只增加約 0.5～1k 字元 |
+| 120 項、縮小預算（L1 20k、L2 4k、L3 0.8k、L4 3k）、排除 `subagent`／`spinoff` | 壓縮 4 次，120 項全過；L3 單調累積（約 8→48 項）、起點固定在第一則使用者訊息；摘要每次只增加約 0.5～1k 字元 |
 | 同上，L4 縮到 0.4k（門檻 1.2k） | 第 4 次壓縮起點一次跳到後段（第 5 行→第 133／222 行） |
 | 滑動後，規則只在 `PROMPT.md`（工具輸出） | 滑動後第一個寫入就違規（首行寫成別的團隊名），agent 自己重讀 `PROMPT.md` 後修正 |
 | 滑動後，規則在第一則使用者訊息 | 120 個寫入全部遵守；寫 `FINAL.md` 前以 `tool_search "session"`→`session_grep`→`session_read` 取回原文（第一次實測到回溯工具被使用） |
@@ -112,7 +112,7 @@
 - 壓縮後第一輪的快取讀取比例約 0.47～0.62，之後回到約 0.80；壓縮前約 0.93。這是摘要取代前綴的固有成本，四次壓縮的曲線一致。
 - 原始來源仍可重讀時（例如磁碟上的檔案），agent 傾向直接重讀而不是用回溯工具；回溯工具在來源無法重新取得時才會被用到。
 - 單輪平行多個工具呼叫是不可切分的單元：壓縮正好落在一批平行讀取之後時，L1 尾端會超過預算（實測保留約 64k 字元，預算 30k），這是為了讓模型看得到剛讀的結果；未用完的 L1 預算會借給 L2。
-- 任務夠大時 agent 可能自行委派給 `subagent`，主 session 的 context 就不會被填滿；做壓縮試驗時需用 `--exclude-tools subagent,fork` 排除。
+- 任務夠大時 agent 可能自行委派給 `subagent`，主 session 的 context 就不會被填滿；做壓縮試驗時需用 `--exclude-tools subagent,spinoff` 排除。
 - 狀態列的 context 用量是 API 最後一次回傳的值，壓縮後要等下一次請求才會更新；TUI 預設只顯示「Compacted from N tokens」，摘要內容不給使用者看（按 `Ctrl+O` 展開）。這兩點都是 Pi 的行為，不是本模組的問題。
 - 尚未測到：L3 預算大幅超過後的多次連續滑動、規則放在使用者訊息但該訊息本身很長（超過該段預算一半的頭尾保留）、手動連續壓縮時 L2／L3 交界前移。
 

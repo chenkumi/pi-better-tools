@@ -5,7 +5,7 @@ import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works
 import { callTitle, formatDuration, resultView } from "./summary.ts";
 
 /** Tools whose own renderer shows something richer than text output (live conversations); they keep their content, in the common frame. */
-export const OWN_RENDERER_TOOLS: ReadonlySet<string> = new Set(["subagent", "subagent_message", "fork"]);
+export const OWN_RENDERER_TOOLS: ReadonlySet<string> = new Set(["subagent", "agent_message", "spinoff"]);
 /** Expanded bodies stop here; the full result stays in the session and in the model context. */
 export const MAX_EXPANDED_LINES = 200;
 const INDENT = "   ";

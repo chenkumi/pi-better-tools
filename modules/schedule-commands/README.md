@@ -44,12 +44,12 @@
 - shell job：須在互動 session 確認確切指令；經 Monitor 的 Shell helper 在 session 內執行，不啟動模型、不喚醒 parent，輸出只進顯示用 marker。`timeoutMs` 是輸出停滯期限，不是總時限。每次執行重新 realpath cwd；專案外目錄只在本行程核准後執行，核准不持久化。
 - `schedule_shell` 啟用前提：`bash` 或 `powershell` 至少一個已啟用（檢查工具啟用，不是政策）。
 - scheduled turn（由排程送入的回合）內只允許 `list`／`status`／`remove`／`disable`；`add`、`update`、`enable`、`run_now` 一律拒絕。provenance 取自對話分支中的 marker。
-- 受管 child（Subagent／Fork）不註冊本模組。
+- 受管 child（Subagent／Spinoff）不註冊本模組。
 
 ## Monitor job（`schedule_monitor`）
 
 - 機制：Monitor 在 `session_start` 經 `shared/src/background/monitor-capability.ts` 發布「排程啟動器」（`validate`／`start`／`isActive`，與既有 rendezvous 同型：owner、canonical cwd 對得上才取得，不共享 handle）；排程到點呼叫它，由 Monitor 自己驗證並決定。Monitor 沒載入、`monitor_start` 未啟用、被拒絕或沒有名額，只在顯示標記與 `state.lastError` 記錄原因，不影響其他 job。
-- 允許的來源：`command`、`file`、`system`；`websocket` 與 `shell_job`／`subagent_job`／`fork_job` 拒絕（錯誤訊息列出允許來源）。Monitor 側的啟動器也同樣拒絕。
+- 允許的來源：`command`、`file`、`system`；`websocket` 與 `shell_job`／`subagent_job`／`spinoff_job` 拒絕（錯誤訊息列出允許來源）。Monitor 側的啟動器也同樣拒絕。
 - `wakeAgent` 預設 **false**（Monitor 側補預設）；設 `true` 須使用者在確認畫面看到「WAKES THE AGENT」後同意。由 Monitor 喚醒的回合**不受** scheduled-turn 保護（沒有排程 marker），可能在該回合建立新排程；這與手動 `monitor_start` 的暴露面相同，差別是使用者不在場，所以預設關閉並在確認畫面明示。
 - `command` 來源等於無人值守執行指令：`schedule_shell` 與 `start.source.tool` 對應的 `bash`／`powershell` 必須都已啟用，建立、更新、重新啟用時當場檢查，每次到點前再檢查；未啟用則報錯／跳過並記錄。確認畫面顯示確切指令。
 - 互動新增、變更 `start`、重新啟用、`run_now` 都須確認；無 UI 拒絕。

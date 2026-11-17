@@ -10,7 +10,7 @@ import { activeMonitorBriefs, canonicalMonitorCwd, MAX_ACTIVE_MONITOR_BRIEFS, ty
 const MAX_ROWS = MAX_ACTIVE_MONITOR_BRIEFS;
 const SAFE_ID = /^[A-Za-z0-9_.:-]{1,128}$/;
 const SAFE_STATE = /^[a-z_]{1,32}$/;
-const SOURCE_LABEL: Record<string, string> = { command: "Command", websocket: "WebSocket", file: "File", shell_job: "Shell Job", subagent_job: "Subagent Job", fork_job: "Fork Job" };
+const SOURCE_LABEL: Record<string, string> = { command: "Command", websocket: "WebSocket", file: "File", shell_job: "Shell Job", subagent_job: "Subagent Job", spinoff_job: "Spinoff Job" };
 const CONTROL = /[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/g;
 
 /** Targets and labels are owner-supplied text, so they are stripped again here before they reach summary prose. */

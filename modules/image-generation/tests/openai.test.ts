@@ -17,11 +17,6 @@ test('size: auto without options; ratios become sizes the API accepts (multiples
   assert.equal(openaiSize(model, '16:9').size, '1088x608');
   const wide = openaiSize(model, '3:1', '1K').size.split('x').map(Number);
   assert.ok(wide[0]! * wide[1]! >= 655_360 && wide[0]! % 16 === 0 && wide[1]! % 16 === 0, `a thin ratio is enlarged until it has enough pixels: ${wide}`);
-  const square = openaiSize(model, '1:1', '4K');
-  const [sw, sh] = square.size.split('x').map(Number);
-  assert.ok(sw! * sh! <= 8_294_400 && sw! % 16 === 0 && sh! % 16 === 0, `a square 4K is shrunk to the pixel cap: ${square.size}`);
-  assert.match(square.note ?? '', /pixel limit/);
-  assert.ok(openaiSize(model, '4:3', '4K').size.split('x').map(Number).reduce((a, b) => a * b, 1) <= 8_294_400);
   assert.throws(() => openaiSize(model, '4:1'), /between 1:3 and 3:1/);
   assert.throws(() => openaiSize(model, 'wide'), /must look like/);
 });

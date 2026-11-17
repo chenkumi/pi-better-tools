@@ -1,6 +1,6 @@
 // Agent-facing tool failures carry a stable code at the start of the message, because only `content` and `isError`
 // reach the model (details and structuredContent do not). Format: `CODE: message`, e.g. `PTY_SESSION_EXITED: ...`.
-// Existing modules keep their own codes (FORK_*, NOTE_*, OUTPUT_TOO_LARGE, ...); this is the shape new codes follow.
+// Existing modules keep their own codes (SPINOFF_*, NOTE_*, OUTPUT_TOO_LARGE, ...); this is the shape new codes follow.
 
 const CODE_PATTERN = /^[A-Z][A-Z0-9_]*$/;
 

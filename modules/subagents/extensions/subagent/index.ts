@@ -39,6 +39,10 @@ import { SubagentJobsWidget } from "./live-widget.ts";
 import { publishSubagentMonitor } from "./monitor-capability.ts";
 import { isManagedForegroundChild } from "../../../../shared/src/background/index.ts";
 import { bottomConfirm } from "../../../../shared/src/bottom-panel/index.ts";
+import { SPINOFF_CHILD_REFUSAL, consumeSpinoffChildGuard } from "../../src/spinoff/identity.ts";
+import { findOwnedJob as findOwnedSpinoff, messageSpinoff, ownedJobs as ownedSpinoffs, requestCancel as requestSpinoffCancel, summarize as summarizeSpinoff } from "../../src/spinoff/manager.ts";
+import { spinoffMessageReceiptSchema, spinoffStatusOutputSchema, spinoffSummarySchema } from "../../src/spinoff/output-schema.ts";
+import { isTerminal as isSpinoffTerminal } from "../../src/spinoff/store.ts";
 import { BackgroundRecovery } from "../../../shell-tools/src/recovery.ts";
 import { registerBackgroundLifecycleGuidance } from "../../../shell-tools/src/background-guidance.ts";
 import { ensureDetachShortcut, trackForeground } from "../../../shell-tools/src/manual-detach.ts";
@@ -197,7 +201,7 @@ export function messageRejectionCode(error: unknown): string {
 	return /^[A-Z][A-Z0-9_]{2,63}$/.test(head) ? head : "MESSAGE_REJECTED";
 }
 
-/** Caller-actionable next step for a rejected subagent_message; the agent cannot inspect files or the host. */
+/** Caller-actionable next step for a rejected agent_message; the agent cannot inspect files or the host. */
 export function messageNextAction(code: string): string {
 	switch (code) {
 		case "SESSION_BUSY": return "Wait for the current operation result/cleanup (query_result for queries, task_result for tasks), then submit a new instruction. Do not replay accepted or delivery_unknown controls.";
@@ -205,8 +209,8 @@ export function messageNextAction(code: string): string {
 		case "CONFIG_CHANGED": case "TRUST_REQUIRED": case "CWD_UNAVAILABLE": return "The agent definition, trust or directory changed since this session was created. Start a new subagent instead; no child was accepted by this message.";
 		case "MODEL_UNAVAILABLE": return "The model saved for this session is not registered in the current host. Register that model again or start a new subagent with an available model; no child was accepted by this message.";
 		case "SNAPSHOT_CAPACITY": return "The conversation is too large to query. Use mode \"control\" to instruct the session, or start a new subagent; no child was accepted by this message.";
-		case "SESSION_NOT_FOUND": case "OWNER_MISMATCH": return "Use subagent_status (no jobId) to list jobs, then subagent_status({ jobId }) to read the subagentSessionId of each task; only IDs created by this session and cwd can be messaged.";
-		case "INVALID_MESSAGE": case "INVALID_DISPATCH": return "Fix the named parameter and call subagent_message again; no child was accepted by this message.";
+		case "SESSION_NOT_FOUND": case "OWNER_MISMATCH": return "Use agent_status (no jobId) to list jobs, then agent_status({ jobId }) to read the subagentSessionId of each task; only IDs created by this session and cwd can be messaged.";
+		case "INVALID_MESSAGE": case "INVALID_DISPATCH": return "Fix the named parameter and call agent_message again; no child was accepted by this message.";
 		case "BACKGROUND_RUNTIME_CLOSED": return "The session was replaced or reloaded, so earlier jobs are gone. Start a new subagent if the work is still needed.";
 		default: return "Correct the target named in error and retry, or start a new subagent; no child was accepted by this message.";
 	}
@@ -1272,7 +1276,7 @@ export function taskEnvelopeError(task: string, skillBlock?: string): string | u
 }
 
 export function normalizeDispatch(params: Record<string, any>): "single" | "parallel" | "chain" {
-	if (Object.hasOwn(params, "resume")) throw new SessionError("INVALID_DISPATCH", "resume was removed from subagent. Use subagent_message({ subagentSessionId: <complete ID>, message: <new instruction>, title?: <display title> }); mode defaults to control and safely routes to resume when ready.");
+	if (Object.hasOwn(params, "resume")) throw new SessionError("INVALID_DISPATCH", "resume was removed from subagent. Use agent_message({ subagentSessionId: <complete ID>, message: <new instruction>, title?: <display title> }); mode defaults to control and safely routes to resume when ready.");
 	if (Object.hasOwn(params, "resumable")) throw new SessionError("INVALID_DISPATCH", "resumable was removed: every initial task automatically uses a managed native session. Omit this parameter.");
 	const present = (key: string) => params[key] !== undefined;
 	const nonblank = (v: unknown) => typeof v === "string" && !!v.trim();
@@ -1282,7 +1286,7 @@ export function normalizeDispatch(params: Record<string, any>): "single" | "para
 	validateTitle(params.title);
 	if (present("background") && typeof params.background !== "boolean") throw new SessionError("INVALID_DISPATCH", `background must be true or false; received ${receivedValue(params.background)}.`);
 
-	if (!present("agent") && present("task")) throw new SessionError("INVALID_DISPATCH", "task was given without agent. Add agent for single mode, or put task inside a tasks[]/chain[] item; to continue an existing session use subagent_message.");
+	if (!present("agent") && present("task")) throw new SessionError("INVALID_DISPATCH", "task was given without agent. Add agent for single mode, or put task inside a tasks[]/chain[] item; to continue an existing session use agent_message.");
 	const given = ["agent", "tasks", "chain"].filter(present);
 	if (given.length !== 1) throw new SessionError("INVALID_DISPATCH", `Provide exactly one of: single mode (agent + task), parallel mode (tasks[]), chain mode (chain[]); received ${given.length ? given.join(", ") : "none"}.`);
 	const skillsProblem = (value: unknown, label: string) => {
@@ -1305,7 +1309,7 @@ export function normalizeDispatch(params: Record<string, any>): "single" | "para
 		const at = `${name}[${index}]`;
 		if (!isRecord(item)) throw new SessionError("INVALID_DISPATCH", `${at} must be an object { agent, task, title?, cwd?, skills? }; received ${receivedType(item)}.`);
 		const extra = Object.keys(item).find(key => !DISPATCH_ITEM_KEYS.includes(key));
-		if (extra !== undefined) throw new SessionError("INVALID_DISPATCH", `${at}: unsupported key "${extra.slice(0, 40)}" (allowed: ${DISPATCH_ITEM_KEYS.join(", ")}).${extra === "resume" || extra === "resumable" ? " Nested resume is unsupported; use subagent_message to continue a session." : " provider, model, thinkingLevel, agentScope and background are top-level parameters shared by all items."}`);
+		if (extra !== undefined) throw new SessionError("INVALID_DISPATCH", `${at}: unsupported key "${extra.slice(0, 40)}" (allowed: ${DISPATCH_ITEM_KEYS.join(", ")}).${extra === "resume" || extra === "resumable" ? " Nested resume is unsupported; use agent_message to continue a session." : " provider, model, thinkingLevel, agentScope and background are top-level parameters shared by all items."}`);
 		skillsProblem(item.skills, `${at}.skills`);
 		for (const key of ["agent", "task"] as const) if (!nonblank(item[key])) throw new SessionError("INVALID_DISPATCH", `${at}.${key} is blank, missing or not a string (received ${item[key] === undefined ? "nothing" : receivedValue(item[key])}); every item needs agent and task.`);
 	});
@@ -1330,7 +1334,7 @@ function isSavedModelRegistered(ctx: ExtensionContext, selection: string): boole
 	return slash >= 1 && Boolean(ctx.modelRegistry.find(selection.slice(0, slash), selection.slice(slash + 1)));
 }
 
-/** Rejected subagent_message receipts report the state seen before the failure (busy for SESSION_BUSY). */
+/** Rejected agent_message receipts report the state seen before the failure (busy for SESSION_BUSY). */
 function annotateObservedState(error: unknown, observedState: string): void {
 	if (error instanceof Error) Object.assign(error, { observedState: error instanceof SessionError && error.code === "SESSION_BUSY" ? "busy" : observedState });
 }
@@ -1397,6 +1401,9 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 		} catch { /* Monitoring setup cannot affect dispatch/ownership. */ }
 	});
 	const managementRenderer = renderBackgroundResult;
+	const spinoffChild = !!consumeSpinoffChildGuard();
+	const SPINOFF_LIST_LIMIT = 32;
+	const spinoffText = (text: string, details: Record<string, unknown>) => ({ content: [{ type: "text" as const, text }], details, structuredContent: JSON.parse(JSON.stringify(details)) as JsonValue });
 	const managementResult = (receipt: BackgroundReceipt) => ({ content: [{ type: "text" as const, text: JSON.stringify(slimReceipt(receipt)) }], details: receipt, structuredContent: jsonReceipt(receipt) });
 	const ControlSchema = Type.Object({ messageId: Type.String(), status: Type.String(), timestamp: Type.Optional(Type.Unknown()), userOrdinal: Type.Optional(Type.Number()), error: Type.Optional(Type.String()) }, { additionalProperties: true });
 	const QuerySchema = Type.Object({ queryId: Type.String(), status: Type.String() }, { additionalProperties: true });
@@ -1408,23 +1415,33 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 	}, { additionalProperties: true });
 	const ReceiptSchema = Type.Object({ jobId: Type.String(), status: StringEnum(["queued", "running", "completed", "failed", "aborted"] as const), cancelRequested: Type.Boolean(), tasks: Type.Array(Type.Object({ taskId: Type.String(), agent: Type.String(), status: Type.String(), logPending: Type.Boolean(), subagentSessionId: Type.Optional(Type.String()), liveLogPath: Type.Optional(Type.String()), finalLogPath: Type.Optional(Type.String()), result: Type.Optional(TaskResultSchema), canMessage: Type.Optional(Type.Boolean()), controls: Type.Optional(Type.Array(ControlSchema)), queries: Type.Optional(Type.Array(QuerySchema)), readOnlyQuery: Type.Optional(Type.Boolean()) })) });
 	const JobListSchema = Type.Object({ jobs: Type.Array(Type.Object({ jobId: Type.String(), status: Type.String(), cancelRequested: Type.Boolean(), tasks: Type.Array(Type.Object({ taskId: Type.String(), agent: Type.String(), status: Type.String(), canMessage: Type.Optional(Type.Boolean()), summary: Type.Optional(Type.String()) })) })) });
-	for (const name of ["subagent_status", "subagent_cancel"] as const) pi.registerTool({
-		name, label: name === "subagent_status" ? "Subagent Status" : "Cancel Subagent", defaultActive: true,
-		description: name === "subagent_status" ? "Read a retained background job owned by this session/cwd (jobId), or omit jobId to list your jobs read-only with status and a one-line summary. Status includes bounded result summaries and verified log paths. Does not account usage again." : "Request cancellation of a background job owned by this session/cwd. Cancellation does not guarantee the whole process tree stopped; use status to check settlement.",
+	for (const name of ["agent_status", "agent_cancel"] as const) pi.registerTool({
+		name, label: name === "agent_status" ? "Agent Status" : "Cancel Agent", defaultActive: true,
+		description: name === "agent_status" ? "Read a retained background subagent job or a Spinoff owned by this session/cwd (jobId), or omit jobId to list both read-only: `jobs` are subagent jobs with status and a one-line summary, `spinoffs` are Spinoffs. Status includes bounded result summaries and verified log paths. Does not account usage again." : "Request cancellation of a background subagent job or a Spinoff owned by this session/cwd (jobId). Cancellation does not guarantee the whole process tree stopped; use agent_status to check settlement.",
 		renderCall(args, theme) {
-			return new Text(theme.fg("toolTitle", `${name} ${displayTitle(args?.jobId) || (name === "subagent_status" ? "(list)" : "…")}${name === "subagent_cancel" ? " · termination not confirmed" : ""}`), 0, 0);
+			return new Text(theme.fg("toolTitle", `${name} ${displayTitle(args?.jobId) || (name === "agent_status" ? "(list)" : "…")}${name === "agent_cancel" ? " · termination not confirmed" : ""}`), 0, 0);
 		},
 		renderResult: managementRenderer,
-		parameters: name === "subagent_status" ? Type.Object({ jobId: Type.Optional(Type.String({ minLength: 1, description: "Job to read; omit to list your retained jobs." })) }) : Type.Object({ jobId: Type.String({ minLength: 1 }) }),
-		outputSchema: name === "subagent_status" ? Type.Union([ReceiptSchema, JobListSchema]) : ReceiptSchema,
+		parameters: name === "agent_status" ? Type.Object({ jobId: Type.Optional(Type.String({ minLength: 1, description: "Subagent job or Spinoff to read; omit to list your retained ones." })) }) : Type.Object({ jobId: Type.String({ minLength: 1, description: "Subagent job or Spinoff to cancel (not a child session ID)." }) }),
+		outputSchema: name === "agent_status" ? Type.Union([ReceiptSchema, JobListSchema, spinoffStatusOutputSchema]) : Type.Union([ReceiptSchema, spinoffSummarySchema]),
 		async execute(_id, params, _signal, _onUpdate, ctx) {
 			try {
-				const cwd = await canonicalCwd(ctx.cwd, "session working directory"), owner = ctx.sessionManager.getSessionId();
-				if (name === "subagent_status" && params.jobId === undefined) {
-					const list = { jobs: jobs.list(owner, cwd) };
-					return { content: [{ type: "text" as const, text: JSON.stringify(slimJobList(list.jobs)) }], details: list as any, structuredContent: list as unknown as JsonValue };
+				// A jobId that names one of this session's Spinoffs goes to the Spinoff manager, any other to the subagent jobs. A Spinoff child owns none.
+				const spinoff = params.jobId === undefined || spinoffChild ? undefined : findOwnedSpinoff(ctx, params.jobId);
+				if (spinoff && name === "agent_status") { const summary = summarizeSpinoff(spinoff, true); return spinoffText(JSON.stringify(summary), summary); }
+				if (spinoff) {
+					if (isSpinoffTerminal(spinoff.record.status)) return spinoffText(`Spinoff ${spinoff.record.jobId} is already ${spinoff.record.status}; nothing to cancel.`, summarizeSpinoff(spinoff));
+					try { await requestSpinoffCancel(spinoff); }
+					catch (error) { throw new Error(`SPINOFF_CANCEL_FAILED: ${errorToString(error)}; the child may still be running. Check agent_status ${spinoff.record.jobId}.`); }
+					return spinoffText(`Cancel requested for ${spinoff.record.jobId}; status ${spinoff.record.status}. Requested is not the same as exited.`, summarizeSpinoff(spinoff));
 				}
-				return managementResult(name === "subagent_cancel" ? jobs.cancel(params.jobId!, owner, cwd) : jobs.get(params.jobId!, owner, cwd));
+				const cwd = await canonicalCwd(ctx.cwd, "session working directory"), owner = ctx.sessionManager.getSessionId();
+				if (name === "agent_status" && params.jobId === undefined) {
+					const list = { jobs: jobs.list(owner, cwd) };
+					const all = spinoffChild ? [] : ownedSpinoffs(ctx), spinoffs = all.slice(0, SPINOFF_LIST_LIMIT).map(job => summarizeSpinoff(job)), partial = all.length > SPINOFF_LIST_LIMIT;
+					return { content: [{ type: "text" as const, text: JSON.stringify({ ...slimJobList(list.jobs), spinoffs, partial }) }], details: { ...list, spinoffs } as any, structuredContent: JSON.parse(JSON.stringify({ ...list, spinoffs, partial })) as JsonValue };
+				}
+				return managementResult(name === "agent_cancel" ? jobs.cancel(params.jobId!, owner, cwd) : jobs.get(params.jobId!, owner, cwd));
 			} catch (error) { return { content: [{ type: "text", text: errorToString(error) }], details: undefined, isError: true }; }
 		},
 	});
@@ -1523,25 +1540,32 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 		}
 	};
 	pi.registerTool({
-		name: "subagent_message", label: "Message Subagent", defaultActive: true,
+		name: "agent_message", label: "Message Agent", defaultActive: true,
 		renderCall(args, theme) {
-			return new Text(theme.fg("toolTitle", `Subagent Message ${displayTitle(args?.mode) || "control"}${displayTitle(args?.title) ? ` · ${displayTitle(args.title)}` : ""}`), 0, 0);
+			return new Text(theme.fg("toolTitle", `Agent Message ${displayTitle(args?.mode) || (args?.jobId ? "follow_up" : "control")}${displayTitle(args?.title) ? ` · ${displayTitle(args.title)}` : ""}`), 0, 0);
 		},
 		renderResult: managementRenderer,
-		description: "Send instructions to an existing subagentSessionId owned by this parent/canonical cwd. mode defaults to control: literal control to a running interactive child, or asynchronous background resume of a ready session after strict validation; queued/startup/finalizing/canceling/busy are rejected, with no queue, retries or replay. mode query is a disposable read-only question to a live child or a completed ready session; it never resumes or changes the original conversation. Accepted is not completed: task_result follows up for resume, query_result (with independent usage/asOf) for query. applied confirms conversation insertion, not that the requested work finished. Optional title is display-only for the new invocation. Busy/capacity/cancelled rejections are expected refusals, not runtime faults: never retry automatically or select a route using stale canMessage/canResume knowledge.",
-		parameters: Type.Object({ subagentSessionId: Type.String({ minLength: 1, description: "Complete stable managed session ID; not jobId/taskId or a path." }), message: Type.String({ minLength: 1, maxLength: 65536 }), mode: Type.Optional(StringEnum(["control", "query"] as const, { default: "control" })), title: Type.Optional(TitleSchema) }),
-		outputSchema: Type.Object({ subagentSessionId: Type.String(), mode: StringEnum(["control", "query"] as const), action: Type.Optional(StringEnum(["control", "resume", "query"] as const)), status: Type.String(), jobId: Type.Optional(Type.String()), taskId: Type.Optional(Type.String()), messageId: Type.Optional(Type.String()), queryId: Type.Optional(Type.String()), background: Type.Optional(ReceiptSchema), errorCode: Type.Optional(Type.String()), observedState: Type.Optional(Type.String()), nextAction: Type.Optional(Type.String()), error: Type.Optional(Type.String()) }, { additionalProperties: true }),
+		description: "Send instructions to a subagent session (subagentSessionId) or to a running Spinoff (jobId) of this session; give exactly one of them. A Spinoff takes mode follow_up (default; delivered after its current turn) or steer (interrupts it), only while it is running or blocked, with no queue and no resume; accepted is not applied: status becomes applied only when its own conversation shows the message. The rest of this text is about a subagent session owned by this parent/canonical cwd. mode defaults to control: literal control to a running interactive child, or asynchronous background resume of a ready session after strict validation; queued/startup/finalizing/canceling/busy are rejected, with no queue, retries or replay. mode query is a disposable read-only question to a live child or a completed ready session; it never resumes or changes the original conversation. Accepted is not completed: task_result follows up for resume, query_result (with independent usage/asOf) for query. applied confirms conversation insertion, not that the requested work finished. Optional title is display-only for the new invocation. Busy/capacity/cancelled rejections are expected refusals, not runtime faults: never retry automatically or select a route using stale canMessage/canResume knowledge.",
+		parameters: Type.Object({ subagentSessionId: Type.Optional(Type.String({ minLength: 1, description: "A subagent: its complete stable managed session ID; not jobId/taskId or a path." })), jobId: Type.Optional(Type.String({ minLength: 1, description: "A Spinoff: the complete job ID returned by spinoff." })), message: Type.String({ minLength: 1, maxLength: 65536 }), mode: Type.Optional(StringEnum(["control", "query", "follow_up", "steer"] as const, { description: "Subagent: control (default) or query. Spinoff: follow_up (default) or steer." })), title: Type.Optional(TitleSchema) }),
+		outputSchema: Type.Union([spinoffMessageReceiptSchema, Type.Object({ subagentSessionId: Type.String(), mode: StringEnum(["control", "query"] as const), action: Type.Optional(StringEnum(["control", "resume", "query"] as const)), status: Type.String(), jobId: Type.Optional(Type.String()), taskId: Type.Optional(Type.String()), messageId: Type.Optional(Type.String()), queryId: Type.Optional(Type.String()), background: Type.Optional(ReceiptSchema), errorCode: Type.Optional(Type.String()), observedState: Type.Optional(Type.String()), nextAction: Type.Optional(Type.String()), error: Type.Optional(Type.String()) }, { additionalProperties: true })]),
 		async execute(id, params, signal, _update, ctx) {
 			params = structuredClone(params);
+			// A Spinoff is addressed by jobId; its own refusals are thrown and reported as the tool error. A Spinoff child owns none and may not message one.
+			if (params.jobId !== undefined) {
+				if (spinoffChild) throw new Error(SPINOFF_CHILD_REFUSAL);
+				if (params.subagentSessionId !== undefined || params.title !== undefined) throw new Error("SPINOFF_INVALID_ARGUMENTS: jobId addresses a Spinoff; subagentSessionId and title belong to a subagent. Give only jobId, message and optionally mode (follow_up or steer).");
+				const receipt = await messageSpinoff(ctx, params.jobId, params.message, params.mode ?? "follow_up");
+				return { content: [{ type: "text", text: JSON.stringify(receipt) }], details: { ...receipt }, structuredContent: JSON.parse(JSON.stringify(receipt)) as JsonValue };
+			}
 			const epoch = jobs.epoch, owner = ctx.sessionManager.getSessionId();
-			const mode = params.mode ?? "control";
+			const mode = (params.mode ?? "control") as "control" | "query";
 			let observedState = "unknown";
 			try {
-				if (Object.keys(params).some(key => !["subagentSessionId", "message", "mode", "title"].includes(key)) || typeof params.subagentSessionId !== "string" || !params.subagentSessionId) {
-					const allowed = ["subagentSessionId", "message", "mode", "title"], extra = Object.keys(params).find(key => !allowed.includes(key));
+				if (Object.keys(params).some(key => !["subagentSessionId", "jobId", "message", "mode", "title"].includes(key)) || typeof params.subagentSessionId !== "string" || !params.subagentSessionId) {
+					const allowed = ["subagentSessionId", "jobId", "message", "mode", "title"], extra = Object.keys(params).find(key => !allowed.includes(key));
 					throw new SessionError("INVALID_MESSAGE", extra !== undefined
-						? `unexpected key "${extra.slice(0, 40)}"; allowed: ${allowed.join(", ")}. subagent_message addresses a session by subagentSessionId (shown as "Subagent session" in the subagent result); jobId/taskId addressing was removed.`
-						: "subagentSessionId must be a nonempty string: the complete session ID shown in the subagent result or subagent_status({ jobId }).");
+						? `unexpected key "${extra.slice(0, 40)}"; allowed: ${allowed.join(", ")}. agent_message addresses a subagent session by subagentSessionId (shown as "Subagent session" in the subagent result; a subagent's jobId/taskId does not address it) or a Spinoff by jobId.`
+						: "give subagentSessionId (a subagent: the complete session ID shown in the subagent result or agent_status({ jobId })) or jobId (a Spinoff).");
 				}
 				validateInteraction(params.message);
 				if (!["control", "query"].includes(mode)) throw new SessionError("INVALID_MESSAGE", `mode must be "control" or "query"; received ${typeof mode === "string" ? JSON.stringify(mode.slice(0, 40)) : typeof mode}. Omit mode for control.`);
@@ -1557,7 +1581,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 					// Current-handle lookup and delivery are synchronous. Never replay an accepted control on settlement.
 					receipt = { subagentSessionId: params.subagentSessionId, mode, action: mode, jobId: target.jobId, taskId: target.taskId, ...jobs.message(target.jobId, target.taskId, mode, params.message, owner, cwd) };
 				} else {
-					receipt = mode === "query" ? await querySession(params, signal, ctx) : await continueSession(id, params, signal, ctx);
+					receipt = mode === "query" ? await querySession(params as never, signal, ctx) : await continueSession(id, params as never, signal, ctx);
 				}
 				return { content: [{ type: "text", text: JSON.stringify(receipt) }], details: receipt, structuredContent: JSON.parse(JSON.stringify(receipt)) as JsonValue };
 			} catch (error) {
@@ -1573,9 +1597,9 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 		label: "Subagent",
 		defaultActive: true,
 		description: [
-			"Delegate tasks to specialized agents with isolated context. Create only: provide exactly one mode: single (agent + task), parallel (tasks array; workers must not write the same files), or chain (steps run in order, each complete assistant-text output is passed as {previous}, stops at the first failed step). Continue existing conversations with subagent_message({subagentSessionId, message}); do not pass resume to subagent.",
+			"Delegate tasks to specialized agents with isolated context. Create only: provide exactly one mode: single (agent + task), parallel (tasks array; workers must not write the same files), or chain (steps run in order, each complete assistant-text output is passed as {previous}, stops at the first failed step). Continue existing conversations with agent_message({subagentSessionId, message}); do not pass resume to subagent.",
 			`Dispatch limits: parallel mode accepts at most ${MAX_PARALLEL_TASKS} tasks and chain mode at most ${MAX_CHAIN_STEPS} steps; at most ${MAX_CONCURRENCY} children run at once across all subagent calls in this process.`,
-			"Every initial task automatically saves a managed native session whose stable ID is returned, even while queued; an ID does not mean checkpoint ready or interactive. background:true returns a queued job receipt and submits a task_result via steer as each task settles (parallel mode then adds one job_result for the whole batch); subagent_status (omit jobId to list) and subagent_cancel manage jobs. Background work stops on exit, reload or session replacement.",
+			"Every initial task automatically saves a managed native session whose stable ID is returned, even while queued; an ID does not mean checkpoint ready or interactive. background:true returns a queued job receipt and submits a task_result via steer as each task settles (parallel mode then adds one job_result for the whole batch); agent_status (omit jobId to list) and agent_cancel manage jobs. Background work stops on exit, reload or session replacement.",
 			"Each task records its non-reasoning child transcript in a sub-session JSONL log; parent results contain only assistant output, status, usage, and the log path. Child Pi processes always exclude the subagent tool, so there is no recursive dispatch.",
 			`Default agent scope is "user" (bundled package agents plus the user's own agents); set agentScope: "both" (or "project") to use project-local agents.`,
 		].join(" "),
@@ -1585,8 +1609,8 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 			"Give every task a title of at most 50 characters (a TUI label, not a replacement for the complete task); for parallel/chain dispatch put a specific title on each item.",
 			"Initial subagent dispatches have clean isolated context, with no parent conversation: include the goal, complete action, relevant paths/references, constraints/non-goals, and handoff format. Ask for a one-line conclusion first, details written to a file with only the path returned, and an overall length limit.",
 			"Use parallel tasks only for independent work, and tell each file-editing worker the exact files/directories it may change (scopes must not overlap); use a single task or chain when steps depend on each other.",
-			"Every task is automatically persisted. When a child returns questions and exits, answer with subagent_message using its complete subagentSessionId and concrete new information (do not repost logs); the system chooses control versus asynchronous resume from current safe state, not an old canMessage/canResume snapshot. subagent_message is not cancellation.",
-			"After background:true, do not poll subagent_status or sleep; continue other work or end the turn and wait for task_result/job_result notifications. Call subagent_status only after a reload or when the user asks. Cancel with subagent_cancel (termination is requested, not confirmed).",
+			"Every task is automatically persisted. When a child returns questions and exits, answer with agent_message using its complete subagentSessionId and concrete new information (do not repost logs); the system chooses control versus asynchronous resume from current safe state, not an old canMessage/canResume snapshot. agent_message is not cancellation.",
+			"After background:true, do not poll agent_status or sleep; continue other work or end the turn and wait for task_result/job_result notifications. Call agent_status only after a reload or when the user asks. Cancel with agent_cancel (termination is requested, not confirmed).",
 		],
 		parameters: SubagentParams,
 
@@ -1648,7 +1672,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 				...(isError ? { isError: true } : {}),
 			});
 			if (params.tasks &&params.tasks.length > MAX_PARALLEL_TASKS) {
-				return { content: [{ type: "text", text: codedText("SUBAGENT_CAPACITY", `Request not accepted: capacity limit reached. Too many parallel tasks (${params.tasks.length}). Max is ${MAX_PARALLEL_TASKS} per call (now ${jobs.load()}; at most ${MAX_CONCURRENCY} children run at once). Next: split into batches of at most ${MAX_PARALLEL_TASKS} tasks and send later batches after earlier ones finish; for background work use subagent_status (no jobId lists your jobs) or subagent_cancel to free capacity.`) }], details: makeDetails("parallel")([]), isError: true };
+				return { content: [{ type: "text", text: codedText("SUBAGENT_CAPACITY", `Request not accepted: capacity limit reached. Too many parallel tasks (${params.tasks.length}). Max is ${MAX_PARALLEL_TASKS} per call (now ${jobs.load()}; at most ${MAX_CONCURRENCY} children run at once). Next: split into batches of at most ${MAX_PARALLEL_TASKS} tasks and send later batches after earlier ones finish; for background work use agent_status (no jobId lists your jobs) or agent_cancel to free capacity.`) }], details: makeDetails("parallel")([]), isError: true };
 			}
 			if (params.chain && params.chain.length > MAX_CHAIN_STEPS) {
 				return { content: [{ type: "text", text: codedText("SUBAGENT_CAPACITY", `Request not accepted: capacity limit reached. Too many chain steps (${params.chain.length}). Max is ${MAX_CHAIN_STEPS}. Next: split the work into stages of at most ${MAX_CHAIN_STEPS} steps and pass the earlier stage output in the next call's first task.`) }], details: makeDetails("chain")([]), isError: true };
@@ -1850,7 +1874,7 @@ export default function (pi: ExtensionAPI, runtime: RunnerRuntime = {}) {
 				try { return await running; } finally { unlink(); }
 			}
 			detached = true; unlink();
-			return { content: [{ type: "text", text: `${outcome === "auto" ? `Subagent still running after ${autoMs / 1000}s; moved to a background job automatically` : "Moved to a background job at the user's request"}. The same children keep running (not restarted; Esc no longer stops them, use subagent_cancel). Do not poll; results arrive as task_result notifications.
+			return { content: [{ type: "text", text: `${outcome === "auto" ? `Subagent still running after ${autoMs / 1000}s; moved to a background job automatically` : "Moved to a background job at the user's request"}. The same children keep running (not restarted; Esc no longer stops them, use agent_cancel). Do not poll; results arrive as task_result notifications.
 ${JSON.stringify(slimReceipt(receipt))}` }], details: { ...makeDetails(dispatchMode)([]), background: receipt }, structuredContent: jsonReceipt(receipt) };
 			};
 			const result = await dispatch();

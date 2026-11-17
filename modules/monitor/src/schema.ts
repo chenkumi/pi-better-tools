@@ -18,11 +18,11 @@ const range = ({ minimum, maximum }: { minimum: number; maximum: number }, unit 
 export const startSchema = Type.Object({
   source: Type.Object({
     // A plain string, not a literal union: validateStart answers an unknown kind with the list of valid kinds instead of six branch failures.
-    kind: Type.String({ description: 'one of: command | websocket | shell_job | subagent_job | fork_job | file | system' }),
+    kind: Type.String({ description: 'one of: command | websocket | shell_job | subagent_job | spinoff_job | file | system' }),
     tool: Type.Optional(Type.String({ description: 'command only: "bash" or "powershell"' })),
     command: Type.Optional(Type.String({ description: 'command only: shell command text, at most 64 KiB' })),
     url: Type.Optional(Type.String({ description: 'websocket only: ws:// or wss:// without userinfo, at most 8192 characters' })),
-    jobId: Type.Optional(Type.String({ description: 'shell_job | subagent_job | fork_job only: job id returned when that job started' })),
+    jobId: Type.Optional(Type.String({ description: 'shell_job | subagent_job | spinoff_job only: job id returned when that job started' })),
     path: Type.Optional(Type.String({ description: 'file only: file inside the canonical workspace, at most 1024 characters' })),
     metric: Type.Optional(Type.String({ description: 'system only: "cpu" or "ram" (whole-host utilisation, not one process)' })),
     thresholdPercent: Type.Optional(Type.Integer({ description: `system only: notify when utilisation is at or above this percent, ${range(SYSTEM_THRESHOLD, '')}` })),
@@ -39,7 +39,7 @@ export const startSchema = Type.Object({
 export type MonitorSource =
   | { kind: 'command'; tool: 'bash' | 'powershell'; command: string }
   | { kind: 'websocket'; url: string; allowPrivateNetwork?: boolean; allowInsecure?: boolean }
-  | { kind: 'shell_job' | 'subagent_job' | 'fork_job'; jobId: string; intervalMs?: number }
+  | { kind: 'shell_job' | 'subagent_job' | 'spinoff_job'; jobId: string; intervalMs?: number }
   | { kind: 'file'; path: string; intervalMs?: number }
   | { kind: 'system'; metric: 'cpu' | 'ram'; thresholdPercent: number; sustainMs: number; intervalMs?: number };
 export type Start = { source: MonitorSource; durationMs: number; wakeAgent: boolean; stopAfterEvents?: number; label?: string };
@@ -55,7 +55,7 @@ export function validateMonitorId(value: unknown, required: boolean, tool: strin
   return { monitorId: id };
 }
 export function plainText(value: string): string { return value.replace(/[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/g, ''); }
-const SOURCE_KINDS = 'command, websocket, shell_job, subagent_job, fork_job, file, system';
+const SOURCE_KINDS = 'command, websocket, shell_job, subagent_job, spinoff_job, file, system';
 const shown = (value: unknown) => { let text: string; try { text = value === undefined ? 'undefined' : JSON.stringify(value) ?? String(value); } catch { text = String(value); } return text.length > 120 ? `${text.slice(0, 120)}…` : text; };
 function record(v: unknown, what: string): asserts v is Record<string, unknown> { if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error(`${what} must be an object; received ${shown(v)}`); }
 function keys(v: Record<string, unknown>, allowed: readonly string[], what: string) {
@@ -87,7 +87,7 @@ export function validateStart(value: unknown): Start {
       text(s.url, 8192, 'websocket source "url"', 'use wss://host/path without userinfo; plain ws:// additionally needs allowInsecure:true');
       for (const k of ['allowPrivateNetwork', 'allowInsecure']) if (s[k] !== undefined && typeof s[k] !== 'boolean') throw new Error(`websocket source "${k}" must be a boolean: true opts in explicitly, false or omitted keeps the default`);
       break;
-    case 'shell_job': case 'subagent_job': case 'fork_job': {
+    case 'shell_job': case 'subagent_job': case 'spinoff_job': {
       keys(s, ['kind', 'jobId', 'intervalMs'], `a ${s.kind} source`);
       text(s.jobId, 128, `${s.kind} source "jobId"`, 'pass the job id returned when that job started');
       // A job snapshot is a merge of state; sampling faster than 30 s only re-reads the same record.

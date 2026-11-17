@@ -1,5 +1,5 @@
-// Deterministic offline provider shared by a root Pi and its Fork / Subagent children (each a real Pi process). No network.
-// Root: DO_FORK / DO_SUBAGENT start a child, anything else ends with PARENT_DONE. Child: probe with `read` until done; when it
+// Deterministic offline provider shared by a root Pi and its Spinoff / Subagent children (each a real Pi process). No network.
+// Root: DO_SPINOFF / DO_SUBAGENT start a child, anything else ends with PARENT_DONE. Child: probe with `read` until done; when it
 // receives the automatic compaction notice it answers through the progress_checkpoint tool. Usage grows 7k tokens per assistant
 // message in context, so the notice zone (75k to 95k of a 100k window with a 5k reserve) is reached after about ten probes.
 import { createAssistantMessageEventStream } from '@earendil-works/pi-ai';
@@ -19,13 +19,13 @@ export default function (pi: ExtensionAPI) {
       const last = messages.at(-1);
       const lastUser = last?.role === 'user' ? text(last) : '';
       const assistants = messages.filter(m => m.role === 'assistant').length;
-      const isForkChild = users.some(t => t.startsWith('You are the background Fork.'));
-      const isSubagentChild = !isForkChild && users.some(t => t.includes('SUBAGENT_CHECKPOINT_TASK'));
-      const isChild = isForkChild || isSubagentChild;
+      const isSpinoffChild = users.some(t => t.startsWith('You are the background Spinoff.'));
+      const isSubagentChild = !isSpinoffChild && users.some(t => t.includes('SUBAGENT_CHECKPOINT_TASK'));
+      const isChild = isSpinoffChild || isSubagentChild;
       const probes = messages.filter(m => m.role === 'toolResult' && m.toolName === 'read').length;
             const call = (id: string, name: string, args: Record<string, unknown>) => [{ type: 'toolCall', id, name, arguments: args }];
       let content: any[], stopReason = 'stop';
-      if (!isChild && lastUser.includes('DO_FORK')) { content = call('fork-1', 'fork', { task: 'FORK_CHECKPOINT_TASK probe repeatedly', title: 'checkpoint fork' }); stopReason = 'toolUse'; }
+      if (!isChild && lastUser.includes('DO_SPINOFF')) { content = call('spinoff-1', 'spinoff', { task: 'SPINOFF_CHECKPOINT_TASK probe repeatedly', title: 'checkpoint spinoff' }); stopReason = 'toolUse'; }
       else if (!isChild && lastUser.includes('DO_SUBAGENT')) { content = call('subagent-1', 'subagent', { agent: 'scout', task: 'SUBAGENT_CHECKPOINT_TASK probe repeatedly' }); stopReason = 'toolUse'; }
       else if (!isChild) content = [{ type: 'text', text: 'PARENT_DONE' }];
       else if (lastUser.includes('compaction will happen soon')) { content = call(`checkpoint-${assistants}`, 'progress_checkpoint', { summary: 'Probed several times; more probing next.' }); stopReason = 'toolUse'; }

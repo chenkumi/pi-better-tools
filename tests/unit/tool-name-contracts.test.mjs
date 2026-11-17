@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { FORK_TOOLS, MONITOR_TOOLS, SHELL_JOB_TOOLS, SHELL_TOOLS, SUBAGENT_TOOLS } from '../../shared/src/contracts/index.ts';
+import { MONITOR_TOOLS, SHELL_JOB_TOOLS, SHELL_TOOLS, SPINOFF_TOOLS, SUBAGENT_TOOLS } from '../../shared/src/contracts/index.ts';
 
 // Each owner module must register exactly the tool names the shared constants list (others only mention them).
 const home = await mkdtemp(join(tmpdir(), 'tool-names-'));
@@ -28,14 +28,9 @@ test('Shell registers the shell and shell-job tools named by the constants', asy
   for (const name of names) assert.ok([...SHELL_TOOLS, ...SHELL_JOB_TOOLS].includes(name), `unlisted Shell tool ${name}`);
 });
 
-test('Subagents registers exactly SUBAGENT_TOOLS', async () => {
+test('Subagents registers exactly SUBAGENT_TOOLS and SPINOFF_TOOLS (one extension)', async () => {
   const names = await registeredTools(await load('../../modules/subagents/src/index.ts'));
-  assert.deepEqual([...names].sort(), [...SUBAGENT_TOOLS].sort());
-});
-
-test('Fork registers exactly FORK_TOOLS', async () => {
-  const names = await registeredTools(await load('../../modules/fork/src/index.ts'));
-  assert.deepEqual([...names].sort(), [...FORK_TOOLS].sort());
+  assert.deepEqual([...names].sort(), [...SUBAGENT_TOOLS, ...SPINOFF_TOOLS].sort());
 });
 
 test('Monitor registers exactly MONITOR_TOOLS', async () => {

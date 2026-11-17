@@ -3,7 +3,7 @@
 ## 指令與工具
 
 - 沒有模型工具，也沒有設定指令。已移除的 `/open-tui` 與其 telemetry／peek／圖示設定不存在，不要建議使用者輸入。
-- 只在互動 TUI 安裝：輸入框 `❯` 提示符、兩行 footer，以及所有工具的兩行收合外觀（`subagent`、`subagent_message`、`fork` 保留自己的 renderer）。
+- 只在互動 TUI 安裝：輸入框 `❯` 提示符、兩行 footer，以及所有工具的兩行收合外觀（`subagent`、`agent_message`、`spinoff` 保留自己的 renderer）。
 - 游標沿用 Pi 預設（`PI_HARDWARE_CURSOR`／`showHardwareCursor`），本模組不設樣式。
 
 ## Config 與作用範圍

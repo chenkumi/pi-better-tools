@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-// How a child Pi process is launched. Kept apart from index.ts so Fork can use it without loading the whole Subagent extension.
+// How a child Pi process is launched. Kept apart from index.ts so Spinoff can use it without loading the whole Subagent extension.
 
 function resolvePiCliFromPackage(): string | undefined {
 	try {
@@ -26,7 +26,7 @@ export interface PiInvocationHost {
 	argv1: string | undefined;
 	packagedCli: () => string | undefined;
 	/** Launch the very script the host runs instead of the pi-coding-agent package resolved from this module.
-	 *  Fork needs the same Pi install as its parent: the system prompt embeds install paths, so another install means another cached prefix. */
+	 *  Spinoff needs the same Pi install as its parent: the system prompt embeds install paths, so another install means another cached prefix. */
 	preferHostScript?: boolean;
 }
 

@@ -100,11 +100,11 @@ test('readSessionLines reads the cited line, verifies the id, and refuses sessio
   } finally { done(); }
 });
 
-test('an entry missing from a Fork file is read from the ancestor that has it, once, nearest first', async () => {
+test('an entry missing from a Spinoff file is read from the ancestor that has it, once, nearest first', async () => {
   const { dir, done } = workspace();
   try {
     const grand = join(dir, 'grand.jsonl'), parent = join(dir, 'parent.jsonl'), child = join(dir, 'child.jsonl');
-    // The parent holds an abandoned-branch entry (L3) that its Fork never received, so later parent lines sit one line further down.
+    // The parent holds an abandoned-branch entry (L3) that its Spinoff never received, so later parent lines sit one line further down.
     write(grand, [header('G'), toolResult('gggg0001', 'grand output')]);
     write(parent, [header('P', grand), toolResult('pppp0001', 'parent first'), toolResult('abnd0001', 'abandoned branch output'), toolResult('pppp0002', 'parent last')]);
     write(child, [header('C', parent), toolResult('pppp0001', 'parent first'), toolResult('pppp0002', 'parent last'), toolResult('cccc0001', 'child output')]);
@@ -122,7 +122,7 @@ test('an entry missing from a Fork file is read from the ancestor that has it, o
     assert.equal(grandOnly.details.sessionId, 'G');
 
     const pastEnd = await readSessionLines(readable, { line: 40, id: 'abnd0001' });
-    assert.ok(pastEnd.text.includes('line 40 is past its end') && pastEnd.text.includes('abandoned branch output'), 'a parent line number beyond the Fork file is recovered too');
+    assert.ok(pastEnd.text.includes('line 40 is past its end') && pastEnd.text.includes('abandoned branch output'), 'a parent line number beyond the Spinoff file is recovered too');
 
     // Same file, wrong line: still the existing message with the corrected line, never a silent redirect.
     await assert.rejects(readSessionLines(readable, { line: 2, id: 'cccc0001' }), /holds "pppp0001".*That entry is at line 4/);

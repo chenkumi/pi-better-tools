@@ -1,4 +1,4 @@
-import { FORK_TOOLS, PROGRESS_CHECKPOINT_TOOL, SUBAGENT_TOOLS } from "../../../../shared/src/contracts/index.ts";
+import { PROGRESS_CHECKPOINT_TOOL, SPINOFF_TOOLS, SUBAGENT_TOOLS } from "../../../../shared/src/contracts/index.ts";
 
 /** Called only at owned managed-child spawn sites (new/resume/ready-query).
  * Keep identity explicit, not inferred from transport, cwd, or session files.
@@ -33,12 +33,12 @@ const withProgressCheckpoint = (tools: readonly string[]): string => (tools.some
  *
  * `subagent` is explicitly excluded even when the package is installed
  * globally, so a child does not receive the recursive delegation tool in its
- * model-visible tool schema. The Fork creation tools are excluded for the same reason:
- * no Subagent may create a Fork.
+ * model-visible tool schema. The Spinoff creation tool are excluded for the same reason:
+ * no Subagent may create a Spinoff.
  */
 export function buildSubagentPiArgs(options: SubagentPiArgsOptions): string[] {
 	const rpc = options.transport === "rpc";
-	const args = ["--mode", rpc ? "rpc" : "json", ...(!rpc ? ["-p"] : []), "--exclude-tools", [...SUBAGENT_TOOLS, ...FORK_TOOLS].join(",")];
+	const args = ["--mode", rpc ? "rpc" : "json", ...(!rpc ? ["-p"] : []), "--exclude-tools", [...SUBAGENT_TOOLS, ...SPINOFF_TOOLS].join(",")];
 	const persistence = options.persistence;
 	if (!persistence || !["new", "resume"].includes(persistence.kind)) throw new Error("Managed session persistence is required for every subagent child.");
 	args.push("--session-dir", persistence.sessionDir);

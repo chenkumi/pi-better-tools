@@ -1,8 +1,7 @@
 import { spawn, type SpawnOptions } from 'node:child_process';
 import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
-import { existsSync } from 'node:fs';
-import { delimiter, dirname, join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { ToolError } from '../../../../shared/src/tool-error/index.ts';
 import type { Config } from '../config.ts';
 import { sniffImage } from '../images.ts';
@@ -27,31 +26,10 @@ export interface CodexEnv extends BackendEnv {
   codexHome?: string;
   tmpRoot?: string;
   baseEnv?: NodeJS.ProcessEnv;
-  /** Test seam: the platform whose launch rules apply (default: this process's). */
-  platform?: NodeJS.Platform;
-}
-
-/**
- * On Windows an npm install of Codex provides only `codex.cmd`, which cannot be started without a shell. The shim does nothing but run
- * `node <dir>
-ode_modules@openaicodexincodex.js`, so for the bare name `codex` that script is started with this Node directly
- * (still no shell: the prompt stays one argument). Anything else, or a layout that is not found, is launched as configured.
- */
-export function resolveCodexLaunch(command: string, env: Pick<CodexEnv, 'baseEnv' | 'platform'> = {}): { command: string; prefix: string[] } {
-  const asConfigured = { command, prefix: [] as string[] };
-  if ((env.platform ?? process.platform) !== 'win32' || command.toLowerCase() !== 'codex') return asConfigured;
-  const base = env.baseEnv ?? process.env;
-  const pathKey = Object.keys(base).find(key => key.toUpperCase() === 'PATH');
-  for (const dir of (pathKey ? base[pathKey] ?? '' : '').split(delimiter)) {
-    if (!dir || !existsSync(join(dir, 'codex.cmd'))) continue;
-    const script = join(dir, 'node_modules', '@openai', 'codex', 'bin', 'codex.js');
-    return existsSync(script) ? { command: process.execPath, prefix: [script] } : asConfigured;
-  }
-  return asConfigured;
 }
 
 interface ProcessResult { code: number | null; lines: string[]; stderr: string; timedOut: boolean; cancelled: boolean; spawnError?: string }
-const STDOUT_LIMIT = 4 * 1024 * 1024, STDERR_TAIL = 8 * 1024, KILL_GRACE_MS = 3000;
+const STDOUT_LIMIT = 4 * 1024 * 1024, STDERR_TAIL = 8 * 1024;
 
 function runCodex(command: string, args: string[], cwd: string, env: CodexEnv, timeoutMs: number): Promise<ProcessResult> {
   return new Promise(resolve => {
@@ -59,16 +37,13 @@ function runCodex(command: string, args: string[], cwd: string, env: CodexEnv, t
     let buffer = '', size = 0, done = false;
     let child: ReturnType<typeof spawn>;
     try {
-      const launch = resolveCodexLaunch(command, env);
-      child = (env.spawnImpl ?? spawn)(launch.command, [...launch.prefix, ...(env.argsPrefix ?? []), ...args], { cwd, env: codexEnvironment(env.baseEnv), stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, shell: false });
+      child = (env.spawnImpl ?? spawn)(command, [...(env.argsPrefix ?? []), ...args], { cwd, env: codexEnvironment(env.baseEnv), stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, shell: false });
     } catch (error) { resolve({ ...result, spawnError: (error as { code?: string }).code ?? 'SPAWN' }); return; }
     const finish = () => { if (done) return; done = true; clearTimeout(timer); env.signal?.removeEventListener('abort', onAbort); resolve(result); };
     const stop = () => {
       // Best effort: the process (and on Windows its tree) is asked to end. This does not prove everything stopped.
       try { child.kill(); } catch { /* already gone */ }
       if (process.platform === 'win32' && child.pid) { try { spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true }).on('error', () => undefined); } catch { /* best effort */ } }
-      // A descendant that keeps the pipes open would keep `close` from firing: do not wait for it forever.
-      setTimeout(finish, KILL_GRACE_MS).unref();
     };
     const onAbort = () => { result.cancelled = true; stop(); };
     const timer = setTimeout(() => { result.timedOut = true; stop(); }, timeoutMs);
@@ -91,11 +66,11 @@ export async function codexPreflight(config: Config['codex'], env: CodexEnv): Pr
   const tmp = await mkdtemp(join(env.tmpRoot ?? tmpdir(), 'pi-image-codex-'));
   try {
     const result = await runCodex(config.path, ['login', 'status'], tmp, env, 20_000);
-    if (result.spawnError === 'ENOENT') throw new ToolError('IMAGE_CODEX_MISSING', `The codex executable "${clean(config.path, 100)}" was not found. Install the Codex CLI or set codex.path in the image-generation settings.${process.platform === 'win32' ? ' On Windows an npm install provides only codex.cmd, which cannot be used: point codex.path at the real executable (codex.exe under node_modules\@openai\codex, or the native binary it ships).' : ''}`);
+    if (result.spawnError === 'ENOENT') throw new ToolError('IMAGE_CODEX_MISSING', `The codex executable "${clean(config.path, 100)}" was not found. Install the Codex CLI or set codex.path in the image-generation settings.`);
     if (result.spawnError) throw new ToolError('IMAGE_CODEX_MISSING', `The codex executable could not be started (${clean(result.spawnError, 30)}).`);
     if (result.cancelled) throw new ToolError('IMAGE_CANCELLED', 'Cancelled while checking the Codex login.');
     const text = `${result.lines.join('\n')}\n${result.stderr}`;
-    if (result.code !== 0 || !/\blogged in\b/i.test(text) || /\bnot logged in\b/i.test(text)) throw new ToolError('IMAGE_AUTH_MISSING', 'Codex is not logged in. Run "codex login" in a terminal first.');
+    if (result.code !== 0 || !/logged in/i.test(text)) throw new ToolError('IMAGE_AUTH_MISSING', 'Codex is not logged in. Run "codex login" in a terminal first.');
   } finally { await rm(tmp, { recursive: true, force: true }).catch(() => undefined); }
 }
 
@@ -161,8 +136,7 @@ export async function generateCodex(request: GenerateRequest, config: Config['co
       const fresh = (file: string, mtime: number) => !before.has(file) && mtime >= started - 2000;
       const threadDir = threadId ? join(generatedRoot, sanitizeId(threadId)) : undefined;
       const inThread = threadDir ? [...after].filter(([file, mtime]) => dirname(file) === threadDir && fresh(file, mtime)) : [];
-      // Only without a thread id is any fresh file taken: with one, another session's image must never be picked up.
-      const candidates = (threadDir ? inThread : [...after].filter(([file, mtime]) => fresh(file, mtime))).sort((a, b) => a[1] - b[1]);
+      const candidates = (inThread.length ? inThread : [...after].filter(([file, mtime]) => fresh(file, mtime))).sort((a, b) => a[1] - b[1]);
       if (!candidates.length) {
         if (run.timedOut) throw new ToolError('IMAGE_TIMEOUT', `Codex produced no image within ${Math.round(config.timeoutMs / 1000)} s and was stopped.`);
         if (failure || run.code !== 0) throw new ToolError('IMAGE_CODEX_FAILED', `Codex failed${failure ? `: ${failure}` : ` (exit code ${run.code ?? 'none'})`}${run.stderr ? `. ${clean(run.stderr.slice(-400), 200)}` : ''}`);
@@ -175,7 +149,7 @@ export async function generateCodex(request: GenerateRequest, config: Config['co
       images.push({ bytes, info });
       if (candidates.length > 1) notes.push(`Codex saved ${candidates.length} files for one request; the newest was used.`);
     } catch (error) {
-      if (!images.length || (error instanceof ToolError && error.code === 'IMAGE_CANCELLED') || env.signal?.aborted) throw error;
+      if (!images.length) throw error;
       notes.push(`Stopped after ${images.length} of ${request.count} images: ${error instanceof ToolError ? error.message : 'the run failed'}`);
       break;
     } finally { await rm(tmp, { recursive: true, force: true }).catch(() => undefined); }

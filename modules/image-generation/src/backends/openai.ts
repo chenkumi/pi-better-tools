@@ -28,18 +28,16 @@ export function openaiSize(model: string, aspectRatio?: string, resolution?: Res
     return { size, note: `${model} only supports fixed sizes; ${size} was used (nearest by orientation)${resolution ? ', resolution was not applied' : ''}.` };
   }
   const round = (value: number) => Math.max(16, Math.round(value / 16) * 16);
-  const dims = (long: number) => ({
-    w: ratio.w >= ratio.h ? long : round(long * ratio.w / ratio.h),
-    h: ratio.w >= ratio.h ? round(long * ratio.h / ratio.w) : long,
-  });
-  const requested = LONG_EDGE[resolution ?? '1K'];
-  let long = requested;
-  // A square or near-square 4K is over the pixel cap: shrink the long edge until it fits. A thin ratio at 1K is under the minimum: grow it.
-  while (long > 16 && dims(long).w * dims(long).h > MAX_PIXELS) long -= 16;
-  while (long < MAX_EDGE && dims(long).w * dims(long).h < MIN_PIXELS) long += 16;
-  const { w, h } = dims(long);
-  if (w * h < MIN_PIXELS || w * h > MAX_PIXELS || Math.max(w, h) > MAX_EDGE) throw new ToolError('IMAGE_INVALID_ARGUMENT', `No valid OpenAI size for ${aspectRatio ?? '1:1'} at ${resolution ?? '1K'}.`);
-  return { size: `${w}x${h}`, ...(long < requested ? { note: `${resolution ?? '1K'} is above OpenAI's pixel limit for ${aspectRatio ?? '1:1'}; ${w}x${h} was used.` } : {}) };
+  let long = LONG_EDGE[resolution ?? '1K'];
+  for (;;) {
+    const w = ratio.w >= ratio.h ? long : round(long * ratio.w / ratio.h);
+    const h = ratio.w >= ratio.h ? round(long * ratio.h / ratio.w) : long;
+    if (w * h >= MIN_PIXELS || long >= MAX_EDGE) {
+      if (w * h < MIN_PIXELS || w * h > MAX_PIXELS || Math.max(w, h) > MAX_EDGE) throw new ToolError('IMAGE_INVALID_ARGUMENT', `No valid OpenAI size for ${aspectRatio ?? '1:1'} at ${resolution ?? '1K'}.`);
+      return { size: `${w}x${h}` };
+    }
+    long += 16;
+  }
 }
 
 export interface OpenAIEnv extends BackendEnv { endpoint?: string }

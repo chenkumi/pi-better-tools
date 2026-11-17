@@ -207,7 +207,7 @@ test('foreground running/aborted results have accurate English session and log l
   registerSubagent({ registerTool(t: any) { tools.set(t.name, t); }, registerMessageRenderer() {}, on() {} } as any);
   const palette = { ...theme, bold: (s: string) => s };
   assert.match(stripAnsi(tools.get('subagent').renderCall({ agent: 'reviewer' }, palette, {}).render(300).join('\n')).trimEnd(), /^Subagent reviewer$/);
-  assert.match(tools.get('subagent_message').description, /applied confirms.*not that the requested work finished/);
+  assert.match(tools.get('agent_message').description, /applied confirms.*not that the requested work finished/);
   for (const expanded of [false, true]) for (const status of ['running', 'aborted', 'completed']) {
     const result = { content: [], details: { mode: 'single', results: [{ taskId: 't', agent: 'worker', task: '', status, exitCode: status === 'aborted' ? -1 : 0, output: '', errorMessage: status === 'aborted' ? 'Cancelled by user' : undefined, subagentSessionId: 's', canResume: status === 'completed', usage: {} }] } };
     const shown = stripAnsi(tools.get('subagent').renderResult(result, { expanded, isPartial: status === 'running' }, palette, {}).render(300).join('\n'));
@@ -221,7 +221,7 @@ test('factory registers the message and wires management and background dispatch
   const tools = new Map<string, any>(), messages = new Map<string, any>();
   registerSubagent({ registerTool(t: any) { tools.set(t.name, t); }, registerMessageRenderer(n: string, r: any) { messages.set(n, r); }, on() {} } as any);
   assert.equal(messages.get('subagent_background'), renderBackgroundMessage);
-  for (const n of ['subagent_status', 'subagent_cancel', 'subagent_message']) assert.equal(tools.get(n).renderResult, renderBackgroundResult);
+  for (const n of ['agent_status', 'agent_cancel', 'agent_message']) assert.equal(tools.get(n).renderResult, renderBackgroundResult);
   const shown = tools.get('subagent').renderResult({ content: [], details: { background: receipt() } }, { expanded: true, isPartial: true }, theme, {}).render(80).join('\n');
   assert.match(shown, /In progress; showing the latest update/); assert.match(shown, /Conclusion/);
 });

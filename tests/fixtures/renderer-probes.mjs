@@ -17,7 +17,7 @@ export function assertToolRenderers(definitions, cwd) {
     let text = '';
     for (const width of [12, 24, 80]) {
       const lines = component.render(width);
-      if (definition.name.startsWith('pty_') || ['note', 'fork', 'fork_status', 'fork_cancel', 'web_fetch', 'web_search', 'shell_job_status', 'shell_job_cancel', 'subagent_status', 'subagent_cancel', 'subagent_message'].includes(definition.name)) {
+      if (definition.name.startsWith('pty_') || ['note', 'spinoff', 'agent_status', 'agent_cancel', 'web_fetch', 'web_search', 'shell_job_status', 'shell_job_cancel', 'agent_message'].includes(definition.name)) {
         assert.doesNotMatch(lines.join('\n'), /\x1b\[2J|\x1b\]|[\x07\x80-\x9f\u202a-\u202e\u2066-\u2069]/, `${definition.name}: unsafe display controls`);
       }
       for (const line of lines) assert.ok(visibleWidth(line) <= width, `${definition.name}: line exceeds width ${width}: ${line}`);
@@ -125,10 +125,10 @@ export function assertToolRenderers(definitions, cwd) {
   assert.match(render(byName('pty_read'), terminal), /remainder stays buffered for the next read/);
   const ptyCall = byName('pty_write').renderCall({ sessionId: pty.sessionId, data: 'SECRET_INPUT' }, theme, contexts({})).render(80).join('\n');
   assert.ok(!ptyCall.includes('SECRET_INPUT'));
-  for (const name of ['shell_job_status', 'shell_job_cancel', 'subagent_status', 'subagent_cancel', 'subagent_message']) {
-    const receipt = { jobId: 'job-1', status: name === 'subagent_message' ? 'accepted' : 'running' };
+  for (const name of ['shell_job_status', 'shell_job_cancel', 'agent_message']) {
+    const receipt = { jobId: 'job-1', status: name === 'agent_message' ? 'accepted' : 'running' };
     assert.match(render(byName(name), textResult(JSON.stringify(receipt), receipt)), /accepted|running/);
-    const input = name === 'subagent_message'
+    const input = name === 'agent_message'
       ? { subagentSessionId: 'session-host', mode: 'control', title: 'Message title', message: 'SECRET_CONTROL_TEXT' }
       : { jobId: 'job-1', taskId: 'task-1', mode: 'control', message: 'SECRET_CONTROL_TEXT' };
     assert.ok(!byName(name).renderCall(input, theme, contexts(input)).render(80).join('\n').includes('SECRET_CONTROL_TEXT'));
@@ -136,13 +136,13 @@ export function assertToolRenderers(definitions, cwd) {
   assert.match(render(byName('shell_job_cancel'), textResult('{"status":"cancelling"}')), /Exit of all descendant processes is not confirmed/);
   const agents = { jobs: [{ jobId: 'job-host-123', status: 'completed', tasks: [{ taskId: 'task-host', agent: 'reviewer', status: 'completed', summary: 'Verified result' }] }] };
   const agentList = textResult(JSON.stringify(agents), agents);
-  assert.match(render(byName('subagent_status'), agentList), /1 jobs/);
-  assert.match(render(byName('subagent_status'), agentList), /reviewer: completed/);
-  assert.match(render(byName('subagent_status'), agentList), /Verified result/);
-  assert.match(render(byName('subagent_status'), agentList, true), /task-host/);
-  assert.match(render(byName('subagent_cancel'), textResult('unchanged', { ...agents.jobs[0], cancelRequested: true })), /exit of all descendant processes is not confirmed/);
+  assert.match(render(byName('agent_status'), agentList), /1 jobs/);
+  assert.match(render(byName('agent_status'), agentList), /reviewer: completed/);
+  assert.match(render(byName('agent_status'), agentList), /Verified result/);
+  assert.match(render(byName('agent_status'), agentList, true), /task-host/);
+  assert.match(render(byName('agent_cancel'), textResult('unchanged', { ...agents.jobs[0], cancelRequested: true })), /exit of all descendant processes is not confirmed/);
   for (const status of ['accepted', 'queued', 'applied', 'not_applied', 'delivery_unknown']) for (const expanded of [false, true]) {
-    const shown = render(byName('subagent_message'), textResult('unchanged', { status, messageId: 'control-host' }), expanded);
+    const shown = render(byName('agent_message'), textResult('unchanged', { status, messageId: 'control-host' }), expanded);
     assert.match(shown, new RegExp(`Control: ${status}`));
     assert.doesNotMatch(shown, /accepted\/queued is not applied|Awaiting application/i);
     if (status === 'accepted' || status === 'queued') {
@@ -154,7 +154,7 @@ export function assertToolRenderers(definitions, cwd) {
     if (status === 'not_applied') assert.match(shown, /✗ Control: not_applied/);
     if (status === 'delivery_unknown') assert.match(shown, /! Control: delivery_unknown/);
   }
-  const messageTool = byName('subagent_message');
+  const messageTool = byName('agent_message');
   assert.equal(messageTool.parameters.properties.title.maxLength, 50);
   const stableControl = { action: 'control', mode: 'control', status: 'accepted', subagentSessionId: 'session-host', jobId: 'job-host', taskId: 'task-host', messageId: 'control-host' };
   const stableShown = render(messageTool, textResult(JSON.stringify(stableControl), stableControl), true);
@@ -185,7 +185,7 @@ export function assertToolRenderers(definitions, cwd) {
   }
   assert.match(render(messageTool, textResult('ACTUAL_HOST_ERROR', undefined), false, true), /✗ Subagents error/);
   const largeBackground = textResult('UNTRUSTED_MARKER\u001b[2J\u0007\u202e' + 'x'.repeat(20000));
-  const boundedBackground = render(byName('subagent_status'), largeBackground, true);
+  const boundedBackground = render(byName('agent_status'), largeBackground, true);
   assert.match(boundedBackground, /UNTRUSTED_MARKER/); assert.ok(boundedBackground.length < 9000);
   console.log(`[renderers] ${definitions.length} loader definitions verified: calls/results, partial/error/legacy, widths 12/24/80, output unchanged.`);
 }
@@ -240,7 +240,7 @@ export async function assertLiveWidgetHooks(extensions, cwd) {
   const commands = owners.flatMap(extension => [...extension.commands.values()]).filter(command => command.name === 'background-jobs');
   assert.equal(commands.length, 1, 'shared event-bus presentation registers one command, not one per module');
   const calls = [], statusCalls = [], statuses = new Map([['gpt-speed', 'Fast']]), widgets = new Map([['unrelated-schedule-widget', ['keep']]]);
-  const context = mode => ({ cwd, mode, hasUI: true, sessionManager: { getSessionId: () => 'widget-probe-owner' },
+  const context = mode => ({ cwd, mode, hasUI: true, sessionManager: { getSessionId: () => 'widget-probe-owner', getSessionFile: () => undefined, getEntries: () => [] },
     ui: { notify() {}, setStatus(key, value) { statusCalls.push(key); if (value) statuses.set(key, value); else statuses.delete(key); }, setWidget(key, value) { calls.push(key); if (value) widgets.set(key, value); else widgets.delete(key); } } });
   const emit = async (event, ctx) => { for (const extension of owners) for (const handler of extension.handlers.get(event) ?? []) await handler({ type: event, reason: 'quit' }, ctx); };
   await emit('session_start', context('tui'));

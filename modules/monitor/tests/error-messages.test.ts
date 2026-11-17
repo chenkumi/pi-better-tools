@@ -26,7 +26,7 @@ test('stopAfterEvents range is a count, source kind lists every source, label ru
   const file = { kind: 'file', path: 'a.txt' };
   assert.match(err({ source: file, stopAfterEvents: 0 }), /"stopAfterEvents" 0 is out of range: use an integer 1–600 \(counts adopted data events\)/);
   assert.doesNotMatch(err({ source: file, stopAfterEvents: 0 }), / ms/);
-  assert.match(err({ source: { kind: 'nope' } }), /use command, websocket, shell_job, subagent_job, fork_job, file/);
+  assert.match(err({ source: { kind: 'nope' } }), /use command, websocket, shell_job, subagent_job, spinoff_job, file/);
   assert.match(err({ source: file, label: 5 }), /"label" must be a string; received 5/);
   assert.match(err({ source: file, label: 'x'.repeat(81) }), /"label" is 81 characters \(81 bytes\), over the 80 character \/ 320 byte limit; shorten it or omit label/);
   assert.equal(Value.Check(startSchema, { source: { kind: 'nope' } }), true, 'kind is checked by validateStart so its message reaches the agent');
@@ -88,7 +88,7 @@ test('runtime capacity and ownership errors give the next step', () => {
 });
 
 test('agent-facing messages name tool args only, never settings, flags or environment variables', async () => {
-  const forbidden = /--tools|allowlist|exclusion|manual disable|settings|pi-monitor|pi-fork|pi-subagents|\bPI_[A-Z]|\.pi\/agent|config/i;
+  const forbidden = /--tools|allowlist|exclusion|manual disable|settings|pi-monitor|pi-spinoff|pi-subagents|\bPI_[A-Z]|\.pi\/agent|config/i;
   const tools = new Map<string, any>();
   const pi: any = { getActiveTools: () => [], registerTool: (tool: any) => tools.set(tool.name, tool), registerMessageRenderer() {}, on() {} };
   monitorExtension(pi);

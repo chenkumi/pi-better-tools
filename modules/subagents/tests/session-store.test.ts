@@ -59,14 +59,14 @@ for (const id of ["01m45czjs2j8x53wc4ecpyjge4", "12345678-1234-1234-1234-1234567
 
 test("API-01 normalizes exactly three create modes and rejects conflicts before I/O", () => {
 	for (const [params, mode] of [[{ agent: "worker", task: "work" }, "single"], [{ tasks: [{ agent: "worker", task: "work" }] }, "parallel"], [{ chain: [{ agent: "worker", task: "work" }] }, "chain"]] as const) assert.equal(normalizeDispatch(params), mode);
-	assert.throws(() => normalizeDispatch({ resume: ulid().toUpperCase(), task: "decision" }), /resume was removed.*subagent_message/);
+	assert.throws(() => normalizeDispatch({ resume: ulid().toUpperCase(), task: "decision" }), /resume was removed.*agent_message/);
 	for (const key of ["agent", "tasks", "chain", "resumable", "provider", "model", "thinkingLevel", "cwd", "agentScope", "confirmProjectAgents"]) assert.throws(() => normalizeDispatch({ resume: ulid().toUpperCase(), task: "x", [key]: false }), /INVALID_DISPATCH/);
 	for (const params of [{}, { tasks: [] }, { agent: "worker", task: " " }, { agent: "worker", task: "x", chain: [] }, { tasks: [{ resume: ulid().toUpperCase(), task: "x" }] }, { chain: [{ agent: "worker", task: "x", resumable: true }] }]) assert.throws(() => normalizeDispatch(params), /INVALID_DISPATCH/);
 });
 test("ARG-01 preserves exclude/@file for managed creation and continuation only", () => {
 	for (const persistence of [{ kind: "new", sessionDir: "/managed/pi", sessionId: ulid().toUpperCase() }, { kind: "resume", sessionDir: "/managed/pi", sessionFile: "/managed/pi/exact.jsonl" }] as const) {
 		const args = buildSubagentPiArgs({ persistence, taskPath: "/task", model: "provider/model", thinkingLevel: "high" });
-		assert.equal(args.at(-1), "@/task"); assert.equal(args[args.indexOf("--exclude-tools") + 1], "subagent,subagent_status,subagent_cancel,subagent_message,fork,fork_status,fork_cancel,fork_message");
+		assert.equal(args.at(-1), "@/task"); assert.equal(args[args.indexOf("--exclude-tools") + 1], "subagent,agent_status,agent_cancel,agent_message,spinoff");
 		assert.equal(args.includes("--no-session"), false);
 		assert.equal(args.includes("--session-id"), persistence.kind === "new"); assert.equal(args.includes("--session"), persistence.kind === "resume");
 		for (const arg of ["--continue", "--resume", "--fork", "--approve"]) assert.equal(args.includes(arg), false);

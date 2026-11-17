@@ -14,7 +14,7 @@ test('host-facing schema accepts every structurally valid source so the strict l
     { source: { kind: 'command', tool: 'bash', command: 'printf ok' } },
     { source: { kind: 'websocket', url: 'wss://example.org/socket' } },
     { source: { kind: 'file', path: 'a.txt', intervalMs: 2000 } },
-    { source: { kind: 'fork_job', jobId: 'JOB' }, durationMs: 900 },
+    { source: { kind: 'spinoff_job', jobId: 'JOB' }, durationMs: 900 },
   ]) assert.equal(Value.Check(startSchema, value), true, JSON.stringify(value));
 });
 
@@ -26,7 +26,7 @@ test('a rejected monitor_start names the parameter, the accepted range and the f
     [{ source: { kind: 'command', tool: 'pwsh', command: 'x' } }, /command source "tool" "pwsh" is unsupported: set it to "bash" or "powershell"/],
     [{ source: { kind: 'websocket' } }, /websocket source "url" must be a non-empty string; use wss:\/\/host\/path without userinfo/],
     [{ source: { kind: 'file', path: 'a.txt', content: true } }, /Unknown Monitor parameter "content": a file source accepts kind, path, intervalMs/],
-    [{ source: { kind: 'nope' } }, /source "kind" "nope" is unsupported: use command, websocket, shell_job, subagent_job, fork_job, file/],
+    [{ source: { kind: 'nope' } }, /source "kind" "nope" is unsupported: use command, websocket, shell_job, subagent_job, spinoff_job, file/],
     [{ source: { kind: 'file', path: 'a.txt' }, durationMs: 900 }, /"durationMs" 900 is out of range: use an integer 1000–1800000 ms \(default 300000\)/],
     [{ source: { kind: 'file', path: 'a.txt' }, wakeAgent: 'yes' }, /"wakeAgent" must be a boolean: true \(default\) requests a model turn, false saves the batch for the next turn without rendering it; received "yes"/],
     [{ source: { kind: 'file', path: 'a.txt' }, extra: 1 }, /Unknown Monitor parameter "extra": monitor_start accepts source, durationMs, wakeAgent, stopAfterEvents, label/],

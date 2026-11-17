@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'u
 const expectedExtensions = manifest.pi.extensions.length;
 assert.ok(manifest.pi.extensions.includes('./modules/note-tools/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/pi-runtime/src/index.ts'));
-assert.equal(expectedExtensions, 22, 'twenty-one local entries plus one pinned dependency entry');
+assert.equal(expectedExtensions, 21, 'twenty local entries plus one pinned dependency entry');
 assert.ok(manifest.pi.extensions.includes('./modules/file-audit/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/sql-connector/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/sqlite-tools/src/index.ts'));
@@ -22,7 +22,7 @@ const dependencyEntries = {
 };
 const localEntries = manifest.pi.extensions.filter(entry => entry.startsWith('./modules/') && entry !== dependencyEntries['@ff-labs/pi-fff'].manifestEntry);
 for (const entry of localEntries) assert.match(entry, /^\.\/modules\/[^/]+\/src\/index\.ts$/);
-assert.equal(localEntries.length, 21);
+assert.equal(localEntries.length, 20);
 for (const [name, expected] of Object.entries(dependencyEntries)) {
   assert.equal(manifest.dependencies[name], expected.version);
   const dependency = JSON.parse(await readFile(join(packageRoot, 'node_modules', name, 'package.json'), 'utf8'));
@@ -53,7 +53,7 @@ try {
   const ptyNames = ['pty_spawn', 'pty_read', 'pty_write', 'pty_keyin', 'pty_resize', 'pty_wait_exit', 'pty_kill', 'pty_list'];
   const sqliteNames = ['sqlite_open', 'sqlite_close', 'sqlite_status', 'sqlite_query', 'sqlite_execute', 'sqlite_list_tables', 'sqlite_describe_table', 'sqlite_manual'];
   const monitorNames = ['monitor_start', 'monitor_status', 'monitor_stop'];
-  const backgroundNames = ['subagent_status', 'subagent_cancel', 'subagent_message', 'shell_job_status', 'shell_job_cancel'];
+  const backgroundNames = ['agent_status', 'agent_cancel', 'agent_message', 'shell_job_status', 'shell_job_cancel'];
   const selection = readOnly ? ['read'] : [...monitorNames, ...backgroundNames, 'read', 'write', 'edit', 'grep', 'find', 'ls', 'bash', ...(process.platform === 'win32' ? ['powershell'] : []), 'subagent', 'note', 'schedule_prompt', 'schedule_shell', 'schedule_monitor', ...ptyNames, ...sqliteNames, 'web_fetch', ...(['brave', 'exa'].includes(mode) ? ['web_search'] : [])];
   const settings = sdk.SettingsManager.inMemory({ defaultTools: selection, retry: { enabled: false }, compaction: { enabled: false }, cacheWarming: 'off', enableInstallTelemetry: false });
   loader = new sdk.DefaultResourceLoader({ cwd, agentDir, settingsManager: settings,
@@ -102,14 +102,14 @@ try {
   assert.equal(subagent.parameters.properties.resume, undefined, 'create-only subagent must not expose resume');
   assert.equal(subagent.parameters.properties.background.type, 'boolean');
   for (const name of backgroundNames) assert.ok(names.includes(name), `background tool ${name}`);
-  const message = definitions.find(d => d.name === 'subagent_message');
+  const message = definitions.find(d => d.name === 'agent_message');
   assert.equal(message.parameters.properties.subagentSessionId.type, 'string');
-  assert.deepEqual(message.parameters.properties.mode.enum, ['control', 'query']);
-  assert.ok(message.parameters.required.includes('subagentSessionId'));
+  assert.deepEqual(message.parameters.properties.mode.enum, ['control', 'query', 'follow_up', 'steer']);
+  assert.equal(message.parameters.properties.jobId.type, 'string', 'a Spinoff is addressed by jobId');
+  assert.ok(!message.parameters.required.includes('subagentSessionId'), 'subagentSessionId or jobId, one of them');
   assert.ok(message.parameters.required.includes('message'));
   assert.ok(!message.parameters.required.includes('mode'), 'persistent messages default to control');
-  assert.equal(message.parameters.properties.jobId, undefined, 'message targets a stable session, not an invocation');
-  assert.equal(message.parameters.properties.taskId, undefined);
+    assert.equal(message.parameters.properties.taskId, undefined);
   assert.equal(message.parameters.properties.title.maxLength, 50);
   assert.match(subagent.description, /Every initial task automatically saves/);
   assert.ok(subagent.promptGuidelines.some(line => line.includes('automatically persisted')));
@@ -177,12 +177,14 @@ try {
   if (active.includes('subagent')) {
     const removed = await execute('subagent', { resume: '00000000000000000000000000', task: 'REMOVED_RESUME_MUST_NOT_RUN' });
     assert.equal(removed.isError, true, 'removed resume call must be refused before dispatch');
-    assert.match(text(removed), /subagent_message/);
+    assert.match(text(removed), /agent_message/);
   }
-  if (active.includes('subagent_message')) {
-    const legacy = await execute('subagent_message', { jobId: 'old-job', taskId: 'old-task', mode: 'control', message: 'LEGACY_MESSAGE_MUST_NOT_RUN' });
+  if (active.includes('agent_message')) {
+    const legacy = await execute('agent_message', { taskId: 'old-task', mode: 'control', message: 'LEGACY_MESSAGE_MUST_NOT_RUN' });
     assert.equal(legacy.isError, true, 'old invocation-addressed message must be refused');
     assert.match(text(legacy), /subagentSessionId/);
+    // A jobId addresses a Spinoff: an unknown one is refused by the Spinoff manager, never routed to a subagent.
+    await assert.rejects(() => execute('agent_message', { jobId: 'old-job', message: 'LEGACY_MESSAGE_MUST_NOT_RUN' }), /SPINOFF_NOT_FOUND/);
   }
   if (!readOnly && !noTools && mode !== 'exclude') for (const name of sqliteNames) {
     assert.ok(active.includes(name), `explicit SQLite activation ${name}`);
@@ -280,7 +282,7 @@ try {
     const result = await session.extensionRunner.emitBeforeAgentStart({ messageType: 'user', prompt: '[[fixture]] smoke' }, options);
     assert.equal(result.systemPromptOptions.sections.fixture, 'KEEP_FIXTURE');
     const lifecycle = result.systemPromptOptions.sections.background_jobs;
-    const hasBackgroundTools = active.some(name => ['bash', 'powershell', 'shell_job_status', 'shell_job_cancel', 'subagent', 'subagent_status', 'subagent_cancel', 'subagent_message'].includes(name));
+    const hasBackgroundTools = active.some(name => ['bash', 'powershell', 'shell_job_status', 'shell_job_cancel', 'subagent', 'agent_status', 'agent_cancel', 'agent_message'].includes(name));
     assert.equal(Boolean(lifecycle), hasBackgroundTools, 'background lifecycle guidance follows active tools');
     if (hasBackgroundTools) {
       assert.match(lifecycle, /log-based provisional conclusion/);

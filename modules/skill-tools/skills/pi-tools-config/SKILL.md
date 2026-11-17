@@ -54,7 +54,7 @@ description: >-
 
 | 模組／問題 | 按需讀取 |
 | --- | --- |
-| Subagents：自訂 agent、模型／工具選取、委派與背景面板 | [subagents](references/subagents.md) |
+| Subagents 與 Spinoff：自訂 agent、模型／工具選取、委派、繼承對話的獨立 Pi 工作與背景面板 | [subagents](references/subagents.md) |
 | Shell：Bash／PowerShell、總逾時、自動轉背景 | [shell-tools](references/shell-tools.md) |
 | File：read／edit／write／ls、除錯與 FFF 搜尋模式 | [file-tools](references/file-tools.md) |
 | File Audit：近期檔案窗口／容量、手動增量檢查與停用 | [file-audit](references/file-audit.md) |
@@ -63,7 +63,6 @@ description: >-
 | Pi Runtime：deferred discovery、共通提示 | [pi-runtime](references/pi-runtime.md) |
 | Skill Tools：技能載入、指令與停用 | [skill-tools](references/skill-tools.md) |
 | Monitor：監看 command／WebSocket／背景工作 | [monitor](references/monitor.md) |
-| Fork：繼承對話的獨立 Pi 工作 | [fork](references/fork.md) |
 | Remote：區網 Pi 互傳訊息、配對碼 | [remote](references/remote.md) |
 | Image Generation：文字生圖（OpenAI／Gemini／Codex CLI） | [image-generation](references/image-generation.md) |
 | Theme Tools：配色主題與 `/theme:<id>` 切換 | [theme-tools](references/theme-tools.md) |

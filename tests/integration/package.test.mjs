@@ -17,12 +17,11 @@ const dependencyEntries = [
   './modules/file-tools/src/fff-override.mjs',
 ];
 assert.deepEqual([...manifest.pi.extensions].sort(), [...modules.map(name => `./modules/${name}/src/index.ts`), ...dependencyEntries].sort());
-assert.equal(expectedExtensions, 22, 'twenty-one local entries plus one pinned dependency entry');
+assert.equal(expectedExtensions, 21, 'twenty local entries plus one pinned dependency entry');
 assert.ok(manifest.pi.extensions.includes('./modules/file-audit/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/sql-connector/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/sqlite-tools/src/index.ts'));
 assert.ok(manifest.pi.extensions.includes('./modules/monitor/src/index.ts'));
-assert.ok(manifest.pi.extensions.includes('./modules/fork/src/index.ts'));
 // Each mode spawns an isolated Pi host in its own home, so modes can overlap.
 describe('all manifest extensions', { concurrency: 4 }, () => {
 for (const mode of ['full', 'read-only', 'no-tools', 'exclude', 'brave', 'exa', 'invalid']) {

@@ -24,7 +24,7 @@ export async function invokeCli(cli: string, args: string[], cwd: string, env: R
 				const line = buffer.slice(0, end); buffer = buffer.slice(end + 1); if (!line.trim()) continue;
 				try {
 					const event = JSON.parse(line), message = event.message;
-					if (event.type === "message_end" && ((message?.toolName === "subagent_message" && message.isError) || (message?.customType === "subagent_background" && message.details?.kind === "task_result"))) resultObserved = true;
+					if (event.type === "message_end" && ((message?.toolName === "agent_message" && message.isError) || (message?.customType === "subagent_background" && message.details?.kind === "task_result"))) resultObserved = true;
 					if (event.type === "agent_settled" && resultObserved) proc.stdin!.end();
 				} catch (error) { stop(`Invalid offline RPC framing: ${String(error)}`); }
 			}

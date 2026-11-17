@@ -126,7 +126,7 @@ test("capacity errors report submitted/active load and the next action; list is 
 	const release = deferred(), finished = deferred();
 	const jobs = new BackgroundJobs(kind => { if (kind === "task_result") finished.resolve(); }, () => 3);
 	const receipt = jobs.submit("owner", "/cwd", jobs.epoch, Array(32).fill("worker"), async (_signal, ids, _live, finish) => { await release.promise; ids.forEach((_id, index) => finish(index, { output: "\n\nDone: first line\nsecond line" }, "completed")); });
-	assert.throws(() => jobs.submit("owner", "/cwd", jobs.epoch, ["worker"], async () => {}), /BACKGROUND_CAPACITY.*submitted 32\/32, active 3\/8.*subagent_status.*subagent_cancel.*split/);
+	assert.throws(() => jobs.submit("owner", "/cwd", jobs.epoch, ["worker"], async () => {}), /BACKGROUND_CAPACITY.*submitted 32\/32, active 3\/8.*agent_status.*agent_cancel.*split/);
 	assert.deepEqual(jobs.list("other", "/cwd"), []); assert.deepEqual(jobs.list("owner", "/elsewhere"), []);
 	const running = jobs.list("owner", "/cwd"); assert.equal(running.length, 1); assert.equal(running[0].jobId, receipt.jobId); assert.equal(running[0].tasks.length, 32);
 	release.resolve(); await finished.promise;

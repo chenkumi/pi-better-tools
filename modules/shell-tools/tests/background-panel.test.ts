@@ -245,7 +245,7 @@ test('one row per job: heading left, state | usage right, Monitor counted in the
   const monitor: PanelJob = { ...job('7', 'monitor'), label: 'command', title: 'tail -f logs/app.log', usageState: 'na', summary: 'wake off | 剩 24m' };
   const jobs = [job('1'), reported, monitor, { ...job('8', 'monitor'), label: 'websocket', title: 'wss://api.example.com', usageState: 'na' as const, summary: 'wake on | 剩 1h 12m' }];
   const lines = renderJobs(jobs, theme, 80).map(plain);
-  assert.equal(lines.length, 7); assert.match(lines[0], /^── Jobs Panel ─+$/); assert.match(lines[1], /Shell: 1 .*Subagents: 1 .*Fork: 0 .*Monitor: 2/);
+  assert.equal(lines.length, 7); assert.match(lines[0], /^── Jobs Panel ─+$/); assert.match(lines[1], /Shell: 1 .*Subagents: 1 .*Spinoff: 0 .*Monitor: 2/);
   const text = lines.join('\n');
   assert.match(text, /● SH bash · shell work 1 +N\/A\n/); assert.doesNotMatch(text, /running \| N\/A/);
   assert.match(text, /● SA scout · subagents work 2 +running \| 12\.4k\*\n/);

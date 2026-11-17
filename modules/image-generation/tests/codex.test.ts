@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
-import { codexEnvironment, codexPreflight, generateCodex, resolveCodexLaunch } from '../src/backends/codex.ts';
+import { codexEnvironment, codexPreflight, generateCodex } from '../src/backends/codex.ts';
 import { config, png, tempDir } from './helpers.ts';
 
 const PNG_B64 = png(8, 8).toString('base64');
@@ -115,22 +115,4 @@ test('cancelling asks the codex process to end and reports the cancellation', as
   let alive = true;
   for (let i = 0; i < 200 && alive; i++) { try { process.kill(call.pid, 0); await new Promise(resolve => setTimeout(resolve, 25)); } catch { alive = false; } }
   assert.equal(alive, false, 'the process ended (best effort; this does not prove a process tree stopped)');
-});
-
-test('on Windows the bare codex name is resolved from its npm .cmd shim to node + codex.js; nothing else is rewritten', async t => {
-  const root = await tempDir(t, 'image-codex-shim-');
-  const bin = join(root, 'bin'), script = join(bin, 'node_modules', '@openai', 'codex', 'bin', 'codex.js');
-  await mkdir(join(bin, 'node_modules', '@openai', 'codex', 'bin'), { recursive: true });
-  await writeFile(join(bin, 'codex.cmd'), '@echo off');
-  await writeFile(script, "console.log('Logged in using ChatGPT')");
-  const win = { platform: 'win32' as const, baseEnv: { Path: bin } };
-  assert.deepEqual(resolveCodexLaunch('codex', win), { command: process.execPath, prefix: [script] }, 'the PATH variable is found whatever its case');
-  assert.deepEqual(resolveCodexLaunch('codex', { ...win, platform: 'linux' }), { command: 'codex', prefix: [] }, 'only Windows');
-  assert.deepEqual(resolveCodexLaunch('C:/tools/codex.exe', win), { command: 'C:/tools/codex.exe', prefix: [] }, 'an explicit path is used as configured');
-  assert.deepEqual(resolveCodexLaunch('codex', { platform: 'win32', baseEnv: { Path: join(root, 'empty') } }), { command: 'codex', prefix: [] }, 'no shim on PATH');
-  const bare = join(root, 'bare'); await mkdir(bare); await writeFile(join(bare, 'codex.cmd'), '@echo off');
-  assert.deepEqual(resolveCodexLaunch('codex', { platform: 'win32', baseEnv: { Path: bare } }), { command: 'codex', prefix: [] }, 'a shim whose script is not where npm puts it is not guessed at');
-  // End to end without a shell: the shim's script is run by node and the login check passes.
-  const f = await fixture(t);
-  await codexPreflight({ ...f.settings(), path: 'codex' }, { timeoutMs: 20_000, platform: 'win32', baseEnv: { Path: bin }, tmpRoot: f.tmpRoot });
 });

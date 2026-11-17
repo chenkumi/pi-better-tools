@@ -1,12 +1,12 @@
 # Pi Better Tools
 
-單一 Pi extensions package，整合 Subagents、Shell Tools、Precise File Tools、Web Tools、SQLite Tools、SQL Connector、PTY Terminal，加上原生 Schedule Commands 與 JSON Schema structured delivery，並提供本專案原生 Note Tools、File Audit、GPT Speed、Pi Runtime、Monitor、Skill Tools 與 Fork extensions。必要程式碼與資源已納入 `modules/`，不依賴來源專案的本機路徑。
+單一 Pi extensions package，整合 Subagents、Shell Tools、Precise File Tools、Web Tools、SQLite Tools、SQL Connector、PTY Terminal，加上原生 Schedule Commands 與 JSON Schema structured delivery，並提供本專案原生 Note Tools、File Audit、GPT Speed、Pi Runtime、Monitor、Skill Tools 與 Spinoff extensions。必要程式碼與資源已納入 `modules/`，不依賴來源專案的本機路徑。
 
 > 本專案採用 [MIT License](LICENSE)。使用者已確認五個來源專案均為其所有，並授權本整合專案採 MIT；封裝測試以根目錄 `LICENSE` 為必要授權檔，不要求重複模組 LICENSE；原有模組授權聲明仍保留，來源與相依套件說明見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。`private: true` 僅用於避免誤發布 npm，不限制未來公開至 GitHub；目前未執行任何遠端發布。
 
 ## 重構整理（2026-10-16）
 
-移除過期版本通知與 Runtime 孤立日誌 helper；ConfigManager 測試 helper 不再隨產品打包。Shell／Subagents／Fork 共用純 UI binding，Subagents 面板只保留現行 `PanelJob[]` 投影。工具、設定、持久化格式、原生壓縮與各自執行／取消／通知契約不變；來源身份與授權說明保留，細節見 [架構](docs/architecture.md)。
+移除過期版本通知與 Runtime 孤立日誌 helper；ConfigManager 測試 helper 不再隨產品打包。Shell／Subagents／Spinoff 共用純 UI binding，Subagents 面板只保留現行 `PanelJob[]` 投影。工具、設定、持久化格式、原生壓縮與各自執行／取消／通知契約不變；來源身份與授權說明保留，細節見 [架構](docs/architecture.md)。
 
 ## 本機安裝
 
@@ -97,7 +97,7 @@ Shell 與 Subagents 會在 `startup`／`resume`／`reload` 載入 session 時，
 
 | 模組 | 工具／命令 | 注意事項 |
 | --- | --- | --- |
-| Subagents | `subagent`、`subagent_status/cancel/message`；三個 workflow prompts | `subagent` 建立 single／parallel／chain（同步預設，支援 `background:true`）；`subagent_message` 以 session ID 發送指示，自動 control 或安全續接；query 保持唯讀 |
+| Subagents | `subagent`、`agent_status/cancel/message`（同時管理 Spinoff）；三個 workflow prompts | `subagent` 建立 single／parallel／chain（同步預設，支援 `background:true`）；`agent_message` 以 session ID 發送指示，自動 control 或安全續接；query 保持唯讀 |
 | SQL Connector | `mysql_state/query/update`、`mssql_state/query/update`、`pgsql_state/query/update`；`/sql-connector-reload` | trusted 專案 `.pi/agent/sql-connector.json` 掛載；僅配置的引擎註冊 deferred 工具，以 `tool_search` 搜尋對應引擎。每次寫入需 UI 確認；Windows Authentication 另需原生 driver／ODBC。詳見 `modules/sql-connector/README.md` |
 | SQLite Tools | `sqlite_open/close/status/query/execute/list_tables/describe_table/manual` | deferred `sqlite` namespace；讀取資料庫前以 `tool_search` 搜尋 `sqlite`。保留 manual／fixed mode、專案 trust 與 shutdown 關閉連線；詳見 `modules/sqlite-tools/README.md` |
 | PTY Terminal | `pty_spawn/write/read/resize/wait_exit/kill/list` | `target` 預設 local；named WSL／SSH targets；session 綁定 target，關閉 transport 不保證遠端背景程序停止 |
@@ -105,8 +105,8 @@ Shell 與 Subagents 會在 `startup`／`resume`／`reload` 載入 session 時，
 | Shell Tools | 覆寫 `bash`、`powershell`；`shell_job_status/cancel` | 同步預設；`background:true` 立即回 jobId／liveLogPath；`timeoutMs` 為自啟動起算的總時限（前景／背景相同）；背景 job 未設 `timeoutMs` 時自動啟動 180 秒 display-only Monitor；前景無 `timeoutMs` 指令滿 300 秒自動轉背景（同一 process，兜底防無限迴圈，可由 `pi-shell-tools.autoBackgroundMs` 調整或設 0 停用）；管理工具需額外選取；PowerShell 僅原生 Windows |
 | File Tools | 覆寫 `read`、`write`、`edit`、`ls` | 絕對行號、32 字元 hash、精準 literal／regex、原子寫入、diff worker；`grep/find` 不再由本模組註冊，可由 FFF override 提供 |
 | Web Tools | `web_fetch`；條件式 REST `web_search`；`/web-tools status`、`/web-tools sources` | OpenAI／Codex 原生搜尋預設啟用、無實驗開關或警告，不註冊同名 function tool；Brave／Exa 要明確設定；無登入／CAPTCHA bypass／PDF |
-| Fork | `fork`／`fork_status`／`fork_cancel`／`fork_message`（皆預設啟用，仍受宿主工具限制） | 以獨立 Pi 行程繼承來源對話與能力接手任務，跨 session 切換仍續行，完成後只回報原 session；`fork_message` 可對執行中的 Fork 追加指示（受理不等於套用）；Fork 可用 `subagent`、不可再 Fork，所有 Subagent 不可 Fork；quit／`/reload` 取消全部；完成後以原生 `/resume` 繼續。詳見 `modules/fork/README.md`；不是 OS sandbox |
-| Monitor | `monitor_start/status/stop` | 七來源：command stdout、WS text、cwd 內單一檔案的 metadata 變更（file，不讀內容）、整機 CPU／RAM 持續達閾值（system）、readonly shell_job／subagent_job／fork_job；三工具預設啟用（仍受宿主工具限制），總期限預設5分鐘；不是daemon／PTY／sandbox |
+| Spinoff（Subagents 的一部分，同一入口） | `spinoff`；管理走與 Subagent 共用的 `agent_status`／`agent_cancel`／`agent_message`（`jobId` 定址；皆預設啟用，仍受宿主工具限制） | 以獨立 Pi 行程繼承來源對話與能力接手任務，跨 session 切換仍續行，完成後只回報原 session；`agent_message` 可對執行中的 Spinoff 追加指示（受理不等於套用）；Spinoff 可用 `subagent`、不可再 Spinoff，所有 Subagent 不可 Spinoff；quit／`/reload` 取消全部；完成後以原生 `/resume` 繼續。詳見 `modules/subagents/src/spinoff/README.md`；不是 OS sandbox |
+| Monitor | `monitor_start/status/stop` | 七來源：command stdout、WS text、cwd 內單一檔案的 metadata 變更（file，不讀內容）、整機 CPU／RAM 持續達閾值（system）、readonly shell_job／subagent_job／spinoff_job；三工具預設啟用（仍受宿主工具限制），總期限預設5分鐘；不是daemon／PTY／sandbox |
 | Image Generation | `image_generate`（deferred，`tool_search image`）、`/settings:image-generation` | 文字生圖：OpenAI Images API／Gemini API／本機 Codex CLI 三後端，圖片存成專案內新檔案；金鑰只走 Pi 登入、付費請求預設每 session 每後端確認一次；詳見 [Image Generation](modules/image-generation/README.md) |
 | Remote | `remote_list/send/status`（deferred，`tool_search remote`） | 以 WebSocket 把數個 Pi session 連成區網內的網路互傳訊息／任務（例如 push 後通知他平台 pull 測試）；`.pi/agent/remote.json`（受信任專案）設 server 或 client；12 碼配對碼 challenge-response（碼不上線）＋ wss；收到的訊息標示為不受信任資料、預設喚醒 agent（`wake` 可關閉／allowlist）；at-most-once、不排隊；不是遠端執行或 sandbox。`/remote` 與 footer 顯示狀態、system prompt 列出線上 peer；`/settings:remote` 面板設定角色／wake／憑證路徑，server 頁直接顯示配對碼（沒有就即時產生，存檔才寫入）並可 Enter 換新碼，client 遮罩輸入配對碼（存使用者層，不進專案檔） |
 | Skill Tools | `/skill:create-plan`、`/skill:pi-tools-config` 等隨包技能 | 原生 resource discovery、按需讀取；pi-tools-config 以 SKILL.md 索引 19 份逐模組指令／config references，不修改使用者 home |
@@ -118,7 +118,7 @@ Shell 與 Subagents 會在 `startup`／`resume`／`reload` 載入 session 時，
 | Pi Runtime | 無指令（`/settings:<id>` 設定面板共用層供其他模組使用） | Deferred 工具統一啟用與提示（`tool_search`）、跨模組工具規則 system prompt section；已移除 error recovery |
 | JSON Schema | 條件式 `json_output`；`--json-schema`、`--json-output` | CLI schema + zod 4 驗證；有 `--json-output` 寫檔、否則單一 JSON stdout；未給 `--json-schema` 時 inactive |
 
-Subagents **只保留 managed／可續接持久化**：`subagent` 只建立新子代理，提供 agent/task 或 tasks/chain；背景建立成功受理時，各 item 已有實際 managed `subagentSessionId`，但排隊身份不代表可互動或 checkpoint ready。後續使用 `subagent_message({ subagentSessionId, message })`；系統對可互動 invocation 送 control，對安全 ready session 非同步續接。不能覆寫保存的執行配置。`subagent.resume` 與 `resumable` 已移除，舊呼叫須遷移。專案新產生的 ULID 統一使用 `ulid().toUpperCase()`；既有小寫 ULID／UUID 仍可讀取，不更名。所有新 sessions 存於 `<agentDir>/subagent-sessions/<ULID>/`；失敗／取消不會冒稱 ready，舊 ephemeral logs 不自動轉換。
+Subagents **只保留 managed／可續接持久化**：`subagent` 只建立新子代理，提供 agent/task 或 tasks/chain；背景建立成功受理時，各 item 已有實際 managed `subagentSessionId`，但排隊身份不代表可互動或 checkpoint ready。後續使用 `agent_message({ subagentSessionId, message })`；系統對可互動 invocation 送 control，對安全 ready session 非同步續接。不能覆寫保存的執行配置。`subagent.resume` 與 `resumable` 已移除，舊呼叫須遷移。專案新產生的 ULID 統一使用 `ulid().toUpperCase()`；既有小寫 ULID／UUID 仍可讀取，不更名。所有新 sessions 存於 `<agentDir>/subagent-sessions/<ULID>/`；失敗／取消不會冒稱 ready，舊 ephemeral logs 不自動轉換。
 
 Subagent 的 `model`／`provider`／`thinkingLevel` 呼叫參數**預設省略，只有使用者或 skill 明確指定才傳入**。首次派遣先確認模型，再檢查該模型支援的思考等級；未知／歧義模型與未知／不支援等級忽略，依原預設規則執行，不因選擇參數無效直接報錯。模型預設為可用 agent 模型或 parent 模型；思考等級依模型繼承或使用 child 預設。Resume 與 child startup guard 仍嚴格驗證配置，不保證遠端 API 可用。完整規則見 [Subagents README](modules/subagents/README.md)。
 
@@ -140,7 +140,7 @@ Subagents 的 `subagent_catalog`、Web 的 `web_search` 與共享 `background_jo
 
 載入 Shell extension 後，尚未執行、因 API 中斷而被宿主合成 error 的工具卡片改為中性 `API interrupted`／`Resuming API request…`／`API response recovered`，不在恢復後殘留紅色，也不把舊 call 當成功。真正工具失敗與 Pi 原生 assistant error 保留；不改模型結果、不重跑工具、不啟用未選工具。歷史／reload 只保守重建 interrupted，不猜 retry 成功；追蹤有界，官方 retry 次數／倒數不在此修正範圍。詳見 [Shell Tools](modules/shell-tools/README.md#api-中斷工具卡片)。
 
-原有 15 個互動式 function tools 均有 `renderCall`／`renderResult`（含沿用宿主 renderer）：Shell 保留宿主呈現；Subagent 可用選填 `title`（50 字內）顯示工作摘要，single 使用頂層欄位，parallel／chain 各項可附獨立標題；`subagent_message` 可附顯示用 title，續接時作為新 invocation 標題，並於 call／執行中／完成後呈現；File 的 `read`／`write` 錯誤顯示錯誤碼、訊息與 recovery，不再原樣顯示錯誤 JSON，`read` 成功與圖片仍沿用宿主行為，`write` 成功顯示 bytes，展開可看路徑與版本 token；`note` 摘要分類／標題與儲存路徑，不預覽整份 Markdown；Web 顯示來源、警告與全文暫存路徑，展開看結果文字；PTY 七個工具顯示 session／target／transport、讀取文字、transport exit／逾時與釋放狀態，不把 transport 結束冒稱遠端程序樹已停止。Renderer 只改 UI，不修改模型可見 content／structuredContent；Subagent 的選填 title 另保存於 parent details 顯示 metadata，不變 child task 或執行配置。
+原有 15 個互動式 function tools 均有 `renderCall`／`renderResult`（含沿用宿主 renderer）：Shell 保留宿主呈現；Subagent 可用選填 `title`（50 字內）顯示工作摘要，single 使用頂層欄位，parallel／chain 各項可附獨立標題；`agent_message` 可附顯示用 title，續接時作為新 invocation 標題，並於 call／執行中／完成後呈現；File 的 `read`／`write` 錯誤顯示錯誤碼、訊息與 recovery，不再原樣顯示錯誤 JSON，`read` 成功與圖片仍沿用宿主行為，`write` 成功顯示 bytes，展開可看路徑與版本 token；`note` 摘要分類／標題與儲存路徑，不預覽整份 Markdown；Web 顯示來源、警告與全文暫存路徑，展開看結果文字；PTY 七個工具顯示 session／target／transport、讀取文字、transport exit／逾時與釋放狀態，不把 transport 結束冒稱遠端程序樹已停止。Renderer 只改 UI，不修改模型可見 content／structuredContent；Subagent 的選填 title 另保存於 parent details 顯示 metadata，不變 child task 或執行配置。
 
 新增五個背景管理／互動工具亦有 call／result renderer：顯示 job／task／mode 與有界結果，清除顯示控制碼，不預覽 control／query 訊息內容，取消仍明示未確認程序樹終止。Subagent 訊息拒絕（如 `SESSION_BUSY`／`finalizing`）顯示錯誤碼、觀察狀態及下一步提示，不因未配置 job／interaction ID 誤稱資料不足；預期 busy/not-running/capacity/cancelled 拒絕使用 warning 的 `Query/Message not accepted` 但保留 `isError:true` 與 `status:"rejected"`，訊息未送達；警告文字不改模型端錯誤契約，因此原生工具背景仍由 Pi 依旗標顯示紅色；安全／設定／checkpoint／未知故障維持 error。舊結果不改寫，其原生背景仍由 Pi 的已保存 isError 控制；受理與不重送安全規則不變。`json_output` 僅在 print mode 搭配有效 schema 註冊，刻意維持無 TUI renderer；GPT Speed 沒有 function tool，OpenAI 原生搜尋亦非 Pi function tool。
 
@@ -168,13 +168,13 @@ Shell／Subagents 每回合注入共享 system prompt 規則：通知順序不�
 
 Shell／Subagent 完成／失敗／取消結果統一以 model-visible custom message + `triggerTurn:true, deliverAs:"steer"` 回到原 session。主 agent 忙碌時在目前 assistant＋tool batch 完成後插入，下一次模型請求可見；閒置時自動觸發回合。Shell 只以一次 immediate 合併當時已完成結果，不再等待整個主 run settled。Subagent 仍須完成 runner／managed commit 或 rollback／writer release；parallel／chain 仍等整個 batch 收尾。遵循宿主 steeringMode／abort，不中斷目前工具或 provider stream，已開始生成的 final text 仍須先結束。輸出視為不可信資料，不提升為 system 指令。Subagent 結論摘要取當次 invocation 最後有效 terminal assistant 的首個非空行，在 aggregate 截短前有界保留；新工作／retry start 清除舊候選，成功 retry end 不清除已恢復的結論。空 terminal 明示無 final 文字，失敗／取消以權威診斷為準；完整輸出、日誌與 chain 資料不變。通知內部只保存最多128筆不含 payload 的觀測；callback 返回不等於宿主佇列／持久化／送達確認，沒有自動重送。已知 canMessage／cancelRequested 的 false 與未知值分開呈現。離開 Pi、reload 或替換 session 時取消背景工作並抑制舊通知；沒有 daemon／重啟恢復。SDK 必須 `await runtime.dispose()`，直接 `session.dispose()` 不觸發 extension shutdown。取消是 best-effort，並非整棵 process tree 已停止。
 
-`subagent_message` 指定完整 `subagentSessionId` 與 `message`，`mode` 預設 `control`。系統依當前 registry／ownership／checkpoint 判斷：可互動 running invocation 使用 control，在 assistant／tools 邊界加入主線 user input、不打斷目前工具；安全 ready session 使用非同步 resume，保留 session ID 並產生新 jobId／taskId。queued／startup／finalizing／取消收尾或 busy 明確拒絕，不排跨 invocation 佇列；blocked／checkpoint 不符不能自動重建。回覆 `action` 表示實際路徑，accepted 只表示受理；control queued 不等於 applied，delivery_unknown 不可盲目重送或改用 resume。`mode:"query"` 支援互動中 child 與已結束的 ready session：live 使用安全 canonical prefix；ready 驗證 owner/config/trust/checkpoint 後持有獨占讀取租約，以 guarded 暫存副本執行 tool-free 一次性問答。不對原對話 prompt／steer、不改原 manifest/native/transcript/checkpoint；ready query 有獨立 jobId/taskId 供 status/cancel，結果只發 query_result，不冒充主任務重新完成。snapshot 尊重原生 compaction/context edit，可能落後長工具，另計模型用量。完成回饋透過 steer；背景續接與 query 用量**不自動加到 Pi session totals**。
+`agent_message` 指定完整 `subagentSessionId` 與 `message`，`mode` 預設 `control`。系統依當前 registry／ownership／checkpoint 判斷：可互動 running invocation 使用 control，在 assistant／tools 邊界加入主線 user input、不打斷目前工具；安全 ready session 使用非同步 resume，保留 session ID 並產生新 jobId／taskId。queued／startup／finalizing／取消收尾或 busy 明確拒絕，不排跨 invocation 佇列；blocked／checkpoint 不符不能自動重建。回覆 `action` 表示實際路徑，accepted 只表示受理；control queued 不等於 applied，delivery_unknown 不可盲目重送或改用 resume。`mode:"query"` 支援互動中 child 與已結束的 ready session：live 使用安全 canonical prefix；ready 驗證 owner/config/trust/checkpoint 後持有獨占讀取租約，以 guarded 暫存副本執行 tool-free 一次性問答。不對原對話 prompt／steer、不改原 manifest/native/transcript/checkpoint；ready query 有獨立 jobId/taskId 供 status/cancel，結果只發 query_result，不冒充主任務重新完成。snapshot 尊重原生 compaction/context edit，可能落後長工具，另計模型用量。完成回饋透過 steer；背景續接與 query 用量**不自動加到 Pi session totals**。
 
 Subagents 的 `subagent_background` 通知、status／cancel／message 與背景派發 receipt 也使用摘要／展開 TUI：收合顯示工作狀態、agent 與結論，展開看 IDs、原有 log／session 與保留結果／用量。新的 log_ready 只送模型事件、不新增聊天 bubble，執行狀態更新輸入欄上方 Jobs 面板；歷史 log_ready 仍可顯示通知時快照，finalLogPath 是未來路徑，不宣稱目前存在；取消要求不等於程序樹停止，control accepted／queued 不等於 applied；query 顯示快照、未知用量與尚待清理，晚到用量不復活答案。同步 subagent 的既有進度與 Markdown 呈現保留。
 
 Shell、Subagent 背景通知與 Schedule Commands 結果使用與原生工具呼叫相同的背景色塊（不畫框線，含內距；窄終端自動縮減），總300行包含上下留白。背景沿用主題 toolSuccessBg／toolErrorBg／toolPendingBg，僅確認完成才採成功色。Subagents 管理工具與同步結果保留原生工具區塊，不重複套色塊。原生展開可查看通知內保留的詳細結果；顯示層清除 ANSI／控制碼，Shell 以狀態／exit code 判定，Schedule 區分完成、失敗、略過與僅送達。模型內容與工作 lifecycle 不變，重新 `/reload` 才會載入。
 
-背景工作自動在輸入欄上方（`aboveEditor`）顯示共用 Jobs 面板，Subagent／Shell／Fork／Monitor／PTY／Schedule **合計最多五個 job，每個一行**（標題／命令＋權威狀態／已回報用量；面板為 `── Jobs Panel ──` 標題線（主題 `accent` 色，所有底部面板共用）、各類計數列、job 列與 `[Open]` 列，沒有下方分隔線，無背景色方塊），不在 footer 重複顯示摘要。Parallel／chain 以一個 job 聚合，Open 詳細畫面再展開 tasks；取消、執行、排隊與 finalizing 明確區分，數量不是 OS child 行程數。終端高度不足減少顯示列數、窄欄截短不折行。`[Open]`（超出時前綴 `… N more`）開啟有界清單：一般模式用 `/background-jobs [more|all|subagents|shell|fork|monitor|pty|schedule]`，fullscreen 亦可點完整 `[Open]` 標籤；↑↓ 選取、Enter 詳細、Tab 最近完成／全部、Esc 返回／關閉後恢復 editor，背景更新不搶焦點／不重開浮層。`collapse` 明確隱藏常駐面板，下次 more／all 可恢復。完成 job 從常駐面板移除，但 Open 可查看目前 runtime 仍保留的結果 metadata；不重建跨 reload 歷史。Subagent 的 `reported … tok*` 是本次 invocation 已確認回報的累計用量，不是正在生成中的逐 token 計數；無資料顯示 pending／unknown，Shell 顯示 tokens N/A，query usage 獨立且不加入主工作或 host totals。事件更新、不讀 log／prompt／輸出、不輪詢或新增 ticker，不改工具選取、registry／trust／通知／取消語意。僅 TUI+hasUI，RPC／JSON／print 不掛面板，不列前景／其他 session；面板消失或取消要求不代表 process tree 已停止。等待現有背景工作結束後 `/reload` 載入。
+背景工作自動在輸入欄上方（`aboveEditor`）顯示共用 Jobs 面板，Subagent／Shell／Spinoff／Monitor／PTY／Schedule **合計最多五個 job，每個一行**（標題／命令＋權威狀態／已回報用量；面板為 `── Jobs Panel ──` 標題線（主題 `accent` 色，所有底部面板共用）、各類計數列、job 列與 `[Open]` 列，沒有下方分隔線，無背景色方塊），不在 footer 重複顯示摘要。Parallel／chain 以一個 job 聚合，Open 詳細畫面再展開 tasks；取消、執行、排隊與 finalizing 明確區分，數量不是 OS child 行程數。終端高度不足減少顯示列數、窄欄截短不折行。`[Open]`（超出時前綴 `… N more`）開啟有界清單：一般模式用 `/background-jobs [more|all|subagents|shell|spinoff|monitor|pty|schedule]`，fullscreen 亦可點完整 `[Open]` 標籤；↑↓ 選取、Enter 詳細、Tab 最近完成／全部、Esc 返回／關閉後恢復 editor，背景更新不搶焦點／不重開浮層。`collapse` 明確隱藏常駐面板，下次 more／all 可恢復。完成 job 從常駐面板移除，但 Open 可查看目前 runtime 仍保留的結果 metadata；不重建跨 reload 歷史。Subagent 的 `reported … tok*` 是本次 invocation 已確認回報的累計用量，不是正在生成中的逐 token 計數；無資料顯示 pending／unknown，Shell 顯示 tokens N/A，query usage 獨立且不加入主工作或 host totals。事件更新、不讀 log／prompt／輸出、不輪詢或新增 ticker，不改工具選取、registry／trust／通知／取消語意。僅 TUI+hasUI，RPC／JSON／print 不掛面板，不列前景／其他 session；面板消失或取消要求不代表 process tree 已停止。等待現有背景工作結束後 `/reload` 載入。
 
 使用 explicit `--tools` 時要加入需要的五個管理／互動工具；shell 管理工具預設 inactive，須額外選取，extension 不改你的 loadout／settings。完整 receipt、資源上限與互動語意見 [Subagents](modules/subagents/README.md)、[Shell Tools](modules/shell-tools/README.md) 與 [設定](docs/configuration.md#background-execution-and-interaction)。新能力以 Pi 1.0.0 離線 host 驗證；真實 provider 尚未驗證。
 
@@ -220,7 +220,7 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 
 ### 2026-11-05 模組解耦與 `shared/`
 
-新增根目錄函式庫 `shared/`（非模組、無 extension 入口、單向被 `modules/*` import，規則見 `shared/README.md`）：forced-prompt 附加與 `registerPromptSection`（`prompt/`）、跨模組工具名常數（`contracts/`）、背景共用層（`background/`）、設定面板函式庫（`settings-panel/`）。跨工具 system prompt 規則拆回各模組（`file_rules`、`web_rules`、`shell_rules`、`subagent_rules`、`fork_rules`，通用部分 `cross_tool_rules` 留在 Pi Runtime），所有 `pi_*_` 前綴的 section 鍵去前綴；Fork 只經 `modules/subagents/src/fork-contract.ts` 使用 Subagents。升級後既有 session 的第一個請求 prompt 快取 miss 一次。`pi-runtime` 已無用的 `policy.ts`／`debug-log.ts` 殘留已刪除。耦合調查前後對照見 `reports/`（不進版控）。
+新增根目錄函式庫 `shared/`（非模組、無 extension 入口、單向被 `modules/*` import，規則見 `shared/README.md`）：forced-prompt 附加與 `registerPromptSection`（`prompt/`）、跨模組工具名常數（`contracts/`）、背景共用層（`background/`）、設定面板函式庫（`settings-panel/`）。跨工具 system prompt 規則拆回各模組（`file_rules`、`web_rules`、`shell_rules`、`subagent_rules`、`fork_rules`，通用部分 `cross_tool_rules` 留在 Pi Runtime），所有 `pi_*_` 前綴的 section 鍵去前綴；Spinoff 只經 `modules/subagents/src/spinoff-contract.ts` 使用 Subagents。升級後既有 session 的第一個請求 prompt 快取 miss 一次。`pi-runtime` 已無用的 `policy.ts`／`debug-log.ts` 殘留已刪除。耦合調查前後對照見 `reports/`（不進版控）。
 
 ### 2026-11-04 移除 Blackhole 與 `/fork:delegate`
 
@@ -228,7 +228,7 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 
 ### 2026-11-10 Pi 1.5.2 升級
 
-根四個 Pi devDependencies 與 lockfile 升為 1.5.2，真實 host 斷言改為只接受 1.5.2，不再驗證 1.5.0。Fork child 的 guard 依 `ctx.model.api` 寫入 Pi 1.5.1 起改名的 session 親和標頭（見 [Fork README](modules/fork/README.md) 4a）。同日 Pi Auto Compact 移除間隔式檢查點、`note` 移除 `checkpoint` 類型，改由死線通知要求呼叫 `progress_checkpoint`。細節見 [docs/migration.md](docs/migration.md)。
+根四個 Pi devDependencies 與 lockfile 升為 1.5.2，真實 host 斷言改為只接受 1.5.2，不再驗證 1.5.0。Spinoff child 的 guard 依 `ctx.model.api` 寫入 Pi 1.5.1 起改名的 session 親和標頭（見 [Spinoff README](modules/subagents/src/spinoff/README.md) 4a）。同日 Pi Auto Compact 移除間隔式檢查點、`note` 移除 `checkpoint` 類型，改由死線通知要求呼叫 `progress_checkpoint`。細節見 [docs/migration.md](docs/migration.md)。
 
 ### 2026-11-03 Pi 1.5.0 升級
 
@@ -246,7 +246,7 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 
 入口 `modules/monitor/src/index.ts`，三工具 `defaultActive:true`，不需加入 `defaultTools`，explicit allowlist／exclude／no-tools／手動停用仍有效；managed child 完全不註冊並拒絕直接 execute。`monitor_start` 支援 command stdout、WebSocket text、既有 Shell/Subagent readonly job snapshots；`monitor_status`／`monitor_stop` 只操作本 session/canonical cwd/generation。總期限預設5分鐘、上限30分鐘（不是Shell輸出停滯timeout）；4 active、32 retained、固定 byte/rate/buffer bounds。WS預設公網wss，private與ws需本URL分別opt-in；驗證後DNS pin、TLS/SNI、禁redirect/compression、16KiB preallocation cap；root direct `ws@8.22.0`。Job停止只清timer，不取消原工作／query模型；command stderr僅診斷、stdin ignored。Legacy WSL stdin transport拒絕，不偷偷換shell。
 
-`monitor_event` 使用與 Shell／Fork 通知一致的主題背景面板，不再直接顯示 raw JSON；收合顯示來源狀態與末三筆事件，展開顯示完整 IDs 與此通知保留的資料，控制碼只在顯示層清理，最多300行。
+`monitor_event` 使用與 Shell／Spinoff 通知一致的主題背景面板，不再直接顯示 raw JSON；收合顯示來源狀態與末三筆事件，展開顯示完整 IDs 與此通知保留的資料，控制碼只在顯示層清理，最多300行。
 
 `wakeAgent` 預設true，使用 `triggerTurn:true, deliverAs:"steer"`；false仍提交模型可見的display custom `monitor_event`，但不主動要求turn（下次合法模型請求可見，不是永遠只給使用者）。Shell 自動建立的 Monitor 固定為false，原 Shell job 完成通知另會喚醒 Agent。面板標示 Agent turn requested／Display only，舊資料沒有 wakeAgent 欄位時顯示 unknown；不以顯示成功冒稱模型送達確認。Busy由agent_start/agent_settled維持，ordered data／bounded batches，submitted不代表host ack／persisted；cancel/exit不代表source close／descendants cleanup，reload不恢復或重播。完整schema／limits／producer交接與驗證邊界見 [Monitor README](modules/monitor/README.md)。
 
@@ -334,7 +334,7 @@ pi -p "Extract company name: Acme" --json-schema $schema --json-output result.js
 }
 ```
 
-二十一個模組（subagents、shell-tools、file-tools、web-tools、note-tools、file-audit、gpt-speed、json-schema、pty-terminal、schedule-commands、pi-runtime、monitor、skill-tools、theme-tools、fork、sqlite-tools、sql-connector、remote、image-generation、pi-auto-compact、pi-custom-panel）的公開入口均為 `modules/<name>/src/index.ts`。薄入口轉接既有實作，內部資源位置不變。
+二十個模組（subagents（含 Spinoff）、shell-tools、file-tools、web-tools、note-tools、file-audit、gpt-speed、json-schema、pty-terminal、schedule-commands、pi-runtime、monitor、skill-tools、theme-tools、sqlite-tools、sql-connector、remote、image-generation、pi-auto-compact、pi-custom-panel）的公開入口均為 `modules/<name>/src/index.ts`。薄入口轉接既有實作，內部資源位置不變。
 
 Filters 以整合包 root 為基準；與 tool allowlist 不同，它們控制 extension 是否執行／是否啟動生命週期資源。既有 filters 若使用舊入口路徑，請手動更新為新路徑，見 [入口遷移](docs/migration.md#unified-typescript-entry-points)。
 
@@ -357,7 +357,7 @@ npm run lint             # ESLint：JS／TS 語法與 correctness baseline，不
 npm test
 npm run test:integration
 npm run test:browser      # web_fetch 靜態抓取 + File read 組合（名稱沿用，不使用瀏覽器）
-npm run test:heavy        # 重型／高延遲測試（單檔 ≥30 秒，共 10 檔）；需使用者指定或全量驗證才執行，可加模組名縮小，如 -- fork
+npm run test:heavy        # 重型／高延遲測試（單檔 ≥30 秒，共 10 檔）；需使用者指定或全量驗證才執行，可加模組名縮小，如 -- spinoff
 npm run test:package      # 真實 tarball + 乾淨 production install；需要 npm registry
 npm pack                 # prepack 會執行 build（目前為 no-op）
 ```
@@ -375,3 +375,7 @@ Windows 隔離測試保留 `ProgramFiles`／`ProgramFiles(x86)` 的 OS 安裝目
 跨平台測試：Subagent transcript 位置以 `realpath` 驗證（包括 macOS `/var`／`/private/var` alias）；依遠端已授權的測試精簡移除大型 shell／stress probes，不宣稱仍有該項覆蓋。Web debug-log 解析明確的 Windows 絕對磁碟／UNC 路徑，其餘依宿主 cwd basename 正規化，保留 POSIX 檔名中的反斜線語意。Windows-only 平台測試仍另行標示 skip，不能算通過。
 
 所有長時間腳本定期輸出英文進度；測試不用真實憑證／付費模型。`test:package` 是封裝／runtime smoke，不等同全部 source regression。Skip 不算通過；人工 fullscreen TUI／真實 provider 不在離線驗證範圍。更多結構見 [docs/architecture.md](docs/architecture.md)。
+
+### 2026-11-16 Fork 併入 Subagents 並改名 Spinoff
+
+`modules/fork` 併入 `modules/subagents`（原始碼 `src/spinoff/`、測試 `tests/spinoff/`，一個 extension 入口、一個開關；`pi.extensions` 由二十二個減為二十一個）。工具由八個減為五個：`subagent`、`spinoff`，以及共用的 `agent_status`／`agent_cancel`／`agent_message`（原 `subagent_*` 與 `fork_*` 管理工具合併，依 `jobId`／`subagentSessionId` 分流）。Fork 改名 Spinoff：工具、`spinoff-result` 訊息、起源標記、`.pi/spinoffs`、`PI_SPINOFF_GUARD`、Monitor 來源 `spinoff_job`、Jobs 面板種類 `spinoff`（標籤 `SO`）與錯誤碼 `SPINOFF_*`；不支援舊名（舊 session 的折疊規則仍認得舊工具名）。升級後既有 session 的第一個請求 prompt 快取 miss 一次（工具集與 section 順序改變）。參考實作：`pi-web-main/extensions/subagents`（該專案為同行程 SDK 版，只借用入口與工具路由的合併方式）。

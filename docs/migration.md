@@ -58,9 +58,9 @@ File Tools 現覆寫 `read/write/edit/ls` 四工具；`ls` 沿用 host factory�
 
 保存資料不遷移：Subagents `hostContract: "0.99.1"` 保留。升級 SDK 不允許直接把 durable format 字串換為 1.0.0；已有 managed sessions 仍依原 owner／fingerprint／guard 驗證。
 
-## Fork addition
+## Spinoff addition
 
-Manifest adds `modules/fork/src/index.ts` (14 local/16 total entries, seven native modules). No new runtime dependency (`ulid` is already a root dependency). The Subagent argument builder now also excludes `fork,fork_status,fork_cancel`; Shell/Subagents readonly capability providers gained an optional count-only callback. Entry filters that exclude native modules by path should add `./modules/fork/src/index.ts` handling; excluding the module in one project while using it in another is not a supported topology (see `modules/fork/README.md`). The tools are inactive until selected.
+Manifest adds `modules/fork/src/index.ts` (14 local/16 total entries, seven native modules). No new runtime dependency (`ulid` is already a root dependency). The Subagent argument builder now also excludes `fork,agent_status,agent_cancel`; Shell/Subagents readonly capability providers gained an optional count-only callback. Entry filters that exclude native modules by path should add `./modules/fork/src/index.ts` handling; excluding the module in one project while using it in another is not a supported topology (see `modules/fork/README.md`). The tools are inactive until selected.
 
 ## Monitor addition
 
@@ -88,21 +88,21 @@ No module needs a build; `/reload` or restart loads the TS sources. No persisten
 
 ## Subagent persistence API change
 
-All initial single/parallel/chain tasks create managed native sessions automatically. Remove `resumable: true` or `resumable: false`; the removed parameter is explicitly rejected. `subagent` now creates only: its `resume` parameter is removed and old continuation calls must migrate to `subagent_message`.
+All initial single/parallel/chain tasks create managed native sessions automatically. Remove `resumable: true` or `resumable: false`; the removed parameter is explicitly rejected. `subagent` now creates only: its `resume` parameter is removed and old continuation calls must migrate to `agent_message`.
 
 ```text
 Before: subagent({ resume: "<session ID>", task: "<new work>" })
-After:  subagent_message({ subagentSessionId: "<session ID>", message: "<new work>" })
+After:  agent_message({ subagentSessionId: "<session ID>", message: "<new work>" })
 
-Before: subagent_message({ jobId: "<job>", taskId: "<task>", mode: "control", message: "..." })
-After:  subagent_message({ subagentSessionId: "<session ID>", message: "..." })
+Before: agent_message({ jobId: "<job>", taskId: "<task>", mode: "control", message: "..." })
+After:  agent_message({ subagentSessionId: "<session ID>", message: "..." })
 ```
 
 `mode` defaults to control; add `mode:"query"` for a live-only read-only snapshot request. An optional display `title` belongs on the message call. Do not transfer old `background`, agent, cwd, model/provider/thinking or trust overrides to the message tool: continuation is always asynchronous and uses saved configuration.
 
 Successful background creation returns each real managed session ID before returning the queued receipt, even for not-yet-started chain items. Log paths still appear only when the logs exist. Session identity is not readiness: queued/startup/finalizing/canceling/busy states refuse messages without a waiting queue. The message tool selects live control or verified-ready continuation automatically and returns the selected action. Continuation keeps the session ID, starts a new invocation and returns new job/task IDs; callers that previously awaited synchronous resume must handle its acceptance receipt and later task_result followUp instead.
 
-Update explicit parent tool allowlists to include `subagent_message` where continuation is needed; this tool now has invocation-starting capability. The repository never edits real loadouts/settings or implicitly enables it. Query does not revive mainline work. Failure/cancellation does not grant resumability: only an eligible verified checkpoint can continue. Unknown delivery is not permission to repeat the same instruction. Reload/restart Pi to refresh schemas and prompt guidelines after existing jobs settle.
+Update explicit parent tool allowlists to include `agent_message` where continuation is needed; this tool now has invocation-starting capability. The repository never edits real loadouts/settings or implicitly enables it. Query does not revive mainline work. Failure/cancellation does not grant resumability: only an eligible verified checkpoint can continue. Unknown delivery is not permission to repeat the same instruction. Reload/restart Pi to refresh schemas and prompt guidelines after existing jobs settle.
 
 This change also updates the bundled worker definition and orchestration prompts. Sessions saved with the previous bundled worker fingerprint may be refused with `CONFIG_CHANGED`, even when a prior result said `canResume:true`. This is intentional saved-configuration validation, not an automatic migration: use a new session with an explicit handoff when the old definition cannot be retained; do not alter saved fingerprints to bypass guards. User-defined agents with unchanged paths/content still undergo the same validation.
 
@@ -132,7 +132,7 @@ These slim model-visible output and schemas; tool names, settings keys, storage 
 
 - File Tools: `read` output no longer carries a `LINE_PREFIX` marker, metadata is a single line, `edit` returns a compact patch, `write` returns no `details` payload; error recovery text points to shell. Descriptions/schemas/guidelines are de-duplicated.
 - Shell Tools: background `shell_job_status` omits `jobId` to list jobs and returns new status/list fields; output keeps a tail ring buffer (`MAX_RAW_CAPTURE_BYTES` 8192); `compactJob` text is shorter; the receipt wording is decided dynamically from `getActiveTools`. `timeoutMs` remains the output-stall deadline.
-- Subagents: `subagent_status` omits `jobId` to list jobs; outputSchema is a Union; `finalLogPath` is returned; capacity errors carry the submitted payload; foreground results include `structuredContent`; receipts/notifications are slimmer; bundled agents and prompts state an output contract. `hostContract: "0.99.1"` is unchanged.
+- Subagents: `agent_status` omits `jobId` to list jobs; outputSchema is a Union; `finalLogPath` is returned; capacity errors carry the submitted payload; foreground results include `structuredContent`; receipts/notifications are slimmer; bundled agents and prompts state an output contract. `hostContract: "0.99.1"` is unchanged.
 - Web Tools: **`web_search` no longer accepts a `provider` argument** (provider is chosen by configuration only; legacy `provider` arguments are dropped, not rejected). Errors include a next-step hint; description/guidelines are dynamic.
 - PTY Terminal: `pty_read` gains `waitFor`/`settleMs`/`format`/`since` (cursor-based re-read without drain); `pty_write` gains `keys`/`readAfterMs`; `pty_wait_exit` reports `timedOut` and an SSH 255 note; new optional `pi-pty-terminal.env.{allow,deny}` settings filter inherited local environment (default unchanged). Return text is slimmer (defaults omitted; `pty_spawn` returns `sessionId`).
 - Note Tools: filenames are `TYPE-<UTC timestamp>.md` (compact UTC with milliseconds; no title or content slug); empty/whitespace content fails with `NOTE_EMPTY`; the result text has a single relative path. Existing notes are not renamed.
@@ -174,8 +174,8 @@ The four root Pi development packages, the lockfile and every real-host version 
 
 Changes in this repository caused by 1.5.1/1.5.2:
 
-- **Session-affinity headers:** Pi 1.5.1 renamed them per provider API (`session-id` for OpenAI Responses and Codex, `session_id`/`x-session-affinity` for OpenAI-compatible completions, `x-session-id` for OpenRouter, `x-session-affinity` for Anthropic). The Fork child guard writes the names of the current `ctx.model.api` (all of them for an unknown API) as the parent session id; see Fork README 4a/4b.
-- Measured on 1.5.2 (opencode-go/deepseek-v4.1-flash, one sample): the Fork child's first request read 46080 of 46308 tokens from cache.
+- **Session-affinity headers:** Pi 1.5.1 renamed them per provider API (`session-id` for OpenAI Responses and Codex, `session_id`/`x-session-affinity` for OpenAI-compatible completions, `x-session-id` for OpenRouter, `x-session-affinity` for Anthropic). The Spinoff child guard writes the names of the current `ctx.model.api` (all of them for an unknown API) as the parent session id; see Spinoff README 4a/4b.
+- Measured on 1.5.2 (opencode-go/deepseek-v4.1-flash, one sample): the Spinoff child's first request read 46080 of 46308 tokens from cache.
 - Verification run: typecheck, lint, unit, cross, integration and the heavy group. The only failing integration stage is the known-upstream `@ff-labs/pi-fff` 0.11.0 aux-finder capacity defect (D14, not caused by 1.5.2).
 
 Separate change of the same day (not host-caused): the `note` tool lost its `checkpoint` type, and Pi Auto Compact lost its interval checkpoint (the deadline notice now asks for `progress_checkpoint`).

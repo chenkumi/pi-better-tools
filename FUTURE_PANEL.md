@@ -1,6 +1,6 @@
 # FUTURE_PANEL
 
-在 Pi 的 fullscreen TUI 右側讓出一欄放面板，並把 Subagent／Fork 的即時對話串流進去。本檔是調查結果與設計草案，**尚未實作成正式功能**。實驗碼在 `tools/side-panel-spike/`（未提交）。依據為 Pi 1.5.0（`node_modules/@earendil-works/*` 與 `C:\GitHub\pi` 原始碼）與 Windows 上的實測；離線 provider，未呼叫真實模型。
+在 Pi 的 fullscreen TUI 右側讓出一欄放面板，並把 Subagent／Spinoff 的即時對話串流進去。本檔是調查結果與設計草案，**尚未實作成正式功能**。實驗碼在 `tools/side-panel-spike/`（未提交）。依據為 Pi 1.5.0（`node_modules/@earendil-works/*` 與 `C:\GitHub\pi` 原始碼）與 Windows 上的實測；離線 provider，未呼叫真實模型。
 
 ## 1. 結論
 
@@ -44,21 +44,21 @@
 ```
 子代 pi --mode rpc ──stdout 事件──▶ modules/fork/src/child.ts（spec.onEvent）
    ──▶ LiveTranscript（shared/src/background/live-transcript.ts，記憶體內的對話副本）
-   ──▶ PanelJob.transcripts（BackgroundPanel 單例持有；Fork 在 manager.ts、Subagent 在 background.ts 餵入）
+   ──▶ PanelJob.transcripts（BackgroundPanel 單例持有；Spinoff 在 manager.ts、Subagent 在 background.ts 餵入）
    ──▶ TranscriptView（同檔，用 Pi 自己的 AssistantMessageComponent／ToolExecutionComponent 渲染）
    ──▶ 右欄
 ```
 
 - `BackgroundPanel` 是以事件 rendezvous（`acquireBackgroundPanel(pi)`）共用的單例，各模組以 `attach/update/detach` 提供 `PanelSnapshot`。
-- `LiveTranscript` 在終態 `release()`：右欄只在任務執行中有即時內容，完成後只剩 metadata；最終結果仍由 `fork-result` 等既有訊息送達。這是現有設計，不要為了面板改成保留。
+- `LiveTranscript` 在終態 `release()`：右欄只在任務執行中有即時內容，完成後只剩 metadata；最終結果仍由 `spinoff-result` 等既有訊息送達。這是現有設計，不要為了面板改成保留。
 - 面板必須與 `LiveTranscript` 一樣只是顯示層：不寫檔、不進模型 context、不影響終態或 usage。
 
-### 端到端實測（真實 Fork 模組 + 離線 provider，120×30，右欄 44 欄）
+### 端到端實測（真實 Spinoff 模組 + 離線 provider，120×30，右欄 44 欄）
 
-- 右欄標題「FORKS & SUBAGENTS (1 running)」，列出 `▶ fork offline fork — running`。
+- 右欄標題「FORKS & SUBAGENTS (1 running)」，列出 `▶ spinoff offline spinoff — running`。
 - 先出現子代收到的任務提示，接著 assistant 串流文字逐步長出，超過欄高時只留尾端。
-- 約 20 秒後 Fork 完成，狀態變 `· fork … — completed`，即時內容清空。
-- Subagent 走同一條路（`modules/subagents/extensions/subagent/background.ts` 也餵 `LiveTranscript`），**只實測了 Fork**。
+- 約 20 秒後 Spinoff 完成，狀態變 `· spinoff … — completed`，即時內容清空。
+- Subagent 走同一條路（`modules/subagents/extensions/subagent/background.ts` 也餵 `LiveTranscript`），**只實測了 Spinoff**。
 
 ## 5. 調查中發現的 bug（已修復）
 
@@ -92,11 +92,11 @@
 | 檔案 | 用途 |
 |---|---|
 | `panel-ext.ts`／`run.mjs` | 最小面板：包住根版面、回聲 provider、縮放與 `/reload` 測試（環境變數 `SPIKE_REGULAR`、`SPIKE_RELOAD`、`SPIKE_NOPANEL`、`SPIKE_PANEL_WIDTH`） |
-| `fork-panel-ext.ts`／`run-fork.mjs` | 真實 Fork 模組 + 慢速離線 provider，右欄顯示 Fork 即時對話（`SPIKE_CHILD_CHUNKS`、`SPIKE_CHILD_CHUNK_MS`、`SPIKE_TEE`、`SPIKE_NO_DELTA_FIX`） |
+| `spinoff-panel-ext.ts`／`run-spinoff.mjs` | 真實 Spinoff 模組 + 慢速離線 provider，右欄顯示 Spinoff 即時對話（`SPIKE_CHILD_CHUNKS`、`SPIKE_CHILD_CHUNK_MS`、`SPIKE_TEE`、`SPIKE_NO_DELTA_FIX`） |
 | `rpc-events.mjs` | 直接起一個 `--mode rpc` 子行程，列出事件類型與時間，確認 delta-only 形狀 |
 
-執行需 `node --import tsx`（解析 `.js`→`.ts`），終端模擬用 `tools/pty-mcp` 的 `@xterm/headless`。`fork-panel-ext.ts` 內的 `applyDeltaFix` 是修復前用來證明串流可顯示的實例層包裝；正式修復在 `LiveTranscript` 本身，實驗檔之後可移除。
+執行需 `node --import tsx`（解析 `.js`→`.ts`），終端模擬用 `tools/pty-mcp` 的 `@xterm/headless`。`spinoff-panel-ext.ts` 內的 `applyDeltaFix` 是修復前用來證明串流可顯示的實例層包裝；正式修復在 `LiveTranscript` 本身，實驗檔之後可移除。
 
 ## 9. 與先前 mux 方案的關係
 
-先前的 mux 方案（見 `FUTURE.md` 第 3、5、6、7 節）解決的是「在另一個終端窗格看到子代的畫面」。本方案不需要另一個窗格或雙通道，面板跑在 Pi 行程內，代價是只能顯示主代理這邊已經持有的資料（Subagent／Fork／Shell／Monitor／PTY 的狀態與子代對話副本），且只限 fullscreen。兩者不互斥。
+先前的 mux 方案（見 `FUTURE.md` 第 3、5、6、7 節）解決的是「在另一個終端窗格看到子代的畫面」。本方案不需要另一個窗格或雙通道，面板跑在 Pi 行程內，代價是只能顯示主代理這邊已經持有的資料（Subagent／Spinoff／Shell／Monitor／PTY 的狀態與子代對話副本），且只限 fullscreen。兩者不互斥。

@@ -5,8 +5,9 @@
  */
 export const SHELL_TOOLS = ['bash', 'powershell'] as const;
 export const SHELL_JOB_TOOLS = ['shell_job_status', 'shell_job_cancel'] as const;
-export const SUBAGENT_TOOLS = ['subagent', 'subagent_status', 'subagent_cancel', 'subagent_message'] as const;
-export const FORK_TOOLS = ['fork', 'fork_status', 'fork_cancel', 'fork_message'] as const;
+export const SUBAGENT_TOOLS = ['subagent', 'agent_status', 'agent_cancel', 'agent_message'] as const;
+/** Spinoff is created with `spinoff` only; it is read, cancelled and messaged with the `agent_*` tools of SUBAGENT_TOOLS (a `jobId` that names one of this session's Spinoffs). */
+export const SPINOFF_TOOLS = ['spinoff'] as const;
 export const MONITOR_TOOLS = ['monitor_start', 'monitor_status', 'monitor_stop'] as const;
 export const PROGRESS_CHECKPOINT_TOOL = 'progress_checkpoint';
 

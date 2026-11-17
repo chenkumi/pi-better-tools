@@ -318,8 +318,8 @@ export class ManagedSession {
 		return new ManagedSession(root, directory, manifest);
 	}
 	static async resolve(root: string, id: string, owner: SessionOwner): Promise<ManagedSession> {
-		if (!SESSION_ID.test(id)) fail("INVALID_DISPATCH", `subagentSessionId ${JSON.stringify(id.length > 80 ? `${id.slice(0, 80)}...` : id)} is not a complete session ID (uppercase ULID, or legacy lowercase ULID/UUID; not a path, jobId, taskId or partial ID). Copy the full ID from the subagent result or subagent_status({ jobId }).`);
-		const notFound = () => fail("SESSION_NOT_FOUND", `No managed session with subagentSessionId "${id}" exists for this parent session and cwd. Call subagent_status (no jobId) to list jobs, then subagent_status({ jobId }) to read each task's subagentSessionId; only IDs created by this session/cwd can be messaged.`);
+		if (!SESSION_ID.test(id)) fail("INVALID_DISPATCH", `subagentSessionId ${JSON.stringify(id.length > 80 ? `${id.slice(0, 80)}...` : id)} is not a complete session ID (uppercase ULID, or legacy lowercase ULID/UUID; not a path, jobId, taskId or partial ID). Copy the full ID from the subagent result or agent_status({ jobId }).`);
+		const notFound = () => fail("SESSION_NOT_FOUND", `No managed session with subagentSessionId "${id}" exists for this parent session and cwd. Call agent_status (no jobId) to list jobs, then agent_status({ jobId }) to read each task's subagentSessionId; only IDs created by this session/cwd can be messaged.`);
 		try { root = await fs.promises.realpath(root); } catch { return notFound(); }
 		const directory = path.join(root, id);
 		let m: unknown;

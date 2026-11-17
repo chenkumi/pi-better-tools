@@ -107,7 +107,7 @@ export function createImageTool(deps: ImageToolDeps): ToolDefinition {
       const { backend, request } = validate(params, config);
       const progress = (text: string) => { try { onUpdate?.({ content: [{ type: 'text', text }], details: {} }); } catch { /* progress is display only */ } };
       // Everything that can fail without cost comes before the confirmation and the request.
-      await prepareOutputDir(ctx.cwd, config.outputDir, false); // validation only: nothing is created before the user has approved
+      const target = await prepareOutputDir(ctx.cwd, config.outputDir);
       const base: BackendEnv = { timeoutMs: backend === 'codex' ? config.codex.timeoutMs : config.timeoutMs, onProgress: progress, ...(signal ? { signal } : {}) };
       const codexEnv: CodexEnv = { ...base, ...deps.codex };
       const apiKey = backend === 'codex' ? '' : await key(ctx, backend);
@@ -115,7 +115,7 @@ export function createImageTool(deps: ImageToolDeps): ToolDefinition {
 
       const sessionKey = `${ctx.sessionManager.getSessionId()}:${backend}`;
       if (config.confirm === 'always' || (config.confirm === 'first' && !confirmed.has(sessionKey))) {
-        if (!ctx.hasUI) throw new ToolError('IMAGE_CONFIRM_UNAVAILABLE', 'This paid request needs the user\'s approval, and there is no interactive UI here (for example in a Fork). Ask the user to run it in the main session, or to set "confirm": "never" in the image-generation settings.');
+        if (!ctx.hasUI) throw new ToolError('IMAGE_CONFIRM_UNAVAILABLE', 'This paid request needs the user\'s approval, and there is no interactive UI here (for example in a Spinoff). Ask the user to run it in the main session, or to set "confirm": "never" in the image-generation settings.');
         const ok = await (deps.confirm ?? bottomConfirm)(ctx, 'Generate image', [
           `Generate ${request.count} image${request.count === 1 ? '' : 's'} with ${BACKEND_LABELS[backend]} (${MODEL_OF(config, backend)})?`,
           `Prompt (${request.prompt.length} characters): ${clean(request.prompt, 200)}`,
@@ -131,7 +131,6 @@ export function createImageTool(deps: ImageToolDeps): ToolDefinition {
       else if (backend === 'gemini') result = await generateGemini(request, config.gemini, apiKey, { ...base, ...deps.gemini });
       else result = await generateCodex(request, config.codex, codexEnv);
 
-      const target = await prepareOutputDir(ctx.cwd, config.outputDir);
       const files = await saveImages(target, result.images, (deps.now ?? (() => new Date()))());
       const details = {
         backend, model: result.model, controls: result.controls, files, ignored: result.ignored, notes: result.notes,

@@ -49,7 +49,7 @@ test('every tool registered under a literal name has a fold rule or is generic b
 
 test('the scan still finds the tools it is meant to guard', () => {
   const found = literalToolNames();
-  for (const name of ['read', 'bash', 'subagent', 'fork', 'pty_read', 'sqlite_query', 'web_fetch', 'remote_send']) assert.ok(found.has(name), `scan lost ${name}`);
+  for (const name of ['read', 'bash', 'subagent', 'spinoff', 'pty_read', 'sqlite_query', 'web_fetch', 'remote_send']) assert.ok(found.has(name), `scan lost ${name}`);
 });
 
 test('GENERIC_BY_DESIGN does not hide tools that now have a rule', () => {

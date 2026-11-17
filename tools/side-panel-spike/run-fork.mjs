@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 import pty from 'node-pty';
 
 const { Terminal } = createRequire(resolve('tools/pty-mcp/package.json'))('@xterm/headless');
-const forkEntry = resolve('modules/fork/src/index.ts');
+const forkEntry = resolve('modules/subagents/src/index.ts');
 const panelExt = resolve('tools/side-panel-spike/fork-panel-ext.ts');
 const cli = resolve('node_modules/@earendil-works/pi-coding-agent/dist/cli.js');
 const root = mkdtempSync(join(tmpdir(), 'spike-forkpanel-'));
@@ -20,7 +20,7 @@ const env = {};
 for (const key of ['PATH', 'Path', 'PATHEXT', 'SystemRoot', 'SYSTEMROOT', 'WINDIR', 'COMSPEC', 'TEMP', 'TMP', 'ProgramFiles', 'ProgramFiles(x86)']) if (process.env[key]) env[key] = process.env[key];
 Object.assign(env, { PI_CODING_AGENT_DIR: agent, HOME: root, USERPROFILE: root, APPDATA: join(root, 'appdata'), LOCALAPPDATA: join(root, 'localappdata'), PI_OFFLINE: '1', PI_TELEMETRY: '0', PI_SKIP_VERSION_CHECK: '1', SPIKE_LOG: logFile, FORK_CAPTURE: capture, SPIKE_CHILD_CHUNKS: '40', SPIKE_CHILD_CHUNK_MS: '400', ...(process.env.SPIKE_TEE ? { SPIKE_TEE: '1' } : {}) });
 const p = pty.spawn(process.execPath, [cli, '--offline', '--no-extensions', '--no-context-files', '--no-skills', '--no-prompt-templates', '--no-themes', '--no-approve',
-  '-e', forkEntry, '-e', panelExt, '--model', 'spike/fixture', '--thinking', 'off', '--tools', 'read,fork,fork_status', '--session-dir', sessions], { cwd: ws, cols, rows, env });
+  '-e', forkEntry, '-e', panelExt, '--model', 'spike/fixture', '--thinking', 'off', '--tools', 'read,fork,agent_status', '--session-dir', sessions], { cwd: ws, cols, rows, env });
 p.onData(d => term.write(d));
 const ENTER = String.fromCharCode(13);
 const dump = title => {

@@ -14,7 +14,7 @@
 
 - 切換呼叫 Pi 的 `setTheme`，與 `/settings` 相同：**會寫入使用者 settings 並持久化**（使用者明確要求）。只有輸入指令時才寫；載入 extension 不會改 settings。
 - 無 UI（print／rpc）時指令不做任何事。找不到主題等失敗以 warning 通知並列出可用名稱，不丟例外。
-- 所有 extension 的畫面（背景面板、Shell／Subagent／Fork／Monitor 卡片）都使用 Pi 主題色票，換主題即全部跟著換；本模組不指定 extension 專屬顏色。
+- 所有 extension 的畫面（背景面板、Shell／Subagent／Spinoff／Monitor 卡片）都使用 Pi 主題色票，換主題即全部跟著換；本模組不指定 extension 專屬顏色。
 
 ## 診斷
 

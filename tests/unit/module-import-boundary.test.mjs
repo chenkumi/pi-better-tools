@@ -6,7 +6,6 @@ import { scan } from '../../tools/module-coupling/scan.mjs';
 // it is reviewed and added; an edge that disappears fails it too, so the list can only shrink on purpose.
 // Each refactoring phase of plan/module-decoupling-plan.md edits this list together with the code.
 const ALLOWED = new Set([
-  'fork -> modules/subagents/src/fork-contract',
   'monitor -> modules/shell-tools/src/monitor-exec',
   'monitor -> modules/web-tools/src/fetch/network',
   'pty-terminal -> setup/commands',

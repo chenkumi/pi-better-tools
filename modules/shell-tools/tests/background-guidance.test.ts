@@ -13,7 +13,7 @@ function fixture(active: string[]) {
 }
 
 test('background lifecycle section is shared, idempotent and removed when tools are inactive', () => {
-  const active = ['bash', 'subagent', 'shell_job_cancel', 'subagent_cancel'];
+  const active = ['bash', 'subagent', 'shell_job_cancel', 'agent_cancel'];
   const { event, run } = fixture(active);
   run(); run();
   const section = event.systemPromptOptions.sections[BACKGROUND_LIFECYCLE_SECTION];
@@ -25,7 +25,7 @@ test('background lifecycle section is shared, idempotent and removed when tools 
   assert.match(section, /do not.*poll/i);
   assert.equal(event.systemPromptOptions.sections.other, 'KEEP');
   assert.equal(event.systemPromptOptions.customPrompt, 'USER PROMPT');
-  assert.deepEqual(active, ['bash', 'subagent', 'shell_job_cancel', 'subagent_cancel']);
+  assert.deepEqual(active, ['bash', 'subagent', 'shell_job_cancel', 'agent_cancel']);
   assert.deepEqual(Object.keys(event.systemPromptOptions.sections), ['other', BACKGROUND_LIFECYCLE_SECTION]);
   active.splice(0, active.length, 'read'); run();
   assert.equal(event.systemPromptOptions.sections[BACKGROUND_LIFECYCLE_SECTION], undefined);
@@ -33,14 +33,14 @@ test('background lifecycle section is shared, idempotent and removed when tools 
 });
 
 test('management-only loadouts receive guidance without enabling creation tools', () => {
-  for (const tool of ['powershell', 'shell_job_status', 'shell_job_cancel', 'subagent_status', 'subagent_cancel', 'subagent_message']) {
+  for (const tool of ['powershell', 'shell_job_status', 'shell_job_cancel', 'agent_status', 'agent_cancel', 'agent_message']) {
     const { event, run } = fixture([tool]); run();
     assert.ok(event.systemPromptOptions.sections[BACKGROUND_LIFECYCLE_SECTION]);
   }
 });
 
 test('forced prompts preserve other text, avoid duplicates and remove only owned guidance', () => {
-  const active = ['subagent_status'];
+  const active = ['agent_status'];
   const { event, run } = fixture(active);
   event.systemPromptOptions.forceSystemPrompt = 'FORCED KEEP';
   run(); run();

@@ -2,7 +2,7 @@
  * Live "[Background Jobs]" reminder for a compaction summary.
  *
  * Not carried forward: the summary is rebuilt at every compaction, so this block only describes the moment of compaction.
- * The data is the readonly id/status list that Shell, Subagents, Fork and PTY publish through the Monitor capability
+ * The data is the readonly id/status list that Shell, Subagents, Spinoff and PTY publish through the Monitor capability
  * rendezvous (PTY sessions arrive as brief-only rows): no commands, task text, output or paths.
  */
 import { activeJobBriefs, canonicalMonitorCwd, type ActiveJobBrief } from '../../../../shared/src/background/index.ts';
@@ -11,7 +11,7 @@ const MAX_ROWS = 16;
 const SAFE_ID = /^[A-Za-z0-9_.:-]{1,128}$/;
 const SAFE_STATUS = /^[a-z_]{1,32}$/;
 const PTY_HINT = "PTY sessions are interactive programs that may be waiting for input: check them with pty_list or pty_read, and do not spawn a duplicate.";
-const LABEL: Record<ActiveJobBrief["kind"], string> = { shell_job: "Shell Job", subagent_job: "Subagent Job", fork_job: "Fork Job", pty_session: "PTY Session", schedule_job: "Schedule Job" };
+const LABEL: Record<ActiveJobBrief["kind"], string> = { shell_job: "Shell Job", subagent_job: "Subagent Job", spinoff_job: "Spinoff Job", pty_session: "PTY Session", schedule_job: "Schedule Job" };
 
 export function renderBackgroundJobs(briefs: readonly ActiveJobBrief[], partial: boolean): string {
   const rows: string[] = [];

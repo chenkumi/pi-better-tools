@@ -121,7 +121,7 @@ test('observer or malformed input never throws into the caller', () => {
 
 test('overlay detail shows the live conversation, m toggles metadata, and falls back after release', () => {
   const transcript = new LiveTranscript(); feed(transcript);
-  const job: PanelJob = { kind: 'fork', jobId: 'F1', label: 'fork', title: 't', state: 'running', active: true, activity: 'running', usageState: 'pending', details: ['Metadata line'], transcripts: [{ label: 'fork', transcript }] };
+  const job: PanelJob = { kind: 'spinoff', jobId: 'F1', label: 'spinoff', title: 't', state: 'running', active: true, activity: 'running', usageState: 'pending', details: ['Metadata line'], transcripts: [{ label: 'spinoff', transcript }] };
   let renders = 0;
   const overlay = new JobsOverlay(() => [job], theme, () => renders++, () => {}, () => 30, tui, process.cwd());
   overlay.render(100); overlay.handleInput('\r');
@@ -214,7 +214,7 @@ test('Ctrl+O expands tool results inside the live view and collapses them again'
   transcript.ingest({ type: 'message_start', message: assistant([]) });
   transcript.ingest({ type: 'message_end', message: assistant([{ type: 'toolCall', id: 'c1', name: 'bash', arguments: { command: 'seq 1 20' } }]) });
   transcript.ingest({ type: 'tool_execution_end', toolCallId: 'c1', toolName: 'bash', isError: false, result: { content: [{ type: 'text', text: Array.from({ length: 20 }, (_, i) => `result line ${i + 1}`).join('\n') }] } });
-  const job: PanelJob = { kind: 'fork', jobId: 'F2', label: 'fork', title: 't', state: 'running', active: true, activity: 'running', usageState: 'pending', details: ['Metadata line'], transcripts: [{ label: 'fork', transcript }] };
+  const job: PanelJob = { kind: 'spinoff', jobId: 'F2', label: 'spinoff', title: 't', state: 'running', active: true, activity: 'running', usageState: 'pending', details: ['Metadata line'], transcripts: [{ label: 'spinoff', transcript }] };
   const overlay = new JobsOverlay(() => [job], theme, () => {}, () => {}, () => 40, tui, process.cwd());
   overlay.render(120); overlay.handleInput('\r');
   let text = plain(overlay.render(120).join('\n'));
@@ -241,7 +241,7 @@ test('panel signature tracks live copies by version, never by payload', () => {
 test('overlay: m does nothing without a live view, footer has no empty segment, selecting another job resets metadata mode', () => {
   const transcript = new LiveTranscript(); feed(transcript);
   const plainJob: PanelJob = { kind: 'shell', jobId: 'S1', label: 'bash', title: 'a', state: 'completed', active: false, activity: 'done', usageState: 'na', details: ['Plain detail'] };
-  const liveJob: PanelJob = { kind: 'fork', jobId: 'F2', label: 'fork', title: 'b', state: 'running', active: true, activity: 'running', usageState: 'pending', details: ['Live meta'], transcripts: [{ label: 'fork', transcript }] };
+  const liveJob: PanelJob = { kind: 'spinoff', jobId: 'F2', label: 'spinoff', title: 'b', state: 'running', active: true, activity: 'running', usageState: 'pending', details: ['Live meta'], transcripts: [{ label: 'spinoff', transcript }] };
   const overlay = new JobsOverlay(() => [liveJob, plainJob], theme, () => {}, () => {}, () => 30, tui, process.cwd());
   overlay.render(100); overlay.handleInput('\x1b[B'); overlay.render(100); overlay.handleInput('\r');
   let text = plain(overlay.render(100).join('\n'));
@@ -318,7 +318,7 @@ test('subagent registry: creating the first live copy notifies the panel so the 
 
 test('opening a live view from the list replaces the list: Esc closes the overlay; metadata-only details still go back', () => {
   const transcript = new LiveTranscript(); feed(transcript);
-  const live: PanelJob = { kind: 'fork', jobId: 'F3', label: 'fork', title: 'a', state: 'running', active: true, activity: 'running', usageState: 'pending', details: ['Live meta'], transcripts: [{ label: 'fork', transcript }] };
+  const live: PanelJob = { kind: 'spinoff', jobId: 'F3', label: 'spinoff', title: 'a', state: 'running', active: true, activity: 'running', usageState: 'pending', details: ['Live meta'], transcripts: [{ label: 'spinoff', transcript }] };
   const finished: PanelJob = { kind: 'shell', jobId: 'S3', label: 'bash', title: 'b', state: 'completed', active: false, activity: 'done', usageState: 'na', details: ['Finished meta'] };
   let closed = 0;
   const overlay = new JobsOverlay(() => [live, finished], theme, () => {}, () => { closed++; }, () => 30, tui, process.cwd());

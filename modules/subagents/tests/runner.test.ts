@@ -51,7 +51,7 @@ async function run(scenario: string, task = "test", controller?: AbortController
 				...extraRuntime,
 				onOwnedSettlement(settlement) { ownedSettlement = settlement; extraRuntime.onOwnedSettlement?.(settlement); },
 				invocation(args) {
-					assert.equal(args[args.indexOf("--exclude-tools") + 1], "subagent,subagent_status,subagent_cancel,subagent_message,fork,fork_status,fork_cancel,fork_message");
+					assert.equal(args[args.indexOf("--exclude-tools") + 1], "subagent,agent_status,agent_cancel,agent_message,spinoff");
 					assert.ok(args.join(" ").length < 4000);
 					taskPath = args.at(-1)!.slice(1);
 					promptPath = args[args.indexOf("--append-system-prompt") + 1];
@@ -791,7 +791,7 @@ for (const mixedModes of [false, true]) {
 					sessionManager: { getSessionId: () => "test-session" },
 				} as unknown as ExtensionContext);
 				assert.match(result.content[0].text, mixedModes ? /Provide exactly one of: single mode \(agent \+ task\), parallel mode \(tasks\[\]\), chain mode \(chain\[\]\)/ : /Too many parallel tasks \(33\). Max is 32/);
-				if (!mixedModes) assert.match(result.content[0].text, /submitted \d+\/32, active \d+\/8.*split into batches.*subagent_status.*subagent_cancel/);
+				if (!mixedModes) assert.match(result.content[0].text, /submitted \d+\/32, active \d+\/8.*split into batches.*agent_status.*agent_cancel/);
 				if (!mixedModes) assert.equal(result.isError, true);
 				assert.deepEqual(result.details.results, []);
 				assert.equal(confirm.mock.callCount(), 0);

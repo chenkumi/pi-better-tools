@@ -11,13 +11,12 @@ export interface SavedFile { path: string; bytes: number; sha256: string; mime: 
  * The project's output directory, created one segment at a time: any existing segment that is a link or not a directory
  * is refused, so a link can never move the files outside the project. `root` is the real project directory.
  */
-export async function prepareOutputDir(cwd: string, relativeDir: string, create = true): Promise<OutputTarget> {
+export async function prepareOutputDir(cwd: string, relativeDir: string): Promise<OutputTarget> {
   const root = await realpath(cwd);
   let current = root;
   for (const segment of relativeDir.split('/')) {
     current = join(current, segment);
     let info = await lstat(current).catch(() => undefined);
-    if (!info && !create) return { root, dir: current }; // validated so far; nothing below exists yet and nothing is created
     if (!info) {
       await mkdir(current).catch(error => { if ((error as { code?: string }).code !== 'EEXIST') throw new ToolError('IMAGE_OUTPUT_DIR', 'The output directory could not be created.'); });
       info = await lstat(current).catch(() => undefined);
@@ -25,12 +24,9 @@ export async function prepareOutputDir(cwd: string, relativeDir: string, create 
     if (!info || info.isSymbolicLink() || !info.isDirectory()) throw new ToolError('IMAGE_OUTPUT_DIR', `The output directory is not usable: "${relativeDir}" must be a real directory inside the project (no links).`);
   }
   const real = await realpath(current);
-  if (!samePath(real, current) || (real !== root && !real.startsWith(root + sep))) throw new ToolError('IMAGE_OUTPUT_DIR', 'The output directory resolves outside the project.');
+  if (real !== current || (real !== root && !real.startsWith(root + sep))) throw new ToolError('IMAGE_OUTPUT_DIR', 'The output directory resolves outside the project.');
   return { root, dir: real };
 }
-
-/** Windows and macOS file systems ignore case, and realpath returns the on-disk spelling. */
-const samePath = (a: string, b: string) => a === b || (process.platform !== 'linux' && a.toLowerCase() === b.toLowerCase());
 
 const stamp = (now: Date) => now.toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
 

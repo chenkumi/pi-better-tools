@@ -72,7 +72,7 @@ for (const order of ['subagent-first', 'web-first'] as const) {
     f.ctx.isProjectTrusted = () => false;
     f.run();
     assert.doesNotMatch(f.options.sections[CATALOG]!, /Project worker/);
-    f.active.splice(0, 1, 'subagent_status');
+    f.active.splice(0, 1, 'agent_status');
     f.run();
     assert.equal(f.options.sections[CATALOG], undefined);
     assert.ok(f.options.sections[BACKGROUND]);

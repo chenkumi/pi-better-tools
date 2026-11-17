@@ -13,4 +13,4 @@ If originals are unavailable, obtain the required reference material before chan
 
 Historical source contents could not be located in the checked WSL paths during the Linux compatibility work.
 
-This project keeps no file hash records: `docs/sources.json`, `docs/adaptations.json`, `docs/native-modules.json` and `npm run sources:verify` were removed on 2026-10-26 at the user's request. Import identity and licensing stay documented in `THIRD_PARTY_NOTICES.md` and each module README/LICENSE. A copied snapshot is a local fork, not a synchronized mirror, and no automatic source synchronization exists.
+This project keeps no file hash records: `docs/sources.json`, `docs/adaptations.json`, `docs/native-modules.json` and `npm run sources:verify` were removed on 2026-10-26 at the user's request. Import identity and licensing stay documented in `THIRD_PARTY_NOTICES.md` and each module README/LICENSE. A copied snapshot is a local spinoff, not a synchronized mirror, and no automatic source synchronization exists.

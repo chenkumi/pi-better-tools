@@ -59,7 +59,7 @@ try {
   session.setActiveToolsByName(session.getActiveToolNames().filter(name => !names.includes(name)));
   const definition = definitions().find(t => t.name === 'monitor_start')!;
   const inactive = await definition.execute('inactive', { source: { kind: 'command', tool: 'bash', command: 'MUST_NOT_RUN' } }, undefined, undefined, session.extensionRunner!.createToolContext('monitor-direct', undefined)); assert.equal(inactive.isError, true);
-  session.setActiveToolsByName([...names, 'bash', 'shell_job_status', 'subagent', 'subagent_status']);
+  session.setActiveToolsByName([...names, 'bash', 'shell_job_status', 'subagent', 'agent_status']);
   await session.prompt('seed durable offline owner');
   await session.extensionRunner!.emit({ type: 'agent_start' });
   const command = await execute('monitor_start', { source: { kind: 'command', tool: 'bash', command: "printf 'one\\ntwo\\n'; printf 'diagnostic' >&2; exit 7" }, wakeAgent: false });
@@ -103,11 +103,11 @@ try {
   const childMon = await execute('monitor_start', { source: { kind: 'subagent_job', jobId }, wakeAgent: false }); assert.ok(!childMon.isError, JSON.stringify(childMon));
   const childMonId = (childMon.structuredContent as any).monitorId;
   await execute('monitor_stop', { monitorId: childMonId }); await runtime.settled(childMonId);
-  assert.equal((await execute('subagent_status', { jobId })).structuredContent && ((await execute('subagent_status', { jobId })).structuredContent as any).cancelRequested, false);
+  assert.equal((await execute('agent_status', { jobId })).structuredContent && ((await execute('agent_status', { jobId })).structuredContent as any).cancelRequested, false);
   const childTools = JSON.parse(await readFile(join(cwd, 'monitor-child-tools.json'), 'utf8')); assert.ok(!childTools.some((n: string) => n.startsWith('monitor_')));
   const childDone = new Promise<void>(resolve => { const off = session.subscribe(e => { if (e.type === 'message_end' && (e.message as any).customType === 'subagent_background' && (e.message as any).details?.kind === 'task_result' && (e.message as any).details.jobId === jobId) { off(); resolve(); } }); });
   await writeFile(join(cwd, 'release-child'), 'release'); await childDone; await session.waitForIdle();
-  const childStatus = (await execute('subagent_status', { jobId })).structuredContent as any; assert.equal(childStatus.status, 'completed'); assert.equal(childStatus.cancelRequested, false);
+  const childStatus = (await execute('agent_status', { jobId })).structuredContent as any; assert.equal(childStatus.status, 'completed'); assert.equal(childStatus.cancelRequested, false);
   const terminal = await execute('monitor_start', { source: { kind: 'subagent_job', jobId }, wakeAgent: false }); const terminalId = (terminal.structuredContent as any).monitorId; await runtime.settled(terminalId); assert.equal(runtime.status(terminalId).state, 'completed');
   // Explicit marker, not RPC/cwd inference; direct saved-definition execution must reject too.
   (globalThis as any).__piSubagentsGuardExpected = { id: 'explicit-child', cwd, startupPath: join(cwd, 'unused'), shellMode: 'foreground-v1' };

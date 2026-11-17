@@ -26,7 +26,7 @@ async function setup(scenario = "normal") {
 	let tool: any, messageTool: any;
 	const messages = messageHarness();
 	const invocations: string[][] = [];
-	registerSubagent({ sendMessage: messages.sendMessage, registerMessageRenderer() {}, registerTool(t: any) { if (t.name === "subagent") tool = t; if (t.name === "subagent_message") messageTool = t; }, on() {} } as any, {
+	registerSubagent({ sendMessage: messages.sendMessage, registerMessageRenderer() {}, registerTool(t: any) { if (t.name === "subagent") tool = t; if (t.name === "agent_message") messageTool = t; }, on() {} } as any, {
 		debugLog: false, sessionRootDir: join(root, "managed"),
 		invocation(args) { invocations.push([...args]); return { command: process.execPath, args: [child, scenario, ...args] }; },
 	});

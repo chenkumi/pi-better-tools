@@ -25,41 +25,30 @@ export const agentRules: Record<string, FoldRule> = {
       return `${states || 'done'}${results.length > 6 ? ', …' : ''}; ${firstSentence(result.text)}`;
     },
   },
-  subagent_status: {
+  agent_status: {
     args: jobId,
     ok: (_call, result) => {
       const d = receiptOf(result);
-      return Array.isArray(d.jobs) ? idStatusList(d.jobs, 'job', 'jobId', 'status') : `${str(d.status) ?? 'unknown'}${d.cancelRequested === true ? ' (cancel requested)' : ''}`;
+      if (Array.isArray(d.jobs) || Array.isArray(d.spinoffs)) {
+        const jobs = Array.isArray(d.jobs) && d.jobs.length ? idStatusList(d.jobs, 'job', 'jobId', 'status') : '';
+        const spinoffs = Array.isArray(d.spinoffs) && d.spinoffs.length ? `spinoffs: ${idStatusList(d.spinoffs, 'job', 'jobId', 'status')}${d.partial === true ? ' (partial)' : ''}` : '';
+        return [jobs, spinoffs].filter(Boolean).join('; ') || 'no jobs';
+      }
+      const code = str(d.errorCode);
+      return `${str(d.status) ?? 'unknown'}${d.cancelRequested === true ? ' (cancel requested)' : ''}${code ? ` ${code}` : ''}${str(d.delivery) ? `, delivery ${d.delivery}` : ''}`;
     },
   },
-  subagent_cancel: {
+  agent_cancel: {
     args: jobId,
     ok: (_call, result) => `${str(receiptOf(result).status) ?? 'requested'} (cancellation is a request; not confirmed stopped)`,
   },
-  subagent_message: {
+  agent_message: {
     args: call => [jobId(call), str(call.args.mode)].filter(Boolean).join(' '),
     ok: (_call, result) => `${str(receiptOf(result).status) ?? firstSentence(result.text)} (accepted is not applied)`,
   },
-  fork: {
+  spinoff: {
     args: call => JSON.stringify(oneLine(redact(str(call.args.title) ?? str(call.args.task) ?? ''), 100)),
     ok: (_call, result) => firstSentence(result.text, 200),
-  },
-  fork_status: {
-    args: jobId,
-    ok: (_call, result) => {
-      const d = receiptOf(result);
-      if (Array.isArray(d.forks)) return `${idStatusList(d.forks, 'job', 'jobId', 'status')}${d.partial === true ? ' (partial)' : ''}`;
-      const code = str(d.errorCode);
-      return `${str(d.status) ?? 'unknown'}${code ? ` ${code}` : ''}${str(d.delivery) ? `, delivery ${d.delivery}` : ''}`;
-    },
-  },
-  fork_cancel: {
-    args: jobId,
-    ok: (_call, result) => `${str(receiptOf(result).status) ?? 'requested'} (cancellation is a request; not confirmed exited)`,
-  },
-  fork_message: {
-    args: call => [jobId(call), str(call.args.mode)].filter(Boolean).join(' '),
-    ok: (_call, result) => `${str(receiptOf(result).status) ?? firstSentence(result.text)} (accepted is not applied)`,
   },
   monitor_start: { args: monitorArgs, ok: (_call, result) => monitorOutcome(result) },
   monitor_status: { args: call => str(call.args.monitorId) ?? '', ok: (_call, result) => monitorOutcome(result) },
@@ -79,3 +68,6 @@ function monitorOutcome(result: ToolResultInfo): string {
   const preview = str(d.sourcePreview);
   return `${str(d.monitorId) ?? '?'} ${str(d.state) ?? 'unknown'}${preview ? ` [${oneLine(preview, 100)}]` : ''}`;
 }
+
+/** Sessions written before Subagents and Spinoff shared the agent_* tools still hold the old names; they fold like their merged tool. */
+for (const [old, merged] of [['subagent_status', 'agent_status'], ['fork_status', 'agent_status'], ['subagent_cancel', 'agent_cancel'], ['fork_cancel', 'agent_cancel'], ['subagent_message', 'agent_message'], ['fork_message', 'agent_message'], ['fork', 'spinoff']] as const) agentRules[old] = agentRules[merged]!;

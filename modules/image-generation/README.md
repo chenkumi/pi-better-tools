@@ -3,7 +3,7 @@
 原生模組：一個 deferred 工具 `image_generate` 與 `/settings:image-generation`。依文字描述產生新圖片，存成專案內的新檔案並回報路徑。三個後端：OpenAI Images API、Gemini API、本機 Codex CLI。
 
 - 預設不載入；用 `tool_search image` 載入（由 Pi Runtime 的 `deferred-tools.ts` 統一處理，本模組不自帶啟用或提示程式）。不是 `defaultActive`。
-- Subagent child 不註冊此工具與指令；Fork child 會註冊，但沒有互動 UI 可確認付費請求（見「確認」）。
+- Subagent child 不註冊此工具與指令；Spinoff child 會註冊，但沒有互動 UI 可確認付費請求（見「確認」）。
 - 本模組不 import 其他 `modules/`；金鑰與設定都不進專案檔。
 
 ## 工具 `image_generate`
@@ -38,15 +38,14 @@
 - **金鑰只走 Pi 登入**：由 `ctx.modelRegistry` 在每次請求時解析，不讀專案檔、不存進本設定檔。OAuth 登入（例如 ChatGPT）不是 API key：先以 `isUsingOAuth` 判斷並拒絕，不會被刷新、也不會送到供應商 API。金鑰只放在請求標頭，不進 URL、結果、`details` 或錯誤訊息。Pi 自己解析 provider 認證時可能納入它支援的其他來源（例如環境變數）；本模組不另讀任何環境變數。
 - **端點固定**，不接受使用者提供的 URL 或 baseUrl（測試以工廠參數注入假端點，不是設定鍵）。不跟轉址、絕對逾時、回應位元組上限 64 MiB（Gemini 的回應本體光是 `thought.signature` 就約 1 MB）。
 - **不自動重試、後端之間不自動備援**：付費請求逾時或 5xx 時不知道供應商是否已計費；錯誤訊息明講「可能已被處理」。取消只取消本地請求，不代表供應商端已停止或不計費。
-- **Codex**：在空的暫存目錄、唯讀沙箱下執行，環境變數用白名單（不傳 `OPENAI_API_KEY`／`CODEX_API_KEY`，避免意外改走 API 計價），stdin 關閉。這只縮小 Codex agent 能碰的範圍，**不是 sandbox**；取消／逾時只是要求行程結束（Windows 另以 `taskkill /T` 盡力），不代表整棵 process tree 已停止。用量算在 ChatGPT 方案額度，不能精確控制尺寸、品質與格式（只能寫進 prompt，結果標 `controls: "prompt-hint"`）。`codex.path` 不可是 `.cmd`／`.bat` shim（prompt 以參數傳入，不經 shell）；Windows 以 npm 安裝只有 `codex.cmd` 時，預設的 `codex` 會沿 PATH 找到該 shim，改以 `node <同目錄>
-ode_modules@openaicodexincodex.js` 直接啟動（仍不經 shell）；其他安裝方式或目錄結構不同時不猜測，須把 `codex.path` 指到實際執行檔，找不到時錯誤訊息會提示。
+- **Codex**：在空的暫存目錄、唯讀沙箱下執行，環境變數用白名單（不傳 `OPENAI_API_KEY`／`CODEX_API_KEY`，避免意外改走 API 計價），stdin 關閉。這只縮小 Codex agent 能碰的範圍，**不是 sandbox**；取消／逾時只是要求行程結束（Windows 另以 `taskkill /T` 盡力），不代表整棵 process tree 已停止。用量算在 ChatGPT 方案額度，不能精確控制尺寸、品質與格式（只能寫進 prompt，結果標 `controls: "prompt-hint"`）。`codex.path` 不可是 `.cmd`／`.bat` shim（prompt 以參數傳入，不經 shell）。
 - 供應商與 Codex 回傳的文字一律視為不受信任資料：截斷、清除控制字元後才顯示。
 
 ## 確認（付費請求）
 
 設定 `confirm`：`first`（預設，每個 session、每個後端第一次詢問）、`always`、`never`。詢問用底部面板（`bottomConfirm`），內容含後端、模型、張數、prompt 長度與前 200 字、目的地與計費方式。所有不花錢就會失敗的檢查（設定、參數、輸出目錄、登入、Codex 是否安裝與已登入）都在詢問之前完成。
 
-沒有互動 UI（例如 Fork child）且需要詢問時回 `IMAGE_CONFIRM_UNAVAILABLE`，不送出請求；要讓 Fork 能產生圖片，使用者須明確把 `confirm` 設為 `never`。
+沒有互動 UI（例如 Spinoff child）且需要詢問時回 `IMAGE_CONFIRM_UNAVAILABLE`，不送出請求；要讓 Spinoff 能產生圖片，使用者須明確把 `confirm` 設為 `never`。
 
 ## 設定
 

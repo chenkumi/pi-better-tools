@@ -239,7 +239,7 @@ export class MonitorRuntime {
   }
   /**
    * Rows for the jobs panel: command / websocket / file monitors of the current generation. Job-source monitors are left out
-   * because the observed Shell, Subagent or Fork job already has its own panel row. Readonly: no timers, no ownerLost side effect.
+   * because the observed Shell, Subagent or Spinoff job already has its own panel row. Readonly: no timers, no ownerLost side effect.
    */
   panelRows(): MonitorPanelRow[] {
     if (!this.valid()) return [];

@@ -27,7 +27,7 @@ write-prompt
   /implement, /implement-and-review, /scout-and-plan
 
 [Extensions]
-  @lordekeen/pi-navigator, fff-override.mjs, file-audit/src, file-tools/src, fork/src,
+  @lordekeen/pi-navigator, fff-override.mjs, file-audit/src, file-tools/src, spinoff/src,
 gpt-speed/src, json-schema/src, monitor/src, note-tools/src, orca-agent-status.ts,
 orca-prefill.ts, orca-titlebar-spinner.ts, pi-auto-compact/src, pi-runtime/src, pty-terminal/src,
 remote/src, schedule-commands/src, shell-tools/src, skill-tools/src, sql-connector/src,
@@ -48,15 +48,15 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
 
 ## 背景任務面板
 * 輸入框上方的被動面板，只在有進行中的工作時出現（僅 TUI；外框是主題 `accent` 色的標題線，沒有背景方塊，也沒有下方分隔線）
-* 計數列固定顯示 Shell／Subagents／Fork／Monitor；PTY 與 Schedule 有工作時才出現
+* 計數列固定顯示 Shell／Subagents／Spinoff／Monitor；PTY 與 Schedule 有工作時才出現
 * 每個工作一行，合計最多五行（終端太矮時更少），其餘以 `… N more` 表示；排序為取消中、執行中、收尾中、排隊中
-* 列格式：`<狀態圖示> <種類代碼> <名稱> · <標題>` 靠左，狀態與用量靠右。種類代碼 SH／SA／FK／MN／PT／SC；圖示 ● 執行中、◷ 排隊、◐ 收尾或取消中、✓ 完成、○ 其他
+* 列格式：`<狀態圖示> <種類代碼> <名稱> · <標題>` 靠左，狀態與用量靠右。種類代碼 SH／SA／SO／MN／PT／SC；圖示 ● 執行中、◷ 排隊、◐ 收尾或取消中、✓ 完成、○ 其他
 * 右欄：Subagent 為 `狀態 | 用量`（`*` 表示累計中的已回報用量）；Shell 執行中只有 `N/A`；Monitor 為 `wake on|off | 剩 <時間>`；Schedule 閒置為 `in 12m | every 1h`、執行中為 `running`
 * fullscreen 可點工作列直接開該工作的詳細，點 `[Open]` 開清單；滑鼠停留會高亮，不改變版面
 
 ```
 ── Jobs Panel ────────────────────────────────────────────────────────────────────────────────────
- ⌘ Shell: 1 · ▷ Subagents: 2 · ⋔ Fork: 0 · ⌖ Monitor: 1 · ⌸ PTY: 1 · ⏱ Schedule: 1
+ ⌘ Shell: 1 · ▷ Subagents: 2 · ⋔ Spinoff: 0 · ⌖ Monitor: 1 · ⌸ PTY: 1 · ⏱ Schedule: 1
  ● SH npm run build                                                                    N/A
  ● SA scout · find the entry point                                         running | 12.3k*
  ◷ SA reviewer · review the diff                                           queued | pending
@@ -72,10 +72,10 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
 
 ---
 
-## Subagent / Fork / Shell / Monitor / PTY / Schedule 展開
+## Subagent / Spinoff / Shell / Monitor / PTY / Schedule 展開
 * 點工作列或 `[Open]`（或輸入 `/background-jobs`）開啟，顯示在輸入框上方的底部面板，內容最多 8 列，握有鍵盤直到 Esc；編輯器與 footer 保持可見
-* 三層：清單 → 詳細 → （批次工作）任務清單。`/background-jobs [more|all|subagents|shell|fork|monitor|pty|schedule|collapse]` 可直接篩選
-* 執行中的工作可以看串流內容（記憶體副本，只供顯示，工作結束即釋放）：Subagent／Fork 為子行程的對話，Shell 與排程 shell 為輸出尾端（上限 128 KiB），排程 agent 為子 session 的對話。PTY 的即時內容是終端畫面（固定大小的模擬畫面，取最後 n 列、n 依終端高度，不受 8 列限制，不遮罩、只給使用者看）；Monitor 與其他排程沒有即時內容，只顯示中繼資料
+* 三層：清單 → 詳細 → （批次工作）任務清單。`/background-jobs [more|all|subagents|shell|spinoff|monitor|pty|schedule|collapse]` 可直接篩選
+* 執行中的工作可以看串流內容（記憶體副本，只供顯示，工作結束即釋放）：Subagent／Spinoff 為子行程的對話，Shell 與排程 shell 為輸出尾端（上限 128 KiB），排程 agent 為子 session 的對話。PTY 的即時內容是終端畫面（固定大小的模擬畫面，取最後 n 列、n 依終端高度，不受 8 列限制，不遮罩、只給使用者看）；Monitor 與其他排程沒有即時內容，只顯示中繼資料
 * 按鍵：清單 ↑↓ 選取、Enter 詳細、Tab 切換最近完成／全部；詳細 ↑↓／PgUp／PgDn 捲動、End 回到跟隨尾端、Ctrl+O 展開工具結果、m 切換對話與中繼資料。Esc：執行中且有即時內容的工作（包含切到中繼資料時）直接關閉面板；已結束或沒有即時內容的工作返回清單；在批次工作的單一任務內返回任務清單
 * fullscreen 下宿主預設用 PgUp／PgDn 捲動聊天；載入 Pi Custom Panel 時，面板開啟期間改由面板翻頁（沒載入時請用方向鍵）
 * 展開面板上方的工作列（`Jobs Panel` 標題線）仍可見時，展開面板的頂線是無標題的橫線，標題不重複；工作列已收合或沒有執行中的工作時（例如只看已結束的 PTY），展開面板自己畫 `Jobs Panel` 標題線。下列圖示為展開面板單獨顯示的樣子
@@ -308,7 +308,7 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
 ---
 
 ## 背景通知卡片
-* Shell、Subagent、Fork、Monitor、排程工作完成或失敗時送回對話的訊息，使用整列背景色（toolSuccessBg／toolErrorBg／toolPendingBg）、含上下內距、不畫框線；這與 Tool Call 不同，Tool Call 沒有背景方塊
+* Shell、Subagent、Spinoff、Monitor、排程工作完成或失敗時送回對話的訊息，使用整列背景色（toolSuccessBg／toolErrorBg／toolPendingBg）、含上下內距、不畫框線；這與 Tool Call 不同，Tool Call 沒有背景方塊
 * 收合只顯示摘要與最多三行輸出，展開才有工作 ID、目錄與全文；顯示層清除 ANSI 與控制碼，輸出標示為不受信任
 
 ```

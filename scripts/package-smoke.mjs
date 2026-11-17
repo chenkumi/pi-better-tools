@@ -41,7 +41,7 @@ async function record(label, action) {
 const required = [
   'shared/README.md', 'shared/src/contracts/index.ts', 'shared/src/contracts/tool-names.ts', 'shared/src/prompt/index.ts', 'shared/src/prompt/forced-prompt.ts', 'shared/src/prompt/section.ts', 'shared/src/background/index.ts', 'shared/src/settings-panel/index.ts',
   'setup/cli.mjs', 'setup/commands.mjs', 'setup/commands.d.mts', 'setup/core.mjs',
-  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'note-tools', 'gpt-speed', 'json-schema', 'pty-terminal', 'schedule-commands', 'pi-runtime', 'monitor', 'skill-tools', 'theme-tools', 'fork', 'remote', 'sqlite-tools', 'sql-connector', 'file-audit', 'pi-auto-compact', 'pi-custom-panel'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
+  ...['subagents', 'shell-tools', 'file-tools', 'web-tools', 'note-tools', 'gpt-speed', 'json-schema', 'pty-terminal', 'schedule-commands', 'pi-runtime', 'monitor', 'skill-tools', 'theme-tools', 'remote', 'sqlite-tools', 'sql-connector', 'file-audit', 'pi-auto-compact', 'pi-custom-panel'].flatMap(name => [`modules/${name}/src/index.ts`, `modules/${name}/README.md`]),
   ...['activity-window', 'events', 'paths', 'commands', 'presentation'].map(name => `modules/file-audit/src/${name}.ts`),
   'modules/sqlite-tools/src/sqlite-manager.ts',
   ...['config', 'runtime', 'tools', 'prompt', 'types', 'output', 'security/sql-policy'].map(name => `modules/sql-connector/src/${name}.ts`),
@@ -53,7 +53,7 @@ const required = [
   'modules/skill-tools/skills/agents-md-creator/scripts/estimate_tokens.py',
   ...['core', 'schema', 'lines', 'network', 'sources', 'renderers'].map(name => `modules/monitor/src/${name}.ts`),
   'modules/monitor/LICENSE', 'modules/monitor/package.json',
-  ...['identity', 'snapshot', 'child', 'child-guard', 'manager', 'store', 'args'].map(name => `modules/fork/src/${name}.ts`), 'modules/fork/LICENSE', 'modules/fork/package.json',
+  ...['identity', 'snapshot', 'child', 'child-guard', 'manager', 'store', 'args'].map(name => `modules/subagents/src/spinoff/${name}.ts`), 'modules/subagents/src/spinoff-contract.ts',
   ...['config', 'credentials', 'protocol', 'hub', 'client', 'runtime', 'tools', 'view', 'settings'].map(name => `modules/remote/src/${name}.ts`), 'modules/remote/LICENSE', 'modules/remote/package.json',
   'modules/shell-tools/src/monitor-exec.ts', 'modules/shell-tools/src/monitor-publisher.ts',
   'modules/subagents/extensions/subagent/monitor-capability.ts',
@@ -297,12 +297,12 @@ try {
         const output = await runCommand(`production Pi ${version} Monitor`, process.execPath, [monitorFixture, packageRoot], { cwd: monitorHome, env: { ...isolatedEnv(monitorHome), PI_BETTER_TOOLS_HOST: host }, timeoutMs: 180000 });
         const result = JSON.parse(output.trim().split('\n').at(-1)); assert.equal(result.status, 'passed'); assert.equal(result.host, version); assert.equal(result.providerCalls, 0); assert.deepEqual(result.sources, ['command', 'websocket']); assert.equal(result.sourceCloseObserved, true); return output;
       });
-      const forkFixture = join(temp, 'fork-production.mjs'), forkProvider = join(temp, 'fork-provider.ts');
-      await copyFile(join(root, 'tests/fixtures/fork-production.mjs'), forkFixture); await copyFile(join(root, 'modules/fork/tests/fixtures/provider.ts'), forkProvider);
-      const forkHome = join(temp, 'home-fork'); await mkdir(forkHome);
-      await record(`${version}:fork-runtime`, async () => {
-        const output = await runCommand(`production Pi ${version} Fork`, process.execPath, [forkFixture, packageRoot, forkProvider],
-          { cwd: forkHome, env: { ...isolatedEnv(forkHome), PI_BETTER_TOOLS_HOST: host }, timeoutMs: 180000 });
+      const spinoffFixture = join(temp, 'spinoff-production.mjs'), spinoffProvider = join(temp, 'spinoff-provider.ts');
+      await copyFile(join(root, 'tests/fixtures/spinoff-production.mjs'), spinoffFixture); await copyFile(join(root, 'modules/subagents/tests/spinoff/fixtures/provider.ts'), spinoffProvider);
+      const spinoffHome = join(temp, 'home-spinoff'); await mkdir(spinoffHome);
+      await record(`${version}:spinoff-runtime`, async () => {
+        const output = await runCommand(`production Pi ${version} Spinoff`, process.execPath, [spinoffFixture, packageRoot, spinoffProvider],
+          { cwd: spinoffHome, env: { ...isolatedEnv(spinoffHome), PI_BETTER_TOOLS_HOST: host }, timeoutMs: 180000 });
         const result = JSON.parse(output.trim().split('\n').at(-1));
         assert.equal(result.status, 'passed'); assert.equal(result.host, version); assert.equal(result.providerCalls, 0);
         assert.deepEqual(result.cases, ['snapshot', 'independent-child', 'report-origin', 'tool-selection']); return output;

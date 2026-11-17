@@ -10,11 +10,11 @@ const cli = process.env.PI_SUBAGENTS_TEST_CLI;
 const project = fileURLToPath(new URL("../", import.meta.url)), fixture = join(project, "tests/fixtures/pi-resume-provider.ts");
 const evidenceRoot = resolve(process.env.PI_SUBAGENTS_TEST_EVIDENCE ?? join(project, "issues/IMPL-20260930-resumable-subagents/e2e"), `run-${Date.now()}-${process.pid}`);
 const records = (s: string) => s.split("\n").filter(Boolean).map(line => JSON.parse(line));
-const tools = (wire: string) => records(wire).filter(e => e.type === "message_end" && e.message?.role === "toolResult" && ["subagent", "subagent_message"].includes(e.message.toolName)).map(e => e.message);
+const tools = (wire: string) => records(wire).filter(e => e.type === "message_end" && e.message?.role === "toolResult" && ["subagent", "agent_message"].includes(e.message.toolName)).map(e => e.message);
 const settings = (changed = false) => ({ packages: [project], extensions: [fixture], defaultProvider: "resume-offline", defaultModel: changed ? "alternate" : "selected", defaultThinkingLevel: changed ? "low" : "high", defaultTools: ["resume_nonce"], compaction: { enabled: false }, retry: { enabled: false }, cacheWarming: "off", defaultProjectTrust: "never" });
 async function launch(root: string, session: string, phase: string, mode = "single", missing = false) {
 	const task = join(root, `${phase}-task.txt`); await writeFile(task, phase === "first" ? "P6_PARENT_FIRST: dispatch initial work" : "P6_PARENT_DECISION: Use B");
-	const args = ["--mode", phase === "first" ? "json" : "rpc", ...(phase === "first" ? ["-p"] : []), "--offline", "--no-extensions", "--no-context-files", "--no-skills", "--no-prompt-templates", "--no-themes", "-e", project, "-e", fixture, "--model", "resume-offline/alternate", "--tools", "subagent,subagent_message", ...(phase === "first" ? ["--session-id", session] : ["--session", session]), ...(phase === "first" ? [`@${task}`] : [])];
+	const args = ["--mode", phase === "first" ? "json" : "rpc", ...(phase === "first" ? ["-p"] : []), "--offline", "--no-extensions", "--no-context-files", "--no-skills", "--no-prompt-templates", "--no-themes", "-e", project, "-e", fixture, "--model", "resume-offline/alternate", "--tools", "subagent,agent_message", ...(phase === "first" ? ["--session-id", session] : ["--session", session]), ...(phase === "first" ? [`@${task}`] : [])];
 	return invokeCli(resolve(cli!), args, root, { ...isolatedEnv(root), P6_PHASE: phase, P6_MODE: mode, P6_MISSING_MODEL: missing ? "1" : "0", P6_CHILD_ONLY_MISSING: mode === "child-missing-model" && phase !== "first" ? "1" : "0", P6_CHILD_CWD: mode === "child-trust" ? join(root, "child-cwd") : undefined }, join(root, "wire", phase), 64 * 1024 * 1024, phase === "first" ? undefined : await readFile(task, "utf8"));
 }
 for (const mode of ["single", "parallel", "chain", "missing-model", "child-missing-model", "child-trust"]) {
@@ -83,7 +83,7 @@ for (const mode of ["single", "parallel", "chain", "missing-model", "child-missi
 			const startups = await Promise.all(children.map(async n => JSON.parse(await readFile(join(root, "capture", n, "startup.json"), "utf8")))); assert.notEqual(startups[0].pid, startups[1].pid);
 			for (const start of startups) { assert.ok(!start.argv.includes("--approve")); assert.equal(start.id, r1.subagentSessionId); assert.equal(start.model.id, "selected"); assert.equal(start.thinking, "high"); for (const key of ["active", "registered"]) assert.ok(!start[key].includes("subagent")); }
 			const verified = await Promise.all(children.map(async n => readFile(join(root, "capture", n, "history-before-new-tool.json"), "utf8").then(JSON.parse).catch(() => null))); assert.equal(verified.filter(Boolean).length, 1); assert.equal(verified.find(Boolean).executions, 0); assert.equal(verified.find(Boolean).nonce, effects[0].nonce);
-			assert.equal(records(second.stdout).filter(e => e.type === "message_end" && e.message?.role === "toolResult" && ["subagent", "subagent_message"].includes(e.message.toolName)).length, 1);
+			assert.equal(records(second.stdout).filter(e => e.type === "message_end" && e.message?.role === "toolResult" && ["subagent", "agent_message"].includes(e.message.toolName)).length, 1);
 			await assert.rejects(stat(join(directory, "writer.lock")), { code: "ENOENT" });
 			// A real third parent process must continue the same native child checkpoint,
 			// even though the parent only knows the old creation receipt.

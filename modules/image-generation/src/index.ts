@@ -7,7 +7,7 @@ import { createImageTool, type ImageToolDeps } from './tool.ts';
 /**
  * Image Generation: one deferred `image_generate` tool and `/settings:image-generation`. The configuration file is read on
  * every call, so a saved change applies at once. A Subagent child does not get the tool (a paid external request is not
- * something a worker should start on its own); a Fork child may, but it has no UI to confirm in (see the README).
+ * something a worker should start on its own); a Spinoff child may, but it has no UI to confirm in (see the README).
  */
 export default function imageGeneration(pi: ExtensionAPI, seam: Partial<ImageToolDeps> & { configPath?: string } = {}) {
   if (consumeManagedChildGuard()) return;

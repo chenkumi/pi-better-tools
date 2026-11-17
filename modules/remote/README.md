@@ -36,7 +36,7 @@ Port 被占用、憑證讀取失敗等會成為 `fault` 狀態並通知使用者
 
 ## 工具（deferred，namespace `remote`）
 
-三個工具皆 `exposure:"deferred"`，不 `defaultActive`；載入由 Pi Runtime 的 `deferred-tools.ts` 統一處理（`tool_search remote`）。僅在 Remote 已設定時註冊；managed child（Subagent／Fork）不註冊。
+三個工具皆 `exposure:"deferred"`，不 `defaultActive`；載入由 Pi Runtime 的 `deferred-tools.ts` 統一處理（`tool_search remote`）。僅在 Remote 已設定時註冊；managed child（Subagent／Spinoff）不註冊。
 
 | 工具 | 說明 |
 |---|---|

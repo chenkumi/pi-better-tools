@@ -284,7 +284,7 @@ export class BackgroundJobs {
 			const task = job.tasks.find(entry => entry.taskId === id || entry.subagentSessionId === id);
 			if (task) { hint = ` The value is a ${task.taskId === id ? "taskId" : "subagentSessionId"}, not a jobId; the jobId of that task is "${job.jobId}".`; break; }
 		}
-		return `BACKGROUND_JOB_NOT_FOUND: jobId ${shown} was not found among the retained jobs of this session/cwd (jobs are lost after reload or exit, or when evicted beyond 64 retained).${hint} Call subagent_status without jobId to list valid jobIds.`;
+		return `BACKGROUND_JOB_NOT_FOUND: jobId ${shown} was not found among the retained subagent jobs and Spinoffs of this session/cwd (jobs are lost after reload or exit, or when evicted beyond 64 retained).${hint} Call agent_status without jobId to list valid jobIds.`;
 	}
 	get(id: string, owner: string, cwd: string) {
 		const job = this.jobs.get(id);
@@ -365,7 +365,7 @@ export class BackgroundJobs {
 		const job = this.jobs.get(id)!;
 		const index = job.tasks.findIndex(task => task.taskId === taskId);
 		const handle = job.interactive.get(index);
-		if (index < 0 || job.cancelRequested || job.tasks[index].status !== "running" || !handle?.isRunning) throw new Error("TASK_NOT_RUNNING: the target subagentSessionId is not an interactive child that is running now (it may be queued, finished, canceled, or a foreground child with canMessage:false). Check subagent_status({ jobId }); messages are never broadcast or queued");
+		if (index < 0 || job.cancelRequested || job.tasks[index].status !== "running" || !handle?.isRunning) throw new Error("TASK_NOT_RUNNING: the target subagentSessionId is not an interactive child that is running now (it may be queued, finished, canceled, or a foreground child with canMessage:false). Check agent_status({ jobId }); messages are never broadcast or queued");
 		if (mode === "query") {
 			const queries = job.tasks.flatMap((task, taskIndex) => job.interactive.get(taskIndex)?.snapshot().queries ?? task.queries ?? []);
 			if (queries.filter(query => query.status === "accepted" || query.cleanupPending === true).length >= 2 || queries.length >= 32) throw new Error("QUERY_CAPACITY: Request not accepted: capacity limit reached. at most two concurrent and 32 retained queries per job. Wait for an outstanding query_result, then ask again, or use mode control");
@@ -375,12 +375,12 @@ export class BackgroundJobs {
 	submit(owner: string, cwd: string, epoch: number, agents: string[], run: (signal: AbortSignal, taskIds: string[], live: (index: number, sessionId: string, path: string) => void, finish: (index: number, result: unknown, status: BackgroundTask["status"]) => void, attach: (index: number, handle: RpcInteraction) => void, interaction: (index: number, notice: InteractionNotice) => void, progress: (index: number, data: TaskPresentation) => void, events: (index: number, event: unknown) => void) => Promise<void>, widgetTitles: readonly (string | undefined)[] = [], admission?: Promise<void>, readonlyQueryId?: string, options: BackgroundSubmitOptions = {}) {
 		if (this.closed || epoch !== this.generation) throw new Error("BACKGROUND_RUNTIME_CLOSED: owner session changed during preflight");
 		if (options.taskIds && options.taskIds.length !== agents.length) throw new Error("INVALID_DISPATCH: taskIds must match agents");
-		if (!agents.length || agents.length > MAX_SUBMITTED || sharedAdmission.submittedTasks + agents.length > MAX_SUBMITTED) throw new Error(`BACKGROUND_CAPACITY: Request not accepted: capacity limit reached. at most ${MAX_SUBMITTED} submitted background tasks process-wide (now ${this.load()}; this request adds ${agents.length}). Next: call subagent_status (no jobId lists your jobs) to see what is still running, subagent_cancel jobs you no longer need, or split the work into smaller batches and submit the rest after task_result completion notifications arrive.`);
+		if (!agents.length || agents.length > MAX_SUBMITTED || sharedAdmission.submittedTasks + agents.length > MAX_SUBMITTED) throw new Error(`BACKGROUND_CAPACITY: Request not accepted: capacity limit reached. at most ${MAX_SUBMITTED} submitted background tasks process-wide (now ${this.load()}; this request adds ${agents.length}). Next: call agent_status (no jobId lists your jobs) to see what is still running, agent_cancel jobs you no longer need, or split the work into smaller batches and submit the rest after task_result completion notifications arrive.`);
 		for (const [id, job] of this.jobs) {
 			if (this.jobs.size < MAX_RETAINED_JOBS) break;
 			if (!isActive(job.status)) this.jobs.delete(id);
 		}
-		if (this.jobs.size >= MAX_RETAINED_JOBS) throw new Error(`BACKGROUND_CAPACITY: Request not accepted: capacity limit reached. retained job limit (${MAX_RETAINED_JOBS}) reached with unfinished jobs (now ${this.load()}). Next: call subagent_status to list jobs and subagent_cancel ones you no longer need, then retry.`);
+		if (this.jobs.size >= MAX_RETAINED_JOBS) throw new Error(`BACKGROUND_CAPACITY: Request not accepted: capacity limit reached. retained job limit (${MAX_RETAINED_JOBS}) reached with unfinished jobs (now ${this.load()}). Next: call agent_status to list jobs and agent_cancel ones you no longer need, then retry.`);
 		const job: Job = { jobId: ulid().toUpperCase(), owner, cwd, generation: this.generation, status: "queued", cancelRequested: false,
 			tasks: agents.map((agent, index) => ({ taskId: options.taskIds?.[index] ?? ulid().toUpperCase(), agent, status: "queued", logPending: true })), controller: new AbortController(), done: Promise.resolve(), interactive: new Map(), readonlyQueryId, widgetTitles: agents.map((_agent, index) => widgetTitles[index]?.slice(0, 256) ?? ""), widgetProgress: [], transcripts: [], widgetStartedAt: Date.now(), notifiedTasks: new Set(), perTaskNotify: options.perTaskNotify === true && !readonlyQueryId && agents.length > 1 };
 		if (!admission) job.recovery = this.persist?.(owner, cwd, this.snapshot(job));

@@ -40,12 +40,11 @@ export async function generateGemini(request: GenerateRequest, config: Config['g
       const usage = numericUsage((result.json as { usage?: unknown }).usage, ['total_input_tokens', 'total_output_tokens', 'total_tokens']);
       for (const [key, value] of Object.entries(usage ?? {})) total[key] = (total[key] ?? 0) + value;
     } catch (error) {
-      if (!images.length || (error instanceof ToolError && error.code === 'IMAGE_CANCELLED') || env.signal?.aborted) throw error;
+      if (!images.length) throw error;
       notes.push(`Stopped after ${images.length} of ${request.count} images: ${error instanceof ToolError ? error.message : 'the request failed'}`);
       break;
     }
   }
-  if (images.length > request.count) images.length = request.count;
   return { images, model: config.model, controls: 'api', ignored, notes, ...(Object.keys(total).length ? { usage: total } : {}), ...(requestId ? { requestId } : {}) };
 }
 

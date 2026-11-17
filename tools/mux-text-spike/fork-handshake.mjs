@@ -1,4 +1,4 @@
-// Parent-side harness: follows modules/fork/src/child.ts (verified -> tool-set check -> stats -> prompt -> settled -> result) against a PTY child.
+// Parent-side harness: follows modules/subagents/src/spinoff/child.ts (verified -> tool-set check -> stats -> prompt -> settled -> result) against a PTY child.
 import { createServer } from 'node:net';
 import { mkdirSync, mkdtempSync, existsSync, realpathSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
@@ -6,8 +6,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import pty from 'node-pty';
 import { spawnSync } from 'node:child_process';
-import { writeForkSession } from '../../modules/fork/src/snapshot.ts';
-import { CHANNEL } from '../../modules/fork/src/child-guard.ts';
+import { writeSpinoffSession } from '../../modules/subagents/src/spinoff/snapshot.ts';
+import { CHANNEL } from '../../modules/subagents/src/spinoff/child-guard.ts';
 
 const ext = resolve('tools/mux-text-spike/fork-ext.ts');
 const cli = resolve('node_modules/@earendil-works/pi-coding-agent/dist/cli.js');
@@ -25,7 +25,7 @@ async function runChild({ modelOverride, tools = ['nap'] } = {}) {
     { type: 'message', id: 'a0000001', parentId: 'u0000001', timestamp: now, message: { role: 'assistant', content: [{ type: 'text', text: 'parent answer' }], provider: 'spike', api: 'spike-api', model: 'fixture',
       usage: { input: 10, output: 5, cacheRead: 3, cacheWrite: 0, totalTokens: 18, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0.001 } }, stopReason: 'stop', timestamp: Date.now() } },
   ];
-  const written = writeForkSession({ sessionId: parentId, cwd, sessionDir: join(home, 'parent-sessions'), branch }, 'FORKJOB1', childId);
+  const written = writeSpinoffSession({ sessionId: parentId, cwd, sessionDir: join(home, 'parent-sessions'), branch }, 'FORKJOB1', childId);
   const guardJson = { forkId: 'FORKJOB1', sessionId: childId, parentSessionId: parentId, cwd, model: modelOverride ?? 'spike/fixture', thinkingLevel: 'off', childTrusted: false, tools, loadable: [], token };
 
   const log = []; let sock, exited; const waiters = [];

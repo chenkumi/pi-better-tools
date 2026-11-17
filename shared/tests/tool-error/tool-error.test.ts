@@ -22,7 +22,7 @@ test('codedText builds the same prefix for returned failures and rejects bad cod
 
 test('toolErrorCode reads a ToolError, a prefixed message or a string, and ignores prose', () => {
   assert.equal(toolErrorCode(new ToolError('A_B', 'x')), 'A_B');
-  assert.equal(toolErrorCode(new Error('FORK_NOT_FOUND: no such fork')), 'FORK_NOT_FOUND');
+  assert.equal(toolErrorCode(new Error('SPINOFF_NOT_FOUND: no such spinoff')), 'SPINOFF_NOT_FOUND');
   assert.equal(toolErrorCode('OUTPUT_TOO_LARGE: big'), 'OUTPUT_TOO_LARGE');
   assert.equal(toolErrorCode(new Error('Request not accepted: capacity limit reached.')), undefined);
   assert.equal(toolErrorCode(undefined), undefined);

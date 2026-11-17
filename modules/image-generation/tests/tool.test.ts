@@ -87,7 +87,7 @@ test('a declined request sends nothing and a later one asks again', async t => {
   assert.equal(asked.length, 2); assert.equal(server.requests.length, 0);
 });
 
-test('without an interactive UI a paid request that needs approval is refused (a Fork); "never" lets it run', async t => {
+test('without an interactive UI a paid request that needs approval is refused (a Spinoff); "never" lets it run', async t => {
   const refused = await setup(t, { hasUI: false });
   await assert.rejects(refused.run(), /IMAGE_CONFIRM_UNAVAILABLE: .*"confirm": "never"/);
   assert.equal(refused.server.requests.length, 0); assert.equal(refused.asked.length, 0);
@@ -115,12 +115,5 @@ test('provider failures reach the caller as coded errors and leave no file behin
   const tool = createImageTool({ readConfig: () => config({ confirm: 'never', outputDir: 'out' }), key: async () => 'k', openai: { endpoint: server.url } });
   await assert.rejects(tool.execute('i', { prompt: 'x' } as never, undefined, undefined, { cwd, hasUI: true, sessionManager: { getSessionId: () => 's' } } as never), /IMAGE_REQUEST_REJECTED/);
   const { readdir } = await import('node:fs/promises');
-  assert.deepEqual(await readdir(join(cwd, 'out')).catch(() => []), []);
-});
-
-test('a declined request does not create the output directory', async t => {
-  const { run, cwd } = await setup(t, { answer: false });
-  await assert.rejects(run(), /IMAGE_DECLINED/);
-  const { access } = await import('node:fs/promises');
-  await assert.rejects(access(join(cwd, 'out')), 'nothing is created before the user approves');
+  assert.deepEqual(await readdir(join(cwd, 'out')), []);
 });

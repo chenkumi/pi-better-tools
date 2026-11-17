@@ -15,7 +15,7 @@ async function setup(scenario = "normal") {
 	let tool!: ToolDefinition, messageTool!: ToolDefinition;
 	const messages = messageHarness();
 	const invocations: string[][] = [];
-	registerSubagent({ sendMessage: messages.sendMessage, registerMessageRenderer() {}, registerTool(t) { if (t.name === "subagent") tool = t; if (t.name === "subagent_message") messageTool = t; }, on() {} } as ExtensionAPI, {
+	registerSubagent({ sendMessage: messages.sendMessage, registerMessageRenderer() {}, registerTool(t) { if (t.name === "subagent") tool = t; if (t.name === "agent_message") messageTool = t; }, on() {} } as ExtensionAPI, {
 		debugLog: false, sessionRootDir: join(root, "managed"),
 		invocation(args) { invocations.push([...args]); return { command: process.execPath, args: [child, scenario, ...args] }; },
 	});
@@ -58,7 +58,7 @@ for (const mode of ["single", "parallel", "chain"] as const) {
 			for (const args of h.invocations) {
 				assert.equal(args.includes("--no-session"), false); assert.ok(args.includes("--session-dir")); assert.ok(args.includes("--session-id"));
 				assert.ok(args[args.indexOf("-e") + 1].endsWith("child-guard.ts"));
-				assert.equal(args[args.indexOf("--exclude-tools") + 1], "subagent,subagent_status,subagent_cancel,subagent_message,fork,fork_status,fork_cancel,fork_message");
+				assert.equal(args[args.indexOf("--exclude-tools") + 1], "subagent,agent_status,agent_cancel,agent_message,spinoff");
 			}
 			assert.deepEqual((await readdir(h.root)).sort(), ["managed"]);
 		} finally { await h.dispose(); }

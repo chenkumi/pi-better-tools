@@ -42,7 +42,7 @@ test('Pi 1.0.0 ready query answers from committed child history with zero tools 
     const paths = [join(directory, 'manifest.json'), join(directory, manifest.nativeFile), first.logPath];
     const before = await Promise.all(paths.map(path => readFile(path)));
     const runsBefore = await readdir(join(directory, 'runs'));
-    const accepted = await tools.get('subagent_message').execute('query', { subagentSessionId: first.subagentSessionId, mode: 'query', message: 'Explain the completed prime task.', title: 'Review finished work' }, undefined, undefined, ctx);
+    const accepted = await tools.get('agent_message').execute('query', { subagentSessionId: first.subagentSessionId, mode: 'query', message: 'Explain the completed prime task.', title: 'Review finished work' }, undefined, undefined, ctx);
     assert.equal(accepted.isError, undefined, JSON.stringify(accepted.details));
     assert.equal(accepted.details.action, 'query'); assert.equal(accepted.details.status, 'accepted');
     assert.equal(accepted.details.subagentSessionId, first.subagentSessionId); assert.equal(accepted.usage, undefined);
@@ -60,7 +60,7 @@ test('Pi 1.0.0 ready query answers from committed child history with zero tools 
     for (const question of ['fail-query', 'emit-tool', 'stream-tool']) {
       console.log(`[ready-query] Checking isolated failure: ${question}...`);
       const reported = new Promise<void>(resolve => { queryReported = resolve; });
-      const submitted = await tools.get('subagent_message').execute(question, { subagentSessionId: first.subagentSessionId, mode: 'query', message: question }, undefined, undefined, ctx);
+      const submitted = await tools.get('agent_message').execute(question, { subagentSessionId: first.subagentSessionId, mode: 'query', message: question }, undefined, undefined, ctx);
       assert.equal(submitted.details.status, 'accepted', JSON.stringify(submitted.details));
       await reported;
       const reply = notifications.at(-1).details.interaction;
@@ -78,14 +78,14 @@ test('Pi 1.0.0 ready query answers from committed child history with zero tools 
     const watcher = watch(root, () => { if (existsSync(join(root, 'query-capture.json'))) captured(); });
     const cancelled = new Promise<void>(resolve => { queryReported = resolve; });
     try {
-      const holding = await tools.get('subagent_message').execute('hold', { subagentSessionId: first.subagentSessionId, mode: 'query', message: 'hold-query' }, undefined, undefined, ctx);
+      const holding = await tools.get('agent_message').execute('hold', { subagentSessionId: first.subagentSessionId, mode: 'query', message: 'hold-query' }, undefined, undefined, ctx);
       assert.equal(holding.details.status, 'accepted', JSON.stringify(holding.details));
       await capture;
       for (const mode of ['control', 'query']) {
-        const refused = await tools.get('subagent_message').execute(`competing-${mode}`, { subagentSessionId: first.subagentSessionId, mode, message: 'must not execute' }, undefined, undefined, ctx);
+        const refused = await tools.get('agent_message').execute(`competing-${mode}`, { subagentSessionId: first.subagentSessionId, mode, message: 'must not execute' }, undefined, undefined, ctx);
         assert.equal(refused.isError, true, 'expected refusal preserves the model-side error flag'); assert.equal(refused.details.status, 'rejected'); assert.equal(refused.details.errorCode, 'SESSION_BUSY');
       }
-      const cancellation = await tools.get('subagent_cancel').execute('cancel', { jobId: holding.details.jobId }, undefined, undefined, ctx);
+      const cancellation = await tools.get('agent_cancel').execute('cancel', { jobId: holding.details.jobId }, undefined, undefined, ctx);
       assert.equal(cancellation.details.cancelRequested, true);
       await cancelled;
       assert.equal(notifications.at(-1).details.interaction.status, 'aborted');

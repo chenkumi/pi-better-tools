@@ -36,7 +36,7 @@ export default function (pi: ExtensionAPI) {
 						if (currentUser.includes("P6_PARENT_DECISION")) {
 							const previous = context.messages.filter((m: any) => m.role === "toolResult" && m.toolName === "subagent").at(-1) as any;
 							const id = text(previous).match(/Subagent session: ([0-9A-HJKMNP-TV-Z]{26})\nResume available: a verified conversation checkpoint is ready\./)?.[1]; assert.ok(id, "visible parent content must supply ready ID");
-							call = { name: "subagent_message", id: `parent-resume-${process.env.P6_PHASE ?? "resume"}`, arguments: { subagentSessionId: id, message: "P6_DECISION_B: Use B and finish the prior work." } };
+							call = { name: "agent_message", id: `parent-resume-${process.env.P6_PHASE ?? "resume"}`, arguments: { subagentSessionId: id, message: "P6_DECISION_B: Use B and finish the prior work." } };
 						} else {
 							const task = { agent: "worker", task: "P6_INITIAL_USER: work until a decision is needed.", ...(process.env.P6_CHILD_CWD ? { cwd: process.env.P6_CHILD_CWD } : {}) };
 							const mode = process.env.P6_MODE ?? "single";

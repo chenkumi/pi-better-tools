@@ -24,7 +24,7 @@ const RESULT_TOOLS: Record<RecoveryKind, readonly string[]> = {
   subagent: SUBAGENT_TOOLS,
 };
 /** Management tools whose terminal result confirms the outcome. */
-const STATUS_TOOLS: readonly string[] = [...SHELL_JOB_TOOLS, "subagent_status", "subagent_cancel"];
+const STATUS_TOOLS: readonly string[] = [...SHELL_JOB_TOOLS, "agent_status", "agent_cancel"];
 /** Bound on tasks per batch job. */
 const MAX_TASKS = 32;
 const object = (value: unknown): Record<string, any> | undefined => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : undefined;

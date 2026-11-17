@@ -4,7 +4,7 @@ import { TranscriptView, type TranscriptSource } from "./live-transcript.ts";
 import { stripVTControlCharacters } from "node:util";
 import { frame, type PanelStyle } from "../bottom-panel/host.ts";
 
-export const PANEL_KINDS = ["subagents", "shell", "fork", "monitor", "pty", "schedule"] as const;
+export const PANEL_KINDS = ["subagents", "shell", "spinoff", "monitor", "pty", "schedule"] as const;
 export type PanelKind = typeof PANEL_KINDS[number];
 /** Hover target of the "More…" label; job rows use their {@link jobKey}. */
 export const MORE_HOVER = "more";
@@ -62,7 +62,7 @@ export function orderedJobs(jobs: readonly PanelJob[]): PanelJob[] {
   const rank = (j: PanelJob) => !j.active ? 4 : j.state === "cancelling" ? 0 : j.state === "running" ? 1 : j.state === "finalizing" ? 2 : 3;
   return [...jobs].sort((a, b) => rank(a) - rank(b) || (a.active ? (a.startedAt ?? 0) - (b.startedAt ?? 0) : (b.startedAt ?? 0) - (a.startedAt ?? 0)) || jobKey(a).localeCompare(jobKey(b)));
 }
-const HEADING_TAG: Record<PanelKind, string> = { subagents: "SA", shell: "SH", fork: "FK", monitor: "MN", pty: "PT", schedule: "SC" };
+const HEADING_TAG: Record<PanelKind, string> = { subagents: "SA", shell: "SH", spinoff: "FK", monitor: "MN", pty: "PT", schedule: "SC" };
 export function jobHeading(job: PanelJob): string {
   const icon = job.state === "queued" ? "◷" : job.state === "finalizing" || job.state === "cancelling" ? "◐" : job.active ? "●" : job.state === "completed" ? "✓" : "○";
   return `${icon} ${HEADING_TAG[job.kind]} ${safeJobText(job.label, 64)}${job.title ? ` · ${safeJobText(job.title, 256)}` : ""}`;
@@ -88,7 +88,7 @@ export const PANEL_HEAD_ROWS = 2;
 export const PANEL_TAIL_ROWS = 1;
 /** The label that opens the list; the only click target besides a job row. */
 export const OPEN_LABEL = "[Open]";
-const KIND_COUNTS: ReadonlyArray<readonly [PanelKind, string, string]> = [["shell", "\u2318", "Shell"], ["subagents", "\u25b7", "Subagents"], ["fork", "\u22d4", "Fork"], ["monitor", "\u2316", "Monitor"], ["pty", "\u2338", "PTY"], ["schedule", "\u23f1", "Schedule"]];
+const KIND_COUNTS: ReadonlyArray<readonly [PanelKind, string, string]> = [["shell", "\u2318", "Shell"], ["subagents", "\u25b7", "Subagents"], ["spinoff", "\u22d4", "Spinoff"], ["monitor", "\u2316", "Monitor"], ["pty", "\u2338", "PTY"], ["schedule", "\u23f1", "Schedule"]];
 /**
  * The passive panel (TUI_DESIGN.md "背景任務面板"): title rule, one counts row, one row per job (at most five), an Open row. No background box. `hover` is a {@link jobKey} or {@link MORE_HOVER}; it only recolours, never changes the layout.
  */
@@ -281,7 +281,7 @@ export class JobsOverlay implements Component {
       title = !job ? "Job no longer retained" : task ? `Task · ${safeJobText(task.label, 64)}` : batch ? `Job details · ${safeJobText(job.label, 64)} · ${job.tasks.length} concurrent tasks · ${safeJobText(job.state)}` : `Job details · ${safeJobText(job.label, 64)} · ${safeJobText(job.state)}`;
       const raw = task ? [`${task.label} · ${task.state}`, `Activity: ${task.activity}`, ...task.details.slice(0, 256), ...(task.details.length > 256 ? ["… metadata fields omitted (256-field limit)"] : []), ...(job?.state === "cancelling" ? ["Job cancel requested; that is not proof the task or its process tree has exited."] : []), "Retained metadata only; no logs read."] : job ? [jobHeading(job), `Job ID: ${safeJobText(job.jobId)}`, `State: ${safeJobText(job.state)} · ${safeJobText(job.activity)}`, usageLabel(job), ...job.details.slice(0, 256), ...(job.details.length > 256 ? ["… metadata fields omitted (256-field limit)"] : []), "Retained metadata only; no logs read. Cancel requested is not proof of process-tree exit."] : ["This job is no longer retained in this session/runtime."];
       let chat = job && !this.metadata && !listing ? this.conversation(job, Math.max(1, inner), task) : undefined;
-      if (job && chat && !task) this.lastLive = { key: this.detailKey, lines: chat, screen: this.screenLabel, title: jobHeading(job) };
+      if (job && chat && !task) this.lastLive = { key: this.detailKey, lines: chat.slice(), screen: this.screenLabel, title: jobHeading(job) };
       // The job is gone but its last live view was seen: keep it on screen as a snapshot (the program closed; the panel is the user's to close).
       const snapshot = task ? undefined : this.snapshotOf(job);
       if (snapshot) {

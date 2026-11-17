@@ -16,7 +16,7 @@ test('inspection tools are named only when active; editing rule needs edit or wr
 });
 
 test('editing a file from the shell is stated as a rule violation, not just discouraged', () => {
-  for (const text of [rules('bash', 'write')!, rules('powershell', 'edit', 'subagent', 'fork')!]) {
+  for (const text of [rules('bash', 'write')!, rules('powershell', 'edit', 'subagent', 'spinoff')!]) {
     assert.match(text, /never through shell redirection, `sed`, or one-off scripts \(`node -e`, `perl -i`\)/);
     assert.match(text, /is a rule violation/);
     assert.match(text, /Use the shell for builds, tests, git and pipelines/);

@@ -67,9 +67,9 @@ test('activeJobBriefs lists only owner-matching, valid providers as bounded id/s
   const scope = { sessionId: 'brief-owner', cwd: canonicalMonitorCwd(process.cwd()) };
   assert.deepEqual(activeJobBriefs(scope), { briefs: [], partial: false });
   let valid = true;
-  const revoke = publishCapability('fork_job', scope, 1, () => ({}), () => valid, undefined, () => [{ kind: 'fork_job', jobId: 'F1', status: 'blocked' }]);
+  const revoke = publishCapability('spinoff_job', scope, 1, () => ({}), () => valid, undefined, () => [{ kind: 'spinoff_job', jobId: 'F1', status: 'blocked' }]);
   const revokeShell = publishCapability('shell_job', scope, 1, () => ({}), () => true, undefined, () => { throw new Error('boom'); });
-  assert.deepEqual(activeJobBriefs(scope), { briefs: [{ kind: 'fork_job', jobId: 'F1', status: 'blocked' }], partial: true });
+  assert.deepEqual(activeJobBriefs(scope), { briefs: [{ kind: 'spinoff_job', jobId: 'F1', status: 'blocked' }], partial: true });
   assert.deepEqual(activeJobBriefs({ ...scope, sessionId: 'other' }), { briefs: [], partial: false });
   valid = false;
   assert.deepEqual(activeJobBriefs(scope).briefs, []);

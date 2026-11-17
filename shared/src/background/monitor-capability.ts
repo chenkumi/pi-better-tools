@@ -1,7 +1,7 @@
 import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 export interface MonitorScope { sessionId: string; cwd: string }
-export type JobKind = 'shell_job' | 'subagent_job' | 'fork_job';
+export type JobKind = 'shell_job' | 'subagent_job' | 'spinoff_job';
 export interface ReadonlyJobLease { readonly generation: number; snapshot(jobId: string): Record<string, unknown> }
 /** Kinds that appear in the live background-jobs reminder. `pty_session` is brief-only: Monitor has no PTY source. */
 export type BriefKind = JobKind | 'pty_session' | 'schedule_job';
@@ -48,7 +48,7 @@ export function publishAutoMonitor(scope: MonitorScope, starter: AutoMonitorStar
 export function requestAutoMonitor(scope: MonitorScope, jobId: string): string | undefined {
   try { return autoRegistry().get(identity('shell_job', scope))?.(jobId); } catch { return undefined; }
 }
-/** Count-only bridge for a Fork process to learn whether its own Shell/Subagent jobs are still unfinished. No handles, no output, no cancellation. */
+/** Count-only bridge for a Spinoff process to learn whether its own Shell/Subagent jobs are still unfinished. No handles, no output, no cancellation. */
 export function activeJobCounts(scope: MonitorScope): { shell: number; subagents: number } {
   const counts = { shell: 0, subagents: 0 };
   for (const [kind, field] of [['shell_job', 'shell'], ['subagent_job', 'subagents']] as const) {
@@ -105,7 +105,7 @@ export function activeJobBriefs(scope: MonitorScope): { briefs: ActiveJobBrief[]
       for (const row of rows.slice(0, MAX_BRIEFS_PER_KIND)) briefs.push({ kind, jobId: String(row.jobId).slice(0, 128), status: String(row.status).slice(0, 32) });
     } catch { partial = true; }
   };
-  for (const kind of ['shell_job', 'subagent_job', 'fork_job'] as const) {
+  for (const kind of ['shell_job', 'subagent_job', 'spinoff_job'] as const) {
     const provider = registry().get(identity(kind, scope));
     if (!provider || provider.revoked || !provider.briefs) continue;
     take(kind, () => provider.valid() ? provider.briefs!() : []);

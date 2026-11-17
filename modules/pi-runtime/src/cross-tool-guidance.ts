@@ -3,7 +3,7 @@ import { registerPromptSection } from '../../../shared/src/prompt/index.ts';
 
 /**
  * Rules that name no tool of a particular module. Rules about one module's tools are injected by that module
- * (`file_rules`, `web_rules`, `shell_rules`, `subagent_rules`, `fork_rules`).
+ * (`file_rules`, `web_rules`, `shell_rules`, `subagent_rules`, `spinoff_rules`).
  */
 export const CROSS_TOOL_SECTION = 'cross_tool_rules';
 

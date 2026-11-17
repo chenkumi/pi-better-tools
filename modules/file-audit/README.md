@@ -48,7 +48,7 @@ cwd 在 git 工作樹內時，同一則 `file-audit-changes` 訊息會多一行�
 - 基準＝上一次回覆結束（`agent_settled`）或 session start 時的 HEAD、分支（detached 顯示 `(detached)`）與 `git status --porcelain=v1 -z` 輸出的 SHA-256。比對在 user input 時進行，通知後基準即更新，同一變更只報一次。agent 自己在該次執行中的 commit／切換分支已含在結束時的基準內，不會誤報。
 - 工作樹只比對 `git status` 輸出：已列為修改的檔案內容再被改動時狀態不變，不會偵測到（代理碰過的檔案由檔案層通知涵蓋）。分支名清除控制與 bidi 字元、最多 100 字元。
 - git 一律經 `shared/src/git` 的 `runGit`：`--no-optional-locks`（不與使用者同時進行的 git 指令搶 index 鎖）、`-c core.fsmonitor=false`（不執行 repo 設定指定的程式）、2 秒逾時、輸出上限。沒有 git、不在 repo、尚無 commit、逾時或失敗都不提醒、不阻擋 prompt。
-- 不跨 session／resume；session 開始時尚無 repo（之後才 `git init`）則下一次回覆結束後才有基準。git worktree 的切換不處理（cwd 固定）。Subagent 與 Fork 子行程各自載入 File Audit，每次執行會多幾次 git 呼叫。
+- 不跨 session／resume；session 開始時尚無 repo（之後才 `git init`）則下一次回覆結束後才有基準。git worktree 的切換不處理（cwd 固定）。Subagent 與 Spinoff 子行程各自載入 File Audit，每次執行會多幾次 git 呼叫。
 - 偵測失敗、取消或擁有者換代時不發通知、也不阻擋 prompt。這只是「觀察到差異」，不推論作者或時間；到下一次 user input 才檢查，同一 run 內的外部修改仍由 `edit` 的 `expectedHash` 擋下（`STALE_FILE`）。
 - 檔案 handle 前後的 size／mtime 重驗只能觀察變動，不提供原子快照或 OS sandbox；同窗口其他程式寫入仍可能造成誤報，不推論作者或引入時間。
 

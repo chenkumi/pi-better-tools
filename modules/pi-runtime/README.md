@@ -12,7 +12,7 @@
 
 本專案的模組要延遲載入工具時，只需在 `registerTool` 加 `exposure: "deferred"` 與 `namespace: { name, description }`，不必自帶任何啟用或提示程式；目前使用者為 `pty-terminal`（`pty`）、`sqlite-tools`（`sqlite`，讀取資料庫前以 `tool_search` 尋找 SQLite tools）與 `sql-connector`（已配置的 `mysql`／`mssql`／`pgsql`）。`schedule-commands` 依使用者要求改為直接宣告，不再有 deferred namespace。Pi Runtime 的 `deferred-tools.ts` 統一處理：
 
-- **全新 session（`startup`／`new`）**：若已登記但未啟用 `tool_search`，以 `setActiveTools` 加入它，因此不需要 `defaultTools: "+tool_search"`。`resume`／`fork` 還原已記錄的工具集，`reload` 保留當前工具集，皆不變更。
+- **全新 session（`startup`／`new`）**：若已登記但未啟用 `tool_search`，以 `setActiveTools` 加入它，因此不需要 `defaultTools: "+tool_search"`。`resume`／`spinoff` 還原已記錄的工具集，`reload` 保留當前工具集，皆不變更。
 - **沒有登記的 `tool_search`**（例如 `--tools` allowlist 排除）：直接宣告本專案的 deferred 工具，與未延遲前相同；被 allowlist 排除的工具本來就不會註冊。
 - **提示**：`tool_search` 啟用時，系統提示加一段 `deferred_tools` section，每個仍未載入的 namespace 一行（含查詢字串）；全部載入後消失，並處理 `forceSystemPrompt`。
 - 只管理來源檔案位於本專案 `modules/` 的工具；第三方（如 MCP）的 deferred 工具不受影響，也不列入提示。
@@ -33,7 +33,7 @@
 | `web_rules` | web-tools | `web_fetch`／`web_search` 優先於 `curl`／`wget`（需 shell 啟用） |
 | `shell_rules` | shell-tools | 不得用 shell 繞過專用工具、完成前先驗證 |
 | `subagent_rules` | subagents | 委派的分工；委派結果是主張不是證明（需 `subagent` 啟用） |
-| `fork_rules` | fork | 同上，針對 `fork`；Fork child 也註冊，使其 system prompt 與父代逐字相同 |
+| `spinoff_rules` | spinoff | 同上，針對 `spinoff`；Spinoff child 也註冊，使其 system prompt 與父代逐字相同 |
 
 section 順序由 manifest 載入順序決定，`tests/unit/prompt-snapshot.test.mjs` 以真實 extension 固定各工具組合下的文字與順序。首次部署這次切分時，既有 session 的第一個請求 prompt 快取會 miss 一次。共用的 forced／自訂 prompt 附加邏輯與 `registerPromptSection` 在 `shared/src/prompt/`。
 

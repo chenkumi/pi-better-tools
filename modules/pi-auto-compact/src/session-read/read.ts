@@ -72,7 +72,7 @@ export async function readSessionLines(readable: readonly SessionFile[], request
   const expectedId = request.id?.trim() || undefined;
 
   const notFoundText = () => ` No entry with that id was found in ${readable.length > 1 ? `any readable session (${readable.map(item => item.id).join(', ')})` : 'this session'}.`;
-  /** A Fork's file holds only the parent's active branch, so a reference minted in the parent can name an entry that is not here.
+  /** A Spinoff's file holds only the parent's active branch, so a reference minted in the parent can name an entry that is not here.
    *  The ancestors are readable anyway: search them once (nearest first) and read the entry from the first session that has it. */
   const readFromOtherSession = async (why: string): Promise<SessionReadResult | undefined> => {
     const elsewhere = expectedId ? await findInOtherSessions(readable, target, expectedId) : undefined;

@@ -2,9 +2,11 @@
 
 提供 `subagent` 工具，將工作委派給獨立的 Pi child process。每個 child 擁有乾淨、隔離的 context window，**看不到主對話**。
 
+> **Spinoff（原 Fork）併入本模組**：`src/spinoff/`（細節見 `src/spinoff/README.md`）與本 extension 同一入口 `src/index.ts`。`agent_status`／`agent_cancel`／`agent_message` 同時服務 Subagent 與 Spinoff（`jobId` 屬於本 session 的 Spinoff 時交給 Spinoff；`agent_message` 以 `subagentSessionId` 或 `jobId` 二擇一定址）。Subagent child 以 `--exclude-tools` 排除 `subagent`、`agent_*`、`spinoff`。
+
 ## 功能
 
-- 三種建立模式（每次呼叫只能擇一）：single、parallel、chain。後續指示統一使用 `subagent_message`，由系統路由 control／resume。
+- 三種建立模式（每次呼叫只能擇一）：single、parallel、chain。後續指示統一使用 `agent_message`，由系統路由 control／resume。
 - 內建 agents、使用者層級與專案層級 agent 定義。
 - 所有新派遣自動保存 Pi 原生 session，成功提交後可續接。
 - TUI 即時顯示 child 進度（每個 task 保留最新三則單行訊息；工具只顯示 request／completed／failed 與截斷後的參數）。
@@ -43,7 +45,7 @@ Catalog 不強制替換完整 system prompt，與 Web／共享背景指引各自
 
 首次 task 須完整說明目標、操作要求、相關路徑、限制／非目標及預期回傳格式。
 
-`title` 是父工具的 UI 標題：single 填頂層欄位，續接填 `subagent_message.title`，parallel／chain 每項可填獨立標題（優先於頂層批次標題 fallback）。Call、執行中及完成後均保留 agent 身份並顯示標題；缺少標題沿用舊呈現。最多 50 個 Unicode 字元（code points／碼點），不按 UTF-16 code units 計數；組合 emoji／重音可包含多個碼點。Schema 保留 maxLength 50，派遣前再次計數，避免宿主分群演算法漏過超長組合文字；另限原始 UTF-8 4 KiB，避免極長 combining sequences。空白、只有控制碼或超長會於派遣前拒絕。沿用 Pi 參數正規化：optional null 可視為省略，數字／布林可轉為字串；直接 execute 收到非字串則拒絕。TUI 清理標題的 ANSI／控制字元與 bidi；不變 task／child args／提示、managed config／guard／trust，不修改真實設定。標題僅保存於 parent 工具 arguments/details；resume 的新標題不改先前紀錄，也不自動沿用前次標題。
+`title` 是父工具的 UI 標題：single 填頂層欄位，續接填 `agent_message.title`，parallel／chain 每項可填獨立標題（優先於頂層批次標題 fallback）。Call、執行中及完成後均保留 agent 身份並顯示標題；缺少標題沿用舊呈現。最多 50 個 Unicode 字元（code points／碼點），不按 UTF-16 code units 計數；組合 emoji／重音可包含多個碼點。Schema 保留 maxLength 50，派遣前再次計數，避免宿主分群演算法漏過超長組合文字；另限原始 UTF-8 4 KiB，避免極長 combining sequences。空白、只有控制碼或超長會於派遣前拒絕。沿用 Pi 參數正規化：optional null 可視為省略，數字／布林可轉為字串；直接 execute 收到非字串則拒絕。TUI 清理標題的 ANSI／控制字元與 bidi；不變 task／child args／提示、managed config／guard／trust，不修改真實設定。標題僅保存於 parent 工具 arguments/details；resume 的新標題不改先前紀錄，也不自動沿用前次標題。
 
 ```json
 { "agent": "scout", "title": "調查登入與驗證程式碼", "task": "Find all authentication code." }
@@ -75,26 +77,26 @@ Catalog 不強制替換完整 system prompt，與 Web／共享背景指引各自
 - `references/`、`scripts/` 不內嵌，child 可依 `location` 自行讀取。
 - 嵌入內容計入單筆 CLI 使用者訊息上限（同 `taskEnvelopeError`），超過即拒絕。
 - 紀錄的 `task`、結果與 debug 的 `task` 欄位仍是呼叫端原文；skill 全文不寫入 parent 結果。`debugLog` 的 `taskPrompt` 含實際送出文字。
-- chain 的 `{previous}` 只展開 `task`，不處理 skill 內容。`subagent_message` 續接不重送 skills（skill 已在 child 的歷史中）。
+- chain 的 `{previous}` 只展開 `task`，不處理 skill 內容。`agent_message` 續接不重送 skills（skill 已在 child 的歷史中）。
 - 同一 item 的 skills 只影響該 child，不改 agent 定義、tools、trust 或 system prompt。
 
 Task 先寫入權限受限的 UTF-8 暫存檔，不放入 command line。同步模式使用 Pi `@file` 參數；背景模式將檔案內容送入 RPC prompt。兩者 task 內的 `@path` 都不會遞迴展開。暫存目錄建立、prompt/task 寫入及 runner 清理均受 IoGate 取消／期限約束，取消後不再啟動 child；已開始的 OS I/O 不保證能中斷，晚到操作自行在寫入結束後清理其專屬目錄，不提前刪除進行中的寫入。刪除會重試（`maxRetries` 5）；行程被強制結束而殘留的 `pi-subagent-*` 暫存目錄（含 query 工作副本）由首個 session 啟動時每行程一次的 best-effort 掃除移除：只刪 24 小時未修改的一般目錄，只處理本模組產生的名稱（`pi-subagent-<pid>-<6 碼>`、`pi-subagent-query-<pid>-<6 碼>`，及舊版無 pid 者），其他前綴相同的目錄不動，不限檢查筆數但每次最多移除 512 筆；名稱含擁有者 pid，該行程仍存活者不刪（pid 被重用時舊目錄會被保留，只漏清不誤刪），受管子行程不掃，不跟隨連結，不阻擋也不使 run 失敗。清理故障明確保留 diagnostics。等待 mutation queue 後在實際寫入前再檢查取消。暫存 gate 與 native/transcript gate 分離：pending temp write 不阻止已安全結束的 native writer lock 清理；真正 pending native I/O 仍保留鎖。進入清理時 request 已取消亦啟動 owned deletion，但立即退出等待，晚到刪除由原 owner 收尾。
 
 ### 背景工作
 
-每回合注入與 Shell 共用、去重的 `background_jobs` system prompt section；只有相關建立／管理工具被選取時存在，包含 management-only loadout。通知順序不等於完成順序；partial assistant 結論／log／query snapshot 不是 runner 終結證據，只能宣稱暫定結論。已有充分證據且其餘工作不再需要時，模型須以已選取的 `subagent_cancel({jobId})` 取消 owned 工作（不是 `subagent_message`、也不是 child session ID），再核對收尾；不留著跑只為等通知。仍必要的驗證／寫入／checkpoint／cleanup 不提前中斷。取消要求不等於完整 process tree 已停止，取消／aborted 不得宣稱整套驗證通過。禁止輪詢／sleep 等通知，允許一次性核對終結／取消收尾；cancel 未選取時明說限制，不自行啟用、續接或亂殺行程。此為模型指引，不新增自動取消 heuristic，也不改 registry／guards／steer／cleanup。
+每回合注入與 Shell 共用、去重的 `background_jobs` system prompt section；只有相關建立／管理工具被選取時存在，包含 management-only loadout。通知順序不等於完成順序；partial assistant 結論／log／query snapshot 不是 runner 終結證據，只能宣稱暫定結論。已有充分證據且其餘工作不再需要時，模型須以已選取的 `agent_cancel({jobId})` 取消 owned 工作（不是 `agent_message`、也不是 child session ID），再核對收尾；不留著跑只為等通知。仍必要的驗證／寫入／checkpoint／cleanup 不提前中斷。取消要求不等於完整 process tree 已停止，取消／aborted 不得宣稱整套驗證通過。禁止輪詢／sleep 等通知，允許一次性核對終結／取消收尾；cancel 未選取時明說限制，不自行啟用、續接或亂殺行程。此為模型指引，不新增自動取消 heuristic，也不改 registry／guards／steer／cleanup。
 
 ```json
 { "agent": "worker", "task": "完整的委派工作說明", "background": true }
 ```
 
 - 回傳 `{ jobId, status: "queued", cancelRequested: false, tasks: [{ taskId, agent, status: "queued", logPending: true, subagentSessionId }] }`；每個 item 在回傳前已實際配置 managed session／manifest，ID 不是預造值。jobId 是本次 batch，taskId 是 invocation identity，不是穩定對話 ID。queued／new 身份不代表可互動或 checkpoint ready；未建立 log 不回傳 liveLogPath／finalLogPath。
-- 取得 active-child permit 並建立 readable log 後，`subagent_background` custom message（`kind: "log_ready"`，`display:false` 不新增聊天 bubble，模型事件與底部狀態更新保留）提供各 task 的 subagentSessionId／liveLogPath（僅既有 `runs/<taskId>/transcript.jsonl.partial`）。也可用 `subagent_status({ jobId })` 查詢最新資料。Readable log 是 finalized message/tool records，不是逐 token 日誌；可能含敏感資訊。log_ready 另附 `finalLogPath`（rename 後的最終路徑，完成前尚不存在）：liveLogPath 在完成時會被 rename 而失效，之後改讀 finalLogPath／完成通知的 logPath（兩者相同）；完成後 status 不再回傳 liveLogPath／finalLogPath。依完成通知的 logPath 重新讀取，aggregate log 不沿用 run-local offset。
+- 取得 active-child permit 並建立 readable log 後，`subagent_background` custom message（`kind: "log_ready"`，`display:false` 不新增聊天 bubble，模型事件與底部狀態更新保留）提供各 task 的 subagentSessionId／liveLogPath（僅既有 `runs/<taskId>/transcript.jsonl.partial`）。也可用 `agent_status({ jobId })` 查詢最新資料。Readable log 是 finalized message/tool records，不是逐 token 日誌；可能含敏感資訊。log_ready 另附 `finalLogPath`（rename 後的最終路徑，完成前尚不存在）：liveLogPath 在完成時會被 rename 而失效，之後改讀 finalLogPath／完成通知的 logPath（兩者相同）；完成後 status 不再回傳 liveLogPath／finalLogPath。依完成通知的 logPath 重新讀取，aggregate log 不沿用 run-local offset。
 - 完整 runner 完成（包括 native identity／guard／digest、commit/rollback、writer release）後，送出 `kind: "task_result"` custom message，加上 `{ triggerTurn: true, deliverAs: "steer" }`；與 Shell 統一：主 agent 忙碌時在目前 assistant＋tool batch 完成後插入，下一次模型請求可見；閒置時觸發回合。task_result／control_result／query_result 都用 steer；log_ready 保留 triggerTurn:false 的非觸發 delivery。遵循宿主 steeringMode、佇列與 abort，不中斷工具／provider stream；已在生成的 final text 仍須先結束，不能追溯修改當前請求。chain 與單一 task 仍在 runner 收尾後送一次 `task_result`。**parallel `tasks`（≥2 個）改為逐 task 獨立回報**：每個 task 一進入 completed／failed／aborted 就送 `kind:"task_result"` steer（只含該 task，附 `scope:{ taskId, completed, total }`，job `status` 仍為 running）；整個 batch runner 收尾後另送 `kind:"job_result"`（附 `scope:{ completed, total, unnotified, notifiedTaskIds }`，已逐一回報的 task 只保留 status、不重複 output）。`job_result` 在 `unnotified` 為 0 時是 `triggerTurn:false`（`deliverAs` 仍標 steer，Pi 在此情況不使用）；若有 task 未被個別回報（取消後、skipped、未執行）才用 steer 喚醒。job 已要求取消時不逐 task 通知，由 `job_result` 統一回報。這不改變 32 submitted／8 active 上限、工具 schema 或 receipt 結構。原始輸出是委派內容，不提升為 system 權限。每 task 通知摘要取當次 invocation 最後有效 terminal assistant 文字的首個非空行，最多 512 UTF-8 bytes；於 2 MiB aggregate／8 KiB background head cap 前保留 bounded 內部候選，新 assistant／tool／retry start／agent_start 使舊候選失效；Pi 1.0.0 的成功 auto_retry_end 在 recovered message_end 之後，屬完成 recovery 的觀測，不清除新的有效候選，runner settlement 與權威 status 後才發布。沒有有效 terminal 文字不將早期 progress 當結論；failed／aborted 摘要保留診斷。status 的完整 receipt 仍保留最多 8 KiB aggregate head，完整 readable 輸出見 result.logPath；不新增公開 result 欄位或 managed 儲存格式，chain `{previous}`／usage 不變。
-- `subagent_status({})`（省略 jobId）唯讀列出同 owner session／cwd 的 jobs：`{ jobs: [{ jobId, status, cancelRequested, tasks: [{ taskId, agent, status, canMessage?, summary? }] }] }`，summary 為同一 terminal 摘要（最多 200 bytes）；已知 canMessage／cancelRequested 的 false／true 明確保留，undefined 不推成 false。背景派發後不要輪詢，等待 `task_result` steer。
+- `agent_status({})`（省略 jobId）唯讀列出同 owner session／cwd 的 jobs：`{ jobs: [{ jobId, status, cancelRequested, tasks: [{ taskId, agent, status, canMessage?, summary? }] }] }`，summary 為同一 terminal 摘要（最多 200 bytes）；已知 canMessage／cancelRequested 的 false／true 明確保留，undefined 不推成 false。背景派發後不要輪詢，等待 `task_result` steer。
 - 32 submitted 的計數與 8 active child 的 semaphore 存放在 `globalThis`（`Symbol.for("pi-better-tools.subagents.admission.v1")`、`…active-children.v1`），因此 `/reload` 重新求值模組後仍是 process-wide，舊實例的 child 仍佔名額，直到真的結束。
-- 容量錯誤（`BACKGROUND_CAPACITY`、`Too many parallel tasks`）會附目前 `submitted n/32, active n/8` 與建議動作（subagent_status、subagent_cancel、拆批）；32 submitted／8 active 上限不變。
-- `subagent_status({ jobId })` 回傳當前 receipt 與 bounded task result（status、exitCode、usage、canResume、logPath、摘要）；`subagent_cancel({ jobId })` 要求取消，回傳 cancelRequested。取消不是確認完整 process tree 已退出，請查詢最終狀態。管理工具限相同 owner session/canonical cwd/runtime；不重複加入 tool usage。
+- 容量錯誤（`BACKGROUND_CAPACITY`、`Too many parallel tasks`）會附目前 `submitted n/32, active n/8` 與建議動作（agent_status、agent_cancel、拆批）；32 submitted／8 active 上限不變。
+- `agent_status({ jobId })` 回傳當前 receipt 與 bounded task result（status、exitCode、usage、canResume、logPath、摘要）；`agent_cancel({ jobId })` 要求取消，回傳 cancelRequested。取消不是確認完整 process tree 已退出，請查詢最終狀態。管理工具限相同 owner session/canonical cwd/runtime；不重複加入 tool usage。
 - 背景 usage 在 status/通知呈現，**不自動加入 host totals**。Job registry 僅存在目前 runtime，最多保留 64 jobs，超量時移除最舊的已結束 job；managed native/log/run metadata 仍在磁碟，不自動刪除。退出後不能用 jobId 恢復工作，不保證通知 exactly-once 或送達確認。內部 payload-free 觀測最多保留 128 筆／省略數，區分 canonical applied、callback attempted／returned／threw 及 owner/generation suppressed；可注入 observer 的例外不影響 lifecycle，不記 prompt／output／interaction payload，不新增工具、設定或 durable queue。callback returned 不是 host queued／persisted ack，API 無 ack 時仍為 unknown；隔離 Pi 1.1.0 SDK 測試另觀察實際 streaming steer queue／idle persistence／host async error，不自動重送或更改 steer／triggerTurn。
 - 接受前尊重 tool signal；managed prepare 同時尊重 job-owned 取消／shutdown，取消可停止等待卡住的配置／allocation，但不宣稱 OS I/O 已中斷。實際 prepare 的 promise、job.done 與 submitted 名額保留至晚到 I/O settlement；不開始下一個 allocation 或 child，已完成的未受理 session 保持 new。永久卡住的 OS I/O 仍會占用名額，不能因 rejection／shutdown registry 清除就宣稱 cleanup 完成。接受後移除 tool-signal binding，改由 job-owned signal 控制，因此原 turn 結束不會偷偷取消工作。退出、reload、session replacement 會抑制舊 generation 通知、取消 jobs，最多等待 15 秒 cleanup；既有 child kill escalation 與 bounded I/O 保留。未及清理或強制退出仍可能留下 process tree／blocked writer。
 - Process-wide 背景 submitted task 總量上限 32（包含 running/queued，取消直到清理完成才釋放容量），仍共用既有 8 active-child permits。Chain 每個 step 在受理前都有實際 managed session；未開始 step 誠實保持 new／logPending，失敗後標示 skipped，不建立假 log 或宣稱 ready。配置失败／受理前取消會釋放 admission，已配置但未執行的 session 保持 new（無 checkpoint，不能續接）。
@@ -109,11 +111,11 @@ Task 先寫入權限受限的 UTF-8 暫存檔，不放入 command line。同步�
 - 送出即交接：互動 TUI 中送出一般 steer 文字時，同一個註冊會自動執行相同交接（與 Shell 共用，`pi-shell-tools.detachOnSteer: false` 停用，預設開；細節見 Shell README）。
 - 自動兜底：互動 TUI 的前景 dispatch 啟動滿 `pi-shell-tools.autoBackgroundMs`（與 Shell 共用，預設 300000，`0` 停用）仍未結束，走與 `Alt+J` 相同的接手路徑（receipt 文字為 `Subagent still running after …s; moved to a background job automatically`）；名額不足時維持前景，不重試。測試以 `autoBackgroundMs: 50` 事件驅動，不等真實門檻。
 - 適用 single／parallel／chain。每個 task 的 `taskId` 在前景啟動前就已發出，轉換後沿用同一身分；已產生的 live log（`log_ready`）與已完成 task 結果在接手時重放進 job。parallel 沿用逐 task `task_result` ＋最後 `job_result`；chain 未開始的 step 繼續依序執行，失敗後標示 skipped。
-- 接手由 `BackgroundJobs.submit` 的 `taskIds` 選項完成，不新增第二套 registry：名額（32 submitted／8 active）、`subagent_status`／`subagent_cancel`、journal、shutdown／reload 取消與通知規則都與背景 job 相同。名額不足或 owner 已替換時不轉換，維持前景。
-- 轉換前 Esc／回合取消仍終止前景 child；轉換後回合取消不再停止，需 `subagent_cancel`。取消要求不代表整棵 process tree 已停止。
-- 前景 child 使用 JSON print transport，沒有 RPC 控制通道：轉換後的 task 不能 `subagent_message` control／query（`canMessage:false`）。需要互動的工作請一開始就用 `background:true`。
+- 接手由 `BackgroundJobs.submit` 的 `taskIds` 選項完成，不新增第二套 registry：名額（32 submitted／8 active）、`agent_status`／`agent_cancel`、journal、shutdown／reload 取消與通知規則都與背景 job 相同。名額不足或 owner 已替換時不轉換，維持前景。
+- 轉換前 Esc／回合取消仍終止前景 child；轉換後回合取消不再停止，需 `agent_cancel`。取消要求不代表整棵 process tree 已停止。
+- 前景 child 使用 JSON print transport，沒有 RPC 控制通道：轉換後的 task 不能 `agent_message` control／query（`canMessage:false`）。需要互動的工作請一開始就用 `background:true`。
 - 轉換後 usage 與背景 job 一致，不自動加入 host totals。無 UI（print／RPC）與 managed child 不提供。
-- 測試：`tests/foreground-detach.integration.test.ts`（真實隔離 Pi child ＋ fake provider，以 `hold-enabled`／`hold-release` 事件門讓 child 停在執行中；單一／parallel＋`subagent_cancel`／chain）。
+- 測試：`tests/foreground-detach.integration.test.ts`（真實隔離 Pi child ＋ fake provider，以 `hold-enabled`／`hold-release` 事件門讓 child 停在執行中；單一／parallel＋`agent_cancel`／chain）。
 
 背景互動的 RPC／entries 行為最初以 Pi 1.1.0 驗證；專案目前支援基準為 Pi 1.5.2（見根 AGENTS.md）。不支援 canonical inMemory entries/leaf replay 的 host 會拒絕 query，不降級使用空白或猜測的 context。
 
@@ -121,11 +123,11 @@ Task 先寫入權限受限的 UTF-8 暫存檔，不放入 command line。同步�
 
 版本化 `pi-better-tools-background-state` journal 保存 job/task/child session IDs、owner/canonical cwd/runtime、task/batch 狀態、exit/error code 及 shutdown reason；不保存 prompt/output/control/query/credentials，不新增 durable execution queue。queued intent 在 managed allocation 前寫入，配置完成再補真實 child IDs；配置失敗保留未開始的 intent／failure 證據，但不送 acceptance/task_result 通知。受理 journal I/O 失敗先拒絕，容量會釋放，沒有 child runner；後續記錄故障不改真實結果。Pi 1.0.0 的空 SDK session／`--no-session` 無法保證 journal 落盤，因此背景 create／resume admission 會以 `BACKGROUND_JOURNAL_FAILED` 拒絕；同步 create 與 live control/query 不因此改變。
 
-startup/resume/reload 時 bounded 核對同 owner/cwd 的 session-wide inventory，在 active branch 發 `background-runtime-recovery-subagent` custom 訊息（display:true、triggerTurn:false）。沒有相關歷史不發，已保存相同證據／正常完成通知去重，新證據可補；跨 branch 需要新的 context 通知，fork 不採用無 owner 的 legacy receipt。finding 分為已記錄終結結果、shutdown cancellation requested、outcome unknown、start not confirmed，不把 queued 身份當成 ready／可互動，processTreeState 仍 unknown。通知英文前言＋compact JSON，TUI 收合顯示數量／ID 尾碼／finding，展開完整 IDs、task/child 身份、outcome、reason、next action。
+startup/resume/reload 時 bounded 核對同 owner/cwd 的 session-wide inventory，在 active branch 發 `background-runtime-recovery-subagent` custom 訊息（display:true、triggerTurn:false）。沒有相關歷史不發，已保存相同證據／正常完成通知去重，新證據可補；跨 branch 需要新的 context 通知，spinoff 不採用無 owner 的 legacy receipt。finding 分為已記錄終結結果、shutdown cancellation requested、outcome unknown、start not confirmed，不把 queued 身份當成 ready／可互動，processTreeState 仍 unknown。通知英文前言＋compact JSON，TUI 收合顯示數量／ID 尾碼／finding，展開完整 IDs、task/child 身份、outcome、reason、next action。
 
 共用 Shell `src/recovery.ts` 的純解析／呈現 helper，不共用執行 registry；100,000 entries、4 MiB 整體解析預算、32 KiB 單筆文字、128 jobs、每則 32 findings，上限／malformed 明示 incomplete／omitted。只讀 Pi journal，不掃 child native、lock 或 checkpoint，不呼叫 acquire/rollback/resume、重送 control、重啟 child 或模型。不是 exactly-once／host ack，也不確認整棵 process tree 死亡；legacy fallback 不保證重建全部舊工作，退出後不能用舊 job ID 復活工作。
 
-### `subagent_message`：統一指示／唯讀 query
+### `agent_message`：統一指示／唯讀 query
 
 ```json
 { "subagentSessionId": "<完整 session ID>", "message": "完成目前工具後，先回報結果，不再修改檔案。", "title": "回報目前成果" }
@@ -142,12 +144,12 @@ startup/resume/reload 時 bounded 核對同 owner/cwd 的 session-wide inventory
 - Resume/query preflight 先以唯讀 resolve 授權 owner/cwd，才檢查 shared contention，避免外 owner 的 reservation 被誤判為普通 busy；保留 process-wide session invocation admission 後再 resolve 並驗證完整 checkpoint/config。active-session lookup 直接拒絕 owner/cwd/runtime 不符，不繞回 ready 路徑；另一則 concurrent ready 訊息拒絕 SESSION_BUSY，不能啟動第二個 child。runner 取得既有磁碟 writer lock 後重新驗證 checkpoint／saved configuration，child guard 再驗證實際配置。接受前尊重 tool signal，接受後由 job-owned signal 管理。已接受的 control 即使隨後 settled 或 delivery_unknown 也**不重送**成 resume。
 - Query 支援 running interactive invocation **及已結束的 ready managed session**；兩者均不續接主線。ready query 先驗證同 owner/cwd、agent/config/trust/model 與完整 checkpoint，取得既有 writer fence 的獨占讀取租約，**不接管 stale writer、不 rollback、不新增原對話 run**。原 native／manifest／readable transcript 保持逐 byte 不變；同一 session 在租約期間的 control／另一 query 立即拒絕 SESSION_BUSY，沒有等待佇列。
 - **Control 是永久委派 user input**：使用 `[Delegated user control <messageId>]` 歸屬前綴，再原樣附上文字。前綴讓 slash／skill／template 不是第一個字元；RPC 不解析 `@file` prompt arguments。FIFO 以 one-at-a-time steering，在 assistant + tools 回合邊界消費，不中斷長工具。回傳 `{ messageId, status: "accepted" }`；status 的 `queued` 只表示 child ack，不是 applied。只有 exact canonical user message event 才回報 `applied`（含 timestamp／userOrdinal）並 steer 通知 parent；只有未送出或 input hook 明確回覆 `handled`（未進 canonical 主線）才標 `not_applied`。合法 input hook 可能 transform 文字與前綴；已送出但無法 exact correlation，即使 ack 為 queued 或 task 已 settled，也標 `delivery_unknown`，不可據此自動重送。未 transform 時原文字與前綴同時進入 wire/native 主線；transform 後 canonical 文字仍遵循既有 managed digest 驗證。
-- **Query 是一次性、唯讀模型請求**：回 `{ queryId, status: "accepted" }`，答案以 `kind:"query_result"` custom steer 回 parent，放在 `interaction` 欄位。live query 沿用原 jobId／taskId；ready query 有獨立的背景 jobId／taskId（供 status/cancel），但 subagentSessionId 不變，tasks 標 `readOnlyQuery:true`、`canMessage:false`、`logPending:false`，不偽造新 subsession log。ready query 僅在持久化父對話受理；與一般背景工作共用32 submitted／8 active-child／64 retained jobs與關閉保障。Child bridge 經獨立、token-bound IPC 回覆，不 print stdout、不提交主線 prompt、不 fork 原 session。使用 child 自己的 verified provider／model／thinking／trust 和 modelRegistry；不可用時失敗，沒有 parent model fallback，也不複製 credentials。
+- **Query 是一次性、唯讀模型請求**：回 `{ queryId, status: "accepted" }`，答案以 `kind:"query_result"` custom steer 回 parent，放在 `interaction` 欄位。live query 沿用原 jobId／taskId；ready query 有獨立的背景 jobId／taskId（供 status/cancel），但 subagentSessionId 不變，tasks 標 `readOnlyQuery:true`、`canMessage:false`、`logPending:false`，不偽造新 subsession log。ready query 僅在持久化父對話受理；與一般背景工作共用32 submitted／8 active-child／64 retained jobs與關閉保障。Child bridge 經獨立、token-bound IPC 回覆，不 print stdout、不提交主線 prompt、不 spinoff 原 session。使用 child 自己的 verified provider／model／thinking／trust 和 modelRegistry；不可用時失敗，沒有 parent model fallback，也不複製 credentials。
 - ready query 在租約下捕捉有界、hash 驗證的 committed native bytes，開啟**私人暫存工作副本**讓 child 自己載入 provider/registry/trust；不傳送 task prompt／steer。同一既有 argument builder／startup guard／token-bound query bridge 保留所有遞迴工具 exclusions，worker 再設 `--no-tools`。模型請求 replay 另一份 hash 驗證的 frozen checkpoint copy，不採納 startup hooks 對工作副本的變更，也不恢復被原生 compaction/context edit 移出的上下文。正常 query_result 在 child 真正 close、暫存清理與原租約釋放後送出；不另發 log_ready／task_result 冒充原任務重新完成。這是 process isolation，不是OS sandbox；query仍有獨立模型成本。
 - 即使模型已回答案，後續已確認的協定／禁止主線事件仍使 ready query **failed**，移除成功答案但保留已知 usage/asOf。已知故障先發 `cleanupPending:true` 診斷，不等待無法確認的 close/I/O，也不提前釋放所有權；晚到清理證據以同一 queryId 校正，不復活答案。`cleanupEvidence` 分別記錄 childClosed、ioSettled、temporaryRemoved、originalLeaseReleased；暫存刪除或原租約釋放失敗不以 runner 結束假稱已清理。`cleanupPending` 可能表示殘留檔案／未確認的租約，而非模型 API 仍在執行；依各證據判讀。
 - stdout EOF 尾段即使沒有換行也必須經協定檢查，不能因 child 正常退出而忽略壞 JSON 或禁止主線事件。清理等待期間，status 以 worker 故障診斷優先於 RPC 的模型 terminal snapshot；尚未整體結束的成功答案不提前公開，原租約尚未確認釋放時保留 `cleanupPending:true`，不公開可能殘留 completed／清理成功欄位的私人 worker result。握手後及 query IPC 送出前同步檢查既有 fault／shutdown／gate／owner abort，協定故障不能因先收到合法握手回覆而啟動模型請求。
 - live Snapshot 直接讀 child SessionManager 的 canonical entries/header，驗證單一 chain／leaf，取最近完整配對 assistant-tool batch 的 prefix；用隔離 inMemory SessionManager 重建 system／compaction／context_edit。保留 opaque provider metadata（包含 thinking signatures），清除每個 system checkpoint 的 toolsAdded/toolsRemoved；不呼叫主線 hooks、不提供可執行 tools。收到第一個 toolcall_start／toolcall_delta／toolcall_end 串流事件即 abort，回報 `QUERY_TOOLS_FORBIDDEN`，不等工具參數完成，也絕不 dispatch tool；仍 drain 到 provider terminal evidence 才回覆，不虛構未回傳的 usage。
-- 長工具進行時 query 可能只看見前一個安全 prefix。`asOf` 回報 safe entryId／timestamp、sourceLeafId／capturedAt、sourceTurn 的 user／assistant ordinal、stale、pending tool count/IDs 及已進主線 control IDs（新 uppercase ULID 與 legacy lowercase ID 均保留原大小寫）；metadata ID 列表有截斷標記。不宣稱工具的未見副作用已完成。超過 8 MiB／16,384 entries、branch／leaf 不一致或 replay 後 tool pairing 不安全時拒絕 query，不修補或默默 fork。
+- 長工具進行時 query 可能只看見前一個安全 prefix。`asOf` 回報 safe entryId／timestamp、sourceLeafId／capturedAt、sourceTurn 的 user／assistant ordinal、stale、pending tool count/IDs 及已進主線 control IDs（新 uppercase ULID 與 legacy lowercase ID 均保留原大小寫）；metadata ID 列表有截斷標記。不宣稱工具的未見副作用已完成。超過 8 MiB／16,384 entries、branch／leaf 不一致或 replay 後 tool pairing 不安全時拒絕 query，不修補或默默 spinoff。
 - Query 不改原 native leaf／checkpoint／主線 wire digest，也不把問題、答案或 usage 寫入 child 的 readable/native 主線。獨立 `usage` 保存在 status／query 通知，**不加入主線或 host totals**；中途 transport 關閉或無 provider terminal usage 時標 `usageUnknown:true`，不是假零用量。Query 失敗不終止主工作，也不重置其 inactivity timer。逾期回報的 `cleanupPending:true` 不代表 API 已停止，並行租約仍保留至 terminal IPC／實際 child close；runner abandon、receipt 結束、關 stdin 或提出 kill 要求都不算資源已釋放；晚到 terminal usage 以同一 queryId + `lateUsage:true` 校正，絕不復活逾期答案或重複累加通知用量。
 - Runner 已移除 child handle 後，晚到 terminal／實際 close 仍更新同一 job/generation 的 retained query receipt（含 `cleanupPending`），避免過期狀態錯誤占滿 sibling query 容量；不復活 aborted 答案、不重複通知既有用量，舊 generation 不更新新工作。
 - 每 invocation 最多 32 controls；query 同一 job 最多 2 concurrent／32 retained，process-wide 最多 8 concurrent，每 task 也限 2／32。每 query 最多 30 秒、2048 requested output tokens、64 KiB streamed output，parent answer 保留 8 KiB（IPC reply envelope 128 KiB，容納 JSON escaping／bounded metadata）；opaque provider 回應與取消仍依 provider 是否尊重 signal。RPC commands 最多 16 outstanding／8 MiB queued bytes，30 秒 response deadline；stdin 用 callback backpressure，關閉最長再等 5 秒。
@@ -158,13 +160,13 @@ startup/resume/reload 時 bounded 核對同 owner/cwd 的 session-wide inventory
 
 記憶體內 UI 統一使用 `panelJobs()` 的 `PanelJob[]`，已移除舊 `activePanel()`／`SubagentWidgetRow`／`legacyJobs()` 雙軌 adapter；有效 owner/cwd、metadata 上限與不修改 receipt 的測試轉至現行投影。Owner-bound 綁定共用 Shell `src/widget-binding.ts`，不共用執行 registry，也不改持久化格式、歷史訊息 renderer 或 usage。
 
-背景工作自動在輸入欄上方 `aboveEditor` 顯示 Jobs 面板，與 Shell／Fork／Monitor **合計最多五個 job，每個一行**，最多7行（標題＋5 job＋More），右側狀態欄為 `狀態 | 用量`；取消要求仍在 finalizing 時顯示 `cancelling | finalizing`。Parallel／chain 以一個 job 聚合，不把 task 數當 job 數或 OS process 數；running／queued／finished task 數量與活動摘要、task／session ID 在 More 詳細。狀態來自相同 owner／canonical cwd／runtime epoch 的 registry；cancel requested 只表示要求，finalizing 仍等待 runner／commit／rollback／release，不偽稱 completed。生命週期與最近觀察到的活動分開：Generating reply、thinking observed、Preparing tool request、Tool running、Retrying API request；不展示 thinking／prompt／工具參數內容。
+背景工作自動在輸入欄上方 `aboveEditor` 顯示 Jobs 面板，與 Shell／Spinoff／Monitor **合計最多五個 job，每個一行**，最多7行（標題＋5 job＋More），右側狀態欄為 `狀態 | 用量`；取消要求仍在 finalizing 時顯示 `cancelling | finalizing`。Parallel／chain 以一個 job 聚合，不把 task 數當 job 數或 OS process 數；running／queued／finished task 數量與活動摘要、task／session ID 在 More 詳細。狀態來自相同 owner／canonical cwd／runtime epoch 的 registry；cancel requested 只表示要求，finalizing 仍等待 runner／commit／rollback／release，不偽稱 completed。生命週期與最近觀察到的活動分開：Generating reply、thinking observed、Preparing tool request、Tool running、Retrying API request；不展示 thinking／prompt／工具參數內容。
 
 詳細頁（Enter）對 running 的 job 顯示每個 task 的即時對話副本：`RunnerRuntime.onEvent` 收到已驗証的 child 事件後寫入該 task 的 `LiveTranscript`（streaming assistant 就地取代，工具卡依 toolCall 對上 partial／result），`Ctrl+O` 展開工具結果、`m` 切回 metadata、`End` 跟隨尾端。副本是顯示層：不寫 log、不進 receipt／模型 context、不影響終態或 usage；task finish、整個 run 結束或 runner 失敗即 `release()`，之後的 late event 不會重建，task 數與串流背壓限制不變。
 
 Subagent `reported … tok*` 為本次 invocation **已回報累計 usage**，不是逐 token 精確計數。詳細 metadata 有 input／output／cache read/write／total／cost，未報為 pending，終結仍無資料為 unknown；部分 tasks 未報時標 usage partial。已確認終結 result 優先於早期 snapshot；live query 用量不加入主 task，ready query 以自己的 job 顯示，query 的模型回覆不冒充 worker／lease settlement。背景用量不加到 host totals，不改任何 result/schema/accounting。
 
-`/background-jobs` 或 `more`／`all` 開啟輸入框上方的底部面板；`subagents`／`shell`／`fork`／`monitor`／`pty`／`schedule` 篩選清單，`collapse` 明確隱藏常駐面板，之後 more／all 可恢復。↑↓ 選取、Enter 詳細、Tab 最近完成／全部、Esc 返回清單／關閉回 editor；只有主動開啟才取焦點，背景更新不重開或改草稿。Fullscreen 可點 job 列或完整 More 標籤，滑鼠停在其上會高亮；一般模式不接管 terminal mouse。終結 jobs 移出常駐面板，More 可查看當前 retained metadata，不復原已淘汰或跨 reload job。無 active job 不占面板空間。標題／agent 顯示先有界清理 ANSI／控制碼／bidi，按 Unicode 欄寬截短不折行；窄／矮終端減少細節／行數。
+`/background-jobs` 或 `more`／`all` 開啟輸入框上方的底部面板；`subagents`／`shell`／`spinoff`／`monitor`／`pty`／`schedule` 篩選清單，`collapse` 明確隱藏常駐面板，之後 more／all 可恢復。↑↓ 選取、Enter 詳細、Tab 最近完成／全部、Esc 返回清單／關閉回 editor；只有主動開啟才取焦點，背景更新不重開或改草稿。Fullscreen 可點 job 列或完整 More 標籤，滑鼠停在其上會高亮；一般模式不接管 terminal mouse。終結 jobs 移出常駐面板，More 可查看當前 retained metadata，不復原已淘汰或跨 reload job。無 active job 不占面板空間。標題／agent 顯示先有界清理 ANSI／控制碼／bidi，按 Unicode 欄寬截短不折行；窄／矮終端減少細節／行數。
 
 共用 key `pi-better-tools-background-jobs`；Shell `background-panel.ts`／`job-view.ts` 是純 presentation helper，公開 pi.events rendezvous 分享顯示、不分享 registry／權限／操作，不替換 footer／其他 widget、不啟用未選 tools。僅 TUI+hasUI，RPC／JSON／print 不掛面板，不列同步／其他 session/workspace。UI progress 由既有 child events signature 去重，無 polling／新 ticker／模型請求／log 讀取；owner、epoch、producer lease、disposed component／shutdown 防護保留，private progress／title 不進 receipt／模型內容，UI 例外不改工作結果。等待背景工作結束後 `/reload` 載入。取消或移除面板不證明 provider/process tree 已停止。
 
@@ -174,7 +176,7 @@ Subagent `reported … tok*` 為本次 invocation **已回報累計 usage**，�
 
 背景 custom message 通知使用與原生工具呼叫相同的 SDK Box 背景色塊，不畫框線，收合與展開一致。依主工作或 interaction 的權威狀態採 toolSuccessBg（completed／applied）、toolErrorBg（failed／not_applied）或其餘 toolPendingBg 色盤，不將 aborted／accepted／未知改稱成功或執行中。3欄以上左右各留1欄，上下各留1行，300行包含留白；SGR reset 後重套背景避免色塊斷開。管理工具／派發 receipt／同步結果仍用原生工具區塊，不再套第二層背景。顯示 tab 轉空白以維持欄位對齊。
 
-`/reload` 後，新的 log_ready 不顯示聊天訊息；`subagent_background` 的 task_result／control_result／query_result（及歷史 log_ready）、`subagent_status`／`subagent_cancel`／`subagent_message` 結果及背景派發 receipt 改用摘要／原生展開顯示，不再堆原始 JSON。收合列表最多五個 job、每 job 三個 task、單行結論；單一工作最多三行結果／錯誤。展開看完整 ID、已有 live/final log、session／可續接狀態、通知保留的輸出／錯誤、獨立用量及互動，不讀 log，也不恢復丟棄輸出。欄位最多8192字元、64 jobs／32 tasks及互動、整體300行；省略／截短都有提示。
+`/reload` 後，新的 log_ready 不顯示聊天訊息；`subagent_background` 的 task_result／control_result／query_result（及歷史 log_ready）、`agent_status`／`agent_cancel`／`agent_message` 結果及背景派發 receipt 改用摘要／原生展開顯示，不再堆原始 JSON。收合列表最多五個 job、每 job 三個 task、單行結論；單一工作最多三行結果／錯誤。展開看完整 ID、已有 live/final log、session／可續接狀態、通知保留的輸出／錯誤、獨立用量及互動，不讀 log，也不恢復丟棄輸出。欄位最多8192字元、64 jobs／32 tasks及互動、整體300行；省略／截短都有提示。
 
 狀態取自 receipt，不以輸出中的 Error 字詞判定。取消要求不等於程序樹終止，aborted 不改稱 failed；Control 的 accepted 顯示 `Control message accepted; waiting to be added to the subagent conversation.`，queued 顯示 `Control message queued; waiting to be added to the subagent conversation.`；兩者皆為等待狀態，不是錯誤。applied 只表示已確認納入子代理對話，不代表要求的工作已完成。log_ready 是通知時快照，finalLogPath 於該時點只是尚未存在的未來路徑。Query 顯示快照／stale、未知用量（不是零）、late usage（不復活答案）與 cleanup pending（不宣稱 provider 已停止）。完成通知的 display details 額外保留 query cleanupPending／asOf／lateUsage／outputTruncated，模型 content／structuredContent、steer／triggerTurn、usage accounting 與 lifecycle 不變。僅顯示層清理 ANSI／OSC／控制碼／bidi，支援 Unicode 欄寬與缺 details 的舊JSON／text blocks；同步模式既有進度透過 onUpdate 更新原工具呼叫 bubble；收合用同一 terminal 摘要，展開 Markdown／完整 content 不變。內部摘要不序列化；舊 saved results 的 structured／list 摘要沿用歷史首行 fallback，沒有內部 metadata 的同步收合呈現亦保留原 aggregate 輸出，不重寫歷史，新完成通知的既有 content.output 摘要可供 reload 收合呈現。
 
@@ -184,7 +186,7 @@ Subagent `reported … tok*` 為本次 invocation **已回報累計 usage**，�
 
 正常 partial／snapshot／late usage 使用中性說明；cleanup pending、delivery_unknown 及真正錯誤仍保留提醒。終結缺 log 顯示 `No subsession log path was provided for this result.`，running 不顯示 log 行（有路徑或錯誤才顯示）；running 不再由 canResume=false 推成 blocked。aborted 以 `aborted · task stopped`／`Stop reason:` 呈現，不改 isError、退出碼、ownership 或程序樹判定。截短只說明目前保留範圍，有既有 logPath 才推薦讀取。容量錯誤保留原碼與上限，說明新請求未受理。
 
-`subagent_message` 預期拒絕（`TASK_NOT_RUNNING`／`SESSION_BUSY`／query/control/background capacity／`MESSAGE_ABORTED`）在收合及展開顯示 warning 的 `Query/Message not accepted`、Reason code、觀察狀態、session 與 nextAction；checkpoint/config/trust/ownership與未知故障仍為 `Subagents error`。所有未受理訊息保留模型端 `isError:true` 與 rejected receipt；warning 只改標題／說明，Pi 原生工具仍依原旗標顯示紅底，不把未受理改稱成功。歷史結果不改寫，舊 isError:true 的原生背景仍由Pi控制，renderer只改善標題/說明。不因缺少未受理的 job／interaction ID 誤稱資料不足。預期拒絕先套 warning 分類，其他工具結果以 Pi 1.0.0 的 `context.isError` 為優先；只有舊直接呼叫缺少此旗標時才沿用 `result.isError`。歷史 details／JSON 的 `status:"rejected"` 亦可辨識；不改寫原始模型內容，不自動重送或放寬訊息受理條件。
+`agent_message` 預期拒絕（`TASK_NOT_RUNNING`／`SESSION_BUSY`／query/control/background capacity／`MESSAGE_ABORTED`）在收合及展開顯示 warning 的 `Query/Message not accepted`、Reason code、觀察狀態、session 與 nextAction；checkpoint/config/trust/ownership與未知故障仍為 `Subagents error`。所有未受理訊息保留模型端 `isError:true` 與 rejected receipt；warning 只改標題／說明，Pi 原生工具仍依原旗標顯示紅底，不把未受理改稱成功。歷史結果不改寫，舊 isError:true 的原生背景仍由Pi控制，renderer只改善標題/說明。不因缺少未受理的 job／interaction ID 誤稱資料不足。預期拒絕先套 warning 分類，其他工具結果以 Pi 1.0.0 的 `context.isError` 為優先；只有舊直接呼叫缺少此旗標時才沿用 `result.isError`。歷史 details／JSON 的 `status:"rejected"` 亦可辨識；不改寫原始模型內容，不自動重送或放寬訊息受理條件。
 
 ### RPC 啟動失敗診斷
 
@@ -228,8 +230,8 @@ RPC 啟動錯誤保留原始錯誤碼／訊息，另附英文 `Startup observati
 { "subagentSessionId": "<subagentSessionId>", "title": "實作並驗證方案 B", "message": "採用方案 B，繼續實作並執行驗證。" }
 ```
 
-- 透過 `subagent_message` 送出非空 `message` 與選填顯示用 `title`；不接受 agent、tasks、chain、cwd、provider、model、thinkingLevel、agentScope、confirmProjectAgents、background。續接一律為非同步 background invocation。
-- **遷移**：`subagent({resume,...})` 公開操作已移除，直接 execute 回 INVALID_DISPATCH 與新訊息介面指引，不啟動 child、不轉成 create。舊 `subagent_message({jobId,taskId,...})` 缺穩定 session ID 時拒絕並提示遷移。保留內部 ManagedSession／runSingleAgent continuation primitives；舊 session、通知與 tool-call renderer 照舊可讀，不改寫歷史。
+- 透過 `agent_message` 送出非空 `message` 與選填顯示用 `title`；不接受 agent、tasks、chain、cwd、provider、model、thinkingLevel、agentScope、confirmProjectAgents、background。續接一律為非同步 background invocation。
+- **遷移**：`subagent({resume,...})` 公開操作已移除，直接 execute 回 INVALID_DISPATCH 與新訊息介面指引，不啟動 child、不轉成 create。舊 `agent_message({jobId,taskId,...})` 缺穩定 session ID 時拒絕並提示遷移。保留內部 ManagedSession／runSingleAgent continuation primitives；舊 session、通知與 tool-call renderer 照舊可讀，不改寫歷史。
 - 新 ID 使用 `ulid().toUpperCase()` 產生完整大寫 ULID；仍接受既有完整小寫 ULID／舊版小寫 UUID，不轉換保存的 ID 大小寫；續接只載入該 child 自己的歷史，看不到 parent 新對話。
 - Parallel／chain 每個 item／step 各有獨立 session，不共用 context。
 - 限相同 parent session 與 canonical parent cwd。
@@ -329,7 +331,7 @@ writer.acquire/       # 短期跨 process acquisition/recovery election fence
 
 ## 安全邊界
 
-- 所有 child 以 `--exclude-tools subagent,subagent_status,subagent_cancel,subagent_message` 啟動，無法再次派遣或管理 parent 的 subagents。若 agent 有 shell 權限仍可自行執行 `pi`，需另用 sandbox 限制。
+- 所有 child 以 `--exclude-tools subagent,agent_status,agent_cancel,agent_message` 啟動，無法再次派遣或管理 parent 的 subagents。若 agent 有 shell 權限仍可自行執行 `pi`，需另用 sandbox 限制。
 - child 有明確 `--tools` 清單時，argument builder 另附 Pi Auto Compact 的 `progress_checkpoint`（`+name`／`-name` 清單附 `+progress_checkpoint`），讓長任務的進度錨點在 allowlist 下仍可用；該工具未掛載時 allowlist 多一個未知名稱，Pi 只當過濾條件。
 - Child 另載入 startup guard，於第一個 provider request 前驗證 model registry 與 trust；不複製 parent 的臨時 provider、credentials 或一次性 approve。Child 須能自行載入相同 provider 定義。
 - **同 process guard reload**：只對同一已驗證 handshake object／invocation，只讀重驗原 startupPath，並重新核對 model／cwd／native ID／thinking／trust。新 lease 保存 serialized JSON 的原始 UTF-8 `Buffer`；檔案以 `readFileSync(fd)` 原始 Buffer 的 `equals` 精確比對，不容錯解碼 UTF-8。依 `lstat → open → fstat → raw read → fstat → lstat` 檢查點核對 regular／非 symlink、bigint dev／ino、size 等於 expected Buffer 長度，並比較前後 mtimeNs／ctimeNs；身份為 0n 或所需 bigint metadata 不可用亦 fail closed。新消耗的 handshake object（即使 payload 相同）沒有重用資格，仍以 `wx` exclusive 建立；拒絕不覆寫外來／變造 receipt、不重建遺失檔案。早期同 process serialized-string lease 僅從其已保存 payload 重建 expected Buffer，再通過全部 raw／metadata 檢查後更新記憶體 cache，不用磁碟解碼字串驗證或接管既有檔案。這不是跨 process 工作恢復或 OS sandbox，receipt 格式及既有 owner／writer admission 不變。
@@ -341,22 +343,22 @@ writer.acquire/       # 短期跨 process acquisition/recovery election fence
 ## 輸出契約與 structuredContent
 
 - 同步建立（single／parallel／chain）結果除 `content` 外附 `structuredContent`：`{ mode, status, results: [{ taskId, agent, status, exitCode, canResume, subagentSessionId?, logPath?, errorCode?, stopReason?, summary? }] }`；`summary` 為同一最後有效 terminal 摘要（最多 256 bytes），完整輸出仍在 `content` 與 sub-session log。
-- `subagent_status` 的 outputSchema 對 `result`（status、exitCode、canResume、logPath、output…）、`controls`、`queries` 有具體型別，並允許額外欄位。
+- `agent_status` 的 outputSchema 對 `result`（status、exitCode、canResume、logPath、output…）、`controls`、`queries` 有具體型別，並允許額外欄位。
 - Bundled agents（scout／worker／planner／reviewer）與 prompts 要求：首行一句結論、長細節寫檔只回傳路徑、全文長度上限（約 400–500 字）；prompts 提醒各 step 為隔離 context，task 須帶具體路徑。
-- `subagent_status` 的 outputSchema 為 `Type.Union([單一 job receipt, jobs 列表])`（anyOf）。已核對 Pi 1.0.0 原始碼：host 只把 `outputSchema` 當 codemode 的型別宣告（`schemaToType` 支援 anyOf），不驗證 structuredContent、也不要求 object 型別，故可註冊。
-- 模型可見文字瘦身：背景 receipt／status／cancel／通知的 `content` 只含下一步所需欄位（taskId、agent、status、subagentSessionId、live／finalLogPath、result 的首行摘要／logPath／canResume／錯誤、usage 的 totalTokens／cost）；操作所需否定資訊 cancelRequested／canMessage／logPending／已知 canResume 的 false 明確輸出；`exitCode: 0`、`stopReason: "stop"`、空 controls／queries、重複的 agent／status／model／完整 usage 仍省略。`subagent_message` 文字與 structuredContent 均包含實際 action、穩定 session ID、適用 invocation／interaction ID 與受理狀態；拒絕時帶診斷及 nextAction。`structuredContent`（只給 codemode）與 `details`（TUI renderer）維持完整 receipt。
+- `agent_status` 的 outputSchema 為 `Type.Union([單一 job receipt, jobs 列表])`（anyOf）。已核對 Pi 1.0.0 原始碼：host 只把 `outputSchema` 當 codemode 的型別宣告（`schemaToType` 支援 anyOf），不驗證 structuredContent、也不要求 object 型別，故可註冊。
+- 模型可見文字瘦身：背景 receipt／status／cancel／通知的 `content` 只含下一步所需欄位（taskId、agent、status、subagentSessionId、live／finalLogPath、result 的首行摘要／logPath／canResume／錯誤、usage 的 totalTokens／cost）；操作所需否定資訊 cancelRequested／canMessage／logPending／已知 canResume 的 false 明確輸出；`exitCode: 0`、`stopReason: "stop"`、空 controls／queries、重複的 agent／status／model／完整 usage 仍省略。`agent_message` 文字與 structuredContent 均包含實際 action、穩定 session ID、適用 invocation／interaction ID 與受理狀態；拒絕時帶診斷及 nextAction。`structuredContent`（只給 codemode）與 `details`（TUI renderer）維持完整 receipt。
 
 ## 預設啟用
 
-`subagent`、`subagent_message`、`subagent_status`、`subagent_cancel` 均明確 `defaultActive: true`（原本省略，行為相同）：載入即預設啟用，不需 `defaultTools`；宿主 `--tools` allowlist、`--exclude-tools`、`--no-tools` 與手動停用仍優先。Subagent child 一律 `--exclude-tools subagent`，不受影響。
+`subagent`、`agent_message`、`agent_status`、`agent_cancel` 均明確 `defaultActive: true`（原本省略，行為相同）：載入即預設啟用，不需 `defaultTools`；宿主 `--tools` allowlist、`--exclude-tools`、`--no-tools` 與手動停用仍優先。Subagent child 一律 `--exclude-tools subagent`，不受影響。
 
 ## Error messages
 
 Failure responses name the parameter, the rule and the fix (2026-10-24 guidance pass; see plan/error-message-handoff.md). Agent-visible messages name only the tool's own arguments, tool names, error codes and slash commands; settings keys, environment variables, flags and settings directories are not named.
-- `subagent_message` limits are UTF-8 bytes, and the message says so; rejected receipts carry a concrete `nextAction` per error code and `errorCode` is only the leading UPPER_SNAKE code (otherwise `MESSAGE_REJECTED`).
+- `agent_message` limits are UTF-8 bytes, and the message says so; rejected receipts carry a concrete `nextAction` per error code and `errorCode` is only the leading UPPER_SNAKE code (otherwise `MESSAGE_REJECTED`).
 - Ignored `model`/`thinkingLevel` overrides are reported in a separate `Note:` text block after a successful result; the receipt JSON is unchanged.
-- Unknown job/session ids point to `subagent_status` without `jobId`. The 32 submitted / 8 active limits and `--exclude-tools subagent` are unchanged.
+- Unknown job/session ids point to `agent_status` without `jobId`. The 32 submitted / 8 active limits and `--exclude-tools subagent` are unchanged.
 
-## 給 Fork 的契約面
+## 給 Spinoff 的契約面
 
-`src/fork-contract.ts` 是 Fork 唯一引用的 Subagents 內部符號集合（`killProcessTree`、`getPiInvocation`、`RpcPipe`、查詢快照與 `subsession-log` 工具、`buildSubagentPiArgs`）。變更這些匯出須同步 Fork。
+`src/spinoff-contract.ts` 是 Spinoff 唯一引用的 Subagents 內部符號集合（`killProcessTree`、`getPiInvocation`、`RpcPipe`、查詢快照與 `subsession-log` 工具、`buildSubagentPiArgs`）。變更這些匯出須同步 Spinoff。

@@ -1,7 +1,7 @@
 // Spike: the real, unmodified Fork child guard inside an interactive (PTY) Pi, with its IPC messages shimmed onto the side socket.
 import { appendFileSync } from 'node:fs';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import guard from '../../modules/fork/src/child-guard.ts';
+import guard from '../../modules/subagents/src/spinoff/child-guard.ts';
 import { canonicalMonitorCwd, publishCapability } from '../../shared/src/background/index.ts';
 import viewer from './viewer-ext.ts';
 

@@ -44,11 +44,11 @@
 - **不要用絕對路徑載入 FFF 內部模組**（例如直接 import `@ff-labs/pi-fff/src/sdk.ts`）：那會繞過 jiti 的虛擬模組對應、載到真正的 `fff-bun`，而 `FileFinder.create()` 拋出的 `bun:ffi requires the JIT` 不會觸發上游的 `fff-node` 回退（上游只在 import 失敗時回退）。
 - override 模式會覆蓋 Pi-Bolt 原生的 in-process `grep`／`find`，FFF 初始化失敗時該 session 沒有可用搜尋；要保留內建後備請把 `<agentDir>/pi-fff.json` 設為 `{"mode": "tools-only"}`。
 
-**Subagent／Fork 子行程。** Pi-Bolt 的 `process.execPath` 是 Pi 執行檔本身，不是 Node，不能執行 `cli.js`。`getPiInvocation` 現在偵測到編譯版 Bun 宿主（`process.argv[1]` 為 `/$bunfs/root/…` 或 `X:/~BUN/root/…`）時，直接以 `process.execPath` 啟動子行程，不再傳入套件 `cli.js`。修正前，子行程會把 `cli.js` 路徑當成第一則 prompt。`PI_SUBAGENTS_PI_CLI` 仍優先。Fork 共用同一個函式。見 `modules/subagents/README.md`。
+**Subagent／Spinoff 子行程。** Pi-Bolt 的 `process.execPath` 是 Pi 執行檔本身，不是 Node，不能執行 `cli.js`。`getPiInvocation` 現在偵測到編譯版 Bun 宿主（`process.argv[1]` 為 `/$bunfs/root/…` 或 `X:/~BUN/root/…`）時，直接以 `process.execPath` 啟動子行程，不再傳入套件 `cli.js`。修正前，子行程會把 `cli.js` 路徑當成第一則 prompt。`PI_SUBAGENTS_PI_CLI` 仍優先。Spinoff 共用同一個函式。見 `modules/subagents/README.md`。
 
 ### 未驗證
 
-- 以真實模型執行 Subagent／Fork 的端到端流程（修正只由單元測試與呼叫形狀實測支持）。
+- 以真實模型執行 Subagent／Spinoff 的端到端流程（修正只由單元測試與呼叫形狀實測支持）。
 - MSSQL 的 `msnodesqlv8`。
 - `sqlite`／`pty`／`web`／`json-schema` 等工具在 Pi-Bolt 上的完整行為（只確認載入與上表呼叫）。
 - 重型測試組（`test:heavy`）未在 Pi-Bolt 上執行。

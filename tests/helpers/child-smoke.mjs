@@ -19,7 +19,7 @@ export async function runChildSmoke({ home, host, packageRoot, evidence }) {
   let framingFailure;
   // This probe requests a background continuation: its real parent prompt must persist.
   // --no-session intentionally refuses that admission; never bypass the runtime journal fence.
-  const output = await runCommand('real integrated managed child', process.execPath, [join(host, 'dist/bundle/cli.js'), '--mode', 'rpc', '--offline', '--no-context-files', '--no-skills', '--no-prompt-templates', '--no-themes', '--model', 'integration-offline/fixture', '--tools', 'subagent,subagent_message'], {
+  const output = await runCommand('real integrated managed child', process.execPath, [join(host, 'dist/bundle/cli.js'), '--mode', 'rpc', '--offline', '--no-context-files', '--no-skills', '--no-prompt-templates', '--no-themes', '--model', 'integration-offline/fixture', '--tools', 'subagent,agent_message'], {
     cwd, env: { ...isolatedEnv(home), PI_WEB_TOOLS_CONFIG: join(agentDir, 'web-search.json'), PI_BETTER_TOOLS_CHILD_CWD: childCwd }, timeoutMs: 150000, quiet: true,
     // Retain runCommand's output budget, watchdog and process-tree cleanup. Only
     // keep stdin open for the asynchronous followUp, then close at settled evidence.
@@ -33,7 +33,7 @@ export async function runChildSmoke({ home, host, packageRoot, evidence }) {
           const line = buffer.slice(0, end); buffer = buffer.slice(end + 1); if (!line.trim()) continue;
           try {
             const event = JSON.parse(line), message = event.message;
-            if (event.type === 'message_end' && message?.role === 'toolResult' && message.toolName === 'subagent_message') {
+            if (event.type === 'message_end' && message?.role === 'toolResult' && message.toolName === 'agent_message') {
               if (message.isError) terminalSeen = true;
               else resumeJob = message.details?.jobId;
             }
@@ -50,7 +50,7 @@ export async function runChildSmoke({ home, host, packageRoot, evidence }) {
   if (evidence) await writeFile(evidence, output);
   if (framingFailure) throw framingFailure;
   const events = output.trim().split('\n').map(line => JSON.parse(line));
-  const messages = events.filter(e => e.type === 'message_end' && e.message?.role === 'toolResult' && ['subagent', 'subagent_message'].includes(e.message.toolName)).map(e => e.message);
+  const messages = events.filter(e => e.type === 'message_end' && e.message?.role === 'toolResult' && ['subagent', 'agent_message'].includes(e.message.toolName)).map(e => e.message);
   assert.equal(messages.length, 2, 'actual agent loop must create then send a continuation message');
   for (const message of messages) assert.equal(message.isError, false, JSON.stringify(message.details));
   const parentSessions = await readdir(join(agentDir, 'sessions'), { recursive: true });
@@ -70,7 +70,7 @@ export async function runChildSmoke({ home, host, packageRoot, evidence }) {
   assert.ok(parentJournalFound, 'the actual parent prompt is persisted, not a synthetic journal bypass');
   const first = messages[0].details.results[0], accepted = messages[1].details;
   assert.equal(first.status, 'completed'); assert.equal(first.canResume, true, 'packed guard and initial native checkpoint must pass');
-  assert.equal(messages[1].toolName, 'subagent_message'); assert.equal(accepted.action, 'resume'); assert.equal(accepted.status, 'accepted');
+  assert.equal(messages[1].toolName, 'agent_message'); assert.equal(accepted.action, 'resume'); assert.equal(accepted.status, 'accepted');
   assert.equal(accepted.subagentSessionId, first.subagentSessionId); assert.notEqual(accepted.taskId, first.taskId);
   assert.equal(messages[1].usage, undefined, 'background continuation does not double-count host usage');
   const notices = events.filter(e => e.type === 'message_end' && e.message?.customType === 'subagent_background' && e.message.details?.kind === 'task_result' && e.message.details.jobId === accepted.jobId);

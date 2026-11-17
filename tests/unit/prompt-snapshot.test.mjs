@@ -14,7 +14,7 @@ process.env.PI_CODING_AGENT_DIR = join(home, 'agent');
 process.env.HOME = process.env.USERPROFILE = home;
 
 const manifest = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8')).pi.extensions;
-const OWNERS = ['shell-tools', 'file-tools', 'subagents', 'web-tools', 'pi-runtime', 'fork', 'schedule-commands'];
+const OWNERS = ['shell-tools', 'file-tools', 'subagents', 'web-tools', 'pi-runtime', 'schedule-commands'];
 const handlers = [];
 let active = [];
 const noop = () => undefined;
@@ -35,7 +35,7 @@ const SETS = {
   'shell + file': ['bash', 'read', 'grep', 'find', 'ls', 'edit', 'write'],
   'shell + file + web': ['powershell', 'read', 'grep', 'find', 'ls', 'edit', 'write', 'web_fetch', 'web_search'],
   'shell + file + subagent': ['bash', 'read', 'edit', 'subagent'],
-  'shell + file + subagent + fork': ['bash', 'read', 'edit', 'write', 'subagent', 'fork'],
+  'shell + file + subagent + spinoff': ['bash', 'read', 'edit', 'write', 'subagent', 'spinoff'],
   'shell + schedule': ['bash', 'schedule_prompt', 'schedule_shell'],
 };
 
@@ -61,14 +61,14 @@ test('the tool-rule sections match the golden, in manifest order, for each activ
   assert.deepEqual(actual, JSON.parse(await readFile(GOLDEN, 'utf8')));
 });
 
-test('the rules stay within a token budget with shell, edit, subagent and fork active (the former single section was about 380; the two delegation rules now repeat one sentence)', async () => {
-  const all = Object.values(ruleSections((await sectionsFor(['bash', 'edit', 'subagent', 'fork'])).sections)).join('\n\n');
+test('the rules stay within a token budget with shell, edit, subagent and spinoff active (the former single section was about 380; the two delegation rules now repeat one sentence)', async () => {
+  const all = Object.values(ruleSections((await sectionsFor(['bash', 'edit', 'subagent', 'spinoff'])).sections)).join('\n\n');
   assert.ok(all.length / 4 < 450, `~${Math.round(all.length / 4)} tokens`);
   for (const name of ['note', 'sqlite', 'monitor_', 'schedule_prompt', 'recall', 'pty_']) assert.ok(!all.includes(name), name);
 });
 
 test('a forced system prompt receives each rule section exactly once, in the same order', async () => {
-  const { sections, systemPrompt } = await sectionsFor(SETS['shell + file + subagent + fork'], 'FORCED');
+  const { sections, systemPrompt } = await sectionsFor(SETS['shell + file + subagent + spinoff'], 'FORCED');
   assert.ok(systemPrompt.startsWith('FORCED'));
   const order = Object.keys(ruleSections(sections));
   assert.ok(order.length >= 5, order.join());

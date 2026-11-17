@@ -33,7 +33,7 @@ test('default settings: tool_search is activated, deferred tools stay unloaded, 
     assert.ok(names().includes('schedule_prompt'), 'a directly declared module tool is active from the start');
     assert.ok(!names().includes('pty_spawn'));
     const rules = (await all()).cross_tool_rules;
-    assert.match(rules, /^Run independent tool calls/); assert.doesNotMatch(rules, /Delegate/, 'delegation rules belong to the subagent and fork modules');
+    assert.match(rules, /^Run independent tool calls/); assert.doesNotMatch(rules, /Delegate/, 'delegation rules belong to the subagent and spinoff modules');
     const hint = await section();
     assert.match(hint, /- pty: .*\(query "pty"\)/); assert.doesNotMatch(hint, /- schedule:/, 'a directly declared tool has no deferred group');
     const [pty] = await created.callTools({ name: 'tool_search', arguments: { query: 'pty' } });

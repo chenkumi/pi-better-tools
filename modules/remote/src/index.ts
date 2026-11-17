@@ -29,7 +29,7 @@ export function inboundText(message: Inbound): string {
 }
 
 export default function remoteExtension(pi: ExtensionAPI, seam: { credentials?: CredentialStore; backoff?: (attempt: number) => number } = {}) {
-  // A managed child (Subagent or Fork) never joins the network; the main session is the peer.
+  // A managed child (Subagent or Spinoff) never joins the network; the main session is the peer.
   if (isManagedForegroundChild()) return;
   const identity = { name: randomName(), instanceId: ulid().toUpperCase() };
   registerRemoteSettings(pi, () => seam.credentials ?? new CredentialStore());
