@@ -255,7 +255,7 @@ try {
   if (!readOnly && !noTools) {
     await execute('write', { path: 'test.txt', content: 'alpha\nbeta\n', expectedHash: 'missing' });
     const before = await execute('read', { path: 'test.txt', offset: null, limit: null });
-    assert.equal(before.details.sha256.length, 32); assert.match(text(before), /1│alpha/);
+    assert.equal(before.details.sha256.length, 16); assert.match(text(before), /1│alpha/);
     assert.equal(before.structuredContent, text(before));
     assert.match(text(await execute('ls', { path: null, limit: null })), /test\.txt/);
     const edits = await Promise.all(['BETA', 'gamma'].map(newText => execute('edit', { path: 'test.txt', expectedHash: before.details.sha256, edits: [{ oldText: 'beta', newText }] }).then(result => ({ result }), error => ({ error }))));

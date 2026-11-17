@@ -1,10 +1,10 @@
-import { createHash } from "node:crypto";
 import { mkdir, open, realpath, rm, rmdir } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { defineTool, withFileMutationQueue, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { Text } from "@earendil-works/pi-tui";
 import { ToolError } from "../../../shared/src/tool-error/index.ts";
+import { versionToken } from "../../../shared/src/version-token/index.ts";
 import { stripVTControlCharacters } from "node:util";
 
 /** Plain `{ type: "string", enum }` schema, the same JSON as pi-ai's StringEnum, typed as TypeBox so `Static` infers the union (pi-ai 1.5 types it as a pi-schema value). */
@@ -31,9 +31,6 @@ function isOutsideWorkspace(cwd: string, directory: string): boolean {
 }
 
 const MAX_FILENAME_ATTEMPTS = 1000;
-
-/** The version token `read`, `write` and `edit` use (first 128 bits of the SHA-256 of the file bytes), so a note can be edited with `expectedHash` right after it is saved. */
-const versionToken = (content: string) => createHash("sha256").update(content, "utf8").digest("hex").slice(0, 32);
 
 /** Errors raised by this module's own checks; anything else is a raw filesystem error that gets wrapped. */
 class NoteError extends ToolError {}

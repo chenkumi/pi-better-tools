@@ -22,6 +22,8 @@ pi -e ./modules/skill-tools/src/index.ts
 
 停用時，在 package 的 `extensions` filters 排除 `modules/skill-tools/src/index.ts`；不會刪除 skill 檔案。這是 extension 動態提供的資源，不是根 manifest 的 `pi.skills`：package `skills: []`／Pi `--no-skills` 只停用一般 skill discovery，不能停用已啟用 extension 的 `resources_discover`。需要完全停用本模組 skills，請停用這個 extension。既有 project trust 規則由 Pi 管理，不自動授權。
 
+`skills/agents-md-creator/SKILL.md`：撰寫與整理 `AGENTS.md`／`CLAUDE.md` 及專案參考文件（先核對專案實際狀態，只留必要限制、陷阱與入口）；`skills/test-case-creator/SKILL.md`：依使用者要求撰寫或審查測試案例、測試設計與覆蓋缺口。兩者皆為純指引，不新增工具。
+
 ## pi-tools-config：模組指令與設定索引
 
 `skills/pi-tools-config/SKILL.md` 使用英文 description，依使用者要求放寬原本的 50 字元限制，直接列出需要 config 的功能／工具：資料庫連線、PTY named targets、搜尋 provider／credentials、自訂 agents、排程預設、模型速度、壓縮／記憶及 Shell／File 設定；不依賴套件名稱作為觸發詞。建立／修改／排查 config、資料庫連線的必要設定缺失／未知，以及 PTY native 元件安裝與 setup CLI 診斷時適用，排除已配置工具的日常操作與應用程式功能開發。Web／PTY references 內建發布後 CLI、安裝實例定位、HTTP fallback 與權限／cache 說明，不依賴使用者目前 cwd、repository scripts 或技能所在的 package 位置。使用 `/skill:pi-tools-config <設定問題>`，或由模型依 description 選用。

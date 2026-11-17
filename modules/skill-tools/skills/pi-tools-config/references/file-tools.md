@@ -4,8 +4,8 @@
 
 本模組提供 `read`、`write`、`edit`、`ls`，沒有自己的 slash 設定命令。`grep`／`find` 不由本模組註冊；整合包可由 `@ff-labs/pi-fff` override 提供。
 
-- `read` 回傳絕對行號與 SHA-256 版本 token；有 continuation 時依 nextOffset 繼續讀。
-- `edit` 先讀取檔案，使用最新 `expectedHash`；行號前綴不是檔案內容。
+- `read` 回傳絕對行號與 16 字元版本 token（輸入亦接受 32、64 字元前綴）；有 continuation 時依 nextOffset 繼續讀。
+- `edit` 先讀取檔案，使用最新 `expectedHash`；行號前綴不是檔案內容。`dryRun: true` 只預覽不寫檔（回 `[FILE_EDIT_PREVIEW]`，不給 `sha256After`）；edits 項目的 `insert: "before"|"after"` 保留比對文字、把 `newText` 插在旁邊。`lineRange` 未命中但全檔唯一時會回退到該處並在結果標示。
 - `write` 用於新檔或明確整檔覆寫；新建可用 `expectedHash: "missing"`。
 - `ls` 預設最多 500 筆；工具選取與排除仍交由 Pi。
 

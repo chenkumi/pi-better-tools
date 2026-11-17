@@ -112,7 +112,7 @@ export async function performAction(action: ManageAction, deps: ManageDeps, ctx:
 			if (name === undefined) return undefined;
 			const schedule = await bottomInput(ctx, title, `When?\n${SCHEDULE_HELP}`, { required: true });
 			if (schedule === undefined) return undefined;
-			const body = await bottomInput(ctx, title, isShell ? "Shell command (you confirm the exact command next):" : "Prompt text to deliver:", { required: true });
+			const body = await bottomInput(ctx, title, isShell ? "Shell command:" : "Prompt text to deliver:", { required: true });
 			if (body === undefined) return undefined;
 			return run(isShell ? shell : prompt, { action: "add", schedule: schedule.trim(), ...(name.trim() ? { name: name.trim() } : {}), ...(isShell ? { command: body } : { prompt: body }) });
 		}

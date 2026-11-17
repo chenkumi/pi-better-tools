@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { ulid } from "ulid";
 import { constants as fsConstants } from "node:fs";
 import { access, link, lstat, mkdir, open, readFile, rename, rmdir, stat, unlink, type FileHandle } from "node:fs/promises";
@@ -6,6 +5,7 @@ import { dirname, join } from "node:path";
 import { Worker } from "node:worker_threads";
 import { createDiffFeedback } from "./diff-runner.ts";
 import { FileToolError, abortIfRequested, classifyFsError, errnoCode } from "./errors.ts";
+import { digestHex, matchesVersionToken, shortenDigest, versionToken } from "../../../shared/src/version-token/index.ts";
 
 export const MAX_OUTPUT_LINES = 2000;
 export const MAX_OUTPUT_BYTES = 50 * 1024;
@@ -21,9 +21,6 @@ export const MAX_EDIT_DURATION_MS = 10_000;
 export const REGEX_TIMEOUT_MS = 1000;
 const REGEX_STARTUP_GRACE_MS = 2000;
 export const MAX_CANDIDATE_RANGES = 20;
-export const SHA256_TOKEN_LENGTH = 32;
-/** Length of a full hex SHA-256 digest, still accepted as a legacy version token. */
-export const SHA256_HEX_LENGTH = 64;
 
 type LineEnding = "\n" | "\r\n" | "\r";
 
@@ -73,6 +70,8 @@ export interface EditOperation {
   lineRange?: LineRange;
   replaceAll?: boolean;
   replacementMode?: "literal" | "template";
+  /** Insert newText before the match start or after the match end instead of replacing the match. */
+  insert?: "before" | "after";
 }
 
 export type RangeEdit = EditOperation;
@@ -94,6 +93,17 @@ export interface EditResult {
     matchedLineStart: number;
     matchedLineEnd: number;
   }>;
+  /** Indexes of the edits whose lineRange missed and were applied to their unique whole-file match. */
+  fallbackEdits?: number[];
+  /** Model-visible notes about edits that succeeded but may not have done what was meant. */
+  notices?: string[];
+  /** The edit was validated and diffed but not written; `sha256After` is then what the file would hash to. */
+  dryRun?: boolean;
+}
+
+export interface EditOptions {
+  /** Validate and diff as usual but do not write the file. */
+  dryRun?: boolean;
 }
 
 interface LineMap {
@@ -135,20 +145,16 @@ interface MatchedEdit {
   changed: boolean;
   matchedLineStart: number;
   matchedLineEnd: number;
+  /** The lineRange missed and the edit was applied to its unique whole-file match. */
+  fallback?: boolean;
 }
 
-export function sha256(content: Buffer | string): string {
-  return createHash("sha256").update(content).digest("hex");
-}
+export const sha256 = digestHex;
 
-/** Return the first 128 bits of a SHA-256 digest as a compact version token. */
-export function sha256Token(content: Buffer | string): string {
-  return sha256(content).slice(0, SHA256_TOKEN_LENGTH);
-}
+/** The compact version token (first 64 bits of the SHA-256 digest) reported by read, write and edit. */
+export const sha256Token = versionToken;
 
-function shortenHash(hash: string | undefined): string | undefined {
-  return hash && hash.length > SHA256_TOKEN_LENGTH ? hash.slice(0, SHA256_TOKEN_LENGTH) : hash;
-}
+const shortenHash = shortenDigest;
 
 export function assertInputSize(size: number, displayPath: string): void {
   if (size > MAX_INPUT_BYTES) {
@@ -876,10 +882,8 @@ function verifyExpectedHash(current: MutationSnapshot, expectedHash: string | un
     });
   }
   const normalizedExpectedHash = expectedHash.toLowerCase();
-  const expectedMatches = normalizedExpectedHash.length === SHA256_TOKEN_LENGTH
-    ? current.hash?.startsWith(normalizedExpectedHash) === true
-    : normalizedExpectedHash.length === SHA256_HEX_LENGTH && current.hash === normalizedExpectedHash;
-  if (!expectedMatches) {
+  // Tokens of 16, 32 or 64 characters are all prefixes of the full digest taken from the bytes on disk.
+  if (!matchesVersionToken(normalizedExpectedHash, current.hash)) {
     throw new FileToolError("STALE_FILE", "The file changed after it was read; refusing to overwrite stale content.", {
       path: displayPath,
       expectedHash: shortenHash(normalizedExpectedHash),
@@ -1135,6 +1139,79 @@ export async function writeTextFile(
   }
 }
 
+const CONTEXT_CANDIDATES = 5;
+const CONTEXT_LINES = 1;
+const CONTEXT_LINE_CHARS = 160;
+const CLOSEST_SCAN_LINES = 50_000;
+const CLOSEST_SCAN_MS = 50;
+const CLOSEST_LINE_CHARS = 200;
+
+const clipLine = (line: string, max: number) => (line.length > max ? `${line.slice(0, max)}…` : line);
+
+/** For the first candidates of an ambiguous match: the matched lines with one line of context each side, numbered like read. */
+function candidateContext(map: LineMap, rangeStart: number, matches: RegexMatch[]): Array<{ start: number; end: number; preview: string }> {
+  const total = lineCount(map);
+  return matches.slice(0, CONTEXT_CANDIDATES).map((match) => {
+    const start = rangeStart + match.index;
+    const first = lineForOffset(map, start);
+    const last = lineForOffset(map, Math.max(start, start + match.text.length - 1));
+    const from = Math.max(1, first - CONTEXT_LINES);
+    const to = Math.min(total, Math.min(last, first + 2) + CONTEXT_LINES);
+    const lines: string[] = [];
+    for (let line = from; line <= to; line++) lines.push(clipLine(map.text.slice(map.starts[line - 1], lineContentEnd(map, line - 1)), CONTEXT_LINE_CHARS));
+    return { start: first, end: last, preview: numberedLines(lines, from) };
+  });
+}
+
+const normalizeForCompare = (line: string) => line.replace(/\s+/g, " ").trim();
+const wordsOf = (line: string) => new Set(line.toLowerCase().match(/[\p{L}\p{N}_$]+/gu) ?? []);
+
+/**
+ * The line of the file most like the first non-blank line of a literal that did not match (same text apart from
+ * whitespace, one containing the other, or sharing most of its words). Bounded in lines and time. Undefined when
+ * nothing is close: a wrong guess would be worse than none.
+ */
+function closestLine(text: string, map: LineMap, needle: string): { line: number; text: string } | undefined {
+  const wanted = needle.split("\n").map(normalizeForCompare).find((line) => line.length >= 3);
+  if (!wanted) return undefined;
+  const wantedWords = wordsOf(wanted);
+  const started = Date.now();
+  const total = Math.min(lineCount(map), CLOSEST_SCAN_LINES);
+  let best: { line: number; score: number } | undefined;
+  for (let index = 0; index < total; index++) {
+    if (index % 1000 === 999 && Date.now() - started > CLOSEST_SCAN_MS) break;
+    const line = normalizeForCompare(text.slice(map.starts[index], lineContentEnd(map, index)));
+    if (line.length < 3) continue;
+    let score = 0;
+    if (line === wanted) score = 1;
+    else if (line.includes(wanted) || (line.length >= 8 && wanted.includes(line))) score = 0.9;
+    else if (wantedWords.size >= 2) {
+      const words = wordsOf(line);
+      let shared = 0;
+      for (const word of wantedWords) if (words.has(word)) shared++;
+      const union = wantedWords.size + words.size - shared;
+      score = union > 0 ? (shared / union) * 0.8 : 0;
+    }
+    if (score >= 0.6 && (!best || score > best.score)) best = { line: index + 1, score };
+    if (best?.score === 1) break;
+  }
+  if (!best) return undefined;
+  return { line: best.line, text: clipLine(text.slice(map.starts[best.line - 1], lineContentEnd(map, best.line - 1)), CLOSEST_LINE_CHARS) };
+}
+
+/** True when a regex source has a `^` or `$` anchor outside character classes and escapes. */
+export function usesLineAnchors(pattern: string): boolean {
+  let inClass = false;
+  for (let index = 0; index < pattern.length; index++) {
+    const char = pattern[index];
+    if (char === "\\") { index++; continue; }
+    if (inClass) { if (char === "]") inClass = false; continue; }
+    if (char === "[") { inClass = true; continue; }
+    if (char === "^" || char === "$") return true;
+  }
+  return false;
+}
+
 function candidateRanges(map: LineMap, rangeStart: number, matches: RegexMatch[]): Array<{ start: number; end: number }> {
   return matches.slice(0, MAX_CANDIDATE_RANGES).map((match) => {
     const start = rangeStart + match.index;
@@ -1227,6 +1304,22 @@ function assertEditOperationValid(edit: EditOperation, editIndex: number, map: L
       recovery: "Use true to replace every match or false to require one match.",
     });
   }
+  if (edit.insert !== undefined) {
+    if (edit.insert !== "before" && edit.insert !== "after") {
+      throw new FileToolError("INVALID_ARGUMENT", `edits[${editIndex}].insert is invalid.`, {
+        path: displayPath,
+        editIndex,
+        recovery: 'Use "before" or "after", or omit insert to replace the match.',
+      });
+    }
+    if (edit.newText.length === 0) {
+      throw new FileToolError("INVALID_ARGUMENT", `edits[${editIndex}].newText cannot be empty when insert is set.`, {
+        path: displayPath,
+        editIndex,
+        recovery: "Provide the text to insert; to delete matched text omit insert and use an empty newText.",
+      });
+    }
+  }
 
   const lineRange = edit.lineRange;
   if (lineRange && (!Number.isInteger(lineRange.start) || !Number.isInteger(lineRange.end) || lineRange.start < 1 || lineRange.end < lineRange.start)) {
@@ -1259,8 +1352,9 @@ function regexDeadlineFor(deadline: number): number {
 }
 
 /**
- * Match one edit inside its lineRange window (or the whole file). A ranged literal miss falls back
- * to a unique whole-file match; otherwise a miss or an ambiguous non-replaceAll match throws.
+ * Match one edit inside its lineRange window (or the whole file). A ranged miss (literal or regex) falls
+ * back to the target's unique whole-file match (reported as a fallback); otherwise a miss or an
+ * ambiguous non-replaceAll match throws.
  */
 async function findScopedMatches(
   view: NormalizedView,
@@ -1271,8 +1365,9 @@ async function findScopedMatches(
   displayPath: string,
   signal: AbortSignal | undefined,
   session: RegexSession,
-): Promise<{ rangeStart: number; rangeContent: string; operationMatches: RegexMatch[] }> {
+): Promise<{ rangeStart: number; rangeContent: string; operationMatches: RegexMatch[]; fellBack: boolean }> {
   const lineRange = edit.lineRange;
+  let fellBack = false;
   let rangeStart = lineRange ? map.starts[lineRange.start - 1] : 0;
   let rangeContent = lineRange
     ? view.text.slice(rangeStart, lineContentEnd(map, lineRange.end - 1))
@@ -1287,11 +1382,12 @@ async function findScopedMatches(
       candidates = await collectOperationMatches(view.text, edit, displayPath, editIndex, regexDeadlineFor(deadline), signal, session);
     }
     assertEditDeadline(deadline, displayPath, editIndex);
-    if (lineRange && edit.oldText !== undefined && candidates.length === 1) {
-      // Recover a missed range only when the literal is unique in the whole file.
+    if (lineRange && candidates.length === 1) {
+      // Recover a missed range only when the target is unique in the whole file (the window itself stays a standalone string).
       rangeStart = 0;
       rangeContent = view.text;
       operationMatches = candidates;
+      fellBack = true;
     } else {
       throw new FileToolError(lineRange ? "TEXT_NOT_FOUND_IN_RANGE" : "TEXT_NOT_FOUND", `edits[${editIndex}] did not match inside the requested search scope (${edit.oldText !== undefined ? "searched for" : "searched for regex"} ${JSON.stringify(searchedPreview(edit.oldText ?? edit.regex ?? ""))}).`, {
         path: displayPath,
@@ -1300,8 +1396,9 @@ async function findScopedMatches(
         occurrences: candidates.length || undefined,
         candidateRanges: candidates.length > 0 ? candidateRanges(map, 0, candidates) : undefined,
         rangePreview: lineRange ? previewRange(map, lineRange.start, lineRange.end) : undefined,
+        closestLine: edit.oldText !== undefined && candidates.length === 0 ? closestLine(view.text, map, edit.oldText) : undefined,
         recovery: lineRange
-          ? "Use a candidate range, read the range again, or correct the match. A unique literal match outside the range is applied automatically; ambiguous matches are not."
+          ? "Use a candidate range, read the range again, or correct the match. A unique match outside the range is applied automatically; ambiguous matches are not."
           : "Read the file again and copy exact text without the read tool's line-number prefixes. Check whitespace: tabs vs spaces, trailing spaces and CRLF vs LF line endings must match the file exactly.",
       });
     }
@@ -1313,11 +1410,12 @@ async function findScopedMatches(
       lineRange,
       occurrences: operationMatches.length,
       candidateRanges: candidateRanges(map, rangeStart, operationMatches),
+      candidateContext: candidateContext(map, rangeStart, operationMatches),
       rangePreview: lineRange ? previewRange(map, lineRange.start, lineRange.end) : undefined,
-      recovery: "Provide lineRange, include more surrounding text, use a more specific regex, or explicitly set replaceAll=true.",
+      recovery: "Pick a candidate from candidateContext and set lineRange to its lines, include more surrounding text, use a more specific regex, or explicitly set replaceAll=true when every match should change.",
     });
   }
-  return { rangeStart, rangeContent, operationMatches };
+  return { rangeStart, rangeContent, operationMatches, fellBack };
 }
 
 async function validateEdits(
@@ -1353,7 +1451,7 @@ async function validateEditsWithSession(
     const edit = edits[editIndex];
     const replacementMode = assertEditOperationValid(edit, editIndex, map, displayPath);
     const lineRange = edit.lineRange;
-    const { rangeStart, rangeContent, operationMatches } = await findScopedMatches(view, map, edit, editIndex, deadline, displayPath, signal, session);
+    const { rangeStart, rangeContent, operationMatches, fellBack } = await findScopedMatches(view, map, edit, editIndex, deadline, displayPath, signal, session);
 
     const selectedMatches = edit.replaceAll ? operationMatches : operationMatches.slice(0, 1);
     let operationChanged = 0;
@@ -1364,9 +1462,11 @@ async function validateEditsWithSession(
           ? expandReplacementTemplate(edit.newText, match, rangeContent, displayPath, editIndex)
           : edit.newText,
       );
-      const matchStart = rangeStart + match.index;
-      const matchEnd = matchStart + match.text.length;
-      const changed = replacement !== match.text;
+      const found = rangeStart + match.index;
+      // An insertion is a zero-width edit at the start or end of the match (see matchesConflict).
+      const matchStart = edit.insert === "after" ? found + match.text.length : found;
+      const matchEnd = edit.insert ? matchStart : found + match.text.length;
+      const changed = edit.insert ? true : replacement !== match.text;
       if (changed) {
         operationChanged += 1;
         changedReplacementBytes += Buffer.byteLength(replacement, "utf8");
@@ -1390,6 +1490,7 @@ async function validateEditsWithSession(
         changed,
         matchedLineStart: lineForOffset(map, matchStart),
         matchedLineEnd: lineForOffset(map, Math.max(matchStart, matchEnd - 1)),
+        ...(fellBack ? { fallback: true } : {}),
       });
     }
     if (operationChanged === 0) {
@@ -1427,7 +1528,7 @@ function sortAndAssertDisjoint(matched: MatchedEdit[], displayPath: string): voi
         throw new FileToolError("OVERLAPPING_EDITS", `edits[${left.editIndex}] overlaps edits[${right.editIndex}].`, {
           path: displayPath,
           editIndex: right.editIndex,
-          recovery: "Merge overlapping changes into one edit or target disjoint text ranges.",
+          recovery: "Merge overlapping changes into one edit or target disjoint text ranges. Only one insertion fits at a given position: \"after\" one match and \"before\" the next one that starts right there are the same position, so combine them into one insert.",
         });
       }
     }
@@ -1521,6 +1622,7 @@ export async function editTextFile(
   edits: RangeEdit[],
   expectedHash?: string,
   signal?: AbortSignal,
+  options: EditOptions = {},
 ): Promise<EditResult> {
   abortIfRequested(signal);
   if (!Array.isArray(edits) || edits.length === 0) {
@@ -1571,6 +1673,10 @@ export async function editTextFile(
     const displayDiff = await createDiffFeedback(view.text, normalizedUpdated, displayPath, signal);
     const patch = displayDiff.patch;
     const changedMatches = matched.filter((edit) => edit.changed);
+    const fallbackEdits = [...new Set(matched.filter((edit) => edit.fallback).map((edit) => edit.editIndex))].sort((a, b) => a - b);
+    const notices = edits.flatMap((edit, editIndex) => edit.regex !== undefined && !/m/.test(edit.regexFlags ?? "") && usesLineAnchors(edit.regex)
+      ? [`edits[${editIndex}] uses ^ or $ without regexFlags "m": they matched the start/end of the whole ${edit.lineRange ? "lineRange window" : "file"}, not of each line. Add regexFlags "m" for per-line anchors.`]
+      : []);
     const result: EditResult = {
       path: displayPath,
       sha256Before: shortenHash(snapshot.hash)!,
@@ -1588,9 +1694,13 @@ export async function editTextFile(
         matchedLineStart: edit.matchedLineStart,
         matchedLineEnd: edit.matchedLineEnd,
       })),
+      ...(fallbackEdits.length > 0 ? { fallbackEdits } : {}),
+      ...(notices.length > 0 ? { notices } : {}),
+      ...(options.dryRun ? { dryRun: true } : {}),
     };
 
     abortIfRequested(signal);
+    if (options.dryRun) return result;
     await atomicWrite(absolutePath, displayPath, finalText, snapshot, signal);
     return result;
   } catch (error) {
@@ -1598,22 +1708,57 @@ export async function editTextFile(
   }
 }
 
+/**
+ * The lines of the edited file that a unified patch touches, as `start-end` (or one number): from its first to its last
+ * added line, a deletion counting as the line that now follows it. Undefined for a patch with no change. The model reads
+ * this range back when the compact diff left out the middle.
+ */
+export function changedLineRange(patch: string): string | undefined {
+  let first = Infinity;
+  let last = 0;
+  let line = 0;
+  // A deletion with no kept line after it in its hunk is at the end of the file (a unified diff always carries trailing
+  // context otherwise): the "next line" does not exist, so it counts as the file's last line instead.
+  let tailDeletion = false;
+  const note = (position: number) => { first = Math.min(first, position); last = Math.max(last, position); };
+  const closeHunk = () => {
+    if (tailDeletion && line > 1) note(line - 1);
+    tailDeletion = false;
+  };
+  for (const text of patch.split("\n")) {
+    const header = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(text);
+    if (header) { closeHunk(); line = Number(header[1]); continue; }
+    if (line === 0 || text.startsWith("\\")) continue;
+    if (text.startsWith("+")) { note(line); line++; tailDeletion = false; }
+    else if (text.startsWith("-")) { tailDeletion = true; }
+    else if (text.startsWith(" ")) {
+      if (tailDeletion) { note(line); tailDeletion = false; }
+      line++;
+    }
+  }
+  closeHunk();
+  if (last === 0) return undefined;
+  return first === last ? `${first}` : `${first}-${last}`;
+}
+
 export const COMPACT_DIFF_MAX_LINES = 40;
+/** When a diff is longer than the limit: this many lines from its start and from its end are kept, the middle is summarised. */
+const COMPACT_DIFF_HEAD_LINES = 26;
+const COMPACT_DIFF_TAIL_LINES = 12;
 export const COMPACT_DIFF_MAX_LINE_CHARS = 200;
 const COMPACT_DIFF_CONTEXT = 1;
 
 /**
  * Condense a unified patch for model-visible text: drop file headers, keep at most
- * one context line around each change, bound line count/length and report the rest
- * in one summary line. The full patch stays available in structured details.
+ * one context line around each change, bound line count/length and, when it is too long,
+ * keep its first and last lines with one summary line between them. The full patch stays
+ * available in structured details.
  */
 export function compactPatch(patch: string): { text: string; added: number; removed: number; omittedLines: number } {
   const lines = patch.split("\n");
   const out: string[] = [];
-  let outputLines = 0;
   const append = (line: string) => {
-    outputLines++;
-    if (out.length < COMPACT_DIFF_MAX_LINES) out.push(line.length > COMPACT_DIFF_MAX_LINE_CHARS
+    out.push(line.length > COMPACT_DIFF_MAX_LINE_CHARS
       ? `${line.slice(0, COMPACT_DIFF_MAX_LINE_CHARS)}…[+${line.length - COMPACT_DIFF_MAX_LINE_CHARS} chars]`
       : line);
   };
@@ -1650,9 +1795,10 @@ export function compactPatch(patch: string): { text: string; added: number; remo
     for (const line of body) append(line);
     index = end < lines.length ? end : -1;
   }
-  const omittedLines = Math.max(0, outputLines - COMPACT_DIFF_MAX_LINES);
-  if (omittedLines > 0) out.push(`… ${omittedLines} more diff line(s) omitted`);
-  return { text: out.join("\n"), added, removed, omittedLines };
+  if (out.length <= COMPACT_DIFF_MAX_LINES) return { text: out.join("\n"), added, removed, omittedLines: 0 };
+  const omittedLines = out.length - COMPACT_DIFF_HEAD_LINES - COMPACT_DIFF_TAIL_LINES;
+  const text = [...out.slice(0, COMPACT_DIFF_HEAD_LINES), `… ${omittedLines} diff line(s) omitted …`, ...out.slice(out.length - COMPACT_DIFF_TAIL_LINES)].join("\n");
+  return { text, added, removed, omittedLines };
 }
 
 export function truncateFeedback(content: string): { content: string; truncated: boolean } {

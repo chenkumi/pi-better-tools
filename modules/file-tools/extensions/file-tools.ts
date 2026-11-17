@@ -13,12 +13,11 @@ import {
   isSupportedRegexFlags,
   MAX_EDIT_OPERATIONS,
   MAX_REGEX_PATTERN_LENGTH,
+  changedLineRange,
   compactPatch,
   readTextBuffer,
   truncateFeedback,
   writeTextFile,
-  SHA256_HEX_LENGTH,
-  SHA256_TOKEN_LENGTH,
   type EditResult,
   type RangeEdit,
 } from "../src/file-operations.ts";
@@ -28,15 +27,13 @@ import { hintMissingSubagentLog } from "../src/subagent-log-paths.ts";
 import { registerLsTool } from "../src/search-tools.ts";
 import { FILE_RULES_SECTION, renderFileRules } from "../src/prompt-rules.ts";
 import { registerPromptSection } from "../../../shared/src/prompt/index.ts";
+import { ACCEPTED_TOKEN_LENGTHS, VERSION_TOKEN_ALTERNATIVES, VERSION_TOKEN_LENGTH, isVersionToken } from "../../../shared/src/version-token/index.ts";
 
 class WriteCallWithCount extends Container {
   preview?: Component;
   readonly count = new Text("", 0, 0);
 }
 
-/** A compact version token or a legacy full SHA-256 digest (regex alternatives, unanchored). */
-const VERSION_TOKEN_ALTERNATIVES = `[a-fA-F0-9]{${SHA256_TOKEN_LENGTH}}|[a-fA-F0-9]{${SHA256_HEX_LENGTH}}`;
-const VERSION_TOKEN_REGEX = new RegExp(`^(?:${VERSION_TOKEN_ALTERNATIVES})$`);
 const HASH_PATTERN = `^(missing|${VERSION_TOKEN_ALTERNATIVES})$`;
 const FILE_WRITE_SUCCESS_MARKER = "[FILE_WRITE_SUCCESS]";
 const strictObject = { additionalProperties: false } as const;
@@ -65,7 +62,7 @@ const writeSchema = Type.Object(
       Type.String({
         pattern: HASH_PATTERN,
         description:
-          "Optional concurrency guard: the 32-character SHA-256 version token from the latest read (legacy 64-character SHA-256 is also accepted), or 'missing' when creating a file that must not already exist. Omit only for an intentional unconditional write.",
+          "Optional concurrency guard: the 16-character version token from the latest read (32- and 64-character SHA-256 prefixes are also accepted), or 'missing' when creating a file that must not already exist. Omit only for an intentional unconditional write.",
       }),
     ),
   },
@@ -86,9 +83,10 @@ const editSchema = Type.Object(
     expectedHash: Type.Optional(
       Type.String({
         pattern: `^(${VERSION_TOKEN_ALTERNATIVES})$`,
-        description: "Optional 32-character SHA-256 version token from the latest read (legacy 64-character SHA-256 is also accepted). The edit fails with STALE_FILE if the file changed. 'missing' is write-only and is rejected here.",
+        description: "Optional 16-character version token from the latest read (32- and 64-character SHA-256 prefixes are also accepted). The edit fails with STALE_FILE if the file changed. 'missing' is write-only and is rejected here.",
       }),
     ),
+    dryRun: Type.Optional(Type.Boolean({ description: "Validate and diff without writing the file; the result is a preview and reports no version token." })),
     edits: Type.Array(
       Type.Object(
         {
@@ -106,6 +104,11 @@ const editSchema = Type.Object(
           replacementMode: Type.Optional(
             Type.Union([Type.Literal("literal"), Type.Literal("template")], {
               description: "literal by default; template enables regex replacement tokens such as $1 and $<name>.",
+            }),
+          ),
+          insert: Type.Optional(
+            Type.Union([Type.Literal("before"), Type.Literal("after")], {
+              description: "Insert newText before or after the match instead of replacing it (the match stays; newText must not be empty).",
             }),
           ),
         },
@@ -181,13 +184,13 @@ function optionalPositiveInteger(value: unknown, field: string, context: Argumen
 
 function validateHash(value: unknown, field: string, allowMissing: boolean, context: ArgumentErrorContext = {}): string | undefined {
   if (value === undefined) return undefined;
-  const validHash = typeof value === "string" && VERSION_TOKEN_REGEX.test(value);
+  const validHash = typeof value === "string" && isVersionToken(value);
   if (!validHash && !(allowMissing && value === "missing")) {
     const recovery = allowMissing
       ? "Omit expectedHash unless you need the concurrency guard; otherwise read the file and pass the token from its FILE_METADATA, or use 'missing' only when the path must not exist."
       : "Call read on this path (any line range) and pass the token from its FILE_METADATA; after your own edit in the same turn, reuse that result's sha256After. Do not look for a hash elsewhere, and 'missing' is not valid for edit.";
     const length = typeof value === "string" ? ` (${value.length} chars)` : "";
-    const accepted = `${SHA256_TOKEN_LENGTH} or ${SHA256_HEX_LENGTH} hex characters of a SHA-256 version token${allowMissing ? ", or 'missing'" : ""}`;
+    const accepted = `${ACCEPTED_TOKEN_LENGTHS.join(", ")} hex characters of a version token (normally ${VERSION_TOKEN_LENGTH})${allowMissing ? ", or 'missing'" : ""}`;
     throw new FileToolError("INVALID_ARGUMENT", `${field} must be ${accepted} (received ${describeReceived(value)}${length}).`, {
       ...context,
       recovery,
@@ -225,7 +228,7 @@ export function prepareWriteArguments(value: unknown) {
 
 export function prepareEditArguments(value: unknown) {
   const original = requireObject(value, "edit");
-  const input = nullOptionalsAsUndefined(original, ["expectedHash"]);
+  const input = nullOptionalsAsUndefined(original, ["expectedHash", "dryRun"]);
 
   if (typeof input.edits === "string") {
     try {
@@ -249,7 +252,13 @@ export function prepareEditArguments(value: unknown) {
   }
 
   const path = requirePath(input.path, "edit");
-  rejectUnknown(input, ["path", "expectedHash", "edits"], "edit", { path });
+  rejectUnknown(input, ["path", "expectedHash", "dryRun", "edits"], "edit", { path });
+  if (input.dryRun !== undefined && typeof input.dryRun !== "boolean") {
+    throw new FileToolError("INVALID_ARGUMENT", `edit.dryRun must be a boolean (received ${describeReceived(input.dryRun)}).`, {
+      path,
+      recovery: "Use JSON true to preview the edit without writing, or omit dryRun.",
+    });
+  }
   if (input.edits === undefined) {
     throw new FileToolError("INVALID_ARGUMENT", "edit.edits is required (received undefined).", {
       path,
@@ -280,6 +289,7 @@ export function prepareEditArguments(value: unknown) {
   return {
     path,
     expectedHash: validateHash(input.expectedHash, "edit.expectedHash", false, { path }),
+    ...(input.dryRun === true ? { dryRun: true } : {}),
     edits,
   };
 }
@@ -288,11 +298,11 @@ export function prepareEditArguments(value: unknown) {
 function prepareEditOperation(rawEdit: unknown, editIndex: number, path: string): RangeEdit {
   const edit = nullOptionalsAsUndefined(
     requireObject(rawEdit, `edit.edits[${editIndex}]`, { path, editIndex }),
-    ["oldText", "regex", "regexFlags", "lineRange", "replaceAll", "replacementMode"],
+    ["oldText", "regex", "regexFlags", "lineRange", "replaceAll", "replacementMode", "insert"],
   );
   rejectUnknown(
     edit,
-    ["oldText", "regex", "regexFlags", "newText", "lineRange", "replaceAll", "replacementMode"],
+    ["oldText", "regex", "regexFlags", "newText", "lineRange", "replaceAll", "replacementMode", "insert"],
     `edit.edits[${editIndex}]`,
     { path, editIndex },
   );
@@ -349,6 +359,22 @@ function prepareEditOperation(rawEdit: unknown, editIndex: number, path: string)
       recovery: "Use literal replacementMode for oldText edits.",
     });
   }
+  if (edit.insert !== undefined) {
+    if (edit.insert !== "before" && edit.insert !== "after") {
+      throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}].insert must be "before" or "after" (received ${describeReceived(edit.insert)}).`, {
+        path,
+        editIndex,
+        recovery: 'Use "before" or "after" to keep the match and add newText next to it, or omit insert to replace the match.',
+      });
+    }
+    if (edit.newText === "") {
+      throw new FileToolError("INVALID_ARGUMENT", `edit.edits[${editIndex}].newText cannot be empty when insert is set.`, {
+        path,
+        editIndex,
+        recovery: "Provide the text to insert. To delete matched text, omit insert and use an empty newText.",
+      });
+    }
+  }
   if (hasRegex) {
     if ((edit.regex as string).length > MAX_REGEX_PATTERN_LENGTH) {
       throw new FileToolError("INVALID_REGEX", `edit.edits[${editIndex}].regex is ${(edit.regex as string).length} UTF-16 code units; the limit is ${MAX_REGEX_PATTERN_LENGTH}.`, {
@@ -375,6 +401,7 @@ function prepareEditOperation(rawEdit: unknown, editIndex: number, path: string)
     ...(lineRange ? { lineRange } : {}),
     replaceAll: edit.replaceAll === true,
     replacementMode: edit.replacementMode === "template" ? "template" : "literal",
+    ...(edit.insert !== undefined ? { insert: edit.insert as "before" | "after" } : {}),
   };
 }
 
@@ -396,15 +423,25 @@ function prepareEditLineRange(value: unknown, editIndex: number, path: string): 
 }
 
 export function formatEditSuccessFeedback(result: EditResult, compact = compactPatch(result.patch)): { content: string; truncated: boolean } {
-  // Model-visible text is compact; the full diff, patch and changedRanges live in details.
+  // Model-visible text is compact; the full diff, patch and changedRanges live in details. A preview (dryRun) reports no
+  // version token: nothing was written, so no token names what is on disk.
+  const changedLines = changedLineRange(result.patch);
   const metadata = {
-    sha256After: result.sha256After,
+    ...(result.dryRun ? {} : { sha256After: result.sha256After }),
     edits: result.appliedEdits,
     ...(result.changedCount !== result.appliedEdits ? { replacements: result.changedCount } : {}),
     ...(compact.added > 0 ? { added: compact.added } : {}),
     ...(compact.removed > 0 ? { removed: compact.removed } : {}),
+    ...(changedLines ? { lines: changedLines } : {}),
+    ...(result.fallbackEdits?.length ? { fallback: result.fallbackEdits } : {}),
+    ...(result.dryRun ? { applied: false } : {}),
   };
-  return truncateFeedback(`[FILE_EDIT_SUCCESS] ${JSON.stringify(metadata)}\n[DIFF]\n${compact.text}`);
+  const notices = [
+    ...(result.fallbackEdits ?? []).map((index) => `[NOTICE] edits[${index}] did not match inside its lineRange; its match is unique in the file, so it was applied there.`),
+    ...(result.notices ?? []).map((notice) => `[NOTICE] ${notice}`),
+  ];
+  const header = `${result.dryRun ? "[FILE_EDIT_PREVIEW]" : "[FILE_EDIT_SUCCESS]"} ${JSON.stringify(metadata)}`;
+  return truncateFeedback(`${[header, ...notices].join("\n")}\n[DIFF]\n${compact.text}`);
 }
 
 export function formatEditCallPreview(value: unknown): { path: string; ranges: string } {
@@ -433,10 +470,11 @@ export function formatEditCallPreview(value: unknown): { path: string; ranges: s
       scope = `${range.start}-${range.end}`;
     }
     const flags = mode === "regex" && typeof edit.regexFlags === "string" && edit.regexFlags.length > 0 ? `/${edit.regexFlags}` : "";
-    return `${mode}:${scope}${flags}${edit.replaceAll === true ? "/all" : ""}`;
+    const insert = edit.insert === "before" || edit.insert === "after" ? `/ins-${edit.insert}` : "";
+    return `${mode}:${scope}${flags}${edit.replaceAll === true ? "/all" : ""}${insert}`;
   });
 
-  return { path, ranges: ranges.join(", ") };
+  return { path, ranges: ranges.join(", ") + (input.dryRun === true ? " (dry run)" : "") };
 }
 
 function hasBmpHeader(buffer: Buffer): boolean {
@@ -507,10 +545,10 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
     ...readToolMetadata,
     label: "read (precise)",
     description:
-      "Read a text file with absolute line-number metadata and a compact 32-character SHA-256 version token. Text output is limited to 2000 lines or 50KB. Images retain Pi's built-in attachment behavior.",
-    promptSnippet: "Read file contents with absolute line numbers and a compact SHA-256 version token",
+      "Read a text file with absolute line-number metadata and a compact 16-character version token. Text output is limited to 2000 lines or 50KB. Images retain Pi's built-in attachment behavior.",
+    promptSnippet: "Read file contents with absolute line numbers and a compact version token",
     promptGuidelines: [
-      "Use read before edit to obtain the latest 32-character SHA-256 version token as expectedHash and the exact text. Omit lineRange when oldText is unique; use lineRange only to disambiguate or limit the search scope.",
+      "Use read before edit to obtain the latest 16-character version token as expectedHash and the exact text. Omit lineRange when oldText is unique; use lineRange only to disambiguate or limit the search scope.",
       "When copying oldText from read output, omit the '<line>│' display prefix because it is metadata, not file content.",
       "If read reports READ_CONTINUATION, continue with the supplied nextOffset before assuming the file was fully inspected.",
       "A missing live subagent transcript may include a same-directory final-path recovery hint. Retry that path explicitly; missing logs do not prove job completion.",
@@ -598,11 +636,11 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
     ...mutationToolMetadata,
     label: "write (guarded)",
     description:
-      "Create or completely overwrite a UTF-8 file. Supports a compact SHA-256 version token as an expectedHash concurrency guard and atomic replacement. Parent directories are created automatically.",
-    promptSnippet: "Create or fully overwrite files with optional compact SHA-256 concurrency protection",
+      "Create or completely overwrite a UTF-8 file. Supports a compact version token as an expectedHash concurrency guard and atomic replacement. Parent directories are created automatically.",
+    promptSnippet: "Create or fully overwrite files with optional compact version-token concurrency protection",
     promptGuidelines: [
       "Use write only for new files or intentional complete rewrites.",
-      "When overwriting a file that was read, pass the 32-character SHA-256 version token from the latest read as write.expectedHash; use expectedHash='missing' when creating a path that must not already exist.",
+      "When overwriting a file that was read, pass the 16-character version token from the latest read as write.expectedHash; use expectedHash='missing' when creating a path that must not already exist.",
     ],
     parameters: writeSchema,
     constrainedSampling: { type: "json_schema", strict: "prefer" },
@@ -668,12 +706,11 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
       "Edit one UTF-8 file with exact-text or regex replacements, validated against one snapshot and committed atomically with a model-visible diff.",
     promptSnippet: "Edit exact text or regex matches with optional line ranges and replace-all behavior",
     promptGuidelines: [
-      "Prefer oldText without lineRange when the exact text is unique in the whole file; use lineRange only to disambiguate or limit replaceAll. lineRange is a 1-based inclusive initial search window, not a line replacement boundary: if oldText is not found there, a unique whole-file literal match is applied automatically (repeated matches remain an error). Regex edits do not use this fallback, and a regex lineRange window is matched as a standalone string (^, $, lookbehind and lookahead cannot see outside it).",
-      "After AMBIGUOUS_MATCH or a ranged miss, use returned candidateRanges to choose a narrower lineRange or include more exact surrounding text.",
-      "Use replaceAll=true only when every match in the selected scope should change. Otherwise the selected scope must contain exactly one match.",
-      "Use JavaScript ECMAScript RegExp syntax for regex patterns, not Python/PCRE syntax. Pass flags separately via regexFlags: for multiline ^/$ use regexFlags='m' rather than a bare inline flag such as (?m). Only i, m, s, u are accepted, each at most once; never pass g. Use replacementMode=template only when capture substitution such as $1 is required; use literal otherwise.",
-      "Pass the 32-character SHA-256 version token from the latest read as edit.expectedHash whenever available so stale edits fail safely. You may reuse the sha256After returned by the previous edit as the next expectedHash; 'missing' is write-only and is rejected here.",
-      "Each edits item needs exactly one non-empty oldText or regex plus newText. All edits in one call refer to the original pre-edit snapshot and must target non-overlapping text.",
+      "Prefer oldText without lineRange when the exact text is unique in the whole file; use lineRange only to disambiguate or limit replaceAll. lineRange is a 1-based inclusive initial search window, not a line replacement boundary: if nothing matches inside it but the match is unique in the whole file, that match is applied and the result reports it as a fallback.",
+      "All edits in one call refer to the original pre-edit snapshot and must target non-overlapping text. Each item needs exactly one non-empty oldText or regex plus newText; use replaceAll=true only when every match in the scope should change.",
+      "Use JavaScript ECMAScript RegExp syntax, not Python/PCRE: pass flags separately via regexFlags (only i, m, s, u; never pass g); for multiline ^/$ use regexFlags='m' rather than a bare inline flag such as (?m). Use replacementMode=template only when $1 or $<name> captures are needed.",
+      "Pass the 16-character version token from the latest read as edit.expectedHash whenever available so stale edits fail safely; you may reuse the sha256After of the previous edit. 'missing' is write-only.",
+      "insert='before' or 'after' puts newText next to the match instead of replacing it (include the line break in newText). dryRun=true validates the edits and returns the diff without writing. When the returned diff is shortened, the `lines` range names the edited lines to read back.",
     ],
     parameters: editSchema,
     constrainedSampling: { type: "json_schema", strict: "prefer" },
@@ -695,11 +732,11 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
       if (context.isError) {
         component.setText(theme.fg("error", formatFileToolErrorForDisplay(text, context.expanded)));
       } else {
-        const details = result.details as { appliedEdits?: number; diff?: string } | undefined;
+        const details = result.details as { appliedEdits?: number; diff?: string; dryRun?: boolean } | undefined;
         const replacements = (details as { changedCount?: number } | undefined)?.changedCount;
         const summary = details?.appliedEdits
-          ? `Applied ${details.appliedEdits} edit(s)${replacements === undefined ? "" : `, ${replacements} replacement(s)`}`
-          : "Edit applied";
+          ? `${details.dryRun ? "Preview only (nothing written): " : "Applied "}${details.appliedEdits} edit(s)${replacements === undefined ? "" : `, ${replacements} replacement(s)`}`
+          : details?.dryRun ? "Preview only (nothing written)" : "Edit applied";
         component.setText(theme.fg("success", summary) + (context.expanded && details?.diff ? `\n${details.diff}` : ""));
       }
       return component;
@@ -708,21 +745,28 @@ export default function fileToolsExtension(pi: ExtensionAPI) {
       return executeWithFailureLogging(debugLog, "edit", toolCallId, params, async () => {
         const absolutePath = resolveToolPath(params.path, ctx.cwd);
         return withFileMutationQueue(absolutePath, async () => {
-          const result = await editTextFile(absolutePath, params.path, params.edits, params.expectedHash, signal);
+          const result = await editTextFile(absolutePath, params.path, params.edits, params.expectedHash, signal, { dryRun: params.dryRun === true });
           const compact = compactPatch(result.patch);
           const feedback = formatEditSuccessFeedback(result, compact);
           const { added, removed } = compact;
+          // A preview never reports sha256After (consumers read it as the file's new version) or the path (File Audit and the
+          // compaction summary record edited paths); the predicted token is carried under its own key.
+          const preview = result.dryRun === true;
           return {
             content: [{ type: "text", text: feedback.content }],
             details: {
               diff: result.diff,
               patch: result.patch,
               firstChangedLine: result.firstChangedLine,
+              changedLines: changedLineRange(result.patch),
               appliedEdits: result.appliedEdits,
               matchedCount: result.matchedCount,
               changedCount: result.changedCount,
               sha256Before: result.sha256Before,
-              sha256After: result.sha256After,
+              // A preview did not write: its would-be token is not `sha256After`, which readers take as what is on disk.
+              ...(preview ? { dryRun: true, wouldBeSha256: result.sha256After } : { sha256After: result.sha256After }),
+              ...(result.fallbackEdits?.length ? { fallbackEdits: result.fallbackEdits } : {}),
+              ...(result.notices?.length ? { notices: result.notices } : {}),
               changedRanges: result.changedRanges,
               added,
               removed,

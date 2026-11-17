@@ -7,16 +7,14 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { EngineSettings } from "./engine.ts";
 import { DEFAULT_ENGINE_SETTINGS } from "./engine.ts";
-import { DEFAULT_TAIL_BYTES } from "./shell-run.ts";
 import type { MissedPolicy } from "./types.ts";
 
 export type JobScope = "session" | "workdir";
 export interface ScheduleSettings extends EngineSettings {
 	panelVisible: boolean;
 	defaultJobScope: JobScope;
-	commandOutputTailBytes: number;
 }
-export const DEFAULT_SETTINGS: ScheduleSettings = { ...DEFAULT_ENGINE_SETTINGS, panelVisible: true, defaultJobScope: "session", commandOutputTailBytes: DEFAULT_TAIL_BYTES };
+export const DEFAULT_SETTINGS: ScheduleSettings = { ...DEFAULT_ENGINE_SETTINGS, panelVisible: true, defaultJobScope: "session" };
 
 export class SettingsError extends Error {}
 
@@ -28,8 +26,6 @@ const SPEC: Record<keyof ScheduleSettings, (value: unknown) => unknown> = {
 	maxCatchUp: int("maxCatchUp", 1, 100),
 	allowShellRunAll: bool("allowShellRunAll"),
 	maxConcurrentAgents: int("maxConcurrentAgents", 1, 16),
-	maxConcurrentCommands: int("maxConcurrentCommands", 1, 16),
-	commandOutputTailBytes: int("commandOutputTailBytes", 1024, 1024 * 1024),
 };
 
 function bool(key: string) { return (v: unknown) => { if (typeof v !== "boolean") throw new SettingsError(`${key} must be true or false`); return v; }; }

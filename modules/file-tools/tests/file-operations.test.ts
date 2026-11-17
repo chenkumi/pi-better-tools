@@ -57,7 +57,7 @@ describe("SHA-256 version tokens", () => {
     const fullHash = sha256("content");
     const edit = [{ oldText: "before", newText: "after" }];
 
-    assert.equal(token.length, 32);
+    assert.equal(token.length, 16);
     assert.equal(prepareWriteArguments({ path: "x", content: "content", expectedHash: token }).expectedHash, token);
     assert.equal(prepareEditArguments({ path: "x", expectedHash: token, edits: edit }).expectedHash, token);
     assert.equal(prepareWriteArguments({ path: "x", content: "content", expectedHash: fullHash }).expectedHash, fullHash);
@@ -281,11 +281,18 @@ describe("checklist regex session regressions", () => {
     ]);
     assert.equal(await readFile(path, "utf8"), "O\nalpha-A\nbeta-B\n");
     const before = await readFile(path, "utf8");
-    const failure = await expectFileError(() => editTextFile(path, "scope.txt", [
+    // A regex that misses its lineRange but is unique in the whole file is applied there (and reported), like a literal.
+    const recovered = await editTextFile(path, "scope.txt", [
       { regex: "^alpha-A$", newText: "wrong", lineRange: { start: 1, end: 1 }, regexFlags: "m" },
+    ]);
+    assert.deepEqual(recovered.fallbackEdits, [0]);
+    assert.equal(await readFile(path, "utf8"), before.replace("alpha-A", "wrong"));
+    // A repeated whole-file match stays an error.
+    await writeFile(path, "outside\nalpha\nalpha\n");
+    const repeated = await expectFileError(() => editTextFile(path, "scope.txt", [
+      { regex: "^alpha$", newText: "x", lineRange: { start: 1, end: 1 }, regexFlags: "m" },
     ]), "TEXT_NOT_FOUND_IN_RANGE");
-    assert.deepEqual(failure.payload.candidateRanges, [{ start: 2, end: 2 }]);
-    assert.equal(await readFile(path, "utf8"), before);
+    assert.deepEqual(repeated.payload.candidateRanges, [{ start: 2, end: 2 }, { start: 3, end: 3 }]);
   });
 });
 
@@ -295,13 +302,13 @@ describe("readTextFile", () => {
     await writeFile(path, "alpha\nbeta\ngamma\ndelta", "utf8");
 
     const result = await readTextFile(path, "sample.txt", 2, 2);
-    assert.match(result.text, /^\[FILE_METADATA\] \{"path":"sample\.txt","sha256":"[0-9a-f]{32}","lines":"2-3","total":4\}\n2│beta/);
+    assert.match(result.text, /^\[FILE_METADATA\] \{"path":"sample\.txt","sha256":"[0-9a-f]{16}","lines":"2-3","total":4\}\n2│beta/);
     assert.doesNotMatch(result.text, /LINE_PREFIX|lineStart|lineEnd/);
     assert.match(result.text, /2│beta\n3│gamma/);
     assert.equal(result.details.lineStart, 2);
     assert.equal(result.details.lineEnd, 3);
     assert.equal(result.details.sha256, sha256Token("alpha\nbeta\ngamma\ndelta"));
-    assert.equal(result.details.sha256.length, 32);
+    assert.equal(result.details.sha256.length, 16);
     assert.match(result.text, /nextOffset=4/);
   });
 
@@ -458,7 +465,7 @@ describe("writeTextFile", () => {
 
     assert.equal(await readFile(path, "utf8"), "after");
     assert.equal(result.sha256, sha256Token("after"));
-    assert.equal(result.sha256.length, 32);
+    assert.equal(result.sha256.length, 16);
   });
 
   it("rejects lone UTF-16 surrogates instead of writing replacement characters", async () => {
@@ -482,7 +489,7 @@ describe("writeTextFile", () => {
 
     const error = await expectFileError(() => writeTextFile(path, "sample.txt", "replacement", oldToken), "STALE_FILE");
     assert.equal(error.payload.expectedHash, oldToken);
-    assert.equal(error.payload.actualHash?.length, 32);
+    assert.equal(error.payload.actualHash?.length, 16);
     assert.equal(await readFile(path, "utf8"), "changed externally");
   });
 
@@ -549,7 +556,7 @@ describe("editTextFile", () => {
     assert.match(updated, /^const duplicate = false;/);
     assert.match(updated, /  const duplicate = true;/);
     assert.equal(result.sha256Before, sha256Token(original));
-    assert.equal(result.sha256Before.length, 32);
+    assert.equal(result.sha256Before.length, 16);
     assert.equal(result.sha256After, sha256Token(updated));
     assert.equal(result.changedRanges[0].matchedLineStart, 3);
     assert.match(result.patch, /-  const duplicate = false;/);
@@ -1123,15 +1130,16 @@ describe("extension registration and argument preparation", () => {
     const readGuidelines = (tools.find((tool) => tool.name === "read")?.promptGuidelines as string[]).join("\n");
     // Full regex rules live only in promptGuidelines; the description stays a one-line purpose.
     assert.doesNotMatch(String(edit?.description), /RegExp|regexFlags|\(\?m\)/);
-    assert.match(guidelines, /JavaScript ECMAScript RegExp syntax[^.]*not Python\/PCRE/);
-    assert.match(guidelines, /regexFlags='m'.*bare inline flag.*\(\?m\)/);
+    assert.match(guidelines, /JavaScript ECMAScript RegExp syntax, not Python\/PCRE/);
+    assert.match(guidelines, /regexFlags='m' rather than a bare inline flag/);
     assert.match(guidelines, /replaceAll=true/);
-    assert.match(guidelines, /sha256After[^.]*expectedHash/);
+    assert.match(guidelines, /as edit\.expectedHash whenever available.*sha256After of the previous edit/);
     assert.doesNotMatch(readGuidelines, /shell rg|fffind|ffgrep/);
     assert.match(readGuidelines, /Use read before edit/);
     assert.match(readGuidelines, /READ_CONTINUATION.*nextOffset/);
     assert.ok((edit?.promptGuidelines as string[]).some((guideline) => guideline.includes("regexFlags") && guideline.includes("never pass g")));
-    assert.ok((edit?.promptGuidelines as string[]).some((guideline) => guideline.includes("unique whole-file literal match") && guideline.includes("do not use this fallback")));
+    assert.ok((edit?.promptGuidelines as string[]).some((guideline) => guideline.includes("unique in the whole file") && guideline.includes("reports it as a fallback")));
+    assert.ok((edit?.promptGuidelines as string[]).length <= 5);
   });
 
   it("renders incomplete streaming edit arguments without undefined or false errors", () => {
@@ -1209,8 +1217,9 @@ describe("extension registration and argument preparation", () => {
     });
 
     assert.equal(feedback.truncated, false);
-    assert.match(feedback.content, /^\[FILE_EDIT_SUCCESS\] \{"sha256After":"b{64}","edits":1,"replacements":100,"added":10000\}\n\[DIFF\]\n@@ /);
-    assert.match(feedback.content, /… 9961 more diff line\(s\) omitted$/);
+    assert.match(feedback.content, /^\[FILE_EDIT_SUCCESS\] \{"sha256After":"b{64}","edits":1,"replacements":100,"added":10000,"lines":"1-10000"\}\n\[DIFF\]\n@@ /);
+    assert.match(feedback.content, /\n… 9963 diff line\(s\) omitted …\n(\+changed\n){11}\+changed$/);
+    assert.equal(feedback.content.split("\n").filter((line) => line === "+changed").length, 37);
     assert.doesNotMatch(feedback.content, /changedRanges|sha256Before|--- large/);
     assert.ok(feedback.content.length < 1_000);
   });

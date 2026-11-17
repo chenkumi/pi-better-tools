@@ -190,25 +190,17 @@ test("a prompt waits at most 2 seconds for a shell that never reports started", 
 	} finally { s.engine.stop(); s.done(); }
 });
 
-test("a job whose previous run is still going is skipped, and the shell concurrency limit is enforced", async () => {
+test("a job whose previous run is still going is skipped", async () => {
 	const exec = fakeExecutor();
-	const s = setup({ maxConcurrentCommands: 1 }, "S1", exec);
+	const s = setup({ }, "S1", exec);
 	try {
 		const slow = makeJob({ name: "slow", schedule: { type: "interval", everyMs: 60_000 }, state: { runCount: 0, nextDue: iso(T0 + 60_000) } });
-		const a = makeJob({ name: "a", kind: "shell", command: "x", schedule: { type: "interval", everyMs: 3 * HOUR }, state: { runCount: 0, nextDue: iso(T0 + 3 * HOUR) } });
-		const b = makeJob({ name: "b", kind: "shell", command: "y", schedule: { type: "interval", everyMs: 3 * HOUR }, state: { runCount: 0, nextDue: iso(T0 + 3 * HOUR) } });
-		put(s.store, slow, a, b);
+		put(s.store, slow);
 		await s.engine.start();
 		await s.clock.advance(60_000);
 		await s.clock.advance(60_000);
 		assert.equal(exec.calls.filter((c) => c.job.name === "slow").length, 1);
 		assert.match(get(s.store, slow.id).state.lastError ?? "", /previous run is still running/);
-		await s.clock.advance(3 * HOUR - 120_000);
-		const shells = exec.calls.filter((c) => c.job.kind === "shell");
-		assert.equal(shells.length, 1);
-		const skipped = [a, b].map((j) => get(s.store, j.id)).filter((j) => j.state.lastStatus === "skipped");
-		assert.equal(skipped.length, 1);
-		assert.match(skipped[0].state.lastError!, /too many shell jobs/);
 	} finally { s.engine.stop(); s.done(); }
 });
 

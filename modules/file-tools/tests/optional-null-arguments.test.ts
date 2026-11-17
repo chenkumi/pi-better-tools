@@ -80,9 +80,10 @@ describe("strict provider optional-null compatibility", () => {
     const legacyHash = "b".repeat(64);
     assert.equal(strictValidators.get("write")!.Check({ path: "x", content: "y", expectedHash: compactToken }), true);
     assert.equal(strictValidators.get("write")!.Check({ path: "x", content: "y", expectedHash: legacyHash }), true);
-    const editWithNullOptionals = { oldText: "a", regex: null, regexFlags: null, newText: "b", lineRange: null, replaceAll: null, replacementMode: null };
-    assert.equal(strictValidators.get("edit")!.Check({ path: "x", expectedHash: compactToken, edits: [editWithNullOptionals] }), true);
-    assert.equal(strictValidators.get("edit")!.Check({ path: "x", expectedHash: "a".repeat(16), edits: [editWithNullOptionals] }), false);
+    const editWithNullOptionals = { oldText: "a", regex: null, regexFlags: null, newText: "b", lineRange: null, replaceAll: null, replacementMode: null, insert: null };
+    assert.equal(strictValidators.get("edit")!.Check({ path: "x", expectedHash: compactToken, dryRun: null, edits: [editWithNullOptionals] }), true);
+    assert.equal(strictValidators.get("edit")!.Check({ path: "x", expectedHash: "a".repeat(16), dryRun: null, edits: [editWithNullOptionals] }), true);
+    assert.equal(strictValidators.get("edit")!.Check({ path: "x", expectedHash: "a".repeat(8), dryRun: null, edits: [editWithNullOptionals] }), false);
 
     const readArgs = { path: "sample.txt", offset: null, limit: null };
     assert.equal(strictValidators.get("read")!.Check(readArgs), true);
@@ -97,7 +98,8 @@ describe("strict provider optional-null compatibility", () => {
     const editArgs = {
       path: "sample.txt",
       expectedHash: null,
-      edits: [{ oldText: "before", regex: null, regexFlags: null, newText: "after", lineRange: null, replaceAll: null, replacementMode: null }],
+      dryRun: null,
+      edits: [{ oldText: "before", regex: null, regexFlags: null, newText: "after", lineRange: null, replaceAll: null, replacementMode: null, insert: null }],
     };
     assert.equal(strictValidators.get("edit")!.Check(editArgs), true);
     assert.deepEqual(prepareEditArguments(editArgs), {
@@ -106,7 +108,7 @@ describe("strict provider optional-null compatibility", () => {
       edits: [{ oldText: "before", newText: "after", replaceAll: false, replacementMode: "literal" }],
     });
     assert.deepEqual(editArgs.edits[0], {
-      oldText: "before", regex: null, regexFlags: null, newText: "after", lineRange: null, replaceAll: null, replacementMode: null,
+      oldText: "before", regex: null, regexFlags: null, newText: "after", lineRange: null, replaceAll: null, replacementMode: null, insert: null,
     });
   });
 

@@ -60,7 +60,7 @@ export function loadFileToolsGlobalConfig(
   return { debugLog: debugLog ?? false };
 }
 
-const REDACTED_REQUEST_KEYS = new Set(["content", "oldText", "newText", "regex", "edits", "rangePreview"]);
+const REDACTED_REQUEST_KEYS = new Set(["content", "oldText", "newText", "regex", "edits", "rangePreview", "preview", "text"]);
 
 function redactString(value: string): { redacted: true; length: number; sha256: string } {
   return { redacted: true, length: value.length, sha256: createHash("sha256").update(value, "utf8").digest("hex") };

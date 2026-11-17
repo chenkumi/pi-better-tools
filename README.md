@@ -49,7 +49,7 @@ pi-better-tools pty setup
 
 ### 兩個 npm Pi packages（原始碼掛載）
 
-根 `dependencies` 固定包含 `@ff-labs/pi-fff@0.11.0`。`session_before_compact` 由 Pi Auto Compact 負責。`npm ci --ignore-scripts` 會安裝 FFF；manifest 為二十一個本地入口加 FFF 入口，共二十二個。仍維持 `private: true`，不需要 npm 發布、bundledDependencies 或 postinstall 呼叫 pi install。
+根 `dependencies` 固定包含 `@ff-labs/pi-fff@0.11.0`。`session_before_compact` 由 Pi Auto Compact 負責。`npm ci --ignore-scripts` 會安裝 FFF；manifest 為二十個本地模組入口加 FFF 入口，共二十一個。仍維持 `private: true`，不需要 npm 發布、bundledDependencies 或 postinstall 呼叫 pi install。
 
 換機請下載／複製本專案原始碼及 lockfile，在新機重新執行上述安裝步驟，然後只掛載本專案目錄；不要跨 OS／CPU 複製 node_modules。**本機掛載不會自動執行 npm install**。Repository `.npmrc` 設 `legacy-peer-deps=true`，避免依賴 peers 自動安裝另一份 Pi SDK；整合基準為 Pi 1.5.2，不以此設定宣稱相容。
 
@@ -103,7 +103,7 @@ Shell 與 Subagents 會在 `startup`／`resume`／`reload` 載入 session 時，
 | PTY Terminal | `pty_spawn/write/read/resize/wait_exit/kill/list` | `target` 預設 local；named WSL／SSH targets；session 綁定 target，關閉 transport 不保證遠端背景程序停止 |
 | Schedule Commands | `schedule_prompt`（prompt／agent job）、`schedule_shell`（shell command job）、`schedule_monitor`（到點啟動 Monitor）；`/schedule-commands`、`/settings:schedule-commands` | 排程週期／一次性 prompt、獨立 agent session 或 shell 指令（cron、ISO、`+10s`、`5m`）。資料存於 `<cwd>/.pi/schedule-commands.json`（舊 `schedule-prompts*.json` 不讀取），設定於 `<cwd>/.pi/schedule-commands-settings.json`（使用者層 `<agentDir>/schedule-commands-settings.json` 為預設）。僅 session 存活期間觸發，不是 OS 排程或 daemon |
 | Shell Tools | 覆寫 `bash`、`powershell`；`shell_job_status/cancel` | 同步預設；`background:true` 立即回 jobId／liveLogPath；`timeoutMs` 為自啟動起算的總時限（前景／背景相同）；背景 job 未設 `timeoutMs` 時自動啟動 180 秒 display-only Monitor；前景無 `timeoutMs` 指令滿 300 秒自動轉背景（同一 process，兜底防無限迴圈，可由 `pi-shell-tools.autoBackgroundMs` 調整或設 0 停用）；管理工具需額外選取；PowerShell 僅原生 Windows |
-| File Tools | 覆寫 `read`、`write`、`edit`、`ls` | 絕對行號、32 字元 hash、精準 literal／regex、原子寫入、diff worker；`grep/find` 不再由本模組註冊，可由 FFF override 提供 |
+| File Tools | 覆寫 `read`、`write`、`edit`、`ls` | 絕對行號、16 字元版本權杖、精準 literal／regex（`insert`、`dryRun` 預覽）、原子寫入、diff worker；`grep/find` 不再由本模組註冊，可由 FFF override 提供 |
 | Web Tools | `web_fetch`；條件式 REST `web_search`；`/web-tools status`、`/web-tools sources` | OpenAI／Codex 原生搜尋預設啟用、無實驗開關或警告，不註冊同名 function tool；Brave／Exa 要明確設定；無登入／CAPTCHA bypass／PDF |
 | Spinoff（Subagents 的一部分，同一入口） | `spinoff`；管理走與 Subagent 共用的 `agent_status`／`agent_cancel`／`agent_message`（`jobId` 定址；皆預設啟用，仍受宿主工具限制） | 以獨立 Pi 行程繼承來源對話與能力接手任務，跨 session 切換仍續行，完成後只回報原 session；`agent_message` 可對執行中的 Spinoff 追加指示（受理不等於套用）；Spinoff 可用 `subagent`、不可再 Spinoff，所有 Subagent 不可 Spinoff；quit／`/reload` 取消全部；完成後以原生 `/resume` 繼續。詳見 `modules/subagents/src/spinoff/README.md`；不是 OS sandbox |
 | Monitor | `monitor_start/status/stop` | 七來源：command stdout、WS text、cwd 內單一檔案的 metadata 變更（file，不讀內容）、整機 CPU／RAM 持續達閾值（system）、readonly shell_job／subagent_job／spinoff_job；三工具預設啟用（仍受宿主工具限制），總期限預設5分鐘；不是daemon／PTY／sandbox |
@@ -271,7 +271,7 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 - 舊 `.pi/schedule-prompts*.json` 不讀取、不遷移，載入時只提示一次；請以工具重建 job。工具名稱 `schedule_prompt`／`schedule_shell` 不變，`/schedule-prompt` 指令由 `/schedule-commands` 取代。
 - 帶 `model` 的 agent job 以 `createAgentSession` 在行程內執行，**不經** Subagents 模組的 argument builder／`--exclude-tools subagent` 保障；這不是 OS sandbox，取消只呼叫 `session.abort()`，不代表底層 process tree 已停止。排定觸發的 job 可能呼叫模型並產生費用。
 - 排程在 `session_start` 啟動、`session_shutdown` 停止；Pi 關閉後不會觸發，錯過的執行依 `skip`／`run-once`／`run-all` 在下次載入時處理。
-- shell job 須在互動 session 確認確切指令，不啟動模型也不喚醒 parent；不是 sandbox。
+- shell job 到點新增一個一般的 Shell 背景 job（排程 run 隨即結束，完成由 Shell 通知 agent，啟動時另發固定文字訊息告知）；三個排程工具的新增、變更、啟用與立即執行都不要求使用者確認；不是 sandbox。
 
 ### GPT 速度切換
 
@@ -379,3 +379,33 @@ Windows 隔離測試保留 `ProgramFiles`／`ProgramFiles(x86)` 的 OS 安裝目
 ### 2026-11-16 Fork 併入 Subagents 並改名 Spinoff
 
 `modules/fork` 併入 `modules/subagents`（原始碼 `src/spinoff/`、測試 `tests/spinoff/`，一個 extension 入口、一個開關；`pi.extensions` 由二十二個減為二十一個）。工具由八個減為五個：`subagent`、`spinoff`，以及共用的 `agent_status`／`agent_cancel`／`agent_message`（原 `subagent_*` 與 `fork_*` 管理工具合併，依 `jobId`／`subagentSessionId` 分流）。Fork 改名 Spinoff：工具、`spinoff-result` 訊息、起源標記、`.pi/spinoffs`、`PI_SPINOFF_GUARD`、Monitor 來源 `spinoff_job`、Jobs 面板種類 `spinoff`（標籤 `SO`）與錯誤碼 `SPINOFF_*`；不支援舊名（舊 session 的折疊規則仍認得舊工具名）。升級後既有 session 的第一個請求 prompt 快取 miss 一次（工具集與 section 順序改變）。參考實作：`pi-web-main/extensions/subagents`（該專案為同行程 SDK 版，只借用入口與工具路由的合併方式）。
+
+### 2026-11-17 PTY：Windows 的 `pty_spawn` 自動解析 PATHEXT
+
+問題：Windows 本機 `pty_spawn` 傳入不含副檔名的命令（如 `ssh`）會得到 `PTY_SPAWN_FAILED`（`File not found: `，檔名欄為空）。原因是 node-pty 的原生層（`conpty.cc`／`path_util.cc`）只依完整檔名在搜尋路徑找檔，不套用 PATHEXT；`ssh.exe` 存在也找不到 `ssh`。
+
+修正：新增 `modules/pty-terminal/src/resolve-exe.ts`，`PtySessionManager.spawn` 在呼叫 node-pty 前，把不含路徑、不含副檔名的名稱解析為搜尋路徑上第一個 `.exe`／`.com`；已有副檔名、含路徑、查無或非 Windows 一律原樣交給 node-pty。不解析 `.cmd`／`.bat` 與 shell 內建指令（仍須 `cmd.exe` 加 `["/c", …]`）。另在 `pty_spawn` 的 `promptGuidelines` 於 Windows 加一條說明此行為（文字不得出現設定鍵、環境變數或 `PATH`，由 `error-messages.test.ts` 把關）。詳見 [modules/pty-terminal/README.md](modules/pty-terminal/README.md)。
+
+驗證：新增 `tests/resolve-exe.test.ts`；`typecheck`、`lint`、`test:module -- pty-terminal` 通過。未執行 `test:cross`、重型組、`test:package`，也未以真實 `ssh` 連線驗證。
+
+### 2026-11-17 File Tools：失敗線索、regex 回退、`insert`／`dryRun`、16 字元權杖
+
+依 pi-web 的 `EDIT-TOOL-PLAN` 審查結果（`plan/edit-tool-plan-review.md`）移植並調整：
+
+- **失敗線索**：literal `TEXT_NOT_FOUND` 附 `closestLine`（忽略空白差異後最像的一行，上限 50000 行與 50 ms）；`AMBIGUOUS_MATCH` 附 `candidateContext`（前 5 個候選各前後 1 行，行號同 `read`）。兩者在 debug log 遮罩。
+- **regex 回退**：`lineRange` 內未命中、但全檔唯一時，regex 與 literal 一樣回退到該處；成功結果標示 `fallback:"whole-file"` 與 `fallbackEdits`。
+- **`^`／`$` 提示**：成功的 regex edit 在無 `m` 旗標時附 `[NOTICE]`（辨識跳脫與字元類別）。
+- **輸出瘦身**：精簡 diff 超過 40 行時保留前 26、後 12 行，中間以一行省略摘要取代（原為只保留前 40 行）；成功文字加 `lines`（被改動的行範圍）。
+- **`insert: "before"|"after"`**：沿用既有零寬規則（位置在 `matchStart`／`matchEnd`），不另訂重疊規則；同一位置只能一筆插入。
+- **`dryRun: true`**：驗證與 diff 照常、不寫檔；結果用 `[FILE_EDIT_PREVIEW]`、文字不給 `sha256After`，`details` 放 `wouldBeSha256`。File Audit 不記錄預覽，折疊規則與 Custom Panel 標示「未套用」。
+- **提示詞**：`edit` 的 `promptGuidelines` 縮為 5 條；regex 旗標與 `m` 的提醒仍留在事前提示詞（失敗訊息無法取代會成功寫入錯誤結果的情況）。
+- **16 字元版本權杖（64 bit）**：`read`／`write`／`edit`／`note` 輸出 16 字元；輸入仍接受 16／32／64 字元前綴，舊權杖不需版本標記。共用實作在 `shared/src/version-token/`。碰撞餘裕小於舊的 128 bit，只用於偵測過期編輯。
+
+升級後模型看到的 `edit` schema 與 `promptGuidelines` 改變，每個既有 session 的第一個請求會 miss 一次提示快取。驗證：`typecheck`、`lint`、`npm test`（其餘失敗為既有的 Pi 版本檢查與 `registry-coverage`）、`test:module -- file-tools`／`file-audit`／`pi-auto-compact`／`pi-custom-panel`／`note-tools`／`shared`、`test:cross`。未執行重型組、`test:package`、`test:integration`。
+
+### 2026-11-17 Schedule Commands：`schedule_shell` 改為到點新增 Shell 背景 job，移除使用者確認
+
+- **移除確認（使用者要求）**：`schedule_shell`、`schedule_monitor` 的新增、變更、啟用與立即執行不再要求使用者確認，也不再需要互動 UI（與 `schedule_prompt` 一致）；專案外目錄核准（`CommandApprovals`）、`cwd` 欄位一併移除。刪除排程的面板確認保留。
+- **`schedule_shell` 語意**：到點時經共用 rendezvous 的 `ScheduledShellStarter`（Shell Tools 發布，`modules/shell-tools/src/scheduled-start.ts`）新增一個一般的 Shell 背景 job，排程這一次的 run 隨即結束；完成由 Shell 自己的 `shell-job-completed` 通知 agent。啟動當下排程另發一則固定文字的 `scheduled_command` marker（`triggerTurn:false`，不含指令與輸出）告知 agent 已啟動；啟動失敗同樣告知。
+- **破壞性變更**：`timeoutMs` 改為 Shell 的總時限（原為輸出停滯期限）；設定鍵 `maxConcurrentCommands`、`commandOutputTailBytes` 移除（設定檔嚴格驗證，含這兩個鍵的檔案須先刪除）；已存檔且帶 `cwd` 的舊 shell job 到點被拒絕；Jobs 面板不再有 shell 的輸出即時副本（看 Shell 自己的 job 列）。
+- 驗證：`typecheck`、`lint`、`test:module` schedule-commands／shell-tools／shared、`test:cross`。未執行重型組（shell-tools 的 `recovery`／`extension`／`notification-batching` 等）、`test:package`、`test:integration`。

@@ -53,6 +53,7 @@ export const fileRules: Record<string, FoldRule> = {
       const d = detailsOf(result);
       const applied = num(d.appliedEdits);
       const before = shortHash(d.sha256Before), after = shortHash(d.sha256After);
+      if (d.dryRun === true) return `preview ${applied !== undefined ? plural(applied, 'edit') : 'edit'} (not written)${num(d.added) !== undefined || num(d.removed) !== undefined ? ` +${num(d.added) ?? 0}/−${num(d.removed) ?? 0}` : ''}`;
       const delta = num(d.added) !== undefined || num(d.removed) !== undefined ? ` +${num(d.added) ?? 0}/−${num(d.removed) ?? 0}` : '';
       const first = num(d.firstChangedLine);
       return `${applied !== undefined ? plural(applied, 'edit') : 'edited'}${delta}${first !== undefined ? ` @L${first}` : ''}${before && after ? ` sha:${before}→${after}` : ''}`;

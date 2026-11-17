@@ -77,7 +77,7 @@ for (const type of types) {
     assert.equal(file, resolve(cwd, dirOf[type], `${type.toUpperCase()}-20260102T030405006Z.md`));
     assert.equal(saved.relativePath, `${dirOf[type]}/${type.toUpperCase()}-20260102T030405006Z.md`);
     const bytes = await readFile(file);
-    assert.deepEqual(saved, { relativePath: `${dirOf[type]}/${type.toUpperCase()}-20260102T030405006Z.md`, sha256: createHash("sha256").update(bytes).digest("hex").slice(0, 32), bytes: bytes.length }, "details: relative path plus the same version token and size write reports");
+    assert.deepEqual(saved, { relativePath: `${dirOf[type]}/${type.toUpperCase()}-20260102T030405006Z.md`, sha256: createHash("sha256").update(bytes).digest("hex").slice(0, 16), bytes: bytes.length }, "details: relative path plus the same version token and size write reports");
     assert.deepEqual(Object.keys((noteTool.outputSchema as unknown as { properties: object }).properties), ["relativePath", "sha256", "bytes"]);
     assert.equal(Check(noteTool.outputSchema!, { ...saved, type }), false, "output rejects extra metadata");
     assert.equal(Object.hasOwn((noteTool.outputSchema as unknown as { properties: object }).properties, "path"), false);

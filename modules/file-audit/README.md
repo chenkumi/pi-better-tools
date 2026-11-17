@@ -27,6 +27,7 @@ pi --no-extensions -e ./modules/file-audit/src/index.ts
 - 預設 4 runs／50 個不同檔案；可設 1–30 runs／1–500 files，0 不代表無限。run 為 `before_agent_start`（user/custom 均計入），不是每次模型／工具往返或真人輪數。
 - 容量在每次納入時生效；相同檔案重新存取會更新最後活動順序。舊項目真正刪除，不是只截斷顯示。每個檔案只保留最近 read／write／note 分類所需的 run，不保存完整事件陣列。
 - `tool_execution_start`／`tool_execution_end` 配對；僅確實執行且成功完成才納入，包含 nested read/write/edit/note。最多 128 筆 pending，只保存 ID、工具名、路徑／cwd 與 owner/generation/run，不保留 content/oldText/newText。路徑上限 4096 UTF-8 bytes，ID 上限 1024 bytes。
+- `edit` 帶 `dryRun: true` 的結果（`details.dryRun === true`）沒有寫檔，不納入窗口，也不影響變更通知。
 - `note` 屬新增寫入。實際路徑取成功結果的 `structuredContent.relativePath`／`details.relativePath`（同時存在須一致）；不猜檔名、不解析正文、不保存 `note.content`。後續 read/edit 同檔案共用名額，窗口內新增證據仍保留。
 - 相對／絕對、`~`、file URL、`@` literal 優先與 Windows shell drive 路徑遵循 File Tools 的既有語意；已存在檔案用 realpath 去重，不一律 lowercase。
 - session start（含 reload/new/resume/fork）、tree navigation、shutdown 清空觀察並撤銷舊結果；start 恢復預設 limits，tree 保留目前 limits。不讀完整歷史、不跨 session 恢復。觀察起點始終顯示。

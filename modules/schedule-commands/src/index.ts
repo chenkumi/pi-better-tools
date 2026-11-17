@@ -48,7 +48,7 @@ export default function (pi: ExtensionAPI): void {
 		return live;
 	};
 	const deps: ToolDeps = {
-		jobs: () => need().jobs, engine: () => need().engine, approvals: () => need().executor.approvals,
+		jobs: () => need().jobs, engine: () => need().engine,
 		clock: realClock, activeTools: () => pi.getActiveTools(),
 		monitor: () => { try { return current ? requestScheduledMonitor(scopeOf(current)) : undefined; } catch { return undefined; } },
 	};
@@ -87,7 +87,7 @@ export default function (pi: ExtensionAPI): void {
 			legacyNoticeShown = true;
 			if (ctx.hasUI) ctx.ui.notify("The old Schedule Prompt file is no longer read; recreate jobs with schedule_prompt or schedule_shell.", "info");
 		}
-		const executor = createExecutor({ pi, context: () => current ?? ctx, trusted: () => isProjectTrusted(current ?? ctx), tailBytes: settings.commandOutputTailBytes, onLiveChange: () => panel.refresh() });
+		const executor = createExecutor({ pi, context: () => current ?? ctx, trusted: () => isProjectTrusted(current ?? ctx), onLiveChange: () => panel.refresh() });
 		const onEvent = (event: EngineEvent) => {
 			if (event.type === "skipped" && event.job) postMarker(pi, { jobId: event.job.id, jobName: event.job.name, kind: event.job.kind, phase: "skipped", error: event.message });
 			else if ((event.type === "error" || event.type === "expired") && ctx.hasUI) ctx.ui.notify(event.message, event.type === "error" ? "warning" : "info");

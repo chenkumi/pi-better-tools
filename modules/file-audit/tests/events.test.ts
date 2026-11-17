@@ -32,3 +32,18 @@ test("pending admissions are bounded, cleared at settlement, and invalid notes s
   assert.equal(t.window.stats.skipped, 2); assert.equal(t.window.snapshot().length, 0);
   t.reset("owner", true, false); t.start("shutdown", "note", {}, process.cwd(), "owner"); assert.equal(t.pendingCount, 0);
 });
+
+test("an edit dry run wrote nothing and is not recorded", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "file-audit-dry-"));
+  try {
+    await writeFile(join(cwd, "a.txt"), "a");
+    const t = new AuditTracker(); t.reset("owner");
+    t.start("dry", "edit", { path: "a.txt", dryRun: true }, cwd, "owner");
+    t.finish("dry", "edit", { details: { dryRun: true, appliedEdits: 1 } }, false, "owner");
+    assert.equal(t.window.snapshot().length, 0);
+    t.start("real", "edit", { path: "a.txt" }, cwd, "owner");
+    t.finish("real", "edit", { details: { appliedEdits: 1 } }, false, "owner");
+    assert.equal(t.window.snapshot().length, 1);
+    assert.equal(t.window.snapshot()[0].action, "edit");
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});

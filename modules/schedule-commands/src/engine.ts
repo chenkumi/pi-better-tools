@@ -17,10 +17,9 @@ export interface EngineSettings {
 	maxCatchUp: number;
 	allowShellRunAll: boolean;
 	maxConcurrentAgents: number;
-	maxConcurrentCommands: number;
 }
 export const DEFAULT_ENGINE_SETTINGS: EngineSettings = {
-	defaultMissed: "skip", defaultMaxLateMs: 3_600_000, maxCatchUp: 10, allowShellRunAll: false, maxConcurrentAgents: 4, maxConcurrentCommands: 4,
+	defaultMissed: "skip", defaultMaxLateMs: 3_600_000, maxCatchUp: 10, allowShellRunAll: false, maxConcurrentAgents: 4,
 };
 
 export interface RunOutcome { status: "success" | "error" | "skipped"; error?: string }
@@ -56,7 +55,7 @@ const iso = (ms: number) => new Date(ms).toISOString();
 
 interface PlannedRun { job: Job; infos: RunInfo[] }
 interface Plan { job: Job; run?: PlannedRun; events: EngineEvent[] }
-interface Budget { agent: number; shell: number }
+interface Budget { agent: number }
 
 function advance(job: Job, nowMs: number, patch: Partial<JobState>): Job {
 	const state: JobState = { ...job.state, ...patch };
@@ -110,14 +109,12 @@ function planJob(job: Job, nowMs: number, running: ReadonlyMap<string, JobKind>,
 		return { job: advance(job, nowMs, { lastStatus: "skipped", lastError: message }), events };
 	}
 	const blocked = running.has(job.id) ? "previous run is still running"
-		: job.kind === "agent" && budget.agent <= 0 ? "too many agent jobs are running"
-		: job.kind === "shell" && budget.shell <= 0 ? "too many shell jobs are running" : undefined;
+		: job.kind === "agent" && budget.agent <= 0 ? "too many agent jobs are running" : undefined;
 	if (blocked) {
 		events.push({ type: "skipped", job, message: blocked });
 		return { job: advance(job, nowMs, { lastStatus: "skipped", lastError: blocked }), events };
 	}
 	if (job.kind === "agent") budget.agent--;
-	if (job.kind === "shell") budget.shell--;
 	if (missed !== undefined) events.push({ type: "catch-up", job, message: `catch-up (missed ${missed})` });
 	const infos = dates.map((t): RunInfo => ({ scheduledFor: iso(t), ...(missed !== undefined ? { missed } : {}) }));
 	const { lastError: _cleared, ...state } = job.state;
@@ -170,7 +167,6 @@ export class ScheduleEngine {
 			const job = jobs[index];
 			if (this.#running.has(id)) refusal = "the previous run is still running";
 			else if (job.kind === "agent" && kinds.filter((k) => k === "agent").length >= this.#settings.maxConcurrentAgents) refusal = "too many agent jobs are running";
-			else if (job.kind === "shell" && kinds.filter((k) => k === "shell").length >= this.#settings.maxConcurrentCommands) refusal = "too many shell jobs are running";
 			if (refusal) return { result: undefined };
 			const { lastError: _cleared, ...state } = job.state;
 			const next = { ...job, state: { ...state, lastStatus: "running", lastRun: iso(nowMs) } } as Job;
@@ -215,7 +211,7 @@ export class ScheduleEngine {
 
 	#claim(now: number, mode: "load" | "tick"): { runs: PlannedRun[]; events: EngineEvent[] } {
 		const count = (kind: JobKind) => [...this.#running.values()].filter((k) => k === kind).length;
-		const budget: Budget = { agent: this.#settings.maxConcurrentAgents - count("agent"), shell: this.#settings.maxConcurrentCommands - count("shell") };
+		const budget: Budget = { agent: this.#settings.maxConcurrentAgents - count("agent") };
 		return this.#o.store.update((jobs) => {
 			const mine = jobs.filter((j) => this.#owned(j) && j.enabled);
 			let at = now;

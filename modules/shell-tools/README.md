@@ -85,6 +85,8 @@ Default-shell 卡片改由 self-shell 重建原有 Box，避免外層留白仍�
 
 `background:true`（或前景自動轉背景）且未設定 `timeoutMs` 時，job 被接受後 Shell 經 `shared/src/background/monitor-capability.ts` 的 rendezvous 請求已載入的 Monitor 啟動一個 `shell_job` 來源：`intervalMs` 180000、`wakeAgent:false`（僅 display、不要求模型回合）、`durationMs` 1800000（Monitor 上限）、label `auto: shell job without timeoutMs`。receipt 文字附上 monitorId 與 `monitor_stop` 提示。Best effort：`monitor_start` 未選取（allowlist／exclude／no-tools）、Monitor 未載入、owner／cwd 不符或 4 個 active 上限已滿時靜默略過，不啟用未選工具、不影響 job；Monitor 只讀取 snapshot，停止或到期都不取消 job。前景指令與有設定 `timeoutMs` 的背景 job 不啟動。自動 monitor 佔用 Monitor 的 active 名額。
 
+排程啟動：Shell 在 `session_start` 經同一個 rendezvous 發布 `ScheduledShellStarter`（`src/scheduled-start.ts`，`session_shutdown` 撤銷；owner／canonical cwd／epoch 不符即拒絕），讓 Schedule Commands 的 `schedule_shell` 到點新增一個一般的背景 job：同樣的 `jobs.submit`、同一個 `bash`／`powershell` 設定（含 `shellCommandPrefix`）、`timeoutMs` 為總時限、同樣的容量上限（8）與 `shell-job-completed` 完成通知；啟動器要求對應 `bash`／`powershell` 已啟用，不自動啟動 `shell_job` Monitor，也不保存任何排程資訊。
+
 ### Codemode
 
 ```javascript

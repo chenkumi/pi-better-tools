@@ -46,6 +46,10 @@ export interface FileToolErrorPayload {
   occurrences?: number;
   candidateRanges?: Array<{ start: number; end: number }>;
   rangePreview?: string;
+  /** For an ambiguous match: the first candidates with one line of context each side, numbered like read. */
+  candidateContext?: Array<{ start: number; end: number; preview: string }>;
+  /** For a literal that did not match: the file line most like its first line. */
+  closestLine?: { line: number; text: string };
   recovery?: string;
   causeCode?: string;
 }
@@ -121,6 +125,22 @@ export function parseFileToolErrorText(text: string): FileToolErrorPayload | und
         payload.candidateRanges.push({ start: candidate.start, end: candidate.end });
       }
     }
+    if (Object.hasOwn(value, "candidateContext")) {
+      if (!Array.isArray(value.candidateContext)) return undefined;
+      const contexts: unknown[] = value.candidateContext;
+      payload.candidateContext = [];
+      for (const context of contexts) {
+        if (!isRecord(context) || !isLineRange(context)) return undefined;
+        const preview = (context as Record<string, unknown>).preview;
+        if (typeof preview !== "string") return undefined;
+        payload.candidateContext.push({ start: context.start, end: context.end, preview });
+      }
+    }
+    if (Object.hasOwn(value, "closestLine")) {
+      const closest = value.closestLine;
+      if (!isRecord(closest) || !isIntegerAtLeast(closest.line, 1) || typeof closest.text !== "string") return undefined;
+      payload.closestLine = { line: closest.line, text: closest.text };
+    }
     return payload;
   } catch {
     return undefined;
@@ -151,6 +171,10 @@ export function formatFileToolErrorForDisplay(text: string, expanded: boolean, t
   if (lineRange) lines.push(`Line range: ${formatRange(lineRange)}`);
   if (payload.candidateRanges && payload.candidateRanges.length > 0) {
     lines.push(`Candidates: ${payload.candidateRanges.map(formatRange).join(", ")}`);
+  }
+  if (payload.closestLine) lines.push(`Closest line: ${payload.closestLine.line}│${truncateDisplayText(payload.closestLine.text, 300)}`);
+  if (payload.candidateContext && payload.candidateContext.length > 0) {
+    lines.push(`Candidate context:\n${payload.candidateContext.map((candidate) => `lines ${formatRange(candidate)}:\n${truncateDisplayText(candidate.preview, 400)}`).join("\n--\n")}`);
   }
   if (payload.rangePreview) lines.push(`Preview:\n${truncateDisplayText(payload.rangePreview, 1200)}`);
   if (payload.recovery) lines.push(`Recovery: ${truncateDisplayText(payload.recovery, 400)}`);

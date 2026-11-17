@@ -1,16 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import test from "node:test";
 import { AGENT_TIMEOUT_MS, runAgentJob, type ChildSession } from "../src/agent-run.ts";
-import { CommandApprovals, resolveCwd } from "../src/cwd.ts";
 import { createExecutor } from "../src/executor.ts";
 import { shellProblem } from "../src/guard.ts";
 import { MARKER_TYPE, type MarkerDetails } from "../src/markers.ts";
 import { runPromptJob } from "../src/prompt-run.ts";
-import { runShellJob, type ExecFn, type ProcessEvents } from "../src/shell-run.ts";
-import { TailBuffer } from "../src/tail.ts";
+import { runShellJob } from "../src/shell-run.ts";
 import { makeJob, ManualClock } from "./helpers.ts";
 
 const info = { scheduledFor: "2030-01-01T00:00:00.000Z" };
@@ -28,132 +23,72 @@ function fakePi(active: string[] = ["bash", "powershell"]) {
 	};
 }
 
-const dir = () => { const root = mkdtempSync(join(tmpdir(), "sc-run-")); return { root, done: () => rmSync(root, { recursive: true, force: true }) }; };
+const ctx = () => ({ cwd: process.cwd(), sessionManager: { getSessionId: () => "s1" } }) as never;
 
-/** An exec double whose process is driven by the test through `events`. */
-function controlledExec() {
-	const state: { events?: ProcessEvents; signal?: AbortSignal; cwd?: string; tool?: string; finish?: () => void; command?: string } = {};
-	const exec: ExecFn = (tool, command, signal, events, options) => {
-		Object.assign(state, { events, signal, cwd: options.cwd, tool, command });
-		return new Promise<void>((resolve) => {
-			state.finish = resolve;
-			signal.addEventListener("abort", () => { events.closed(null, "SIGTERM", false); resolve(); }, { once: true });
-		});
-	};
-	return { exec, state };
+/** A Shell Tools double: records what it was asked to start. */
+function fakeStarter(result: { jobId: string } | { error: string } = { jobId: "SJ1" }) {
+	const calls: Array<{ tool: string; command: string; timeoutMs?: number }> = [];
+	return { calls, starter: () => ({ start: (params: { tool: string; command: string; timeoutMs?: number }) => { calls.push(params); return result; } }) };
 }
 
-function shellSetup(over: { active?: string[]; cwd?: string; approvals?: CommandApprovals; tailBytes?: number } = {}) {
+function shellSetup(over: { active?: string[]; starter?: ReturnType<typeof fakeStarter> | "none" } = {}) {
 	const pi = fakePi(over.active);
-	const clock = new ManualClock();
-	const control = controlledExec();
-	const d = dir();
-	const approvals = over.approvals ?? new CommandApprovals();
-	const active = new Set<AbortController>();
-	const deps = { pi, clock, exec: control.exec, projectCwd: () => over.cwd ?? d.root, activeTools: () => pi.getActiveTools(), approvals, tailBytes: over.tailBytes ?? 8192, active };
-	return { pi, clock, control, d, deps, active, approvals };
+	const fake = over.starter === "none" ? undefined : over.starter ?? fakeStarter();
+	const deps = { pi, context: ctx, activeTools: () => pi.getActiveTools(), ...(over.starter === "none" ? { starter: () => undefined } : { starter: fake!.starter }) };
+	return { pi, fake, deps };
 }
 
-test("shell: success posts start and done markers, output stays in details and the model sees nothing", async () => {
+test("shell: success adds one Shell job and ends the run; the agent is told, without being woken", async () => {
 	const s = shellSetup();
-	try {
-		const run = runShellJob(s.deps, makeJob({ kind: "shell", command: "echo hi", shell: "bash" }) as never, info);
-		await s.clock.settle();
-		s.control.state.events!.started();
-		assert.equal(await run.started, true);
-		s.control.state.events!.stdout(Buffer.from("hello\n"));
-		s.control.state.events!.closed(0, null, false);
-		s.control.state.finish!();
-		assert.deepEqual(await run.done, { status: "success" });
-		assert.deepEqual(s.pi.phases(), ["start", "done"]);
-		assert.equal(s.pi.messages[1].message.details.output, "hello");
-		assert.ok(s.pi.messages.every((m) => m.message.customType === MARKER_TYPE && m.message.content.length === 0 && m.options.triggerTurn === false));
-		assert.equal(s.active.size, 0);
-	} finally { s.d.done(); }
+	const run = runShellJob(s.deps, makeJob({ kind: "shell", id: "J1", name: "nightly", command: "echo hi", shell: "bash", timeoutMs: 5000 }) as never, info);
+	assert.equal(await run.started, true);
+	assert.equal((await run.done).status, "success");
+	assert.deepEqual(s.fake!.calls, [{ tool: "bash", command: "echo hi", timeoutMs: 5000 }]);
+	assert.deepEqual(s.pi.phases(), ["done"]);
+	const sent = s.pi.messages[0];
+	assert.equal(sent.message.customType, MARKER_TYPE);
+	assert.deepEqual(sent.options, { triggerTurn: false }, "informs but never wakes");
+	const text = (sent.message.content[0] as { text: string }).text;
+	assert.match(text, /^Scheduled job "nightly" \(J1\) started shell job SJ1 at 2030-01-01T00:00:00.000Z\. Its completion will be reported separately\.$/);
+	assert.doesNotMatch(text, /echo hi/, "the command text is not sent to the model");
 });
 
-test("shell: a non-zero exit is an error that carries the output tail", async () => {
-	const s = shellSetup();
-	try {
-		const run = runShellJob(s.deps, makeJob({ kind: "shell", command: "false", shell: "bash" }) as never, info);
-		await s.clock.settle();
-		s.control.state.events!.stderr(Buffer.from("boom"));
-		s.control.state.events!.closed(3, null, false);
-		s.control.state.finish!();
-		const outcome = await run.done;
-		assert.equal(outcome.status, "error");
-		assert.match(outcome.error!, /^command exited with code 3\nboom/);
-		assert.equal(s.pi.messages.at(-1)!.message.details.exitCode, 3);
-	} finally { s.d.done(); }
-});
-
-test("shell: timeoutMs is an output-stall limit, renewed by every chunk", async () => {
-	const s = shellSetup();
-	try {
-		const run = runShellJob(s.deps, makeJob({ kind: "shell", command: "slow", shell: "bash", timeoutMs: 1000 }) as never, info);
-		await s.clock.settle();
-		await s.clock.advance(900);
-		s.control.state.events!.stdout(Buffer.from("tick"));
-		await s.clock.advance(900);
-		assert.equal(s.control.state.signal!.aborted, false, "output restarted the stall timer");
-		await s.clock.advance(100);
-		assert.equal(s.control.state.signal!.aborted, true);
-		const outcome = await run.done;
-		assert.match(outcome.error!, /no output for 1000 ms and was stopped; cancellation was only requested/);
-	} finally { s.d.done(); }
+test("shell: a refused start is an error that the agent is told about", async () => {
+	const s = shellSetup({ starter: fakeStarter({ error: "capacity limit reached" }) });
+	const run = runShellJob(s.deps, makeJob({ kind: "shell", id: "J2", name: "n", command: "x", shell: "bash" }) as never, info);
+	assert.equal(await run.started, false);
+	const outcome = await run.done;
+	assert.equal(outcome.status, "error");
+	assert.match(outcome.error ?? "", /capacity limit reached/);
+	assert.equal(s.pi.messages.length, 1);
+	assert.match((s.pi.messages[0].message.content[0] as { text: string }).text, /could not start its shell job: capacity limit reached/);
+	assert.deepEqual(s.pi.messages[0].options, { triggerTurn: false });
 });
 
 test("shell: the shell tool must be enabled, and there is no fallback to the other shell", async () => {
 	const s = shellSetup({ active: ["powershell"] });
-	try {
-		const run = runShellJob(s.deps, makeJob({ kind: "shell", command: "x", shell: "bash" }) as never, info);
-		const outcome = await run.done;
-		assert.equal(await run.started, false);
-		assert.match(outcome.error!, /shell: "bash" needs the bash tool to be enabled/);
-		assert.equal(s.control.state.events, undefined, "nothing was started");
-		assert.deepEqual(s.pi.phases(), ["error"]);
-		assert.equal(shellProblem(["bash"], "bash"), undefined);
-	} finally { s.d.done(); }
+	const run = runShellJob(s.deps, makeJob({ kind: "shell", command: "x", shell: "bash" }) as never, info);
+	assert.equal((await run.done).status, "error");
+	assert.equal(s.fake!.calls.length, 0);
+	assert.match(shellProblem(["powershell"], "bash") ?? "", /bash tool/);
+	assert.equal(shellProblem(["bash"], "bash"), undefined);
 });
 
-test("shell: a directory outside the project runs only after an in-process approval", async () => {
-	const outside = dir(), project = dir();
-	try {
-		const approvals = new CommandApprovals();
-		const s = shellSetup({ cwd: project.root, approvals });
-		const job = makeJob({ kind: "shell", command: "ls", shell: "bash", cwd: outside.root }) as never;
-		const refused = await runShellJob(s.deps, job, info).done;
-		assert.match(refused.error!, /outside the project and was not approved/);
-		assert.equal(s.control.state.events, undefined);
-		approvals.approve("ls", "bash", resolveCwd(project.root, outside.root).ok ? (resolveCwd(project.root, outside.root) as { cwd: string }).cwd : "");
-		const run = runShellJob(s.deps, job, info);
-		await s.clock.settle();
-		assert.ok(s.control.state.events, "approved: it ran");
-		(s.control.state.events as ProcessEvents).closed(0, null, false);
-		s.control.state.finish!();
-		assert.equal((await run.done).status, "success");
-	} finally { outside.done(); project.done(); }
+test("shell: without Shell Tools in this session nothing starts", async () => {
+	const s = shellSetup({ starter: "none" });
+	const run = runShellJob(s.deps, makeJob({ kind: "shell", command: "x", shell: "bash" }) as never, info);
+	const outcome = await run.done;
+	assert.equal(outcome.status, "error");
+	assert.match(outcome.error ?? "", /Shell Tools is not available/);
 });
 
-test("shell: a missing cwd is refused and there is no fallback directory", async () => {
+test("shell: a stored cwd is refused instead of running somewhere else", async () => {
 	const s = shellSetup();
-	try {
-		const outcome = await runShellJob(s.deps, makeJob({ kind: "shell", command: "x", shell: "bash", cwd: "nope" }) as never, info).done;
-		assert.match(outcome.error!, /cwd: "nope" does not exist/);
-		assert.equal(s.control.state.events, undefined);
-	} finally { s.d.done(); }
-});
-
-test("shell: cancellation by shutdown ends the run without markers after the start", async () => {
-	const s = shellSetup();
-	try {
-		const run = runShellJob(s.deps, makeJob({ kind: "shell", command: "long", shell: "bash" }) as never, info);
-		await s.clock.settle();
-		for (const controller of [...s.active]) controller.abort();
-		const outcome = await run.done;
-		assert.match(outcome.error!, /cancelled because the session ended; cancellation was only requested/);
-		assert.deepEqual(s.pi.phases(), ["start"]);
-	} finally { s.d.done(); }
+	const run = runShellJob(s.deps, makeJob({ kind: "shell", command: "x", shell: "bash", cwd: "/tmp" }) as never, info);
+	const outcome = await run.done;
+	assert.equal(outcome.status, "error");
+	assert.match(outcome.error ?? "", /no longer supports a working directory/);
+	assert.equal(s.fake!.calls.length, 0);
 });
 
 test("prompt: a display marker, then a follow-up user message", async () => {
@@ -240,8 +175,8 @@ test("executor: dispatches by kind; monitor jobs go through the injected Monitor
 	const pi = fakePi();
 	const calls: string[] = [];
 	const executor = createExecutor({
-		pi: pi as never, context: () => ({ cwd: process.cwd() }) as never, trusted: () => true, clock: new ManualClock(),
-		exec: async (tool, command, _signal, events) => { calls.push(`${tool}:${command}`); events.started(); events.closed(0, null, false); },
+		pi: pi as never, context: ctx, trusted: () => true, clock: new ManualClock(),
+		shellStarter: () => ({ start: (params) => { calls.push(`${params.tool}:${params.command}`); return { jobId: "SJ" }; } }),
 		createChild: async () => fakeChild({ text: "x" }).child,
 		monitorStarter: () => ({ validate: () => undefined, start: () => ({ monitorId: "m1" }), isActive: () => false }),
 	});
@@ -253,57 +188,6 @@ test("executor: dispatches by kind; monitor jobs go through the injected Monitor
 	assert.equal(await monitor.started, true);
 	assert.equal((await monitor.done).status, "success");
 	executor.abortAll();
-});
-
-test("TailBuffer keeps the last bytes and drops a partial character at the cut", () => {
-	const tail = new TailBuffer(6);
-	tail.push(Buffer.from("abc"));
-	tail.push(Buffer.from("defghij"));
-	assert.equal(tail.text(), "efghij");
-	const cjk = new TailBuffer(4);
-	cjk.push(Buffer.from("一二三四")); // 12 bytes; the last 4 bytes begin inside a character
-	assert.equal(cjk.text(), "四");
-});
-
-test("resolveCwd: relative paths resolve inside the project; a link out of it counts as outside", () => {
-	const project = dir(), outside = dir();
-	try {
-		mkdirSync(join(project.root, "sub"));
-		const inside = resolveCwd(project.root, "sub");
-		assert.ok(inside.ok && !inside.outsideProject);
-		const sibling = resolveCwd(project.root, outside.root);
-		assert.ok(sibling.ok && sibling.outsideProject);
-		try {
-			symlinkSync(outside.root, join(project.root, "link"), "junction");
-			const linked = resolveCwd(project.root, "link");
-			assert.ok(linked.ok && linked.outsideProject, "realpath exposes the link target");
-		} catch { /* links may be unavailable on this machine */ }
-		assert.equal(resolveCwd(project.root, "missing").ok, false);
-	} finally { project.done(); outside.done(); }
-});
-
-test("live copies: a running shell job exposes its output, and the copy is released with the run", async () => {
-	const { LiveRuns } = await import("../src/live-runs.ts");
-	const s = shellSetup();
-	const changes: string[] = [];
-	const live = new LiveRuns(() => changes.push("change"));
-	try {
-		const run = runShellJob({ ...s.deps, live }, makeJob({ kind: "shell", id: "J1", command: "echo hi", shell: "bash" }) as never, info);
-		await s.clock.settle();
-		const copy = live.get("J1")!;
-		assert.ok(copy, "a copy exists while the command runs");
-		s.control.state.events!.started();
-		s.control.state.events!.stdout(Buffer.from("line one\n"));
-		s.control.state.events!.stderr(Buffer.from("line two\n"));
-		assert.equal((copy as { snapshot(): { text: string } }).snapshot().text, "line one\nline two\n");
-		s.control.state.events!.closed(0, null, false);
-		s.control.state.finish!();
-		await run.done;
-		assert.equal(live.get("J1"), undefined, "released at the end of the run");
-		assert.equal(copy.isReleased, true);
-		assert.equal(changes.length, 2, "appearing and going away both notify the panel");
-		assert.equal(s.pi.messages[1].message.details.output, "line one\nline two", "the marker output is unchanged");
-	} finally { s.d.done(); }
 });
 
 test("live copies: a newer run of the same job is not released by an older run", async () => {

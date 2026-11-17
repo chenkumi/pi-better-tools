@@ -24,6 +24,7 @@ import { createForegroundHandoff, resolveAutoBackgroundMs } from "../src/foregro
 import { DETACH_HINT, ensureDetachShortcut, forgetToolRow, isForegroundDetachable, rememberToolRow, trackForeground } from "../src/manual-detach.ts";
 import { addDetachHint } from "../src/detach-hint.ts";
 import { createShellMonitorPublisher } from "../src/monitor-publisher.ts";
+import { createScheduledShellPublisher } from "../src/scheduled-start.ts";
 import { renderShellCompletion, renderShellJobResult } from "../src/completion-renderer.ts";
 import { renderShellOutput } from "../src/output-renderer.ts";
 import { writeFailureDebugLog, type FailureDetails } from "../src/debug-log.mjs";
@@ -354,12 +355,13 @@ export default function (pi: ExtensionAPI) {
   const jobs = new ShellJobs(pi);
   ensureDetachShortcut(pi);
   const monitorPublisher = createShellMonitorPublisher(jobs);
-  pi.on("session_start", (_event, ctx) => { monitorPublisher.stop(); jobs.start(ctx); monitorPublisher.start(ctx); });
+  const scheduledPublisher = createScheduledShellPublisher(pi, jobs, configuredBases(pi));
+  pi.on("session_start", (_event, ctx) => { monitorPublisher.stop(); scheduledPublisher.stop(); jobs.start(ctx); monitorPublisher.start(ctx); scheduledPublisher.start(ctx); });
   pi.on("agent_settled", (_event, ctx) => { jobs.flushPending(ctx); });
   pi.on("session_compact", (_event, ctx) => { jobs.flushPending(ctx); });
   pi.on("session_compact_failed", (_event, ctx) => { jobs.flushPending(ctx); });
   pi.on("session_tree", (_event, ctx) => { jobs.flushPending(ctx); });
-  pi.on("session_shutdown", event => { monitorPublisher.stop(); return jobs.shutdown(event.reason); });
+  pi.on("session_shutdown", event => { monitorPublisher.stop(); scheduledPublisher.stop(); return jobs.shutdown(event.reason); });
   const jobFields = {
     jobId: Type.String(), status: Type.String(), tool: Type.String(), toolCallId: Type.String(), command: Type.String(),
     startedAt: Type.String(), elapsedMs: Type.Number(), logBytes: Type.Number(), cancelRequested: Type.Boolean(),
@@ -411,25 +413,20 @@ export default function (pi: ExtensionAPI) {
   registerShells(pi, jobs);
 }
 
-function registerShells(pi: ExtensionAPI, jobs?: ShellJobs, foregroundOnly = false) {
-  registerTimeoutMsOverride(
-    pi,
-    "bash",
-    createBashToolDefinition,
-    (ctx, wrap) => createConfiguredBashDefinition(pi, ctx, wrap),
-    jobs,
-    foregroundOnly,
-  );
-  registerTimeoutMsOverride(
-    pi,
-    "powershell",
-    createPowerShellToolDefinition,
+/** The configured definitions both the shell tools and scheduled shell jobs execute through. */
+function configuredBases(pi: ExtensionAPI) {
+  return {
+    bash: (ctx: ExtensionContext, wrap?: (ops: BashOperations) => BashOperations) => createConfiguredBashDefinition(pi, ctx, wrap),
     // Pi's PowerShell tool options accept no shellPath/commandPrefix, so
     // Bash-only shell settings intentionally do not apply here.
-    (ctx, wrap = ops => ops) => createPowerShellToolDefinition(ctx.cwd, {
+    powershell: (ctx: ExtensionContext, wrap: (ops: BashOperations) => BashOperations = ops => ops) => createPowerShellToolDefinition(ctx.cwd, {
       operations: wrap(createLocalPowerShellOperations()),
     }),
-    jobs,
-    foregroundOnly,
-  );
+  };
+}
+
+function registerShells(pi: ExtensionAPI, jobs?: ShellJobs, foregroundOnly = false) {
+  const bases = configuredBases(pi);
+  registerTimeoutMsOverride(pi, "bash", createBashToolDefinition, bases.bash, jobs, foregroundOnly);
+  registerTimeoutMsOverride(pi, "powershell", createPowerShellToolDefinition, bases.powershell, jobs, foregroundOnly);
 }

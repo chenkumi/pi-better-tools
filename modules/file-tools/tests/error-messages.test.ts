@@ -56,7 +56,7 @@ test("expectedHash errors echo the received value and list accepted forms", () =
   const write = failure(() => prepareWriteArguments({ path: "f", content: "x", expectedHash: "abc123" }));
   assert.match(write.message, /write\.expectedHash must be/);
   assert.match(write.message, /received "abc123" \(6 chars\)/);
-  assert.match(write.message, /32 or 64 hex/);
+  assert.match(write.message, /16, 32, 64 hex/);
   assert.match(write.message, /'missing'/);
   const editMissing = failure(() => prepareEditArguments({ path: "f", expectedHash: "missing", edits: [{ oldText: "a", newText: "b" }] }));
   assert.match(editMissing.message, /received "missing"/);

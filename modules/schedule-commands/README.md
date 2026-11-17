@@ -9,7 +9,7 @@
 | 項目 | 說明 |
 | --- | --- |
 | `schedule_prompt` | prompt job（送入目前對話）與 agent job（指定 `model`，獨立 in-process session）。`defaultActive: true`，直接宣告、不經 deferred。 |
-| `schedule_shell` | shell command job（`command`／`shell`／`cwd`／`timeoutMs`）。`defaultActive: true`。 |
+| `schedule_shell` | shell command job（`command`／`shell`／`timeoutMs`）；到點新增一個 Shell 背景 job。`defaultActive: true`。 |
 | `schedule_monitor` | monitor job：到點時請同一 session 的 Monitor 啟動一個監看（`start` 即 `monitor_start` 參數）。`defaultActive: true`。 |
 | `/schedule-commands` | 底部面板清單：↑↓／PgUp／PgDn、Enter 詳細、`a` 新增 prompt、`m` 新增 shell、`t` 啟用／停用、`r` 立即執行、`x` 刪除、`c` 清理。動作一律經上面三個工具（依 job 種類）的 `execute`，驗證與確認不另寫一份；新增只有 prompt（`a`）與 shell（`m`），monitor job 只能用 `schedule_monitor` 建立。 |
 | `/settings:schedule-commands` | 共用 settings-panel，寫入專案層設定檔，只在存檔時寫；設定於 session 開始時讀取，存檔後需 reload。 |
@@ -32,8 +32,7 @@
 | `defaultMaxLateMs` | `3600000`（1 小時） | 晚於此值的錯過執行不補跑；`0`–604800000 |
 | `maxCatchUp` | `10` | `run-all` 的上限；1–100 |
 | `allowShellRunAll` | `false` | shell job 才可使用 `run-all` |
-| `maxConcurrentAgents`／`maxConcurrentCommands` | `4`／`4` | 同時執行上限；各 1–16 |
-| `commandOutputTailBytes` | `8192` | 每次 run 保留於顯示標記的輸出尾端；1024–1048576（Jobs 面板的即時副本另有 128 KiB 上限，與此無關） |
+| `maxConcurrentAgents` | `4` | agent job 同時執行上限；1–16 |
 
 ## 執行語意
 
@@ -41,7 +40,7 @@
 - 準時（`LATE_GRACE_MS` 5 秒內）與錯過分開處理。同一時刻的順序：shell → agent → monitor → prompt；prompt 最多等前面的「已啟動」2 秒。interval 以 `createdAt` 為錨點。
 - prompt job：寫入顯示用 marker 後以 `sendUserMessage(deliverAs: "followUp")` 送入對話。
 - agent job：獨立 in-process session，30 分鐘上限，`notify` 時以 steer 喚醒對話；預設不載入其他 extensions。**尚未以真實模型實測**。
-- shell job：須在互動 session 確認確切指令；經 Monitor 的 Shell helper 在 session 內執行，不啟動模型、不喚醒 parent，輸出只進顯示用 marker。`timeoutMs` 是輸出停滯期限，不是總時限。每次執行重新 realpath cwd；專案外目錄只在本行程核准後執行，核准不持久化。
+- shell job：到點時經 `shared/src/background/monitor-capability.ts` 的 `ScheduledShellStarter`（Shell Tools 在 `session_start` 發布）新增**一個一般的 Shell 背景 job**，排程這一次的 run 隨即結束（Jobs 面板的 `SC` 列消失；`once` job 與其他種類一樣跑完後停用但仍留在清單）。之後該 job 與手動 `shell(background:true)` 相同：出現在 Shell 的 job 列、可用 `shell_job_status`／`shell_job_cancel` 管理、完成時由 Shell 以 `shell-job-completed`（steer、喚醒）通知 agent。啟動當下另發一則 `scheduled_command` marker，**帶固定文字**（排程名稱、排程 id、Shell job id、預定時間；不含指令全文與輸出）讓 agent 知道任務已啟動，`triggerTurn:false`（進入下一回合的上下文、不額外喚醒）；啟動失敗（Shell 未載入或未啟用、容量 8 滿、owner 不符）也發一則同型訊息並記錄在 `state.lastError`。不再有使用者確認、專案外目錄核准、`cwd` 欄位、輸出尾端與 Jobs 面板的 shell 即時副本。`timeoutMs` 改為與 `shell` 工具相同的**總時限**（自指令啟動起算）；已存檔且帶 `cwd` 的舊 job 到點時被拒絕並說明，不會改在別處執行。Shell 喚醒的回合沒有排程 marker，不受 scheduled-turn 保護，可能在該回合建立新排程（與手動 `shell(background:true)` 完成後的回合相同）。未帶 `timeoutMs` 的排程 job 不自動啟動 `shell_job` Monitor。
 - `schedule_shell` 啟用前提：`bash` 或 `powershell` 至少一個已啟用（檢查工具啟用，不是政策）。
 - scheduled turn（由排程送入的回合）內只允許 `list`／`status`／`remove`／`disable`；`add`、`update`、`enable`、`run_now` 一律拒絕。provenance 取自對話分支中的 marker。
 - 受管 child（Subagent／Spinoff）不註冊本模組。
@@ -50,9 +49,9 @@
 
 - 機制：Monitor 在 `session_start` 經 `shared/src/background/monitor-capability.ts` 發布「排程啟動器」（`validate`／`start`／`isActive`，與既有 rendezvous 同型：owner、canonical cwd 對得上才取得，不共享 handle）；排程到點呼叫它，由 Monitor 自己驗證並決定。Monitor 沒載入、`monitor_start` 未啟用、被拒絕或沒有名額，只在顯示標記與 `state.lastError` 記錄原因，不影響其他 job。
 - 允許的來源：`command`、`file`、`system`；`websocket` 與 `shell_job`／`subagent_job`／`spinoff_job` 拒絕（錯誤訊息列出允許來源）。Monitor 側的啟動器也同樣拒絕。
-- `wakeAgent` 預設 **false**（Monitor 側補預設）；設 `true` 須使用者在確認畫面看到「WAKES THE AGENT」後同意。由 Monitor 喚醒的回合**不受** scheduled-turn 保護（沒有排程 marker），可能在該回合建立新排程；這與手動 `monitor_start` 的暴露面相同，差別是使用者不在場，所以預設關閉並在確認畫面明示。
-- `command` 來源等於無人值守執行指令：`schedule_shell` 與 `start.source.tool` 對應的 `bash`／`powershell` 必須都已啟用，建立、更新、重新啟用時當場檢查，每次到點前再檢查；未啟用則報錯／跳過並記錄。確認畫面顯示確切指令。
-- 互動新增、變更 `start`、重新啟用、`run_now` 都須確認；無 UI 拒絕。
+- `wakeAgent` 預設 **false**（Monitor 側補預設）；設 `true` 不需使用者確認（與 `schedule_prompt`／`schedule_shell` 一致），但 `status` 詳細會顯示「WAKES THE AGENT」。由 Monitor 喚醒的回合**不受** scheduled-turn 保護（沒有排程 marker），可能在該回合建立新排程；這與手動 `monitor_start` 的暴露面相同，差別是使用者不在場，所以預設關閉。
+- `command` 來源等於無人值守執行指令：`schedule_shell` 與 `start.source.tool` 對應的 `bash`／`powershell` 必須都已啟用，建立、更新、重新啟用時當場檢查，每次到點前再檢查；未啟用則報錯／跳過並記錄。
+- 新增、變更、重新啟用與 `run_now` 都不經使用者確認，也不需互動 UI。
 - 壽命沿用 Monitor 的 `durationMs`（上限 1800000）；每次到點啟動一個新的監看，session 關閉或 reload 時一併結束，不跨重啟重播。
 - Monitor 同時活躍上限為 4。同一個 job 上一次啟動的監看還在跑時，這次到點**略過**（`skipped`，顯示標記說明），不堆疊；這個記錄只在記憶體，reload 後重置。其他 job 或手動監看佔滿名額時，到點會因 Monitor 拒絕而記錄錯誤。
 - 與 shell 連動：用 `schedule_shell` 與 `schedule_monitor` 排**同一時間**，引擎保證 shell 先 spawn 再啟動 monitor；兩個 job 的補跑策略各自獨立。monitor job 的 `missed` 只允許 `skip`／`run-once`，預設 `skip`。
@@ -68,7 +67,7 @@
 
 ## 尚未完成
 
-- 面板新增流程只問名稱、時間、內容，進階欄位（agent、cwd、timeout、missed）只能用工具設定。
+- 面板新增流程只問名稱、時間、內容，進階欄位（agent、timeout、missed）只能用工具設定。
 - 未做真實 Pi／真實模型／真實 Monitor 的端對端驗證。特別是 `session_start` 內的補跑發生時，宿主的啟用工具集（`getActiveTools`）是否已定案尚未在真實 host 驗證，這影響 `schedule_shell` 與 monitor 的 shell 檢查。
 
 ## 測試

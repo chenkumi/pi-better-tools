@@ -3,7 +3,6 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { CommandApprovals } from "../src/cwd.ts";
 import { ScheduleEngine } from "../src/engine.ts";
 import { JobService } from "../src/jobs.ts";
 import { MARKER_TYPE } from "../src/markers.ts";
@@ -22,16 +21,15 @@ function setup(options: { confirm?: boolean; hasUI?: boolean; active?: string[];
 	const exec = fakeExecutor({ autoFinish: true });
 	const engine = new ScheduleEngine({ store, clock, sessionId: "S1", execute: exec.execute });
 	const jobs = new JobService({ store, clock, sessionId: "S1", scope: () => options.scope ?? "session", changed: () => engine.reload() });
-	const approvals = new CommandApprovals();
 	const asked: string[] = [];
-	const deps = { jobs: () => jobs, engine: () => engine, approvals: () => approvals, clock, activeTools: () => options.active ?? ["bash", "powershell"] };
+	const deps = { jobs: () => jobs, engine: () => engine, clock, activeTools: () => options.active ?? ["bash", "powershell"] };
 	const ctx = {
 		cwd, mode: "rpc", hasUI: options.hasUI ?? true,
 		ui: { confirm: async (_title: string, message: string) => { asked.push(message); return options.confirm ?? true; } },
 		sessionManager: { getSessionId: () => "S1", getBranch: () => options.branch ?? [] },
 	};
 	const run = (tool: ReturnType<typeof createPromptTool>, params: Record<string, unknown>) => tool.execute("id", params as never, undefined, undefined, ctx as never) as Promise<{ isError?: boolean; content: Array<{ text: string }>; details: { jobs: any[] } }>;
-	return { cwd, store, clock, exec, engine, jobs, approvals, asked, prompt: createPromptTool(deps), shell: createShellTool(deps), run, ctx, done: () => { engine.stop(); rmSync(cwd, { recursive: true, force: true }); } };
+	return { cwd, store, clock, exec, engine, jobs, asked, prompt: createPromptTool(deps), shell: createShellTool(deps), run, ctx, done: () => { engine.stop(); rmSync(cwd, { recursive: true, force: true }); } };
 }
 const text = (r: { content: Array<{ text: string }> }) => r.content[0].text;
 
@@ -136,21 +134,29 @@ test("a job of another session is hidden", async () => {
 	} finally { t.done(); }
 });
 
-test("schedule_shell: the exact command is confirmed, shown, and nothing is saved without it", async () => {
-	const refused = setup({ confirm: false });
+test("schedule_shell: a command is saved without any confirmation, also without a UI", async () => {
+	for (const hasUI of [true, false]) {
+		const t = setup({ hasUI });
+		try {
+			const result = await t.run(t.shell, { action: "add", schedule: "1h", command: "rm -rf build", shell: "bash", timeoutMs: 5000 });
+			assert.equal(result.isError, undefined, text(result));
+			assert.deepEqual(t.asked, [], "nobody is asked");
+			const stored = t.store.read().store.jobs[0] as { command: string; timeoutMs: number };
+			assert.equal(stored.command, "rm -rf build");
+			assert.equal(stored.timeoutMs, 5000);
+			assert.match(text(await t.run(t.shell, { action: "status", jobId: t.store.read().store.jobs[0].id })), /Time limit: 5000 ms/);
+		} finally { t.done(); }
+	}
+});
+
+test("schedule_shell: cwd is not accepted any more", async () => {
+	const t = setup();
 	try {
-		const result = await refused.run(refused.shell, { action: "add", schedule: "1h", command: "rm -rf build", shell: "bash", timeoutMs: 5000 });
-		assert.match(text(result), /did not confirm/);
-		assert.equal(refused.store.read().store.jobs.length, 0);
-		assert.match(refused.asked[0], /Command: rm -rf build/);
-		assert.match(refused.asked[0], /Shell: bash/);
-		assert.match(refused.asked[0], /Output stall limit: 5000 ms/);
-	} finally { refused.done(); }
-	const headless = setup({ hasUI: false });
-	try {
-		assert.match(text(await headless.run(headless.shell, { action: "add", schedule: "1h", command: "echo", shell: "bash" })), /needs an interactive session/);
-		assert.equal(headless.store.read().store.jobs.length, 0);
-	} finally { headless.done(); }
+		assert.match(text(await t.run(t.shell, { action: "add", schedule: "1h", command: "echo", shell: "bash", cwd: "." })), /cwd are not accepted/);
+		const id = (await t.run(t.shell, { action: "add", schedule: "1h", command: "echo", shell: "bash" })).details.jobs[0].id;
+		assert.match(text(await t.run(t.shell, { action: "update", jobId: id, cwd: "." })), /cwd are not accepted/);
+		assert.equal(t.store.read().store.jobs.length, 1);
+	} finally { t.done(); }
 });
 
 test("schedule_shell: the matching shell tool must be enabled, with no fallback", async () => {
@@ -158,38 +164,21 @@ test("schedule_shell: the matching shell tool must be enabled, with no fallback"
 	try {
 		const result = await t.run(t.shell, { action: "add", schedule: "1h", command: "echo", shell: "bash" });
 		assert.match(text(result), /shell: "bash" needs the bash tool to be enabled/);
-		assert.equal(t.asked.length, 0, "no confirmation is asked for something that cannot run");
 	} finally { t.done(); }
 });
 
-test("schedule_shell: enable and a changed command are confirmed again; a job edited meanwhile is refused", async () => {
+test("schedule_shell: enable, command and time-limit changes apply directly", async () => {
 	const t = setup();
 	try {
 		const added = await t.run(t.shell, { action: "add", name: "s", schedule: "1h", command: "echo one", shell: "bash" });
 		const id = added.details.jobs[0].id;
 		await t.run(t.shell, { action: "disable", jobId: id });
-		t.asked.length = 0;
-		await t.run(t.shell, { action: "enable", jobId: id });
-		assert.equal(t.asked.length, 1);
-		await t.run(t.shell, { action: "update", jobId: id, timeoutMs: 9000 });
-		assert.equal(t.asked.length, 1, "a stall limit change needs no new confirmation");
-		await t.run(t.shell, { action: "update", jobId: id, command: "echo two" });
-		assert.equal(t.asked.length, 2);
-		assert.match(t.asked[1], /Command: echo two/);
-		assert.equal((get(t.store, id) as { command: string }).command, "echo two");
-		// A peer edits the job while the dialog is open.
-		const racy = setup();
-		try {
-			const made = await racy.run(racy.shell, { action: "add", name: "r", schedule: "1h", command: "echo a", shell: "bash" });
-			const rid = made.details.jobs[0].id;
-			await racy.run(racy.shell, { action: "disable", jobId: rid });
-			(racy.ctx.ui as { confirm: unknown }).confirm = async () => {
-				racy.store.update((jobs) => ({ jobs: jobs.map((j) => (j.id === rid ? ({ ...j, command: "echo evil" } as typeof j) : j)), result: undefined }));
-				return true;
-			};
-			assert.match(text(await racy.run(racy.shell, { action: "enable", jobId: rid })), /changed while waiting for confirmation/);
-			assert.equal(get(racy.store, rid).enabled, false);
-		} finally { racy.done(); }
+		assert.equal((await t.run(t.shell, { action: "enable", jobId: id })).isError, undefined);
+		assert.equal((await t.run(t.shell, { action: "update", jobId: id, timeoutMs: 9000 })).isError, undefined);
+		assert.equal((await t.run(t.shell, { action: "update", jobId: id, command: "echo two" })).isError, undefined);
+		assert.equal((get(t.store, id) as { command: string; timeoutMs: number }).command, "echo two");
+		assert.equal((get(t.store, id) as { timeoutMs: number }).timeoutMs, 9000);
+		assert.deepEqual(t.asked, [], "nobody is asked");
 	} finally { t.done(); }
 });
 
@@ -209,7 +198,7 @@ test("a scheduled turn can list, inspect, disable and remove, but not add, updat
 	} finally { t.done(); }
 });
 
-test("run_now starts a job once without touching its schedule; a shell run_now is confirmed", async () => {
+test("run_now starts a job once without touching its schedule; a shell run_now needs no confirmation", async () => {
 	const t = setup();
 	try {
 		const added = await t.run(t.prompt, { action: "add", name: "n", schedule: "1h", prompt: "go" });
@@ -222,9 +211,9 @@ test("run_now starts a job once without touching its schedule; a shell run_now i
 		assert.equal(get(t.store, id).state.nextDue, before);
 		assert.equal(get(t.store, id).state.runCount, 1);
 		const shell = await t.run(t.shell, { action: "add", name: "s", schedule: "1h", command: "echo", shell: "bash" });
-		t.asked.length = 0;
-		await t.run(t.shell, { action: "run_now", jobId: shell.details.jobs[0].id });
-		assert.equal(t.asked.length, 1);
+		const shellRun = await t.run(t.shell, { action: "run_now", jobId: shell.details.jobs[0].id });
+		assert.equal(shellRun.isError, undefined, text(shellRun));
+		assert.equal(t.asked.length, 0);
 	} finally { t.done(); }
 });
 

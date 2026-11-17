@@ -39,6 +39,8 @@ export class AuditTracker {
     this.pending.delete(id);
     if (!pending || isError || !this.alive || pending.action !== tool || owner !== this.owner || pending.owner !== owner ||
         pending.generation !== this.generation || pending.run !== this.window.run) return;
+    // An edit dry run wrote nothing: it is not a change to report.
+    if (asRecord(asRecord(result).details).dryRun === true) return;
     try {
       const resolved = asRecord(asRecord(result).details).path;
       const rawPath = pending.action === "note" ? notePath(result) : boundedString(resolved) ? resolved : pending.path!;

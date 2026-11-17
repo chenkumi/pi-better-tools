@@ -8,6 +8,7 @@ import { ToolError } from "../../../shared/src/tool-error/index.ts";
 import { filterEnv, type EnvPolicy } from "./env.ts";
 import { matchPattern, MATCH_BUDGET_MS } from "./matcher.ts";
 import { stripEscapes, truncatePtyOutput, type OutputFormat } from "./output.ts";
+import { resolveWindowsCommand } from "./resolve-exe.ts";
 import { MASK, SecretMasker, type MaskedView } from "./secret-mask.ts";
 import type { Transport } from "./targets.ts";
 
@@ -342,7 +343,7 @@ export class PtySessionManager {
 		assertDirectory(spawnCwd, targetName);
 		let pty: IPty;
 		try {
-			pty = this.spawnPty(command, args, {
+			pty = this.spawnPty(resolveWindowsCommand(command), args, {
 				name: "xterm-256color",
 				cols: options.cols ?? DEFAULT_COLS,
 				rows: options.rows ?? DEFAULT_ROWS,

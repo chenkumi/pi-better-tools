@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { saveSettings } from "../../../shared/src/settings-panel/index.ts";
-import { CommandApprovals } from "../src/cwd.ts";
 import { ScheduleEngine } from "../src/engine.ts";
 import { JobService } from "../src/jobs.ts";
 import { ManageBody, performAction, type ManageAction } from "../src/manage.ts";
@@ -79,7 +78,7 @@ function setup() {
 		ui: Object.assign(ui.ui, { confirm: async () => true, select: async () => undefined, notify: () => {} }),
 		sessionManager: { getSessionId: () => "S1", getBranch: () => [] },
 	};
-	const deps = { jobs: () => jobs, engine: () => engine, approvals: () => new CommandApprovals(), clock, activeTools: () => ["bash", "powershell"], rows: () => [] };
+	const deps = { jobs: () => jobs, engine: () => engine, clock, activeTools: () => ["bash", "powershell"], rows: () => [] };
 	return { cwd, jobs, ui, ctx, deps, done: () => { engine.stop(); rmSync(cwd, { recursive: true, force: true }); } };
 }
 

@@ -98,7 +98,7 @@
     ],
     [
       "schedule_rules",
-      "**Schedules**\n- Create or change a schedule only when the user asks. Schedules run only while Pi is open; they are not OS jobs.\n- Put commands in schedule_shell; the user confirms the exact command.\n- schedule_prompt delivers text to this conversation, or runs a separate agent session when you give a model.\n- A scheduled turn may only list, inspect, disable or remove schedules, never create or start work."
+      "**Schedules**\n- Create or change a schedule only when the user asks. Schedules run only while Pi is open; they are not OS jobs.\n- Put commands in schedule_shell: at each time it adds a background shell job (you are told when it starts and when it finishes).\n- schedule_prompt delivers text to this conversation, or runs a separate agent session when you give a model.\n- A scheduled turn may only list, inspect, disable or remove schedules, never create or start work."
     ]
   ]
 }

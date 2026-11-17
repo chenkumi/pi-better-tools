@@ -7,7 +7,7 @@
 - `read/write/edit` 路徑：相對路徑（相對 cwd）、絕對路徑、開頭 `@`、家目錄展開、`file://` URL。Windows 另接受 `/C/...`、`/mnt/C/...`、`/cygdrive/C/...`；格式錯誤的 URL 會被拒絕。開頭 `@` 沿用 Pi 路徑慣例：字面檔案已存在時優先使用，否則剝除 `@`（父目錄存在亦同）。建立字面 `@types/foo.d.ts` 請用 `./@types/foo.d.ts` 或絕對路徑，避免建立到 `types/`；此慣例未改變。
 - `read/write/edit` schema 為 strict（不允許未宣告欄位）；`ls` 保留宿主 schema。選填欄位傳 `null` 等同省略；必填欄位仍拒絕 `null`。
 - `read/write/edit` 檔案上限 50 MiB；文字須為合法 UTF-8（否則 `INVALID_ENCODING`）。
-- 版本雜湊：32 字元 SHA-256 token（SHA-256 前 128 bit，十六進位），亦接受 64 字元完整 SHA-256。
+- 版本權杖：16 字元（SHA-256 前 64 bit，十六進位；`read`／`write`／`edit` 輸出皆是）。輸入以前綴比對，16、32、64 字元的權杖都接受（舊的 32 字元與完整 SHA-256 仍有效，不需版本標記），其他長度在 schema 層就被拒絕；內部快照與提交前檢查一律用完整 SHA-256。64 bit 只用於偵測過期編輯（意外，不是對抗），碰撞餘裕小於舊的 128 bit。產生與比對集中在 `shared/src/version-token/`，`note` 共用同一函式。
 - `read/write/edit` 對同一檔案的操作透過 Pi 的 file mutation queue 排序；搜尋／目錄工具沿用宿主唯讀行為，不提供多檔案快照一致性。
 - `read/write/edit` 錯誤以例外拋出（`isError: true`），內容為 `[FILE_TOOL_ERROR]` JSON；TUI 僅調整顯示，不改變模型可見內容。
 
@@ -67,7 +67,8 @@
 | --- | --- | --- |
 | `path` | string（必填） | 既有檔案 |
 | `expectedHash` | string | 版本 token；檔案已變更則 `STALE_FILE` |
-| `edits` | array（必填，1–100 項） | 取代操作 |
+| `dryRun` | boolean | `true` 時照常驗證並產生 diff，但不寫檔；回傳 `[FILE_EDIT_PREVIEW]`（見下） |
+| `edits` | array（必填，1–100 項） | 取代或插入操作 |
 
 每個 `edits` 項目：
 
@@ -80,26 +81,31 @@
 | `lineRange` | `{ start, end }`，1 基底、含頭尾的搜尋視窗，`end ≥ start` |
 | `replaceAll` | 預設 `false`；為 `false` 時選定範圍內必須剛好一處符合 |
 | `replacementMode` | `"literal"`（預設）或 `"template"`（僅 `regex`，啟用 `$1`、`$<name>` 等） |
+| `insert` | `"before"` 或 `"after"`：保留比對文字，把 `newText` 插在比對起點之前／終點之後。`newText` 不得為空（`INVALID_ARGUMENT`）；可與 `template`、`replaceAll`、`lineRange` 並用 |
 
 行為：
 
 - 提示詞精簡：regex／flags／`(?m)`／`replaceAll` 的完整規則只放在 `promptGuidelines`；tool description 僅一句用途，schema 欄位描述只保留型別與限制。`edit` 回傳的 `sha256After` 可直接作為下一次 `expectedHash`。`read` 的 `promptGuidelines` 不指定搜尋工具或要求使用 shell 搜尋，避免與其他已掛載工具的指引競爭。
 - 錯誤 recovery 提示 shell：`read` 對目錄的 `FILE_NOT_READABLE` 指向 `ls`／`rg --files`；`INVALID_ENCODING` 指向 `xxd`／`iconv`；`[LINE_TOO_LARGE]` 行附 `sed -n 'Np' | cut -c`／`head -c` 提示。`TEXT_NOT_FOUND_IN_RANGE` 對 literal 與 regex 皆附 `candidateRanges` 與 `rangePreview`。
+- 失敗線索：`TEXT_NOT_FOUND`（literal，僅 `oldText`）另附 `closestLine`（`{line, text}`，忽略空白差異後最像的一行；上限 50000 行與 50 ms，沒有夠近的行就不給，regex 不附）。`AMBIGUOUS_MATCH` 另附 `candidateContext`：前 5 個候選各含前後 1 行，`preview` 的行號格式與 `read` 相同，讓 agent 不必再 `read` 就能選 `lineRange`。兩者屬檔案內容；`closestLine.text`／`candidateContext[].preview` 在 debug log 中遮罩，與 `rangePreview` 相同。
 - regex 搭配 `lineRange` 時，視窗文字以獨立字串比對：`^`、`$`、lookbehind／lookahead 看不到視窗外的內容；需要整檔語意時請省略 `lineRange`。
 - `read`／`edit`／`write` 只接受一般檔案；FIFO、裝置與目錄回報 `FILE_NOT_READABLE`／`FILE_NOT_WRITABLE`，不會阻塞。
 - 新檔建立優先用 hard link 保證不覆蓋；檔案系統不支援時改用 exclusive create（`wx`）。寫入會 fsync、在 rename 前套用目標權限；暫存檔以固定長度短名稱（`.pi-ft-<ulid>.tmp`，與目標同目錄）建立，不受長檔名影響；rename 前會再比對雜湊並以 size／mtime／inode 做最後檢查（只縮小競態窗口，不取代雜湊）；Windows 上 rename 遇 EPERM／EBUSY／EACCES 會以有上限的 backoff 重試（共約 3 秒，每次重試前重新驗證雜湊）；失敗時盡力移除本次建立的空目錄。
 - regex 的 1 秒預算從 worker 實際開始比對起算（不含 worker 啟動與大字串複製）。同一次 edit 的 regex 驗證重用一個 worker；連續相同搜尋範圍只傳文字一次，不同範圍仍以獨立字串比對。驗證結束（含失敗／取消）會終止 worker，不跨 edit 保留檔案內容。
 - 未指定 `lineRange` 時為整檔比對，文字須唯一（除非 `replaceAll: true`）。
-- `lineRange` 只是初始搜尋視窗，不是整行取代邊界。literal `oldText` 在視窗內找不到、但整檔恰有一處時，自動採用該處；整檔多處則 `AMBIGUOUS_MATCH` 並回報候選範圍。regex 沒有此回退。
+- `lineRange` 只是初始搜尋視窗，不是整行取代邊界。視窗內找不到、但目標在整檔唯一時，自動採用該處（`oldText` 與 regex 同一規則；regex 視窗仍當獨立字串，回退是在視窗外另做一次全檔比對）；整檔多處則維持 `TEXT_NOT_FOUND_IN_RANGE`／`AMBIGUOUS_MATCH` 並回報候選範圍。發生回退時成功結果的 metadata 加 `"fallback":[索引…]`、附一行 `[NOTICE]`，`details.fallbackEdits` 同步。
 - 所有 `edits` 皆對原始快照比對，不得重疊，全部驗證通過後才一次原子提交。
+- `insert` 沿用既有的零寬規則，不另訂：`before` 是位置在 `matchStart` 的零寬 edit，`after` 在 `matchEnd`。零寬點落在其他 edit 的邊界不衝突（排序固定：同位置先零寬再取代），所以同一段文字可同時被取代並在兩側插入；落在其他 edit 範圍內部才衝突，同一位置的兩筆零寬 edit 也衝突——「A 之後」與「緊接 A 的 B 之前」是同一位置，須合併成一筆（`OVERLAPPING_EDITS` 的 recovery 有說明）。插入文字的換行依檔案的主要行尾還原。
+- `^`／`$` 提示：成功的 regex edit 若含未跳脫、不在字元類別內的 `^`／`$`（`$`、`[$]` 不算）且沒有 `m` 旗標，結果附一行 `[NOTICE] …`（`details.notices`），不改變語意；失敗時不附。
+- `dryRun: true`：驗證、比對、diff 都照常（`expectedHash`、所有錯誤碼同樣生效），但不寫檔。文字以 `[FILE_EDIT_PREVIEW] {…,"applied":false}` 開頭，**不給 `sha256After`**；`details` 放 `dryRun:true` 與 `wouldBeSha256`（不用 `sha256After`，以免被當成檔案目前版本）。File Audit 不記錄預覽、折疊摘要顯示 `preview N edit (not written)`、Custom Panel 顯示「previewed, not applied」。確認無誤後不帶 `dryRun` 重送同一呼叫即可，真實結果的 `sha256After` 等於 `wouldBeSha256`（檔案未變時）。
 - 保留 BOM 與未修改處的 CRLF／LF 混用；取代結果若含孤立 surrogate 則 `INVALID_ARGUMENT`，檔案不變。
 - `edits` 接受 JSON 字串或單一物件形式（會正規化為陣列）；頂層的 `oldText`／`regex`／`newText`／`lineRange`／`lineStart`／`lineEnd` 會被拒絕。
-- 成功回傳單行 `[FILE_EDIT_SUCCESS] {"sha256After":...,"edits":N,"replacements":N,"added":N,"removed":N}` 與「精簡 diff」`[DIFF]`：只留 hunk，每個變更前後最多 1 行 context，單行最多 200 字元（超出附 `…[+N chars]`），最多 40 行（超出以 `… N more diff line(s) omitted` 一行取代）。`replacements` 僅在與 `edits` 不同時輸出，`added`／`removed` 為 0 時省略。`sha256After` 可直接作下一次 `expectedHash`。完整 `diff`、`patch`、`firstChangedLine`、`appliedEdits`、`matchedCount`、`changedCount`、`sha256Before`、`sha256After`、`changedRanges`、`added`、`removed` 只放在 `details`，供 renderer 使用，不進模型文字。
+- 成功回傳單行 `[FILE_EDIT_SUCCESS] {"sha256After":...,"edits":N,"replacements":N,"added":N,"removed":N,"lines":"a-b"}` 與「精簡 diff」`[DIFF]`：只留 hunk，每個變更前後最多 1 行 context，單行最多 200 字元（超出附 `…[+N chars]`），最多 40 行（超過時保留前 26 行與後 12 行，中間以 `… N diff line(s) omitted …` 一行取代）。`lines` 是新檔案中被改動的行範圍（刪除算接續的下一行），diff 被縮短時用它 `read` 回看。`replacements` 僅在與 `edits` 不同時輸出，`added`／`removed` 為 0 時省略，回退時才有 `fallback`，提示以 `[NOTICE]` 行放在 `[DIFF]` 之前。`sha256After` 可直接作下一次 `expectedHash`。完整 `diff`、`patch`、`firstChangedLine`、`changedLines`、`appliedEdits`、`matchedCount`、`changedCount`、`sha256Before`、`sha256After`、`changedRanges`、`added`、`removed` 只放在 `details`，供 renderer 使用，不進模型文字。
 
 ```json
 {
   "path": "src/app.ts",
-  "expectedHash": "<read 回傳的 32 字元 token>",
+  "expectedHash": "<read 回傳的 16 字元 token>",
   "edits": [
     { "oldText": "const enabled = false;", "newText": "const enabled = true;" },
     { "regex": "^status: .*$", "regexFlags": "m", "newText": "status: ok", "lineRange": { "start": 200, "end": 350 } }

@@ -40,7 +40,7 @@ try {
     const reader = session.agent.state.tools.find(t => t.name === 'read');
     const first = await reader.execute('browser-first', { path: outputPath, offset: 1, limit: 20 }, AbortSignal.timeout(20000));
     const later = await reader.execute('browser-later', { path: outputPath, offset: 1201, limit: 10 }, AbortSignal.timeout(20000));
-    assert.equal(first.details.sha256.length, 32); assert.equal(first.details.sha256, later.details.sha256);
+    assert.equal(first.details.sha256.length, 16); assert.equal(first.details.sha256, later.details.sha256);
     const text = output => output.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
     assert.match(text(first), /READ_CONTINUATION/); assert.match(text(later), /1201│/);
     assert.notEqual(text(first), text(later)); assert.equal(await readFile(outputPath, 'utf8'), rendered.content);

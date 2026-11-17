@@ -17,7 +17,7 @@ export default function (pi: ExtensionAPI) {
       assert.ok(shell.parameters.properties.timeoutMs); assert.equal(shell.parameters.properties.timeout, undefined);
       await call('write', { path: 'child.txt', content: 'child alpha\n', expectedHash: 'missing' });
       const read = await call('read', { path: 'child.txt', offset: null, limit: null });
-      assert.match(text(read), /1│child alpha/); assert.equal((read.details as any).sha256.length, 32);
+      assert.match(text(read), /1│child alpha/); assert.equal((read.details as any).sha256.length, 16);
       const edit = await call('edit', { path: 'child.txt', expectedHash: (read.details as any).sha256, edits: [{ oldText: 'alpha', newText: 'BETA' }] });
       assert.match(text(edit), /FILE_EDIT_SUCCESS/);
       assert.match(text(await call(shellName, { command: process.platform === 'win32' ? "Write-Output 'CHILD_SHELL_OK'" : "printf 'CHILD_SHELL_OK'", timeoutMs: 20000 })), /CHILD_SHELL_OK/);

@@ -105,7 +105,7 @@ test(`packaged extension with real Pi ${hostVersion} loader`, { timeout: 120000 
       await writeFile(join(workspace, "bm.txt"), "BM plain markdown text\nThis is not a bitmap.\n");
       const text = await direct("read", { path: "bm.txt" });
       assert.match(textOf(text), /2│This is not a bitmap\./);
-      assert.equal(text.details.sha256.length, 32);
+      assert.equal(text.details.sha256.length, 16);
       await writeFile(join(workspace, "pixel.png"), tinyPng());
       const image = await direct("read", { path: "pixel.png" });
       assert.ok(image.content.some(block => block.type === "image" && block.mimeType === "image/png"));

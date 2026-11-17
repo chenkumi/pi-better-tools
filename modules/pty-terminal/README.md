@@ -84,6 +84,8 @@ PTY 能啟動任何程式並對 shell 輸入指令，因此 `pty_spawn`、`pty_w
 { "target": "macos", "command": "zsh", "args": ["-l"] }
 ```
 
+Windows 本機 target 的 command：node-pty 只依完整檔名在搜尋路徑找檔、不套用 PATHEXT，故 `src/resolve-exe.ts` 會把不含路徑、不含副檔名的名稱（如 `ssh`）解析為搜尋路徑上第一個 `.exe`／`.com`；已有副檔名、含路徑、查無或非 Windows 一律原樣交給 node-pty。不解析 `.cmd`／`.bat` 與 shell 內建指令，須明確用 `cmd.exe` 加 `["/c", …]`。Windows 另有一條 `pty_spawn` 的 prompt 指引說明此行為。
+
 `cwd`／`env` 指目標程式；cwd 可覆寫 target 預設路徑，不把 Windows cwd 自動映射。遠端 env 僅傳明確指定的值，名稱須符合 POSIX；本機 SSH client 仍繼承本機環境。WSL 使用 `wsl.exe --distribution … --cd … --exec env -- …`，僅 Windows host 支援，需 WSL 支援 `--cd`。SSH 使用本機 `ssh -tt`，遠端須有 POSIX 相容 login shell、`sh` 與 `env`；參數逐一 POSIX quote。金鑰／SSH agent 認證、`BatchMode=yes`、ConnectTimeout=15，不停用 host key 驗證，也不另外覆寫 `StrictHostKeyChecking`（沿用使用者 ssh config／known_hosts，避免破壞 accept-new 設定）；另設 ServerAliveInterval=15、ServerAliveCountMax=3 偵測斷線。請先自行驗證主機並建立 known_hosts。遠端 command 不可為空，也不可形如 `KEY=value`（`env` 會當成環境變數賦值；請改用 `env` 參數）。SSH config 的 ForwardAgent/SendEnv 等仍由使用者負責。
 
 ### 環境變數過濾（選用）

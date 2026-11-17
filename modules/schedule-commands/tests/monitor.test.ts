@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type { ScheduledMonitorStarter } from "../../../shared/src/background/index.ts";
-import { CommandApprovals } from "../src/cwd.ts";
 import { ScheduleEngine } from "../src/engine.ts";
 import { JobService } from "../src/jobs.ts";
 import { monitorProblem, runMonitorJob } from "../src/monitor-link.ts";
@@ -29,7 +28,7 @@ function fakeStarter(): Fake {
 	return f;
 }
 
-function setup(options: { active?: string[]; confirm?: boolean; starter?: Fake } = {}) {
+function setup(options: { active?: string[]; hasUI?: boolean; starter?: Fake } = {}) {
 	const cwd = mkdtempSync(join(tmpdir(), "sc-mon-"));
 	mkdirSync(join(cwd, ".pi"));
 	const store = new ScheduleStore(cwd), clock = new ManualClock();
@@ -37,10 +36,10 @@ function setup(options: { active?: string[]; confirm?: boolean; starter?: Fake }
 	const jobs = new JobService({ store, clock, sessionId: "S1", scope: () => "session", changed: () => engine.reload() });
 	const asked: string[] = [];
 	const starter = options.starter ?? fakeStarter();
-	const deps = { jobs: () => jobs, engine: () => engine, approvals: () => new CommandApprovals(), clock, activeTools: () => options.active ?? ["bash", "powershell", "schedule_shell", "schedule_monitor"], monitor: () => starter };
+	const deps = { jobs: () => jobs, engine: () => engine, clock, activeTools: () => options.active ?? ["bash", "powershell", "schedule_shell", "schedule_monitor"], monitor: () => starter };
 	const ctx = {
-		cwd, mode: "rpc", hasUI: true,
-		ui: { confirm: async (_t: string, message: string) => { asked.push(message); return options.confirm ?? true; } },
+		cwd, mode: "rpc", hasUI: options.hasUI ?? true,
+		ui: { confirm: async (_t: string, message: string) => { asked.push(message); return true; } },
 		sessionManager: { getSessionId: () => "S1", getBranch: () => [] },
 	};
 	const tool = createMonitorTool(deps);
@@ -60,14 +59,13 @@ test("monitorProblem: only command, file and system sources; command needs sched
 	assert.equal(monitorProblem({ source: { kind: "command", tool: "bash", command: "x" } }, all), undefined);
 });
 
-test("schedule_monitor add: confirms interactively, shows the source, and stores a monitor job", async () => {
+test("schedule_monitor add: needs no confirmation and stores a monitor job", async () => {
 	const t = setup();
 	try {
 		const added = await t.run({ action: "add", name: "watch", schedule: "1h", start: { ...FILE, label: "l" } });
 		assert.equal(added.isError, undefined, text(added));
 		assert.equal(added.details.jobs[0] && (added.details.jobs[0] as unknown as { kind: string }).kind, "monitor");
-		assert.match(t.asked[0], /file metadata of a\.txt/);
-		assert.match(t.asked[0], /Does not wake the agent/);
+		assert.deepEqual(t.asked, [], "nobody is asked");
 		assert.match(text(await t.run({ action: "list" })), /watch \| monitor/);
 	} finally { t.done(); }
 });
@@ -82,37 +80,31 @@ test("schedule_monitor add: refusals leave nothing stored", async () => {
 		assert.match(text(await t.run({ action: "add", schedule: "1h", start: FILE, missed: "run-all" })), /run-all/);
 		assert.match(text(await t.run({ action: "list" })), /No monitor jobs/);
 	} finally { t.done(); }
-	const declined = setup({ confirm: false });
+	const headless = setup({ hasUI: false });
 	try {
-		assert.match(text(await declined.run({ action: "add", schedule: "1h", start: FILE })), /did not confirm/);
-		assert.match(text(await declined.run({ action: "list" })), /No monitor jobs/);
-	} finally { declined.done(); }
+		assert.equal((await headless.run({ action: "add", schedule: "1h", start: FILE })).isError, undefined, "a session without a UI can add it");
+	} finally { headless.done(); }
 });
 
-test("a command source shows the exact command and wakeAgent warning in the confirmation", async () => {
+test("a command source with wakeAgent is stored without a prompt", async () => {
 	const t = setup();
 	try {
 		const added = await t.run({ action: "add", name: "cmd", schedule: "1h", start: { source: { kind: "command", tool: "bash", command: "tail -f log" }, wakeAgent: true } });
 		assert.equal(added.isError, undefined, text(added));
-		assert.match(t.asked[0], /Command: tail -f log/);
-		assert.match(t.asked[0], /WAKES THE AGENT/);
-		assert.match(t.asked[0], /not a sandbox/);
+		assert.deepEqual(t.asked, []);
+		assert.match(text(await t.run({ action: "status", jobId: added.details.jobs[0].id })), /WAKES THE AGENT/, "the detail still states it");
 	} finally { t.done(); }
 });
 
-test("update and enable: a changed start or a re-enable asks again; tools manage only their own kinds", async () => {
+test("update and enable: no confirmation is asked; tools manage only their own kinds", async () => {
 	const t = setup();
 	try {
 		const id = (await t.run({ action: "add", name: "w", schedule: "1h", start: FILE })).details.jobs[0].id;
-		t.asked.length = 0;
 		assert.equal((await t.run({ action: "update", jobId: id, schedule: "2h" })).isError, undefined);
-		assert.equal(t.asked.length, 0, "a schedule-only change needs no confirmation");
 		assert.equal((await t.run({ action: "update", jobId: id, start: { source: { kind: "file", path: "b.txt" } } })).isError, undefined);
-		assert.match(t.asked[0], /Change "w"/);
 		await t.run({ action: "disable", jobId: id });
-		t.asked.length = 0;
 		assert.equal((await t.run({ action: "enable", jobId: id })).isError, undefined);
-		assert.match(t.asked[0], /Enable "w"/);
+		assert.deepEqual(t.asked, []);
 		assert.match(text(await t.run({ action: "remove", jobId: id }, t.prompt)), /manage it with schedule_monitor/);
 	} finally { t.done(); }
 });

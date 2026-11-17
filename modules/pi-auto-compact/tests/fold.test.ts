@@ -32,6 +32,8 @@ test('read, write and edit keep location and hashes but never file content', () 
   const edit = fold('edit', { path: 'src/a.ts' }, 'diff body', { details: { appliedEdits: 2, added: 14, removed: 3, firstChangedLine: 40, sha256Before: 'aaaaaaaa11', sha256After: 'bbbbbbbb22', diff: 'NEVER KEPT', patch: 'NEVER KEPT' } });
   assert.equal(edit, `[edit] src/a.ts → 2 edits +14/−3 @L40 sha:aaaaaaaa→bbbbbbbb${recall}`);
   assert.ok(!edit.includes('NEVER KEPT'));
+  const preview = fold('edit', { path: 'src/a.ts', dryRun: true }, 'diff body', { details: { dryRun: true, appliedEdits: 1, added: 2, removed: 1, firstChangedLine: 5, sha256Before: 'aaaaaaaa11', wouldBeSha256: 'bbbbbbbb22', diff: 'NEVER KEPT' } });
+  assert.equal(preview, `[edit] src/a.ts → preview 1 edit (not written) +2/−1${recall}`);
 });
 
 test('ls counts entries from the text; the empty directory and the limit are reported', () => {

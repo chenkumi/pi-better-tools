@@ -27,6 +27,7 @@ test('summaries: write/edit/read/shell have their own wording, everything else t
   assert.equal(resultView('write', { ...text('x'), details: { bytes: 1 } }, false).summary, '1 byte written');
   assert.equal(resultView('edit', { ...text('ok'), details: { changedCount: 2, appliedEdits: 9 } }, false).summary, '2 edits applied');
   assert.equal(resultView('edit', { ...text('ok'), details: { appliedEdits: 1 } }, false).summary, '1 edit applied');
+  assert.equal(resultView('edit', { ...text('ok'), details: { appliedEdits: 1, dryRun: true } }, false).summary, '1 edit previewed, not applied');
   assert.equal(resultView('read', text('a\nb\nc\n'), false).summary, '3 lines');
   assert.equal(resultView('read', { content: [{ type: 'image', data: 'x', mimeType: 'image/png' }] }, false).summary, '1 image');
   assert.equal(resultView('bash', text('one\ntwo'), false).summary, '2 lines of output');

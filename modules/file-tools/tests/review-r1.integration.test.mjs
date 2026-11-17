@@ -31,6 +31,6 @@ test('R1: registered edit returns bounded success after committing 200000 short 
     assert.ok(text.includes(sha256Token(updated)));
     assert.ok(text.split('\n').length <= 44);
     assert.ok(text.length < 10000);
-    assert.match(text, /more diff line\(s\) omitted/);
+    assert.match(text, /\n… \d+ diff line\(s\) omitted …\n/);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });

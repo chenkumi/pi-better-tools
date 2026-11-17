@@ -83,7 +83,7 @@ export function resultView(toolName: string, result: unknown, isError: boolean):
   if (isError) summary = first || "failed";
   else if (isShellTool(toolName)) summary = lines.length ? plural(lines.length, "line") + " of output" : "no output";
   else if (toolName === "write" && num(details.bytes) !== undefined) summary = `${plural(num(details.bytes)!, "byte")} written`;
-  else if (toolName === "edit" && (num(details.changedCount) ?? num(details.appliedEdits)) !== undefined) summary = `${plural((num(details.changedCount) ?? num(details.appliedEdits))!, "edit")} applied`;
+  else if (toolName === "edit" && (num(details.changedCount) ?? num(details.appliedEdits)) !== undefined) summary = `${plural((num(details.changedCount) ?? num(details.appliedEdits))!, "edit")} ${details.dryRun === true ? "previewed, not applied" : "applied"}`;
   else if (toolName === "read") summary = images ? `${plural(images, "image")}${lines.length ? `, ${plural(lines.length, "line")}` : ""}` : plural(lines.length, "line");
   else if (!lines.length) summary = images ? plural(images, "image") : "done";
   else summary = `${first}${more}`;

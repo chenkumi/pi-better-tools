@@ -143,3 +143,27 @@ export function publishScheduledMonitor(scope: MonitorScope, starter: ScheduledM
 export function requestScheduledMonitor(scope: MonitorScope): ScheduledMonitorStarter | undefined {
   return scheduledRegistry().get(scheduledIdentity(scope));
 }
+
+/**
+ * Scheduled Shell start: the schedule module asks the owner-matching Shell Tools to add one background shell job at a
+ * scheduled time. Same rendezvous style as the scheduled monitor: functions only, no shared job handles; Shell stays the
+ * only place that decides (enabled tools, capacity, owner) and reports the job's completion to the agent itself.
+ */
+export interface ScheduledShellParams { tool: 'bash' | 'powershell'; command: string; timeoutMs?: number }
+export interface ScheduledShellStarter {
+  /** Adds one background shell job; the error text says why it was refused (capacity, shell not enabled, owner). */
+  start(params: ScheduledShellParams): { jobId: string } | { error: string };
+}
+const shellStartKey = Symbol.for('pi-better-tools.shell.scheduled-start.v1');
+const shellStartRegistry = () => globalRegistry<ScheduledShellStarter>(shellStartKey);
+const shellStartIdentity = (scope: MonitorScope) => JSON.stringify(['scheduled_shell', scope.sessionId, scope.cwd]);
+export function publishScheduledShell(scope: MonitorScope, starter: ScheduledShellStarter): () => void {
+  const id = shellStartIdentity(scope), starters = shellStartRegistry();
+  if (!starters.has(id) && starters.size >= MAX_PUBLISHERS) throw new Error('Scheduled shell capacity exceeded');
+  starters.set(id, starter);
+  return () => { if (starters.get(id) === starter) starters.delete(id); };
+}
+/** The starter published for exactly this session and canonical cwd, or undefined when no Shell Tools is loaded for it. */
+export function requestScheduledShell(scope: MonitorScope): ScheduledShellStarter | undefined {
+  return shellStartRegistry().get(shellStartIdentity(scope));
+}

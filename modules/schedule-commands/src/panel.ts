@@ -14,7 +14,7 @@ const MAX_ROWS = 32;
 /** Relative times in the rows go stale, so the owner refreshes the view this often while something is scheduled. */
 export const REFRESH_MS = 60_000;
 
-export interface ScheduleRow { job: Job; running: boolean; /** Memory copy of the run in flight (output tail or conversation); shown in the Jobs overlay. */ live?: TranscriptSource }
+export interface ScheduleRow { job: Job; running: boolean; /** Memory copy of the run in flight (agent conversation); shown in the Jobs overlay. */ live?: TranscriptSource }
 
 /** "in 12m", "in 3h", "in 2d", or "due" when the time has come. */
 export function relativeTime(targetMs: number, nowMs: number): string {

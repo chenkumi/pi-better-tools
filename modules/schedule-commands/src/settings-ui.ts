@@ -21,12 +21,10 @@ const FIELDS: readonly Field[] = [
 	{ key: "maxCatchUp", label: "Max catch-up runs", group: "Catch-up", type: "int", min: 1, max: 100, help: "Upper bound for run-all." },
 	{ key: "allowShellRunAll", label: "Allow run-all for shell", group: "Catch-up", type: "boolean", help: "Without this a shell job never replays every missed run." },
 	{ key: "maxConcurrentAgents", label: "Concurrent agents", group: "Limits", type: "int", min: 1, max: 16 },
-	{ key: "maxConcurrentCommands", label: "Concurrent commands", group: "Limits", type: "int", min: 1, max: 16 },
-	{ key: "commandOutputTailBytes", label: "Output tail (KiB)", group: "Limits", type: "int", min: 1, max: 1024, help: "How much command output a run keeps for its marker." },
 ];
 
-/** Panel units (minutes, KiB) to stored units (ms, bytes) and back. */
-const SCALE: Partial<Record<keyof ScheduleSettings, number>> = { defaultMaxLateMs: MINUTE, commandOutputTailBytes: 1024 };
+/** Panel units (minutes) to stored units (ms) and back. */
+const SCALE: Partial<Record<keyof ScheduleSettings, number>> = { defaultMaxLateMs: MINUTE };
 
 export function scheduleSettingsSchema(cwd: string): SettingsSchema<Partial<ScheduleSettings>> {
 	return {

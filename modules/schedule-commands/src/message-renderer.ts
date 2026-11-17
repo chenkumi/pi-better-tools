@@ -28,7 +28,7 @@ export const renderMarker: MessageRenderer = (message, { expanded }, theme) => {
 	if (error) rows.push({ text: expanded ? error : error.split("\n").slice(0, 2).join("\n"), color: "error" });
 	if (output) {
 		const lines = output.split("\n").filter((line) => line.trim());
-		rows.push({ text: d.kind === "shell" ? "Command output (untrusted):" : "Result (untrusted):", color: "dim" });
+		rows.push({ text: d.kind === "shell" || d.kind === "monitor" ? "Result:" : "Result (untrusted):", color: "dim" });
 		rows.push({ text: expanded ? output : lines.slice(0, 3).map((line) => truncateToWidth(line, 200)).join("\n"), color: "dim" });
 	}
 	if (!expanded && (d.command || d.prompt || output)) rows.push({ text: "Expand for job id, directory and the full text", color: "dim" });
