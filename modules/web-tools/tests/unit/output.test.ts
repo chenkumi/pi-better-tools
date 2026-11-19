@@ -5,7 +5,7 @@ import { dirname } from 'node:path';
 import { clip, toolOutput, MAX_INLINE_BYTES, MAX_INLINE_LINES, MAX_STRUCTURED_BYTES } from '../../src/output.ts';
 import { Check } from 'typebox/value';
 import { fetchOutputSchema, searchOutputSchema } from '../../src/tool-schemas.ts';
-import { FetchService } from '../../src/fetch/service.js';
+import { FetchService } from '../../src/fetch/service.ts';
 import { REST_PROVIDERS } from '../../src/search.ts';
 
 test('Unicode byte clipping and terminal control cleanup', async () => {

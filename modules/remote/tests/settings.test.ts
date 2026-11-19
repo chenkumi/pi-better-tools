@@ -4,11 +4,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test, { type TestContext } from 'node:test';
 import type { ExtensionAPI, ExtensionCommandContext } from '@earendil-works/pi-coding-agent';
-import { readRaw, saveSettings, type Values } from '../../../shared/src/settings-panel/index.js';
-import { loadRemoteConfig, remoteConfigPath } from '../src/config.js';
-import { CredentialStore } from '../src/credentials.js';
-import { generateCode, normalizeCode } from '../src/protocol.js';
-import { parsePanelConfig, registerRemoteSettings, remoteSettings, type PanelConfig } from '../src/settings.js';
+import { readRaw, saveSettings, type Values } from '../../../shared/src/settings-panel/index.ts';
+import { loadRemoteConfig, remoteConfigPath } from '../src/config.ts';
+import { CredentialStore } from '../src/credentials.ts';
+import { generateCode, normalizeCode } from '../src/protocol.ts';
+import { parsePanelConfig, registerRemoteSettings, remoteSettings, type PanelConfig } from '../src/settings.ts';
 
 function project(t: TestContext) {
   const dir = mkdtempSync(join(tmpdir(), 'pi-remote-settings-'));

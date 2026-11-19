@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import fileToolsExtension from "../extensions/file-tools.js";
-import { FileToolError, formatFileToolErrorForDisplay, parseFileToolErrorText } from "../src/errors.js";
+import fileToolsExtension from "../extensions/file-tools.ts";
+import { FileToolError, formatFileToolErrorForDisplay, parseFileToolErrorText } from "../src/errors.ts";
 
 const wire = (value: unknown) => `[FILE_TOOL_ERROR]\n${JSON.stringify(value)}`;
 const base = { status: "error", code: "TEXT_NOT_FOUND", message: "No match." };

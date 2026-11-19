@@ -49,7 +49,7 @@ vi.mock("mysql2/promise", () => {
   return { default: { createPool }, createPool };
 });
 
-const { SqlConnectorRuntime, pgQueryConfig } = await import("../src/runtime.js");
+const { SqlConnectorRuntime, pgQueryConfig } = await import("../src/runtime.ts");
 // The installed driver's real Query class decides between the simple and extended protocol.
 const Query = createRequire(import.meta.url)("pg/lib/query.js") as new (config: object) => { requiresPreparation(): boolean };
 

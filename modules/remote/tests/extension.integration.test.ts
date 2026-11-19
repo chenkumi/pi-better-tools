@@ -6,10 +6,10 @@ import { dirname, join } from 'node:path';
 import test, { type TestContext } from 'node:test';
 import type { ExtensionAPI, ExtensionContext, ExtensionToolContext, ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { Check, Errors } from 'typebox/value';
-import { remoteConfigPath } from '../src/config.js';
-import { CredentialStore } from '../src/credentials.js';
-import remoteExtension, { inboundText } from '../src/index.js';
-import { Changes } from './helpers.js';
+import { remoteConfigPath } from '../src/config.ts';
+import { CredentialStore } from '../src/credentials.ts';
+import remoteExtension, { inboundText } from '../src/index.ts';
+import { Changes } from './helpers.ts';
 
 type Handler = (event: unknown, ctx: ExtensionContext) => unknown;
 type Command = { handler: (args: string, ctx: ExtensionContext) => unknown };

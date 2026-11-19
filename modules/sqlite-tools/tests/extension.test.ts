@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test, { type TestContext } from "node:test";
 import type { ExtensionAPI, ExtensionContext, ExtensionToolContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
-import sqliteExtension from "../src/index.js";
+import sqliteExtension from "../src/index.ts";
 
 const commonTools = [
   "sqlite_status",

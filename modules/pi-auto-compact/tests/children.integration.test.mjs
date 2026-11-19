@@ -7,10 +7,10 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 // Real Pi CLI processes (a root and its Spinoff / Subagent child), an offline provider and isolated HOME / agentDir / workspace.
-// The three extensions are loaded from the agent directory's settings, so every child loads them the way a user's Pi would.
+// The extensions (Subagents, which includes Spinoff, and Pi Auto Compact) are loaded from the agent directory's settings, so every child loads them the way a user's Pi would.
 const here = dirname(fileURLToPath(import.meta.url));
 const entry = relative => fileURLToPath(new URL(relative, import.meta.url));
-const extensions = [entry('../../spinoff/src/index.ts'), entry('../../subagents/extensions/subagent/index.ts'), entry('../src/index.ts'), join(here, 'fixtures/children-provider.ts')];
+const extensions = [entry('../../subagents/src/index.ts'), entry('../src/index.ts'), join(here, 'fixtures/children-provider.ts')];
 const cli = join(dirname(fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))), 'bundle/cli.js');
 const DEADLINE_MS = 150_000;
 const newline = String.fromCharCode(10);

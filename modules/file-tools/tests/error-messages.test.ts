@@ -3,10 +3,10 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { prepareEditArguments, prepareReadArguments, prepareWriteArguments } from "../extensions/file-tools.js";
-import { FileToolError, classifyFsError } from "../src/errors.js";
-import { assertInputSize, editTextFile, readTextFile, writeTextFile } from "../src/file-operations.js";
-import { registerLsTool } from "../src/search-tools.js";
+import { prepareEditArguments, prepareReadArguments, prepareWriteArguments } from "../extensions/file-tools.ts";
+import { FileToolError, classifyFsError } from "../src/errors.ts";
+import { assertInputSize, editTextFile, readTextFile, writeTextFile } from "../src/file-operations.ts";
+import { registerLsTool } from "../src/search-tools.ts";
 
 function failure(run: () => unknown): FileToolError["payload"] {
   try { run(); } catch (error) {

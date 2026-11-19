@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { configuredEngines, loadSqlConnectorConfig } from "../src/config.js";
+import { configuredEngines, loadSqlConnectorConfig } from "../src/config.ts";
 
 const directories: string[] = [];
 

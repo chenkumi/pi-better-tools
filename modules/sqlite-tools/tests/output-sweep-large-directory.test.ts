@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { OUTPUT_RETENTION_MS, sweepOldOutputs } from "../src/index.js";
+import { OUTPUT_RETENTION_MS, sweepOldOutputs } from "../src/index.ts";
 
 // The sweep used to look at only the first 256 directory entries, so an expired file listed after them lived forever.
 const uuid = (n: number, tail = "4111-8111-111111111111") => `${n.toString(16).padStart(8, "0")}-1111-${tail}`.slice(0, 36);

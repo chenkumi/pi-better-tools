@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { join } from "node:path";
-import { ActivityWindow } from "../src/activity-window.js";
-import { statusText, MAX_OUTPUT_BYTES } from "../src/presentation.js";
+import { ActivityWindow } from "../src/activity-window.ts";
+import { statusText, MAX_OUTPUT_BYTES } from "../src/presentation.ts";
 
 test("display is capped and sanitized", () => {
   const w = new ActivityWindow();

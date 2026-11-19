@@ -3,8 +3,7 @@ import { test } from "node:test";
 import { mkdtemp, rm, unlink, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { setTimeout as sleep } from "node:timers/promises";
-import { ChangeNotice, changeMessage, CHANGE_MESSAGE_TYPE } from "../src/change-notice.js";
+import { ChangeNotice, changeMessage, CHANGE_MESSAGE_TYPE } from "../src/change-notice.ts";
 
 async function withDir(run: (cwd: string) => Promise<void>): Promise<void> {
   const cwd = await mkdtemp(join(tmpdir(), "file-audit-change-"));
@@ -15,7 +14,7 @@ test("unchanged, touched-only, modified and deleted files are told apart", () =>
   for (const f of [a, b, c]) await writeFile(f, "one");
   const n = new ChangeNotice();
   for (const f of [a, b, c]) n.record(f, 50);
-  await sleep(150); // let the baseline hashes settle
+  await n.settled();
   assert.deepEqual(await n.detect([a, b, c]), []);
   const later = new Date(Date.now() + 5000);
   await utimes(a, later, later); // mtime only: same content

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import sqlConnectorExtension from "../src/index.js";
+import sqlConnectorExtension from "../src/index.ts";
 
 const directories: string[] = [];
 

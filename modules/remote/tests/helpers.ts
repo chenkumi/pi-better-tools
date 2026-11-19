@@ -2,9 +2,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { TestContext } from 'node:test';
 import WebSocket from 'ws';
-import { RemoteClient, type ClientState } from '../src/client.js';
-import { RemoteHub, certificateFingerprint, type Inbound } from '../src/hub.js';
-import { REMOTE_PATH, authProof, type PeerInfo, type RosterEntry } from '../src/protocol.js';
+import { RemoteClient, type ClientState } from '../src/client.ts';
+import { RemoteHub, certificateFingerprint, type Inbound } from '../src/hub.ts';
+import { REMOTE_PATH, authProof, type PeerInfo, type RosterEntry } from '../src/protocol.ts';
 
 const fixture = (name: string) => readFileSync(fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url)));
 export const tlsFixture = { cert: fixture('test-cert.pem'), key: fixture('test-key.pem') };

@@ -20,10 +20,11 @@ const plan = (command = "check", maxAttempts = 1) => ({
 
 /** The extension in a fake Pi: tools and handlers by name, messages sent to the agent. A host double answers what the runs do. */
 function load(cwd, { trusted = true, hasUI = true, confirm = true, host = {} } = {}) {
-	const tools = new Map(), handlers = new Map(), sent = [], asked = [];
+	const tools = new Map(), handlers = new Map(), commands = new Map(), sent = [], asked = [];
 	const fakeHost = { trusted: async () => true, implement: async () => ({ ok: true, summary: "did it" }), review: async () => ({ ok: true, summary: "VERDICT: PASS" }), check: async () => ({ exitCode: 0, output: "ok" }), ...host };
 	extension({
 		registerTool: (tool) => tools.set(tool.name, tool),
+		registerCommand: (name, definition) => commands.set(name, definition),
 		on: (event, handler) => handlers.set(event, handler),
 		sendMessage: (message, options) => sent.push({ message, options }),
 		getThinkingLevel: () => "off",
@@ -32,15 +33,25 @@ function load(cwd, { trusted = true, hasUI = true, confirm = true, host = {} } =
 	const call = (name, params) => tools.get(name).execute("call", params, undefined, undefined, ctx);
 	const start = () => handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
 	const stop = () => handlers.get("session_shutdown")({ type: "session_shutdown", reason: "quit" }, ctx);
-	return { tools, sent, asked, call, start, stop, ctx };
+	return { tools, commands, sent, asked, call, start, stop, ctx };
 }
 const until = async (check) => { for (let i = 0; i < 200 && !check(); i++) await new Promise((resolve) => setTimeout(resolve, 20)); assert.ok(check(), "timed out"); };
 
 describe("plan_submit", () => {
 	it("registers the goal tools as deferred tools of one namespace", () => {
 		const { tools } = load(project());
-		assert.deepEqual([...tools.keys()].sort(), ["goal_cancel", "goal_resolve", "goal_retry", "goal_status", "plan_submit"]);
+		assert.deepEqual([...tools.keys()].sort(), ["goal_cancel", "goal_pause", "goal_resolve", "goal_resume", "goal_retry", "goal_status", "plan_submit"]);
 		for (const tool of tools.values()) assert.deepEqual([tool.exposure, tool.namespace.name], ["deferred", "goal"]);
+	});
+
+	it("registers /goals, whose actions run the same goal_* tools", async () => {
+		const ext = load(project());
+		assert.ok(ext.commands.get("goals"), "the /goals command is registered");
+		let started = false;
+		const running = load(project(), { host: { implement: (_task, signal) => new Promise((resolve) => { started = true; signal.addEventListener("abort", () => resolve({ ok: false, summary: "stopped" })); }) } });
+		const { details } = await running.call("plan_submit", plan());
+		await until(() => started);
+		assert.equal((await running.call("goal_pause", { goalId: details.goalId })).details.status, "paused");
 	});
 
 	it("saves a confirmed plan, runs it in the background and tells the agent how it ended", async () => {
@@ -106,6 +117,22 @@ describe("goal tools", () => {
 		const { details } = await ext.call("plan_submit", plan());
 		await until(() => started);
 		assert.equal((await ext.call("goal_cancel", { goalId: details.goalId })).details.status, "cancelled");
+	});
+
+	it("pauses a running goal, reports nothing, and resumes it on request", async () => {
+		let started = false, round = 0;
+		const ext = load(project(), { host: { implement: (_task, signal) => { if (round++ > 0) return { ok: true, summary: "done" }; return new Promise((resolve) => { started = true; signal.addEventListener("abort", () => resolve({ ok: false, summary: "stopped" })); }); } } });
+		const { details } = await ext.call("plan_submit", plan());
+		await until(() => started);
+		const pausedResult = await ext.call("goal_pause", { goalId: details.goalId });
+		assert.equal(pausedResult.details.status, "paused");
+		assert.match(pausedResult.details.note, /already changed stays in the project folder/);
+		await assert.rejects(ext.call("goal_resume", { goalId: "01ARZ3NDEKTSV4RRFFQ69G5FAV" }), /GOAL_UNKNOWN/);
+		assert.equal(ext.sent.length, 0, "a pause is not an ending, so nothing is reported");
+		assert.equal((await ext.call("goal_resume", { goalId: details.goalId })).details.status, "queued");
+		await until(() => ext.sent.length > 0);
+		assert.match(ext.sent[0].message.content, /done/);
+		await assert.rejects(ext.call("goal_pause", { goalId: details.goalId }), /GOAL_REJECTED/);
 	});
 
 	it("leaves a goal that another live process runs alone", async () => {

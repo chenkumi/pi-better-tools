@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { findNodeExecutable, isSupportedNodeVersion, SqliteStartupError, type NodeLookup } from "../src/node-runtime.js";
+import { findNodeExecutable, isSupportedNodeVersion, SqliteStartupError, type NodeLookup } from "../src/node-runtime.ts";
 
 function lookup(overrides: Partial<NodeLookup> & { files?: string[]; versionsByPath?: Record<string, string> } = {}): NodeLookup {
   const { files = [], versionsByPath = {}, ...rest } = overrides;

@@ -2,9 +2,9 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync, mkdirSync
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { applyPatches, readRaw, removeFile, writeJsonAtomic } from "../../../shared/src/settings-panel/index.js";
-import { loadSqlConnectorConfig } from "../src/config.js";
-import { sqlConnectorSettings } from "../src/settings.js";
+import { applyPatches, readRaw, removeFile, writeJsonAtomic } from "../../../shared/src/settings-panel/index.ts";
+import { loadSqlConnectorConfig } from "../src/config.ts";
+import { sqlConnectorSettings } from "../src/settings.ts";
 
 function withFile<T>(fn: (file: string, cwd: string) => Promise<T> | T) {
   const cwd = mkdtempSync(join(tmpdir(), "pi-sql-settings-"));

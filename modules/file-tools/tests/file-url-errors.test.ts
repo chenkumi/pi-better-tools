@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { FileToolError } from "../src/errors.js";
-import { normalizeToolPath, resolveToolPath } from "../src/path-utils.js";
+import { FileToolError } from "../src/errors.ts";
+import { normalizeToolPath, resolveToolPath } from "../src/path-utils.ts";
 
 // A malformed file:// URL used to escape as Node's raw URIError instead of the tool's structured INVALID_ARGUMENT error.
 describe("malformed file URLs are structured argument errors", () => {

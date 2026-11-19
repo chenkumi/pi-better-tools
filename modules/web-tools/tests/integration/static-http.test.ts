@@ -2,15 +2,15 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { createServer, type ServerResponse } from 'node:http';
 import https from 'node:https';
-import { cert, key } from '../fixtures/tls-material.js';
+import { cert, key } from '../fixtures/tls-material.ts';
 import type { AddressInfo, Socket } from 'node:net';
 import { createServer as createRawServer } from 'node:net';
 import test from 'node:test';
 import { brotliCompressSync, gzipSync } from 'node:zlib';
-import { FetchService } from '../../src/fetch/service.js';
-import { fetchStatic, pinnedOptions } from '../../src/fetch/http.js';
-import { MAX_HTML_BYTES } from '../../src/fetch/extract.js';
-import { NetworkPolicy } from '../../src/fetch/network.js';
+import { FetchService } from '../../src/fetch/service.ts';
+import { fetchStatic, pinnedOptions } from '../../src/fetch/http.ts';
+import { MAX_HTML_BYTES } from '../../src/fetch/extract.ts';
+import { NetworkPolicy } from '../../src/fetch/network.ts';
 
 const signal = () => new AbortController().signal;
 test('real TLS rejects untrusted certificates and pinned sockets preserve hostname verification and SNI', { timeout: 15_000 }, async t => {

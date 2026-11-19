@@ -24,6 +24,22 @@ async function newGoal(checkpoints) {
   return dir
 }
 
+describe("pause and resume", () => {
+  it("pause returns a checkpoint in progress to pending without counting the attempt, and resume queues the goal", async () => {
+    const dir = await newGoal([checkpoint("one", []), checkpoint("two", [1])])
+    const { plan, record: fresh } = await loadGoal(dir)
+    const record = state.begin(state.advance(plan, fresh).record, 1)
+    const paused = state.pause(record)
+    assert.deepEqual([paused.status, paused.checkpoints[0].status, paused.checkpoints[0].attempts], ["paused", "pending", 0])
+    assert.equal(state.pause(paused), paused)
+    assert.equal(state.advance(plan, paused).kind, "settled")
+    assert.equal(state.recover(plan, paused), paused, "a restart does not wake a paused goal")
+    assert.equal(state.resume(paused).status, "queued")
+    assert.throws(() => state.resume(record), /only a paused goal/)
+    assert.throws(() => state.pause({ ...record, status: "blocked" }), /only a queued or running goal/)
+  })
+})
+
 /**
  * Runs the goal the way a runner will: advance, begin, verify, finish, saving after each change. `decide(index, attempt)` says what the check
  * found; `stopAfterBegin` leaves the process "killed" right after a checkpoint began.

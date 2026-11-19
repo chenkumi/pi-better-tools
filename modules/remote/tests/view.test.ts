@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { RosterEntry } from '../src/protocol.js';
-import type { RemoteStatus } from '../src/runtime.js';
-import { describeRemote, rosterSection, statusLine } from '../src/view.js';
+import type { RosterEntry } from '../src/protocol.ts';
+import type { RemoteStatus } from '../src/runtime.ts';
+import { describeRemote, rosterSection, statusLine } from '../src/view.ts';
 
 const status = (patch: Partial<RemoteStatus> = {}): RemoteStatus => ({ role: 'server', state: 'listening', name: 'srv', peers: 3, secure: true, address: 'wss://0.0.0.0:7821', ...patch });
 const entry = (name: string, platform: string, extra: Partial<RosterEntry> = {}): RosterEntry & { self?: true } => ({ name, platform, arch: 'x64', hostname: 'box', project: 'repo', ...extra });

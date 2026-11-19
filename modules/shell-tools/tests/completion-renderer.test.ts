@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { stripVTControlCharacters as stripAnsi } from 'node:util';
 import { visibleWidth } from '@earendil-works/pi-tui';
 import { initTheme } from '@earendil-works/pi-coding-agent';
-import { renderShellCompletion, renderShellJobResult } from '../src/completion-renderer.js';
+import { renderShellCompletion, renderShellJobResult } from '../src/completion-renderer.ts';
 import registerShell from '../extensions/timeout-ms.ts';
 const backgrounds: Record<string, string> = { toolSuccessBg: '\x1b[48;5;22m', toolErrorBg: '\x1b[48;5;52m', toolPendingBg: '\x1b[48;5;58m' };
 const theme = { fg: (_: string, s: string) => `\x1b[32m${s}\x1b[0m`, getBgAnsi: (key: string) => backgrounds[key], bg: (key: string, s: string) => backgrounds[key] + s + '\x1b[49m' } as any;

@@ -3,9 +3,9 @@ import { Socket } from 'node:net';
 import { TLSSocket } from 'node:tls';
 import test from 'node:test';
 import { Worker } from 'node:worker_threads';
-import { extractHtml, extractHtmlIsolated, MAX_EXTRACTED_BYTES, MAX_HTML_BYTES, MAX_EXTRACTION_WORKERS, prewarmExtractionWorker, shutdownExtractionWorkers } from '../../src/fetch/extract.js';
-import { isPublicAddress, NetworkPolicy, parseWebUrl } from '../../src/fetch/network.js';
-import { FetchQueue, FetchService } from '../../src/fetch/service.js';
+import { extractHtml, extractHtmlIsolated, MAX_EXTRACTED_BYTES, MAX_HTML_BYTES, MAX_EXTRACTION_WORKERS, prewarmExtractionWorker, shutdownExtractionWorkers } from '../../src/fetch/extract.ts';
+import { isPublicAddress, NetworkPolicy, parseWebUrl } from '../../src/fetch/network.ts';
+import { FetchQueue, FetchService } from '../../src/fetch/service.ts';
 
 const article = `<!doctype html><title>Fixture article</title><nav>Discard navigation</nav><main>
 <h1>Useful heading</h1><p>A real paragraph about testing rendered documents and extracting useful readable information.</p>

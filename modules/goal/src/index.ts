@@ -1,5 +1,5 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
+import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { Type, type TSchema } from "typebox";
 import { bottomConfirm } from "../../../shared/src/bottom-panel/index.ts";
 import { isManagedForegroundChild } from "../../../shared/src/background/index.ts";
 import { ToolError } from "../../../shared/src/tool-error/index.ts";
@@ -8,6 +8,7 @@ import { createGoalHost } from "./child.ts";
 import { claim, otherOwner, release } from "./lock.ts";
 import { PlanSchema, validatePlan, type Plan } from "./plan.ts";
 import { GoalPanel, type GoalRow } from "./panel.ts";
+import { registerGoalsCommand } from "./manage.ts";
 import { renderCall, renderResult } from "./render.ts";
 import { GoalRunner, type GoalHost } from "./runner.ts";
 import { createGoal, goalsDir, listGoals, loadGoal, summarize, type GoalRecord } from "./store.ts";
@@ -51,10 +52,24 @@ export default function goalExtension(pi: ExtensionAPI, seam: { host?: (context:
 	const context = (): ExtensionContext => current ?? (() => { throw new ToolError("GOAL_NO_SESSION", "No session is active."); })();
 	// What the Jobs panel shows: the goals of this session's project, kept in memory (the files stay the truth).
 	const rows = new Map<string, GoalRow>();
-	const panel = new GoalPanel();
+	const panel = new GoalPanel(pi);
 	const runner = new GoalRunner(seam.host ? seam.host(context) : createGoalHost(context, () => pi.getThinkingLevel()), (dir, record) => {
 		const row = rows.get(dir);
 		if (row) { rows.set(dir, { plan: row.plan, record }); panel.refresh(); }
+	});
+
+	// The goal_* tools, kept so the /goals panel runs the very same code the model does.
+	type Callable = { execute: (id: string, params: Record<string, unknown>, signal: undefined, onUpdate: undefined, ctx: ExtensionContext) => Promise<{ content: Array<{ text?: string }> }> };
+	const tools = new Map<string, Callable>();
+	const register = <TParams extends TSchema>(tool: ToolDefinition<TParams>): void => { tools.set(tool.name, tool as unknown as Callable); pi.registerTool(tool); };
+	registerGoalsCommand(pi, {
+		rows: () => [...rows.values()].sort((a, b) => b.record.createdAt.localeCompare(a.record.createdAt)),
+		call: async (name, params, ctx: ExtensionCommandContext) => {
+			const tool = tools.get(name);
+			if (!tool) throw new ToolError("GOAL_REJECTED", `Unknown goal tool: ${name}`);
+			const result = await tool.execute("panel", params, undefined, undefined, ctx);
+			return result.content.map((part) => part.text ?? "").join("\n");
+		},
 	});
 
 	const dirOf = (cwd: string, id: string): string => {
@@ -101,7 +116,7 @@ export default function goalExtension(pi: ExtensionAPI, seam: { host?: (context:
 	});
 	pi.on("session_shutdown", async () => { panel.clear(); await runner.stopAll(); });
 
-	pi.registerTool({
+	register({
 		exposure: "deferred", namespace: goalNamespace, name: "plan_submit", label: "Submit plan",
 		description:
 			"Hands a settled plan for a long-running goal to the goal runner, which carries it out step by step in the background without the user watching. Call it only when the user asked for a plan to be carried out that way and every open question is already answered with them: the plan has no place for open questions, so ask them first and record each answer in `decisions`. The plan is checked; a problem comes back as an error to fix, then submit again. The user then confirms before anything starts. The plan can only be read by whoever runs it: put everything they need in the goal, rules, decisions and todos.",
@@ -126,7 +141,7 @@ export default function goalExtension(pi: ExtensionAPI, seam: { host?: (context:
 		},
 	});
 
-	pi.registerTool({
+	register({
 		exposure: "deferred", namespace: goalNamespace, name: "goal_status", label: "Goal Status",
 		description: "Lists the goals of this project (id, title, status, checkpoints done), or with `goalId` one goal's checkpoints, attempts and the latest verification log of each.",
 		promptSnippet: "Show the goals of this project and their progress",
@@ -145,7 +160,7 @@ export default function goalExtension(pi: ExtensionAPI, seam: { host?: (context:
 		},
 	});
 
-	pi.registerTool({
+	register({
 		exposure: "deferred", namespace: goalNamespace, name: "goal_cancel", label: "Cancel Goal",
 		description: "Stops a goal: the checkpoint in progress is stopped and the goal is cancelled, with what was done kept. A goal that already ended is not changed.",
 		parameters: Type.Object({ goalId }, strict),
@@ -159,7 +174,38 @@ export default function goalExtension(pi: ExtensionAPI, seam: { host?: (context:
 		},
 	});
 
-	pi.registerTool({
+	register({
+		exposure: "deferred", namespace: goalNamespace, name: "goal_pause", label: "Pause Goal",
+		description: "Pauses a queued or running goal at once: the session or check in progress is stopped (the attempt does not count, and what it already changed stays in the folder) and nothing runs until goal_resume. A paused goal is not started again when Pi restarts.",
+		parameters: Type.Object({ goalId }, strict),
+		renderCall: renderCall("goal_pause", (args) => args.goalId), renderResult: renderResult("goal_pause"),
+		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+			current = ctx;
+			const dir = dirOf(ctx.cwd, params.goalId);
+			await free(dir);
+			await loadGoal(dir).catch(() => { throw new ToolError("GOAL_UNKNOWN", `Unknown goal: ${params.goalId}`); });
+			const record = await runner.pause(dir).catch((error: unknown) => { throw new ToolError("GOAL_REJECTED", error instanceof Error ? error.message : String(error)); });
+			return output({ goalId: record.id, status: record.status, note: "Paused. The attempt in progress was stopped and does not count; anything it already changed stays in the project folder, so a pending checkpoint does not mean no files changed. goal_resume continues it." });
+		},
+	});
+
+	register({
+		exposure: "deferred", namespace: goalNamespace, name: "goal_resume", label: "Resume Goal",
+		description: "Continues a paused goal: the checkpoint that was interrupted starts again, told that its folder may hold unfinished changes.",
+		parameters: Type.Object({ goalId }, strict),
+		renderCall: renderCall("goal_resume", (args) => args.goalId), renderResult: renderResult("goal_resume"),
+		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+			current = ctx;
+			const dir = dirOf(ctx.cwd, params.goalId);
+			await free(dir);
+			await loadGoal(dir).catch(() => { throw new ToolError("GOAL_UNKNOWN", `Unknown goal: ${params.goalId}`); });
+			const record = await runner.resume(dir).catch((error: unknown) => { throw new ToolError("GOAL_REJECTED", error instanceof Error ? error.message : String(error)); });
+			begin(dir);
+			return output({ goalId: record.id, status: record.status });
+		},
+	});
+
+	register({
 		exposure: "deferred", namespace: goalNamespace, name: "goal_retry", label: "Retry Goal Checkpoint",
 		description: "Queues a failed or skipped checkpoint of a blocked goal again (with fresh attempts) and runs the goal on.",
 		parameters: Type.Object({ goalId, index: checkpointNumber }, strict),
@@ -174,7 +220,7 @@ export default function goalExtension(pi: ExtensionAPI, seam: { host?: (context:
 		},
 	});
 
-	pi.registerTool({
+	register({
 		exposure: "deferred", namespace: goalNamespace, name: "goal_resolve", label: "Resolve Goal Checkpoint",
 		description: "Records the result of a checkpoint that needed a person (a hands-on check, or a review that gave no verdict): passed or not, with a note, and runs the goal on.",
 		parameters: Type.Object({ goalId, index: checkpointNumber, passed: Type.Boolean({ description: "Whether the person found it correct." }), note: Type.String({ minLength: 1, description: "What was checked and what was seen." }) }, strict),

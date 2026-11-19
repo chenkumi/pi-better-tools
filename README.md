@@ -49,7 +49,7 @@ pi-better-tools pty setup
 
 ### 兩個 npm Pi packages（原始碼掛載）
 
-根 `dependencies` 固定包含 `@ff-labs/pi-fff@0.11.0`。`session_before_compact` 由 Pi Auto Compact 負責。`npm ci --ignore-scripts` 會安裝 FFF；manifest 為二十個本地模組入口加 FFF 入口，共二十一個。仍維持 `private: true`，不需要 npm 發布、bundledDependencies 或 postinstall 呼叫 pi install。
+根 `dependencies` 固定包含 `@ff-labs/pi-fff@0.11.0`。`session_before_compact` 由 Pi Auto Compact 負責。`npm ci --ignore-scripts` 會安裝 FFF；manifest 為二十一個本地模組入口加 FFF 入口，共二十二個。仍維持 `private: true`，不需要 npm 發布、bundledDependencies 或 postinstall 呼叫 pi install。
 
 換機請下載／複製本專案原始碼及 lockfile，在新機重新執行上述安裝步驟，然後只掛載本專案目錄；不要跨 OS／CPU 複製 node_modules。**本機掛載不會自動執行 npm install**。Repository `.npmrc` 設 `legacy-peer-deps=true`，避免依賴 peers 自動安裝另一份 Pi SDK；整合基準為 Pi 1.5.2，不以此設定宣稱相容。
 
@@ -108,7 +108,7 @@ Shell 與 Subagents 會在 `startup`／`resume`／`reload` 載入 session 時，
 | Spinoff（Subagents 的一部分，同一入口） | `spinoff`；管理走與 Subagent 共用的 `agent_status`／`agent_cancel`／`agent_message`（`jobId` 定址；皆預設啟用，仍受宿主工具限制） | 以獨立 Pi 行程繼承來源對話與能力接手任務，跨 session 切換仍續行，完成後只回報原 session；`agent_message` 可對執行中的 Spinoff 追加指示（受理不等於套用）；Spinoff 可用 `subagent`、不可再 Spinoff，所有 Subagent 不可 Spinoff；quit／`/reload` 取消全部；完成後以原生 `/resume` 繼續。詳見 `modules/subagents/src/spinoff/README.md`；不是 OS sandbox |
 | Monitor | `monitor_start/status/stop` | 七來源：command stdout、WS text、cwd 內單一檔案的 metadata 變更（file，不讀內容）、整機 CPU／RAM 持續達閾值（system）、readonly shell_job／subagent_job／spinoff_job；三工具預設啟用（仍受宿主工具限制），總期限預設5分鐘；不是daemon／PTY／sandbox |
 | Image Generation | `image_generate`（deferred，`tool_search image`）、`/settings:image-generation` | 文字生圖：OpenAI Images API／Gemini API／本機 Codex CLI 三後端，圖片存成專案內新檔案；金鑰只走 Pi 登入、付費請求預設每 session 每後端確認一次；詳見 [Image Generation](modules/image-generation/README.md) |
-| Goal | `/goal <事項>`；`plan_submit`、`goal_status/cancel/retry/resolve`（deferred，`tool_search goal`） | 把定案的計畫在背景逐 checkpoint 執行：獨立 agent session 實作，再以指令（Tier 1）、人工（Tier 2）或唯讀審查（Tier 3）驗收，失敗帶原因重試；提交前使用者確認每個會執行的指令，僅受信任專案。資料在 `<cwd>/.pi/goals/<ULID>/`，重啟續跑。goal 的 session 只有 Pi 內建工具，不載入 extension；不是 sandbox，見 [Goal README](modules/goal/README.md) |
+| Goal | `/goal <事項>`；`plan_submit`、`goal_status/cancel/pause/resume/retry/resolve`（deferred，`tool_search goal`） | 把定案的計畫在背景逐 checkpoint 執行：獨立 agent session 實作，再以指令（Tier 1）、人工（Tier 2）或唯讀審查（Tier 3）驗收，失敗帶原因重試；提交前使用者確認每個會執行的指令，僅受信任專案。資料在 `<cwd>/.pi/goals/<ULID>/`，重啟續跑。goal 的 session 只有 Pi 內建工具，不載入 extension；不是 sandbox，見 [Goal README](modules/goal/README.md) |
 | Remote | `remote_list/send/status`（deferred，`tool_search remote`） | 以 WebSocket 把數個 Pi session 連成區網內的網路互傳訊息／任務（例如 push 後通知他平台 pull 測試）；`.pi/agent/remote.json`（受信任專案）設 server 或 client；12 碼配對碼 challenge-response（碼不上線）＋ wss；收到的訊息標示為不受信任資料、預設喚醒 agent（`wake` 可關閉／allowlist）；at-most-once、不排隊；不是遠端執行或 sandbox。`/remote` 與 footer 顯示狀態、system prompt 列出線上 peer；`/settings:remote` 面板設定角色／wake／憑證路徑，server 頁直接顯示配對碼（沒有就即時產生，存檔才寫入）並可 Enter 換新碼，client 遮罩輸入配對碼（存使用者層，不進專案檔） |
 | Skill Tools | `/skill:create-plan`、`/skill:pi-tools-config` 等隨包技能 | 原生 resource discovery、按需讀取；pi-tools-config 以 SKILL.md 索引 19 份逐模組指令／config references，不修改使用者 home |
 | Theme Tools | `/theme:<id>`（deep-sea／warm-charcoal／moss／quiet／signal／paper／dark／light）、`/theme:menu` | 切換 Pi 主題並寫入 settings（使用者明確要求）；詳見 [Theme Tools](modules/theme-tools/README.md) |

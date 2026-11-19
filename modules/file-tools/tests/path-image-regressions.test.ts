@@ -5,10 +5,10 @@ import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, it } from "node:test";
 import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
-import fileToolsExtension, { detectImageMime } from "../extensions/file-tools.js";
-import { normalizeToolPath, resolveToolPath } from "../src/path-utils.js";
-import { FileToolError } from "../src/errors.js";
-import { hintMissingSubagentLog } from "../src/subagent-log-paths.js";
+import fileToolsExtension, { detectImageMime } from "../extensions/file-tools.ts";
+import { normalizeToolPath, resolveToolPath } from "../src/path-utils.ts";
+import { FileToolError } from "../src/errors.ts";
+import { hintMissingSubagentLog } from "../src/subagent-log-paths.ts";
 
 function toolsAt(cwd: string) {
   const tools = new Map<string, ToolDefinition>();

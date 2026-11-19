@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "pty-term": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["tools/pty-mcp/server.mjs"],
+      "env": {}
+    }
+  }
+}

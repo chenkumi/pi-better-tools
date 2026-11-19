@@ -39,7 +39,7 @@ export default function (pi: ExtensionAPI): void {
 	let current: ExtensionContext | undefined;
 	let legacyNoticeShown = false;
 	let revokeBriefs: (() => void) | undefined;
-	const panel = new SchedulePanel(realClock);
+	const panel = new SchedulePanel(realClock, pi);
 
 	pi.registerMessageRenderer(MARKER_TYPE, renderMarker);
 

@@ -43,6 +43,7 @@ export function taskPrompt(plan: Plan, record: GoalRecord, checkpoint: PlanCheck
   if (plan.decisions.length > 0) lines.push("", "Decisions already made:", ...plan.decisions.map((decision) => `- ${decision.question} → ${decision.decision} (${decision.reason})`))
   const before = plan.checkpoints.filter((other) => other.index < checkpoint.index && checkpoint.dependsOn.includes(other.index))
   if (before.length > 0) lines.push("", "Already done, which this checkpoint builds on:", ...before.map((other) => `- ${other.index}. ${other.title}`))
+  if (entry.log.at(-1)?.startsWith(state.PAUSE_LOG)) lines.push("", "The previous attempt was paused by the user part-way. The folder may hold changes it left unfinished: look at what is there first, then finish the checkpoint without redoing or duplicating work that is already correct.")
   lines.push("", `Your checkpoint: ${checkpoint.index}. ${checkpoint.title}`, "To do:", ...checkpoint.todos.map((todo) => `- ${todo}`))
   lines.push("", `It is checked afterwards${verify.command ? ` by running \`${verify.command}\` (it must exit with 0)` : ""}. It passes when: ${verify.expected}`)
   if (entry.log.length > 0) lines.push("", "Earlier attempts at this checkpoint, and what went wrong (do not repeat it):", ...entry.log.map((log) => clip(log, 3000)))
@@ -52,6 +53,8 @@ export function taskPrompt(plan: Plan, record: GoalRecord, checkpoint: PlanCheck
 
 /** Why a run was stopped when the host itself is going away: the goal is left as it is, to be continued by the next host. */
 const SHUTDOWN = Symbol("goal-runner-shutdown")
+/** Why a run was stopped by `pause`: the session in progress is stopped and the goal is kept, paused. */
+const PAUSE = Symbol("goal-runner-pause")
 
 interface Run {
   controller: AbortController
@@ -63,6 +66,8 @@ export class GoalRunner {
   private readonly onChange: (dir: string, record: GoalRecord) => void
   private readonly runs = new Map<string, Run>()
   /** Changes asked for while a run of this process holds the record: the run applies them itself, so its next save does not undo them. */
+  /** Goals whose stop is a cancel: a cancel that follows a pause wins, whichever aborted first. */
+  private readonly cancelling = new Set<string>()
   private readonly pending = new Map<string, Array<(record: GoalRecord) => GoalRecord>>()
 
   constructor(host: GoalHost, onChange: (dir: string, record: GoalRecord) => void = () => {}) {
@@ -80,7 +85,7 @@ export class GoalRunner {
     if (running) return running.done
     // Registered at once, before anything is awaited: a second start in the same tick must find this run.
     const controller = new AbortController()
-    const done = this.open(dir, controller.signal).finally(() => this.runs.delete(dir))
+    const done = this.open(dir, controller.signal).finally(() => { this.runs.delete(dir); this.cancelling.delete(dir) })
     this.runs.set(dir, { controller, done })
     return done
   }
@@ -126,8 +131,31 @@ export class GoalRunner {
       if (cancelled !== record) await this.save(dir, plan, cancelled)
       return cancelled
     }
+    this.cancelling.add(dir)
     run.controller.abort()
     return run.done
+  }
+
+  /** Stops the work in progress at once and keeps the goal paused (the attempt does not count); `resume` continues it. */
+  async pause(dir: string): Promise<GoalRecord> {
+    const run = this.runs.get(dir)
+    if (!run) {
+      const { plan, record } = await loadGoal(dir)
+      const paused = state.pause(record)
+      if (paused !== record) await this.save(dir, plan, paused)
+      return paused
+    }
+    run.controller.abort(PAUSE)
+    return run.done
+  }
+
+  /** A paused goal is queued again; the caller starts it. */
+  async resume(dir: string): Promise<GoalRecord> {
+    if (this.runs.has(dir)) throw new Error("The goal is still stopping; try again in a moment")
+    const { plan, record } = await loadGoal(dir)
+    const next = state.resume(record)
+    await this.save(dir, plan, next)
+    return next
   }
 
   /** True when a run holds the goal: the change is left for it to apply (the caller saves nothing). */
@@ -154,7 +182,7 @@ export class GoalRunner {
       for (;;) {
         if (signal.reason === SHUTDOWN) return record
         if (signal.aborted) {
-          record = state.cancel(record)
+          record = signal.reason === PAUSE && !this.cancelling.has(dir) && (record.status === "queued" || record.status === "running") ? state.pause(record) : state.cancel(record)
           await this.save(dir, plan, record)
           return record
         }

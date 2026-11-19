@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { getFileToolsConfigPath } from "../src/debug-logging.js";
+import { getFileToolsConfigPath } from "../src/debug-logging.ts";
 
 const saved = process.env.PI_CODING_AGENT_DIR;
 afterEach(() => { if (saved === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = saved; });

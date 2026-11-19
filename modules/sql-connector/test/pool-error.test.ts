@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { SqlConnectorRuntime } from "../src/runtime.js";
-import type { Engine } from "../src/types.js";
+import { SqlConnectorRuntime } from "../src/runtime.ts";
+import type { Engine } from "../src/types.ts";
 
 /** Real pg / mssql pools (no mocks): constructing a pool does not connect, so these stay offline. */
 async function poolOf(engine: Engine): Promise<{ emit(event: string, ...args: unknown[]): boolean }> {

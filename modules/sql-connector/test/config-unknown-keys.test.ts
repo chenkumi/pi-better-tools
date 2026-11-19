@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { loadSqlConnectorConfig } from "../src/config.js";
+import { loadSqlConnectorConfig } from "../src/config.ts";
 
 /** Agent-facing text must not name settings fields, files or namespaces (see error-messages.test.ts). */
 const LEAK = /\.json\b|\.pi[\\/]agent|\$\{|\b[A-Z][A-Z0-9_]*PASSWORD[A-Z0-9_]*\b|\b(?:host|port|username|password|database|databasePath|trustServerCertificate|windowsAuth|instanceName|odbcDriver|ssl)\b(?=["'`.]|\sfield)|\b(?:mysql|mssql|pgsql)\.[a-zA-Z]+\b|"(?:mysql|mssql|pgsql)"/;

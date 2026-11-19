@@ -38,7 +38,7 @@ export type Step = { kind: "run"; index: number; record: GoalRecord } | { kind: 
  * done, else `blocked` (something failed, was skipped, or needs a person). Safe to call again and again.
  */
 export function advance(plan: Plan, record: GoalRecord, now: Date = new Date()): Step {
-  if (record.status === "cancelled" || record.status === "done" || record.status === "failed") return { kind: "settled", record }
+  if (record.status === "cancelled" || record.status === "done" || record.status === "failed" || record.status === "paused") return { kind: "settled", record }
   let current = record
   for (let changed = true; changed; ) {
     changed = false
@@ -98,6 +98,27 @@ export function recover(plan: Plan, record: GoalRecord, now: Date = new Date()):
     current = change(current, entry.index, { status: entry.attempts < max ? "pending" : "failed" }, now, `attempt ${entry.attempts}: interrupted (the app stopped)`)
   }
   return current
+}
+
+/** The log line a pause leaves on a checkpoint it interrupted; the next attempt is told about it. */
+export const PAUSE_LOG = "paused by the user: the work of this attempt was stopped part-way, so the folder may hold unfinished changes"
+
+/**
+ * Paused by the user: nothing more runs until `resume`. A checkpoint in progress goes back to `pending` and the attempt it was does not
+ * count (it was the user, not the checkpoint, that stopped it). Pausing a paused goal changes nothing.
+ */
+export function pause(record: GoalRecord, now: Date = new Date()): GoalRecord {
+  if (record.status === "paused") return record
+  if (record.status !== "queued" && record.status !== "running") throw new Error(`The goal is ${record.status}: only a queued or running goal can be paused`)
+  let current: GoalRecord = { ...record, status: "paused", updatedAt: stamp(now) }
+  for (const entry of record.checkpoints) if (entry.status === "running" || entry.status === "verifying") current = change(current, entry.index, { status: "pending", attempts: Math.max(0, entry.attempts - 1) }, now, PAUSE_LOG)
+  return current
+}
+
+/** A paused goal is queued again; the caller starts it. */
+export function resume(record: GoalRecord, now: Date = new Date()): GoalRecord {
+  if (record.status !== "paused") throw new Error(`The goal is ${record.status}: only a paused goal can be resumed`)
+  return { ...record, status: "queued", updatedAt: stamp(now) }
 }
 
 /** Cancelled by the user: nothing more runs, and what was finished stays finished. A checkpoint in progress goes back to `pending`. */

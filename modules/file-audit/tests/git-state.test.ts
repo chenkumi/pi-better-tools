@@ -4,8 +4,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { changeMessage } from "../src/change-notice.js";
-import { captureGitState, diffGitState, GitWatch, gitNotice } from "../src/git-state.js";
+import { changeMessage } from "../src/change-notice.ts";
+import { captureGitState, diffGitState, GitWatch, gitNotice } from "../src/git-state.ts";
 
 function repo() {
   const dir = mkdtempSync(join(tmpdir(), "file-audit-git-"));

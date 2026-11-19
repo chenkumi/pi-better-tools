@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ActivityWindow, boundedString } from "../src/activity-window.js";
+import { ActivityWindow, boundedString } from "../src/activity-window.ts";
 
 test("capacity is enforced at admission, and duplicate access updates recency", () => {
   const w = new ActivityWindow({ windowRuns: 4, maxFiles: 2 });

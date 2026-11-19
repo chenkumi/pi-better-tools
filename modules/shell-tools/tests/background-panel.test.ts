@@ -2,14 +2,17 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { stripVTControlCharacters as plain } from 'node:util';
 import { Container, visibleWidth } from '@earendil-works/pi-tui';
-import { BackgroundPanel, BACKGROUND_WIDGET_KEY, acquireBackgroundPanel, type PanelKind } from '../../../shared/src/background/index.js';
-import { JobsOverlay, panelUsage, renderJobs, usageLabel, type PanelJob } from '../../../shared/src/background/index.js';
-import { ShellJobsWidget } from '../src/live-widget.js';
+import { BackgroundPanel, BACKGROUND_WIDGET_KEY, acquireBackgroundPanel, type PanelKind } from '../../../shared/src/background/index.ts';
+import { JobsOverlay, orderedJobs, panelUsage, renderJobs, usageLabel, type PanelJob } from '../../../shared/src/background/index.ts';
+import { GoalPanel } from '../../goal/src/panel.ts';
+import { SchedulePanel } from '../../schedule-commands/src/panel.ts';
+import { realClock } from '../../schedule-commands/src/clock.ts';
+import { ShellJobsWidget } from '../src/live-widget.ts';
 import { SubagentJobsWidget } from '../../subagents/extensions/subagent/live-widget.ts';
 import { BackgroundJobs } from '../../subagents/extensions/subagent/background.ts';
 const theme: any = { fg: (_: string, s: string) => `\x1b[32m${s}\x1b[0m`, getBgAnsi: () => '\x1b[48;5;58m', bg: (_: string, s: string) => '\x1b[48;5;58m' + s + '\x1b[49m' };
 function view() {
-  let owner = 'owner', renders = 0, customCalls = 0, overlay: any, draft = '保留輸入中的文字', rows = 40;
+  let owner = 'owner', renders = 0, customCalls = 0, lastWidget: unknown, overlay: any, draft = '保留輸入中的文字', rows = 40;
   const listeners = new Set<(data: string) => unknown>(), termListeners = new Set<(data: string) => unknown>();
   const widgets = new Map<string, any>(), statuses = new Map<string, string>(), calls: any[] = [];
   const tui = { terminal: { get rows() { return rows; } }, requestRender: () => renders++, addInputListener: (listener: (data: string) => unknown) => { listeners.add(listener); return () => { listeners.delete(listener); }; } };
@@ -17,8 +20,8 @@ function view() {
     setStatus(key: string, value: string | undefined) { if (value) statuses.set(key, value); else statuses.delete(key); },
     setWidget(key: string, value: any, options: any) {
       if (key === 'pi-better-tools-jobs-panel') { // the expanded panel is a bottom-panel widget that takes the keyboard
-        if (value) { customCalls++; assert.equal(options.placement, 'aboveEditor'); const widget = value(tui, theme); overlay = { render: (w: number) => widget.render(w), handleInput: (data: string) => [...termListeners].forEach(listener => listener(data)), dispose() {} }; }
-        else overlay = undefined;
+        if (value) { assert.equal(options.placement, 'aboveEditor'); const widget = value(tui, theme); if (widget !== lastWidget) { customCalls++; lastWidget = widget; } /* the same component set again only moves the panel below other widgets */ overlay = { render: (w: number) => widget.render(w), handleInput: (data: string) => [...termListeners].forEach(listener => listener(data)), dispose() {} }; }
+        else { overlay = undefined; lastWidget = undefined; }
         return;
       }
       calls.push({ key, value, options }); if (value) widgets.set(key, value); else widgets.delete(key);
@@ -274,4 +277,24 @@ test('PTY sessions are a panel kind: PT heading, PTY count only when present, ow
   const ui = view(), panel = new BackgroundPanel(), token = panel.attach('pty', ui.ctx)!;
   panel.update('pty', token, snapshot([pty]));
   assert.match(plain(ui.component().render(100).join(String.fromCharCode(10))), /PT pty/);
+});
+
+test('a goal that is still going is pinned above every other job; a finished goal sorts like any other', () => {
+  const rows = [job('s1', 'shell', 'running'), job('g-old', 'goal', 'completed', false), job('m1', 'subagents', 'cancelling'), job('g-run', 'goal', 'running'), job('g-blocked', 'goal', 'blocked'), job('g-queued', 'goal', 'queued')];
+  const order = orderedJobs(rows).map(row => row.jobId);
+  assert.deepEqual(new Set(order.slice(0, 3)), new Set(['g-run', 'g-blocked', 'g-queued']));
+  assert.deepEqual(order.slice(3), ['m1', 's1', 'g-old'], 'the rest keep the usual order and a finished goal is not pinned');
+  assert.deepEqual(orderedJobs([job('sc', 'schedule', 'running'), job('sh', 'shell', 'running')]).map(row => row.jobId).sort(), ['sc', 'sh'], 'schedule is not pinned');
+});
+test('Goal and Schedule join the one shared panel instead of drawing their own', () => {
+  const hosts = hostPair();
+  const shell = new ShellJobsWidget(hosts.create()), goal = new GoalPanel(hosts.create()), schedule = new SchedulePanel(realClock, hosts.create());
+  const panelOf = (binding: unknown) => (binding as { panel: BackgroundPanel }).panel;
+  assert.equal(panelOf(goal), panelOf(shell));
+  assert.equal(panelOf(schedule), panelOf(shell));
+  assert.deepEqual(hosts.registrations, ['background-jobs'], 'one /background-jobs command');
+  const ui = view(), token = panelOf(goal).attach('goal', ui.ctx)!;
+  panelOf(goal).update('goal', token, snapshot([job('g1', 'goal', 'running')]));
+  assert.match(plain(ui.component().render(100).join('\n')), /Goal: 1/);
+  assert.match(plain(ui.component().render(100).join('\n')), /GL scout/);
 });

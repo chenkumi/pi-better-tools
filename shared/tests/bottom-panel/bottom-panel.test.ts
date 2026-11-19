@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { visibleWidth } from '@earendil-works/pi-tui';
-import { bottomConfirm, bottomInput, bottomSelect, closeBottomPanel, isBottomPanelOpen, openBottomPanel, renderHiddenEditorPanel, type BottomBody } from '../../src/bottom-panel/index.ts';
+import { bottomConfirm, bottomInput, bottomSelect, closeBottomPanel, isBottomPanelOpen, keepBottomPanelLast, openBottomPanel, renderHiddenEditorPanel, type BottomBody } from '../../src/bottom-panel/index.ts';
 import { fakeUi } from './fake-ui.ts';
 
 const KEY = { up: '\x1b[A', down: '\x1b[B', left: '\x1b[D', right: '\x1b[C', enter: '\r', esc: '\x1b' };
@@ -243,4 +243,22 @@ test('an empty title draws a plain rule instead of a titled one, and a title fun
   assert.match(f.render('k', 30)[0]!, /^── Demo ─+$/);
   f.type('a');
   await result;
+});
+
+test('keepBottomPanelLast puts the open panel back below a widget that redrew itself, and keeps its body', async () => {
+  const f = fakeUi();
+  let creates = 0;
+  const result = openBottomPanel<void>(f.ui, { key: 'panel', title: 't', create: ({ done }) => (creates++, { render: () => ['row'], handleInput: d => { if (d === 'q') done(); } }) });
+  const other = { render: () => ['other'] };
+  f.ui.setWidget('jobs', () => other as never, { placement: 'aboveEditor' });
+  assert.deepEqual([...f.widgets.keys()], ['panel', 'jobs'], 'the widget that was set last is nearest the editor');
+  keepBottomPanelLast();
+  assert.deepEqual([...f.widgets.keys()], ['jobs', 'panel'], 'the panel is last again');
+  assert.equal(creates, 1, 'the body is not created a second time');
+  assert.equal(f.type('x'), true, 'the keyboard is still routed to the body');
+  f.type('q');
+  await result;
+  assert.deepEqual([...f.widgets.keys()], ['jobs']);
+  keepBottomPanelLast();
+  assert.deepEqual([...f.widgets.keys()], ['jobs'], 'nothing happens when no panel is open');
 });

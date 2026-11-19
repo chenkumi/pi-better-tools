@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { SqliteManager } from "../src/sqlite-manager.js";
+import { SqliteManager } from "../src/sqlite-manager.ts";
 
 const holderSource = `
 import { DatabaseSync } from "node:sqlite";

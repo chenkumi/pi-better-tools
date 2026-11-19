@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { SqliteClient } from "../src/sqlite-client.js";
+import { SqliteClient } from "../src/sqlite-client.ts";
 
 const HANG = `--require=${fileURLToPath(new URL("./fixtures/swallow-ready.cjs", import.meta.url)).split(String.fromCharCode(92)).join("/")}`;
 const settle = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

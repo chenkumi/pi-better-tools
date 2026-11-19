@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertReadOnlySql, assertUpdateSql } from "../src/security/sql-policy.js";
+import { assertReadOnlySql, assertUpdateSql } from "../src/security/sql-policy.ts";
 
 // SQL Server runs `SELECT ... SELECT ...` as two statements with no separator, so a second SELECT must not slip past the
 // TOP cap (reads) or ride along after a write (updates).

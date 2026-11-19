@@ -3,8 +3,8 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
-import { CredentialStore } from '../src/credentials.js';
-import { normalizeCode } from '../src/protocol.js';
+import { CredentialStore } from '../src/credentials.ts';
+import { normalizeCode } from '../src/protocol.ts';
 
 function store(t: TestContext) {
   const dir = mkdtempSync(join(tmpdir(), 'pi-remote-credentials-'));

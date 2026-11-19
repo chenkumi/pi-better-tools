@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { BUSY_TIMEOUT_MS, MAX_BLOB_BYTES, MAX_QUERY_BYTES, MAX_QUERY_ROWS, SqliteManager } from "../src/sqlite-manager.js";
+import { BUSY_TIMEOUT_MS, MAX_BLOB_BYTES, MAX_QUERY_BYTES, MAX_QUERY_ROWS, SqliteManager } from "../src/sqlite-manager.ts";
 
 test("supports the SQLite tool workflow with positional and named parameters", () => {
   const directory = mkdtempSync(join(tmpdir(), "pi-sqlite-tools-"));

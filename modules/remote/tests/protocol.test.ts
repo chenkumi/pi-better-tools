@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   LIMITS, ProtocolError, authProof, cleanBody, cleanText, generateCode, normalizeCode, normalizeName, parseClientFrame, parseServerFrame, proofMatches, randomName,
-} from '../src/protocol.js';
+} from '../src/protocol.ts';
 
 const info = { name: 'win-dev', platform: 'win32', arch: 'x64', hostname: 'box', project: 'repo', instanceId: 'I1' };
 

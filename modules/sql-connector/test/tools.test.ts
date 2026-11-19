@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ExtensionAPI, ExtensionToolContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Value } from "typebox/value";
-import { registerEngineTools } from "../src/tools.js";
-import type { SqlConnectorRuntime } from "../src/runtime.js";
-import { ENGINES } from "../src/types.js";
+import { registerEngineTools } from "../src/tools.ts";
+import type { SqlConnectorRuntime } from "../src/runtime.ts";
+import { ENGINES } from "../src/types.ts";
 
 for (const engine of ENGINES) {
   describe(`${engine} deferred tools`, () => {

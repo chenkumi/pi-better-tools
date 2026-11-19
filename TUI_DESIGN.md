@@ -49,7 +49,7 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
 ## 背景任務面板
 * 輸入框上方的被動面板，只在有進行中的工作時出現（僅 TUI；外框是主題 `accent` 色的標題線，沒有背景方塊，也沒有下方分隔線）
 * 計數列固定顯示 Shell／Subagents／Spinoff／Monitor；PTY 與 Schedule 有工作時才出現
-* 每個工作一行，合計最多五行（終端太矮時更少），其餘以 `… N more` 表示；排序為取消中、執行中、收尾中、排隊中
+* 每個工作一行，合計最多五行（終端太矮時更少），其餘以 `… N more` 表示；進行中的 Goal（排隊、執行、暫停或 blocked）固定置頂，其後排序為取消中、執行中、收尾中、排隊中
 * 列格式：`<狀態圖示> <種類代碼> <名稱> · <標題>` 靠左，狀態與用量靠右。種類代碼 SH／SA／SO／MN／PT／SC；圖示 ● 執行中、◷ 排隊、◐ 收尾或取消中、✓ 完成、○ 其他
 * 右欄：Subagent 為 `狀態 | 用量`（`*` 表示累計中的已回報用量）；Shell 執行中只有 `N/A`；Monitor 為 `wake on|off | 剩 <時間>`；Schedule 閒置為 `in 12m | every 1h`、執行中為 `running`
 * fullscreen 可點工作列直接開該工作的詳細，點 `[Open]` 開清單；滑鼠停留會高亮，不改變版面
@@ -272,6 +272,9 @@ sqlite-tools/src, subagents/src, theme-tools/src, web-tools/src
 ```
 
 ---
+
+## Goal 清單（/goals）
+* 底部面板（僅 TUI），按鍵 `p` 暫停、`r` 恢復、`t` 重試第一個失敗／跳過的 checkpoint、`x` 取消（先 Yes/No 確認）、Enter 看詳細；動作都經 `goal_*` 工具執行，與 `/schedule-commands` 同一做法。`goal_resolve` 需要備註，不在面板內。
 
 ## 排程清單（/schedule-commands）
 * 底部面板，按鍵 `a` 新增 prompt、`m` 新增 shell、`t` 啟用／停用、`r` 立即執行、`x` 刪除、`c` 清理、Enter 看詳細；動作都經排程工具執行；只有刪除會先出現 Yes/No 確認面板

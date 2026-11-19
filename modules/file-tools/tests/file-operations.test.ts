@@ -12,9 +12,9 @@ import fileToolsExtension, {
   prepareEditArguments,
   prepareReadArguments,
   prepareWriteArguments,
-} from "../extensions/file-tools.js";
-import { FileToolError, formatFileToolErrorForDisplay } from "../src/errors.js";
-import { findUniqueSkillFallbackPath } from "../src/skill-paths.js";
+} from "../extensions/file-tools.ts";
+import { FileToolError, formatFileToolErrorForDisplay } from "../src/errors.ts";
+import { findUniqueSkillFallbackPath } from "../src/skill-paths.ts";
 import {
   compactPatch,
   editTextFile,
@@ -28,7 +28,7 @@ import {
   sha256,
   sha256Token,
   writeTextFile,
-} from "../src/file-operations.js";
+} from "../src/file-operations.ts";
 
 let directory: string;
 

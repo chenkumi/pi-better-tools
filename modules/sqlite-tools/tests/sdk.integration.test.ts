@@ -13,7 +13,7 @@ import {
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import { fileURLToPath } from "node:url";
-import { registerDeferredTools } from "../../pi-runtime/src/deferred-tools.js";
+import { registerDeferredTools } from "../../pi-runtime/src/deferred-tools.ts";
 
 for (const mode of ["search", "fallback", "read-only", "no-tools", "exclude"] as const) {
 test(`Pi SQLite deferred discovery and lifecycle: ${mode}`, async (t) => {

@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { canonicalPath, notePath, resolveInput, safeRelative, credentialPath } from "../src/paths.js";
+import { canonicalPath, notePath, resolveInput, safeRelative, credentialPath } from "../src/paths.ts";
 
 test("normalization handles relative, file URL, literal @ and convenience @", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "file-audit-paths-"));

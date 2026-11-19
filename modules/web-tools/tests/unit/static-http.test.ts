@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { FetchService } from '../../src/fetch/service.js';
-import { decodeDocument, fetchStatic, pinnedOptions } from '../../src/fetch/http.js';
-import { NetworkPolicy } from '../../src/fetch/network.js';
-import { extractHtml } from '../../src/fetch/extract.js';
+import { FetchService } from '../../src/fetch/service.ts';
+import { decodeDocument, fetchStatic, pinnedOptions } from '../../src/fetch/http.ts';
+import { NetworkPolicy } from '../../src/fetch/network.ts';
+import { extractHtml } from '../../src/fetch/extract.ts';
 
 const signal = () => new AbortController().signal;
 test('HTTP target validation rejects all mixed DNS sets and special IPv4/IPv6 before connecting', async () => {

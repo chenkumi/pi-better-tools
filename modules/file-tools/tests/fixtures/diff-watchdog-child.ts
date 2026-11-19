@@ -8,8 +8,8 @@ import {
   DIFF_TIMEOUT_MS,
   DIFF_WORKER_OLD_GENERATION_MB,
   type DiffRunnerTestOptions,
-} from "../../src/diff-runner.js";
-import { FileToolError } from "../../src/errors.js";
+} from "../../src/diff-runner.ts";
+import { FileToolError } from "../../src/errors.ts";
 
 // This script must be launched by the independent parent watchdog, never imported
 // into the test runner: a regression to synchronous diff can hang its event loop.

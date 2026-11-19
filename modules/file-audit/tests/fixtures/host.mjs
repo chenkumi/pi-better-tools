@@ -112,7 +112,7 @@ try {
     await writeFile(join(cwd, 'external.txt'), 'changed outside the agent'); await unlink(join(cwd, 'gone.txt'));
     const own = { oldText: 'mine', newText: 'edited by the agent' };
     await run([['edit', mode === 'files' ? { path: 'self.txt', edits: [own] } : { path: 'self.txt', ...own }]]);
-    assert.equal(notices().length, 1); assert.equal(notices()[0].display, true);
+    assert.equal(notices().length, 1); assert.equal(notices()[0].display, false);
     assert.deepEqual(notices()[0].details.changed.map(x => [x.path.split(/[\\/]/).at(-1), x.change]).sort(), [['external.txt', 'modified'], ['gone.txt', 'deleted']]);
     assert.match(notices()[0].content, /not instructions/);
     await run([]); assert.equal(notices().length, 1, 'reported once; the agents own edit is not a change'); assert.equal(sawNotice(), true, 'the notice stays in model context');

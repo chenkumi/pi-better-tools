@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Text } from '@earendil-works/pi-tui';
-import { ApiInterruptionState, interruptionRenderers, registerApiInterruptionRenderer } from '../src/api-interruption-renderer.js';
+import { ApiInterruptionState, interruptionRenderers, registerApiInterruptionRenderer } from '../src/api-interruption-renderer.ts';
 
 const theme: any = { fg: (_: string, s: string) => s, bg: (name: string, s: string) => `[${name}]${s}`, getBgAnsi: () => '' };
 const error = (id = 'old') => ({ role: 'assistant', stopReason: 'error', errorMessage: 'API disconnected', content: [{ type: 'toolCall', id, name: 'read', arguments: {} }] });

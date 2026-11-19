@@ -226,6 +226,7 @@ test('the set of tools with a dedicated rule is exactly the documented one', () 
     'spinoff', 'subagent_status', 'subagent_cancel', 'subagent_message', 'fork', 'fork_status', 'fork_cancel', 'fork_message', 'monitor_start', 'monitor_status', 'monitor_stop',
     'pty_spawn', 'pty_list', 'pty_read', 'pty_write', 'pty_keyin', 'pty_resize', 'pty_wait_exit', 'pty_kill',
     'sqlite_open', 'sqlite_close', 'sqlite_status', 'sqlite_query', 'sqlite_execute', 'sqlite_list_tables', 'sqlite_describe_table', 'sqlite_manual',
+    'plan_submit', 'goal_status', 'goal_cancel', 'goal_pause', 'goal_resume', 'goal_retry', 'goal_resolve', 'image_generate',
     'web_fetch', 'web_search', 'remote_list', 'remote_send', 'remote_status', 'tool_search', 'json_output', ...engines,
   ].sort();
   assert.deepEqual(registeredToolNames(), expected);
@@ -239,4 +240,26 @@ test('session tools fold to where they looked and how much came back, never the 
   assert.equal(grep, `[session_grep] "token=***" → 3 hits (more available); snippets not kept${recall}`);
   assert.ok(!grep.includes('SNIPPET'));
   assert.match(fold('session_grep', { pattern: 'zz' }, 'SESSION_FAILED: nope', { isError: true }), /^\[session_grep\] "zz" → ERROR: SESSION_FAILED: nope/);
+});
+
+test('goal tools keep ids and states, never the plan, the logs or the note of a person', () => {
+  const plan = { title: 'Ship it', goal: 'SECRET-GOAL', rules: ['SECRET-RULE'], checkpoints: [{ verify: { command: 'SECRET-CMD' } }, {}] };
+  const submitted = fold('plan_submit', plan, '{}', { details: { ok: true, goalId: '01ARZ3NDEKTSV4RRFFQ69G5FAV' } });
+  assert.equal(submitted, `[plan_submit] "Ship it" 2 checkpoints → queued 01ARZ3NDEKTSV4RRFFQ69G5FAV (runs in the background; not finished)${recall}`);
+  assert.ok(!/SECRET/.test(submitted));
+  assert.equal(fold('goal_status', {}, '{}', { details: { goals: [{ goalId: '01ARZ3NDEKTSV4RRFFQ69G5FAV', status: 'running' }] } }), `[goal_status] → 1 goal: 9G5FAV=running${recall}`);
+  assert.equal(fold('goal_status', { goalId: 'G' }, '{}', { details: { status: 'blocked', checkpoints: [{ status: 'done', log: ['SECRET-LOG'] }, { status: 'failed' }] } }), `[goal_status] G → blocked, 1/2 done${recall}`);
+  assert.match(fold('goal_cancel', { goalId: 'G' }, '{}', { details: { status: 'cancelled' } }), /cancelled \(a stop request; child processes not confirmed stopped\)/);
+  assert.match(fold('goal_pause', { goalId: 'G' }, '{}', { details: { status: 'paused' } }), /paused \(the attempt in progress was stopped and does not count\)/);
+  assert.equal(fold('goal_resume', { goalId: 'G' }, '{}', { details: { status: 'queued' } }), `[goal_resume] G → queued${recall}`);
+  assert.equal(fold('goal_retry', { goalId: 'G', index: 2 }, '{}', { details: { status: 'queued' } }), `[goal_retry] G #2 → queued${recall}`);
+  const resolved = fold('goal_resolve', { goalId: 'G', index: 1, passed: true, note: 'SECRET-NOTE' }, '{}', { details: { status: 'queued' } });
+  assert.equal(resolved, `[goal_resolve] G #1 passed → queued${recall}`);
+  assert.match(fold('goal_pause', { goalId: 'G' }, 'GOAL_REJECTED: only a queued or running goal can be paused', { isError: true }), /ERROR: GOAL_REJECTED/);
+});
+
+test('image_generate keeps the backend and file paths, never the prompt', () => {
+  const out = fold('image_generate', { prompt: 'SECRET-PROMPT', backend: 'openai', count: 2 }, '{}', { details: { backend: 'openai', files: [{ path: 'images/a.png' }, { path: 'images/b.png' }] } });
+  assert.equal(out, `[image_generate] openai ×2 → openai 2 files: images/a.png, images/b.png${recall}`);
+  assert.ok(!/SECRET/.test(out));
 });

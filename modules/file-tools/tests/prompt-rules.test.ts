@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { renderFileRules } from '../src/prompt-rules.js';
+import { renderFileRules } from '../src/prompt-rules.ts';
 
 const rules = (...tools: string[]) => renderFileRules(new Set(tools));
 

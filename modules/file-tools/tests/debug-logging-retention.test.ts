@@ -3,7 +3,7 @@ import { mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { MAX_LOG_DAYS, MAX_LOG_DAY_BYTES, writeFileToolFailureLog } from "../src/debug-logging.js";
+import { MAX_LOG_DAYS, MAX_LOG_DAY_BYTES, writeFileToolFailureLog } from "../src/debug-logging.ts";
 
 test("failure log keeps only the newest day files and stops appending at the daily cap", async () => {
   const dir = await mkdtemp(join(tmpdir(), "pi-file-log-retention-"));

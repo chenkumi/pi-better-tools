@@ -31,6 +31,8 @@ node test.mjs                      # 經真實 MCP stdio 協定的端到端測�
 claude mcp add pty-term --scope local -- node D:/GitHub/pi-better-tools-main/tools/pty-mcp/server.mjs
 ```
 
+在本專案根目錄開啟 Claude Code 時，根目錄的 `.mcp.json` 已用相對路徑 `tools/pty-mcp/server.mjs` 宣告同一個 server（以專案根目錄為工作目錄；首次須先在 `tools/pty-mcp` 執行 `npm install --ignore-scripts`，並核准專案層 MCP），不必再手動 `claude mcp add`。
+
 新增後需重新啟動 Claude Code session（或 `/mcp` 重新連線）才會出現 `mcp__pty-term__*` 工具。
 
 ## 限制

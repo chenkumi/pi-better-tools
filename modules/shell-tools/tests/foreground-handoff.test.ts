@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { BashOperations } from "@earendil-works/pi-coding-agent";
-import { DEFAULT_AUTO_BACKGROUND_MS, createForegroundHandoff, resolveAutoBackgroundMs } from "../src/foreground-handoff.js";
-import { MAX_LOG_BYTES, TAIL_BYTES } from "../src/background-jobs.js";
+import { DEFAULT_AUTO_BACKGROUND_MS, createForegroundHandoff, resolveAutoBackgroundMs } from "../src/foreground-handoff.ts";
+import { MAX_LOG_BYTES, TAIL_BYTES } from "../src/background-jobs.ts";
 
 test("auto background threshold defaults to 300s and accepts only a positive integer or 0", () => {
   assert.equal(DEFAULT_AUTO_BACKGROUND_MS, 300_000);

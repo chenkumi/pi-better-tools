@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { stripVTControlCharacters as plain } from 'node:util';
 import { initTheme } from '@earendil-works/pi-coding-agent';
-import { JobsOverlay, panelSignature, type PanelJob } from '../../../shared/src/background/index.js';
-import { LiveTranscript, safeOutputText, OutputTranscript, TranscriptView } from '../../../shared/src/background/index.js';
+import { JobsOverlay, panelSignature, type PanelJob } from '../../../shared/src/background/index.ts';
+import { LiveTranscript, safeOutputText, OutputTranscript, TranscriptView } from '../../../shared/src/background/index.ts';
 
 initTheme('dark', false);
 const theme: any = { fg: (_: string, s: string) => s, getBgAnsi: () => '', bg: (_: string, s: string) => s };
@@ -479,7 +479,7 @@ test('subagent registry: a finished task of a running batch shows its status, no
 });
 
 test('a terminal screen opens in the bottom panel with far more rows than the 8-row cap and follows the end', async () => {
-  const { ScreenTranscript } = await import('../../../shared/src/background/index.js');
+  const { ScreenTranscript } = await import('../../../shared/src/background/index.ts');
   const screen = new ScreenTranscript(80, 40);
   await new Promise<void>(resolve => { const off = screen.subscribe(() => { off(); resolve(); }); screen.write(Array.from({ length: 30 }, (_, i) => `row ${i + 1}`).join('\r\n')); });
   const job: PanelJob = { kind: 'pty', jobId: 'P1', label: 'pty', title: 'local', state: 'running', active: true, activity: 'Running', usageState: 'na', details: ['Session ID: P1'], transcripts: [{ label: 'screen', transcript: screen }] };
@@ -498,7 +498,7 @@ test('a terminal screen opens in the bottom panel with far more rows than the 8-
 });
 
 test('a closed terminal stays open as a snapshot with a closed notice until the user closes the panel', async () => {
-  const { ScreenTranscript } = await import('../../../shared/src/background/index.js');
+  const { ScreenTranscript } = await import('../../../shared/src/background/index.ts');
   const screen = new ScreenTranscript(80, 30);
   await new Promise<void>(resolve => { const off = screen.subscribe(() => { off(); resolve(); }); screen.write(Array.from({ length: 20 }, (_, i) => `filler ${i}`).join('\r\n') + '\r\nfinal line one\r\nfinal line two'); });
   const base: PanelJob = { kind: 'pty', jobId: 'P1', label: 'pty-1-1', title: 'local', state: 'running', active: true, activity: 'Running', usageState: 'na', details: ['Session ID: P1'], transcripts: [{ label: 'screen', transcript: screen }] };

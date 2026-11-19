@@ -15,7 +15,7 @@ export interface GoalSummary {
   checkpoints: Array<{ index: number; title: string; tier: 1 | 2 | 3; status: CheckpointStatus; attempts: number; maxAttempts: number; log: string[] }>
 }
 
-export type GoalStatus = "draft" | "queued" | "running" | "done" | "blocked" | "failed" | "cancelled"
+export type GoalStatus = "draft" | "queued" | "running" | "paused" | "done" | "blocked" | "failed" | "cancelled"
 /** `needs-human`: Tier 2, nobody operates it automatically (README); it keeps what depends on it waiting. */
 export type CheckpointStatus = "pending" | "running" | "verifying" | "done" | "failed" | "skipped" | "needs-human"
 

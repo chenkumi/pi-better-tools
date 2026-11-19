@@ -6,9 +6,9 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { Compile } from "typebox/compile";
 import { describe, it } from "node:test";
-import fileToolsExtension, { prepareEditArguments, prepareReadArguments, prepareWriteArguments } from "../extensions/file-tools.js";
-import { FileToolError } from "../src/errors.js";
-import { editTextFile } from "../src/file-operations.js";
+import fileToolsExtension, { prepareEditArguments, prepareReadArguments, prepareWriteArguments } from "../extensions/file-tools.ts";
+import { FileToolError } from "../src/errors.ts";
+import { editTextFile } from "../src/file-operations.ts";
 
 // Resolve from the installed host, whether npm hoists pi-ai or nests it.
 const hostEntry = import.meta.resolve("@earendil-works/pi-coding-agent");

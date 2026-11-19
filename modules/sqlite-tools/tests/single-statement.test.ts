@@ -3,7 +3,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { SqliteManager } from "../src/sqlite-manager.js";
+import { SqliteManager } from "../src/sqlite-manager.ts";
 
 // node:sqlite compiles only the first statement and drops the rest, so a trailing statement used to be ignored without
 // any signal. The tools run one statement per call; a second one must be refused, not silently skipped.

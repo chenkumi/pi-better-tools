@@ -6,9 +6,9 @@ import { search } from '../../src/search.ts';
 import { injectNativeSearch } from '../../src/native-openai.ts';
 import { injectGeminiSearch } from '../../src/native-google.ts';
 import { injectAnthropicSearch } from '../../src/native-anthropic.ts';
-import { NetworkPolicy, parseWebUrl } from '../../src/fetch/network.js';
-import { describeNetworkFailure, httpStatusAdvice } from '../../src/fetch/failure.js';
-import { FetchService } from '../../src/fetch/service.js';
+import { NetworkPolicy, parseWebUrl } from '../../src/fetch/network.ts';
+import { describeNetworkFailure, httpStatusAdvice } from '../../src/fetch/failure.ts';
+import { FetchService } from '../../src/fetch/service.ts';
 import { registerWebTools } from '../../src/index.ts';
 
 const message = (fn: () => unknown): string => { try { fn(); } catch (e) { return (e as Error).message; } return assert.fail('expected throw'); };
@@ -129,7 +129,7 @@ test('invalid fetch options name the field and fetch input errors list valid val
 });
 
 test('static charset errors show the received charset and a fix', async () => {
-  const { decodeDocument } = await import('../../src/fetch/http.js');
+  const { decodeDocument } = await import('../../src/fetch/http.ts');
   const m = message(() => decodeDocument(Buffer.from('x'), 'text/html; charset=bogus-9'));
   assert.match(m, /UNSUPPORTED_CONTENT:.*"bogus-9"/); assert.match(m, /UTF-8|another|different/i);
 });

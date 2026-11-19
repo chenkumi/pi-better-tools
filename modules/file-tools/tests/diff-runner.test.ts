@@ -7,8 +7,8 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { applyPatch, parsePatch, structuredPatch } from "diff";
 import { Worker } from "node:worker_threads";
-import { computeDiffTimeoutMs, createDiffFeedback, DIFF_MAX_TIMEOUT_MS, DIFF_TIMEOUT_MS, DIFF_WORKER_OLD_GENERATION_MB, MAX_DIFF_OUTPUT_BYTES } from "../src/diff-runner.js";
-import { FileToolError } from "../src/errors.js";
+import { computeDiffTimeoutMs, createDiffFeedback, DIFF_MAX_TIMEOUT_MS, DIFF_TIMEOUT_MS, DIFF_WORKER_OLD_GENERATION_MB, MAX_DIFF_OUTPUT_BYTES } from "../src/diff-runner.ts";
+import { FileToolError } from "../src/errors.ts";
 
 const childScript = fileURLToPath(new URL("./fixtures/diff-watchdog-child.ts", import.meta.url));
 const tsxLoader = import.meta.resolve("tsx");

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatRows } from "../src/output.js";
+import { formatRows } from "../src/output.ts";
 
 /** The original quadratic definition: the largest prefix whose pretty-printed `{ rows }` fits in 48 KiB.
  *  Fixture rows contain only values that sanitising leaves unchanged. */

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { AuditTracker } from "../src/events.js";
-import { AuditCommands, parseCommand } from "../src/commands.js";
+import { AuditTracker } from "../src/events.ts";
+import { AuditCommands, parseCommand } from "../src/commands.ts";
 function context() {
   const notifications: string[] = [];
   const ctx = { mode: "tui", cwd: process.cwd(), sessionManager: { getSessionId: () => "session" },

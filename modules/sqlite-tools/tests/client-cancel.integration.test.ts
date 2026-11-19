@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { SqliteClient } from "../src/sqlite-client.js";
+import { SqliteClient } from "../src/sqlite-client.ts";
 
 const LONG_QUERY = "WITH RECURSIVE counter(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM counter WHERE x<2000000000) SELECT sum(x) AS total FROM counter";
 const settle = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

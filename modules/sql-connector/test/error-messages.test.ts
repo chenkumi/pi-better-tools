@@ -32,13 +32,13 @@ vi.mock("mssql", () => {
   return { default: { ConnectionPool }, ConnectionPool };
 });
 
-const { classifyDriverError, describeUnexpectedError, redactDriverText } = await import("../src/driver-errors.js");
-const { SqlConnectorRuntime } = await import("../src/runtime.js");
-const { registerEngineTools } = await import("../src/tools.js");
-const { assertReadOnlySql, assertUpdateSql } = await import("../src/security/sql-policy.js");
-const { loadSqlConnectorConfig } = await import("../src/config.js");
-const { default: sqlConnectorExtension } = await import("../src/index.js");
-const { SqlConnectorError } = await import("../src/types.js");
+const { classifyDriverError, describeUnexpectedError, redactDriverText } = await import("../src/driver-errors.ts");
+const { SqlConnectorRuntime } = await import("../src/runtime.ts");
+const { registerEngineTools } = await import("../src/tools.ts");
+const { assertReadOnlySql, assertUpdateSql } = await import("../src/security/sql-policy.ts");
+const { loadSqlConnectorConfig } = await import("../src/config.ts");
+const { default: sqlConnectorExtension } = await import("../src/index.ts");
+const { SqlConnectorError } = await import("../src/types.ts");
 
 const SECRET = "Sup3r-S3cret-pw";
 const config = { host: "db.internal.example", username: "svc_reader", password: SECRET, database: "app", ssl: false, windowsAuth: false, trustServerCertificate: false };

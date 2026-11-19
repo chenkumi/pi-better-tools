@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import { FileToolError } from "../src/errors.js";
+import { FileToolError } from "../src/errors.ts";
 import {
   executeWithFailureLogging,
   FILE_TOOLS_PROJECT_NAME,
@@ -14,7 +14,7 @@ import {
   loadFileToolsGlobalConfig,
   prepareWithFailureLogging,
   redactRequestForLog,
-} from "../src/debug-logging.js";
+} from "../src/debug-logging.ts";
 
 let temporaryDirectory: string;
 

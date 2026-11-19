@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { OUTPUT_RETENTION_MS, sweepOldOutputs } from "../src/index.js";
+import { OUTPUT_RETENTION_MS, sweepOldOutputs } from "../src/index.ts";
 
 test("removes only saved outputs older than the retention period", async () => {
   const directory = mkdtempSync(join(tmpdir(), "pi-sqlite-sweep-"));

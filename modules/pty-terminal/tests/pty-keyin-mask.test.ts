@@ -72,7 +72,7 @@ test("pty_write with readAfterMs and a waitFor pattern cannot reveal the secret"
 	const { pending, enter } = await keyin(tools, sessionId);
 	enter(SECRET);
 	await pending;
-	await sleep(300);
+	await readUntil(tools, sessionId, /command not found/, { since: 0 });
 	const probe = await tools.get("pty_read").execute("r", { sessionId, since: 0, waitFor: "ThisIs", timeoutMs: 300 });
 	// The program may already have exited by now ("exited"), which is also a non-match.
 	assert.notEqual(probe.details.waitFor, "matched", "a pattern on the secret must not match");
@@ -107,9 +107,11 @@ test("pty_keyin does not send when the prompt timed out while the dialog was ope
 	assert.equal(result.details.reason, "prompt_gone");
 	assert.match(result.content[0].text, /Nothing was sent/);
 	assert.ok(!JSON.stringify(result).includes(SECRET));
-	await sleep(200);
-	const { text } = await readUntil(tools, sessionId, /timed out/, { since: 0 });
-	assert.ok(!text.includes("GOT["), "nothing may have reached the session");
+	// The session reports every input it gets, in order: a later sentinel proves nothing was sent before it.
+	// Scope: this cannot see a secret written after the sentinel has been echoed; the write is synchronous in the same tick, so a delayed one is not a realistic failure.
+	await tools.get("pty_write").execute("w", { sessionId, data: "SENTINEL\r" });
+	const { text } = await readUntil(tools, sessionId, /SENTINEL/, { since: 0 });
+	assert.equal(text.match(/GOT\[/g)?.length, 1, `only the sentinel may have reached the session: ${text}`);
 	assert.ok(!text.includes(SECRET));
 });
 

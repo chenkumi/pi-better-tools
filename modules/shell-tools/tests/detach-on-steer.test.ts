@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolveDetachOnSteer, shouldDetachOnInput, trackForeground } from "../src/manual-detach.js";
+import { resolveDetachOnSteer, shouldDetachOnInput, trackForeground } from "../src/manual-detach.ts";
 
 const steer = { text: "please look at this", source: "interactive", streamingBehavior: "steer" };
 
@@ -24,7 +24,7 @@ test("only an interactive non-empty non-slash steer message triggers detach", ()
 });
 
 test("input handler detaches tracked foreground work once and never swallows the message", async () => {
-  const { ensureDetachShortcut } = await import("../src/manual-detach.js");
+  const { ensureDetachShortcut } = await import("../src/manual-detach.ts");
   const handlers = new Map<string, (event: unknown, ctx: unknown) => unknown>();
   let settings: unknown = undefined;
   const pi = {

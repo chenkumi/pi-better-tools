@@ -1,8 +1,8 @@
 import { appendFileSync } from 'node:fs';
 import { stripVTControlCharacters } from 'node:util';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { acquireBackgroundPanel } from '../../../../shared/src/background/index.js';
-import type { PanelJob } from '../../../../shared/src/background/index.js';
+import { acquireBackgroundPanel } from '../../../../shared/src/background/index.ts';
+import type { PanelJob } from '../../../../shared/src/background/index.ts';
 
 /** Offline terminal fixture: injected metadata, no subprocess jobs, models or persisted user state. */
 export default function (pi: ExtensionAPI) {
@@ -20,8 +20,8 @@ export default function (pi: ExtensionAPI) {
         if (key === 'pi-better-tools-jobs-panel') {
           // The expanded panel sits above the editor and holds the keyboard; there is no host overlay any more.
           if (typeof value === 'function') {
-            record({ event: 'opening', draft: ctx.ui.getEditorText() });
-            actualSetWidget(key, (runtime: any, theme: any) => { tui = runtime; overlayComponent = value(runtime, theme); return overlayComponent; }, options);
+            // The same component set again (the panel moving back below a widget that redrew) is not an opening.
+            actualSetWidget(key, (runtime: any, theme: any) => { tui = runtime; const next = value(runtime, theme); if (next !== overlayComponent) record({ event: 'opening', draft: ctx.ui.getEditorText() }); overlayComponent = next; return next; }, options);
           } else {
             actualSetWidget(key, value, options);
             if (overlayComponent) { overlayComponent = undefined; record({ event: 'closed', draft: ctx.ui.getEditorText(), overlay: false, focus: tui.getFocusedComponent?.()?.constructor.name }); }

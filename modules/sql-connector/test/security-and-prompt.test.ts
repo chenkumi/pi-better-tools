@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildSqlConnectorPrompt } from "../src/prompt.js";
-import { assertReadOnlySql, assertUpdateSql } from "../src/security/sql-policy.js";
+import { buildSqlConnectorPrompt } from "../src/prompt.ts";
+import { assertReadOnlySql, assertUpdateSql } from "../src/security/sql-policy.ts";
 
 describe("SQL policy", () => {
   it("allows one parameterized read statement", () => {

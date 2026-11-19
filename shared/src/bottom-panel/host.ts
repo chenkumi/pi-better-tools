@@ -38,7 +38,7 @@ export type PanelUi = Pick<ExtensionUIContext, 'setWidget' | 'onTerminalInput'>;
 const PASSTHROUGH = /^(?:\x1b\[<\d+;\d+;\d+[Mm]|\x1b\[[IO])$/;
 
 const ACTIVE = Symbol.for('pi-better-tools:bottom-panel:active');
-type Registry = { [ACTIVE]?: { close(): void; hideEditor: boolean; render?: (width: number) => string[] } };
+type Registry = { [ACTIVE]?: { close(): void; hideEditor: boolean; render?: (width: number) => string[]; reattach?: () => void } };
 const EDITOR_HOST = Symbol.for('pi-better-tools:bottom-panel:editor-host');
 const registry = globalThis as unknown as Registry & { [EDITOR_HOST]?: true };
 
@@ -72,6 +72,13 @@ export function renderHiddenEditorPanel(width: number): string[] | undefined {
   return active?.hideEditor && active.render ? active.render(width) : undefined;
 }
 
+/**
+ * Puts the open bottom panel back below every other widget above the editor. The host keeps those widgets in the order they were last
+ * set, so another widget that redraws itself (the Jobs panel) would otherwise move above a panel that opened earlier, and the two would
+ * swap places. Safe when none is open.
+ */
+export function keepBottomPanelLast(): void { try { registry[ACTIVE]?.reattach?.(); } catch { /* disposed terminal */ } }
+
 /** Closes whatever bottom panel is open (session switch, shutdown). Safe when none is open. */
 export function closeBottomPanel(): void { registry[ACTIVE]?.close(); }
 
@@ -87,6 +94,7 @@ export function openBottomPanel<T>(ui: PanelUi, options: BottomPanelOptions<T>):
     let body: BottomBody | undefined;
     let unsubscribe: (() => void) | undefined;
     let tui: TUI | undefined;
+    let shown: (Component & { dispose(): void }) | undefined;
     const handle: NonNullable<Registry[typeof ACTIVE]> = { close: () => finish(undefined), hideEditor: options.hideEditor === true && registry[EDITOR_HOST] === true }; // without the custom editor nothing would draw the panel: show it as a normal widget
     function finish(result: T | undefined): void {
       if (finished) return;
@@ -115,8 +123,11 @@ export function openBottomPanel<T>(ui: PanelUi, options: BottomPanelOptions<T>):
           render: width => (handle.hideEditor ? [] : draw(width)), // a hiding panel is drawn by the editor slot (renderHiddenEditorPanel)
           dispose() { /* the body is disposed by finish(), after the widget is gone */ },
         };
+        shown = component;
         return component;
       }, { placement: 'aboveEditor' });
+      // The same component goes back in (its dispose does nothing; the body lives until finish), only its place in the widget order changes.
+      handle.reattach = () => { if (!finished && shown) { const again = shown; ui.setWidget(options.key, () => again, { placement: 'aboveEditor' }); } };
       if (finished) { try { ui.setWidget(options.key, undefined, { placement: 'aboveEditor' }); } catch { /* disposed terminal */ } return; } // the body finished while it was being created
       unsubscribe = ui.onTerminalInput(data => {
         if (finished || PASSTHROUGH.test(data)) return undefined;

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { Value } from "typebox/value";
 import type { ExtensionAPI, ExtensionContext, ExtensionToolContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
-import sqliteExtension from "../src/index.js";
+import sqliteExtension from "../src/index.ts";
 
 test("every successful sqlite tool result validates against its outputSchema", async (t) => {
   const directory = mkdtempSync(join(tmpdir(), "pi-sqlite-structured-"));

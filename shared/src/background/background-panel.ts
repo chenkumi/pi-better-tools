@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { MouseRegion, visibleWidth, type Component } from "@earendil-works/pi-tui";
-import { openBottomPanel } from "../bottom-panel/host.ts";
+import { keepBottomPanelLast, openBottomPanel } from "../bottom-panel/host.ts";
 import { JobsOverlay, MORE_HOVER, OPEN_LABEL, PANEL_HEAD_ROWS, PANEL_KINDS, PANEL_TAIL_ROWS, displayedJobs, jobKey, renderJobs, safeJobText, type PanelJob, type PanelKind } from "./job-view.ts";
 
 export { type PanelKind } from "./job-view.ts";
@@ -160,6 +160,7 @@ export class BackgroundPanel {
         return Object.assign(mouse, { dispose: () => { disposed = true; moreRow = -1; jobRows = []; try { removeListener?.(); } catch { /* disposed terminal */ } if (this.hover !== undefined && revision === this.revision) this.hover = undefined; } });
       }, { placement: "aboveEditor" });
       this.ui = ctx; this.last = signature;
+      keepBottomPanelLast(); // this widget was just set, which moved it below an open panel
     } catch { this.hide(); }
   }
   /** Retain old command aliases; collapse is explicit, active jobs appear automatically by default. */

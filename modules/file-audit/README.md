@@ -35,7 +35,7 @@ pi --no-extensions -e ./modules/file-audit/src/index.ts
 
 ## 變更通知
 
-收到 user input（`before_agent_start` 的 `messageType: "user"`；extension／custom 觸發的 run 不檢查）時，比對窗口內檔案與上一次成功 read／write／edit／note 結束當下的狀態。有差異就回傳一則 custom message（`customType: "file-audit-changes"`、`display: true`），不是 system prompt、不破壞 prompt cache；內容固定英文前言（標明是資料、不是指令，編輯前先重讀）加單行 JSON：`{"changed":[{"path","change":"modified"|"deleted"}],"omitted":N}`，最多 10 筆，路徑為相對 cwd、清除控制與 bidi 字元、每條 200 字元。
+收到 user input（`before_agent_start` 的 `messageType: "user"`；extension／custom 觸發的 run 不檢查）時，比對窗口內檔案與上一次成功 read／write／edit／note 結束當下的狀態。有差異就回傳一則 custom message（`customType: "file-audit-changes"`、`display: false`，TUI 不顯示、agent 仍會收到），不是 system prompt、不破壞 prompt cache；內容固定英文前言（標明是資料、不是指令，編輯前先重讀）加單行 JSON：`{"changed":[{"path","change":"modified"|"deleted"}],"omitted":N}`，最多 10 筆，路徑為相對 cwd、清除控制與 bidi 字元、每條 200 字元。
 
 - 基準只存 size／mtime 與 SHA-256（≤ 8 MiB 才雜湊，背景計算且寫入時重驗 stat），不存內容；基準數量不超過 `maxFiles`。`.env`／`.env.*`、`auth.json`、`.git`、`.pi` 路徑不觀察。
 - size／mtime 相同視為未變；不同時若有基準雜湊則比對內容，僅 mtime 改變（內容相同）不通知；沒有基準雜湊（過大、尚未算完、雜湊失敗）時以 metadata 差異為準，可能誤報。單次最多讀取 32 MiB 做比對，超過的檔案只用 metadata。

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { assertReadOnlySql, assertUpdateSql } from "../src/security/sql-policy.js";
-import type { Engine } from "../src/types.js";
+import { assertReadOnlySql, assertUpdateSql } from "../src/security/sql-policy.ts";
+import type { Engine } from "../src/types.ts";
 
 const denied = (engine: Engine, sql: string) => expect(() => assertReadOnlySql(engine, sql), `${engine}: ${sql}`).toThrow();
 const allowed = (engine: Engine, sql: string) => expect(() => assertReadOnlySql(engine, sql), `${engine}: ${sql}`).not.toThrow();

@@ -13,7 +13,7 @@ const modulesDir = fileURLToPath(new URL('../../', import.meta.url));
  */
 const GENERIC_BY_DESIGN = new Set([
   // Not tools: deferred-tool namespaces and a provider stream event name that sit next to `name:` in the same files.
-  'pty', 'remote', 'sqlite', 'session', 'provider_stream_event',
+  'pty', 'remote', 'sqlite', 'session', 'goal', 'image', 'provider_stream_event',
 ]);
 
 function* sourceFiles(dir: string): Generator<string> {

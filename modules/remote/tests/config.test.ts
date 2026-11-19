@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test, { type TestContext } from 'node:test';
-import { isLoopback, loadRemoteConfig, parseRemoteConfig, remoteConfigPath } from '../src/config.js';
+import { isLoopback, loadRemoteConfig, parseRemoteConfig, remoteConfigPath } from '../src/config.ts';
 
 const server = { mode: 'server', server: { port: 7821 } };
 const client = { mode: 'client', client: { host: '192.168.1.10', port: 7821 } };

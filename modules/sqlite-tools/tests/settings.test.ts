@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { applyPatches, readRaw, removeFile, writeJsonAtomic } from "../../../shared/src/settings-panel/index.js";
-import { registerSqliteSettings, sqliteSettings } from "../src/settings.js";
+import { applyPatches, readRaw, removeFile, writeJsonAtomic } from "../../../shared/src/settings-panel/index.ts";
+import { registerSqliteSettings, sqliteSettings } from "../src/settings.ts";
 
 function withFile(fn: (file: string) => void) {
   const dir = mkdtempSync(join(tmpdir(), "pi-sqlite-settings-"));

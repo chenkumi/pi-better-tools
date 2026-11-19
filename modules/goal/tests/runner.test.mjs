@@ -161,6 +161,72 @@ describe("GoalRunner", () => {
     assert.equal((await loadGoal(dir)).record.status, "cancelled")
   })
 
+  it("pauses at once: the work in progress is stopped, the attempt does not count, and resume continues with a note about the unfinished work", async () => {
+    const dir = await newGoal([checkpoint("one", [], { maxAttempts: 1 }), checkpoint("two", [1])])
+    let started
+    const hasStarted = new Promise((resolve) => (started = resolve))
+    let first = true
+    const host = fakeHost({ implement: (_task, signal) => { if (!first) return { ok: true, summary: "finished" }; first = false; started(); return new Promise((resolve) => signal.addEventListener("abort", () => resolve({ ok: false, summary: "stopped" }))) } })
+    const runner = new GoalRunner(host)
+    const running = runner.start(dir)
+    await hasStarted
+    const paused = await runner.pause(dir)
+    assert.equal(paused.status, "paused")
+    assert.deepEqual(statuses(paused), ["pending", "pending"])
+    assert.equal(paused.checkpoints[0].attempts, 0, "a pause is not an attempt, so maxAttempts 1 is not used up")
+    assert.match(paused.checkpoints[0].log.at(-1), /paused by the user/)
+    assert.equal((await running).status, "paused")
+    assert.equal(runner.isRunning(dir), false)
+    assert.deepEqual(host.calls.check, [])
+    assert.equal((await loadGoal(dir)).record.status, "paused")
+    assert.equal((await new GoalRunner(fakeHost()).start(dir)).status, "paused", "a start does not wake a paused goal")
+    assert.equal((await runner.resume(dir)).status, "queued")
+    const record = await runner.start(dir)
+    assert.equal(record.status, "done")
+    assert.match(host.calls.implement[1].prompt, /paused by the user part-way/)
+    assert.doesNotMatch(host.calls.implement[2].prompt, /paused by the user part-way/)
+  })
+
+  it("pausing while a check runs stops the check and redoes the checkpoint on resume", async () => {
+    const dir = await newGoal([checkpoint("one", [])])
+    let started
+    const hasStarted = new Promise((resolve) => (started = resolve))
+    let checks = 0
+    const host = fakeHost({ check: (_command, signal) => { if (checks++ > 0) return { exitCode: 0, output: "ok" }; started(); return new Promise((resolve) => signal.addEventListener("abort", () => resolve({ exitCode: null, output: "" }))) } })
+    const runner = new GoalRunner(host)
+    const running = runner.start(dir)
+    await hasStarted
+    assert.equal((await runner.pause(dir)).status, "paused")
+    assert.equal((await running).status, "paused")
+    await runner.resume(dir)
+    assert.equal((await runner.start(dir)).status, "done")
+    assert.equal(host.calls.implement.length, 2)
+  })
+
+  it("pausing a goal that is not running changes its record, twice changes nothing, and a cancel still works", async () => {
+    const dir = await newGoal([checkpoint("one", [])])
+    const runner = new GoalRunner(fakeHost())
+    assert.equal((await runner.pause(dir)).status, "paused")
+    assert.equal((await runner.pause(dir)).status, "paused")
+    await assert.rejects(runner.retry(dir, 1), /only a blocked goal/)
+    assert.equal((await runner.cancel(dir)).status, "cancelled")
+    await assert.rejects(runner.pause(dir), /only a queued or running goal/)
+    await assert.rejects(runner.resume(dir), /only a paused goal/)
+  })
+
+  it("a cancel that follows a pause is still a cancel", async () => {
+    const dir = await newGoal([checkpoint("one", [])])
+    let started
+    const hasStarted = new Promise((resolve) => (started = resolve))
+    const host = fakeHost({ implement: (_task, signal) => (started(), new Promise((resolve) => signal.addEventListener("abort", () => resolve({ ok: false, summary: "stopped" })))) })
+    const runner = new GoalRunner(host)
+    const running = runner.start(dir)
+    await hasStarted
+    void runner.pause(dir)
+    assert.equal((await runner.cancel(dir)).status, "cancelled")
+    assert.equal((await running).status, "cancelled")
+  })
+
   it("cancels a goal that is not running by changing its record", async () => {
     const dir = await newGoal([checkpoint("one", [])])
     const runner = new GoalRunner(fakeHost())
@@ -220,7 +286,7 @@ describe("GoalRunner", () => {
     const host = fakeHost({ implement: () => new Promise((resolve) => (release = () => resolve({ ok: true, summary: "x" }))) })
     const runner = new GoalRunner(host)
     const first = runner.start(dir)
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    while (!release) await new Promise((resolve) => setTimeout(resolve, 5))
     const second = runner.start(dir)
     release()
     assert.equal((await first).status, "done")

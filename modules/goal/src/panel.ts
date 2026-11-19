@@ -1,13 +1,13 @@
 // The goal rows of the shared Jobs panel (README). Presentation only: one row per goal, no plan text, command or log on the row,
 // and nothing here starts, stops or changes a goal (the `goal_*` tools do).
-import { JobsWidgetBinding, safeJobText, type PanelJob } from "../../../shared/src/background/index.ts"
+import { JobsWidgetBinding, safeJobText, type PanelHost, type PanelJob } from "../../../shared/src/background/index.ts"
 import type { Plan } from "./plan.ts"
 import type { GoalRecord } from "./store.ts"
 
 export interface GoalRow { plan: Plan; record: GoalRecord }
 
 const MAX_ROWS = 32
-const ACTIVE = new Set(["queued", "running", "blocked"])
+const ACTIVE = new Set(["queued", "running", "paused", "blocked"])
 
 const entryOf = (record: GoalRecord, index: number) => record.checkpoints.find((entry) => entry.index === index)
 
@@ -26,6 +26,7 @@ export function goalPanelJob(row: GoalRow): PanelJob {
   const attempt = current ? `attempt ${Math.max(1, current.entry.attempts)}/${current.checkpoint.verify.maxAttempts}` : ""
   const needs = record.checkpoints.filter((entry) => ["failed", "skipped", "needs-human"].includes(entry.status)).length
   const activity = record.status === "blocked" ? `Needs attention · ${needs} checkpoint${needs === 1 ? "" : "s"} · ${done}/${total} done`
+    : record.status === "paused" ? `Paused · ${done}/${total} done`
     : record.status === "queued" ? `Queued · ${done}/${total} done`
     : current ? `${current.checkpoint.index}/${total} ${current.checkpoint.title} · ${current.entry.status} · ${attempt}`
     : `${done}/${total} done`
@@ -42,7 +43,7 @@ export function goalPanelJob(row: GoalRow): PanelJob {
 }
 
 export class GoalPanel extends JobsWidgetBinding<GoalRow> {
-  constructor() {
-    super("goal", (rows) => [...rows].sort((a, b) => b.record.createdAt.localeCompare(a.record.createdAt)).slice(0, MAX_ROWS).map(goalPanelJob))
+  constructor(api?: PanelHost) {
+    super("goal", (rows) => [...rows].sort((a, b) => b.record.createdAt.localeCompare(a.record.createdAt)).slice(0, MAX_ROWS).map(goalPanelJob), api)
   }
 }

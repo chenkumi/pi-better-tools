@@ -58,9 +58,11 @@ export function usageLabel(job: Pick<PanelJob, "usageState" | "usage" | "active"
 export function usageDetails(usage?: PanelUsage): string {
   return usage ? `Input ${usage.input} · Output ${usage.output} · Cache read ${usage.cacheRead} · Cache write ${usage.cacheWrite} · Total ${usage.totalTokens} · Cost $${usage.cost.toFixed(4)}` : "Usage not reported; unknown is not zero.";
 }
+/** A goal that is still going (queued, running or blocked and waiting for a person) is pinned above every other job; finished goals sort like any other. */
+const pinned = (j: PanelJob) => (j.kind === "goal" && j.active ? 0 : 1);
 export function orderedJobs(jobs: readonly PanelJob[]): PanelJob[] {
   const rank = (j: PanelJob) => !j.active ? 4 : j.state === "cancelling" ? 0 : j.state === "running" ? 1 : j.state === "finalizing" ? 2 : 3;
-  return [...jobs].sort((a, b) => rank(a) - rank(b) || (a.active ? (a.startedAt ?? 0) - (b.startedAt ?? 0) : (b.startedAt ?? 0) - (a.startedAt ?? 0)) || jobKey(a).localeCompare(jobKey(b)));
+  return [...jobs].sort((a, b) => pinned(a) - pinned(b) || rank(a) - rank(b) || (a.active ? (a.startedAt ?? 0) - (b.startedAt ?? 0) : (b.startedAt ?? 0) - (a.startedAt ?? 0)) || jobKey(a).localeCompare(jobKey(b)));
 }
 const HEADING_TAG: Record<PanelKind, string> = { subagents: "SA", shell: "SH", spinoff: "FK", monitor: "MN", pty: "PT", schedule: "SC", goal: "GL" };
 export function jobHeading(job: PanelJob): string {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { registerBackgroundLifecycleGuidance, BACKGROUND_LIFECYCLE_SECTION } from '../src/background-guidance.js';
+import { registerBackgroundLifecycleGuidance, BACKGROUND_LIFECYCLE_SECTION } from '../src/background-guidance.ts';
 
 function fixture(active: string[]) {
   const handlers: Array<(event: any) => any> = [];

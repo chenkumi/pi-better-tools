@@ -38,3 +38,9 @@ test("the passive panel shows a Goal count and a GL row", () => {
   assert.match(lines, /Goal: 1/);
   assert.match(lines, /GL Ship it/);
 });
+
+test("a paused goal stays active and says so", () => {
+  const paused = goalPanelJob({ plan, record: record("paused", [["done", 1], ["pending", 0]]) });
+  assert.equal(paused.active, true);
+  assert.match(paused.activity, /Paused · 1\/2 done/);
+});

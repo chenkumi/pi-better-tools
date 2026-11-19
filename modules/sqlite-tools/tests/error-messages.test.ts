@@ -3,7 +3,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { MAX_QUERY_ROWS, SqliteManager } from "../src/sqlite-manager.js";
+import { MAX_QUERY_ROWS, SqliteManager } from "../src/sqlite-manager.ts";
 
 function open(): SqliteManager {
   const manager = new SqliteManager();

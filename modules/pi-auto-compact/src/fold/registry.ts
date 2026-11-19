@@ -2,6 +2,7 @@ import { agentRules } from './rules/agents.ts';
 import { dataRules } from './rules/data.ts';
 import { execRules } from './rules/exec.ts';
 import { fileRules } from './rules/files.ts';
+import { goalRules, imageRules } from './rules/goal.ts';
 import { ptyRules } from './rules/pty.ts';
 import { type EntryRef, formatRef } from './ref.ts';
 import type { FoldRule, ToolCallInfo, ToolResultInfo } from './types.ts';
@@ -9,7 +10,7 @@ import { oneLine, redact, summarizeArgs } from './util.ts';
 
 export type { ToolCallInfo, ToolResultInfo } from './types.ts';
 
-const RULES: Readonly<Record<string, FoldRule>> = Object.freeze({ ...fileRules, ...execRules, ...agentRules, ...ptyRules, ...dataRules });
+const RULES: Readonly<Record<string, FoldRule>> = Object.freeze({ ...fileRules, ...execRules, ...agentRules, ...ptyRules, ...dataRules, ...goalRules, ...imageRules });
 
 const DEFAULT_ERROR_MAX = 400;
 const GENERIC_HEAD = 200;

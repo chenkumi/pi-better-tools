@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { createConnection } from 'node:net';
 import test from 'node:test';
-import { LIMITS, REMOTE_PATH, generateCode } from '../src/protocol.js';
-import { RawPeer, fingerprintOf, otherTlsFixture, startClient, startHub, tlsFixture } from './helpers.js';
+import { LIMITS, REMOTE_PATH, generateCode } from '../src/protocol.ts';
+import { RawPeer, fingerprintOf, otherTlsFixture, startClient, startHub, tlsFixture } from './helpers.ts';
 
 const send = (to: string, body: string, id = `id-${Math.random().toString(36).slice(2)}`) => ({ t: 'send' as const, id, to, kind: 'message' as const, body });
 

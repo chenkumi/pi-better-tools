@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { SqliteClient } from "../src/sqlite-client.js";
+import { SqliteClient } from "../src/sqlite-client.ts";
 
 test("BLOBs, bigint and bindings round-trip through the JSON IPC channel", async t => {
   const directory = mkdtempSync(join(tmpdir(), "pi-sqlite-ipc-"));
