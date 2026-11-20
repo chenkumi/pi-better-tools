@@ -252,8 +252,8 @@ RPC 啟動錯誤保留原始錯誤碼／訊息，另附英文 `Startup observati
 
 | Agent | tools | 用途 |
 | --- | --- | --- |
-| `scout` | read, grep, find, ls, bash | 快速探索程式碼並產生可交接的精簡 context |
-| `planner` | read, grep, find, ls | 依需求與 context 產生實作計畫（唯讀） |
+| `scout` | read, grep, find, ls, bash, note | 快速探索程式碼並產生可交接的精簡 context；完整內容以 `note({ type: "report", content })` 產生報告 |
+| `planner` | read, grep, find, ls, note | 依需求與 context 產生實作計畫（唯讀）；完整計畫以 `note({ type: "report", content })` 產生報告 |
 | `reviewer` | read, grep, find, ls, bash, note | 品質、安全與可維護性 review；bash 僅限唯讀，完整報告唯一透過 `note({ type: "report", content })` 新增 |
 | `worker` | 不限定 | 通用、完整能力；僅在使用者或 skill 指派時啟動 |
 
