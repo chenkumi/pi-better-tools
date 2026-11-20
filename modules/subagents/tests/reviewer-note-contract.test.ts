@@ -6,7 +6,7 @@ const definition = readFileSync(new URL("../agents/reviewer.md", import.meta.url
 
 test("bundled reviewer selects note without general file mutation tools", () => {
   const tools = /^tools:\s*(.+)$/m.exec(definition)?.[1].split(",").map(value => value.trim());
-  assert.deepEqual(tools, ["read", "grep", "find", "ls", "bash", "note"]);
+  assert.deepEqual(tools, ["read", "grep", "find", "ls", "bash", "powershell", "note"]);
   assert.ok(!tools.includes("write") && !tools.includes("edit"));
 });
 

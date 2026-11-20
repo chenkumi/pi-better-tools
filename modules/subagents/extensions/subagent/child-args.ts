@@ -1,4 +1,4 @@
-import { PROGRESS_CHECKPOINT_TOOL, SPINOFF_TOOLS, SUBAGENT_TOOLS } from "../../../../shared/src/contracts/index.ts";
+import { PROGRESS_CHECKPOINT_TOOL, SESSION_TOOLS, SPINOFF_TOOLS, SUBAGENT_TOOLS } from "../../../../shared/src/contracts/index.ts";
 
 /** Called only at owned managed-child spawn sites (new/resume/ready-query).
  * Keep identity explicit, not inferred from transport, cwd, or session files.
@@ -25,8 +25,11 @@ export interface SubagentPiArgsOptions {
 	taskPath: string;
 }
 
-/** The progress checkpoint anchor tool of Pi Auto Compact; a child with an explicit tool list still needs it to anchor long runs. A tool list of +name/-name entries cannot mix in a bare name. */
-const withProgressCheckpoint = (tools: readonly string[]): string => (tools.some((tool) => tool.startsWith("+") || tool.startsWith("-")) ? `+${PROGRESS_CHECKPOINT_TOOL}` : PROGRESS_CHECKPOINT_TOOL);
+/** Pi Auto Compact's tools (the progress checkpoint anchor and the read-only session_* retrieval) are on every child's allowlist: a child with an explicit tool list still needs them across compaction. A tool list of +name/-name entries cannot mix in bare names. */
+const withCompactionTools = (tools: readonly string[]): string[] => {
+	const prefix = tools.some((tool) => tool.startsWith("+") || tool.startsWith("-")) ? "+" : "";
+	return [PROGRESS_CHECKPOINT_TOOL, ...SESSION_TOOLS].map((name) => `${prefix}${name}`);
+};
 
 /**
  * Build the Pi CLI arguments for a child subagent process.
@@ -49,7 +52,7 @@ export function buildSubagentPiArgs(options: SubagentPiArgsOptions): string[] {
 	if (rpc && options.bridgePath) args.push("-e", options.bridgePath);
 	if (options.model) args.push("--model", options.model);
 	if (options.thinkingLevel) args.push("--thinking", options.thinkingLevel);
-	if (options.tools && options.tools.length > 0) args.push("--tools", [...options.tools, withProgressCheckpoint(options.tools)].join(","));
+	if (options.tools && options.tools.length > 0) args.push("--tools", [...options.tools, ...withCompactionTools(options.tools)].join(","));
 	if (options.promptPath) args.push("--append-system-prompt", options.promptPath);
 	if (!rpc) args.push(`@${options.taskPath}`);
 

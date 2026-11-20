@@ -10,6 +10,8 @@ export const SUBAGENT_TOOLS = ['subagent', 'agent_status', 'agent_cancel', 'agen
 export const SPINOFF_TOOLS = ['spinoff'] as const;
 export const MONITOR_TOOLS = ['monitor_start', 'monitor_status', 'monitor_stop'] as const;
 export const PROGRESS_CHECKPOINT_TOOL = 'progress_checkpoint';
+/** Read-only retrieval of the current session and its ancestors (Pi Auto Compact owns them). */
+export const SESSION_TOOLS = ['session_grep', 'session_window', 'session_read'] as const;
 
 /** Names that prompt rules mention. `grep` and `find` are provided by the FFF override, not by file-tools. */
 export const FILE_INSPECT_TOOLS = ['read', 'grep', 'find', 'ls'] as const;

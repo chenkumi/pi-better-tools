@@ -14,6 +14,8 @@ export interface AgentConfig {
 	name: string;
 	description: string;
 	tools?: string[];
+	/** `git-readonly`: bash/powershell calls in the child are limited to `git diff|log|show` (see git-readonly.ts). */
+	shell?: "git-readonly";
 	model?: string;
 	systemPrompt: string;
 	source: AgentSource;
@@ -37,8 +39,12 @@ type AgentFrontmatter = {
 	name?: unknown;
 	description?: unknown;
 	tools?: unknown;
+	shell?: unknown;
 	model?: unknown;
 };
+
+/** Tool allowlist for an agent definition without `tools`: a child never falls back to the host's default tool set. */
+export const DEFAULT_AGENT_TOOLS: readonly string[] = ["read", "grep", "find", "ls", "note"];
 
 /**
  * Normalize a frontmatter `tools` value to a list of tool names.
@@ -103,7 +109,8 @@ function loadAgentsFromDir(dir: string, source: AgentSource): AgentConfig[] {
 		agents.push({
 			name: frontmatter.name,
 			description: frontmatter.description,
-			tools: parseToolList(frontmatter.tools),
+			tools: parseToolList(frontmatter.tools) ?? [...DEFAULT_AGENT_TOOLS],
+			...(frontmatter.shell === "git-readonly" ? { shell: "git-readonly" as const } : {}),
 			model: typeof frontmatter.model === "string" ? frontmatter.model : undefined,
 			systemPrompt: body,
 			source,

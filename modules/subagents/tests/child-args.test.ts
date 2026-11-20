@@ -39,20 +39,20 @@ test("allowlisted bundled agents retain their tools and exclude subagent", () =>
 	});
 
 	expectSubagentExcluded(args);
-	assert.equal(optionValue(args, "--tools"), "read,grep,find,ls,bash,progress_checkpoint", "the anchor tool of Pi Auto Compact is added to an explicit list");
+	assert.equal(optionValue(args, "--tools"), "read,grep,find,ls,bash,progress_checkpoint,session_grep,session_window,session_read", "the Pi Auto Compact tools are added to an explicit list");
 });
 
 test("a user agent cannot re-enable subagent through its tools list", () => {
 	const args = buildSubagentPiArgs({ persistence, taskPath: "/tmp/task.txt", tools: ["read", "subagent"] });
 
 	expectSubagentExcluded(args);
-	assert.equal(optionValue(args, "--tools"), "read,subagent,progress_checkpoint");
+	assert.equal(optionValue(args, "--tools"), "read,subagent,progress_checkpoint,session_grep,session_window,session_read");
 });
 
 test("a +name/-name tool list gets the anchor tool as +name, never a bare name mixed in", () => {
 	const args = buildSubagentPiArgs({ persistence, taskPath: "/tmp/task.txt", tools: ["-bash", "+grep"] });
 
-	assert.equal(optionValue(args, "--tools"), "-bash,+grep,+progress_checkpoint");
+	assert.equal(optionValue(args, "--tools"), "-bash,+grep,+progress_checkpoint,+session_grep,+session_window,+session_read");
 });
 
 test("provider-resolved model, thinking level, and prompt path are preserved", () => {
@@ -103,4 +103,10 @@ test("installed Pi @file pipeline preserves long task content without recursive 
 	} finally {
 		await rm(dir, { recursive: true, force: true });
 	}
+});
+
+test("the session tools named in shared contracts are the ones Pi Auto Compact registers", async () => {
+	const { SESSION_TOOLS } = await import("../../../shared/src/contracts/index.ts");
+	const tool = await import("../../pi-auto-compact/src/session-read/tool.ts");
+	assert.deepEqual([...SESSION_TOOLS].sort(), [tool.SESSION_GREP_TOOL, tool.SESSION_READ_TOOL, tool.SESSION_WINDOW_TOOL].sort());
 });
