@@ -26,7 +26,7 @@ for (const scenario of ["success", "send-throws", "write-fails", "model-rejected
 			} });
 			process.env.PI_SUBAGENTS_GUARD = JSON.stringify({ id: "session", cwd: fs.realpathSync(root), model: "offline/fixture", thinkingLevel: "off", childTrusted: false, startupPath: join(root, "startup.json"), bridgeToken: "PRIVATE_TOKEN" });
 			const ctx = { cwd: root, model: { provider: "offline", id: "fixture" }, modelRegistry: { find() { return ["model-rejected", "rejected-stderr-fails"].includes(scenario) ? undefined : {}; } }, sessionManager: { getSessionId: () => "session" }, isProjectTrusted: () => false };
-			guard({ on(event: string, callback: Function) { assert.equal(event, "session_start"); handler = callback; }, getThinkingLevel: () => "off" } as any);
+			guard({ on(event: string, callback: Function) { assert.equal(event, "session_start"); handler = callback; }, getThinkingLevel: () => "off", getActiveTools: () => [], getAllTools: () => [], setActiveTools() {} } as any);
 			assert.equal(process.env.PI_SUBAGENTS_GUARD, undefined);
 			if (["write-fails", "throwing-error-getter", "failed-stderr-fails"].includes(scenario)) { t.mock.method(fs, "writeFileSync", () => { throw failure; }); syncBuiltinESMExports(); }
 			if (scenario === "failed-stderr-fails") {

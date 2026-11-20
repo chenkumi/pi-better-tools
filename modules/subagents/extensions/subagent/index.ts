@@ -704,7 +704,7 @@ async function runSingleAgentUnlimited(
 			let proc: ReturnType<typeof spawn>;
 			// POSIX: own process group so termination can signal grandchildren too (see killProcessTree); Windows uses taskkill /T.
 			try { proc = spawn(invocation.command, invocation.args, { cwd: cwd ?? defaultCwd, shell: false, detached: process.platform !== "win32", stdio: isRpc ? ["pipe", "pipe", "pipe", "ipc"] : ["ignore", "pipe", "pipe"],
-				env: buildManagedChildEnvironment({ id: managed!.id, cwd: managed!.manifest.config.cwd, model, thinkingLevel: managed!.manifest.config.thinkingLevel, childTrusted: managed!.manifest.config.childTrusted, startupPath: managed!.startupPath, bridgeToken }) }); }
+				env: buildManagedChildEnvironment({ id: managed!.id, cwd: managed!.manifest.config.cwd, model, thinkingLevel: managed!.manifest.config.thinkingLevel, childTrusted: managed!.manifest.config.childTrusted, startupPath: managed!.startupPath, bridgeToken, ...(agent.shell ? { shellPolicy: agent.shell } : {}) }) }); }
 			catch (error) {
 				const message = `Subagent process failed to start: ${errorToString(error)}`;
 				currentResult.errorMessage = startupDiagnostics?.failureMessage(message) ?? message;

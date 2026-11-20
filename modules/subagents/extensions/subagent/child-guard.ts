@@ -2,6 +2,8 @@ import * as fs from "node:fs";
 import { VERSION, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { consumeManagedChildGuard } from "../../../../shared/src/background/index.ts";
 import { verifyStartupReceipt } from "./child-startup-receipt.ts";
+import { deferActivatedTools } from "./defer-tools.ts";
+import { checkGitReadonly } from "./git-readonly.ts";
 
 /** Managed children only. Verify the child's registry/trust before its first provider request.
  * This is a configuration guard, not a boundary against hostile installed extensions.
@@ -17,6 +19,16 @@ export default function (pi: ExtensionAPI) {
 		try { process.send({ channel: "pi-subagent-startup", token: expected.bridgeToken, phase, piVersion: VERSION, nodeVersion: process.version, ...(errorCode ? { errorCode } : {}) }, () => {}); } catch { /* diagnostics cannot change guard outcome */ }
 	};
 	observe("guard_loaded");
+	if (expected.shellPolicy === "git-readonly") {
+		pi.on("tool_call", (event) => {
+			if (event.toolName !== "bash" && event.toolName !== "powershell") return undefined;
+			const input = event.input as { command?: unknown };
+			const verdict = checkGitReadonly(input.command);
+			if (!verdict.ok) return { block: true, reason: `SHELL_COMMAND_NOT_ALLOWED: this agent's shell is limited to git diff, git log and git show: ${verdict.reason}.` };
+			input.command = verdict.command;
+			return undefined;
+		});
+	}
 	pi.on("session_start", (_event, ctx) => {
 		observe("guard_session_start");
 		let errorCode: string | undefined, failure: unknown, failed = false;
@@ -60,5 +72,6 @@ export default function (pi: ExtensionAPI) {
 		expected.thinkingLevel = pi.getThinkingLevel();
 		expected.childTrusted = ctx.isProjectTrusted();
 		observe("guard_verified");
+		if (_event.reason !== "reload") deferActivatedTools(pi);
 	});
 }
