@@ -5,6 +5,7 @@ import { buildSqlConnectorPrompt } from "./prompt.ts";
 import { SqlConnectorRuntime } from "./runtime.ts";
 import { registerEngineTools } from "./tools.ts";
 import { SqlConnectorError } from "./types.ts";
+import { isManagedForegroundChild } from "../../../shared/src/background/index.ts";
 import { createForcedPromptAppender } from "../../../shared/src/prompt/index.ts";
 
 const NOTICE_SECTION = "sql_connector_error";
@@ -19,6 +20,8 @@ function configErrorNotice(message: string): string {
 }
 
 export default function sqlConnectorExtension(pi: ExtensionAPI): void {
+  // A Subagent child gets no database tools, settings command or connection pool.
+  if (isManagedForegroundChild()) return;
   registerSqlConnectorSettings(pi);
   let runtime: SqlConnectorRuntime | undefined;
   let configError: string | undefined;

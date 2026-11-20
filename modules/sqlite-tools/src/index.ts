@@ -13,6 +13,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { JsonValue } from "@earendil-works/pi-ai";
 import { Type, type Static, type TSchema } from "typebox";
+import { isManagedForegroundChild } from "../../../shared/src/background/index.ts";
 import { ToolError } from "../../../shared/src/tool-error/index.ts";
 import { SqliteStartupError } from "./node-runtime.ts";
 import { SqliteClient } from "./sqlite-client.ts";
@@ -245,6 +246,8 @@ function structuredFor(value: unknown, textTruncated: boolean, arrayKey: string 
 }
 
 export default function sqliteExtension(pi: ExtensionAPI) {
+  // A Subagent child gets no database tools, settings command or helper process.
+  if (isManagedForegroundChild()) return;
   registerSqliteSettings(pi);
   const manager = new SqliteClient();
   let startupError: string | undefined = "SQLite tools are not initialized. Wait for session_start.";

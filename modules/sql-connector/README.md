@@ -4,6 +4,8 @@
 
 ## 支援的資料庫與 deferred tools
 
+**Subagent child 不註冊**：由 Subagents 啟動的 child（managed guard handshake，`isManagedForegroundChild()`）載入本入口時直接返回，沒有工具、`/settings:sql-connector` 指令與連線池。Spinoff 與主代理不受影響。測試：`test/managed-child.test.ts`。
+
 | 設定鍵／namespace | 工具 | SQL placeholder | params |
 | --- | --- | --- | --- |
 | `mysql` | `mysql_state`、`mysql_query`、`mysql_update` | `?` | ordered array |

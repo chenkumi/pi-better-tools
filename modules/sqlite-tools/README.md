@@ -4,6 +4,8 @@
 
 ## Deferred tools 與短提示
 
+**Subagent child 不註冊**：由 Subagents 啟動的 child（managed guard handshake，`isManagedForegroundChild()`）載入本入口時直接返回，沒有工具、`/settings:sqlite-tools` 指令與 helper 行程。Spinoff 與主代理不受影響。測試：`tests/managed-child.test.ts`。
+
 八個工具皆以 `exposure: "deferred"`、`sqlite` namespace 註冊：`sqlite_open`、`sqlite_close`、`sqlite_status`、`sqlite_query`、`sqlite_execute`、`sqlite_list_tables`、`sqlite_describe_table`、`sqlite_manual`。Fixed mode 只註冊後六個工具。
 
 與 PTY 相同，由 Pi Runtime 統一處理 `tool_search` 啟用、無搜尋工具時的直接宣告 fallback，以及未載入時的系統提示，不另加 module-local hook。提示包含：
