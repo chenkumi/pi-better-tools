@@ -5,8 +5,6 @@ import { join } from "node:path";
 import test from "node:test";
 import { DEFAULT_AGENT_TOOLS, discoverAgents } from "../extensions/subagent/agents.ts";
 
-const SQL = ["mysql", "mssql", "pgsql"].flatMap((db) => [`${db}_state`, `${db}_query`, `${db}_update`]);
-const SQLITE = ["open", "close", "status", "query", "execute", "list_tables", "describe_table", "manual"].map((name) => `sqlite_${name}`);
 const READ_ONLY = ["read", "grep", "find", "ls", "note"];
 
 const bundled = (name: string) => {
@@ -21,7 +19,7 @@ test("bundled agents carry exactly their tool allowlist", () => {
 	assert.deepEqual(bundled("scout").tools, READ_ONLY);
 	assert.deepEqual(bundled("planner").tools, READ_ONLY);
 	assert.deepEqual(bundled("reviewer").tools, ["read", "grep", "find", "ls", "bash", "powershell", "note"]);
-	assert.deepEqual(bundled("worker").tools, ["read", "write", "edit", "grep", "find", "ls", "bash", "powershell", "note", "tool_search", "web_fetch", "web_search", ...SQLITE, ...SQL]);
+	assert.deepEqual(bundled("worker").tools, ["read", "write", "edit", "grep", "find", "ls", "bash", "powershell", "note", "web_fetch", "web_search"]);
 });
 
 test("only reviewer has the git-only shell", () => {
