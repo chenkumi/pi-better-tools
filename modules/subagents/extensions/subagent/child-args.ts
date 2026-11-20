@@ -25,6 +25,9 @@ export interface SubagentPiArgsOptions {
 	taskPath: string;
 }
 
+/** `--tools` does not remove MCP tools (and `tool_search` can load unlisted ones), so a child excludes them all explicitly. */
+const MCP_TOOLS = ["mcp__*", "list_mcp_resources", "list_mcp_resource_templates", "read_mcp_resource"] as const;
+
 /** Pi Auto Compact's tools (the progress checkpoint anchor and the read-only session_* retrieval) are on every child's allowlist: a child with an explicit tool list still needs them across compaction. A tool list of +name/-name entries cannot mix in bare names. */
 const withCompactionTools = (tools: readonly string[]): string[] => {
 	const prefix = tools.some((tool) => tool.startsWith("+") || tool.startsWith("-")) ? "+" : "";
@@ -41,7 +44,7 @@ const withCompactionTools = (tools: readonly string[]): string[] => {
  */
 export function buildSubagentPiArgs(options: SubagentPiArgsOptions): string[] {
 	const rpc = options.transport === "rpc";
-	const args = ["--mode", rpc ? "rpc" : "json", ...(!rpc ? ["-p"] : []), "--exclude-tools", [...SUBAGENT_TOOLS, ...SPINOFF_TOOLS].join(",")];
+	const args = ["--mode", rpc ? "rpc" : "json", ...(!rpc ? ["-p"] : []), "--exclude-tools", [...SUBAGENT_TOOLS, ...SPINOFF_TOOLS, ...MCP_TOOLS].join(",")];
 	const persistence = options.persistence;
 	if (!persistence || !["new", "resume"].includes(persistence.kind)) throw new Error("Managed session persistence is required for every subagent child.");
 	args.push("--session-dir", persistence.sessionDir);

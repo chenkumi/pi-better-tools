@@ -60,10 +60,12 @@ export const DEFAULT_AGENT_TOOLS: readonly string[] = ["read", "grep", "find", "
  */
 function parseToolList(value: unknown): string[] | undefined {
 	const raw = Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : [];
+	// Pi treats a list of only `+name`/`-name` entries as a change to its default tools, not an allowlist. An agent's list is always
+	// an allowlist: `+name` names a tool, `-name` is dropped (a tool that is not listed is already absent).
 	const tools = raw
 		.filter((t): t is string => typeof t === "string")
-		.map((t) => t.trim())
-		.filter(Boolean);
+		.map((t) => t.trim().replace(/^\+/, ""))
+		.filter((t) => t && !t.startsWith("-"));
 	return tools.length > 0 ? tools : undefined;
 }
 

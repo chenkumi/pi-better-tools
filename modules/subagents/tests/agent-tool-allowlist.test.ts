@@ -29,6 +29,20 @@ test("only reviewer has the git-only shell", () => {
 	for (const name of ["worker", "scout", "planner"]) assert.equal(bundled(name).shell, undefined, name);
 });
 
+test("+name/-name lists become allowlists instead of changing Pi's default tools", () => {
+	const home = mkdtempSync(join(tmpdir(), "pi-allowlist-"));
+	const previous = process.env.PI_CODING_AGENT_DIR;
+	process.env.PI_CODING_AGENT_DIR = join(home, "agent");
+	try {
+		mkdirSync(join(home, "agent", "agents"), { recursive: true });
+		writeFileSync(join(home, "agent", "agents", "mods.md"), "---\nname: mods\ndescription: modifiers\ntools: -bash, +grep, +read\n---\nBody.");
+		writeFileSync(join(home, "agent", "agents", "only-minus.md"), "---\nname: only-minus\ndescription: only minus\ntools: -bash,-write\n---\nBody.");
+		const agents = discoverAgents(join(home, "workspace"), "user").agents;
+		assert.deepEqual(agents.find((agent) => agent.name === "mods")?.tools, ["grep", "read"]);
+		assert.deepEqual(agents.find((agent) => agent.name === "only-minus")?.tools, READ_ONLY);
+	} finally { if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previous; rmSync(home, { recursive: true, force: true }); }
+});
+
 test("an agent without tools gets the read-only default instead of the host's tool set", () => {
 	assert.deepEqual([...DEFAULT_AGENT_TOOLS], READ_ONLY);
 	const home = mkdtempSync(join(tmpdir(), "pi-allowlist-"));
