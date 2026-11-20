@@ -15,7 +15,7 @@ function install(shellPolicy?: string) {
 test("git-readonly policy blocks other commands and rewrites allowed ones", () => {
 	const hook = install("git-readonly").get("tool_call")!;
 	assert.ok(hook);
-	const blocked = hook({ toolName: "bash", input: { command: "git status; rm -rf x" } });
+	const blocked = hook({ toolName: "bash", input: { command: "git commit -m x; rm -rf x" } });
 	assert.equal(blocked.block, true);
 	assert.match(blocked.reason, /^SHELL_COMMAND_NOT_ALLOWED/);
 	const input = { command: "git diff HEAD~1", timeoutMs: 1000 };

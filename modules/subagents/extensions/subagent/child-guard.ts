@@ -24,7 +24,7 @@ export default function (pi: ExtensionAPI) {
 			if (event.toolName !== "bash" && event.toolName !== "powershell") return undefined;
 			const input = event.input as { command?: unknown };
 			const verdict = checkGitReadonly(input.command);
-			if (!verdict.ok) return { block: true, reason: `SHELL_COMMAND_NOT_ALLOWED: this agent's shell is limited to git diff, git log and git show: ${verdict.reason}.` };
+			if (!verdict.ok) return { block: true, reason: `SHELL_COMMAND_NOT_ALLOWED: this agent's shell is limited to git diff, git log, git show and git status: ${verdict.reason}.` };
 			input.command = verdict.command;
 			return undefined;
 		});
