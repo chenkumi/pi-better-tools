@@ -120,7 +120,8 @@
         "test:package": "node scripts/package-smoke.mjs",
         "check": "npm run build && npm run typecheck && npm run lint && npm test && npm run test:integration && npm run test:package",
         "pty:install": "node setup/cli.mjs pty setup",
-        "prepack": "npm run build"
+        "prepack": "npm run build",
+        "pi:patch": "node scripts/patch-pi.mjs"
     },
     "allowScripts": {
         "node-pty@1.2.0-beta.18": true,
