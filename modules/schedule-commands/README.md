@@ -54,6 +54,7 @@
 - 新增、變更、重新啟用與 `run_now` 都不經使用者確認，也不需互動 UI。
 - 壽命沿用 Monitor 的 `durationMs`（上限 1800000）；每次到點啟動一個新的監看，session 關閉或 reload 時一併結束，不跨重啟重播。
 - Monitor 同時活躍上限為 4。同一個 job 上一次啟動的監看還在跑時，這次到點**略過**（`skipped`，顯示標記說明），不堆疊；這個記錄只在記憶體，reload 後重置。其他 job 或手動監看佔滿名額時，到點會因 Monitor 拒絕而記錄錯誤。
+- 錯過次數最多計到 1000 筆：超過時訊息顯示 `1000+`（下限），`run-once` 仍補跑窗口內**最新**的一次（不是前 1000 筆中最舊者的最後一筆）。
 - 與 shell 連動：用 `schedule_shell` 與 `schedule_monitor` 排**同一時間**，引擎保證 shell 先 spawn 再啟動 monitor；兩個 job 的補跑策略各自獨立。monitor job 的 `missed` 只允許 `skip`／`run-once`，預設 `skip`。
 - 輸出不進模型上下文的不變量不變：排程模組不轉送指令輸出，Monitor 回報由 Monitor 自己的規則決定。
 

@@ -77,6 +77,19 @@ test("run-once catches up once with the missed count, but only inside maxLateMs"
 	} finally { s.engine.stop(); s.done(); }
 });
 
+test("run-once on a high-frequency schedule uses the newest missed time and reports a lower-bound count", async () => {
+	const s = setup();
+	try {
+		// Every second for two hours: far more than the 1000 due times that are counted, and a 30 minute window holds 1800.
+		const job = makeJob({ name: "fast", missed: "run-once", schedule: { type: "interval", everyMs: 1000 }, state: { runCount: 0, nextDue: iso(T0 - 2 * HOUR) }, maxLateMs: 30 * 60_000 });
+		put(s.store, job);
+		await s.engine.start();
+		assert.equal(s.exec.calls.length, 1);
+		assert.equal(s.exec.calls[0].info.scheduledFor, iso(T0), "the newest due time, not the oldest of the first 1000");
+		assert.ok(s.events.some((e) => e.type === "catch-up" && e.message === "catch-up (missed 1000+)"));
+	} finally { s.engine.stop(); s.done(); }
+});
+
 test("run-all runs missed times oldest first, one after another, capped by maxCatchUp", async () => {
 	const exec = fakeExecutor();
 	const s = setup({ maxCatchUp: 3 }, "S1", exec);

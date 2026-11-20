@@ -88,6 +88,7 @@ function planJob(job: Job, nowMs: number, running: ReadonlyMap<string, JobKind>,
 	const events: EngineEvent[] = [];
 	let dates: number[];
 	let missed: number | undefined;
+	let missedText = "";
 	let policy: MissedPolicy | undefined;
 	if (nowMs - due <= LATE_GRACE_MS) {
 		dates = [due];
@@ -95,16 +96,20 @@ function planJob(job: Job, nowMs: number, running: ReadonlyMap<string, JobKind>,
 		policy = policyOf(job, settings);
 		const total = missedRuns(job.schedule, new Date(due - 1), new Date(nowMs), anchor);
 		missed = total.dates.length;
+		missedText = total.truncated ? `${missed}+` : String(missed); // a truncated count is a lower bound
 		if (policy === "skip") dates = [];
 		else {
 			const windowStart = Math.max(due - 1, nowMs - (job.maxLateMs ?? settings.defaultMaxLateMs) - 1);
-			const eligible = missedRuns(job.schedule, new Date(windowStart), new Date(nowMs), anchor).dates.map((d) => d.getTime()).filter((t) => t < endMs);
-			dates = policy === "run-once" ? eligible.slice(-1) : eligible.slice(0, settings.maxCatchUp);
+			const window = missedRuns(job.schedule, new Date(windowStart), new Date(nowMs), anchor);
+			const eligible = window.dates.map((d) => d.getTime()).filter((t) => t < endMs);
+			// `window.dates` holds only the oldest runs when truncated; run-once wants the newest, which `latest` still names.
+			const newest = window.truncated && window.latest && window.latest.getTime() < endMs ? window.latest.getTime() : eligible.at(-1);
+			dates = policy === "run-once" ? (newest === undefined ? [] : [newest]) : eligible.slice(0, settings.maxCatchUp);
 		}
 	}
 
 	if (dates.length === 0) {
-		const message = `missed ${missed} run(s); not caught up (missed policy ${policy})`;
+		const message = `missed ${missedText} run(s); not caught up (missed policy ${policy})`;
 		events.push({ type: "skipped", job, message });
 		return { job: advance(job, nowMs, { lastStatus: "skipped", lastError: message }), events };
 	}
@@ -115,7 +120,7 @@ function planJob(job: Job, nowMs: number, running: ReadonlyMap<string, JobKind>,
 		return { job: advance(job, nowMs, { lastStatus: "skipped", lastError: blocked }), events };
 	}
 	if (job.kind === "agent") budget.agent--;
-	if (missed !== undefined) events.push({ type: "catch-up", job, message: `catch-up (missed ${missed})` });
+	if (missed !== undefined) events.push({ type: "catch-up", job, message: `catch-up (missed ${missedText})` });
 	const infos = dates.map((t): RunInfo => ({ scheduledFor: iso(t), ...(missed !== undefined ? { missed } : {}) }));
 	const { lastError: _cleared, ...state } = job.state;
 	const next = advance({ ...job, state } as Job, nowMs, { lastStatus: "running", lastRun: iso(nowMs) });
