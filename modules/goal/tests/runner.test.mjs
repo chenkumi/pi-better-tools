@@ -339,4 +339,13 @@ describe("taskPrompt", () => {
     const record = await run
     assert.deepEqual([record.status, ...statuses(record)], ["done", "done", "done"])
   })
+
+  it("starts no verification command when paused while the verifying state is being saved", async () => {
+    const dir = await newGoal([checkpoint("one", [])])
+    const host = fakeHost()
+    const runner = new GoalRunner(host, (_dir, next) => { if (next.checkpoints[0].status === "verifying") runner.pause(dir).catch(() => {}) })
+    const record = await runner.start(dir)
+    assert.deepEqual(host.calls.check, [], "the abort that arrived during the save is honoured before the command is dispatched")
+    assert.equal(record.status, "paused")
+  })
 })

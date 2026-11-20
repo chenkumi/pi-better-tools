@@ -18,6 +18,7 @@ function killTree(pid: number | undefined): void {
 /** Runs the command through the system shell in `cwd`; resolves with the exit code (null: stopped or timed out) and the end of its output. */
 export function runCommand(command: string, cwd: string, signal: AbortSignal, timeoutMs: number = CHECK_TIMEOUT_MS): Promise<{ exitCode: number | null; output: string }> {
   return new Promise((resolve, reject) => {
+    if (signal.aborted) return resolve({ exitCode: null, output: "" }) // an abort that already happened is not replayed to a listener added later
     const child = spawn(command, { cwd, shell: true, windowsHide: true, detached: process.platform !== "win32", stdio: ["ignore", "pipe", "pipe"] })
     let output = ""
     const take = (chunk: Buffer) => {

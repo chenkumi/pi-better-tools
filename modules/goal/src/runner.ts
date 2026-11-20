@@ -245,6 +245,7 @@ export class GoalRunner {
         // Stopped while reviewing: no verdict is not a request for a person; the loop cancels, or the next start recovers the checkpoint.
         return signal.aborted ? { record: verifying } : { record: verifying, outcome: reviewed }
       }
+      if (signal.aborted) return { record: verifying } // paused or stopped while the state was being saved: no command is started
       try {
         const run = await this.host.check(verify.command!, signal)
         if (signal.aborted) return { record: verifying }

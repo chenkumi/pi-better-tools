@@ -52,7 +52,7 @@
 | `goal.json` | 進度與每個 checkpoint 的驗證記錄，唯一的真相來源；每次變更以暫存檔＋rename 原子寫入。 |
 | `plan.md` | 由前兩者產生的唯讀檢視，沒有東西讀回它。 |
 | `sessions/` | 每個實作／審查 session 的 Pi session 檔，事後可讀。 |
-| `owner.json` | 正在執行這個 goal 的行程（pid）；行程已不在即視為無主。 |
+| `owner.json` | 正在執行這個 goal 的行程（pid）；行程已不在即視為無主。取得時先寫私有暫存檔再以 `link` 發佈（已存在即失敗，兩個行程不會同時取得、讀者看不到寫到一半的內容）；`release` 只刪自己的紀錄。兩個行程同時接管同一個已崩潰 owner 的過期紀錄仍可能競爭。 |
 
 建議把 `.pi/goals/` 加進 `.gitignore`。
 
@@ -62,7 +62,7 @@
 - 每次嘗試是一個全新的 session，沒有對話記憶：計畫就是它拿到的全部，加上前幾次失敗的原因。
 - 受信任專案才執行（Pi 的 `isProjectTrusted()`）；不受信任時 `plan_submit` 拒絕，重啟後也不續跑。
 - **重啟後續跑**：`session_start` 時，狀態為 `queued`／`running` 的 goal 從檔案繼續（`paused` 不續跑，須 `goal_resume`）；被打斷的 checkpoint 計一次嘗試。正常關閉 session（`session_shutdown`）時停止進行中的 session，goal 留在原狀態，不通知。
-- **同一時間只有一個行程跑同一個 goal**（`owner.json`）。其他行程不續跑它，`goal_cancel`／`goal_pause`／`goal_resume`／`goal_retry`／`goal_resolve` 對它回 `GOAL_RUNNING_ELSEWHERE`。
+- **同一時間只有一個行程跑同一個 goal**（`owner.json`）。暫停或關閉落在存入 `verifying` 的期間時，不會再啟動驗收指令（`check` 前與 `runCommand` spawn 前各檢查一次取消）。其他行程不續跑它，`goal_cancel`／`goal_pause`／`goal_resume`／`goal_retry`／`goal_resolve` 對它回 `GOAL_RUNNING_ELSEWHERE`。
 - 不是 sandbox：session 以使用者的權限執行指令與改檔，所以才要先確認計畫與受信任專案。取消不保證子行程樹已停止（Tier 1 指令以行程樹終止）。
 - 費用沒有上限、也沒有顯示；每個 checkpoint 最多 `maxAttempts` 次 session。
 - **Jobs 面板**：每個 goal 一列（種類 `goal`、標籤 `GL`），`queued`／`running`／`paused`／`blocked` 算進行中；列上只有標題、進度（完成數／總數）、目前 checkpoint 與次數，詳細頁列各 checkpoint 的狀態與次數；不含計畫全文、驗收指令或驗證記錄（看 `goal_status`），也沒有即時對話。Jobs 面板本身只顯示、不操作；要用按鍵操作用 `/goals`（見下）。`/background-jobs goal` 可篩選。Goal 與其他工作共用同一個 Jobs 面板（與 Schedule 一樣經 `pi` 會合到共用實例，不自己畫第二份）；進行中（含暫停、blocked）的 goal 固定排在所有工作之前（Schedule 不置頂），已結束的 goal 照一般順序。
