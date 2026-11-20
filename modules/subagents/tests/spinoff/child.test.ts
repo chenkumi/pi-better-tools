@@ -207,3 +207,47 @@ test("agent_message before the child started, or after its transport closed, is 
 	await handle.done;
 	await assert.rejects(() => handle.steer("LATE", "follow_up"), /RPC_CLOSED/);
 });
+
+const uiLine = (over: Record<string, unknown>) => JSON.stringify({ type: "extension_ui_request", id: "u1", method: "confirm", title: "Allow?", message: "go", ...over }) + "\n";
+const until = async (condition: () => boolean) => { for (let i = 0; i < 200 && !condition(); i++) await new Promise(r => setImmediate(r)); assert.ok(condition(), "condition reached"); };
+const ignoreUi = (state = { n: 0 }) => ({ onRequest(cmd: any, reply: (d?: unknown, ok?: boolean) => void) { if (cmd.type !== "extension_ui_response") happyScript(state).onRequest(cmd, reply); } });
+const finish = async (handle: { cancel(): Promise<void>; done: Promise<unknown> }, proc: any) => { await handle.cancel(); setImmediate(() => proc.exit(0)); await handle.done; };
+
+test("a child dialog is asked through onUiRequest (text stripped of control characters) and the answer goes back on stdin", async () => {
+	const { proc, lines } = fakeProc(ignoreUi()); const seen: any[] = [];
+	const handle = startSpinoffChild(spec(proc, { onUiRequest: async request => { seen.push(request); return { confirmed: true }; } }));
+	proc.stdout.write(uiLine({ title: "Run \u001b[31mrm\u001b[0m?", message: "a\u0007b" }));
+	await until(() => lines.some(l => l.type === "extension_ui_response"));
+	assert.deepEqual(lines.find(l => l.type === "extension_ui_response"), { type: "extension_ui_response", id: "u1", confirmed: true });
+	assert.equal(seen[0].title, "Run [31mrm[0m?"); assert.equal(seen[0].message, "ab");
+	await finish(handle, proc);
+});
+
+test("without a handler, or past the pending limit, a child dialog is answered cancelled at once", async () => {
+	const none = fakeProc(ignoreUi());
+	const a = startSpinoffChild(spec(none.proc));
+	none.proc.stdout.write(uiLine({ method: "select", options: ["x"] }));
+	await until(() => none.lines.some(l => l.type === "extension_ui_response"));
+	assert.deepEqual(none.lines.find(l => l.type === "extension_ui_response"), { type: "extension_ui_response", id: "u1", cancelled: true });
+	await finish(a, none.proc);
+
+	const many = fakeProc(ignoreUi()); const waiting: Array<() => void> = [];
+	const b = startSpinoffChild(spec(many.proc, { onUiRequest: () => new Promise(resolve => waiting.push(() => resolve({ confirmed: true }))) }));
+	for (let i = 0; i < 9; i++) many.proc.stdout.write(uiLine({ id: `m${i}` }));
+	await until(() => many.lines.some(l => l.type === "extension_ui_response"));
+	assert.deepEqual(many.lines.filter(l => l.type === "extension_ui_response"), [{ type: "extension_ui_response", id: "m8", cancelled: true }], "only the ninth is refused");
+	assert.equal(waiting.length, 8);
+	await finish(b, many.proc);
+});
+
+test("cancelling the Spinoff aborts a waiting dialog and answers it cancelled", async () => {
+	const { proc, lines } = fakeProc(ignoreUi()); let aborted = false;
+	const handle = startSpinoffChild(spec(proc, { onUiRequest: (_request, signal) => new Promise(resolve => signal.addEventListener("abort", () => { aborted = true; resolve({ confirmed: true }); })) }));
+	proc.stdout.write(uiLine({}));
+	await new Promise(r => setImmediate(r));
+	await handle.cancel();
+	await until(() => lines.some(l => l.type === "extension_ui_response"));
+	assert.ok(aborted);
+	assert.deepEqual(lines.find(l => l.type === "extension_ui_response"), { type: "extension_ui_response", id: "u1", cancelled: true }, "even a late 'yes' becomes cancelled once the Spinoff is cancelled");
+	setImmediate(() => proc.exit(0)); await handle.done;
+});

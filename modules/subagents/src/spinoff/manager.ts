@@ -6,6 +6,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { LiveTranscript } from "../../../../shared/src/background/index.ts";
 import { SpinoffJobsWidget } from "./live-widget.ts";
 import { forwardParentArgs, removeTemporary } from "./args.ts";
+import { askParentUser } from "./ask.ts";
 import { startSpinoffChild, type SpinoffChildHandle, type SpinoffChildOutcome, type SpinoffChildSpec, type SpinoffMessageMode } from "./child.ts";
 import { spinoffCreationRefusal } from "./identity.ts";
 import { controlId, controlText, messageText, validateInteraction } from "../spinoff-contract.ts";
@@ -176,7 +177,7 @@ export function onTurnEnd(ctx: ExtensionContext, event: { message?: { stopReason
 			if (job.acceptLeafId !== null && !branch.some(entry => entry.id === job.acceptLeafId)) { finishWithoutChild(job, "failed", "SNAPSHOT_BRANCH_CHANGED", "The source branch changed before the snapshot boundary."); continue; }
 			const written = writeSpinoffSession({ sessionId, sessionFile: job.record.origin.file, cwd: ctx.sessionManager.getCwd(), sessionDir: job.sessionDir, branch }, job.record.jobId, job.record.spinoffSessionId);
 			job.record.sessionPath = written.sessionPath;
-			launch(job, written.sessionPath);
+			launch(job, written.sessionPath, ctx);
 		} catch (error) {
 			const message = errorText(error);
 			finishWithoutChild(job, "failed", message.split(":")[0]!.slice(0, 64) || "SNAPSHOT_FAILED", message.slice(0, 300));
@@ -184,7 +185,7 @@ export function onTurnEnd(ctx: ExtensionContext, event: { message?: { stopReason
 	}
 }
 
-function launch(job: Job, sessionPath: string) {
+function launch(job: Job, sessionPath: string, ctx: ExtensionContext) {
 	const record = job.record;
 	setStatus(job, "starting");
 	record.startedAt = new Date().toISOString();
@@ -194,6 +195,8 @@ function launch(job: Job, sessionPath: string) {
 	const transcript = new SpinoffTranscript(transcriptDir(record.origin.cwd, record.jobId), record.jobId, record.origin.cwd, () => syncTranscript(job));
 	job.transcript = transcript;
 	spec.onMessage = message => { markApplied(job, message); transcript.appendMessage(message); };
+	// The child's dialogs (confirmations of its tools) are asked in the parent session's bottom panel.
+	spec.onUiRequest = (request, signal) => askParentUser(ctx, record.jobId, request, signal);
 	const live = job.live = new LiveTranscript();
 	spec.onEvent = event => live.ingest(event);
 	transcript.start();

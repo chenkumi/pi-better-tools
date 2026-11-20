@@ -3,7 +3,7 @@
 原生模組：一個 deferred 工具 `image_generate` 與 `/settings:image-generation`。依文字描述產生新圖片，存成專案內的新檔案並回報路徑。三個後端：OpenAI Images API、Gemini API、本機 Codex CLI。
 
 - 預設不載入；用 `tool_search image` 載入（由 Pi Runtime 的 `deferred-tools.ts` 統一處理，本模組不自帶啟用或提示程式）。不是 `defaultActive`。
-- Subagent child 不註冊此工具與指令；Spinoff child 會註冊，但沒有互動 UI 可確認付費請求（見「確認」）。
+- Subagent child 不註冊此工具與指令；Spinoff child 會註冊，付費確認由 Spinoff 轉到父代 TUI 詢問使用者（見「確認」）。
 - 本模組不 import 其他 `modules/`；金鑰與設定都不進專案檔。
 
 ## 工具 `image_generate`
@@ -45,7 +45,7 @@
 
 設定 `confirm`：`first`（預設，每個 session、每個後端第一次詢問）、`always`、`never`。詢問用底部面板（`bottomConfirm`），內容含後端、模型、張數、prompt 長度與前 200 字、目的地與計費方式。所有不花錢就會失敗的檢查（設定、參數、輸出目錄、登入、Codex 是否安裝與已登入）都在詢問之前完成。
 
-沒有互動 UI（例如 Spinoff child）且需要詢問時回 `IMAGE_CONFIRM_UNAVAILABLE`，不送出請求；要讓 Spinoff 能產生圖片，使用者須明確把 `confirm` 設為 `never`。
+沒有互動 UI（例如 print mode）且需要詢問時回 `IMAGE_CONFIRM_UNAVAILABLE`，不送出請求。Spinoff child 的確認會轉到父代 TUI（標題標示 Spinoff 識別碼）；父代沒有 UI、使用者取消或 Spinoff 被取消時視為未確認。「每 session 每後端一次」以 Spinoff child 自己的 session 計，每個 Spinoff 各問一次。
 
 ## 設定
 

@@ -40,6 +40,8 @@
 
 面板的 owner-bound `bind`／`refresh`／`clear` 與 Shell／Subagents 共用 `shared/src/background/widget-binding.ts`；Spinoff 仍獨立提供 job 投影、origin binding、permit／child-close 判定、取消與投遞，不建立共用 execution registry。
 
+12. **child 的對話框轉發**：child 是 RPC 模式，`ctx.hasUI` 為 true，其 extension 的 `select`／`confirm`／`input`／`editor` 會在 stdout 發出 `extension_ui_request` 並一直等 `extension_ui_response`（實測：沒有回應就永遠卡住）。`src/child.ts` 攔下這些請求交給 `spec.onUiRequest`（manager 接 `src/ask.ts`），在**父代**的底部面板（`bottomConfirm`／`bottomSelect`／`bottomInput`，`editor` 用宿主 `ui.editor`）詢問使用者，標題為 `Spinoff <識別碼末 6 碼>: <child 標題>`，再以 `{ confirmed }`／`{ value }`／`{ cancelled: true }` 寫回 child stdin。每個請求恰好得到一個回覆：child 文字去除控制字元（防終端跳脫序列）並限制長度（標題 300、訊息 8000、選項 100 個×300）；同時等待上限 8，超過、沒有 handler、格式不符立即 `cancelled`；父代沒有 UI、`ctx` 已失效（session 更換）、`timeout` 到期、Spinoff 被取消或 child 結束（signal 中止，晚到的「是」也改為 `cancelled`）一律 `cancelled`。fire-and-forget 類（`notify`、`setStatus` 等）仍忽略。`input` 是明文單行（沒有遮罩）；父代用底部面板，非 TUI 時 `input` 直接 `cancelled`。確認的是 child 工具自己的問題（例如 SQL 寫入、付費圖片），不是 Pi 專案信任（`--approve`／`--no-approve` 仍在啟動時固定）。未做真實父代 TUI 端到端（面板實際顯示）的驗證，只驗證協定（真實 RPC Pi 接受回應）、child／ask 單元測試。
+
 詳細頁可另顯示 Spinoff 的**即時對話副本**（`src/manager.ts` 的 `job.live`）：child 在任務送出後把 `message_start`／`message_update`／`message_end`／`tool_execution_*` 事件經 `onEvent` 送給 parent（先用成本低的行內字串前置篩選，繼承歷史不轉發，晚到或重複訊息不影響結果）。它只存在記憶體、只在執行中顯示，與第 8 點的落盤 transcript 是兩件事；`complete()`／`finishWithoutChild()` 立即釋放（`releaseLive`），不影響 deliver、transcript 定稿或 permit。
 
 ## 儲存

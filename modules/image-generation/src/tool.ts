@@ -115,7 +115,7 @@ export function createImageTool(deps: ImageToolDeps): ToolDefinition {
 
       const sessionKey = `${ctx.sessionManager.getSessionId()}:${backend}`;
       if (config.confirm === 'always' || (config.confirm === 'first' && !confirmed.has(sessionKey))) {
-        if (!ctx.hasUI) throw new ToolError('IMAGE_CONFIRM_UNAVAILABLE', 'This paid request needs the user\'s approval, and there is no interactive UI here (for example in a Spinoff). Ask the user to run it in the main session, or to set "confirm": "never" in the image-generation settings.');
+        if (!ctx.hasUI) throw new ToolError('IMAGE_CONFIRM_UNAVAILABLE', 'This paid request needs the user\'s approval, and there is no interactive UI here (for example in print mode). Ask the user to run it in the main session, or to set "confirm": "never" in the image-generation settings.');
         const ok = await (deps.confirm ?? bottomConfirm)(ctx, 'Generate image', [
           `Generate ${request.count} image${request.count === 1 ? '' : 's'} with ${BACKEND_LABELS[backend]} (${MODEL_OF(config, backend)})?`,
           `Prompt (${request.prompt.length} characters): ${clean(request.prompt, 200)}`,
