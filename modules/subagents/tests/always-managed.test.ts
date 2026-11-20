@@ -58,7 +58,7 @@ for (const mode of ["single", "parallel", "chain"] as const) {
 			for (const args of h.invocations) {
 				assert.equal(args.includes("--no-session"), false); assert.ok(args.includes("--session-dir")); assert.ok(args.includes("--session-id"));
 				assert.ok(args[args.indexOf("-e") + 1].endsWith("child-guard.ts"));
-				assert.equal(args[args.indexOf("--exclude-tools") + 1], "subagent,agent_status,agent_cancel,agent_message,spinoff");
+				assert.equal(args[args.indexOf("--exclude-tools") + 1], "subagent,agent_status,agent_cancel,agent_message,spinoff,mcp__*,list_mcp_resources,list_mcp_resource_templates,read_mcp_resource");
 			}
 			assert.deepEqual((await readdir(h.root)).sort(), ["managed"]);
 		} finally { await h.dispose(); }

@@ -51,7 +51,7 @@ async function run(scenario: string, task = "test", controller?: AbortController
 				...extraRuntime,
 				onOwnedSettlement(settlement) { ownedSettlement = settlement; extraRuntime.onOwnedSettlement?.(settlement); },
 				invocation(args) {
-					assert.equal(args[args.indexOf("--exclude-tools") + 1], "subagent,agent_status,agent_cancel,agent_message,spinoff");
+					assert.equal(args[args.indexOf("--exclude-tools") + 1], "subagent,agent_status,agent_cancel,agent_message,spinoff,mcp__*,list_mcp_resources,list_mcp_resource_templates,read_mcp_resource");
 					assert.ok(args.join(" ").length < 4000);
 					taskPath = args.at(-1)!.slice(1);
 					promptPath = args[args.indexOf("--append-system-prompt") + 1];
