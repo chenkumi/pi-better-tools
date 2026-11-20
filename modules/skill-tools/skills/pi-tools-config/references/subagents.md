@@ -14,7 +14,7 @@
 - 使用者：`<agentDir>/agents/*.md`，預設 `~/.pi/agent/agents/`，支援 `PI_CODING_AGENT_DIR`。
 - 專案：從 cwd 向上最近的 `.pi/agents/`；同名優先序為專案 > 使用者 > bundled。
 - 工具參數 `agentScope` 預設 `user`；需要專案 agent 時用 `project` 或 `both`，仍遵守 trust／確認。
-- 內建名稱為 `scout`、`planner`、`reviewer`、`worker`。模型以 agent 定義或 parent 繼承；呼叫的 model/provider/thinkingLevel 預設省略，只有使用者或技能明確指定時才傳。
+- 子代理只取得 agent 檔 `tools:` 列出的工具（白名單）；沒寫 `tools:` 時預設只有 `read, grep, find, ls, note`，要用 shell、寫檔、web、SQL 等須明列。內建名稱為 `scout`、`planner`、`reviewer`、`worker`。模型以 agent 定義或 parent 繼承；呼叫的 model/provider/thinkingLevel 預設省略，只有使用者或技能明確指定時才傳。
 
 最小 agent 檔案（本文為 system prompt）：
 

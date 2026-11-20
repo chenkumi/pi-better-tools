@@ -252,12 +252,16 @@ RPC 啟動錯誤保留原始錯誤碼／訊息，另附英文 `Startup observati
 
 | Agent | tools | 用途 |
 | --- | --- | --- |
-| `scout` | read, grep, find, ls, bash, note | 快速探索程式碼並產生可交接的精簡 context；完整內容以 `note({ type: "report", content })` 產生報告 |
+| `scout` | read, grep, find, ls, note | 快速探索程式碼並產生可交接的精簡 context；完整內容以 `note({ type: "report", content })` 產生報告 |
 | `planner` | read, grep, find, ls, note | 依需求與 context 產生實作計畫（唯讀）；完整計畫以 `note({ type: "report", content })` 產生報告 |
-| `reviewer` | read, grep, find, ls, bash, note | 品質、安全與可維護性 review；bash 僅限唯讀，完整報告唯一透過 `note({ type: "report", content })` 新增 |
-| `worker` | 不限定 | 通用、完整能力；僅在使用者或 skill 指派時啟動 |
+| `reviewer` | read, grep, find, ls, bash／powershell（`shell: git-readonly`）, note | 品質、安全與可維護性 review；shell 只能執行 `git diff`／`git log`／`git show`，完整報告唯一透過 `note({ type: "report", content })` 新增 |
+| `worker` | read, write, edit, grep, find, ls, bash／powershell, note, tool_search, web_fetch, web_search, `sqlite_*`（8 個）, `mysql_*`／`mssql_*`／`pgsql_*`（各 `_state`／`_query`／`_update`） | 通用；僅在使用者或 skill 指派時啟動 |
 
 內建 agents 不固定模型，繼承主 session。
+
+**工具一律白名單**：child 只取得 agent 定義的 `tools:`，不繼承宿主預設工具（沒有 `pty_*`、`tool_search`、`spinoff`、其他模組工具）。沒有 `tools:` 或為空的自訂 agent 套用唯讀組合 `read, grep, find, ls, note`（`DEFAULT_AGENT_TOOLS`）。Pi Auto Compact 的 `progress_checkpoint` 與 `session_grep`／`session_window`／`session_read` 由 argument builder 附加到每個 child。deferred 工具（`sqlite_*`、`mysql_*`／`mssql_*`／`pgsql_*`）寫在 `tools:` 會讓 Pi 註冊並啟用，child guard（`defer-tools.ts`，`session_start` 非 reload）在 `tool_search` 啟用時把它們停用，讓 child 與主代理一樣經 `tool_search` 按需載入（`deferred_tools` 提示段落由 Pi Runtime 產生，child 載入的 extensions 須包含 Pi Runtime 與各工具模組）；清單沒有 `tool_search` 時則維持直接宣告；未註冊的名稱（例如未設定的 `web_search`、未配置的資料庫、非本平台的 shell）Pi 只當過濾條件。SQL 寫入工具在 child（無互動 UI）會被拒絕。
+
+**`shell: git-readonly`**（agent frontmatter，目前只有 `reviewer`）：handshake 帶入 `shellPolicy`，child guard 在 `tool_call` 攔截 `bash`／`powershell`（`git-readonly.ts`）：命令須是 `git diff|log|show` 加純 ref／路徑／選項（字元集 `A-Za-z0-9_.,/:=+%^~-`，不含引號、空白內參數、萬用字元、變數、分隔符、重導向），並拒絕 `--output`、`--ext-diff`、`--textconv`、`--no-index`、`--open-files-in-pager` 及其任何縮寫；通過者改寫為 `git --no-pager --no-optional-locks -c core.fsmonitor=false <子命令> --no-ext-diff --no-textconv …`。這是工具契約，不是 OS sandbox。Agent 定義改變後，舊 session 因 agent fingerprint 不符會以 `CONFIG_CHANGED` 拒絕續接。
 
 Reviewer 不提供 `write`／`edit`，不修改被審查的程式或設定，亦不得用 bash 保存報告。完整審查內容由原生 `note` 自動命名並新增至 `report/`；成功後只回一句結論與實際相對路徑（150 words 以下）。若 note 未載入或寫入失敗，回報 blocked 與原因，不換其他寫檔方式、不虛構路徑。這是 agent 操作契約，不是 OS sandbox；使用者／受信任專案的同名自訂 reviewer 仍可依既有優先序覆蓋 bundled 定義，需自行同步其工具與報告契約。
 
@@ -332,7 +336,7 @@ writer.acquire/       # 短期跨 process acquisition/recovery election fence
 ## 安全邊界
 
 - 所有 child 以 `--exclude-tools subagent,agent_status,agent_cancel,agent_message` 啟動，無法再次派遣或管理 parent 的 subagents。若 agent 有 shell 權限仍可自行執行 `pi`，需另用 sandbox 限制。
-- child 有明確 `--tools` 清單時，argument builder 另附 Pi Auto Compact 的 `progress_checkpoint`（`+name`／`-name` 清單附 `+progress_checkpoint`），讓長任務的進度錨點在 allowlist 下仍可用；該工具未掛載時 allowlist 多一個未知名稱，Pi 只當過濾條件。
+- child 的 `--tools` 清單（一律明確）由 argument builder 另附 Pi Auto Compact 的 `progress_checkpoint` 與 `session_grep`／`session_window`／`session_read`（`+name`／`-name` 清單附 `+` 前綴），讓長任務的進度錨點與回溯在 allowlist 下仍可用；該工具未掛載時 allowlist 多一個未知名稱，Pi 只當過濾條件。
 - Child 另載入 startup guard，於第一個 provider request 前驗證 model registry 與 trust；不複製 parent 的臨時 provider、credentials 或一次性 approve。Child 須能自行載入相同 provider 定義。
 - **同 process guard reload**：只對同一已驗證 handshake object／invocation，只讀重驗原 startupPath，並重新核對 model／cwd／native ID／thinking／trust。新 lease 保存 serialized JSON 的原始 UTF-8 `Buffer`；檔案以 `readFileSync(fd)` 原始 Buffer 的 `equals` 精確比對，不容錯解碼 UTF-8。依 `lstat → open → fstat → raw read → fstat → lstat` 檢查點核對 regular／非 symlink、bigint dev／ino、size 等於 expected Buffer 長度，並比較前後 mtimeNs／ctimeNs；身份為 0n 或所需 bigint metadata 不可用亦 fail closed。新消耗的 handshake object（即使 payload 相同）沒有重用資格，仍以 `wx` exclusive 建立；拒絕不覆寫外來／變造 receipt、不重建遺失檔案。早期同 process serialized-string lease 僅從其已保存 payload 重建 expected Buffer，再通過全部 raw／metadata 檢查後更新記憶體 cache，不用磁碟解碼字串驗證或接管既有檔案。這不是跨 process 工作恢復或 OS sandbox，receipt 格式及既有 owner／writer admission 不變。
 - 上述驗證是**離散檢查點的觀測，不是原子檔案快照或永久禁止外部修改**；不能證明兩檢查點之間每一瞬間均未變、曾修改再還原的變化一定可見，或最後檢查後不再改寫。size 固定於 expected Buffer 長度是接受條件的上限檢查，不是 `readFileSync` 遇並行增長時的硬性配置／讀取記憶體上限；未加 filesystem lock。O_NOFOLLOW 只在平台提供時使用，仍必須通過 descriptor／後置 path 與 bigint metadata 檢查，不改用弱身份 fallback。
