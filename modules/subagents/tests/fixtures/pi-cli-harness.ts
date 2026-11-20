@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { StringDecoder } from "node:string_decoder";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -37,7 +38,17 @@ export async function invokeCli(cli: string, args: string[], cwd: string, env: R
 	if (capture) { await writeFile(join(capture, "events.jsonl"), actual.stdout); await writeFile(join(capture, "stderr.txt"), actual.stderr); await writeFile(join(capture, "exit.json"), JSON.stringify({ code: actual.code, pid: actual.pid })); }
 	return actual;
 }
+/** Tools the offline fixture providers register; a child only gets allowlisted tools, so the isolated user `worker` names them. */
+const FIXTURE_WORKER_TOOLS = ["read", "grep", "find", "ls", "note", "metered", "metered_nested", "probe", "resume_nonce", "p0_nonce", "barrier", "forbidden"];
 export function isolatedEnv(root: string): Record<string, string> {
+	mkdirSync(join(root, "config", "agents"), { recursive: true });
+	writeFileSync(join(root, "config", "agents", "worker.md"), `---
+name: worker
+description: Offline fixture worker
+tools: ${FIXTURE_WORKER_TOOLS.join(", ")}
+---
+You are an offline fixture worker.
+`);
 	const env: Record<string, string> = {};
 	for (const key of ["PATH", "Path", "PATHEXT", "SystemRoot", "SYSTEMROOT", "WINDIR", "COMSPEC", "TEMP", "TMP"]) if (process.env[key]) env[key] = process.env[key]!;
 	return { ...env, PI_CODING_AGENT_DIR: join(root, "config"), HOME: root, USERPROFILE: root, APPDATA: join(root, "appdata"), LOCALAPPDATA: join(root, "localappdata"), PI_OFFLINE: "1", PI_TELEMETRY: "0", PI_SKIP_VERSION_CHECK: "1" };

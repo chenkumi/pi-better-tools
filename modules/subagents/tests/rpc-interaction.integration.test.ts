@@ -17,7 +17,11 @@ async function fixture() {
 	const ctx = { cwd: root, hasUI: false, isProjectTrusted: () => false, model: { provider: "subagent-test", id: "fixture", reasoning: false }, thinkingLevel: "off",
 		sessionManager: { getSessionId: () => "rpc-owner" }, modelRegistry: { find: (p: string, id: string) => p === "subagent-test" && id === "fixture" ? { provider: p, id, reasoning: false } : undefined,
 			getAll: () => [{ provider: "subagent-test", id: "fixture", reasoning: false }] } } as unknown as ExtensionContext;
-	await mkdir(join(root, "config"));
+	await mkdir(join(root, "config", "agents"), { recursive: true });
+	// A child only gets its agent's allowlist; the fixture worker names the tools the offline provider registers.
+	await writeFile(join(root, "config/agents/worker.md"), "---\nname: worker\ndescription: Offline fixture worker\ntools: read, grep, find, ls, note, barrier, forbidden\n---\nYou are an offline fixture worker.\n");
+	const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+	process.env.PI_CODING_AGENT_DIR = join(root, "config");
 	await writeFile(join(root, "config/settings.json"), JSON.stringify({ extensions: [provider], defaultTools: ["barrier", "forbidden"], compaction: { enabled: false }, cacheWarming: "off", defaultProjectTrust: "never" }));
 	registerSubagent({ registerMessageRenderer() {}, registerTool(tool) { tools.set(tool.name, tool); }, on(name, handler) { handlers.set(name, handler); }, sendMessage(message, options) {
 		const details = message.details as any;
@@ -37,7 +41,7 @@ async function fixture() {
 			observer.on("error", reject); void access(path).then(() => { observer.close(); resolve(); }, () => {});
 		}); return path;
 	}
-	return { root, ctx, tools, handlers, notices, execute, notice, file, async close() { await handlers.get("session_shutdown")?.({}, ctx); await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }); } };
+	return { root, ctx, tools, handlers, notices, execute, notice, file, async close() { await handlers.get("session_shutdown")?.({}, ctx); if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previousAgentDir; await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }); } };
 }
 
 test("RPC control and queries: literal canonical steering, stale safe prefix, no mainline mutations or tool dispatch", { skip: !cli && "Set PI_SUBAGENTS_TEST_CLI", timeout: 60000 }, async () => {

@@ -21,7 +21,10 @@ for (const mode of ["idle", "tool"] as const) test(`real parent RPC ${mode}: com
 	console.log(`[progress] Verifying real-parent steering delivery: ${mode}`);
 	const root = await realpath(await mkdtemp(join(tmpdir(), "pi-background-parent-"))); let proc: ReturnType<typeof spawn> | undefined; let pipe: RpcPipe | undefined;
 	try {
-		await mkdir(join(root, "config")); await writeFile(join(root, "config/settings.json"), JSON.stringify({ extensions: [extension, provider], defaultTools: ["subagent", "barrier", ...(mode === "tool" ? ["parent_gate"] : [])], compaction: { enabled: false }, cacheWarming: "off", defaultProjectTrust: "never" }));
+		await mkdir(join(root, "config", "agents"), { recursive: true });
+		// A child only gets its agent's allowlist; the fixture worker names the tools the offline provider registers.
+		await writeFile(join(root, "config/agents/worker.md"), "---\nname: worker\ndescription: Offline fixture worker\ntools: read, grep, find, ls, note, barrier, forbidden\n---\nYou are an offline fixture worker.\n");
+		await writeFile(join(root, "config/settings.json"), JSON.stringify({ extensions: [extension, provider], defaultTools: ["subagent", "barrier", ...(mode === "tool" ? ["parent_gate"] : [])], compaction: { enabled: false }, cacheWarming: "off", defaultProjectTrust: "never" }));
 		const nativePath = join(root, "parent.jsonl");
 		proc = spawn(process.execPath, [launcher, root, resolve(cli!), "--mode", "rpc", "--session", nativePath, "--model", "subagent-test/fixture", "--thinking", "off"], { cwd: root, stdio: ["pipe", "pipe", "pipe"] });
 		pipe = new RpcPipe(proc); const events: any[] = [], changed = new EventEmitter(); let buffer = "", diagnostics = ""; const decoder = new StringDecoder("utf8");
