@@ -145,7 +145,7 @@ test("real Pi: spinoff snapshot, independent child, report back, cold /resume st
 	}
 });
 
-const shellEntry = join(here, "../../../shell-tools/src/index.ts"), subagentsEntry = join(here, "../../subagents/src/index.ts");
+const shellEntry = join(here, "../../../shell-tools/src/index.ts"), subagentsEntry = join(here, "../../src/index.ts");
 /** Event-driven (fs.watch) wait with its own deadline: no sleeps, no idle watchdog. */
 function waitForDir(dir: string, ready: () => boolean, name: string): Promise<void> {
 	return new Promise((resolve, reject) => {
