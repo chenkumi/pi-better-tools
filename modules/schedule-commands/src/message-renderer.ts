@@ -43,7 +43,7 @@ export const renderMarker: MessageRenderer = (message, { expanded }, theme) => {
 			const finish = (lines: string[]) => {
 				const box = new Box(padding, 1, (text: string) => theme.bg(background, text.replace(/\x1b\[(?:0)?m/g, (reset) => reset + bgAnsi)));
 				box.addChild({ render: () => lines, invalidate() {} });
-				return box.render(outerWidth);
+				return [...box.render(outerWidth)];
 			};
 			const limit = 298;
 			const lines: string[] = [];

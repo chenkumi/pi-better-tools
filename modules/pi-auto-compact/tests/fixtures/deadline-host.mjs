@@ -11,7 +11,7 @@ import { createAssistantMessageEventStream } from '@earendil-works/pi-ai';
 import * as sdk from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
 
-assert.equal(sdk.VERSION, '1.5.2'); sdk.initTheme('dark', false);
+assert.equal(sdk.VERSION, '1.6.0'); sdk.initTheme('dark', false);
 const scenario = process.argv[2] ?? 'reported';
 const home = homedir(), agentDir = join(home, '.pi/agent'), cwd = join(home, 'workspace');
 await mkdir(agentDir, { recursive: true }); await mkdir(cwd, { recursive: true }); await writeFile(join(agentDir, 'auth.json'), '{}');

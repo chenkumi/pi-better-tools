@@ -1,6 +1,6 @@
 # Goal（原生）
 
-入口 `modules/goal/src/index.ts`；只支援 Pi **1.5.2**。把一份**已定案的計畫**交給背景執行：逐個 checkpoint 由獨立的 agent session 實作，再由本模組自己驗收（指令或唯讀審查），失敗時帶著失敗原因重試，直到完成或停在需要人處理的地方。使用者不必看著它跑；結束時 agent 會被告知結果。
+入口 `modules/goal/src/index.ts`；只支援 Pi **1.6.0**。把一份**已定案的計畫**交給背景執行：逐個 checkpoint 由獨立的 agent session 實作，再由本模組自己驗收（指令或唯讀審查），失敗時帶著失敗原因重試，直到完成或停在需要人處理的地方。使用者不必看著它跑；結束時 agent 會被告知結果。
 
 來源是 pi-web（Pi Harbor）的 Goal v1，只移植功能，沒有 TUI 渲染。pi-web 的 Goals 分頁、引擎設定與 `pi-durable` 引擎不在這裡。
 

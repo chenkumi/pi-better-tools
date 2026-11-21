@@ -14,7 +14,10 @@ export async function runChildSmoke({ home, host, packageRoot, evidence }) {
   // Place the standalone provider beside the production host's node_modules, not this development tree.
   const provider = join(dirname(dirname(dirname(host))), 'child-provider.ts');
   await copyFile(join(root, 'tests/fixtures/child-provider.ts'), provider);
-  await writeFile(join(agentDir, 'auth.json'), '{}'); await writeFile(join(agentDir, 'web-search.json'), '{"provider":"openai"}');
+  // A child only gets its agent's tool allowlist, so the fixture worker names the test-only probe it must call.
+  await mkdir(join(agentDir, 'agents'), { recursive: true });
+  await writeFile(join(agentDir, 'agents', 'worker.md'), ['---', 'name: worker', 'description: Offline fixture worker', 'tools: read, write, edit, grep, find, ls, bash, powershell, note, integration_probe', '---', 'You are an offline fixture worker.', ''].join('\n'));
+  await writeFile(join(agentDir, 'auth.json'), '{}');await writeFile(join(agentDir, 'web-search.json'), '{"provider":"openai"}');
   await writeFile(join(agentDir, 'settings.json'), JSON.stringify({ extensions: [provider], packages: [packageRoot], defaultProjectTrust: 'never', defaultTools: ['read', 'write', 'edit', 'bash', ...(process.platform === 'win32' ? ['powershell'] : []), 'integration_probe'], retry: { enabled: false }, compaction: { enabled: false }, cacheWarming: 'off', enableInstallTelemetry: false }));
   let framingFailure;
   // This probe requests a background continuation: its real parent prompt must persist.

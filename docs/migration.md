@@ -170,6 +170,18 @@ The Scheduler module was removed (2026-10-06; unrelated to the later Schedule Pr
 
 Do not delete shared schedules/native sessions/logs as part of rollback. No rollback can undo completed tool side effects, and cancellation does not establish arbitrary descendant-process termination.
 
+## Pi 1.6.0 upgrade (2026-11-21)
+
+The four root Pi development packages, the lockfile and every real-host version assertion now target only 1.6.0; 1.5.2 is no longer verified. Runtime peers remain host-provided. Run root `npm ci --ignore-scripts` and `npm run pi:patch` after pulling.
+
+Changes in this repository caused by 1.6.0:
+
+- **`render()` returns `readonly string[]`** (the only breaking change): `shared/src/background/live-transcript.ts` (`TranscriptView`), `modules/shell-tools/extensions/timeout-ms.ts` (command preview) and `modules/schedule-commands/src/message-renderer.ts` now return a copy (`[...rows]`). The copy compiles under both array types. Pi Custom Panel's editor still edits `super.render()` in place, which is safe because `Editor.render` builds a fresh `string[]` each call (it is not a cached `Container` array).
+- **Version pins:** `modules/shell-tools/src/monitor-exec.ts` (Monitor `command` backend fails closed on any other version) and the `1.5.2` assertions in real-host fixtures and tests.
+- **No effect found:** find tool path patterns are now relative to the search directory (File Tools registers no `find`; FFF provides it), `pi.exec` reports 128 + signal for signalled commands (not used), RPC `get_last_assistant_text` skips aborted/error messages (Spinoff already treats those as `CHILD_MODEL_ERROR`), RPC `new_session`/`switch_session`/`fork`/`clone` no longer run `session_start` twice (Spinoff children start with `--session`).
+- `scripts/patch-pi.mjs` (ULID session ids) still applies to the 1.6.0 bundle.
+- Not measured on 1.6.0: the Spinoff cache-continuation figures recorded for 1.5.2 (see `modules/subagents/src/spinoff/README.md`).
+
 ## Pi 1.5.2 upgrade (2026-11-10)
 
 The four root Pi development packages, the lockfile and every real-host version assertion now target only 1.5.2; 1.5.0 is no longer verified. Runtime peers remain host-provided. Run root `npm ci --ignore-scripts` after pulling.

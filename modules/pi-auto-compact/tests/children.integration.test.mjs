@@ -61,7 +61,7 @@ async function run(kind) {
 }
 
 for (const [kind, marker] of [['spinoff', 'SPINOFF_CHECKPOINT_TASK'], ['subagent', 'SUBAGENT_CHECKPOINT_TASK']]) {
-  test(`Pi 1.5.2 Pi Auto Compact checkpoint in a real ${kind} child process: the child loads the extension and answers the notice through the checkpoint tool`, { timeout: DEADLINE_MS + 60_000 }, async () => {
+  test(`Pi 1.6.0 Pi Auto Compact checkpoint in a real ${kind} child process: the child loads the extension and answers the notice through the checkpoint tool`, { timeout: DEADLINE_MS + 60_000 }, async () => {
     const { sessions, stderr } = await run(kind);
     // The root session holds the call that carries the marker too; the child's own session is the other file that contains it as a user message.
     const candidates = sessions.filter(({ entries }) => JSON.stringify(entries).includes(marker));

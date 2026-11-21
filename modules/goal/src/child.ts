@@ -2,7 +2,7 @@
  * What a goal runs on: every task (an implementation, a review) is one Pi SDK `AgentSession` of this process, with a session file under
  * the goal's own folder (`sessions/`) so the work can be read afterwards. No extension is loaded into it (so it cannot submit plans or start
  * schedules, and nothing of this package runs twice); it has Pi's built-in tools, the project's context files and the parent's model.
- * Verified against Pi 1.5.2 types and a fake model only; a run against a real model is not part of the offline tests.
+ * Verified against Pi 1.6.0 types and a fake model only; a run against a real model is not part of the offline tests.
  */
 import { join } from "node:path";
 import {

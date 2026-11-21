@@ -10,7 +10,7 @@
 
 ## 本機安裝
 
-需要 Node.js **`^22.22.2 || ^24.15.0 || >=26.0.0`**（與 jsdom 30 的 runtime 需求一致） 與 `@earendil-works/*` namespace 的 Pi。只支援 Pi **1.5.2**（開發基準與 production smoke 皆為 1.5.2；不維護 1.5.1 或更早版本），不代表其他 Pi 版本相容。
+需要 Node.js **`^22.22.2 || ^24.15.0 || >=26.0.0`**（與 jsdom 30 的 runtime 需求一致） 與 `@earendil-works/*` namespace 的 Pi。只支援 Pi **1.6.0**（開發基準與 production smoke 皆為 1.6.0；不維護 1.5.1 或更早版本），不代表其他 Pi 版本相容。
 
 ```powershell
 cd D:\projects\pi-better-tools
@@ -226,6 +226,10 @@ Subagent RPC 啟動失敗會保留原錯誤码，另附英文階段／checkpoint
 ### 2026-11-04 移除 Blackhole 與 `/fork:delegate`
 
 `modules/blackhole/`（0.5.12 快照）、其測試與重型組（`test:heavy:blackhole`、`scripts/blackhole-tests.mjs`）、Blackhole 專屬 fixtures、`pi-tools-config` 的 blackhole 參考頁與所有切換說明一併移除；壓縮只剩 Pi Auto Compact（確定性、不呼叫模型）。使用者個人的 `~/.pi/agent/pi-blackhole/` 設定與記憶檔不由本專案處理、不會被刪除，若 Pi 設定仍列有 `modules/blackhole/src/index.ts` 需自行移除。Fork 的 `/fork:delegate`（委派引導）經測試效果不如預期，已移除；Fork 快取延續不變。
+
+### 2026-11-21 Pi 1.6.0 升級
+
+根四個 Pi devDependencies 與 lockfile 升為 1.6.0，真實 host 斷言與 Monitor `command` 後端的版本檢查改為只接受 1.6.0，不再驗證 1.5.2。因 1.6.0 的 `render()` 改回傳唯讀陣列，三處（`TranscriptView`、Shell 呼叫預覽、Schedule Commands 訊息卡）改為回傳複製的陣列；寫法在新舊型別下都可編譯。其餘行為變更（find 路徑樣式、`pi.exec` 訊號結束碼、`get_last_assistant_text`、RPC `session_start` 次數）對本專案沒有影響，見 `docs/migration.md`。
 
 ### 2026-11-10 Pi 1.5.2 升級
 

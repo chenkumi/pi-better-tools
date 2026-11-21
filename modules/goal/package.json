@@ -4,6 +4,6 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "Project-native goals: a settled plan carried out checkpoint by checkpoint in the background, each checked by a command or a read-only review; root dependencies and Pi 1.5.2 are authoritative.",
+  "description": "Project-native goals: a settled plan carried out checkpoint by checkpoint in the background, each checked by a command or a read-only review; root dependencies and Pi 1.6.0 are authoritative.",
   "pi": { "extensions": ["./src/index.ts"], "prompts": ["./prompts"] }
 }

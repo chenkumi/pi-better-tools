@@ -56,7 +56,7 @@ class ShellCommandPreview extends Text {
     const rows = super.render(width);
     // Count actual wrapped terminal rows; the omission row is inside the budget.
     const lines = rows.length <= COMMAND_PREVIEW_ROWS ? rows : [...rows.slice(0, COMMAND_PREVIEW_ROWS - 1), truncateToWidth(this.omission, width)];
-    return this.hint ? [...lines, "", truncateToWidth(this.hint, width, "…")] : lines;
+    return this.hint ? [...lines, "", truncateToWidth(this.hint, width, "…")] : [...lines];
   }
 }
 

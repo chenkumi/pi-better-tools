@@ -265,6 +265,6 @@ export class TranscriptView extends Container {
     // A screen is a grid: wrapping would shift its rows, so every row is cut at the panel width instead.
     if (this.source.mode === "screen") return this.source.lines().map(line => truncateToWidth(line, width, "", false));
     if (this.builtVersion !== this.source.version || this.builtExpanded !== this.expanded) this.rebuild();
-    return super.render(width);
+    return [...super.render(width)];
   }
 }

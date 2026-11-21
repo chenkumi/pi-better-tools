@@ -52,7 +52,7 @@
 ## 驗證與交付
 
 - 先讀取欲修改模組的 `AGENTS.md`／README；其舊版依賴、獨立 lockfile 與 scripts 宣告是匯入時的歷史資訊，整合版本／命令以根 manifest 為準。未匯入的來源報告位置見 `docs/source-references.md`。
-- 專案只支援 Pi 1.5.2：開發基準與 production smoke 都只驗證 1.5.2，不再維護 1.5.1 或更早版本的相容驗證。模組匯入時的版本不是目前基準；不以 wildcard peers 宣稱其他版本相容。
+- 專案只支援 Pi 1.6.0：開發基準與 production smoke 都只驗證 1.6.0，不再維護 1.5.1 或更早版本的相容驗證。模組匯入時的版本不是目前基準；不以 wildcard peers 宣稱其他版本相容。
 - 驗證命令與分組以根 `package.json`、`scripts/run-checks.mjs` 為準；純文件修改核對事實、命令及引用路徑，不必執行程式測試。`npm run build` 目前為 no-op，不代表型別或 runtime 驗證。
 - 單元組（`npm test`）中 sqlite-tools、pty-terminal、subagents（含 Spinoff 測試）、shell-tools、monitor、remote、pi-runtime、shared、all-modules:test-tooling、note-tools、gpt-speed、pi-custom-panel、json-schema、pi-auto-compact、schedule-commands 以 `--test-concurrency=4` 並行（`scripts/run-checks.mjs` 的 `unitParallel`）：這些組的時間主要是每檔啟動載入，不是案例；整合組與重型組維持各自並行度，不為提速提高。新增單元檔需獨立（隔離 home／暫存目錄、不用固定 port）。
 - 測試依變更範圍分組，不要每次都跑全部：
