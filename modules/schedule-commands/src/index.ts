@@ -15,7 +15,7 @@ import { requestScheduledMonitor } from "../../../shared/src/background/index.ts
 import { scopeOf } from "./monitor-link.ts";
 import { registerManageCommand } from "./manage.ts";
 import { renderMarker } from "./message-renderer.ts";
-import { renderScheduleRules, SCHEDULE_RULES_SECTION } from "./prompt-rules.ts";
+import { renderScheduleRules, scheduleNamespace, SCHEDULE_RULES_SECTION } from "./prompt-rules.ts";
 import { orderRows, publishScheduleBriefs, SchedulePanel } from "./panel.ts";
 import { registerScheduleSettings } from "./settings-ui.ts";
 import { DEFAULT_SETTINGS, loadSettings, type ScheduleSettings } from "./settings.ts";
@@ -52,11 +52,11 @@ export default function (pi: ExtensionAPI): void {
 		clock: realClock, activeTools: () => pi.getActiveTools(),
 		monitor: () => { try { return current ? requestScheduledMonitor(scopeOf(current)) : undefined; } catch { return undefined; } },
 	};
-	// Declared directly (user-requested default loading), so their definitions go with every request; the host's
-	// allowlist and exclusions still decide whether each one is active.
-	pi.registerTool({ ...createPromptTool(deps), defaultActive: true } as never);
-	pi.registerTool({ ...createShellTool(deps), defaultActive: true } as never);
-	pi.registerTool({ ...createMonitorTool(deps), defaultActive: true } as never);
+	// Deferred: Pi Runtime activates tool_search and lists the namespace; without tool_search they are declared directly.
+	const deferred = { exposure: "deferred", namespace: scheduleNamespace };
+	pi.registerTool({ ...createPromptTool(deps), ...deferred } as never);
+	pi.registerTool({ ...createShellTool(deps), ...deferred } as never);
+	pi.registerTool({ ...createMonitorTool(deps), ...deferred } as never);
 
 	registerManageCommand(pi, { ...deps, rows: () => { const l = need(); return orderRows(l.store.read().store.jobs.filter(l.jobs.visible).map((job) => ({ job, running: l.engine.runningJobs.has(job.id) }))); } });
 	registerScheduleSettings(pi);

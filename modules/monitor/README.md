@@ -1,6 +1,6 @@
 # Monitor v1（原生）
 
-入口 `modules/monitor/src/index.ts`；僅支援 Pi **1.6.0**。三個工具均 `defaultActive:true`，一般 session 載入即預設啟用 `monitor_start`、`monitor_status`、`monitor_stop`，不需加入 `defaultTools`；explicit `--tools`、`--exclude-tools`、`--no-tools` 及手動停用仍由宿主控制，不強制改 loadout；載入不建立來源、timer 或模型請求。Explicit managed-child marker 下完全不註冊，直接 execute 同樣拒絕。不是 OS daemon、排程器、PTY 或 sandbox。
+入口 `modules/monitor/src/index.ts`；僅支援 Pi **1.6.0**。三個工具均 `exposure:"deferred"`、namespace `monitor`（由 Pi Runtime 統一處理：全新 session 啟用 `tool_search`、系統提示列出 namespace 與何時載入；無 `tool_search` 時直接宣告），不再 `defaultActive`；載入後可用 `monitor_start`、`monitor_status`、`monitor_stop`，不需加入 `defaultTools`；explicit `--tools`、`--exclude-tools`、`--no-tools` 及手動停用仍由宿主控制，不強制改 loadout；載入不建立來源、timer 或模型請求。Explicit managed-child marker 下完全不註冊，直接 execute 同樣拒絕。不是 OS daemon、排程器、PTY 或 sandbox。
 
 ## 使用
 
@@ -17,7 +17,7 @@
 - `system`：`metric:"cpu"|"ram"`、`thresholdPercent`（1–100 整數）、`sustainMs`（1000–1800000，**必須小於 `durationMs`**，含預設300000）、可選 `intervalMs`（1000–60000，預設1000）。用於效能檢驗：整機使用率**連續**達到（>=）閾值滿 `sustainMs` 才發**一則**事件，任何一次取樣低於閾值即歸零，回落後重新連續達標才會再發；一個 Monitor 只看一個指標（要看另一個就再啟動一個）。事件 snapshot 只含聚合數值（`metric`、`thresholdPercent`、`usagePercent`、`peakPercent`、`sustainedMs`、`sustainMs`、`intervalMs`、`scope:"whole host"`，RAM 另有 `basis`），不讀 process 名稱、命令列或每個 process 的數字。CPU 以 `os.cpus()` 兩次取樣的 busy／total 差值計算（建立時取基準，第一個間隔即有值）；RAM 為 `(totalmem−freemem)/totalmem`，`freemem` 是作業系統回報的可用記憶體，Linux 上不含可回收的快取，數值可能偏高。量到的是整台主機，**不是**被測程式或單一 job 的用量，機器上的其他負載也會計入；取樣間隔內的瞬間尖峰看不到。每次超標最多一則事件，因此不會碰到每分鐘60筆上限。回歸測試：`tests/system-source.test.ts`。
 - `file`：`path`、可選 `intervalMs`（1000–60000 整數，預設2000）。**只回報 metadata**（`path` 相對 canonical cwd、`change`＝`created`／`modified`／`deleted`、`exists`、`sizeBytes`、`mtimeMs`），絕不讀取或回傳檔案內容。目標必須在 owner canonical cwd 內：啟動時先做詞法檢查（絕對路徑若經連結的父目錄指回專案，例如 macOS `/tmp`→`/private/tmp` 或 junction，先將最近的既有父目錄 `realpath` 化再比較，最後一段不跟隨），再對目標（不存在則對最近的既有祖先）做 `realpath` 包含檢查，專案外路徑、離開專案的 symlink／junction、目錄或非一般檔案一律在接受前拒絕且不留 receipt；每次採樣重新檢查，執行中被換成指向專案外的連結則以 `path_outside_workspace` fault 終止，不外洩外部 stat。僅輪詢、不用 `fs.watch`（Windows／網路磁碟事件不可靠），起始狀態是 baseline 不產生事件，之後每個 tick 最多一個事件（簽章＝size＋mtime 整數毫秒＋inode，新舊比較），最小間隔1秒因此不會撞到每分鐘60筆的上限；同 tick 內的多次變更合併為一個事件。限制：mtime 粒度粗且大小不變的快速改寫可能漏報；事件順序保留、不 coalesce；停止只清 timer，不影響檔案。回歸測試：`tests/file-source.test.ts`。
 
-`shell_job` 另有 Shell 自動請求：背景 `bash`／`powershell` job 未設 `timeoutMs` 時，Shell 經 `monitor-capability.ts` 的 rendezvous 請 Monitor 啟動 `intervalMs:180000`、`wakeAgent:false`、`durationMs:1800000`、label `auto: shell job without timeoutMs` 的來源。僅在 `monitor_start` 已選取、owner／cwd 相符且仍有 active 名額時接受，否則靜默略過；與手動啟動同一授權、同一限制，不取消被觀察 job。
+`shell_job` 另有 Shell 自動請求：背景 `bash`／`powershell` job 未設 `timeoutMs` 時，Shell 經 `monitor-capability.ts` 的 rendezvous 請 Monitor 啟動 `intervalMs:180000`、`wakeAgent:false`、`durationMs:1800000`、label `auto: shell job without timeoutMs` 的來源。僅在 `monitor_start` 已註冊（deferred，不要求已載入；被宿主 allowlist／exclusions 排除則未註冊）、owner／cwd 相符且仍有 active 名額時接受，否則靜默略過；與手動啟動同一授權、同一限制，不取消被觀察 job。
 
 ### 命令授權範圍（設計決策）
 
@@ -88,4 +88,4 @@ Failure responses name the parameter, the rule and the fix (2026-10-24 guidance 
 
 ## 排程啟動器（供 Schedule Commands）
 
-Monitor 在 `session_start` 經 `shared/src/background/monitor-capability.ts` 發布「排程啟動器」（`validate`／`start`／`isActive`），`session_shutdown` 撤銷。只有 owner（session id 與 canonical cwd）相符的請求者取得；不共享 job handle。`start` 與 `monitor_start` 共用同一套檢查（`monitor_start` 已啟用、`command` 來源的 shell 工具已啟用、檔案路徑留在 canonical cwd 內、名額），差別只有：來源限 `command`／`file`／`system`（`websocket` 與 job 來源拒絕），且 `wakeAgent` 缺省為 `false`。被拒絕時回傳錯誤文字，不丟例外。
+Monitor 在 `session_start` 經 `shared/src/background/monitor-capability.ts` 發布「排程啟動器」（`validate`／`start`／`isActive`），`session_shutdown` 撤銷。只有 owner（session id 與 canonical cwd）相符的請求者取得；不共享 job handle。`start` 與 `monitor_start` 共用同一套檢查（`monitor_start` 已註冊（不要求已經 `tool_search` 載入）、`command` 來源的 shell 工具已啟用、檔案路徑留在 canonical cwd 內、名額），差別只有：來源限 `command`／`file`／`system`（`websocket` 與 job 來源拒絕），且 `wakeAgent` 缺省為 `false`。被拒絕時回傳錯誤文字，不丟例外。

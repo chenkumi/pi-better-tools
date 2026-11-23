@@ -108,7 +108,7 @@ async function fixture(options = {}) {
     await session.bindExtensions({ mode: 'json', onError: event => errors.push(event.error) });
     const monitor = loader.getExtensions().extensions.find(extension => extension.tools.has('monitor_start')); assert.ok(monitor);
     for (const name of ['monitor_start', 'monitor_status', 'monitor_stop']) {
-      assert.equal(monitor.tools.get(name).definition.defaultActive, true);
+      assert.equal(monitor.tools.get(name).definition.exposure, 'deferred');
       const expectedActive = !options.noTools && (!options.tools || options.tools.includes(name)) && !options.exclude?.includes(name);
       assert.equal(session.getActiveToolNames().includes(name), expectedActive, `Monitor selection fence: ${name}`);
       assert.equal(session.getCallableToolNames().includes(name), expectedActive, `Monitor callable fence: ${name}`);

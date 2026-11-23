@@ -2,7 +2,7 @@
 
 ## 指令與工具
 
-- `schedule_prompt`（排程 prompt／agent session）、`schedule_shell`（到點新增一個 Shell 背景 job）與 `schedule_monitor`（到點啟動 Monitor）預設載入（直接宣告，不需 `tool_search`）；兩者各自只管理自己種類的 job，共用同一儲存。Action：add／list／status／update／enable／disable／remove／cleanup／run_now。
+- `schedule_prompt`（排程 prompt／agent session）、`schedule_shell`（到點新增一個 Shell 背景 job）與 `schedule_monitor`（到點啟動 Monitor）為 deferred 工具（namespace `schedule`，先用 `tool_search` 載入）；兩者各自只管理自己種類的 job，共用同一儲存。Action：add／list／status／update／enable／disable／remove／cleanup／run_now。
 - `/schedule-commands` 開啟底部清單（Enter 詳細、`a` 新增 prompt、`m` 新增 shell、`t` 啟用／停用、`r` 立即執行、`x` 刪除、`c` 清理）；`/settings:schedule-commands` 編輯專案層設定。
 - 這是 session 內排程，不是 OS scheduler；Pi 關閉時不觸發，錯過的執行依 missed 政策（skip／run-once／run-all）在下次載入時處理。請勿使用已移除的 `/schedule`、`/schedule-prompt` 或 schedule_* 舊工具。
 

@@ -73,7 +73,7 @@ try {
   assert.equal(new Set(names).size, names.length, 'no duplicate tool registration');
   assert.equal(names.includes('goal'), false, 'removed Goal tool must not register');
   assert.equal(loaded.extensions.some(e => e.commands.has('goal')), false, 'removed Goal command must not register');
-  for (const name of monitorNames) { assert.ok(names.includes(name)); assert.equal(definitions.find(d => d.name === name).defaultActive, true); }
+  for (const name of monitorNames) { assert.ok(names.includes(name)); const definition = definitions.find(d => d.name === name); assert.equal(definition.exposure, 'deferred'); assert.equal(definition.namespace.name, 'monitor'); }
   for (const name of ptyNames) assert.ok(names.includes(name));
   assert.ok(definitions.find(d => d.name === 'pty_spawn').parameters.properties.target);
   const note = definitions.find(d => d.name === 'note');

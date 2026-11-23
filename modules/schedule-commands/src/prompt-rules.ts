@@ -1,5 +1,10 @@
 export const SCHEDULE_RULES_SECTION = "schedule_rules";
 
+export const scheduleNamespace = {
+	name: "schedule",
+	description: "To run a prompt, a shell command or a monitor later or on a recurring schedule (cron or interval, only while Pi is open), or to list, change or remove such schedules, use tool_search to find and load the schedule tools.",
+};
+
 /** Rules for the schedule tools; present only while one of them is active. */
 export function renderScheduleRules(active: ReadonlySet<string>): string | undefined {
 	const prompt = active.has("schedule_prompt"), shell = active.has("schedule_shell"), monitor = active.has("schedule_monitor");

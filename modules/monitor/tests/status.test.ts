@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import monitorExtension from '../src/index.ts';
 import { renderMonitorEvent } from '../src/renderers.ts';
 import type { MonitorRuntime } from '../src/core.ts';
-test('Monitor defaults active without starting sources or timers', () => {
+test('Monitor registers as deferred without starting sources or timers', () => {
   const tools: any[] = [];
   monitorExtension({ registerMessageRenderer(name: string, renderer: any) { assert.equal(name, 'monitor_event'); assert.equal(renderer, renderMonitorEvent); }, registerTool: (tool: any) => tools.push(tool), on() {}, sendMessage() { assert.fail('registration must not send'); } } as any, {
     clock: { now: () => 0, set() { assert.fail('registration must not start timers'); }, clear() {} },
   });
   assert.deepEqual(tools.map(tool => tool.name), ['monitor_start', 'monitor_status', 'monitor_stop']);
-  for (const tool of tools) assert.equal(tool.defaultActive, true);
+  for (const tool of tools) { assert.equal(tool.exposure, 'deferred'); assert.equal(tool.namespace.name, 'monitor'); assert.equal(tool.defaultActive, undefined); }
 });
 test('review S3: saved status definition rejects non-record direct execution before readonly list', async () => {
   const tools = new Map<string, any>(), handlers = new Map<string, any>(); let runtime!: MonitorRuntime, lists = 0;

@@ -12,7 +12,7 @@ async function host(prefix, { withToolSearch }) {
   const sdk = await import('@earendil-works/pi-coding-agent');
   const env = await isolate(prefix);
   const created = await createHost({ env, defaultTools: ['read'],
-    extensionPaths: ['pi-runtime', 'pty-terminal', 'schedule-commands'].map(name => entry(`modules/${name}/src/index.ts`)),
+    extensionPaths: ['pi-runtime', 'pty-terminal', 'schedule-commands', 'monitor'].map(name => entry(`modules/${name}/src/index.ts`)),
     extensionFactories: withToolSearch ? [sdk.createToolSearchExtension()] : [] });
   await created.bind();
   assert.deepEqual(created.loadErrors(), []);
@@ -29,19 +29,19 @@ test('default settings: tool_search is activated, deferred tools stay unloaded, 
   const { created, names, section, all } = await host('deferred', { withToolSearch: true });
   try {
     assert.ok(names().includes('tool_search'), 'tool_search is activated without defaultTools');
-    // schedule_prompt is declared directly (not deferred), so it is active without tool_search and is never listed in the hint.
-    assert.ok(names().includes('schedule_prompt'), 'a directly declared module tool is active from the start');
-    assert.ok(!names().includes('pty_spawn'));
+    assert.ok(!names().includes('pty_spawn') && !names().includes('schedule_prompt') && !names().includes('monitor_start'));
     const rules = (await all()).cross_tool_rules;
     assert.match(rules, /^Run independent tool calls/); assert.doesNotMatch(rules, /Delegate/, 'delegation rules belong to the subagent and spinoff modules');
     const hint = await section();
-    assert.match(hint, /- pty: .*\(query "pty"\)/); assert.doesNotMatch(hint, /- schedule:/, 'a directly declared tool has no deferred group');
+    assert.match(hint, /- pty: .*\(query "pty"\)/); assert.match(hint, /- schedule: To run .*\(query "schedule"\)/); assert.match(hint, /- monitor: To keep watching .*\(query "monitor"\)/);
     const [pty] = await created.callTools({ name: 'tool_search', arguments: { query: 'pty' } });
     assert.ok(!pty.isError, text(pty));
     assert.deepEqual(PTY.filter(n => names().includes(n)), PTY);
+    for (const query of ['schedule', 'monitor']) assert.ok(!(await created.callTools({ name: 'tool_search', arguments: { query } }))[0].isError);
+    assert.ok(['schedule_prompt', 'schedule_shell', 'schedule_monitor', 'monitor_start', 'monitor_status', 'monitor_stop'].every(n => names().includes(n)));
     assert.equal(await section(), undefined, 'hint disappears once every deferred group is loaded');
     await created.session.reload();
-    assert.ok(names().includes('schedule_prompt') && names().includes('pty_spawn'), 'active tools survive /reload');
+    assert.ok(names().includes('schedule_prompt') && names().includes('monitor_start') && names().includes('pty_spawn'), 'active tools survive /reload');
   } finally { stop(); await created.close(); }
 });
 

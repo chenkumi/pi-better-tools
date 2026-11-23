@@ -42,10 +42,10 @@ async function withDirs(fn: (cwd: string, agentDir: string) => Promise<void>) {
 	}
 }
 
-test("registers the three tools as default-active, with renderers, and the marker renderer", () => {
+test("registers the three tools as deferred in the schedule namespace, with renderers, and the marker renderer", () => {
 	const h = host();
 	assert.deepEqual([...h.tools.keys()], ["schedule_prompt", "schedule_shell", "schedule_monitor"]);
-	assert.ok([...h.tools.values()].every((tool) => tool.defaultActive === true && typeof tool.renderCall === "function" && typeof tool.renderResult === "function" && tool.exposure === undefined));
+	assert.ok([...h.tools.values()].every((tool) => tool.defaultActive === undefined && typeof tool.renderCall === "function" && typeof tool.renderResult === "function" && tool.exposure === "deferred" && tool.namespace.name === "schedule"));
 	assert.deepEqual(h.renderers, [MARKER_TYPE]);
 });
 

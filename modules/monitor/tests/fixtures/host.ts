@@ -55,7 +55,8 @@ async function fileBarrier(path: string) {
 }
 try {
   console.log(`[monitor-host] Testing ${mode}: default activation, explicit deactivation, real command, readonly jobs and child identity`);
-  for (const name of names) { assert.equal(definitions().find(t => t.name === name)?.defaultActive, true); assert.ok(session.getActiveToolNames().includes(name)); assert.ok(session.getCallableToolNames().includes(name)); }
+  session.setActiveToolsByName([...session.getActiveToolNames(), ...names]); // deferred: loaded here as tool_search would
+  for (const name of names) { assert.equal(definitions().find(t => t.name === name)?.exposure, 'deferred'); assert.ok(session.getActiveToolNames().includes(name)); assert.ok(session.getCallableToolNames().includes(name)); }
   session.setActiveToolsByName(session.getActiveToolNames().filter(name => !names.includes(name)));
   const definition = definitions().find(t => t.name === 'monitor_start')!;
   const inactive = await definition.execute('inactive', { source: { kind: 'command', tool: 'bash', command: 'MUST_NOT_RUN' } }, undefined, undefined, session.extensionRunner!.createToolContext('monitor-direct', undefined)); assert.equal(inactive.isError, true);

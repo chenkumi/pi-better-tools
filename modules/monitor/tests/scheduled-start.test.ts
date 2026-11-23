@@ -9,12 +9,12 @@ import type { Clock } from '../src/core.ts';
 
 const clock: Clock = { now: () => 0, set: () => 1, clear: () => {} };
 
-async function load(active: string[], id: string) {
+async function load(active: string[], id: string, registered: string[] = ['monitor_start']) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'monitor-sched-')));
   writeFileSync(join(root, 'a.txt'), 'x');
   const handlers = new Map<string, any>();
   const sent: any[] = [];
-  monitorExtension({ registerMessageRenderer() {}, registerTool() {}, on: (name: string, fn: any) => handlers.set(name, fn), getActiveTools: () => [...active], sendMessage: (m: any) => sent.push(m) } as any, { clock });
+  monitorExtension({ registerMessageRenderer() {}, registerTool() {}, on: (name: string, fn: any) => handlers.set(name, fn), getActiveTools: () => [...active], getAllTools: () => registered.map(name => ({ name })), sendMessage: (m: any) => sent.push(m) } as any, { clock });
   const ctx = { cwd: root, sessionManager: { getSessionId: () => id } };
   await handlers.get('session_start')({}, ctx);
   const scope = { sessionId: id, cwd: canonicalMonitorCwd(root) };
@@ -40,8 +40,13 @@ test('start works for a file source, defaults wakeAgent to false, and isActive f
   } finally { await m.done(); }
 });
 
+test('start works while the deferred monitor_start is registered but not yet loaded', async () => {
+  const m = await load([], 'sched-deferred');
+  try { assert.ok('monitorId' in m.starter.start({ source: { kind: 'file', path: 'a.txt' } })); } finally { await m.done(); }
+});
+
 test('refusals: monitor_start not enabled, shell tool not enabled, foreign sources, bad parameters', async () => {
-  const off = await load([], 'sched-off');
+  const off = await load([], 'sched-off', []);
   try {
     const result = off.starter.start({ source: { kind: 'file', path: 'a.txt' } });
     assert.match((result as { error: string }).error, /monitor_start is registered but not enabled/);

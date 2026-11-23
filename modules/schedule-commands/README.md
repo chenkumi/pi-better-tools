@@ -8,9 +8,9 @@
 
 | 項目 | 說明 |
 | --- | --- |
-| `schedule_prompt` | prompt job（送入目前對話）與 agent job（指定 `model`，獨立 in-process session）。`defaultActive: true`，直接宣告、不經 deferred。 |
-| `schedule_shell` | shell command job（`command`／`shell`／`timeoutMs`）；到點新增一個 Shell 背景 job。`defaultActive: true`。 |
-| `schedule_monitor` | monitor job：到點時請同一 session 的 Monitor 啟動一個監看（`start` 即 `monitor_start` 參數）。`defaultActive: true`。 |
+| `schedule_prompt` | prompt job（送入目前對話）與 agent job（指定 `model`，獨立 in-process session）。deferred（namespace `schedule`，經 `tool_search` 載入）。 |
+| `schedule_shell` | shell command job（`command`／`shell`／`timeoutMs`）；到點新增一個 Shell 背景 job。deferred（namespace `schedule`）。 |
+| `schedule_monitor` | monitor job：到點時請同一 session 的 Monitor 啟動一個監看（`start` 即 `monitor_start` 參數）。deferred（namespace `schedule`）。 |
 | `/schedule-commands` | 底部面板清單：↑↓／PgUp／PgDn、Enter 詳細、`a` 新增 prompt、`m` 新增 shell、`t` 啟用／停用、`r` 立即執行、`x` 刪除、`c` 清理。動作一律經上面三個工具（依 job 種類）的 `execute`，驗證與確認不另寫一份；新增只有 prompt（`a`）與 shell（`m`），monitor job 只能用 `schedule_monitor` 建立。 |
 | `/settings:schedule-commands` | 共用 settings-panel，寫入專案層設定檔，只在存檔時寫；設定於 session 開始時讀取，存檔後需 reload。 |
 
