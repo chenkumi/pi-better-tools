@@ -720,6 +720,17 @@ describe("editTextFile", () => {
     assert.equal(await readFile(path, "utf8"), "");
   });
 
+  it("reports likely encoding for cp950 files and refuses to overwrite them", async () => {
+    const path = join(directory, "big5.txt");
+    const bytes = Buffer.from([0xc1, 0x63, 0xc5, 0xe9, 0xa4, 0xa4, 0xa4, 0xe5]);
+    await writeFile(path, bytes);
+    await assert.rejects(
+      () => writeTextFile(path, "big5.txt", "new"),
+      (error: unknown) => error instanceof FileToolError && error.payload.code === "INVALID_ENCODING" && /Big5/.test(error.payload.message),
+    );
+    assert.deepEqual(await readFile(path), bytes);
+  });
+
   it("rejects malformed UTF-8 instead of rewriting replacement characters", async () => {
     const path = join(directory, "binary.txt");
     await writeFile(path, Buffer.from([0x66, 0x6f, 0x80, 0x6f]));

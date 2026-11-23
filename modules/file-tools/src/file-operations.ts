@@ -200,13 +200,39 @@ function assertEditDeadline(deadline: number, displayPath: string, editIndex?: n
   }
 }
 
+const LEGACY_ENCODINGS: ReadonlyArray<[label: string, name: string]> = [
+  ["big5", "Big5 (cp950)"],
+  ["gbk", "GBK (cp936)"],
+  ["shift_jis", "Shift_JIS (cp932)"],
+  ["euc-kr", "EUC-KR (cp949)"],
+  ["windows-1252", "Windows-1252"],
+];
+
+/** Names of the encodings the non-UTF-8 buffer could be: a BOM wins, otherwise every legacy decoder that accepts it. */
+export function detectEncodings(buffer: Buffer): string[] {
+  if (buffer[0] === 0xff && buffer[1] === 0xfe) return ["UTF-16 LE (BOM)"];
+  if (buffer[0] === 0xfe && buffer[1] === 0xff) return ["UTF-16 BE (BOM)"];
+  const candidates: string[] = [];
+  for (const [label, name] of LEGACY_ENCODINGS) {
+    try {
+      new TextDecoder(label, { fatal: true }).decode(buffer);
+      candidates.push(name);
+    } catch {
+      // not decodable as this encoding
+    }
+  }
+  return candidates;
+}
+
 export function decodeUtf8(buffer: Buffer, displayPath: string): string {
   try {
     return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(buffer);
   } catch {
-    throw new FileToolError("INVALID_ENCODING", "The file is not valid UTF-8 and cannot be safely processed as text.", {
+    const candidates = detectEncodings(buffer);
+    const detected = candidates.length > 0 ? ` Likely encoding: ${candidates.join(" / ")} (heuristic, several may fit).` : " No known text encoding fits; it may be binary.";
+    throw new FileToolError("INVALID_ENCODING", `The file is not valid UTF-8 and cannot be safely processed as text.${detected}`, {
       path: displayPath,
-      recovery: "The file is not valid UTF-8. Inspect it with shell (for example xxd <file> | head, or iconv -f <encoding> -t UTF-8 <file> > <new file>), then retry on UTF-8 content.",
+      recovery: "Do not read, write or edit this file with these tools. Inspect it with shell (for example xxd <file> | head), or convert a copy with iconv -f <encoding> -t UTF-8 <file> > <new file>, then retry on UTF-8 content.",
     });
   }
 }
@@ -1117,6 +1143,8 @@ export async function writeTextFile(
   try {
     const snapshot = await readMutationSnapshot(absolutePath, displayPath);
     verifyExpectedHash(snapshot, expectedHash, displayPath);
+    // Refuse to silently convert an existing non-UTF-8 file to UTF-8.
+    if (snapshot.exists && snapshot.buffer) decodeUtf8(snapshot.buffer, displayPath);
     assertValidUtf16(content, displayPath);
     assertInputSize(Buffer.byteLength(content, "utf8"), displayPath);
     const nextHash = sha256(content);

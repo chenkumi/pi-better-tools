@@ -6,7 +6,7 @@
 
 - `read/write/edit` 路徑：相對路徑（相對 cwd）、絕對路徑、開頭 `@`、家目錄展開、`file://` URL。Windows 另接受 `/C/...`、`/mnt/C/...`、`/cygdrive/C/...`；格式錯誤的 URL 會被拒絕。開頭 `@` 沿用 Pi 路徑慣例：字面檔案已存在時優先使用，否則剝除 `@`（父目錄存在亦同）。建立字面 `@types/foo.d.ts` 請用 `./@types/foo.d.ts` 或絕對路徑，避免建立到 `types/`；此慣例未改變。
 - `read/write/edit` schema 為 strict（不允許未宣告欄位）；`ls` 保留宿主 schema。選填欄位傳 `null` 等同省略；必填欄位仍拒絕 `null`。
-- `read/write/edit` 檔案上限 50 MiB；文字須為合法 UTF-8（否則 `INVALID_ENCODING`）。
+- `read/write/edit` 檔案上限 50 MiB；文字須為合法 UTF-8，否則 `INVALID_ENCODING`：`read`／`edit`／覆寫既有檔的 `write` 一律拒絕，訊息附內建 `TextDecoder` 試解得到的可能編碼（Big5／GBK／Shift_JIS／EUC-KR／Windows-1252 或 UTF-16 BOM；啟發式、可能多個，不引入偵測套件）。
 - 版本權杖：16 字元（SHA-256 前 64 bit，十六進位；`read`／`write`／`edit` 輸出皆是）。輸入以前綴比對，16、32、64 字元的權杖都接受（舊的 32 字元與完整 SHA-256 仍有效，不需版本標記），其他長度在 schema 層就被拒絕；內部快照與提交前檢查一律用完整 SHA-256。64 bit 只用於偵測過期編輯（意外，不是對抗），碰撞餘裕小於舊的 128 bit。產生與比對集中在 `shared/src/version-token/`，`note` 共用同一函式。
 - `read/write/edit` 對同一檔案的操作透過 Pi 的 file mutation queue 排序；搜尋／目錄工具沿用宿主唯讀行為，不提供多檔案快照一致性。
 - `read/write/edit` 錯誤以例外拋出（`isError: true`），內容為 `[FILE_TOOL_ERROR]` JSON；TUI 僅調整顯示，不改變模型可見內容。
